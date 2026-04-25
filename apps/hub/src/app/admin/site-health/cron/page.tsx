@@ -28,6 +28,7 @@ export default function CronJobsPage() {
   const [selectedJob, setSelectedJob] = useState<CronJob | null>(null)
   const [runs, setRuns] = useState<CronJobRun[]>([])
   const [runsLoading, setRunsLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     loadJobs()
@@ -96,6 +97,21 @@ export default function CronJobsPage() {
     })
   }
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredJobs = normalizedSearchQuery
+    ? jobs.filter((job) => {
+        const searchText = [
+          job.name,
+          job.endpoint,
+          job.schedule,
+          job.lastRun?.status,
+          job.enabled ? "enabled" : "disabled",
+        ].filter(Boolean).join(" ").toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : jobs
+
   return (
     <>
       <StickyHeader navLinks={getSiteHealthAdminTopNavLinks("cron")} />
@@ -106,6 +122,11 @@ export default function CronJobsPage() {
               { label: "Site Health", href: "/admin/site-health" },
               { label: "Cron Jobs" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search cron jobs",
+            }}
             actions={
               <Button variant="outline" onClick={loadJobs} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -123,13 +144,13 @@ export default function CronJobsPage() {
                 </Card>
               ))}
             </div>
-          ) : jobs.length === 0 ? (
+          ) : filteredJobs.length === 0 ? (
             <Card className="p-8 text-center text-muted-foreground">
-              No cron jobs configured
+              {normalizedSearchQuery ? "No cron jobs match your search." : "No cron jobs configured"}
             </Card>
           ) : (
             <div className="space-y-3">
-              {jobs.map(job => (
+              {filteredJobs.map(job => (
                 <Card key={job.id} className="p-5">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">

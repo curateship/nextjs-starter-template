@@ -22,6 +22,7 @@ export default function PlatformEmailsPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -48,6 +49,21 @@ export default function PlatformEmailsPage() {
     void loadPage()
   }, [loadPage])
 
+  const templates = dashboard?.templates ?? []
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredTemplates = normalizedSearchQuery
+    ? templates.filter((template) => {
+        const searchText = [
+          template.name,
+          template.description,
+          template.scope_label,
+          template.template_key,
+        ].join(" ").toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : templates
+
   if (!currentSite) {
     return (
       <AdminLayout>
@@ -63,6 +79,11 @@ export default function PlatformEmailsPage() {
         <div className="w-full pb-8">
           <DashboardSubheader
             items={[{ label: "Email Templates" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search email templates",
+            }}
           />
 
           {message && (
@@ -103,7 +124,13 @@ export default function PlatformEmailsPage() {
                   ))
                 )}
 
-                {!loading && dashboard?.templates.map((template) => (
+                {!loading && filteredTemplates.length === 0 && (
+                  <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                    {normalizedSearchQuery ? "No email templates match your search." : "No email templates found."}
+                  </div>
+                )}
+
+                {!loading && filteredTemplates.map((template) => (
                   <div key={template.template_key} className="px-6 py-4">
                     <div className="grid grid-cols-12 gap-4 items-center">
                       <div className="col-span-6 min-w-0">

@@ -39,6 +39,7 @@ type Period = (typeof PERIODS)[number]["id"]
 export default function ProductAnalyticsPage() {
   const { currentSite } = useSiteSwitcher()
   const [period, setPeriod] = useState<Period>("7d")
+  const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
 
   // Data state
@@ -126,9 +127,15 @@ export default function ProductAnalyticsPage() {
   }
 
   /* Sort products based on current sort state */
+  const filteredProducts = useMemo(() => {
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+    if (!normalizedSearchQuery) return products
+    return products.filter((product) => `${product.title} ${product.slug}`.toLowerCase().includes(normalizedSearchQuery))
+  }, [products, searchQuery])
+
   const sortedProducts = useMemo(() => {
-    if (!sortColumn) return products
-    return [...products].sort((a, b) => {
+    if (!sortColumn) return filteredProducts
+    return [...filteredProducts].sort((a, b) => {
       const dir = sortDirection === "asc" ? 1 : -1
       if (sortColumn === "title") return a.title.localeCompare(b.title) * dir
       if (sortColumn === "views") return (a.views - b.views) * dir
@@ -142,7 +149,7 @@ export default function ProductAnalyticsPage() {
       }
       return 0
     })
-  }, [products, sortColumn, sortDirection])
+  }, [filteredProducts, sortColumn, sortDirection])
 
   /* Loading skeleton for stat cards */
   const StatSkeleton = () => <div className="h-8 w-20 bg-muted rounded animate-pulse" />
@@ -157,6 +164,11 @@ export default function ProductAnalyticsPage() {
               { label: "Products", href: "/admin/products" },
               { label: "Analytics" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search products",
+            }}
             preActions={
               <span className="text-sm text-muted-foreground">
                 {period === "today" && new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}

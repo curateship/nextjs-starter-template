@@ -51,6 +51,7 @@ export default function EventsPage() {
   const [settingsEventId, setSettingsEventId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -256,6 +257,7 @@ export default function EventsPage() {
   }
 
   // Filter events based on status and privacy
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredEvents = events.filter(event => {
     // Status filter
     let statusMatch = true
@@ -265,8 +267,12 @@ export default function EventsPage() {
     // Privacy filter - only filter when "private" is selected
     let privacyMatch = true
     if (filterPrivacy === 'private') privacyMatch = isEventPrivate(event)
+
+    const categoryText = eventCategories[event.id]?.map(category => category.title).join(" ") ?? ""
+    const searchText = `${event.title} ${event.slug} ${event.description ?? ""} ${event.meta_description ?? ""} ${categoryText}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
     
-    return statusMatch && privacyMatch
+    return statusMatch && privacyMatch && searchMatch
   })
 
   const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
@@ -339,6 +345,11 @@ export default function EventsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Events" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search events",
+            }}
             filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setAllSelected(false); setCurrentPage(1) },

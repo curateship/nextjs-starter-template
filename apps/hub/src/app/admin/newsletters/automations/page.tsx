@@ -45,6 +45,7 @@ export default function EmailAutomationsPage() {
   const [automations, setAutomations] = useState<EmailAutomation[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Tracks if user selected all items across all pages
   const [allSelected, setAllSelected] = useState(false)
@@ -138,11 +139,17 @@ export default function EmailAutomationsPage() {
     setCreating(false)
   }
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filtered = automations.filter(a => {
-    if (filterStatus === 'active') return a.status === 'active'
-    if (filterStatus === 'paused') return a.status === 'paused'
-    if (filterStatus === 'draft') return a.status === 'draft'
-    return true
+    let statusMatch = true
+    if (filterStatus === 'active') statusMatch = a.status === 'active'
+    if (filterStatus === 'paused') statusMatch = a.status === 'paused'
+    if (filterStatus === 'draft') statusMatch = a.status === 'draft'
+
+    const searchText = `${a.name} ${a.status} ${a.trigger_type}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
+
+    return statusMatch && searchMatch
   })
 
   const toggleSort = (column: 'name' | 'trigger' | 'status' | 'steps' | 'enrolled') => {
@@ -222,6 +229,11 @@ export default function EmailAutomationsPage() {
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Automations" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search automations",
+            }}
             preActions={
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

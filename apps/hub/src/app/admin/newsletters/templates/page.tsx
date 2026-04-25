@@ -43,6 +43,7 @@ export default function TemplatesPage() {
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Tracks if user selected all items across all pages
   const [allSelected, setAllSelected] = useState(false)
@@ -139,12 +140,11 @@ export default function TemplatesPage() {
   }
 
   function toggleSelectAll() {
-    const deletable = templates.filter(t => !t.is_default)
-    if (selectedIds.size === deletable.length) {
+    if (selectedIds.size === filteredDeletableTemplates.length) {
       setSelectedIds(new Set())
       setAllSelected(false)
     } else {
-      setSelectedIds(new Set(deletable.map(t => t.id)))
+      setSelectedIds(new Set(filteredDeletableTemplates.map(t => t.id)))
     }
   }
 
@@ -189,7 +189,14 @@ export default function TemplatesPage() {
     return Object.keys(template.content_blocks).length
   }
 
-  const sortedTemplates = [...templates].sort((a, b) => {
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredTemplates = templates.filter((template) => {
+    if (!normalizedSearchQuery) return true
+    return template.name.toLowerCase().includes(normalizedSearchQuery)
+  })
+  const filteredDeletableTemplates = filteredTemplates.filter((template) => !template.is_default)
+
+  const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
@@ -222,6 +229,15 @@ export default function TemplatesPage() {
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Templates" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: (value) => {
+                setSearchQuery(value)
+                setSelectedIds(new Set())
+                setAllSelected(false)
+              },
+              placeholder: "Search templates",
+            }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
@@ -255,7 +271,7 @@ export default function TemplatesPage() {
               <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={templates.length > 0 && selectedIds.size === templates.length}
+                    checked={filteredDeletableTemplates.length > 0 && filteredDeletableTemplates.every((template) => selectedIds.has(template.id))}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all templates"
                   />
@@ -301,7 +317,7 @@ export default function TemplatesPage() {
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {templates.length > 0 && selectedIds.size === templates.length && total > templates.length && (
+            {!normalizedSearchQuery && templates.length > 0 && selectedIds.size === templates.length && total > templates.length && (
               <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
                 {allSelected ? (
                   <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
@@ -336,7 +352,7 @@ export default function TemplatesPage() {
                   <p className="text-red-600 mb-4">{error}</p>
                   <Button onClick={() => loadTemplates()} variant="outline" size="sm">Try Again</Button>
                 </div>
-              ) : templates.length === 0 ? (
+              ) : filteredTemplates.length === 0 ? (
                 <div className="p-8 text-center">
                   <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">

@@ -73,6 +73,7 @@ export default function SiteAuditPage({ params }: PageProps) {
   const [site, setSite] = useState<any>(null)
   const [auditData, setAuditData] = useState<any[]>([])
   const [score, setScore] = useState<any>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Settings form state
   const [seoDesc, setSeoDesc] = useState('')
@@ -145,9 +146,22 @@ export default function SiteAuditPage({ params }: PageProps) {
     }
   }
 
-  const criticalIssues = score?.issues?.filter((i: any) => i.severity === 'critical') || []
-  const warningIssues = score?.issues?.filter((i: any) => i.severity === 'warning') || []
-  const infoIssues = score?.issues?.filter((i: any) => i.severity === 'info') || []
+  const issues = score?.issues || []
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredIssues = normalizedSearchQuery
+    ? issues.filter((issue: any) => {
+        const searchText = [
+          issue.severity,
+          issue.message,
+          issue.fixAction,
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : issues
+  const criticalIssues = filteredIssues.filter((i: any) => i.severity === 'critical')
+  const warningIssues = filteredIssues.filter((i: any) => i.severity === 'warning')
+  const infoIssues = filteredIssues.filter((i: any) => i.severity === 'info')
 
   if (loading) {
     return (
@@ -190,6 +204,11 @@ export default function SiteAuditPage({ params }: PageProps) {
       <AdminLayout>
         <DashboardSubheader
           items={[{ label: 'Site Audit' }]}
+          search={{
+            value: searchQuery,
+            onValueChange: setSearchQuery,
+            placeholder: 'Search issues',
+          }}
           actions={
             <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings className="h-4 w-4 mr-2" />
@@ -286,8 +305,10 @@ export default function SiteAuditPage({ params }: PageProps) {
                   ))}
                 </div>
               )}
-              {(!score?.issues || score.issues.length === 0) && (
-                <p className="text-sm text-muted-foreground">No issues found.</p>
+              {filteredIssues.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {normalizedSearchQuery && issues.length > 0 ? 'No issues match your search.' : 'No issues found.'}
+                </p>
               )}
             </CardContent>
           </Card>

@@ -26,6 +26,7 @@ export default function InternalLinksPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [site, setSite] = useState<any>(null)
   const [linkAnalysis, setLinkAnalysis] = useState<any>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -44,6 +45,32 @@ export default function InternalLinksPage({ params }: PageProps) {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const orphanContent = linkAnalysis?.orphanContent || []
+  const brokenLinks = linkAnalysis?.brokenLinks || []
+  const filteredOrphanContent = normalizedSearchQuery
+    ? orphanContent.filter((item: any) => {
+        const searchText = [
+          item.type,
+          item.title,
+          item.slug,
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : orphanContent
+  const filteredBrokenLinks = normalizedSearchQuery
+    ? brokenLinks.filter((item: any) => {
+        const searchText = [
+          item.sourceType,
+          item.sourceTitle,
+          item.href,
+        ].filter(Boolean).join(' ').toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : brokenLinks
+
   return (
     <>
       <StickyHeader navLinks={getSiteAuditAdminTopNavLinks(siteId, "links")} />
@@ -53,6 +80,11 @@ export default function InternalLinksPage({ params }: PageProps) {
             { label: 'Site Audit', href: `/admin/sites/${siteId}/site-audit` },
             { label: 'Internal Links' },
           ]}
+          search={{
+            value: searchQuery,
+            onValueChange: setSearchQuery,
+            placeholder: 'Search links',
+          }}
         />
 
         {loading ? (
@@ -128,9 +160,9 @@ export default function InternalLinksPage({ params }: PageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {linkAnalysis?.orphanContent?.length > 0 ? (
+                {filteredOrphanContent.length > 0 ? (
                   <div className="space-y-2">
-                    {linkAnalysis.orphanContent.map((item: any, i: number) => (
+                    {filteredOrphanContent.map((item: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
                         <Badge variant="outline" className="text-xs capitalize">{item.type}</Badge>
                         <span className="font-medium">{item.title}</span>
@@ -142,8 +174,10 @@ export default function InternalLinksPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    No orphan pages found. All content has at least one incoming internal link.
+                    {!normalizedSearchQuery && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    {normalizedSearchQuery && orphanContent.length > 0
+                      ? 'No orphan content matches your search.'
+                      : 'No orphan pages found. All content has at least one incoming internal link.'}
                   </p>
                 )}
               </CardContent>
@@ -158,9 +192,9 @@ export default function InternalLinksPage({ params }: PageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {linkAnalysis?.brokenLinks?.length > 0 ? (
+                {filteredBrokenLinks.length > 0 ? (
                   <div className="space-y-2">
-                    {linkAnalysis.brokenLinks.map((item: any, i: number) => (
+                    {filteredBrokenLinks.map((item: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
                         <Badge variant="outline" className="text-xs capitalize">{item.sourceType}</Badge>
                         <span className="font-medium">{item.sourceTitle}</span>
@@ -171,8 +205,10 @@ export default function InternalLinksPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    No broken internal links found.
+                    {!normalizedSearchQuery && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    {normalizedSearchQuery && brokenLinks.length > 0
+                      ? 'No broken links match your search.'
+                      : 'No broken internal links found.'}
                   </p>
                 )}
               </CardContent>

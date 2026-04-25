@@ -40,6 +40,7 @@ export default function PlatformSenderEmailsPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [senders, setSenders] = useState<SenderRow[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
@@ -65,6 +66,20 @@ export default function PlatformSenderEmailsPage() {
     void loadPage()
   }, [loadPage])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredSenders = normalizedSearchQuery
+    ? senders.filter((sender) => {
+        const searchText = [
+          sender.name,
+          sender.email,
+          sender.provider,
+          sender.status,
+        ].join(" ").toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : senders
+
   if (!currentSite) {
     return (
       <AdminLayout>
@@ -80,6 +95,11 @@ export default function PlatformSenderEmailsPage() {
         <div className="w-full pb-8">
           <DashboardSubheader
             items={[{ label: "Email Accounts" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search email accounts",
+            }}
           />
 
           {message && (
@@ -110,7 +130,13 @@ export default function PlatformSenderEmailsPage() {
                 </div>
               )}
 
-              {!loading && senders.map((sender) => (
+              {!loading && filteredSenders.length === 0 && (
+                <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+                  {normalizedSearchQuery ? "No email accounts match your search." : "No email accounts found."}
+                </div>
+              )}
+
+              {!loading && filteredSenders.map((sender) => (
                 <div key={sender.email} className="px-6 py-4">
                   <div className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-6 min-w-0">

@@ -174,6 +174,7 @@ export default function SegmentsPage() {
   const [segments, setSegments] = useState<Segment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Tracks if user selected all items across all pages
   const [allSelected, setAllSelected] = useState(false)
@@ -326,11 +327,11 @@ export default function SegmentsPage() {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === segments.length) {
+    if (selectedIds.size === filteredSegments.length) {
       setSelectedIds(new Set())
       setAllSelected(false)
     } else {
-      setSelectedIds(new Set(segments.map(s => s.id)))
+      setSelectedIds(new Set(filteredSegments.map(s => s.id)))
     }
   }
 
@@ -370,7 +371,13 @@ export default function SegmentsPage() {
     return <ArrowDown className="h-3 w-3" />
   }
 
-  const sortedSegments = [...segments].sort((a, b) => {
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredSegments = segments.filter((segment) => {
+    if (!normalizedSearchQuery) return true
+    return `${segment.name} ${segment.description ?? ""} ${segment.segment_type}`.toLowerCase().includes(normalizedSearchQuery)
+  })
+
+  const sortedSegments = [...filteredSegments].sort((a, b) => {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
@@ -442,6 +449,11 @@ export default function SegmentsPage() {
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Segments" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search segments",
+            }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
@@ -474,7 +486,7 @@ export default function SegmentsPage() {
               <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={segments.length > 0 && selectedIds.size === segments.length}
+                    checked={filteredSegments.length > 0 && selectedIds.size === filteredSegments.length}
                     onCheckedChange={toggleSelectAll}
                     aria-label="Select all segments"
                   />
@@ -520,12 +532,12 @@ export default function SegmentsPage() {
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {segments.length > 0 && selectedIds.size === segments.length && total > segments.length && (
+            {filteredSegments.length > 0 && selectedIds.size === filteredSegments.length && total > filteredSegments.length && (
               <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
                 {allSelected ? (
                   <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
                 ) : (
-                  <span>{segments.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
+                  <span>{filteredSegments.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
                 )}
               </div>
             )}
@@ -559,7 +571,7 @@ export default function SegmentsPage() {
                   <p className="text-red-600 mb-4">{error}</p>
                   <Button onClick={() => loadSegments()} variant="outline" size="sm">Try Again</Button>
                 </div>
-              ) : segments.length === 0 ? (
+              ) : filteredSegments.length === 0 ? (
                 <div className="p-8 text-center">
                   <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">

@@ -45,6 +45,7 @@ export default function DirectoryTemplatesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 50
   const [total, setTotal] = useState(0)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const [sortColumn, setSortColumn] = useState<'name' | 'blocks' | 'modified' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
@@ -179,7 +180,12 @@ export default function DirectoryTemplatesPage() {
     return parseDirectoryBlocksFromJson(template.content_blocks || {}).length
   }
 
-  const sortedTemplates = [...templates].sort((a, b) => {
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredTemplates = normalizedSearchQuery
+    ? templates.filter((template) => template.name.toLowerCase().includes(normalizedSearchQuery))
+    : templates
+
+  const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
@@ -193,8 +199,8 @@ export default function DirectoryTemplatesPage() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
 
-  const deletableTemplates = templates.filter((template) => !template.is_default)
-  const selectableTotal = Math.max(0, total - (total > 0 ? 1 : 0))
+  const deletableTemplates = filteredTemplates.filter((template) => !template.is_default)
+  const selectableTotal = normalizedSearchQuery ? deletableTemplates.length : Math.max(0, total - (total > 0 ? 1 : 0))
 
   async function handleSetDefault(templateId: string) {
     const { error: defaultError } = await setDefaultDirectoryTemplate(templateId)
@@ -220,6 +226,15 @@ export default function DirectoryTemplatesPage() {
               { label: "Directory", href: "/admin/directories" },
               { label: "Templates" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: (value) => {
+                setSearchQuery(value)
+                setSelectedIds(new Set())
+                setAllSelected(false)
+              },
+              placeholder: "Search templates",
+            }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
@@ -333,11 +348,11 @@ export default function DirectoryTemplatesPage() {
                   <p className="text-red-600 mb-4">{error}</p>
                   <Button onClick={() => loadTemplates()} variant="outline" size="sm">Try Again</Button>
                 </div>
-              ) : templates.length === 0 ? (
+              ) : filteredTemplates.length === 0 ? (
                 <div className="p-8 text-center">
                   <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
-                    No templates yet. Create one to save reusable block layouts.
+                    {normalizedSearchQuery ? "No templates match your search." : "No templates yet. Create one to save reusable block layouts."}
                   </p>
                   <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }} variant="outline">
                     Create Template

@@ -28,6 +28,7 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
   const [pendingDeleteUser, setPendingDeleteUser] = useState<UserListItem | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
   async function loadUsers() {
     setLoading(true)
@@ -116,6 +117,12 @@ export default function UsersPage() {
     setDeletingUserId(null)
     await loadUsers()
   }
+
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredUsers = users.filter((user) => {
+    if (!normalizedSearchQuery) return true
+    return `${user.display_name ?? ""} ${user.email} ${getRoleLabel(user.role)}`.toLowerCase().includes(normalizedSearchQuery)
+  })
   
   return (
     <>
@@ -125,6 +132,11 @@ export default function UsersPage() {
         {/* Breadcrumb navigation + action buttons */}
         <DashboardSubheader
           items={[{ label: "Users" }]}
+          search={{
+            value: searchQuery,
+            onValueChange: setSearchQuery,
+            placeholder: "Search users",
+          }}
           filterMenu={{
             value: "all",
             onValueChange: () => {},
@@ -156,12 +168,12 @@ export default function UsersPage() {
               <div className="p-6 text-center text-red-500">
                 <p>Error loading users: {error}</p>
               </div>
-            ) : users.length === 0 ? (
+            ) : filteredUsers.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground">
                 <p>No users found</p>
               </div>
             ) : (
-              users.map((user) => (
+              filteredUsers.map((user) => (
                 <div key={user.id} className="p-6 flex items-center justify-between gap-4">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">

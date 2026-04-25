@@ -118,6 +118,7 @@ function OrdersContent() {
 
   // Product filter — "all" means no filter
   const [selectedProduct, setSelectedProduct] = useState<string>("all")
+  const [searchQuery, setSearchQuery] = useState("")
 
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
@@ -169,6 +170,8 @@ function OrdersContent() {
 
   const filteredOrders = useMemo(() => {
     let result = orders
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+
     // Filter by order type tab
     if (activeTab !== "all") {
       result = result.filter((o) => o.order_type === activeTab)
@@ -177,8 +180,14 @@ function OrdersContent() {
     if (selectedProduct !== "all") {
       result = result.filter((o) => o.product_id === selectedProduct)
     }
+    if (normalizedSearchQuery) {
+      result = result.filter((o) => {
+        const productName = productMap[o.product_id] || ""
+        return `${o.customer_email} ${productName} ${o.order_type} ${o.payment_status ?? ""} ${o.amount_total ?? ""}`.toLowerCase().includes(normalizedSearchQuery)
+      })
+    }
     return result
-  }, [orders, activeTab, selectedProduct])
+  }, [orders, activeTab, selectedProduct, searchQuery, productMap])
 
   const tabCounts = useMemo(
     () => ({
@@ -304,6 +313,11 @@ function OrdersContent() {
               { label: "Products", href: "/admin/products" },
               { label: "Orders" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search orders",
+            }}
             filterMenu={{
               value: activeTab,
               onValueChange: (v) => {

@@ -49,6 +49,7 @@ export default function ThemesPage() {
   const [applyDialog, setApplyDialog] = useState<{ open: boolean; templateId: string; templateName: string }>({
     open: false, templateId: "", templateName: "",
   })
+  const [searchQuery, setSearchQuery] = useState("")
 
   const loadTemplates = useCallback(async () => {
     try {
@@ -141,6 +142,18 @@ export default function ThemesPage() {
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredTemplates = normalizedSearchQuery
+    ? templates.filter((template) => {
+        const searchText = [
+          template.name,
+          template.settings?.description,
+        ].filter(Boolean).join(" ").toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : templates
+
   return (
     <>
       <StickyHeader navLinks={getSitesAdminTopNavLinks("themes")} />
@@ -148,6 +161,11 @@ export default function ThemesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Themes" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search themes",
+            }}
             actions={
               <Button onClick={() => { setCreateName(""); setCreateDialogOpen(true) }}>
                 <Plus className="h-4 w-4" />
@@ -168,7 +186,7 @@ export default function ThemesPage() {
                 <div className="h-4 w-24 animate-pulse rounded bg-muted" />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {templates.length} theme{templates.length !== 1 ? "s" : ""} found
+                  {filteredTemplates.length} theme{filteredTemplates.length !== 1 ? "s" : ""} found
                 </p>
               )}
             </div>
@@ -202,16 +220,16 @@ export default function ThemesPage() {
                     </div>
                   ))}
                 </div>
-              ) : templates.length === 0 ? (
+              ) : filteredTemplates.length === 0 ? (
                 <div className="p-8 text-center">
                   <Paintbrush className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                  <p className="mb-1 text-muted-foreground">No themes yet</p>
+                  <p className="mb-1 text-muted-foreground">{normalizedSearchQuery ? "No themes match your search" : "No themes yet"}</p>
                   <p className="text-sm text-muted-foreground">
-                    Click &ldquo;Create Theme&rdquo; to start building a reusable template.
+                    {normalizedSearchQuery ? "Try a different search term." : 'Click "Create Theme" to start building a reusable template.'}
                   </p>
                 </div>
               ) : (
-                templates.map((template) => (
+                filteredTemplates.map((template) => (
                   <div key={template.id} className="p-6">
                     <div className="grid grid-cols-5 items-center gap-4">
                       <div className="col-span-2">

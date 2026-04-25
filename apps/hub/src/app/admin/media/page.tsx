@@ -33,6 +33,7 @@ export default function ImagesPage() {
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [editingImage, setEditingImage] = useState<MediaData | null>(null)
   const [editAltText, setEditAltText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -221,7 +222,7 @@ export default function ImagesPage() {
   }
 
   const handleToggleSelectAll = () => {
-    const allPageIds = images.map(media => media.id)
+    const allPageIds = filteredImages.map(media => media.id)
     const allPageSelected_ = allPageIds.every(id => selectedIds.has(id))
 
     if (allPageSelected_) {
@@ -305,9 +306,14 @@ export default function ImagesPage() {
 
   // Get current images from paginated data
   const images = paginatedData?.data || []
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredImages = images.filter((image) => {
+    if (!normalizedSearchQuery) return true
+    return `${image.original_name} ${image.filename} ${image.alt_text ?? ""} ${image.file_type}`.toLowerCase().includes(normalizedSearchQuery)
+  })
 
   // Check if all items on current page are selected
-  const allPageSelected = images.length > 0 && images.every(media => selectedIds.has(media.id))
+  const allPageSelected = filteredImages.length > 0 && filteredImages.every(media => selectedIds.has(media.id))
 
   const toggleSort = (column: 'name' | 'type' | 'size' | 'added') => {
     if (sortColumn === column) {
@@ -329,7 +335,7 @@ export default function ImagesPage() {
     return <ArrowDown className="h-3 w-3" />
   }
 
-  const sortedImages = [...images].sort((a, b) => {
+  const sortedImages = [...filteredImages].sort((a, b) => {
     if (!sortColumn) return 0
     const dir = sortDirection === 'asc' ? 1 : -1
     if (sortColumn === 'name') return a.original_name.localeCompare(b.original_name) * dir
@@ -365,6 +371,11 @@ export default function ImagesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Media" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search media",
+            }}
             filterMenu={{
               value: filterType,
               onValueChange: (value) => handleFilterChange(value as 'all' | 'image' | 'video'),

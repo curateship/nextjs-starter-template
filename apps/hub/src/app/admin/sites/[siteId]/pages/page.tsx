@@ -59,6 +59,7 @@ export default function SitePagesPage({ params }: PageProps) {
   const [duplicatingPageId, setDuplicatingPageId] = useState<string | null>(null)
   const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
@@ -279,10 +280,16 @@ export default function SitePagesPage({ params }: PageProps) {
   }
 
   // Filter pages based on status
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredPages = pages.filter(page => {
-    if (filterStatus === 'published') return page.is_published
-    if (filterStatus === 'draft') return !page.is_published
-    return true // 'all'
+    let statusMatch = true
+    if (filterStatus === 'published') statusMatch = page.is_published
+    if (filterStatus === 'draft') statusMatch = !page.is_published
+
+    const searchText = `${page.title} ${page.slug} ${page.meta_description ?? ""}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
+
+    return statusMatch && searchMatch
   })
 
   const toggleSort = (column: 'title' | 'status' | 'modified') => {
@@ -343,6 +350,11 @@ export default function SitePagesPage({ params }: PageProps) {
         <div className="w-full">
         <DashboardSubheader
           items={[{ label: "Pages" }]}
+          search={{
+            value: searchQuery,
+            onValueChange: setSearchQuery,
+            placeholder: "Search pages",
+          }}
           filterMenu={{
             value: filterStatus,
             onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },

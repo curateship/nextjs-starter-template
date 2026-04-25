@@ -38,7 +38,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft, CalendarIcon, Search } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, Mail, Filter, Zap, FileText, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils/tailwind"
@@ -866,6 +866,16 @@ export default function ContactsPage() {
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Contacts" },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: (value) => {
+                setSearchQuery(value)
+                setCurrentPage(1)
+                setSelectedIds(new Set())
+                setAllSelected(false)
+              },
+              placeholder: "Search contacts",
+            }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
@@ -917,35 +927,6 @@ export default function ContactsPage() {
                     <p className="text-green-800 text-sm">{successMessage}</p>
                   </div>
                 )}
-                <div className="relative w-[220px] max-w-[45vw] sm:w-[280px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => {
-                      setSearchQuery(event.target.value)
-                      setCurrentPage(1)
-                      setSelectedIds(new Set())
-                      setAllSelected(false)
-                    }}
-                    placeholder="Search contacts..."
-                    className="h-9 pl-9 pr-9"
-                  />
-                  {searchQuery.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery("")
-                        setCurrentPage(1)
-                        setSelectedIds(new Set())
-                        setAllSelected(false)
-                      }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      aria-label="Clear search"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
                 <Button
                   variant="outline"
                   className="relative"

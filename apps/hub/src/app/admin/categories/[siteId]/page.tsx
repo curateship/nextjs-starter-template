@@ -39,6 +39,7 @@ export default function CategoriesPage({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterLevel, setFilterLevel] = useState<string>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
   // Tracks if user selected all items across all pages
   const [allSelected, setAllSelected] = useState(false)
@@ -192,14 +193,18 @@ export default function CategoriesPage({
   const depthLevels = [...new Set(categories.map(getDepth))].sort((a, b) => a - b)
 
   // Filter categories
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredCategories = categories.filter(category => {
     let statusMatch = true
     if (filterStatus === 'published') statusMatch = category.is_published
     if (filterStatus === 'draft') statusMatch = !category.is_published
 
     const levelMatch = filterLevel === 'all' || getDepth(category) === Number(filterLevel)
+    const parentTitle = categories.find(c => c.id === category.parent_id)?.title ?? ""
+    const searchText = `${category.title} ${category.slug} ${category.description ?? ""} ${category.meta_description ?? ""} ${parentTitle}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
 
-    return statusMatch && levelMatch
+    return statusMatch && levelMatch && searchMatch
   })
 
   const toggleSort = (column: 'title' | 'parent' | 'status' | 'assigned' | 'modified') => {
@@ -254,6 +259,11 @@ export default function CategoriesPage({
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Categories" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search categories",
+            }}
             filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) },

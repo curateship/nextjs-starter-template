@@ -67,12 +67,17 @@ function getStatusBadge(status: WorkflowStatus) {
 
 export default function AutomationsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | WorkflowStatus>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'lastRun' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredWorkflows = mockWorkflows.filter(w => {
-    if (filterStatus === 'all') return true
-    return w.status === filterStatus
+    const statusMatch = filterStatus === 'all' || w.status === filterStatus
+    const searchText = `${w.name} ${w.description} ${w.trigger} ${w.status}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
+
+    return statusMatch && searchMatch
   })
 
   const toggleSort = (column: 'name' | 'trigger' | 'status' | 'lastRun') => {
@@ -125,6 +130,11 @@ export default function AutomationsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Automations" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search automations",
+            }}
             filterMenu={{
               value: filterStatus,
               onValueChange: (value) => setFilterStatus(value as 'all' | WorkflowStatus),

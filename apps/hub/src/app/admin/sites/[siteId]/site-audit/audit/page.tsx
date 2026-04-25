@@ -36,6 +36,7 @@ export default function ContentAuditPage({ params }: PageProps) {
   const [auditData, setAuditData] = useState<any[]>([])
   const [auditFilter, setAuditFilter] = useState('all')
   const [issueFilter, setIssueFilter] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -54,10 +55,21 @@ export default function ContentAuditPage({ params }: PageProps) {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredContent = auditData.filter(item => {
     if (auditFilter !== 'all' && item.type !== auditFilter) return false
     if (issueFilter === 'missing_meta' && item.meta_description) return false
     if (issueFilter === 'missing_image' && item.featured_image) return false
+    if (normalizedSearchQuery) {
+      const searchText = [
+        item.title,
+        item.slug,
+        item.type,
+        item.meta_description,
+      ].filter(Boolean).join(' ').toLowerCase()
+
+      if (!searchText.includes(normalizedSearchQuery)) return false
+    }
     return true
   })
 
@@ -79,6 +91,11 @@ export default function ContentAuditPage({ params }: PageProps) {
             { label: 'Site Audit', href: `/admin/sites/${siteId}/site-audit` },
             { label: 'Content Audit' },
           ]}
+          search={{
+            value: searchQuery,
+            onValueChange: setSearchQuery,
+            placeholder: 'Search content',
+          }}
         />
 
         {loading ? (
@@ -194,7 +211,7 @@ export default function ContentAuditPage({ params }: PageProps) {
                       {filteredContent.length === 0 && (
                         <tr>
                           <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                            No content matches the current filters.
+                            {normalizedSearchQuery ? 'No content matches the current search.' : 'No content matches the current filters.'}
                           </td>
                         </tr>
                       )}

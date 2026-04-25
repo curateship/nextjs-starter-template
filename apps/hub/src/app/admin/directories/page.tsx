@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Search, Settings, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2, X } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogPortal, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import {
   deleteDirectoryAction,
   deleteDirectoriesAction,
@@ -352,6 +351,11 @@ export default function DirectoriesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Directory" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search directories",
+            }}
             filterMenu={{
               value: filterStatus,
               onValueChange: (value) => setFilterStatus(value as 'all' | 'published' | 'draft'),
@@ -363,15 +367,6 @@ export default function DirectoriesPage() {
             }}
             preActions={
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search directories"
-                    className="h-9 w-56 pl-8"
-                  />
-                </div>
                 {sortBy !== 'default' && (
                   <Button variant="outline" size="sm" onClick={resetSort}>
                     Clear Sort

@@ -29,6 +29,7 @@ export default function DirectoryCustomBlocksPage() {
   const [templates, setTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
   const [error, setError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     const siteId = currentSite?.id
@@ -80,6 +81,19 @@ export default function DirectoryCustomBlocksPage() {
     setDeletingId(null)
   }
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredTemplates = normalizedSearchQuery
+    ? templates.filter((template) => {
+        const searchText = [
+          template.name,
+          template.slug,
+          LAYOUT_LABELS[template.layout],
+        ].join(" ").toLowerCase()
+
+        return searchText.includes(normalizedSearchQuery)
+      })
+    : templates
+
   return (
     <>
       <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
@@ -90,6 +104,11 @@ export default function DirectoryCustomBlocksPage() {
               { label: 'Directory', href: '/admin/directories' },
               { label: 'Custom Blocks' },
             ]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search custom blocks",
+            }}
             actions={(
               <Button onClick={() => router.push('/admin/directories/custom-blocks/new')}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -132,12 +151,12 @@ export default function DirectoryCustomBlocksPage() {
                     </div>
                   ))}
                 </div>
-              ) : templates.length === 0 ? (
+              ) : filteredTemplates.length === 0 ? (
                 <div className="p-12 text-center text-sm text-muted-foreground">
-                  Create your first custom block to make it available in the directory builder.
+                  {normalizedSearchQuery ? "No custom blocks match your search." : "Create your first custom block to make it available in the directory builder."}
                 </div>
               ) : (
-                templates.map(template => (
+                filteredTemplates.map(template => (
                   <div key={template.id} className="p-6">
                     <div className="grid grid-cols-7 gap-4 items-center">
                       <div className="col-span-2 min-w-0 space-y-1">

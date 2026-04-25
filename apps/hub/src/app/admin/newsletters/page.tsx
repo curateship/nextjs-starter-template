@@ -136,6 +136,7 @@ export default function NewslettersPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [settingsNewsletterId, setSettingsNewsletterId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Tracks if user selected all items across all pages
@@ -300,10 +301,16 @@ export default function NewslettersPage() {
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredNewsletters = newsletters.filter((n) => {
-    if (filterStatus === 'sent') return n.status === 'sent' || n.status === 'sending' || n.status === 'paused'
-    if (filterStatus === 'draft') return n.status === 'draft' || n.status === 'scheduled'
-    return true
+    let statusMatch = true
+    if (filterStatus === 'sent') statusMatch = n.status === 'sent' || n.status === 'sending' || n.status === 'paused'
+    if (filterStatus === 'draft') statusMatch = n.status === 'draft' || n.status === 'scheduled'
+
+    const searchText = `${n.subject} ${n.from_name ?? ""} ${n.status}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
+
+    return statusMatch && searchMatch
   })
 
   const toggleSort = (column: 'name' | 'opens' | 'clicks' | 'modified') => {
@@ -373,6 +380,11 @@ export default function NewslettersPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Newsletters" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search newsletters",
+            }}
             preActions={
               <>
                 <DropdownMenu>

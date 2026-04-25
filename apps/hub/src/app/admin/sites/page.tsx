@@ -59,6 +59,7 @@ export default function SitesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterStatus>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [deleting, setDeleting] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   // Duplicate flow keeps its own state so cloning cannot interfere with delete/edit actions.
@@ -173,9 +174,13 @@ export default function SitesPage() {
   }
 
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSites = sites.filter(site => {
-    if (filter === 'all') return true
-    return site.status === filter
+    const statusMatch = filter === 'all' || site.status === filter
+    const searchText = `${site.name} ${site.subdomain} ${site.status}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
+
+    return statusMatch && searchMatch
   })
 
   const toggleSort = (column: 'name' | 'created' | 'status') => {
@@ -242,6 +247,11 @@ export default function SitesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Sites" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search sites",
+            }}
             filterMenu={{
               value: filter,
               onValueChange: (value) => setFilter(value as FilterStatus),

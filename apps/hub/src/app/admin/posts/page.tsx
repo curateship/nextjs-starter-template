@@ -55,6 +55,7 @@ export default function PostsPage() {
   const [duplicatingPostId, setDuplicatingPostId] = useState<string | null>(null)
   const [settingsPostId, setSettingsPostId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [postCategories, setPostCategories] = useState<Record<string, CategoryInfo[]>>({})
 
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
@@ -260,10 +261,17 @@ export default function PostsPage() {
   }
 
   // Filter posts based on status
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredPosts = posts.filter(post => {
-    if (filterStatus === 'published') return post.is_published
-    if (filterStatus === 'draft') return !post.is_published
-    return true // 'all'
+    let statusMatch = true
+    if (filterStatus === 'published') statusMatch = post.is_published
+    if (filterStatus === 'draft') statusMatch = !post.is_published
+
+    const categoryText = postCategories[post.id]?.map(category => category.title).join(" ") ?? ""
+    const searchText = `${post.title} ${post.slug} ${post.excerpt ?? ""} ${post.meta_description ?? ""} ${categoryText}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
+
+    return statusMatch && searchMatch
   })
 
   const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
@@ -315,6 +323,11 @@ export default function PostsPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Posts" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search posts",
+            }}
             filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setAllSelected(false); setCurrentPage(1) },

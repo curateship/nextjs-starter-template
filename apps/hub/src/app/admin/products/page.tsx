@@ -54,6 +54,7 @@ export default function ProductsPage() {
   const [settingsProductId, setSettingsProductId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [productCategories, setProductCategories] = useState<Record<string, CategoryInfo[]>>({})
 
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
@@ -283,6 +284,7 @@ export default function ProductsPage() {
   }
 
   // Filter products based on status and privacy
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredProducts = products.filter(product => {
     // Status filter
     let statusMatch = true
@@ -292,8 +294,12 @@ export default function ProductsPage() {
     // Privacy filter - only filter when "private" is selected
     let privacyMatch = true
     if (filterPrivacy === 'private') privacyMatch = isProductPrivate(product)
+
+    const categoryText = productCategories[product.id]?.map(category => category.title).join(" ") ?? ""
+    const searchText = `${product.title} ${product.slug} ${product.description ?? ""} ${categoryText}`.toLowerCase()
+    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
     
-    return statusMatch && privacyMatch
+    return statusMatch && privacyMatch && searchMatch
   })
 
   const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
@@ -356,6 +362,11 @@ export default function ProductsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Products" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: setSearchQuery,
+              placeholder: "Search products",
+            }}
             filterMenu={{
               value: filterStatus,
               onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setAllSelected(false); setCurrentPage(1) },

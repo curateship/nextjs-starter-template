@@ -2,7 +2,7 @@
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
-import { ArrowDown, ArrowUp, CalendarIcon, ChevronsUpDown, Plus, Search, Settings, SlidersHorizontal, Trash2, Users, X } from "lucide-react"
+import { ArrowDown, ArrowUp, CalendarIcon, ChevronsUpDown, Plus, Settings, SlidersHorizontal, Trash2, Users, X } from "lucide-react"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -592,6 +592,14 @@ export default function SiteUsersPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Site Users" }]}
+            search={{
+              value: searchQuery,
+              onValueChange: (value) => {
+                setSearchQuery(value)
+                resetSelectionForCurrentView()
+              },
+              placeholder: "Search users",
+            }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
@@ -606,31 +614,6 @@ export default function SiteUsersPage() {
                     </span>
                   </Button>
                 )}
-                <div className="relative w-[220px] max-w-[45vw] sm:w-[280px]">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={searchQuery}
-                    onChange={(event) => {
-                      setSearchQuery(event.target.value)
-                      resetSelectionForCurrentView()
-                    }}
-                    placeholder="Search users..."
-                    className="h-9 pl-9 pr-9"
-                  />
-                  {searchQuery.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery("")
-                        resetSelectionForCurrentView()
-                      }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      aria-label="Clear search"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
                 <Button variant="outline" className="relative" onClick={openFilterModal}>
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Filter</span>

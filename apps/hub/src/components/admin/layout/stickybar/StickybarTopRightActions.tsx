@@ -1,8 +1,9 @@
 "use client"
 
 import { createContext, useContext, useState } from "react"
-import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown } from "lucide-react"
+import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -28,6 +29,12 @@ export interface StickybarFilterMenuConfig {
   value: string
   onValueChange: (value: string) => void
   items: StickybarFilterMenuItem[]
+}
+
+export interface StickybarSearchConfig {
+  value: string
+  onValueChange: (value: string) => void
+  placeholder?: string
 }
 
 export function DashboardHeaderActionsSlotProvider({
@@ -77,6 +84,7 @@ function SaveStatusBadge({ message }: SaveStatusBadgeProps) {
 
 interface StickybarTopRightActionsProps {
   className?: string
+  search?: StickybarSearchConfig
   preActions?: React.ReactNode
   filterMenu?: StickybarFilterMenuConfig
   rightActions?: React.ReactNode
@@ -102,6 +110,7 @@ interface StickybarTopRightActionsProps {
 
 export function StickybarTopRightActions({
   className,
+  search,
   preActions,
   filterMenu,
   rightActions,
@@ -130,6 +139,18 @@ export function StickybarTopRightActions({
   return (
     <>
       <div className={cn("flex items-center gap-2", className)}>
+        {search ? (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search.value}
+              onChange={(event) => search.onValueChange(event.target.value)}
+              placeholder={search.placeholder ?? "Search"}
+              className="h-9 w-44 pl-8 sm:w-56"
+            />
+          </div>
+        ) : null}
+
         {preActions}
 
         {filterMenu && activeItem ? (
