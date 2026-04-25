@@ -79,7 +79,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
           data-block-type={block.type}
           className={cn(
             isStickyBlock(block) && "lg:sticky lg:self-start",
-            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-10" : "lg:top-0")
+            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-16" : "lg:top-0")
           )}
         >
           <DirectoryCoreBlock

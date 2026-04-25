@@ -77,9 +77,9 @@ function SocialLink({ link }: { link: DirectoryCoreSocialLink }) {
       target={isExternalHref(href) ? "_blank" : undefined}
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
       aria-label={label}
-      className="inline-flex h-8 w-8 items-center justify-center text-primary transition-colors hover:text-primary/80"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-primary transition-colors hover:bg-muted hover:text-primary/80"
     >
-      <Icon className="h-6 w-6" />
+      <Icon className="h-7 w-7" />
     </a>
   )
 }
@@ -97,7 +97,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
       href={href}
       target={isExternalHref(href) ? "_blank" : undefined}
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
-      className="flex min-h-14 items-center gap-3 border-t px-5 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+      className="flex min-h-14 items-center gap-3 border-t px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
     >
       <Icon className="h-5 w-5 shrink-0" />
       <span className="min-w-0 wrap-break-word text-base leading-snug">{label}</span>
