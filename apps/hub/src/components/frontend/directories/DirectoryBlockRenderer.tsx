@@ -79,7 +79,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
           data-block-type={block.type}
           className={cn(
             isStickyBlock(block) && "lg:sticky lg:self-start",
-            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-16" : "lg:top-0")
+            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-18" : "lg:top-0")
           )}
         >
           <DirectoryCoreBlock
@@ -119,7 +119,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
             className={siteWidth === 'custom' ? "mx-auto px-6" : "px-6"}
             style={outerContainerStyle}
           >
-            <div className="grid gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+            <div className="grid gap-0 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
               <div className={cn("lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
               </div>

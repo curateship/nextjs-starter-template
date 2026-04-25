@@ -22,7 +22,7 @@ export function DirectoryCustomBlockSection({
   }
 
   return (
-    <div className="pt-10">
+    <div className="pt-6 lg:pt-10">
       {!isStackCard && <SectionHeading title={template.name} />}
 
       {template.layout === 'two-column' ? (
