@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -52,7 +52,6 @@ import {
   Plus,
   Trash2,
   Twitter,
-  type LucideIcon,
   Youtube,
 } from "lucide-react"
 
@@ -80,6 +79,17 @@ interface FooterBlockProps {
 const ACTION_BUTTON_CLASS =
   "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
+function MediumIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M13.54 12a6.77 6.77 0 1 1-13.54 0a6.77 6.77 0 0 1 13.54 0m7.42 0c0 3.55-1.51 6.42-3.38 6.42S14.2 15.55 14.2 12s1.51-6.42 3.38-6.42s3.38 2.87 3.38 6.42M24 12c0 3.17-.53 5.75-1.19 5.75S21.62 15.17 21.62 12s.53-5.75 1.19-5.75S24 8.83 24 12"
+      />
+    </svg>
+  )
+}
+
 const SOCIAL_PLATFORM_OPTIONS = [
   { value: "twitter", label: "Twitter", Icon: Twitter },
   { value: "facebook", label: "Facebook", Icon: Facebook },
@@ -88,6 +98,7 @@ const SOCIAL_PLATFORM_OPTIONS = [
   { value: "youtube", label: "YouTube", Icon: Youtube },
   { value: "tiktok", label: "TikTok", Icon: Music2 },
   { value: "github", label: "GitHub", Icon: Github },
+  { value: "medium", label: "Medium", Icon: MediumIcon },
 ] as const
 
 function createFooterItemId(prefix: "link" | "social") {
@@ -100,7 +111,7 @@ function createFooterItemId(prefix: "link" | "social") {
 
 function getSocialPlatformMeta(platform?: string): {
   label: string
-  Icon: LucideIcon
+  Icon: ComponentType<{ className?: string }>
 } {
   const option = SOCIAL_PLATFORM_OPTIONS.find((item) => item.value === platform)
   if (option) {
