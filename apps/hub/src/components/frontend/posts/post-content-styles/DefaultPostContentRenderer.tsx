@@ -86,7 +86,7 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
       )}
       {body && (
         <div
-          className="prose dark:prose-invert max-w-none w-full mt-6"
+          className="prose dark:prose-invert max-w-none w-full mt-6 [&_h2]:scroll-mt-24"
         >
           <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: body }} />
         </div>

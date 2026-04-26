@@ -2,7 +2,10 @@ import { useMemo } from "react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { POST_CONTENT_STYLE_RENDERERS } from "./post-content-styles"
 import { RelatedPostsBlock } from "./RelatedPostsBlock"
+import { TableOfContentsBlock } from "./table-of-content/TableOfContentsBlock"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
+import type { TableOfContentsItem } from "./table-of-content/table-of-contents-utils"
+import { cn } from "@/lib/utils/tailwind"
 
 interface PostContentBlockProps {
   blocks: Array<{
@@ -20,6 +23,9 @@ interface PostContentBlockProps {
   siteId?: string
   currentPostId?: string
   preloadedRelatedPosts?: RelatedPostsData | null
+  tableOfContentsItems?: TableOfContentsItem[]
+  postContentHtmlByBlockId?: Record<string, string>
+  hasFixedNavigation?: boolean
   siteWidth?: 'full' | 'custom'
   customWidth?: number
   container?: boolean
@@ -31,6 +37,9 @@ export function PostContentBlock({
   siteId,
   currentPostId,
   preloadedRelatedPosts,
+  tableOfContentsItems = [],
+  postContentHtmlByBlockId = {},
+  hasFixedNavigation = false,
   siteWidth = 'custom',
   customWidth,
   container = true,
@@ -46,6 +55,9 @@ export function PostContentBlock({
             siteId={siteId}
             currentPostId={currentPostId}
             preloadedRelatedPosts={preloadedRelatedPosts}
+            tableOfContentsItems={tableOfContentsItems}
+            postContentHtmlByBlockId={postContentHtmlByBlockId}
+            hasFixedNavigation={hasFixedNavigation}
           />
         )
 
@@ -73,60 +85,37 @@ function PostBlockContent({
   siteId,
   currentPostId,
   preloadedRelatedPosts,
+  tableOfContentsItems,
+  postContentHtmlByBlockId,
+  hasFixedNavigation,
 }: {
   block: { id: string; type: string; content: Record<string, any> }
   post: { title: string; excerpt?: string | null; featured_image?: string | null; show_featured_image?: boolean; created_at: string }
   siteId?: string
   currentPostId?: string
   preloadedRelatedPosts?: RelatedPostsData | null
+  tableOfContentsItems: TableOfContentsItem[]
+  postContentHtmlByBlockId: Record<string, string>
+  hasFixedNavigation: boolean
 }) {
+  const isStickyBlock = block.type === 'table-of-contents' && block.content?.sticky !== false
+
   return (
-    <div data-block-id={block.id} data-block-type={block.type} className="mb-10 last:mb-0">
+    <div
+      data-block-id={block.id}
+      data-block-type={block.type}
+      className={cn(
+        "mb-10 last:mb-0",
+        isStickyBlock && "lg:sticky lg:self-start",
+        isStickyBlock && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
+      )}
+    >
       {block.type === 'post-content' && (
-        <PostContentStyled block={block} post={post} />
-      )}
-
-      {block.type === 'image' && block.content.url && (
-        <div className="my-8">
-          <img
-            src={block.content.url}
-            alt={block.content.alt || ''}
-            className="aspect-video w-full rounded-md object-cover"
-          />
-          {block.content.caption && (
-            <p className="text-center text-sm text-muted-foreground mt-2">
-              {block.content.caption}
-            </p>
-          )}
-        </div>
-      )}
-
-      {block.type === 'code' && block.content.code && (
-        <div>
-          <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
-            <code className={`language-${block.content.language || 'javascript'}`}>
-              {block.content.code}
-            </code>
-          </pre>
-        </div>
-      )}
-
-      {block.type === 'quote' && block.content.text && (
-        <div className="prose dark:prose-invert max-w-none">
-          <blockquote>
-            &ldquo;{block.content.text}&rdquo;
-            {(block.content.author || block.content.source) && (
-              <cite className="text-sm text-muted-foreground not-italic block mt-2">
-                {block.content.author && `— ${block.content.author}`}
-                {block.content.source && `, ${block.content.source}`}
-              </cite>
-            )}
-          </blockquote>
-        </div>
-      )}
-
-      {block.type === 'divider' && (
-        <hr className="my-8 border-t border-border" />
+        <PostContentStyled
+          block={block}
+          post={post}
+          bodyHtml={postContentHtmlByBlockId[block.id]}
+        />
       )}
 
       {block.type === 'related-posts' && siteId && currentPostId && (
@@ -137,14 +126,19 @@ function PostBlockContent({
           preloadedData={preloadedRelatedPosts}
         />
       )}
+
+      {block.type === 'table-of-contents' && (
+        <TableOfContentsBlock content={block.content} items={tableOfContentsItems} />
+      )}
     </div>
   )
 }
 
 /** Renders post-content block using the style renderer registry */
-function PostContentStyled({ block, post }: {
+function PostContentStyled({ block, post, bodyHtml }: {
   block: { id: string; type: string; content: Record<string, any> }
   post: { title: string; excerpt?: string | null; featured_image?: string | null; show_featured_image?: boolean; created_at: string }
+  bodyHtml?: string
 }) {
   const postContentStyle = block.content.postContentStyle || 'default'
   const styleConfig = block.content.styleConfig || {}
@@ -169,7 +163,7 @@ function PostContentStyled({ block, post }: {
         createdAt: post.created_at,
         showAuthor: block.content.showAuthor ?? true,
         showDate: block.content.showDate ?? true,
-        body: block.content.body,
+        body: bodyHtml ?? block.content.body,
       }}
     />
   )

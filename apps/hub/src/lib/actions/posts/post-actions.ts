@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface PostBlock {
   id: string
-  type: 'post-content' | 'image' | 'code' | 'quote' | 'divider' | 'related-posts'
+  type: 'post-content' | 'related-posts' | 'table-of-contents'
   content: Record<string, any>
   display_order: number
   created_at?: string

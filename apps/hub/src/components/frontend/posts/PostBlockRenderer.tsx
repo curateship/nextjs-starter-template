@@ -7,6 +7,8 @@ import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-b
 import { getPostLayoutColumn } from "@/lib/actions/posts/post-layout"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
+import { cn } from "@/lib/utils/tailwind"
+import { preparePostTableOfContents } from "./table-of-content/table-of-contents-utils"
 
 interface PostBlockRendererProps {
   site: SiteWithBlocks
@@ -38,6 +40,7 @@ interface PostBlockRendererProps {
 export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: PostBlockRendererProps) {
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
+  const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
   
   // Sort post blocks by display_order (force numerical sorting)
   const sortedBlocks = [...postBlocks].sort((a, b) => Number(a.display_order) - Number(b.display_order))
@@ -48,6 +51,11 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
   const publicSite = toPublicSiteClientProps(site)
   const mainBlocks = sortedBlocks.filter((block) => getPostLayoutColumn(block) === 'main')
   const sidebarBlocks = sortedBlocks.filter((block) => getPostLayoutColumn(block) === 'sidebar')
+  const isStickyBlock = (block: typeof sortedBlocks[number]) =>
+    block.type === 'table-of-contents' && block.content?.sticky !== false
+  const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
+  const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
+  const tableOfContents = preparePostTableOfContents(sortedBlocks)
   const outerContainerStyle = siteWidth === 'custom'
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
@@ -66,6 +74,9 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
       siteId={post.site_id}
       currentPostId={post.id}
       preloadedRelatedPosts={preloadedRelatedPosts}
+      tableOfContentsItems={tableOfContents.items}
+      postContentHtmlByBlockId={tableOfContents.bodyHtmlByBlockId}
+      hasFixedNavigation={hasFixedNavigation}
       siteWidth={siteWidth}
       customWidth={customWidth}
       container={container}
@@ -79,10 +90,10 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
       {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
         <div className={containerClassName} style={outerContainerStyle}>
           <div className="grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-            <div className="lg:order-2">
+            <div className={cn("lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
               {renderPostBlocks(sidebarBlocks, false)}
             </div>
-            <div className="lg:order-1">
+            <div className={cn("lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
               {renderPostBlocks(mainBlocks, false)}
             </div>
           </div>

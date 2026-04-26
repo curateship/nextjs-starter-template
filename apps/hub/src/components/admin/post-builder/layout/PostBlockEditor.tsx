@@ -3,6 +3,8 @@
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
+import { TableOfContentsBlock } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
+import type { TableOfContentsBlockTab } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
 interface PostBlockEditorProps {
@@ -13,6 +15,7 @@ interface PostBlockEditorProps {
   postTitle: string
   onPostTitleChange: (title: string) => void
   postContentTab?: PostContentBlockTab
+  tableOfContentsTab?: TableOfContentsBlockTab
 }
 
 export function PostBlockEditor({
@@ -23,6 +26,7 @@ export function PostBlockEditor({
   postTitle,
   onPostTitleChange,
   postContentTab,
+  tableOfContentsTab,
 }: PostBlockEditorProps) {
   if (block.type === "post-content") {
     return (
@@ -47,20 +51,14 @@ export function PostBlockEditor({
     )
   }
 
-  if (block.type === "image") {
-    return <div className="p-8 text-center text-muted-foreground">Image block editor coming soon</div>
-  }
-
-  if (block.type === "code") {
-    return <div className="p-8 text-center text-muted-foreground">Code block editor coming soon</div>
-  }
-
-  if (block.type === "quote") {
-    return <div className="p-8 text-center text-muted-foreground">Quote block editor coming soon</div>
-  }
-
-  if (block.type === "divider") {
-    return <div className="p-8 text-center text-muted-foreground">Divider block editor coming soon</div>
+  if (block.type === "table-of-contents") {
+    return (
+      <TableOfContentsBlock
+        content={content}
+        onContentChange={onContentChange}
+        activeTab={tableOfContentsTab}
+      />
+    )
   }
 
   return null

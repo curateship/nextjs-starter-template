@@ -12,7 +12,9 @@ import {
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
+import { getBlockName } from "@/components/admin/post-builder/config/post-block-types"
 import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import type { TableOfContentsBlockTab } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
 import { cn } from "@/lib/utils/tailwind"
 
 interface PostBlockEditorModalProps {
@@ -40,10 +42,10 @@ export function PostBlockEditorModal({
   saving = false,
   error,
 }: PostBlockEditorModalProps) {
-  const [postContentTab, setPostContentTab] = useState<PostContentBlockTab>("content")
+  const [activeTab, setActiveTab] = useState<PostContentBlockTab | TableOfContentsBlockTab>("content")
 
   useEffect(() => {
-    setPostContentTab("content")
+    setActiveTab("content")
   }, [block?.id])
 
   if (!block) return null
@@ -53,6 +55,15 @@ export function PostBlockEditorModal({
     { value: "styling", label: "Styling" },
     { value: "settings", label: "Settings" },
   ]
+  const tableOfContentsTabs: Array<{ value: TableOfContentsBlockTab; label: string }> = [
+    { value: "content", label: "Content" },
+    { value: "settings", label: "Settings" },
+  ]
+  const modalTabs = block.type === "post-content"
+    ? postContentTabs
+    : block.type === "table-of-contents"
+      ? tableOfContentsTabs
+      : []
 
   return (
     <Dialog
@@ -64,38 +75,39 @@ export function PostBlockEditorModal({
       <AdminModalContent size="wide">
         <AdminModalHeader>
           <div className="flex min-w-0 items-center gap-4 pr-10">
-            <AdminModalTitle className="shrink-0">Edit {block.type}</AdminModalTitle>
-            {block.type === "post-content" && (
-            <div className="inline-flex h-9 items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground">
-              {postContentTabs.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  onClick={() => setPostContentTab(tab.value)}
-                  className={cn(
-                    "inline-flex h-7 cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 text-sm font-medium transition-all hover:bg-background/50",
-                    postContentTab === tab.value && "bg-background text-foreground shadow-sm"
-                  )}
-                  aria-pressed={postContentTab === tab.value}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            <AdminModalTitle className="shrink-0">Edit {getBlockName(block.type)}</AdminModalTitle>
+            {modalTabs.length > 0 && (
+              <div className="inline-flex h-9 items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground">
+                {modalTabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    onClick={() => setActiveTab(tab.value)}
+                    className={cn(
+                      "inline-flex h-7 cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 text-sm font-medium transition-all hover:bg-background/50",
+                      activeTab === tab.value && "bg-background text-foreground shadow-sm"
+                    )}
+                    aria-pressed={activeTab === tab.value}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </AdminModalHeader>
 
         <AdminModalScrollBody>
-              <PostBlockEditor
-                block={block}
-                content={content}
-                onContentChange={onContentChange}
-                siteId={siteId}
-                postTitle={postTitle}
-                onPostTitleChange={onPostTitleChange}
-                postContentTab={postContentTab}
-              />
+          <PostBlockEditor
+            block={block}
+            content={content}
+            onContentChange={onContentChange}
+            siteId={siteId}
+            postTitle={postTitle}
+            onPostTitleChange={onPostTitleChange}
+            postContentTab={block.type === "post-content" ? activeTab as PostContentBlockTab : undefined}
+            tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
+          />
         </AdminModalScrollBody>
 
         <AdminModalFooter className="sm:justify-between">

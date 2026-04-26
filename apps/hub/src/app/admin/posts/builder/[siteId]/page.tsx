@@ -314,13 +314,14 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const viewPageHref = site && currentPostData
     ? `${getSiteUrl(site)}/posts/${currentPostData.slug}`
     : null
+  const publishedViewPageHref = currentPostData?.is_published ? viewPageHref : null
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            viewPageHref={viewPageHref}
+            viewPageHref={publishedViewPageHref}
             saveMessage={builderState.saveMessage}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}

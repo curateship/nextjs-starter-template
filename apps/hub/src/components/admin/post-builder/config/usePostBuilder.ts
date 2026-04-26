@@ -52,6 +52,14 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
 
     // Process each selection
     for (const selection of selections) {
+      if (
+        selection.type === 'table-of-contents' &&
+        (currentBlocks.some((block) => block.type === 'table-of-contents') ||
+          newBlocksToAdd.some((block) => block.type === 'table-of-contents'))
+      ) {
+        continue
+      }
+
       const blockDefinition = getBlockTypeDefinition(selection.type)
 
       if (!blockDefinition) {
@@ -60,7 +68,8 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       }
 
       // Create the specified quantity of blocks
-      for (let i = 0; i < selection.quantity; i++) {
+      const quantity = selection.type === 'table-of-contents' ? 1 : selection.quantity
+      for (let i = 0; i < quantity; i++) {
         const timestamp = Date.now() + i // Ensure unique IDs
         const newBlock: PostBlock = {
           id: `${selection.type}-${timestamp}`,

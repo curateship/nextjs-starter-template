@@ -560,17 +560,30 @@ export default function PostsPage() {
                           <Settings className="h-4 w-4" />
                           <span className="sr-only">Post Settings</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          asChild
-                        >
-                          <a href={currentSite ? `${getSiteUrl(currentSite)}/posts/${post.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                        {post.is_published && currentSite ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            asChild
+                          >
+                            <a href={`${getSiteUrl(currentSite)}/posts/${post.slug}`} target="_blank" rel="noopener noreferrer" title="Preview">
+                              <Eye className="h-4 w-4" />
+                              <span className="sr-only">Preview</span>
+                            </a>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            disabled
+                            title="Publish post to preview"
+                          >
                             <Eye className="h-4 w-4" />
-                            <span className="sr-only">Preview</span>
-                          </a>
-                        </Button>
+                            <span className="sr-only">Publish post to preview</span>
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

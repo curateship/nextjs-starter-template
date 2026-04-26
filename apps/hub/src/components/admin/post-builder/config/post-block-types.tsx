@@ -1,4 +1,4 @@
-import { FileText, Image as ImageIcon, Code, Quote, Minus, Link2 } from "lucide-react"
+import { FileText, Link2, TableOfContents } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -18,51 +18,6 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     }
   },
   {
-    type: 'image',
-    name: 'Image Block',
-    icon: ImageIcon,
-    description: 'Add images with captions and alt text',
-    defaultContent: {
-      layoutColumn: 'main',
-      url: '',
-      alt: '',
-      caption: ''
-    }
-  },
-  {
-    type: 'code',
-    name: 'Code Block',
-    icon: Code,
-    description: 'Display code snippets with syntax highlighting',
-    defaultContent: {
-      layoutColumn: 'main',
-      code: '',
-      language: 'javascript'
-    }
-  },
-  {
-    type: 'quote',
-    name: 'Quote Block',
-    icon: Quote,
-    description: 'Highlight quotes or important text',
-    defaultContent: {
-      layoutColumn: 'main',
-      text: '',
-      author: '',
-      citation: ''
-    }
-  },
-  {
-    type: 'divider',
-    name: 'Divider',
-    icon: Minus,
-    description: 'Add a visual separator between content sections',
-    defaultContent: {
-      layoutColumn: 'main',
-      style: 'solid'
-    }
-  },
-  {
     type: 'related-posts',
     name: 'Related Posts',
     icon: Link2,
@@ -79,6 +34,19 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
       showImage: true,
       showTitle: true,
       showExcerpt: true
+    }
+  },
+  {
+    type: 'table-of-contents',
+    name: 'Table of Contents',
+    icon: TableOfContents,
+    description: 'Display links to H2 sections in the post content',
+    conflictsWith: ['table-of-contents'],
+    defaultContent: {
+      layoutColumn: 'sidebar',
+      title: 'On this page',
+      sticky: true,
+      headingLevel: 'h2'
     }
   }
 ]
