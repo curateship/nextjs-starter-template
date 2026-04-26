@@ -13,7 +13,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
       layoutColumn: 'main',
       showAuthor: true,
       showDate: true,
-      body: '<p>Start writing your content here...</p>',
+      body: '',
       format: 'html'
     }
   },
