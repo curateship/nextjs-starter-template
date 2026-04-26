@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
-  getPostBlocksAction,
   updatePostBlocksAction,
-  addPostBlockAction,
-  deletePostBlockAction,
   type PostBlock
 } from '@/lib/actions/posts/post-actions'
+import { normalizePostBlockContent } from '@/lib/actions/posts/post-layout'
+import { normalizePostBuilderBlock, postBuilderBlocksToRecord } from './post-block-utils'
 import { getBlockTypeDefinition } from './post-block-types'
 
 interface BlockSelection {
@@ -30,15 +29,10 @@ export interface PostBuilderHookResult {
   handleAddPostContentBlock: () => void
   handleDeleteBlock: (block: PostBlock) => void
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => void
-  handleReorderBlocks: (newOrder: { id: string; display_order: number }[]) => void
+  handleReorderBlocks: (newOrder: PostBlock[]) => void
   handleCleanupCorrupted: () => void
   handleSaveAllBlocks: () => Promise<void>
 }
-
-function generatePostBlockId(): string {
-  return `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-}
-
 
 export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UsePostBuilderParams): PostBuilderHookResult {
   const [selectedBlock, setSelectedBlock] = useState<PostBlock | null>(null)
@@ -72,7 +66,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
           id: `${selection.type}-${timestamp}`,
           type: selection.type as PostBlock['type'],
           display_order: ++displayOrderCounter,
-          content: { ...blockDefinition.defaultContent },
+          content: normalizePostBlockContent(selection.type, { ...blockDefinition.defaultContent }),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }
@@ -108,7 +102,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       id: `post-content-${timestamp}`,
       type: 'post-content',
       display_order: currentBlocks.length + 1,
-      content: { showAuthor: true, showDate: true, body: '', format: 'html' },
+      content: normalizePostBlockContent('post-content', { showAuthor: true, showDate: true, body: '', format: 'html' }),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }
@@ -141,11 +135,14 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     const currentBlock = blocks[blockId]
     if (!currentBlock) return
 
-    const updatedBlock = {
+    const nextType = updates.type || currentBlock.type
+    const updatedBlock = normalizePostBuilderBlock({
       ...currentBlock,
       ...updates,
+      type: nextType,
+      content: normalizePostBlockContent(nextType, updates.content || currentBlock.content),
       updated_at: new Date().toISOString()
-    }
+    })
 
     // Update local state only - no immediate server save
     setBlocks(prev => ({
@@ -160,20 +157,16 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
   }
 
   // Reorder blocks (local-first)
-  const handleReorderBlocks = (newOrder: { id: string; display_order: number }[]) => {
-    // Update local state with new order
-    const updated = { ...blocks }
-    newOrder.forEach(({ id, display_order }) => {
-      if (updated[id]) {
-        updated[id] = {
-          ...updated[id],
-          display_order,
-          updated_at: new Date().toISOString()
-        }
-      }
-    })
+  const handleReorderBlocks = (newOrder: PostBlock[]) => {
+    const updated = postBuilderBlocksToRecord(newOrder.map((block) => ({
+      ...block,
+      updated_at: new Date().toISOString(),
+    })))
 
     setBlocks(updated)
+    if (selectedBlock) {
+      setSelectedBlock(updated[selectedBlock.id] || null)
+    }
   }
 
   // Clean up corrupted blocks (local-first)
@@ -182,7 +175,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     const cleanBlocks: Record<string, PostBlock> = {}
     Object.entries(blocks).forEach(([key, block]) => {
       if (block && typeof block === 'object' && block.id && block.type) {
-        cleanBlocks[key] = block
+        cleanBlocks[key] = normalizePostBuilderBlock(block)
       }
     })
 
@@ -201,7 +194,8 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     try {
       setSaveMessage('Saving blocks...')
 
-      const { success, error } = await updatePostBlocksAction(postId, blocks)
+      const normalizedBlocks = postBuilderBlocksToRecord(Object.values(blocks))
+      const { success, error } = await updatePostBlocksAction(postId, normalizedBlocks)
 
       if (!success || error) {
         console.error('Error saving blocks:', error)
@@ -210,6 +204,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
         return
       }
 
+      setBlocks(normalizedBlocks)
       setSaveMessage('All blocks saved!')
       setTimeout(() => setSaveMessage(''), 3000)
     } catch (err) {

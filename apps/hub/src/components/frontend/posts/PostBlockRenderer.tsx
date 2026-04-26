@@ -4,6 +4,7 @@ import { PostContentBlock } from "@/components/frontend/posts/PostContentBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import { getPostLayoutColumn } from "@/lib/actions/posts/post-layout"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 
@@ -39,34 +40,59 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
   const siteChrome = resolveSiteChrome(site.settings)
   
   // Sort post blocks by display_order (force numerical sorting)
-  const sortedBlocks = postBlocks.sort((a, b) => Number(a.display_order) - Number(b.display_order))
+  const sortedBlocks = [...postBlocks].sort((a, b) => Number(a.display_order) - Number(b.display_order))
   
   // Get site width from site settings
-  const siteWidth = site.settings?.site_width || 'custom'
+  const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom'
   const customWidth = site.settings?.custom_width
   const publicSite = toPublicSiteClientProps(site)
+  const mainBlocks = sortedBlocks.filter((block) => getPostLayoutColumn(block) === 'main')
+  const sidebarBlocks = sortedBlocks.filter((block) => getPostLayoutColumn(block) === 'sidebar')
+  const outerContainerStyle = siteWidth === 'custom'
+    ? { maxWidth: `${customWidth || 1152}px` }
+    : undefined
+  const containerClassName = siteWidth === 'custom' ? "mx-auto px-6 mt-6" : "px-6 mt-6"
+  const postContent = {
+    title: post.title,
+    excerpt: post.excerpt,
+    featured_image: post.featured_image,
+    show_featured_image: post.show_featured_image,
+    created_at: post.created_at || new Date().toISOString()
+  }
+  const renderPostBlocks = (blocks: typeof sortedBlocks, container = true) => (
+    <PostContentBlock
+      blocks={blocks}
+      post={postContent}
+      siteId={post.site_id}
+      currentPostId={post.id}
+      preloadedRelatedPosts={preloadedRelatedPosts}
+      siteWidth={siteWidth}
+      customWidth={customWidth}
+      container={container}
+    />
+  )
 
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
-      <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
-      
-      {/* Post Header */}
-      <PostContentBlock
-        blocks={sortedBlocks}
-        post={{
-          title: post.title,
-          excerpt: post.excerpt,
-          featured_image: post.featured_image,
-          show_featured_image: post.show_featured_image,
-          created_at: post.created_at || new Date().toISOString()
-        }}
-        siteId={post.site_id}
-        currentPostId={post.id}
-        preloadedRelatedPosts={preloadedRelatedPosts}
-        siteWidth={siteWidth}
-        customWidth={customWidth}
-      />
-      
+      <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
+
+      {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
+        <div className={containerClassName} style={outerContainerStyle}>
+          <div className="grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+            <div className="lg:order-2">
+              {renderPostBlocks(sidebarBlocks, false)}
+            </div>
+            <div className="lg:order-1">
+              {renderPostBlocks(mainBlocks, false)}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className={containerClassName} style={outerContainerStyle}>
+          {renderPostBlocks([...sidebarBlocks, ...mainBlocks], false)}
+        </div>
+      )}
+
       </SiteLayout>
   )
 }

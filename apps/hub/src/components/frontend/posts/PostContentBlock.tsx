@@ -22,6 +22,7 @@ interface PostContentBlockProps {
   preloadedRelatedPosts?: RelatedPostsData | null
   siteWidth?: 'full' | 'custom'
   customWidth?: number
+  container?: boolean
 }
 
 export function PostContentBlock({
@@ -31,77 +32,112 @@ export function PostContentBlock({
   currentPostId,
   preloadedRelatedPosts,
   siteWidth = 'custom',
-  customWidth
+  customWidth,
+  container = true,
 }: PostContentBlockProps) {
   return (
     <>
-      {blocks.map((block) => (
-        <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+      {blocks.map((block) => {
+        const content = (
+          <PostBlockContent
+            key={block.id}
+            block={block}
+            post={post}
+            siteId={siteId}
+            currentPostId={currentPostId}
+            preloadedRelatedPosts={preloadedRelatedPosts}
+          />
+        )
+
+        if (!container) {
+          return content
+        }
+
+        return (
           <BlockContainer
+            key={block.id}
             siteWidth={siteWidth}
             customWidth={customWidth}
           >
-            <div className="mb-10">
-              {block.type === 'post-content' && (
-                <PostContentStyled block={block} post={post} />
-              )}
-
-              {block.type === 'image' && block.content.url && (
-                <div className="my-8">
-                  <img
-                    src={block.content.url}
-                    alt={block.content.alt || ''}
-                    className="aspect-video w-full rounded-md object-cover"
-                  />
-                  {block.content.caption && (
-                    <p className="text-center text-sm text-muted-foreground mt-2">
-                      {block.content.caption}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {block.type === 'code' && block.content.code && (
-                <div>
-                  <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
-                    <code className={`language-${block.content.language || 'javascript'}`}>
-                      {block.content.code}
-                    </code>
-                  </pre>
-                </div>
-              )}
-
-              {block.type === 'quote' && block.content.text && (
-                <div className="prose dark:prose-invert max-w-none">
-                  <blockquote>
-                    &ldquo;{block.content.text}&rdquo;
-                    {(block.content.author || block.content.source) && (
-                      <cite className="text-sm text-muted-foreground not-italic block mt-2">
-                        {block.content.author && `— ${block.content.author}`}
-                        {block.content.source && `, ${block.content.source}`}
-                      </cite>
-                    )}
-                  </blockquote>
-                </div>
-              )}
-
-              {block.type === 'divider' && (
-                <hr className="my-8 border-t border-border" />
-              )}
-
-              {block.type === 'related-posts' && siteId && currentPostId && (
-                <RelatedPostsBlock
-                  content={block.content}
-                  siteId={siteId}
-                  currentPostId={currentPostId}
-                  preloadedData={preloadedRelatedPosts}
-                />
-              )}
-            </div>
+            {content}
           </BlockContainer>
-        </div>
-      ))}
+        )
+      })}
     </>
+  )
+}
+
+function PostBlockContent({
+  block,
+  post,
+  siteId,
+  currentPostId,
+  preloadedRelatedPosts,
+}: {
+  block: { id: string; type: string; content: Record<string, any> }
+  post: { title: string; excerpt?: string | null; featured_image?: string | null; show_featured_image?: boolean; created_at: string }
+  siteId?: string
+  currentPostId?: string
+  preloadedRelatedPosts?: RelatedPostsData | null
+}) {
+  return (
+    <div data-block-id={block.id} data-block-type={block.type} className="mb-10 last:mb-0">
+      {block.type === 'post-content' && (
+        <PostContentStyled block={block} post={post} />
+      )}
+
+      {block.type === 'image' && block.content.url && (
+        <div className="my-8">
+          <img
+            src={block.content.url}
+            alt={block.content.alt || ''}
+            className="aspect-video w-full rounded-md object-cover"
+          />
+          {block.content.caption && (
+            <p className="text-center text-sm text-muted-foreground mt-2">
+              {block.content.caption}
+            </p>
+          )}
+        </div>
+      )}
+
+      {block.type === 'code' && block.content.code && (
+        <div>
+          <pre className="bg-muted p-4 rounded-lg overflow-x-auto">
+            <code className={`language-${block.content.language || 'javascript'}`}>
+              {block.content.code}
+            </code>
+          </pre>
+        </div>
+      )}
+
+      {block.type === 'quote' && block.content.text && (
+        <div className="prose dark:prose-invert max-w-none">
+          <blockquote>
+            &ldquo;{block.content.text}&rdquo;
+            {(block.content.author || block.content.source) && (
+              <cite className="text-sm text-muted-foreground not-italic block mt-2">
+                {block.content.author && `— ${block.content.author}`}
+                {block.content.source && `, ${block.content.source}`}
+              </cite>
+            )}
+          </blockquote>
+        </div>
+      )}
+
+      {block.type === 'divider' && (
+        <hr className="my-8 border-t border-border" />
+      )}
+
+      {block.type === 'related-posts' && siteId && currentPostId && (
+        <RelatedPostsBlock
+          content={block.content}
+          siteId={siteId}
+          currentPostId={currentPostId}
+          preloadedData={preloadedRelatedPosts}
+        />
+      )}
+    </div>
   )
 }
 

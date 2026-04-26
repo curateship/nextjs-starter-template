@@ -12,15 +12,20 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
-import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
+import { PostBlockListPanel } from "@/components/admin/post-builder/layout/PostBlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { POST_BLOCK_TYPES } from "@/components/admin/post-builder/config/post-block-types"
 import { getSitePostsAction, updatePostAction, updatePostBlocksAction } from "@/lib/actions/posts/post-actions"
-import type { Post } from "@/lib/actions/posts/post-actions"
+import type { Post, PostBlock } from "@/lib/actions/posts/post-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { PostPreview } from "@/components/admin/post-builder/layout/PostPreview"
 import { PostBlockEditorModal } from "@/components/admin/post-builder/layout/PostBlockEditorModal"
+import {
+  normalizePostBuilderBlock,
+  orderPostBuilderBlocks,
+  postBuilderBlocksToRecord,
+} from "@/components/admin/post-builder/config/post-block-utils"
 
 export default function PostBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -31,7 +36,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [localBlocks, setLocalBlocks] = useState<Record<string, any>>({})
+  const [localBlocks, setLocalBlocks] = useState<Record<string, PostBlock>>({})
 
   
   const postFromUrl = searchParams.get('post') || ''
@@ -118,11 +123,11 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   useEffect(() => {
     if (currentPostData?.content_blocks) {
       // Filter out settings like show_featured_image and keep only actual blocks
-      const actualBlocks: Record<string, any> = {}
+      const actualBlocks: Record<string, PostBlock> = {}
       Object.entries(currentPostData.content_blocks).forEach(([key, value]) => {
         // Only include items that have block properties (id, type, content)
         if (value && typeof value === 'object' && 'type' in value && 'id' in value) {
-          actualBlocks[key] = value
+          actualBlocks[key] = normalizePostBuilderBlock(value as PostBlock)
         }
       })
       setLocalBlocks(actualBlocks)
@@ -146,7 +151,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const currentPost = {
     slug: selectedPost,
     name: currentPostData?.title || selectedPost,
-    blocks: Object.values(builderState.blocks).sort((a, b) => a.display_order - b.display_order) as any,
+    blocks: orderPostBuilderBlocks(Object.values(builderState.blocks)),
     id: currentPostData?.id,
     title: currentPostData?.title,
     meta_description: currentPostData?.meta_description || undefined,
@@ -240,15 +245,16 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     setBlockSaveError(null)
 
     try {
-      const updatedBlock = {
+      const updatedBlock = normalizePostBuilderBlock({
         ...selectedBlock,
         content: draftContent,
         updated_at: new Date().toISOString(),
-      }
-      const nextBlocks = {
-        ...builderState.blocks,
-        [selectedBlock.id]: updatedBlock,
-      }
+      })
+      const nextBlocks = postBuilderBlocksToRecord(
+        orderPostBuilderBlocks(Object.values(builderState.blocks)).map((block) =>
+          block.id === selectedBlock.id ? updatedBlock : block
+        )
+      )
 
       if (
         selectedBlock.type === "post-content" &&
@@ -380,11 +386,9 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         />
 
         {blockListOpen && (
-          <BlockListPanel
+          <PostBlockListPanel
             blocks={currentPost.blocks}
-            blockTypes={POST_BLOCK_TYPES}
-            entityName="post"
-            selectedBlock={builderState.selectedBlock as any}
+            selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}

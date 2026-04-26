@@ -10,6 +10,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: FileText,
     description: 'Post title, display options, and rich text content',
     defaultContent: {
+      layoutColumn: 'main',
       showAuthor: true,
       showDate: true,
       body: '<p>Start writing your content here...</p>',
@@ -22,6 +23,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: ImageIcon,
     description: 'Add images with captions and alt text',
     defaultContent: {
+      layoutColumn: 'main',
       url: '',
       alt: '',
       caption: ''
@@ -33,6 +35,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Code,
     description: 'Display code snippets with syntax highlighting',
     defaultContent: {
+      layoutColumn: 'main',
       code: '',
       language: 'javascript'
     }
@@ -43,6 +46,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Quote,
     description: 'Highlight quotes or important text',
     defaultContent: {
+      layoutColumn: 'main',
       text: '',
       author: '',
       citation: ''
@@ -54,6 +58,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Minus,
     description: 'Add a visual separator between content sections',
     defaultContent: {
+      layoutColumn: 'main',
       style: 'solid'
     }
   },
@@ -63,6 +68,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Link2,
     description: 'Display other posts from this site',
     defaultContent: {
+      layoutColumn: 'main',
       title: 'Related Posts',
       subtitle: '',
       displayMode: 'grid',
