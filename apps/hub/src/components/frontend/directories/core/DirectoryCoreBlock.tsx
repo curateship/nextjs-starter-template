@@ -131,8 +131,7 @@ export function DirectoryCoreBlock({
   const safeDescription = description ? sanitizeString(description) : ""
 
   return (
-    <div className="pt-10">
-      <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+    <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
         {featuredImage && visibility.image !== false ? (
           <img
             src={featuredImage}
@@ -170,7 +169,6 @@ export function DirectoryCoreBlock({
             ))}
           </div>
         ) : null}
-      </article>
-    </div>
+    </article>
   )
 }

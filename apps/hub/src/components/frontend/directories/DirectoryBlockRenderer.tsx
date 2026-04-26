@@ -69,6 +69,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
 
   const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
   const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
+  const containerClassName = cn(siteWidth === 'custom' ? "mx-auto px-6" : "px-6", "mt-6")
 
   function renderDirectoryBlock(block: DirectoryWithBlocks["blocks"][number]) {
     if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
@@ -79,7 +80,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
           data-block-type={block.type}
           className={cn(
             isStickyBlock(block) && "lg:sticky lg:self-start",
-            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-18" : "lg:top-0")
+            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
           )}
         >
           <DirectoryCoreBlock
@@ -116,20 +117,22 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
         <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
           <div
-            className={siteWidth === 'custom' ? "mx-auto px-6" : "px-6"}
+            className={containerClassName}
             style={outerContainerStyle}
           >
-            <div className="grid gap-0 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-              <div className={cn("lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
+            <div className="grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+              <div className={cn("space-y-8 lg:order-2 lg:space-y-10", sidebarHasStickyBlock && "lg:self-stretch")}>
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
               </div>
-              <div className={cn("lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
+              <div className={cn("space-y-8 lg:order-1 lg:space-y-10", mainHasStickyBlock && "lg:self-stretch")}>
                 {mainBlocks.map((block) => renderDirectoryBlock(block))}
               </div>
             </div>
           </div>
         ) : (
-          [...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))
+          <div className={cn(containerClassName, "space-y-6 lg:space-y-10")} style={outerContainerStyle}>
+            {[...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))}
+          </div>
         )}
       </SiteLayout>
   )

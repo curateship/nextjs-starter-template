@@ -20,6 +20,9 @@ export function FrontendBreadcrumbs({
   customWidth,
 }: FrontendBreadcrumbsProps) {
   if (items.length === 0) return null
+  const breadcrumbItems = items[0]?.label?.toLowerCase() === 'home'
+    ? items
+    : [{ label: 'Home', href: '/' }, ...items]
 
   const containerStyle = siteWidth === 'custom'
     ? { maxWidth: `${customWidth || 1152}px` }
@@ -31,9 +34,9 @@ export function FrontendBreadcrumbs({
   return (
     <div className={containerClassName} style={containerStyle}>
       <Breadcrumb>
-        <BreadcrumbList className="h-2 gap-2 rounded-md text-sm">
-          {items.map((item, index) => {
-            const isLast = index === items.length - 1
+        <BreadcrumbList className="gap-2 rounded-md text-sm">
+          {breadcrumbItems.map((item, index) => {
+            const isLast = index === breadcrumbItems.length - 1
 
             return (
               <span key={`${item.label}-${index}`} className="contents">
