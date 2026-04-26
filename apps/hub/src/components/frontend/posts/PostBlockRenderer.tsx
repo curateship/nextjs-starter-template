@@ -59,7 +59,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
   const outerContainerStyle = siteWidth === 'custom'
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
-  const containerClassName = siteWidth === 'custom' ? "mx-auto px-6 mt-6" : "px-6 mt-6"
+  const containerClassName = siteWidth === 'custom' ? "mx-auto px-6 mt-10" : "px-6 mt-8"
   const postContent = {
     title: post.title,
     excerpt: post.excerpt,

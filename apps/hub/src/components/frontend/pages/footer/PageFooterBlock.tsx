@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { Globe } from 'lucide-react'
-import { BlockContainer } from '@/components/frontend/layout/block-container'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
 
@@ -144,13 +143,19 @@ export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks
     const copyrightText = renderCopyrightText(savedCopyright, currentYear, siteName)
     const siteWidth = (site?.settings?.site_width || 'custom') as 'full' | 'custom'
     const customWidth = site?.settings?.custom_width
+    const containerStyle = siteWidth === 'custom'
+        ? { maxWidth: `${customWidth || 1152}px` }
+        : undefined
 
     return (
         <footer
             data-block-type="footer"
-            className="bg-background text-foreground"
+            className="bg-background pt-20 text-foreground"
         >
-            <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
+            <div
+                className={siteWidth === 'custom' ? "mx-auto px-6" : "px-6"}
+                style={containerStyle}
+            >
                 <Link
                     href={getLogoUrl()}
                     aria-label="go home"
@@ -202,7 +207,7 @@ export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks
                 <span className="mt-8 pb-4 text-muted-foreground block text-center text-sm">
                     {copyrightText}
                 </span>
-            </BlockContainer>
+            </div>
         </footer>
     )
 }
