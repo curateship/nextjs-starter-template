@@ -58,8 +58,10 @@ The shared nav no longer waits on client-side Better Auth session fetching.
 Current flow:
 
 1. `layout.tsx` reads Better Auth cookie cache on the server.
-2. It passes a small user object into `SiteAuthProvider`.
-3. `NavBlock` reads that user from context.
+2. If that cache is missing or rejected but a session token exists, `layout.tsx` falls back to `auth.api.getSession()`.
+3. It maps either source into the same small user object.
+4. It passes that user object into `SiteAuthProvider`.
+5. `NavBlock` reads that user from context.
 
 Relevant files:
 
@@ -72,6 +74,7 @@ Why this was done:
 - faster first paint for signed-in nav state
 - no nav-specific client `get-session` roundtrip
 - cleaner UI than rendering guest controls and replacing them later
+- same signed-in state as `/admin` when the cache cookie is stale or absent but the session token is valid
 
 ### 5. Desktop nav hover delay was removed
 
@@ -104,16 +107,35 @@ Current behavior:
 - Better Auth cookie cache `maxAge` is 7 days
 - the cache is versioned against the live `user_sessions` row and live `users` row
 - if the live version does not match the cached version, the cached auth payload is not trusted
+- if the cache is missing or rejected but `better-auth.session_token` exists, the root layout reads the live Better Auth session once
+- if the live session succeeds, the frontend nav receives the signed-in user instead of rendering guest controls
 
 Relevant file:
 
 - `src/lib/auth/server.ts`
+- `src/app/layout.tsx`
 
 Why this was done:
 
 - keep the nav fast
 - keep bans, revocations, and admin user edits effective on the next request
 - avoid a blind stale-auth window
+- avoid a split-brain state where `/admin` is accessible but the frontend nav says the user is logged out
+
+## The `/admin` Versus Frontend Nav Mismatch
+
+Bug fixed:
+
+- `/admin` could be accessible because it checks `auth.api.getSession()`
+- the frontend nav could still render logged-out controls because it only trusted the cookie-cache payload
+
+The fix is intentionally small:
+
+- use the cookie cache first
+- only call `auth.api.getSession()` when there is no usable cache but there is a session token
+- map both sources through the same user-shaping helper before passing data to `SiteAuthProvider`
+
+This preserves the fast path for normal page loads while making the fallback path match the admin auth source of truth.
 
 ## What Invalidates Cached Auth
 
@@ -164,6 +186,7 @@ So the final rule is:
 
 - no client `useSession()` fetch for nav rendering
 - but yes, a lightweight server-side live-state check is allowed for security-sensitive invalidation
+- and yes, a live session fallback is allowed when the cache is absent or invalid but the session token is present
 
 ## Current Source Of Truth Files
 
@@ -185,3 +208,4 @@ If this area needs work again, inspect these first:
 - Treat published account-page-builder pages with an `auth` block as the frontend/site-user auth surface.
 - If auth UI needs immediate signed-in nav state, prefer the server-read cookie path over a client `useSession()` fetch.
 - Do not rely on a long cookie cache without a live invalidation/version strategy if bans and admin edits must stay effective quickly.
+- Do not treat a missing cookie-cache payload as logged out until checking whether a valid session token can resolve through Better Auth.

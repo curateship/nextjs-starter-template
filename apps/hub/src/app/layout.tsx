@@ -5,9 +5,9 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { HeaderScripts } from "@/components/admin/layout/dashboard/analytics/header-scripts";
 import { AnalyticsTracker } from "@/components/admin/layout/dashboard/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
-import { getSessionCookieCacheVersion } from "@/lib/auth/server";
+import { auth, getSessionCookieCacheVersion } from "@/lib/auth/server";
 import type { Session as BetterAuthSession, User as BetterAuthUser } from "better-auth";
-import { getCookieCache } from "better-auth/cookies";
+import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import { SiteAuthProvider, type SiteAuthUser } from "@/components/frontend/layout/site-auth-provider";
 import { headers } from "next/headers";
 
@@ -16,6 +16,25 @@ type SiteAuthCookieCache = {
   user: BetterAuthUser & { role?: string | null; displayName?: string | null } & Record<string, any>
   updatedAt: number
   version?: string
+}
+
+type SiteAuthUserSource = {
+  email?: string | null
+  name?: string | null
+  displayName?: string | null
+  image?: string | null
+  role?: string | null
+}
+
+function toSiteAuthUser(user?: SiteAuthUserSource | null): SiteAuthUser | null {
+  if (!user) return null
+
+  return {
+    email: user.email ?? null,
+    name: user.displayName || user.name || null,
+    image: user.image ?? null,
+    role: typeof user.role === 'string' ? user.role : null,
+  }
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -65,21 +84,24 @@ export default async function RootLayout({
   const { success, site } = await getSiteFromHeaders()
   const { getFontConfig } = await import("@/lib/utils/font-config")
   let initialSessionUser: SiteAuthUser | null = null
+  const requestHeaders = await headers()
 
   try {
-    const cookieCache = await getCookieCache<SiteAuthCookieCache>(await headers(), {
+    const cookieCache = await getCookieCache<SiteAuthCookieCache>(requestHeaders, {
       version: getSessionCookieCacheVersion,
     })
-    initialSessionUser = cookieCache?.user
-      ? {
-          email: cookieCache.user.email ?? null,
-          name: cookieCache.user.displayName || cookieCache.user.name || null,
-          image: cookieCache.user.image ?? null,
-          role: typeof cookieCache.user.role === 'string' ? cookieCache.user.role : null,
-        }
-      : null
+    initialSessionUser = toSiteAuthUser(cookieCache?.user)
   } catch {
     initialSessionUser = null
+  }
+
+  if (!initialSessionUser && getSessionCookie(requestHeaders)) {
+    try {
+      const session = await auth.api.getSession({ headers: requestHeaders })
+      initialSessionUser = toSiteAuthUser(session?.user as SiteAuthUserSource | null)
+    } catch {
+      initialSessionUser = null
+    }
   }
 
   const fonts = success && site?.settings
