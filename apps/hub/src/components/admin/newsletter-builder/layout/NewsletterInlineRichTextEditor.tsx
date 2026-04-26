@@ -998,35 +998,52 @@ export function NewsletterInlineRichTextEditor({
   }
 
   const resolvedScrollTarget = scrollTarget ?? (typeof window === "undefined" ? undefined : window)
-  const slashMenuPortalContainer = (rootRef.current?.closest("[role='dialog']") as HTMLElement | null) ?? null
-  const slashMenuPositionContainer = slashMenuPortalContainer ?? rootRef.current
-  const slashMenuContainerRect = slashMenuPositionContainer?.getBoundingClientRect()
   const slashMenuHeight = Math.min(320, Math.max(72, filteredSlashCommands.length * 56 + 8))
-  const slashMenuPosition = slashMenu && slashMenuContainerRect
-    ? {
-        top: slashMenuPortalContainer
-          ? Math.max(
+  const slashMenuDialogContainer = (rootRef.current?.closest("[role='dialog']") as HTMLElement | null) ?? null
+  const slashMenuPortalContainer = slashMenuDialogContainer ?? (typeof document === "undefined" ? null : document.body)
+  const slashMenuDialogRect = slashMenuDialogContainer?.getBoundingClientRect()
+  const slashMenuPosition = slashMenu
+    ? slashMenuDialogContainer && slashMenuDialogRect
+      ? {
+          top: Math.max(
+            SLASH_MENU_MODAL_INSET,
+            Math.min(
+              slashMenu.position.top - slashMenuDialogRect.top,
+              Math.max(SLASH_MENU_MODAL_INSET, slashMenuDialogRect.height - slashMenuHeight - SLASH_MENU_MODAL_INSET),
+            ),
+          ),
+          left: Math.max(
+            0,
+            Math.min(
+              slashMenu.position.left - slashMenuDialogRect.left,
+              Math.max(0, slashMenuDialogRect.width - SLASH_MENU_WIDTH),
+            ),
+          ),
+        }
+      : typeof window === "undefined"
+        ? null
+        : {
+            top: Math.max(
               SLASH_MENU_MODAL_INSET,
               Math.min(
-                slashMenu.position.top - slashMenuContainerRect.top,
-                Math.max(SLASH_MENU_MODAL_INSET, slashMenuContainerRect.height - slashMenuHeight - SLASH_MENU_MODAL_INSET),
+                slashMenu.position.top,
+                Math.max(SLASH_MENU_MODAL_INSET, window.innerHeight - slashMenuHeight - SLASH_MENU_MODAL_INSET),
               ),
-            )
-          : slashMenu.position.top - slashMenuContainerRect.top,
-        left: Math.max(
-          0,
-          Math.min(
-            slashMenu.position.left - slashMenuContainerRect.left,
-            Math.max(0, slashMenuContainerRect.width - SLASH_MENU_WIDTH),
-          ),
-        ),
-      }
+            ),
+            left: Math.max(
+              SLASH_MENU_MODAL_INSET,
+              Math.min(
+                slashMenu.position.left,
+                Math.max(SLASH_MENU_MODAL_INSET, window.innerWidth - SLASH_MENU_WIDTH - SLASH_MENU_MODAL_INSET),
+              ),
+            ),
+          }
     : null
   const slashMenuNode = isActive && slashMenu && slashMenuPosition ? (
     <div
       ref={slashMenuElementRef}
       data-newsletter-inline-editor-menu="true"
-      className="absolute z-[60]"
+      className={cn(slashMenuDialogContainer ? "absolute" : "fixed", "z-[60]")}
       style={{
         top: slashMenuPosition.top,
         left: slashMenuPosition.left,
