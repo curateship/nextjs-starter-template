@@ -4,19 +4,11 @@ import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationB
 import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
 import { SiteThemeProvider } from "./site-theme-provider"
 import { type ReactNode } from "react"
+import type { PublicSiteClientProps } from "@/lib/utils/public-site-client"
 
 interface SiteLayoutProps {
   children: ReactNode
-  site?: {
-    id: string
-    subdomain: string
-    name?: string
-    settings?: {
-      favicon?: string
-      default_theme?: 'system' | 'light' | 'dark'
-      [key: string]: any
-    }
-  }
+  site?: PublicSiteClientProps
   navigation?: Record<string, any>
   footer?: {
     logo?: string

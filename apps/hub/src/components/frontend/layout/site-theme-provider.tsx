@@ -2,14 +2,11 @@
 
 import { ThemeProvider, useTheme } from "next-themes"
 import { type ReactNode } from "react"
+import type { PublicSiteClientProps } from "@/lib/utils/public-site-client"
 
 interface SiteThemeProviderProps {
   children: ReactNode
-  site?: {
-    settings?: {
-      default_theme?: 'system' | 'light' | 'dark'
-    }
-  }
+  site?: PublicSiteClientProps
   isPreview?: boolean
   enableThemeToggle?: boolean
 }

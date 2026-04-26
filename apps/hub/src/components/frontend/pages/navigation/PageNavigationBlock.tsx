@@ -20,6 +20,7 @@ import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site-quick-links'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/auth/client'
+import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useSiteAuthUser } from '@/components/frontend/layout/site-auth-provider'
 import {
@@ -51,16 +52,7 @@ interface NavigationStyle {
 interface NavBlockProps {
   logo?: string;
   logoUrl?: string;
-  site?: {
-    id: string;
-    subdomain: string;
-    name?: string;
-    settings?: {
-      favicon?: string;
-      default_theme?: 'system' | 'light' | 'dark';
-      [key: string]: any;
-    };
-  };
+  site?: PublicSiteClientProps;
   links?: Array<{ text: string; url: string; icon?: QuickLinkIconName }>;
   buttons?: Array<{ id?: string; text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconName }>;
   accountMenu?: NavigationAccountMenuSettings;

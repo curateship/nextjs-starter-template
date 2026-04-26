@@ -5,6 +5,7 @@ import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
+import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 
 interface PostBlockRendererProps {
   site: SiteWithBlocks
@@ -43,9 +44,10 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom'
   const customWidth = site.settings?.custom_width
+  const publicSite = toPublicSiteClientProps(site)
 
   return (
-      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={site} isPreview={isPreview} hideChrome={hideSiteChrome}>
+      <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
       <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
       {/* Post Header */}

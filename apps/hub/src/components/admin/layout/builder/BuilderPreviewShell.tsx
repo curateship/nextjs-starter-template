@@ -8,6 +8,7 @@ import { NavBlock } from "@/components/frontend/pages/navigation/PageNavigationB
 import { FooterBlock } from "@/components/frontend/pages/footer/PageFooterBlock"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
+import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 
 interface SelectablePreviewBlock {
   id: string
@@ -162,9 +163,10 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
   const navigation = showSiteChrome ? siteChrome.navigation : null
   const footer = showSiteChrome ? siteChrome.footer : null
   const enableThemeToggle = navigation?.styleConfig?.[navigation.navigationStyle || "default"]?.showDarkModeToggle !== false
+  const publicSite = toPublicSiteClientProps(site)
 
   return (
-    <SiteThemeProvider site={site} isPreview enableThemeToggle={enableThemeToggle}>
+    <SiteThemeProvider site={publicSite} isPreview enableThemeToggle={enableThemeToggle}>
       <div
         ref={containerRef}
         className={cn(className, "preview-container flex h-full min-h-0 flex-col")}
@@ -189,7 +191,7 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
 
         <div className="relative flex h-full min-h-0 flex-col bg-background">
           {navigation && (
-            <NavBlock {...navigation} site={site} isPreview />
+            <NavBlock {...navigation} site={publicSite} isPreview />
           )}
 
           <ScrollArea className="min-h-0 flex-1">
@@ -207,7 +209,7 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
             )}
 
             {footer && (
-              <FooterBlock {...footer} site={site} />
+              <FooterBlock {...footer} site={publicSite} />
             )}
           </ScrollArea>
         </div>

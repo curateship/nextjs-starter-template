@@ -12,6 +12,7 @@ import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/Page
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
+import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
@@ -35,6 +36,7 @@ export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false 
   const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
   const navigation = siteChrome.navigation || undefined
   const footer = siteChrome.footer || undefined
+  const publicSite = toPublicSiteClientProps(site)
 
   // Convert R2 URLs to cached /cdn/ paths for navigation logo
   if (navigation?.logo) {
@@ -49,7 +51,7 @@ export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false 
       <SiteLayout
         navigation={navigation}
         footer={footer}
-        site={site}
+        site={publicSite}
         isPreview={isPreview}
         hideChrome={hideSiteChrome}
       >

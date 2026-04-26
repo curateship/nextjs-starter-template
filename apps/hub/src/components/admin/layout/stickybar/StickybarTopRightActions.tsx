@@ -139,6 +139,8 @@ export function StickybarTopRightActions({
   return (
     <>
       <div className={cn("flex items-center gap-2", className)}>
+        {preActions}
+
         {search ? (
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -150,8 +152,6 @@ export function StickybarTopRightActions({
             />
           </div>
         ) : null}
-
-        {preActions}
 
         {filterMenu && activeItem ? (
           <DropdownMenu>

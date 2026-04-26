@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Globe } from 'lucide-react'
 import { BlockContainer } from '@/components/frontend/layout/block-container'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
+import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
 
 const SocialIcon = ({ platform, url }: { platform: string; url: string }) => {
     const safeUrl = sanitizeUrl(url, '')
@@ -79,17 +80,7 @@ interface FooterBlockProps {
   logo?: string;
   logoUrl?: string;
   copyright?: string;
-  site?: {
-    id: string;
-    subdomain: string;
-    name?: string;
-    settings?: {
-      favicon?: string;
-      site_width?: 'full' | 'custom';
-      custom_width?: number;
-      [key: string]: any;
-    };
-  };
+  site?: PublicSiteClientProps;
   links?: Array<{ text: string; url: string }>;
   socialLinks?: Array<{ platform: string; url: string }>;
 }
