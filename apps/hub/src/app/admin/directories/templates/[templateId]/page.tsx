@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/directory-builder/config/directory-block-types"
 import {
@@ -31,6 +30,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
 import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
+import { DirectoryBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryBlockListPanel"
 
 interface PageProps {
   params: Promise<{ templateId: string }>
@@ -44,7 +44,7 @@ interface BlockSelection {
 export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const { templateId } = use(params)
   const router = useRouter()
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
 
   const [template, setTemplate] = useState<DirectoryTemplate | null>(null)
   const [customBlockTemplates, setCustomBlockTemplates] = useState<DirectoryCustomBlockTemplate[]>([])
@@ -89,6 +89,15 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   useEffect(() => {
     loadTemplate()
   }, [loadTemplate])
+
+  useEffect(() => {
+    if (!template || currentSite?.id === template.site_id) return
+
+    const templateSite = sites.find((site) => site.id === template.site_id)
+    if (templateSite) {
+      setCurrentSite(templateSite)
+    }
+  }, [currentSite?.id, setCurrentSite, sites, template])
 
   useEffect(() => {
     if (!selectedBlock) {
@@ -281,12 +290,16 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     },
   }))
 
-  const previewSite = currentSite && currentSite.id === template?.site_id
+  const templateSite = template
+    ? sites.find((site) => site.id === template.site_id)
+    : null
+  const previewSiteSource = templateSite || (currentSite?.id === template?.site_id ? currentSite : null)
+  const previewSite = previewSiteSource
     ? {
-        id: currentSite.id,
-        name: currentSite.name,
-        subdomain: currentSite.subdomain,
-        settings: currentSite.settings,
+        id: previewSiteSource.id,
+        name: previewSiteSource.name,
+        subdomain: previewSiteSource.subdomain,
+        settings: previewSiteSource.settings,
       }
     : undefined
 
@@ -397,7 +410,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
                 slug: 'preview-template',
                 name: previewTitle,
                 title: previewTitle,
-                id: 'preview-template',
+                id: 'preview',
                 site_id: template?.site_id || currentSite?.id || 'preview-site',
                 featured_image: null,
                 description: null,
@@ -428,10 +441,8 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         />
 
         {blockListOpen && (
-          <BlockListPanel
+          <DirectoryBlockListPanel
             blocks={blocks}
-            blockTypes={DIRECTORY_BLOCK_TYPES}
-            entityName="directory template"
             selectedBlock={selectedBlock}
             onSelectBlock={setSelectedBlock}
             onDeleteBlock={handleDeleteBlock}

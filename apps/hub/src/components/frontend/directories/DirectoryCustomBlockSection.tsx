@@ -8,11 +8,15 @@ import type {
 interface DirectoryCustomBlockSectionProps {
   template: Pick<DirectoryCustomBlockTemplate, 'name' | 'layout' | 'fields'>
   values: Record<string, any>
+  blockId?: string
+  blockType?: string
 }
 
 export function DirectoryCustomBlockSection({
   template,
   values,
+  blockId,
+  blockType,
 }: DirectoryCustomBlockSectionProps) {
   const isStackCard = template.layout === 'stack-card'
   const fieldsWithContent = template.fields.filter(field => hasFieldContent(field, values[field.key]))
@@ -22,7 +26,7 @@ export function DirectoryCustomBlockSection({
   }
 
   return (
-    <div>
+    <div data-block-id={blockId} data-block-type={blockType}>
       {!isStackCard && <SectionHeading title={template.name} />}
 
       {template.layout === 'two-column' ? (

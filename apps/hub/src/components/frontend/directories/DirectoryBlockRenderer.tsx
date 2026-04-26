@@ -75,6 +75,10 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
 
   function renderDirectoryBlock(block: DirectoryWithBlocks["blocks"][number]) {
     if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
+      if (block.content?.visibility?.hideBlock === true) {
+        return null
+      }
+
       return (
         <div
           key={`directory-core-${block.id}`}
@@ -102,12 +106,13 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
       }
 
       return (
-        <div key={`directory-custom-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-          <DirectoryCustomBlockSection
-            template={template}
-            values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
-          />
-        </div>
+        <DirectoryCustomBlockSection
+          key={`directory-custom-${block.id}`}
+          template={template}
+          values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
+          blockId={block.id}
+          blockType={block.type}
+        />
       )
     }
 
