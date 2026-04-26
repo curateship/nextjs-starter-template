@@ -4,11 +4,13 @@ import { useEffect, useState, useCallback } from 'react'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { POST_CONTENT_STYLES } from "./post-content-styles"
+
+export type PostContentBlockTab = "content" | "styling" | "settings"
 
 interface PostContentBlockProps {
   content: Record<string, any>
@@ -21,10 +23,11 @@ interface PostContentBlockProps {
     [key: string]: any
   }
   onPostTitleChange?: (title: string) => void
+  activeTab?: PostContentBlockTab
   onBack?: () => void
 }
 
-export function PostContentBlock({ content, onContentChange, siteId, blockId, postData, onPostTitleChange, onBack }: PostContentBlockProps) {
+export function PostContentBlock({ content, onContentChange, siteId, blockId, postData, onPostTitleChange, activeTab = "content" }: PostContentBlockProps) {
   const [localTitle, setLocalTitle] = useState(postData?.title || postData?.name || 'Untitled Post')
 
   const postContentStyle = content.postContentStyle || 'default'
@@ -74,122 +77,107 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
   }
 
   return (
-    <BlockTabs
-      onBack={onBack}
-      headerClassName="pt-0"
-      tabs={[
-        {
-          value: "content",
-          label: "Content",
-          content: (
-            <>
-              {/* Post Title */}
-              <div className="space-y-2">
-                <Label htmlFor="post-title">Post Title</Label>
-                <Input
-                  id="post-title"
-                  value={localTitle}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter post title..."
-                  className="text-lg font-medium"
-                />
-              </div>
-
-              {/* Rich Text Editor */}
-              <div className="space-y-2">
-                <Label>Content</Label>
-                <NewsletterInlineRichTextEditor
-                  blockId={blockId}
-                  content={editorContent}
-                  onContentChange={handleBodyChange}
-                  siteId={siteId}
-                  isActive
-                  editorPadding={0}
-                />
-              </div>
-            </>
-          ),
-        },
-        {
-          value: "styling",
-          label: "Styling",
-          content: ActivePanel ? (
-            <ActivePanel
-              config={currentStyleConfig}
-              onConfigChange={handleStyleConfigChange}
-              siteId={siteId}
-              blockId={blockId}
+    <div className="space-y-4">
+      {activeTab === "content" && (
+        <>
+          {/* Post Title */}
+          <h2>
+            <Input
+              id="post-title"
+              aria-label="Post title"
+              value={localTitle}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              placeholder="Enter post title..."
+              className="h-auto border-0 bg-transparent px-0 py-0 text-3xl font-semibold tracking-normal shadow-none outline-none focus-visible:ring-0 md:text-4xl"
             />
-          ) : null,
-        },
-        {
-          value: "settings",
-          label: "Settings",
-          content: (
-            <>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Block Style</Label>
-                <div className="grid grid-cols-2 gap-2 max-w-sm">
-                  {Object.entries(POST_CONTENT_STYLES).map(([key, style]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => onContentChange('postContentStyle', key)}
-                      className={cn(
-                        "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                        postContentStyle === key
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                      )}
-                    >
-                      <div className={cn(
-                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                        postContentStyle === key
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-muted-foreground/30"
-                      )}>
-                        {postContentStyle === key && <Check className="h-3 w-3" />}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium">{style.label}</div>
-                        {style.description && (
-                          <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
+          </h2>
+
+          {/* Rich Text Editor */}
+          <div>
+            <NewsletterInlineRichTextEditor
+              blockId={blockId}
+              content={editorContent}
+              onContentChange={handleBodyChange}
+              siteId={siteId}
+              isActive
+              editorPadding={0}
+            />
+          </div>
+        </>
+      )}
+
+      {activeTab === "styling" && ActivePanel && (
+        <ActivePanel
+          config={currentStyleConfig}
+          onConfigChange={handleStyleConfigChange}
+          siteId={siteId}
+          blockId={blockId}
+        />
+      )}
+
+      {activeTab === "settings" && (
+        <>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Block Style</Label>
+            <div className="grid grid-cols-2 gap-2 max-w-sm">
+              {Object.entries(POST_CONTENT_STYLES).map(([key, style]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onContentChange('postContentStyle', key)}
+                  className={cn(
+                    "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                    postContentStyle === key
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                  )}
+                >
+                  <div className={cn(
+                    "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                    postContentStyle === key
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-muted-foreground/30"
+                  )}>
+                    {postContentStyle === key && <Check className="h-3 w-3" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{style.label}</div>
+                    {style.description && (
+                      <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <BlockEditorSection heading="Display Options">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="show-author">Show Author</Label>
+                  <p className="text-sm text-muted-foreground">Display the post author information</p>
                 </div>
+                <Switch
+                  id="show-author"
+                  checked={showAuthor}
+                  onCheckedChange={(checked) => onContentChange('showAuthor', checked)}
+                />
               </div>
 
-              <BlockEditorSection heading="Display Options">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-author">Show Author</Label>
-                      <p className="text-sm text-muted-foreground">Display the post author information</p>
-                    </div>
-                    <Switch
-                      id="show-author"
-                      checked={showAuthor}
-                      onCheckedChange={(checked) => onContentChange('showAuthor', checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-date">Show Date</Label>
-                      <p className="text-sm text-muted-foreground">Display the post publication date</p>
-                    </div>
-                    <Switch
-                      id="show-date"
-                      checked={showDate}
-                      onCheckedChange={(checked) => onContentChange('showDate', checked)}
-                    />
-                  </div>
-              </BlockEditorSection>
-            </>
-          ),
-        },
-      ]}
-    />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="show-date">Show Date</Label>
+                  <p className="text-sm text-muted-foreground">Display the post publication date</p>
+                </div>
+                <Switch
+                  id="show-date"
+                  checked={showDate}
+                  onCheckedChange={(checked) => onContentChange('showDate', checked)}
+                />
+              </div>
+          </BlockEditorSection>
+        </>
+      )}
+    </div>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 
@@ -11,6 +12,7 @@ interface PostBlockEditorProps {
   siteId: string
   postTitle: string
   onPostTitleChange: (title: string) => void
+  postContentTab?: PostContentBlockTab
 }
 
 export function PostBlockEditor({
@@ -20,6 +22,7 @@ export function PostBlockEditor({
   siteId,
   postTitle,
   onPostTitleChange,
+  postContentTab,
 }: PostBlockEditorProps) {
   if (block.type === "post-content") {
     return (
@@ -30,6 +33,7 @@ export function PostBlockEditor({
         blockId={block.id}
         postData={{ title: postTitle }}
         onPostTitleChange={onPostTitleChange}
+        activeTab={postContentTab}
       />
     )
   }

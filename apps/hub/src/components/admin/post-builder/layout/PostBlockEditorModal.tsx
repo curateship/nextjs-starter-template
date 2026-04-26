@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import {
@@ -11,6 +12,8 @@ import {
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
+import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import { cn } from "@/lib/utils/tailwind"
 
 interface PostBlockEditorModalProps {
   block: PostBlock | null
@@ -37,7 +40,19 @@ export function PostBlockEditorModal({
   saving = false,
   error,
 }: PostBlockEditorModalProps) {
+  const [postContentTab, setPostContentTab] = useState<PostContentBlockTab>("content")
+
+  useEffect(() => {
+    setPostContentTab("content")
+  }, [block?.id])
+
   if (!block) return null
+
+  const postContentTabs: Array<{ value: PostContentBlockTab; label: string }> = [
+    { value: "content", label: "Content" },
+    { value: "styling", label: "Styling" },
+    { value: "settings", label: "Settings" },
+  ]
 
   return (
     <Dialog
@@ -48,7 +63,27 @@ export function PostBlockEditorModal({
     >
       <AdminModalContent size="wide">
         <AdminModalHeader>
-          <AdminModalTitle>Edit {block.type}</AdminModalTitle>
+          <div className="flex min-w-0 items-center gap-4 pr-10">
+            <AdminModalTitle className="shrink-0">Edit {block.type}</AdminModalTitle>
+            {block.type === "post-content" && (
+            <div className="inline-flex h-9 items-center gap-1 rounded-md bg-muted p-1 text-muted-foreground">
+              {postContentTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setPostContentTab(tab.value)}
+                  className={cn(
+                    "inline-flex h-7 cursor-pointer items-center justify-center whitespace-nowrap rounded-sm px-3 text-sm font-medium transition-all hover:bg-background/50",
+                    postContentTab === tab.value && "bg-background text-foreground shadow-sm"
+                  )}
+                  aria-pressed={postContentTab === tab.value}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            )}
+          </div>
         </AdminModalHeader>
 
         <AdminModalScrollBody>
@@ -59,6 +94,7 @@ export function PostBlockEditorModal({
                 siteId={siteId}
                 postTitle={postTitle}
                 onPostTitleChange={onPostTitleChange}
+                postContentTab={postContentTab}
               />
         </AdminModalScrollBody>
 
