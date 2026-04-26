@@ -21,6 +21,10 @@ interface PostBlockRendererProps {
     featured_image?: string | null
     show_featured_image?: boolean
     excerpt?: string | null
+    author?: {
+      name?: string | null
+      image?: string | null
+    } | null
     is_published: boolean
     created_at?: string
     updated_at?: string
@@ -65,6 +69,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
     excerpt: post.excerpt,
     featured_image: post.featured_image,
     show_featured_image: post.show_featured_image,
+    author: post.author,
     created_at: post.created_at || new Date().toISOString()
   }
   const renderPostBlocks = (blocks: typeof sortedBlocks, container = true) => (

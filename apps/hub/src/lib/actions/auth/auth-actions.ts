@@ -2,10 +2,12 @@
 
 import { headers } from 'next/headers'
 import { auth } from '@/lib/auth/server'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { authUsers } from '@/lib/db/schema'
+import { authUsers, media } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+
+const AVATAR_IMAGE_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
 
 export async function getCurrentUser() {
   return await getAuthenticatedUser()
@@ -46,6 +48,8 @@ export async function updateProfile(formData: FormData) {
 
   const displayName = (formData.get('display_name') as string)?.trim()?.slice(0, 100)
   const email = (formData.get('email') as string)?.trim()?.toLowerCase()
+  const hasImageUpdate = formData.has('image')
+  const imageUrl = hasImageUpdate ? String(formData.get('image') || '').trim() : undefined
 
   try {
     const updates: Record<string, any> = {}
@@ -67,6 +71,36 @@ export async function updateProfile(formData: FormData) {
       updates.email = email
     }
 
+    if (hasImageUpdate) {
+      if (!imageUrl) {
+        updates.image = null
+      } else {
+        if (imageUrl.length > 2048) {
+          return { error: 'Avatar URL is too long' }
+        }
+
+        try {
+          const parsedUrl = new URL(imageUrl)
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            return { error: 'Invalid avatar URL' }
+          }
+        } catch {
+          return { error: 'Invalid avatar URL' }
+        }
+
+        const ownedMedia = await db.query.media.findFirst({
+          where: and(
+            eq(media.userId, authUser.id),
+            eq(media.publicUrl, imageUrl),
+            inArray(media.mimeType, AVATAR_IMAGE_MIME_TYPES)
+          ),
+        })
+        if (!ownedMedia) return { error: 'Select an avatar image from your media library' }
+
+        updates.image = imageUrl
+      }
+    }
+
     if (Object.keys(updates).length > 0) {
       updates.updatedAt = new Date()
       await auth.api.updateUser({
@@ -76,8 +110,9 @@ export async function updateProfile(formData: FormData) {
     }
 
     return { success: true }
-  } catch (error: any) {
-    return { error: error.message }
+  } catch (error) {
+    console.error('Profile update failed:', error)
+    return { error: 'Failed to update profile' }
   }
 }
 

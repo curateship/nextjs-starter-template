@@ -5,6 +5,7 @@ import { createContext, useContext, type ReactNode } from "react"
 export interface SiteAuthUser {
   email?: string | null
   name?: string | null
+  image?: string | null
   role?: string | null
 }
 

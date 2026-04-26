@@ -41,8 +41,9 @@ export default async function AdminLayout({
   const pageSize = settings.dashboard_page_size || 50
   const sites = sitesResult.data ?? []
 
-  const userName = session.user.name || session.user.email?.split('@')[0] || 'User'
+  const userName = (session.user as any).displayName || session.user.name || session.user.email?.split('@')[0] || 'User'
   const userEmail = session.user.email || ''
+  const userAvatar = session.user.image || ''
 
   return (
     <AdminClientShell
@@ -50,7 +51,7 @@ export default async function AdminLayout({
       secondaryFontFamily={secondaryFontFamily}
       initialSites={sites}
       pageSize={pageSize}
-      user={{ name: userName, email: userEmail }}
+      user={{ name: userName, email: userEmail, avatar: userAvatar }}
     >
       {children}
     </AdminClientShell>

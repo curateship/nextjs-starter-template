@@ -21,7 +21,7 @@ import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/auth/client'
 import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useSiteAuthUser } from '@/components/frontend/layout/site-auth-provider'
 import {
   DropdownMenu,
@@ -66,6 +66,7 @@ interface NavBlockProps {
 interface SessionUser {
   email?: string | null;
   name?: string | null;
+  image?: string | null;
   role?: string | null;
 }
 
@@ -76,6 +77,15 @@ function getUserInitials(user: SessionUser | null) {
     return `${parts[0][0] || 'U'}${parts[1][0] || 'U'}`.toUpperCase()
   }
   return source.slice(0, 2).toUpperCase()
+}
+
+function UserAvatar({ user }: { user: SessionUser }) {
+  return (
+    <Avatar className="h-9 w-9">
+      {user.image && <AvatarImage src={user.image} alt={user.name || user.email || 'User'} />}
+      <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+    </Avatar>
+  )
 }
 
 function NavItemLabel({ label, icon }: { label: string; icon?: QuickLinkIconName }) {
@@ -337,11 +347,7 @@ const DesktopUserMenu = ({
     <StaticIconMenuButton
       ariaLabel="Account menu"
       className={cn('h-10 w-10 rounded-full', bordered && 'border')}
-      icon={
-        <Avatar className="h-9 w-9">
-          <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
-        </Avatar>
-      }
+      icon={<UserAvatar user={user} />}
     />
   ) : (
   <DropdownMenu modal={false}>
@@ -351,9 +357,7 @@ const DesktopUserMenu = ({
         size="icon"
         className={cn('h-10 w-10 rounded-full', bordered && 'border')}
       >
-        <Avatar className="h-9 w-9">
-          <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
-        </Avatar>
+        <UserAvatar user={user} />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-56">

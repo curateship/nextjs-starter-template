@@ -1,11 +1,16 @@
 import { format } from "date-fns"
-import { Avatar } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import type { PostContentStyleRendererProps } from "./index"
 
-const defaultAuthor = {
-  name: "Author",
-  image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/avatar-2.webp"
+function getInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
 }
 
 export function DefaultPostContentRenderer({ config, sharedContent }: PostContentStyleRendererProps) {
@@ -18,6 +23,7 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
     excerpt,
     featuredImage,
     showFeaturedImage,
+    author,
     createdAt,
     showAuthor = true,
     showDate = true,
@@ -25,6 +31,7 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
   } = sharedContent
 
   const isCenter = alignment === 'center'
+  const authorName = author?.name?.trim()
 
   const titleSizeMap: Record<string, string> = {
     'medium': 'text-3xl md:text-4xl',
@@ -46,28 +53,25 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
           {excerpt}
         </h3>
       )}
-      {(showAuthor || showDate) && createdAt && (
+      {((showAuthor && authorName) || showDate) && createdAt && (
         <div className="flex items-center gap-3 text-sm md:text-base">
-          {showAuthor && (
+          {showAuthor && authorName && (
             <Avatar className="h-8 w-8 border">
-              <Image
-                src={defaultAuthor.image}
-                alt={defaultAuthor.name}
-                fill
-                sizes="32px"
-                className="object-cover rounded-full"
-              />
+              {author?.image && <AvatarImage src={author.image} alt={authorName} />}
+              <AvatarFallback className="text-xs font-medium">
+                {getInitials(authorName)}
+              </AvatarFallback>
             </Avatar>
           )}
           <span>
-            {showAuthor && (
-              <a href="#" className="font-semibold">
-                {defaultAuthor.name}
-              </a>
+            {showAuthor && authorName && (
+              <span className="font-semibold">
+                {authorName}
+              </span>
             )}
             {showDate && (
-              <span className={showAuthor ? "ml-1" : ""}>
-                {showAuthor ? "on " : ""}{format(new Date(createdAt), "MMMM d, yyyy")}
+              <span className={showAuthor && authorName ? "ml-1" : ""}>
+                {showAuthor && authorName ? "on " : ""}{format(new Date(createdAt), "MMMM d, yyyy")}
               </span>
             )}
           </span>

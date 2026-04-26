@@ -284,6 +284,7 @@ export async function getSessionCookieCacheVersion(
     name: string | null
     email: string | null
     displayName: string | null
+    image: string | null
   }>(
     `
       select
@@ -294,7 +295,8 @@ export async function getSessionCookieCacheVersion(
         u."banExpires"::text as "banExpires",
         u.name,
         u.email,
-        u."displayName"
+        u."displayName",
+        u.image
       from user_sessions s
       join users u on u.id = s."userId"
       where s.token = $1
@@ -319,6 +321,7 @@ export async function getSessionCookieCacheVersion(
     row.name ?? '',
     row.email ?? '',
     row.displayName ?? '',
+    row.image ?? '',
   ])
 }
 

@@ -172,14 +172,14 @@ export function MediaPicker({
     if (!file) return
 
     // Validate file type 
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = showVideos ? [...imageTypes, ...videoTypes] : imageTypes
     
     if (!allowedTypes.includes(file.type)) {
       const message = showVideos 
-        ? 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.'
-        : 'Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.'
+        ? 'Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.'
+        : 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.'
       toast.error(message)
       return
     }
@@ -281,34 +281,36 @@ export function MediaPicker({
               </div>
               
               {/* Filter Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="default">
-                    <Filter className="w-4 h-4 mr-2" />
-                    {filterType === 'all' ? 'All' : filterType === 'image' ? 'Images' : 'Videos'}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleFilterChange('all')}>
-                    All Media
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFilterChange('image')}>
-                    <ImageIcon className="w-4 h-4 mr-2" />
-                    Images Only
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFilterChange('video')}>
-                    <VideoIcon className="w-4 h-4 mr-2" />
-                    Videos Only
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {showVideos && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="default">
+                      <Filter className="w-4 h-4 mr-2" />
+                      {filterType === 'all' ? 'All' : filterType === 'image' ? 'Images' : 'Videos'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleFilterChange('all')}>
+                      All Media
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleFilterChange('image')}>
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Images Only
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleFilterChange('video')}>
+                      <VideoIcon className="w-4 h-4 mr-2" />
+                      Videos Only
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               <Button asChild>
                 <label className="cursor-pointer">
                   <input
                     type="file"
                     className="hidden"
-                    accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"}
+                    accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp"}
                     onChange={handleFileSelect}
                   />
                   <Upload className="w-4 h-4 mr-2" />
@@ -426,7 +428,7 @@ export function MediaPicker({
                       <input
                         type="file"
                         className="hidden"
-                        accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"}
+                        accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp"}
                         onChange={handleFileSelect}
                       />
                       {showVideos ? 'Upload Your First Media File' : 'Upload Your First Image'}

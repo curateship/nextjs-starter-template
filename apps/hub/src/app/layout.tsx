@@ -74,6 +74,7 @@ export default async function RootLayout({
       ? {
           email: cookieCache.user.email ?? null,
           name: cookieCache.user.displayName || cookieCache.user.name || null,
+          image: cookieCache.user.image ?? null,
           role: typeof cookieCache.user.role === 'string' ? cookieCache.user.role : null,
         }
       : null

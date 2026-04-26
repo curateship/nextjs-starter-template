@@ -8,6 +8,8 @@ interface AuthUser {
   id: string
   email: string
   name?: string | null
+  displayName?: string | null
+  image?: string | null
   role: string
 }
 
@@ -20,6 +22,8 @@ export async function getAuthenticatedUser(): Promise<AuthUser | null> {
     id: session.user.id,
     email: session.user.email,
     name: session.user.name,
+    displayName: (session.user as any).displayName || null,
+    image: session.user.image || null,
     role: (session.user as any).role || 'end_user',
   }
 }

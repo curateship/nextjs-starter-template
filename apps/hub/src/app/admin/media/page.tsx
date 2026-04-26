@@ -156,12 +156,12 @@ export default function ImagesPage() {
     if (!file || !currentSite) return
 
     // Validate file type
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = [...imageTypes, ...videoTypes]
 
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.')
+      toast.error('Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.')
       return
     }
 
@@ -436,7 +436,7 @@ export default function ImagesPage() {
         <input
           id="image-upload-input"
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime"
+          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
           onChange={handleImageUpload}
           className="hidden"
         />

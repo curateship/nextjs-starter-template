@@ -8,6 +8,7 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
+import { getCurrentUser } from "@/lib/actions/auth/auth-actions"
 import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 
@@ -27,6 +28,10 @@ interface Post {
   featured_image?: string | null
   show_featured_image?: boolean
   excerpt?: string | null
+  author?: {
+    name?: string | null
+    image?: string | null
+  } | null
   is_published: boolean
   updated_at?: string
 }
@@ -60,8 +65,22 @@ export function PostPreview({
   onSelectBlock,
 }: PostPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
+  const [author, setAuthor] = useState<{ name?: string | null; image?: string | null } | null>(null)
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
+
+  useEffect(() => {
+    let cancelled = false
+
+    getCurrentUser().then((user) => {
+      if (cancelled) return
+      setAuthor(user ? { name: user.displayName || user.name, image: user.image } : null)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -89,6 +108,7 @@ export function PostPreview({
     featured_image: post?.featured_image || null,
     show_featured_image: post?.show_featured_image !== false,
     excerpt: post?.excerpt || null,
+    author: post?.author || author,
     is_published: post?.is_published || false,
     blocks: createPreviewEntityBlocks(previewBlocks),
   }

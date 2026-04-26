@@ -8,6 +8,10 @@ export interface PostContentStyleRendererProps {
     excerpt?: string | null
     featuredImage?: string | null
     showFeaturedImage?: boolean
+    author?: {
+      name?: string | null
+      image?: string | null
+    } | null
     createdAt?: string
     showAuthor?: boolean
     showDate?: boolean

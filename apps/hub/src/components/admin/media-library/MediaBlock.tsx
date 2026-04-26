@@ -69,7 +69,7 @@ export function ImageBlock({
                 </span>
                 <br />
                 <span className="text-sm text-muted-foreground mt-2 block">
-                  PNG, JPG, GIF, SVG, WebP up to 10MB
+                  PNG, JPG, GIF, WebP up to 10MB
                 </span>
                 <span className="text-xs text-muted-foreground mt-1 block">
                   High-quality images recommended for best results
@@ -78,7 +78,7 @@ export function ImageBlock({
               <Input
                 id="image-upload"
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                 onChange={handleImageUpload}
                 className="hidden"
                 required

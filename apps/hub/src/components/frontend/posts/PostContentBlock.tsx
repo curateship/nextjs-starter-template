@@ -18,6 +18,10 @@ interface PostContentBlockProps {
     excerpt?: string | null
     featured_image?: string | null
     show_featured_image?: boolean
+    author?: {
+      name?: string | null
+      image?: string | null
+    } | null
     created_at: string
   }
   siteId?: string
@@ -90,7 +94,14 @@ function PostBlockContent({
   hasFixedNavigation,
 }: {
   block: { id: string; type: string; content: Record<string, any> }
-  post: { title: string; excerpt?: string | null; featured_image?: string | null; show_featured_image?: boolean; created_at: string }
+  post: {
+    title: string
+    excerpt?: string | null
+    featured_image?: string | null
+    show_featured_image?: boolean
+    author?: { name?: string | null; image?: string | null } | null
+    created_at: string
+  }
   siteId?: string
   currentPostId?: string
   preloadedRelatedPosts?: RelatedPostsData | null
@@ -137,7 +148,14 @@ function PostBlockContent({
 /** Renders post-content block using the style renderer registry */
 function PostContentStyled({ block, post, bodyHtml }: {
   block: { id: string; type: string; content: Record<string, any> }
-  post: { title: string; excerpt?: string | null; featured_image?: string | null; show_featured_image?: boolean; created_at: string }
+  post: {
+    title: string
+    excerpt?: string | null
+    featured_image?: string | null
+    show_featured_image?: boolean
+    author?: { name?: string | null; image?: string | null } | null
+    created_at: string
+  }
   bodyHtml?: string
 }) {
   const postContentStyle = block.content.postContentStyle || 'default'
@@ -160,6 +178,7 @@ function PostContentStyled({ block, post, bodyHtml }: {
         excerpt: post.excerpt,
         featuredImage: post.featured_image,
         showFeaturedImage: post.show_featured_image,
+        author: post.author,
         createdAt: post.created_at,
         showAuthor: block.content.showAuthor ?? true,
         showDate: block.content.showDate ?? true,

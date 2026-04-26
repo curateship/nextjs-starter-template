@@ -3,9 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { media } from '@/lib/db/schema'
+import { media, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { uploadToR2, deleteFromR2 } from '@/lib/utils/r2'
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export interface MediaData {
   id: string
@@ -51,12 +53,12 @@ export async function uploadMediaAction(
   site_id?: string
 ): Promise<{ data: MediaData | null; error: string | null }> {
   try {
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = [...imageTypes, ...videoTypes]
 
     if (!allowedTypes.includes(file.type)) {
-      return { data: null, error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' }
+      return { data: null, error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' }
     }
 
     const fileType: 'image' | 'video' = imageTypes.includes(file.type) ? 'image' : 'video'
@@ -69,6 +71,19 @@ export async function uploadMediaAction(
 
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
+
+    if (site_id) {
+      if (!UUID_REGEX.test(site_id)) {
+        return { data: null, error: 'Invalid site ID format' }
+      }
+
+      const [site] = await db
+        .select({ id: sites.id })
+        .from(sites)
+        .where(and(eq(sites.id, site_id), eq(sites.userId, user.id)))
+
+      if (!site) return { data: null, error: 'Site not found or unauthorized' }
+    }
 
     const timestamp = Date.now()
     const fileExtension = file.name.split('.').pop() || ''

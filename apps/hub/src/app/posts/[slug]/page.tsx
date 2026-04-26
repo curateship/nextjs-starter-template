@@ -1,7 +1,7 @@
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { db } from "@/lib/db"
-import { posts } from "@/lib/db/schema"
+import { authUsers, posts, sites } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
@@ -41,6 +41,17 @@ export default async function PostPage({ params }: PostPageProps) {
     notFound()
   }
 
+  const [author] = await db
+    .select({
+      name: authUsers.name,
+      displayName: authUsers.displayName,
+      image: authUsers.image,
+    })
+    .from(sites)
+    .innerJoin(authUsers, eq(authUsers.id, sites.userId))
+    .where(eq(sites.id, post.siteId))
+    .limit(1)
+
   let blocks: any[] = []
   let showFeaturedImage = true
   try {
@@ -59,6 +70,12 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const postWithBlocks = {
     ...toSnakeCase(post),
+    author: author
+      ? {
+        name: author.displayName || author.name,
+        image: author.image,
+      }
+      : null,
     blocks,
     show_featured_image: showFeaturedImage
   } as any

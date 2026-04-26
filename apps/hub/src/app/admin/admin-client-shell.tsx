@@ -14,7 +14,7 @@ interface AdminClientShellProps {
   secondaryFontFamily: string
   initialSites: SiteWithTheme[]
   pageSize: number
-  user: { name: string; email: string }
+  user: { name: string; email: string; avatar?: string }
 }
 
 export function AdminClientShell({

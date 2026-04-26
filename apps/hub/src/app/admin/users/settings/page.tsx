@@ -8,17 +8,21 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { User, Lock, Mail, AlertTriangle } from "lucide-react"
+import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { User, Lock, Mail, AlertTriangle, ImageIcon, X } from "lucide-react"
 import { updateProfile, updatePassword, getCurrentUser } from "@/lib/actions/auth/auth-actions"
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<{ id: string; email: string; name?: string | null } | null>(null)
+  const [user, setUser] = useState<{ id: string; email: string; name?: string | null; displayName?: string | null; image?: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState("")
+  const [initialAvatarUrl, setInitialAvatarUrl] = useState("")
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -28,7 +32,9 @@ export default function SettingsPage() {
       if (u) {
         setUser(u)
         setEmail(u.email || "")
-        setDisplayName(u.name || u.email?.split('@')[0] || "")
+        setDisplayName(u.displayName || u.name || u.email?.split('@')[0] || "")
+        setAvatarUrl(u.image || "")
+        setInitialAvatarUrl(u.image || "")
       }
       setLoading(false)
     })
@@ -43,11 +49,15 @@ export default function SettingsPage() {
       const formData = new FormData()
       formData.set('display_name', displayName)
       formData.set('email', email)
+      if (avatarUrl !== initialAvatarUrl) {
+        formData.set('image', avatarUrl)
+      }
 
       const result = await updateProfile(formData)
       if (result.error) {
         setMessage({ type: 'error', text: result.error })
       } else {
+        setInitialAvatarUrl(avatarUrl)
         setMessage({ type: 'success', text: 'Profile updated successfully!' })
       }
     } catch {
@@ -172,7 +182,48 @@ export default function SettingsPage() {
                   <h3 className="text-lg font-semibold">Profile Information</h3>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-[5.625rem_minmax(0,1fr)_minmax(0,1fr)] md:items-start">
+                  <div className="space-y-2">
+                    <Label>Avatar</Label>
+                    {avatarUrl ? (
+                      <div className="relative h-[90px] w-[90px] overflow-hidden rounded-full bg-muted">
+                        <img
+                          src={avatarUrl}
+                          alt="Avatar preview"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
+                        <button
+                          type="button"
+                          onClick={() => setAvatarUrl("")}
+                          className="absolute right-3 top-3 z-10 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                          disabled={saving}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <div
+                          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
+                          onClick={() => setShowAvatarPicker(true)}
+                        >
+                          <div className="text-center text-white">
+                            <ImageIcon className="mx-auto mb-1 h-6 w-6" />
+                            <p className="text-xs font-medium">Change</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="flex h-[90px] w-[90px] cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                        onClick={() => setShowAvatarPicker(true)}
+                      >
+                        <div className="text-center">
+                          <ImageIcon className="mx-auto h-6 w-6 text-muted-foreground/50" />
+                          <p className="mt-1 text-xs text-muted-foreground">Select</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="displayName">Display Name</Label>
                     <Input
@@ -200,6 +251,14 @@ export default function SettingsPage() {
                     />
                   </div>
                 </div>
+
+                <MediaPicker
+                  open={showAvatarPicker}
+                  onOpenChange={setShowAvatarPicker}
+                  onSelectMedia={(mediaUrl) => setAvatarUrl(mediaUrl)}
+                  currentMediaUrl={avatarUrl}
+                  showVideos={false}
+                />
               </form>
             </div>
           </AdminCard>

@@ -33,7 +33,7 @@ import {
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  user: { name: string; email: string }
+  user: { name: string; email: string; avatar?: string }
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
@@ -198,7 +198,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>
-        <SidebarUserAdmin user={{ name: user.name, email: user.email, avatar: '' }} />
+        <SidebarUserAdmin user={{ name: user.name, email: user.email, avatar: user.avatar || '' }} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
