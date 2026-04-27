@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, desc } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
@@ -61,6 +62,8 @@ interface CreateResourceConfig {
   defaultBlocksKey: string
   /** Build the insert values from the request data. Receives siteId, slug, nextOrder, contentBlocks. */
   buildInsertValues: (data: any, siteId: string, slug: string, nextOrder: number, contentBlocks: any) => Record<string, any>
+  /** Cache tags to invalidate after a successful create. */
+  revalidateTags?: string[]
 }
 
 async function findResourceById(table: any, id: string) {
@@ -139,6 +142,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       const insertValues = config.buildInsertValues(data, data.site_id, slug, nextOrder, contentBlocks)
       const result = await db.insert(config.table).values(insertValues).returning() as any[]
       const newRow = result[0]
+      revalidateResourceTags(config.revalidateTags)
 
       return NextResponse.json({ data: newRow, error: null }, { status: 201 })
     } catch (error) {
@@ -164,6 +168,14 @@ interface ItemResourceConfig {
   updateFieldMap: Record<string, string>
   /** Optional transform for resource-specific update behavior */
   transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>
+  /** Cache tags to invalidate after a successful update. */
+  revalidateTags?: string[]
+}
+
+function revalidateResourceTags(tags?: string[]) {
+  for (const tag of tags || []) {
+    revalidateTag(tag)
+  }
 }
 
 /**
@@ -266,6 +278,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
         .where(eq(config.table.id, entityId))
         .returning() as any[]
       const updatedRow = updateResult[0]
+      revalidateResourceTags(config.revalidateTags)
 
       return NextResponse.json({ data: updatedRow, error: null })
     } catch (error) {

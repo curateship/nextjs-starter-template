@@ -10,13 +10,15 @@ import { getListingViewsData, type ListingViewsData } from "@/lib/actions/pages/
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
+type ListingContentType = 'products' | 'posts'
+
 interface ListingViewsBlockProps {
   content: {
     title?: string
     subtitle?: string
     headerAlign?: 'left' | 'center'
     mobileHeaderAlign?: 'left' | 'center'
-    contentType?: 'products'
+    contentType?: ListingContentType
     displayMode?: 'grid' | 'list'
     itemsToShow?: number
     columns?: number
@@ -93,8 +95,13 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
   const subtitleClasses = `mt-2 md:mt-4 text-lg text-muted-foreground max-w-3xl ${getResponsiveMarginClass()}`
 
 
+  const listingItems = data?.items || data?.products || data?.posts || []
+  const emptyMessage = contentType === 'posts'
+    ? 'No posts available at the moment.'
+    : 'No products available at the moment.'
+
   // Get URL prefix from props (passed from parent, no API call needed)
-  const urlPrefix = urlPrefixes?.products || ""
+  const urlPrefix = urlPrefixes?.[contentType] || contentType
 
   useEffect(() => {
     async function loadData() {
@@ -133,19 +140,19 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 
     : 'grid-cols-1'
 
-  const renderProduct = (product: any, index: number) => {
+  const renderItem = (item: any, index: number) => {
     // First image in grid is likely LCP element - prioritize it aggressively
     const isLCP = index === 0
 
-    const productContent = (
+    const itemContent = (
       <div className={displayMode === 'list' ? 'flex gap-6' : 'flex flex-col gap-2'}>
         {showImage && (
           <div className={displayMode === 'list' ? 'w-48 flex-shrink-0' : ''}>
-            {product.featured_image ? (
+            {item.featured_image ? (
               <div className="relative rounded-md aspect-square overflow-hidden">
                 <Image
-                  src={product.featured_image}
-                  alt={product.title || 'Product image'}
+                  src={item.featured_image}
+                  alt={item.title || `${contentType === 'posts' ? 'Post' : 'Product'} image`}
                   fill
                   className="object-cover"
                   sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
@@ -167,13 +174,13 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         )}
         <div className="flex flex-col gap-2">
           {showTitle && (
-            <h3 className="text-xl tracking-tight pt-3">{product.title}</h3>
+            <h3 className="text-xl tracking-tight pt-3">{item.title}</h3>
           )}
-          {showDescription && product.richText && (
+          {showDescription && item.richText && (
             <p className="text-muted-foreground text-base py-2">
               {(() => {
                 // Strip HTML tags from rich text for preview
-                const plainText = product.richText.replace(/<[^>]*>/g, '').trim()
+                const plainText = item.richText.replace(/<[^>]*>/g, '').trim()
                 return plainText.length > 150
                   ? plainText.substring(0, 150) + '...'
                   : plainText
@@ -186,11 +193,11 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
 
     return (
       <Link
-        key={product.id}
-        href={`/${urlPrefix ? `${urlPrefix}/` : ''}${product.slug}`}
+        key={item.id}
+        href={`/${urlPrefix ? `${urlPrefix}/` : ''}${item.slug}`}
         className="block hover:opacity-75 transition-opacity"
       >
-        {productContent}
+        {itemContent}
       </Link>
     )
   }
@@ -298,7 +305,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     )
   }
 
-  if (!data || !data.products || data.products.length === 0) {
+  if (!data || listingItems.length === 0) {
     return (
       <div >
         <BlockContainer
@@ -321,7 +328,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           </div>
           
           <p className="text-muted-foreground text-center py-8">
-            No products available at the moment.
+            {emptyMessage}
           </p>
         </BlockContainer>
       </div>
@@ -360,7 +367,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         </div>
         
         <div className={`grid ${gridColumns} gap-8`}>
-          {data.products.map((product, index) => renderProduct(product, index))}
+          {listingItems.map((item, index) => renderItem(item, index))}
         </div>
         
         {/* Mobile View All Button */}

@@ -10,6 +10,8 @@ import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { cn } from "@/lib/utils/tailwind"
 import { preparePostTableOfContents } from "./table-of-content/table-of-contents-utils"
 
+const SUPPORTED_POST_BLOCK_TYPES = ['post-content', 'related-posts', 'table-of-contents']
+
 interface PostBlockRendererProps {
   site: SiteWithBlocks
   post: {
@@ -47,7 +49,9 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
   
   // Sort post blocks by display_order (force numerical sorting)
-  const sortedBlocks = [...postBlocks].sort((a, b) => Number(a.display_order) - Number(b.display_order))
+  const sortedBlocks = [...postBlocks]
+    .sort((a, b) => Number(a.display_order) - Number(b.display_order))
+    .filter((block) => SUPPORTED_POST_BLOCK_TYPES.includes(block.type))
   
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom'
@@ -95,16 +99,16 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
       {sidebarBlocks.length > 0 && mainBlocks.length > 0 ? (
         <div className={containerClassName} style={outerContainerStyle}>
           <div className="grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-            <div className={cn("lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
+            <div className={cn("space-y-8 lg:order-2 lg:space-y-10", sidebarHasStickyBlock && "lg:self-stretch")}>
               {renderPostBlocks(sidebarBlocks, false)}
             </div>
-            <div className={cn("lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
+            <div className={cn("space-y-8 lg:order-1 lg:space-y-10", mainHasStickyBlock && "lg:self-stretch")}>
               {renderPostBlocks(mainBlocks, false)}
             </div>
           </div>
         </div>
       ) : (
-        <div className={containerClassName} style={outerContainerStyle}>
+        <div className={cn(containerClassName, "space-y-6 lg:space-y-10")} style={outerContainerStyle}>
           {renderPostBlocks([...sidebarBlocks, ...mainBlocks], false)}
         </div>
       )}

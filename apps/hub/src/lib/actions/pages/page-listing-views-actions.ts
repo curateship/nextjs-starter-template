@@ -1,114 +1,147 @@
 'use server'
 
-import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, asc, desc, sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
-import { products } from '@/lib/db/schema'
+import { posts, products } from '@/lib/db/schema'
+
+export type ListingViewsContentType = 'products' | 'posts'
+
+export interface ListingViewsItem {
+  id: string
+  title: string
+  slug: string
+  featured_image: string | null
+  richText: string | null
+  created_at: string
+  display_order: number
+}
 
 export interface ListingViewsData {
-  products?: Array<{
-    id: string
-    title: string
-    slug: string
-    featured_image: string | null
-    richText: string | null
-    created_at: string
-    display_order: number
-  }>
+  items: ListingViewsItem[]
+  products?: ListingViewsItem[]
+  posts?: ListingViewsItem[]
   totalCount: number
   currentPage: number
   totalPages: number
 }
 
+function getCurrentPage(offset: number, limit: number) {
+  return Math.floor(offset / limit) + 1
+}
+
+async function getProductsListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number) {
+  let orderByColumn: any = products.createdAt
+  if (sortBy === 'title') {
+    orderByColumn = products.title
+  } else if (sortBy === 'display_order') {
+    orderByColumn = products.displayOrder
+  }
+
+  const orderFn = sortOrder === 'asc' ? asc : desc
+
+  // Products can be hidden from listings through content_blocks settings.
+  const allProductsData = await db
+    .select({
+      id: products.id,
+      title: products.title,
+      slug: products.slug,
+      createdAt: products.createdAt,
+      displayOrder: products.displayOrder,
+      contentBlocks: products.contentBlocks,
+      featuredImage: products.featuredImage,
+      description: products.description,
+    })
+    .from(products)
+    .where(and(eq(products.siteId, site_id), eq(products.isPublished, true)))
+    .orderBy(orderFn(orderByColumn))
+
+  const publicProductsData = (allProductsData || []).filter(p => {
+    const cb = p.contentBlocks as Record<string, any> | null
+    return cb?._settings?.is_private !== true
+  })
+
+  const items = publicProductsData.slice(offset, offset + limit).map(product => ({
+    id: product.id,
+    title: product.title || 'Untitled',
+    slug: product.slug || '',
+    richText: product.description || '',
+    featured_image: product.featuredImage || null,
+    created_at: product.createdAt ? new Date(product.createdAt).toISOString() : new Date().toISOString(),
+    display_order: product.displayOrder || 0
+  }))
+
+  return {
+    items,
+    products: items,
+    totalCount: publicProductsData.length,
+    currentPage: getCurrentPage(offset, limit),
+    totalPages: Math.ceil(publicProductsData.length / limit)
+  }
+}
+
+async function getPostsListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number) {
+  let orderByColumn: any = posts.createdAt
+  if (sortBy === 'title') {
+    orderByColumn = posts.title
+  } else if (sortBy === 'display_order') {
+    orderByColumn = posts.displayOrder
+  }
+
+  const orderFn = sortOrder === 'asc' ? asc : desc
+
+  const [countResult, rows] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(posts).where(and(eq(posts.siteId, site_id), eq(posts.isPublished, true))),
+    db
+      .select({
+        id: posts.id,
+        title: posts.title,
+        slug: posts.slug,
+        featuredImage: posts.featuredImage,
+        excerpt: posts.excerpt,
+        createdAt: posts.createdAt,
+        displayOrder: posts.displayOrder,
+      })
+      .from(posts)
+      .where(and(eq(posts.siteId, site_id), eq(posts.isPublished, true)))
+      .orderBy(orderFn(orderByColumn))
+      .limit(limit)
+      .offset(offset)
+  ])
+
+  const items = rows.map(post => ({
+    id: post.id,
+    title: post.title || 'Untitled',
+    slug: post.slug || '',
+    richText: post.excerpt || '',
+    featured_image: post.featuredImage || null,
+    created_at: post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString(),
+    display_order: post.displayOrder || 0
+  }))
+
+  const totalCount = countResult[0]?.count ?? 0
+
+  return {
+    items,
+    posts: items,
+    totalCount,
+    currentPage: getCurrentPage(offset, limit),
+    totalPages: Math.ceil(totalCount / limit)
+  }
+}
+
 // Cached listing data function
 const getCachedListingData = unstable_cache(
-  async (site_id: string, contentType: string, sortBy: string, sortOrder: string, limit: number, offset: number) => {
-    // Map sortBy to Drizzle column
-    let orderByColumn: any = products.createdAt
-    if (sortBy === 'title') {
-      orderByColumn = products.title
-    } else if (sortBy === 'display_order') {
-      orderByColumn = products.displayOrder
+  async (site_id: string, contentType: ListingViewsContentType, sortBy: string, sortOrder: string, limit: number, offset: number) => {
+    if (contentType === 'posts') {
+      return getPostsListingData(site_id, sortBy, sortOrder, limit, offset)
     }
 
-    const orderFn = sortOrder === 'asc' ? asc : desc
-
-    // Get all published products to filter private ones via content_blocks
-    const allProductsData = await db
-      .select({
-        id: products.id,
-        title: products.title,
-        slug: products.slug,
-        createdAt: products.createdAt,
-        displayOrder: products.displayOrder,
-        contentBlocks: products.contentBlocks,
-      })
-      .from(products)
-      .where(and(eq(products.siteId, site_id), eq(products.isPublished, true)))
-      .orderBy(orderFn(orderByColumn))
-
-    // Filter out private products from content_blocks
-    const publicProductsData = (allProductsData || []).filter(p => {
-      const cb = p.contentBlocks as Record<string, any> | null
-      return cb?._settings?.is_private !== true
-    })
-
-    const totalCount = publicProductsData.length
-
-    // Apply pagination
-    const paginatedProducts = publicProductsData.slice(offset, offset + limit)
-
-    const totalPages = Math.ceil(totalCount / limit)
-    const currentPage = Math.floor(offset / limit) + 1
-
-    // Transform products - use raw SQL to get featured_image and description columns if they exist
-    let transformedProducts: Array<{
-      id: string
-      title: string
-      slug: string
-      richText: string | null
-      featured_image: string | null
-      created_at: string
-      display_order: number
-    }>
-
-    if (paginatedProducts.length > 0) {
-      const ids = paginatedProducts.map(p => p.id)
-      const rawRows = await db
-        .select({ id: products.id, featured_image: products.featuredImage, description: products.description })
-        .from(products)
-        .where(inArray(products.id, ids))
-      const rawMap = new Map<string, any>()
-      for (const row of rawRows) {
-        rawMap.set(row.id, row)
-      }
-
-      transformedProducts = paginatedProducts.map(product => {
-        const raw = rawMap.get(product.id)
-        return {
-          id: product.id,
-          title: product.title || 'Untitled',
-          slug: product.slug || '',
-          richText: raw?.description || '',
-          featured_image: raw?.featured_image || null,
-          created_at: product.createdAt ? new Date(product.createdAt).toISOString() : new Date().toISOString(),
-          display_order: product.displayOrder || 0
-        }
-      })
-    } else {
-      transformedProducts = []
-    }
-
-    return {
-      products: transformedProducts,
-      totalCount,
-      currentPage,
-      totalPages
-    }
+    return getProductsListingData(site_id, sortBy, sortOrder, limit, offset)
   },
   ['listing-data'],
   {
-    revalidate: 3600, // 1-hour cache for product listing data
+    revalidate: 3600,
     tags: ['listing-views', 'all']
   }
 )
@@ -118,7 +151,7 @@ const getCachedListingData = unstable_cache(
  */
 export async function getListingViewsData(params: {
   site_id: string
-  contentType: 'products'
+  contentType: ListingViewsContentType
   sortBy: 'date' | 'title' | 'display_order'
   sortOrder: 'asc' | 'desc'
   limit?: number
@@ -135,9 +168,8 @@ export async function getListingViewsData(params: {
       return { success: false, error: 'Site ID is required' }
     }
 
-    // For now, only handle products
-    if (contentType !== 'products') {
-      return { success: false, error: 'Only products content type is supported' }
+    if (contentType !== 'products' && contentType !== 'posts') {
+      return { success: false, error: 'Unsupported content type' }
     }
 
     // Get cached listing data

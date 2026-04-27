@@ -1,6 +1,7 @@
 'use server'
 
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { posts, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -403,6 +404,8 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       return { data: null, error: 'Failed to update post' }
     }
 
+    revalidateTag('listing-views')
+
     return {
       data: rowToPost(updated),
       error: null
@@ -455,6 +458,8 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
     // Delete the post
     await db.delete(posts).where(eq(posts.id, postId))
 
+    revalidateTag('listing-views')
+
     return { success: true, error: null }
   } catch (error) {
     return {
@@ -506,6 +511,8 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
     }
 
     await db.delete(posts).where(inArray(posts.id, postIds))
+
+    revalidateTag('listing-views')
 
     return { success: true, error: null }
   } catch (error) {
@@ -611,6 +618,8 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
     if (!newPost) {
       return { data: null, error: 'Failed to duplicate post' }
     }
+
+    revalidateTag('listing-views')
 
     return { data: rowToPost(newPost), error: null }
   } catch (error) {

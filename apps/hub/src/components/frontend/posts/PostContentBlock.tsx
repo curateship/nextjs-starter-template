@@ -116,7 +116,6 @@ function PostBlockContent({
       data-block-id={block.id}
       data-block-type={block.type}
       className={cn(
-        "mb-10 last:mb-0",
         isStickyBlock && "lg:sticky lg:self-start",
         isStickyBlock && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
       )}

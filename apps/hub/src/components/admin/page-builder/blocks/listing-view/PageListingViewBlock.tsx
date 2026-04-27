@@ -5,12 +5,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
+type ListingContentType = 'products' | 'posts'
+
 interface SharedListingViewsBlockProps {
   title?: string
   subtitle?: string
   headerAlign?: 'left' | 'center'
   mobileHeaderAlign?: 'left' | 'center'
-  contentType?: 'products'
+  contentType?: ListingContentType
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   columns?: number
@@ -29,7 +31,7 @@ interface SharedListingViewsBlockProps {
   onSubtitleChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
   onMobileHeaderAlignChange: (value: 'left' | 'center') => void
-  onContentTypeChange: (value: 'products') => void
+  onContentTypeChange: (value: ListingContentType) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onColumnsChange: (value: number) => void
@@ -192,12 +194,13 @@ export function PageListingViewBlock({
           <div className="flex flex-wrap gap-4">
             <div className="space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
-              <Select value={contentType} onValueChange={onContentTypeChange}>
+              <Select value={contentType} onValueChange={(value) => onContentTypeChange(value as ListingContentType)}>
                 <SelectTrigger id="contentType" size="button">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="products">Products</SelectItem>
+                  <SelectItem value="posts">Posts</SelectItem>
                 </SelectContent>
               </Select>
             </div>

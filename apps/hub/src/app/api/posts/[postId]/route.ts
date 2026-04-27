@@ -17,6 +17,7 @@ const config = {
     is_published: 'isPublished',
     display_order: 'displayOrder',
   },
+  revalidateTags: ['listing-views'],
 }
 
 export const GET = getResourceHandler(config)
