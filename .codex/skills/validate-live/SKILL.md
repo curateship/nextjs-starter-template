@@ -7,6 +7,23 @@ description: Validates code changes by opening the app in a real browser, loggin
 
 When triggered with "validate live", open a real browser to verify the page works as intended.
 
+## Dev Server Rules
+
+Use the existing HUB dev server whenever possible. Do not disrupt the user's local ports.
+
+- First check `http://localhost:3000` or `http://127.0.0.1:3000`.
+- Never run `npm run dev` from the repo root for validation. It starts the whole Turbo stack and can collide with other apps.
+- Never kill, restart, or replace whatever is using port `3000`.
+- Never start HUB on a new port unless the user explicitly approves that alternate port in the current turn.
+- If port `3000` is unavailable, occupied, or not responding, stop validation and report that live validation is blocked.
+- If HUB is not running and port `3000` is free, start only HUB:
+
+```bash
+npm --workspace @repo/hub run dev
+```
+
+Use the same base URL throughout the validation. If validation is blocked by the server/port state, do not keep probing random ports.
+
 ## Auth State
 
 Before logging in, check if saved auth state exists:
@@ -98,5 +115,5 @@ Only clean up code in files that were modified as part of the current task. Don'
 
 - If the page shows loading skeletons after 5+ seconds, the dev server may need restarting
 - If redirected to `/login` after loading auth state, the session expired — log in again and re-save state
-- If you get connection refused, the dev server isn't running — start it with `npm run dev` from the repo root
+- If you get connection refused, follow **Dev Server Rules** above; do not use the repo-root dev script
 - Console errors are sometimes normal (React hydration warnings, etc.) — focus on actual page content errors

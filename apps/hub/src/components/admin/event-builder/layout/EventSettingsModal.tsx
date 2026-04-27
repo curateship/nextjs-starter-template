@@ -50,6 +50,7 @@ export function EventSettingsModal({
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [loadingCategories, setLoadingCategories] = useState(false)
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -82,6 +83,8 @@ export function EventSettingsModal({
 
   // Initialize form data
   useEffect(() => {
+    let cancelled = false
+
     if (event) {
       setFormData({
         title: event.title || '',
@@ -94,13 +97,23 @@ export function EventSettingsModal({
       setRichTextContent(event.description || '')
       setSlugManuallyEdited(false)
 
-      // Fetch existing category assignments
+      setSelectedCategoryIds([])
+      setPrimaryCategoryId(null)
+      setLoadingCategories(true)
       getContentCategoriesAction(event.id, 'event').then(({ data }) => {
+        if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
         }
+      }).finally(() => {
+        if (cancelled) return
+        setLoadingCategories(false)
       })
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [event])
 
@@ -356,6 +369,7 @@ export function EventSettingsModal({
                 onSelectionChange={setSelectedCategoryIds}
                 primaryCategoryId={primaryCategoryId}
                 onPrimaryCategoryChange={setPrimaryCategoryId}
+                loadingSelectedCategories={loadingCategories}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Assign this event to one or more categories

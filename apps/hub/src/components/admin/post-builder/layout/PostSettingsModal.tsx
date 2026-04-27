@@ -45,6 +45,7 @@ export function PostSettingsModal({
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [loadingCategories, setLoadingCategories] = useState(false)
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -80,6 +81,8 @@ export function PostSettingsModal({
 
   // Initialize form data when post changes
   useEffect(() => {
+    let cancelled = false
+
     if (post) {
       setFormData({
         title: post.title,
@@ -98,13 +101,23 @@ export function PostSettingsModal({
       setError(null)
       // Don't reset saveMessage here as it clears the success message after save
 
-      // Fetch existing category assignments
+      setSelectedCategoryIds([])
+      setPrimaryCategoryId(null)
+      setLoadingCategories(true)
       getContentCategoriesAction(post.id, 'post').then(({ data }) => {
+        if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
         }
+      }).finally(() => {
+        if (cancelled) return
+        setLoadingCategories(false)
       })
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [post])
 
@@ -273,17 +286,17 @@ export function PostSettingsModal({
       <AdminModalContent>
         <AdminModalHeader>
           <AdminModalTitle className="flex items-center gap-3">
-            Configure settings for &quot;{post.title}&quot;
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${
-                    post?.is_published ? 'bg-green-500' : 'bg-gray-400'
-                  }`} />
-                  <span className="text-sm font-medium">
-                    {post?.is_published ? 'Published' : 'Draft'}
-                  </span>
-                </div>
-              </AdminModalTitle>
-            </AdminModalHeader>
+            {post.title}
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${
+                post?.is_published ? 'bg-green-500' : 'bg-gray-400'
+              }`} />
+              <span className="text-sm font-medium">
+                {post?.is_published ? 'Published' : 'Draft'}
+              </span>
+            </div>
+          </AdminModalTitle>
+        </AdminModalHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
@@ -392,6 +405,7 @@ export function PostSettingsModal({
                 onSelectionChange={setSelectedCategoryIds}
                 primaryCategoryId={primaryCategoryId}
                 onPrimaryCategoryChange={setPrimaryCategoryId}
+                loadingSelectedCategories={loadingCategories}
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 Assign this post to one or more categories

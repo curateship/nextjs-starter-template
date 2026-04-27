@@ -5,6 +5,7 @@ import { ChevronsUpDown, Plus, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Command,
   CommandGroup,
@@ -29,6 +30,7 @@ interface CategoryPickerProps {
   onSelectionChange: (categoryIds: string[]) => void
   primaryCategoryId?: string | null
   onPrimaryCategoryChange?: (categoryId: string | null) => void
+  loadingSelectedCategories?: boolean
 }
 
 export function CategoryPicker({
@@ -37,6 +39,7 @@ export function CategoryPicker({
   onSelectionChange,
   primaryCategoryId,
   onPrimaryCategoryChange,
+  loadingSelectedCategories = false,
 }: CategoryPickerProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -149,6 +152,9 @@ export function CategoryPicker({
   const selectedCategories = categories.filter((cat) =>
     selectedCategoryIds.includes(cat.id)
   )
+  const showSelectedCategorySkeleton =
+    loadingSelectedCategories ||
+    (loading && selectedCategoryIds.length > 0 && selectedCategories.length === 0)
 
   return (
     <div className="space-y-2">
@@ -258,7 +264,11 @@ export function CategoryPicker({
       </Popover>
 
       {/* Selected category badges */}
-      {selectedCategories.length > 0 && (
+      {showSelectedCategorySkeleton ? (
+        <div className="flex min-h-6 flex-wrap gap-1.5">
+          <Skeleton className="h-6 w-28 rounded-full" />
+        </div>
+      ) : selectedCategories.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedCategories.map((cat) => (
             <Badge

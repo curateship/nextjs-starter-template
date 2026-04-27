@@ -50,6 +50,7 @@ export function DirectorySettingsModal({
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [loadingCategories, setLoadingCategories] = useState(false)
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -96,10 +97,17 @@ export function DirectorySettingsModal({
     setRichTextContent(directory.description || '')
     setSlugManuallyEdited(false)
 
+    setSelectedCategoryIds([])
+    setPrimaryCategoryId(null)
+    setLoadingCategories(true)
     getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
       if (!cancelled) {
         setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
         setPrimaryCategoryId(data?.find((c) => c.is_primary)?.id || data?.[0]?.id || null)
+      }
+    }).finally(() => {
+      if (!cancelled) {
+        setLoadingCategories(false)
       }
     })
 
@@ -326,6 +334,7 @@ export function DirectorySettingsModal({
                 onSelectionChange={setSelectedCategoryIds}
                 primaryCategoryId={primaryCategoryId}
                 onPrimaryCategoryChange={setPrimaryCategoryId}
+                loadingSelectedCategories={loadingCategories}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Assign this directory to one or more categories

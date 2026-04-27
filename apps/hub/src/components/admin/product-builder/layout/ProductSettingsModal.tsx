@@ -57,6 +57,7 @@ export function ProductSettingsModal({
   const [isSaved, setIsSaved] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [loadingCategories, setLoadingCategories] = useState(false)
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -96,6 +97,8 @@ export function ProductSettingsModal({
 
   // Initialize form data when product changes
   useEffect(() => {
+    let cancelled = false
+
     if (product) {
       setFormData({
         title: product.title,
@@ -118,13 +121,23 @@ export function ProductSettingsModal({
       setError(null)
       setSaveMessage(null)
 
-      // Fetch existing category assignments
+      setSelectedCategoryIds([])
+      setPrimaryCategoryId(null)
+      setLoadingCategories(true)
       getContentCategoriesAction(product.id, 'product').then(({ data }) => {
+        if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
         }
+      }).finally(() => {
+        if (cancelled) return
+        setLoadingCategories(false)
       })
+    }
+
+    return () => {
+      cancelled = true
     }
   }, [product])
 
@@ -419,6 +432,7 @@ export function ProductSettingsModal({
                     onSelectionChange={setSelectedCategoryIds}
                     primaryCategoryId={primaryCategoryId}
                     onPrimaryCategoryChange={setPrimaryCategoryId}
+                    loadingSelectedCategories={loadingCategories}
                   />
                   <FieldDescription>
                     Assign this product to one or more categories.
