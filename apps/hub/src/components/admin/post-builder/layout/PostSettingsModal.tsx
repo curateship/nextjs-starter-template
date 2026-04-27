@@ -177,7 +177,7 @@ export function PostSettingsModal({
       }
       
       if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds, primaryCategoryId)
+        const categoryResult = await bulkAssignCategoriesToContentAction(post.id, 'post', selectedCategoryIds, primaryCategoryId)
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
           return
@@ -187,7 +187,16 @@ export function PostSettingsModal({
 
         // Call success callback
         if (onSuccess) {
-          onSuccess(result.data)
+          onSuccess({
+            ...post,
+            ...formData,
+            featured_image: formData.featured_image?.trim() || null,
+            meta_description: formData.meta_description?.trim() || null,
+            excerpt: formData.excerpt?.trim() || null,
+            is_published: false,
+            content_blocks: draftData.content_blocks,
+            updated_at: new Date().toISOString(),
+          })
         }
 
         // Close modal after successful save
@@ -241,7 +250,7 @@ export function PostSettingsModal({
       }
       
       if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'post', selectedCategoryIds, primaryCategoryId)
+        const categoryResult = await bulkAssignCategoriesToContentAction(post.id, 'post', selectedCategoryIds, primaryCategoryId)
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
           return
@@ -254,7 +263,16 @@ export function PostSettingsModal({
 
         // Call success callback
         if (onSuccess) {
-          onSuccess(result.data)
+          onSuccess({
+            ...post,
+            ...formData,
+            featured_image: formData.featured_image?.trim() || null,
+            meta_description: formData.meta_description?.trim() || null,
+            excerpt: formData.excerpt?.trim() || null,
+            is_published: true,
+            content_blocks: publishData.content_blocks,
+            updated_at: new Date().toISOString(),
+          })
         }
 
         // Close modal after successful save
