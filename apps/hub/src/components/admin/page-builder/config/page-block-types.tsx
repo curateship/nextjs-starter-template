@@ -80,7 +80,10 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Display product or content listings in grid or list format',
     defaultContent: {
       title: 'Product Listings',
-      viewType: 'grid'
+      viewType: 'grid',
+      listingStyle: 'default',
+      showAuthor: true,
+      showDate: true,
     }
   },
   {

@@ -3,7 +3,7 @@
 import { eq, and, asc, desc, sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
-import { posts, products } from '@/lib/db/schema'
+import { authUsers, posts, products, sites } from '@/lib/db/schema'
 
 export type ListingViewsContentType = 'products' | 'posts'
 
@@ -13,6 +13,8 @@ export interface ListingViewsItem {
   slug: string
   featured_image: string | null
   richText: string | null
+  author: string | null
+  author_image: string | null
   created_at: string
   display_order: number
 }
@@ -51,8 +53,13 @@ async function getProductsListingData(site_id: string, sortBy: string, sortOrder
       contentBlocks: products.contentBlocks,
       featuredImage: products.featuredImage,
       description: products.description,
+      authorName: authUsers.name,
+      authorDisplayName: authUsers.displayName,
+      authorImage: authUsers.image,
     })
     .from(products)
+    .innerJoin(sites, eq(sites.id, products.siteId))
+    .innerJoin(authUsers, eq(authUsers.id, sites.userId))
     .where(and(eq(products.siteId, site_id), eq(products.isPublished, true)))
     .orderBy(orderFn(orderByColumn))
 
@@ -67,6 +74,8 @@ async function getProductsListingData(site_id: string, sortBy: string, sortOrder
     slug: product.slug || '',
     richText: product.description || '',
     featured_image: product.featuredImage || null,
+    author: product.authorDisplayName || product.authorName || null,
+    author_image: product.authorImage || null,
     created_at: product.createdAt ? new Date(product.createdAt).toISOString() : new Date().toISOString(),
     display_order: product.displayOrder || 0
   }))
@@ -101,8 +110,13 @@ async function getPostsListingData(site_id: string, sortBy: string, sortOrder: s
         excerpt: posts.excerpt,
         createdAt: posts.createdAt,
         displayOrder: posts.displayOrder,
+        authorName: authUsers.name,
+        authorDisplayName: authUsers.displayName,
+        authorImage: authUsers.image,
       })
       .from(posts)
+      .innerJoin(sites, eq(sites.id, posts.siteId))
+      .innerJoin(authUsers, eq(authUsers.id, sites.userId))
       .where(and(eq(posts.siteId, site_id), eq(posts.isPublished, true)))
       .orderBy(orderFn(orderByColumn))
       .limit(limit)
@@ -115,6 +129,8 @@ async function getPostsListingData(site_id: string, sortBy: string, sortOrder: s
     slug: post.slug || '',
     richText: post.excerpt || '',
     featured_image: post.featuredImage || null,
+    author: post.authorDisplayName || post.authorName || null,
+    author_image: post.authorImage || null,
     created_at: post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString(),
     display_order: post.displayOrder || 0
   }))
@@ -139,7 +155,7 @@ const getCachedListingData = unstable_cache(
 
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset)
   },
-  ['listing-data'],
+  ['listing-data-v3'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']

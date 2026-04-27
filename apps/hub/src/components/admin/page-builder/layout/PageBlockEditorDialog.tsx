@@ -109,6 +109,7 @@ export function PageBlockEditorDialog({
                   onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
                   onMobileHeaderAlignChange={(value) => onContentChange("mobileHeaderAlign", value)}
                   onContentTypeChange={(value) => onContentChange("contentType", value)}
+                  onListingStyleChange={(value) => onContentChange("listingStyle", value)}
                   onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                   onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
                   onColumnsChange={(value) => onContentChange("columns", value)}
@@ -117,6 +118,8 @@ export function PageBlockEditorDialog({
                   onShowImageChange={(value) => onContentChange("showImage", value)}
                   onShowTitleChange={(value) => onContentChange("showTitle", value)}
                   onShowDescriptionChange={(value) => onContentChange("showDescription", value)}
+                  onShowAuthorChange={(value) => onContentChange("showAuthor", value)}
+                  onShowDateChange={(value) => onContentChange("showDate", value)}
                   onIsPaginatedChange={(value) => onContentChange("isPaginated", value)}
                   onItemsPerPageChange={(value) => onContentChange("itemsPerPage", value)}
                   onViewAllTextChange={(value) => onContentChange("viewAllText", value)}

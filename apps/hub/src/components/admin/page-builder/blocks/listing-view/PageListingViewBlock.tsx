@@ -4,8 +4,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
+import { Check } from "lucide-react"
+import { cn } from "@/lib/utils/tailwind"
 
 type ListingContentType = 'products' | 'posts'
+type ListingStyle = 'default' | 'blog'
+
+const LISTING_STYLES: Record<ListingStyle, { label: string; description: string }> = {
+  default: {
+    label: 'Default',
+    description: 'Current grid or list layout',
+  },
+  blog: {
+    label: 'Blog',
+    description: 'Editorial cards with images and read-more links',
+  },
+}
 
 interface SharedListingViewsBlockProps {
   title?: string
@@ -13,6 +27,7 @@ interface SharedListingViewsBlockProps {
   headerAlign?: 'left' | 'center'
   mobileHeaderAlign?: 'left' | 'center'
   contentType?: ListingContentType
+  listingStyle?: ListingStyle
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   columns?: number
@@ -21,6 +36,8 @@ interface SharedListingViewsBlockProps {
   showImage?: boolean
   showTitle?: boolean
   showDescription?: boolean
+  showAuthor?: boolean
+  showDate?: boolean
   isPaginated?: boolean
   itemsPerPage?: number
   viewAllText?: string
@@ -32,6 +49,7 @@ interface SharedListingViewsBlockProps {
   onHeaderAlignChange: (value: 'left' | 'center') => void
   onMobileHeaderAlignChange: (value: 'left' | 'center') => void
   onContentTypeChange: (value: ListingContentType) => void
+  onListingStyleChange: (value: ListingStyle) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onColumnsChange: (value: number) => void
@@ -40,6 +58,8 @@ interface SharedListingViewsBlockProps {
   onShowImageChange: (value: boolean) => void
   onShowTitleChange: (value: boolean) => void
   onShowDescriptionChange: (value: boolean) => void
+  onShowAuthorChange: (value: boolean) => void
+  onShowDateChange: (value: boolean) => void
   onIsPaginatedChange: (value: boolean) => void
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
@@ -53,6 +73,7 @@ export function PageListingViewBlock({
   headerAlign = 'left',
   mobileHeaderAlign = 'left',
   contentType = 'products',
+  listingStyle = 'default',
   displayMode = 'grid',
   itemsToShow = 6,
   columns = 3,
@@ -61,6 +82,8 @@ export function PageListingViewBlock({
   showImage = true,
   showTitle = true,
   showDescription = true,
+  showAuthor = true,
+  showDate = true,
   isPaginated = false,
   itemsPerPage = 12,
   viewAllText = '',
@@ -72,6 +95,7 @@ export function PageListingViewBlock({
   onHeaderAlignChange,
   onMobileHeaderAlignChange,
   onContentTypeChange,
+  onListingStyleChange,
   onDisplayModeChange,
   onItemsToShowChange,
   onColumnsChange,
@@ -80,6 +104,8 @@ export function PageListingViewBlock({
   onShowImageChange,
   onShowTitleChange,
   onShowDescriptionChange,
+  onShowAuthorChange,
+  onShowDateChange,
   onIsPaginatedChange,
   onItemsPerPageChange,
   onViewAllTextChange,
@@ -272,6 +298,37 @@ export function PageListingViewBlock({
           label: "Settings",
           content: (
             <div className="space-y-4">
+              <BlockEditorSection heading="Listing Style">
+                <div className="grid grid-cols-2 gap-2 max-w-sm">
+                  {Object.entries(LISTING_STYLES).map(([key, style]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => onListingStyleChange(key as ListingStyle)}
+                      className={cn(
+                        "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                        listingStyle === key
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        listingStyle === key
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/30"
+                      )}>
+                        {listingStyle === key && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{style.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </BlockEditorSection>
+
               <BlockEditorSection heading="Display Options">
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -298,6 +355,24 @@ export function PageListingViewBlock({
                       onCheckedChange={(checked) => onShowDescriptionChange(!!checked)}
                     />
                     <Label htmlFor="showDescription" className="cursor-pointer">Show Description</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="showAuthor"
+                      checked={showAuthor}
+                      onCheckedChange={(checked) => onShowAuthorChange(!!checked)}
+                    />
+                    <Label htmlFor="showAuthor" className="cursor-pointer">Show Author</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="showDate"
+                      checked={showDate}
+                      onCheckedChange={(checked) => onShowDateChange(!!checked)}
+                    />
+                    <Label htmlFor="showDate" className="cursor-pointer">Show Date</Label>
                   </div>
 
                   <div className="flex items-center space-x-2">

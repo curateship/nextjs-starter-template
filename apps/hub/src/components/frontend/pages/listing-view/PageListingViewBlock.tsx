@@ -6,11 +6,26 @@ import Link from "next/link"
 import Image from "next/image"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { ViewAllButton } from "@/components/ui/view-all-button"
-import { getListingViewsData, type ListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
+import { getListingViewsData, type ListingViewsData, type ListingViewsItem } from "@/lib/actions/pages/page-listing-views-actions"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardFooter, CardHeader } from "@/components/ui/card"
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 
 type ListingContentType = 'products' | 'posts'
+type ListingStyle = 'default' | 'blog'
+
+function getInitials(name?: string | null) {
+  if (!name) return '?'
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0))
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
 
 interface ListingViewsBlockProps {
   content: {
@@ -19,6 +34,7 @@ interface ListingViewsBlockProps {
     headerAlign?: 'left' | 'center'
     mobileHeaderAlign?: 'left' | 'center'
     contentType?: ListingContentType
+    listingStyle?: ListingStyle
     displayMode?: 'grid' | 'list'
     itemsToShow?: number
     columns?: number
@@ -27,6 +43,8 @@ interface ListingViewsBlockProps {
     showImage?: boolean
     showTitle?: boolean
     showDescription?: boolean
+    showAuthor?: boolean
+    showDate?: boolean
     isPaginated?: boolean
     itemsPerPage?: number
     viewAllText?: string
@@ -60,6 +78,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     headerAlign = 'left',
     mobileHeaderAlign = 'left',
     contentType = 'products',
+    listingStyle = 'default',
     displayMode = 'grid',
     itemsToShow = 6,
     columns = 3,
@@ -68,6 +87,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     showImage = true,
     showTitle = true,
     showDescription = true,
+    showAuthor = true,
+    showDate = true,
     isPaginated = false,
     itemsPerPage = 12,
     viewAllText = '',
@@ -140,14 +161,112 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 
     : 'grid-cols-1'
 
-  const renderItem = (item: any, index: number) => {
+  const formatDate = (value?: string | null) => {
+    if (!value) return ''
+
+    return new Intl.DateTimeFormat('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(value))
+  }
+
+  const getItemSummary = (item: ListingViewsItem) => {
+    if (!item.richText) return ''
+
+    const plainText = item.richText.replace(/<[^>]*>/g, '').trim()
+    return plainText.length > 150
+      ? plainText.substring(0, 150) + '...'
+      : plainText
+  }
+
+  const renderItem = (item: ListingViewsItem, index: number) => {
     // First image in grid is likely LCP element - prioritize it aggressively
     const isLCP = index === 0
+
+    if (listingStyle === 'blog') {
+      const href = `/${urlPrefix ? `${urlPrefix}/` : ''}${item.slug}`
+      const summary = getItemSummary(item)
+      const published = showDate ? formatDate(item.created_at) : ''
+      const authorName = item.author?.trim() || ''
+      const showAuthorMeta = showAuthor && Boolean(authorName)
+
+      return (
+        <Card
+          key={item.id}
+          className="mx-0 grid grid-rows-[auto_auto_1fr_auto] overflow-hidden pt-0"
+        >
+          {showImage && (
+            <div className="aspect-video w-full">
+              <Link
+                href={href}
+                className="block h-full transition-opacity duration-200 hover:opacity-70"
+              >
+                {item.featured_image ? (
+                  <Image
+                    src={item.featured_image}
+                    alt={item.title || `${contentType === 'posts' ? 'Post' : 'Product'} image`}
+                    width={640}
+                    height={360}
+                    className="h-full w-full object-cover object-center"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    priority={isLCP}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">
+                    No Image
+                  </div>
+                )}
+              </Link>
+            </div>
+          )}
+          <CardHeader>
+            {showTitle && (
+              <h3 className="text-xl hover:underline md:text-xl">
+                <Link href={href}>{item.title}</Link>
+              </h3>
+            )}
+            {showDescription && summary && (
+              <p className="leading-relaxed text-muted-foreground">
+                {summary}
+              </p>
+            )}
+            {(showAuthorMeta || published) && (
+              <div className="mt-3 flex items-center gap-2">
+                {showAuthorMeta && (
+                  <Avatar className="size-9 border">
+                    {item.author_image && <AvatarImage src={item.author_image} alt={authorName} />}
+                    <AvatarFallback className="text-xs">{getInitials(authorName)}</AvatarFallback>
+                  </Avatar>
+                )}
+                <div className="flex min-w-0 flex-col">
+                  {showAuthorMeta && (
+                    <span className="text-sm font-semibold text-foreground/80">{authorName}</span>
+                  )}
+                  {published && (
+                    <span className="text-xs text-muted-foreground">{published}</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardHeader>
+          <CardFooter>
+            <Link
+              href={href}
+              className="flex items-center text-muted-foreground hover:underline"
+            >
+              Read more
+              <ArrowRight className="ml-1 size-4" />
+            </Link>
+          </CardFooter>
+        </Card>
+      )
+    }
 
     const itemContent = (
       <div className={displayMode === 'list' ? 'flex gap-6' : 'flex flex-col gap-2'}>
         {showImage && (
-          <div className={displayMode === 'list' ? 'w-48 flex-shrink-0' : ''}>
+          <div className={displayMode === 'list' ? 'w-48 shrink-0' : ''}>
             {item.featured_image ? (
               <div className="relative rounded-md aspect-square overflow-hidden">
                 <Image
@@ -178,13 +297,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
           )}
           {showDescription && item.richText && (
             <p className="text-muted-foreground text-base py-2">
-              {(() => {
-                // Strip HTML tags from rich text for preview
-                const plainText = item.richText.replace(/<[^>]*>/g, '').trim()
-                return plainText.length > 150
-                  ? plainText.substring(0, 150) + '...'
-                  : plainText
-              })()}
+              {getItemSummary(item)}
             </p>
           )}
         </div>
@@ -265,123 +378,116 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
 
   if (loading && !data) {
     return (
-      <div >
-        <BlockContainer
-          siteWidth={siteWidth}
-          customWidth={customWidth}
-        >
-          <div className="mb-6 md:mb-12">
-            <div className={getResponsiveAlignmentClass()}>
-              {title && visibility?.title !== false && (
-                <h2 className={titleClasses}>
-                  {title}
-                </h2>
+      <BlockContainer
+        siteWidth={siteWidth}
+        customWidth={customWidth}
+      >
+        <div className="mb-6 md:mb-12">
+          <div className={getResponsiveAlignmentClass()}>
+            {title && visibility?.title !== false && (
+              <h2 className={titleClasses}>
+                {title}
+              </h2>
+            )}
+            {subtitle && visibility?.subtitle !== false && (
+              <p className={subtitleClasses}>
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
+          {Array.from({ length: itemsToShow }, (_, i) => (
+            <div key={i} className="animate-pulse">
+              {showImage && (
+                <div className="bg-muted rounded-md aspect-square mb-4"></div>
               )}
-              {subtitle && visibility?.subtitle !== false && (
-                <p className={subtitleClasses}>
-                  {subtitle}
-                </p>
+              {showTitle && (
+                <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
+              )}
+              {showDescription && (
+                <div className="h-4 bg-muted rounded w-full"></div>
               )}
             </div>
-          </div>
-
-          <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
-            {Array.from({ length: itemsToShow }, (_, i) => (
-              <div key={i} className="animate-pulse">
-                {showImage && (
-                  <div className="bg-muted rounded-md aspect-square mb-4"></div>
-                )}
-                {showTitle && (
-                  <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
-                )}
-                {showDescription && (
-                  <div className="h-4 bg-muted rounded w-full"></div>
-                )}
-              </div>
-            ))}
-          </div>
-        </BlockContainer>
-      </div>
+          ))}
+        </div>
+      </BlockContainer>
     )
   }
 
   if (!data || listingItems.length === 0) {
     return (
-      <div >
-        <BlockContainer
-          siteWidth={siteWidth}
-          customWidth={customWidth}
-        >
-          <div className="mb-6 md:mb-12">
-            <div className={getResponsiveAlignmentClass()}>
-              {title && visibility?.title !== false && (
-                <h2 className={titleClasses}>
-                  {title}
-                </h2>
-              )}
-              {subtitle && visibility?.subtitle !== false && (
-                <p className={subtitleClasses}>
-                  {subtitle}
-                </p>
-              )}
-            </div>
-          </div>
-          
-          <p className="text-muted-foreground text-center py-8">
-            {emptyMessage}
-          </p>
-        </BlockContainer>
-      </div>
-    )
-  }
-
-  return (
-    <div >
       <BlockContainer
         siteWidth={siteWidth}
         customWidth={customWidth}
       >
-        <div className="mb-12">
-          <div className={`${getResponsiveAlignmentClass()} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
-            <div className={hasViewAll ? 'md:flex-1' : ''}>
-              {title && visibility?.title !== false && (
-                <h2 className={titleClasses}>
-                  {title}
-                </h2>
-              )}
-              {subtitle && visibility?.subtitle !== false && (
-                <p className={subtitleClasses}>
-                  {subtitle}
-                </p>
-              )}
-            </div>
-            {hasViewAll && (
-              <div className="mt-6 md:mt-0 md:ml-8 flex-shrink-0 hidden md:block">
-                <ViewAllButton
-                  text={viewAllText}
-                  href={viewAllLink}
-                />
-              </div>
+        <div className="mb-6 md:mb-12">
+          <div className={getResponsiveAlignmentClass()}>
+            {title && visibility?.title !== false && (
+              <h2 className={titleClasses}>
+                {title}
+              </h2>
+            )}
+            {subtitle && visibility?.subtitle !== false && (
+              <p className={subtitleClasses}>
+                {subtitle}
+              </p>
             )}
           </div>
         </div>
         
-        <div className={`grid ${gridColumns} gap-8`}>
-          {listingItems.map((item, index) => renderItem(item, index))}
-        </div>
-        
-        {/* Mobile View All Button */}
-        {hasViewAll && (
-          <div className="flex justify-center mt-6 md:mt-8 md:hidden">
-            <ViewAllButton 
-              text={viewAllText}
-              href={viewAllLink}
-            />
-          </div>
-        )}
-        
-        {renderPagination()}
+        <p className="text-muted-foreground text-center py-8">
+          {emptyMessage}
+        </p>
       </BlockContainer>
-    </div>
+    )
+  }
+
+  return (
+    <BlockContainer
+      siteWidth={siteWidth}
+      customWidth={customWidth}
+    >
+      <div className="mb-12">
+        <div className={`${getResponsiveAlignmentClass()} ${hasViewAll ? 'md:flex md:justify-between md:items-start' : ''}`}>
+          <div className={hasViewAll ? 'md:flex-1' : ''}>
+            {title && visibility?.title !== false && (
+              <h2 className={titleClasses}>
+                {title}
+              </h2>
+            )}
+            {subtitle && visibility?.subtitle !== false && (
+              <p className={subtitleClasses}>
+                {subtitle}
+              </p>
+            )}
+          </div>
+          {hasViewAll && (
+            <div className="mt-6 hidden shrink-0 md:mt-0 md:ml-8 md:block">
+              <ViewAllButton
+                text={viewAllText}
+                href={viewAllLink}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className={`grid ${listingStyle === 'blog' ? 'gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8' : `${gridColumns} gap-8`}`}>
+        {listingItems.map((item, index) => renderItem(item, index))}
+      </div>
+
+      {hasViewAll && (
+        <div className="flex justify-center mt-6 md:mt-8 md:hidden">
+          <ViewAllButton
+            text={viewAllText}
+            href={viewAllLink}
+          />
+        </div>
+      )}
+
+      {renderPagination()}
+    </BlockContainer>
   )
 }
