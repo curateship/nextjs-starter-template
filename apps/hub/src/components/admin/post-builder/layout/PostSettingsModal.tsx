@@ -194,7 +194,7 @@ export function PostSettingsModal({
             meta_description: formData.meta_description?.trim() || null,
             excerpt: formData.excerpt?.trim() || null,
             is_published: false,
-            content_blocks: draftData.content_blocks,
+            content_blocks: draftData.content_blocks as unknown as Post["content_blocks"],
             updated_at: new Date().toISOString(),
           })
         }
@@ -270,7 +270,7 @@ export function PostSettingsModal({
             meta_description: formData.meta_description?.trim() || null,
             excerpt: formData.excerpt?.trim() || null,
             is_published: true,
-            content_blocks: publishData.content_blocks,
+            content_blocks: publishData.content_blocks as unknown as Post["content_blocks"],
             updated_at: new Date().toISOString(),
           })
         }
