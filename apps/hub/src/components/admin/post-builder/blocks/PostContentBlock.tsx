@@ -152,29 +152,31 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
           </div>
 
           <BlockEditorSection heading="Display Options">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="show-author">Show Author</Label>
-                  <p className="text-sm text-muted-foreground">Display the post author information</p>
-                </div>
-                <Switch
-                  id="show-author"
-                  checked={showAuthor}
-                  onCheckedChange={(checked) => onContentChange('showAuthor', checked)}
-                />
+            <div className="flex items-start gap-3">
+              <Switch
+                id="show-author"
+                checked={showAuthor}
+                onCheckedChange={(checked) => onContentChange('showAuthor', checked)}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="show-author">Show Author</Label>
+                <p className="text-sm text-muted-foreground">Display the post author information</p>
               </div>
+            </div>
 
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="show-date">Show Date</Label>
-                  <p className="text-sm text-muted-foreground">Display the post publication date</p>
-                </div>
-                <Switch
-                  id="show-date"
-                  checked={showDate}
-                  onCheckedChange={(checked) => onContentChange('showDate', checked)}
-                />
+            <div className="flex items-start gap-3">
+              <Switch
+                id="show-date"
+                checked={showDate}
+                onCheckedChange={(checked) => onContentChange('showDate', checked)}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="show-date">Show Date</Label>
+                <p className="text-sm text-muted-foreground">Display the post publication date</p>
               </div>
+            </div>
           </BlockEditorSection>
         </>
       )}

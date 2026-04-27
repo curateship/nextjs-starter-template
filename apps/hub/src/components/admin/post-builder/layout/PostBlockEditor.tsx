@@ -3,6 +3,7 @@
 import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
+import type { RelatedPostsBlockTab } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import { TableOfContentsBlock } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
 import type { TableOfContentsBlockTab } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
@@ -15,6 +16,7 @@ interface PostBlockEditorProps {
   postTitle: string
   onPostTitleChange: (title: string) => void
   postContentTab?: PostContentBlockTab
+  relatedPostsTab?: RelatedPostsBlockTab
   tableOfContentsTab?: TableOfContentsBlockTab
 }
 
@@ -26,6 +28,7 @@ export function PostBlockEditor({
   postTitle,
   onPostTitleChange,
   postContentTab,
+  relatedPostsTab,
   tableOfContentsTab,
 }: PostBlockEditorProps) {
   if (block.type === "post-content") {
@@ -47,6 +50,7 @@ export function PostBlockEditor({
       <RelatedPostsBlock
         content={content}
         onContentChange={onContentChange}
+        activeTab={relatedPostsTab}
       />
     )
   }

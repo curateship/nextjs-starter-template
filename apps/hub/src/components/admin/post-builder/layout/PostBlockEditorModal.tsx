@@ -14,6 +14,7 @@ import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { getBlockName } from "@/components/admin/post-builder/config/post-block-types"
 import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import type { RelatedPostsBlockTab } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import type { TableOfContentsBlockTab } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -42,7 +43,7 @@ export function PostBlockEditorModal({
   saving = false,
   error,
 }: PostBlockEditorModalProps) {
-  const [activeTab, setActiveTab] = useState<PostContentBlockTab | TableOfContentsBlockTab>("content")
+  const [activeTab, setActiveTab] = useState<PostContentBlockTab | RelatedPostsBlockTab | TableOfContentsBlockTab>("content")
 
   useEffect(() => {
     setActiveTab("content")
@@ -59,8 +60,15 @@ export function PostBlockEditorModal({
     { value: "content", label: "Content" },
     { value: "settings", label: "Settings" },
   ]
+  const relatedPostsTabs: Array<{ value: RelatedPostsBlockTab; label: string }> = [
+    { value: "content", label: "Content" },
+    { value: "styling", label: "Styling" },
+    { value: "settings", label: "Settings" },
+  ]
   const modalTabs = block.type === "post-content"
     ? postContentTabs
+    : block.type === "related-posts"
+      ? relatedPostsTabs
     : block.type === "table-of-contents"
       ? tableOfContentsTabs
       : []
@@ -106,6 +114,7 @@ export function PostBlockEditorModal({
             postTitle={postTitle}
             onPostTitleChange={onPostTitleChange}
             postContentTab={block.type === "post-content" ? activeTab as PostContentBlockTab : undefined}
+            relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}
             tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
           />
         </AdminModalScrollBody>
