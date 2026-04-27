@@ -6,11 +6,13 @@ export type { BlockTypeDefinition }
 export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
     type: 'post-content',
-    name: 'Post Content',
+    name: 'Core',
     icon: FileText,
     description: 'Post title, display options, and rich text content',
     defaultContent: {
       layoutColumn: 'main',
+      showFeaturedImage: true,
+      showExcerpt: true,
       showAuthor: true,
       showDate: true,
       body: '',

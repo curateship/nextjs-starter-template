@@ -18,6 +18,7 @@ interface PostContentBlockProps {
     excerpt?: string | null
     featured_image?: string | null
     show_featured_image?: boolean
+    show_excerpt?: boolean
     author?: {
       name?: string | null
       image?: string | null
@@ -99,6 +100,7 @@ function PostBlockContent({
     excerpt?: string | null
     featured_image?: string | null
     show_featured_image?: boolean
+    show_excerpt?: boolean
     author?: { name?: string | null; image?: string | null } | null
     created_at: string
   }
@@ -152,6 +154,7 @@ function PostContentStyled({ block, post, bodyHtml }: {
     excerpt?: string | null
     featured_image?: string | null
     show_featured_image?: boolean
+    show_excerpt?: boolean
     author?: { name?: string | null; image?: string | null } | null
     created_at: string
   }
@@ -176,7 +179,8 @@ function PostContentStyled({ block, post, bodyHtml }: {
         title: post.title,
         excerpt: post.excerpt,
         featuredImage: post.featured_image,
-        showFeaturedImage: post.show_featured_image,
+        showFeaturedImage: block.content.showFeaturedImage ?? post.show_featured_image,
+        showExcerpt: block.content.showExcerpt ?? post.show_excerpt,
         author: post.author,
         createdAt: post.created_at,
         showAuthor: block.content.showAuthor ?? true,

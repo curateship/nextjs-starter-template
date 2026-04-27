@@ -123,7 +123,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   // Update local blocks when post data changes
   useEffect(() => {
     if (currentPostData?.content_blocks) {
-      // Filter out settings like show_featured_image and keep only actual blocks
+      // Filter out post-level settings and keep only actual blocks
       const actualBlocks: Record<string, PostBlock> = {}
       Object.entries(currentPostData.content_blocks).forEach(([key, value]) => {
         // Only include items that have block properties (id, type, content)
@@ -159,6 +159,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     site_id: currentPostData?.site_id,
     featured_image: currentPostData?.featured_image,
     show_featured_image: (currentPostData?.content_blocks as any)?.show_featured_image,
+    show_excerpt: (currentPostData?.content_blocks as any)?.show_excerpt,
     excerpt: currentPostData?.excerpt,
     is_published: currentPostData?.is_published,
     content_blocks: currentPostData?.content_blocks
@@ -356,6 +357,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
                 site_id: currentPostData.site_id || siteId,
                 featured_image: currentPostData.featured_image || null,
                 show_featured_image: (currentPostData.content_blocks as any)?.show_featured_image !== false,
+                show_excerpt: (currentPostData.content_blocks as any)?.show_excerpt !== false,
                 excerpt: currentPostData.excerpt || null,
                 is_published: currentPostData.is_published || false,
                 updated_at: currentPostData.updated_at
@@ -379,6 +381,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
           content={draftContent}
           siteId={siteId}
           postTitle={draftPostTitle}
+          postData={currentPost}
           onPostTitleChange={setDraftPostTitle}
           onContentChange={handleDraftChange}
           onClose={handleCloseBlockEditor}

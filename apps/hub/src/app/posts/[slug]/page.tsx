@@ -54,9 +54,11 @@ export default async function PostPage({ params }: PostPageProps) {
 
   let blocks: any[] = []
   let showFeaturedImage = true
+  let showExcerpt = true
   try {
     const contentBlocks = (post.contentBlocks as any) || {}
     showFeaturedImage = contentBlocks.show_featured_image !== false
+    showExcerpt = contentBlocks.show_excerpt !== false
     const blockValues = Object.values(contentBlocks).filter((block: any) =>
       block && typeof block === 'object' && block.type
     )
@@ -77,7 +79,8 @@ export default async function PostPage({ params }: PostPageProps) {
       }
       : null,
     blocks,
-    show_featured_image: showFeaturedImage
+    show_featured_image: showFeaturedImage,
+    show_excerpt: showExcerpt
   } as any
 
   let preloadedRelatedPosts = null

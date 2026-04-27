@@ -36,6 +36,8 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
 
   const showAuthor = content.showAuthor ?? true
   const showDate = content.showDate ?? true
+  const showFeaturedImage = content.showFeaturedImage ?? postData?.show_featured_image ?? true
+  const showExcerpt = content.showExcerpt ?? postData?.show_excerpt ?? true
 
   // Update local title when post data changes
   useEffect(() => {
@@ -152,6 +154,32 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
           </div>
 
           <BlockEditorSection heading="Display Options">
+            <div className="flex items-start gap-3">
+              <Switch
+                id="show-featured-image"
+                checked={showFeaturedImage}
+                onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="show-featured-image">Show Featured Image</Label>
+                <p className="text-sm text-muted-foreground">Display the post featured image</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Switch
+                id="show-excerpt"
+                checked={showExcerpt}
+                onCheckedChange={(checked) => onContentChange('showExcerpt', checked)}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="show-excerpt">Show Excerpt</Label>
+                <p className="text-sm text-muted-foreground">Display the post excerpt beneath the title</p>
+              </div>
+            </div>
+
             <div className="flex items-start gap-3">
               <Switch
                 id="show-author"

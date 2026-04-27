@@ -5,10 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import {
   AdminModalBody,
@@ -36,7 +34,6 @@ interface CreatePostData {
   meta_description: string
   featured_image: string
   excerpt: string
-  content: string
   is_published: boolean
 }
 
@@ -53,7 +50,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     meta_description: "",
     featured_image: "",
     excerpt: "",
-    content: "",
     is_published: false,
   })
   const [loading, setLoading] = useState(false)
@@ -61,7 +57,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug, setCheckingSlug] = useState(false)
-  const [showFeaturedImage, setShowFeaturedImage] = useState(true)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
@@ -164,14 +159,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       const sanitizedTemplateContentBlocks = selectedTemplate
         ? postBlocksToJson(parsePostBlocksFromJson(templateContentBlocks), templateContentBlocks)
         : {}
-      const contentBlocks = selectedTemplate
-        ? {
-            ...sanitizedTemplateContentBlocks,
-            show_featured_image: sanitizedTemplateContentBlocks.show_featured_image ?? showFeaturedImage,
-          }
-        : {
-            show_featured_image: showFeaturedImage,
-          }
+      const contentBlocks = selectedTemplate ? sanitizedTemplateContentBlocks : {}
 
       const draftData = {
         title: formData.title,
@@ -341,21 +329,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
             Optional featured image for this post
           </p>
 
-          {formData.featured_image && (
-            <div className="mt-4 flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="show_featured_image">Show featured image on post page</Label>
-                <p className="text-xs text-muted-foreground">
-                  Control whether the featured image appears at the top of the post page
-                </p>
-              </div>
-              <Switch
-                id="show_featured_image"
-                checked={showFeaturedImage}
-                onCheckedChange={setShowFeaturedImage}
-              />
-            </div>
-          )}
         </div>
 
         <div>
@@ -393,23 +366,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
             </p>
           </div>
         )}
-
-        <div>
-          <Label htmlFor="content">Post Content</Label>
-          <RichTextEditor
-            content={{
-              content: formData.content || "",
-              hideHeader: true,
-              hideEditorHeader: true,
-            }}
-            onContentChange={(content) => setFormData((prev) => ({ ...prev, content: content.content }))}
-            compact={true}
-            inline={true}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Rich text content for the post body
-          </p>
-        </div>
 
         <div>
           <Label htmlFor="meta_description">Meta Description</Label>

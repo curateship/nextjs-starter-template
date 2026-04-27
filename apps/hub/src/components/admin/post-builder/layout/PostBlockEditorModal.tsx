@@ -24,6 +24,7 @@ interface PostBlockEditorModalProps {
   content: Record<string, any>
   siteId: string
   postTitle: string
+  postData?: Record<string, any>
   onPostTitleChange: (title: string) => void
   onContentChange: (field: string, value: any) => void
   onClose: () => void
@@ -37,6 +38,7 @@ export function PostBlockEditorModal({
   content,
   siteId,
   postTitle,
+  postData,
   onPostTitleChange,
   onContentChange,
   onClose,
@@ -59,6 +61,7 @@ export function PostBlockEditorModal({
           content={content}
           siteId={siteId}
           postTitle={postTitle}
+          postData={postData}
           onPostTitleChange={onPostTitleChange}
           onContentChange={onContentChange}
           onClose={onClose}
@@ -76,6 +79,7 @@ function PostBlockEditorModalContent({
   content,
   siteId,
   postTitle,
+  postData,
   onPostTitleChange,
   onContentChange,
   onClose,
@@ -132,6 +136,7 @@ function PostBlockEditorModalContent({
           onContentChange={onContentChange}
           siteId={siteId}
           postTitle={postTitle}
+          postData={postData}
           onPostTitleChange={onPostTitleChange}
           postContentTab={block.type === "post-content" ? activeTab as PostContentBlockTab : undefined}
           relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}

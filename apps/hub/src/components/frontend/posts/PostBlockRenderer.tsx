@@ -22,6 +22,7 @@ interface PostBlockRendererProps {
     site_id: string
     featured_image?: string | null
     show_featured_image?: boolean
+    show_excerpt?: boolean
     excerpt?: string | null
     author?: {
       name?: string | null
@@ -73,6 +74,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
     excerpt: post.excerpt,
     featured_image: post.featured_image,
     show_featured_image: post.show_featured_image,
+    show_excerpt: post.show_excerpt,
     author: post.author,
     created_at: post.created_at || new Date().toISOString()
   }

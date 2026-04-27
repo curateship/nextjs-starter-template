@@ -111,7 +111,7 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       id: `post-content-${timestamp}`,
       type: 'post-content',
       display_order: currentBlocks.length + 1,
-      content: normalizePostBlockContent('post-content', { showAuthor: true, showDate: true, body: '', format: 'html' }),
+      content: normalizePostBlockContent('post-content', { showFeaturedImage: true, showExcerpt: true, showAuthor: true, showDate: true, body: '', format: 'html' }),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }

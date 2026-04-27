@@ -7,9 +7,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import {
@@ -45,8 +43,6 @@ export function PostSettingsModal({
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
-  const [extractedContent, setExtractedContent] = useState('')
-  const [showFeaturedImage, setShowFeaturedImage] = useState(true)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
 
@@ -85,21 +81,6 @@ export function PostSettingsModal({
   // Initialize form data when post changes
   useEffect(() => {
     if (post) {
-      // Extract content from content_blocks structure
-      let content = ''
-      if (post.content_blocks && typeof post.content_blocks === 'object') {
-        const blocks = Object.values(post.content_blocks)
-        const firstBlock = blocks.find((block: any) => block.type === 'post-content')
-        if (firstBlock && firstBlock.content) {
-          content = firstBlock.content.body || firstBlock.content.text || ''
-        }
-      }
-      setExtractedContent(content)
-      
-      // Get show_featured_image from content_blocks
-      const showFeaturedImageSetting = (post.content_blocks as any)?.show_featured_image ?? true
-      setShowFeaturedImage(showFeaturedImageSetting)
-      
       setFormData({
         title: post.title,
         slug: post.slug,
@@ -155,11 +136,7 @@ export function PostSettingsModal({
       
       const draftData = { 
         ...formData, 
-        is_published: false,
-        content_blocks: {
-          ...post.content_blocks,
-          show_featured_image: showFeaturedImage
-        }
+        is_published: false
       }
       const response = await fetch(`/api/posts/${post.id}`, {
         method: 'PUT',
@@ -194,7 +171,7 @@ export function PostSettingsModal({
             meta_description: formData.meta_description?.trim() || null,
             excerpt: formData.excerpt?.trim() || null,
             is_published: false,
-            content_blocks: draftData.content_blocks as unknown as Post["content_blocks"],
+            content_blocks: post.content_blocks,
             updated_at: new Date().toISOString(),
           })
         }
@@ -228,11 +205,7 @@ export function PostSettingsModal({
       
       const publishData = { 
         ...formData, 
-        is_published: true,
-        content_blocks: {
-          ...post.content_blocks,
-          show_featured_image: showFeaturedImage
-        }
+        is_published: true
       }
       const response = await fetch(`/api/posts/${post.id}`, {
         method: 'PUT',
@@ -270,7 +243,7 @@ export function PostSettingsModal({
             meta_description: formData.meta_description?.trim() || null,
             excerpt: formData.excerpt?.trim() || null,
             is_published: true,
-            content_blocks: publishData.content_blocks as unknown as Post["content_blocks"],
+            content_blocks: post.content_blocks,
             updated_at: new Date().toISOString(),
           })
         }
@@ -395,25 +368,6 @@ export function PostSettingsModal({
             </p>
           </div>
 
-          {/* Show Featured Image Toggle */}
-          {formData.featured_image && (
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="show_featured_image">Show featured image on post page</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Control whether the featured image appears at the top of the post page
-                  </p>
-                </div>
-                <Switch
-                  id="show_featured_image"
-                  checked={showFeaturedImage}
-                  onCheckedChange={setShowFeaturedImage}
-                />
-              </div>
-            </div>
-          )}
-
           {/* Post Excerpt */}
           <div>
             <Label htmlFor="excerpt">Post Excerpt</Label>
@@ -444,24 +398,6 @@ export function PostSettingsModal({
               </p>
             </div>
           )}
-
-          {/* Post Content */}
-          <div>
-            <Label htmlFor="content">Post Content</Label>
-            <RichTextEditor
-              content={{
-                content: extractedContent || '',
-                hideHeader: true,
-                hideEditorHeader: true
-              }}
-              onContentChange={(content) => setExtractedContent(content.content)}
-              compact={true}
-              inline={true}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Rich text content for the post body
-            </p>
-          </div>
 
           {/* Meta Description */}
           <div>

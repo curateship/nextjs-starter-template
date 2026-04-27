@@ -14,6 +14,7 @@ interface PostBlockEditorProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   postTitle: string
+  postData?: Record<string, any>
   onPostTitleChange: (title: string) => void
   postContentTab?: PostContentBlockTab
   relatedPostsTab?: RelatedPostsBlockTab
@@ -26,6 +27,7 @@ export function PostBlockEditor({
   onContentChange,
   siteId,
   postTitle,
+  postData,
   onPostTitleChange,
   postContentTab,
   relatedPostsTab,
@@ -38,7 +40,7 @@ export function PostBlockEditor({
         onContentChange={onContentChange}
         siteId={siteId}
         blockId={block.id}
-        postData={{ title: postTitle }}
+        postData={{ ...postData, title: postTitle }}
         onPostTitleChange={onPostTitleChange}
         activeTab={postContentTab}
       />

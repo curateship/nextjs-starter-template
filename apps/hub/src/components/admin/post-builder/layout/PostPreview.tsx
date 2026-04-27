@@ -27,6 +27,7 @@ interface Post {
   site_id: string
   featured_image?: string | null
   show_featured_image?: boolean
+  show_excerpt?: boolean
   excerpt?: string | null
   author?: {
     name?: string | null
@@ -107,6 +108,7 @@ export function PostPreview({
     site_id: post?.site_id || "preview",
     featured_image: post?.featured_image || null,
     show_featured_image: post?.show_featured_image !== false,
+    show_excerpt: post?.show_excerpt !== false,
     excerpt: post?.excerpt || null,
     author: post?.author || author,
     is_published: post?.is_published || false,

@@ -23,6 +23,7 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
     excerpt,
     featuredImage,
     showFeaturedImage,
+    showExcerpt,
     author,
     createdAt,
     showAuthor = true,
@@ -48,7 +49,7 @@ export function DefaultPostContentRenderer({ config, sharedContent }: PostConten
       <h1 className={`text-pretty ${titleClasses} font-semibold`}>
         {title}
       </h1>
-      {excerpt && (
+      {showExcerpt !== false && excerpt && (
         <h3 className="text-muted-foreground text-lg md:text-xl">
           {excerpt}
         </h3>
