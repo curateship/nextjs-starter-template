@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
+import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import {
   AdminModalContent,
   AdminModalFooter,
@@ -52,12 +53,16 @@ export function EventBlockEditorModal({
         if (!open) onClose()
       }}
     >
-      <AdminModalContent size="wide">
-        <AdminModalHeader>
-          <AdminModalTitle>Edit {block.title}</AdminModalTitle>
-        </AdminModalHeader>
+      <ModalTabsProvider>
+        <AdminModalContent size="wide">
+          <AdminModalHeader>
+            <div className="flex min-w-0 items-center gap-4 pr-10">
+              <AdminModalTitle className="shrink-0">Edit {block.title}</AdminModalTitle>
+              <ModalTabs />
+            </div>
+          </AdminModalHeader>
 
-        <AdminModalScrollBody>
+          <AdminModalScrollBody>
               <EventBlockEditor
                 block={block}
                 content={content}
@@ -66,20 +71,21 @@ export function EventBlockEditorModal({
                 eventTitle={eventTitle}
                 onEventTitleChange={onEventTitleChange}
               />
-        </AdminModalScrollBody>
+          </AdminModalScrollBody>
 
-        <AdminModalFooter className="sm:justify-between">
-          {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={onSave} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </AdminModalFooter>
-      </AdminModalContent>
+          <AdminModalFooter className="sm:justify-between">
+            {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={onSave} disabled={saving}>
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </ModalTabsProvider>
     </Dialog>
   )
 }

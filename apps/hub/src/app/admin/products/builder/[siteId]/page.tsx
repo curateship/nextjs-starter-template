@@ -28,6 +28,7 @@ import { ProductVideoBlock } from "@/components/admin/product-builder/blocks/vid
 import {
   Dialog,
 } from "@/components/ui/dialog"
+import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import {
   AdminModalContent,
   AdminModalDescription,
@@ -377,12 +378,16 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
               }
             }}
           >
-            <AdminModalContent size="wide">
-              <AdminModalHeader>
-                <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
-              </AdminModalHeader>
+            <ModalTabsProvider>
+              <AdminModalContent size="wide">
+                <AdminModalHeader>
+                  <div className="flex min-w-0 items-center gap-4 pr-10">
+                    <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
+                    <ModalTabs />
+                  </div>
+                </AdminModalHeader>
 
-              <AdminModalScrollBody>
+                <AdminModalScrollBody>
                     {(selectedBlock.type === "product-content" || selectedBlock.type === "product-default") && (
                       <ProductContentBlock
                         content={draftContent}
@@ -601,17 +606,18 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                         blockId={selectedBlock.id}
                       />
                     )}
-              </AdminModalScrollBody>
+                </AdminModalScrollBody>
 
-              <AdminModalFooter className="sm:justify-end">
-                <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                  {isSavingBlock ? "Saving..." : "Save"}
-                </Button>
-              </AdminModalFooter>
-            </AdminModalContent>
+                <AdminModalFooter className="sm:justify-end">
+                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                    {isSavingBlock ? "Saving..." : "Save"}
+                  </Button>
+                </AdminModalFooter>
+              </AdminModalContent>
+            </ModalTabsProvider>
           </Dialog>
         )}
 

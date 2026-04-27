@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
+import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import {
   AdminModalContent,
   AdminModalFooter,
@@ -43,14 +44,18 @@ export function PageBlockEditorDialog({
 
   return (
     <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
-      <AdminModalContent size="wide">
-        <AdminModalHeader>
-          <AdminModalTitle>
-            Edit {selectedBlock.title || getBlockName(selectedBlock.type)}
-          </AdminModalTitle>
-        </AdminModalHeader>
+      <ModalTabsProvider>
+        <AdminModalContent size="wide">
+          <AdminModalHeader>
+            <div className="flex min-w-0 items-center gap-4 pr-10">
+              <AdminModalTitle className="shrink-0">
+                Edit {selectedBlock.title || getBlockName(selectedBlock.type)}
+              </AdminModalTitle>
+              <ModalTabs />
+            </div>
+          </AdminModalHeader>
 
-        <AdminModalScrollBody>
+          <AdminModalScrollBody>
               {selectedBlock.type === "hero" && (
                 <PageHeroBlock
                   content={draftContent}
@@ -179,17 +184,18 @@ export function PageBlockEditorDialog({
                   onVisibilityChange={(value) => onContentChange("visibility", value)}
                 />
               )}
-        </AdminModalScrollBody>
+          </AdminModalScrollBody>
 
-        <AdminModalFooter className="sm:justify-end">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={onSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-        </AdminModalFooter>
-      </AdminModalContent>
+          <AdminModalFooter className="sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onSave} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save"}
+            </Button>
+          </AdminModalFooter>
+        </AdminModalContent>
+      </ModalTabsProvider>
     </Dialog>
   )
 }

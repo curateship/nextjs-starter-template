@@ -18,6 +18,7 @@ import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/new
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Dialog } from "@/components/ui/dialog"
+import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   AdminModalBody,
@@ -382,35 +383,40 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
-            <AdminModalHeader>
-              <AdminModalTitle>Edit {selectedBlock.title}</AdminModalTitle>
-            </AdminModalHeader>
-
-            <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
-              <ScrollArea className="h-full">
-                <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
-                  <NewsletterBlockEditor
-                    block={selectedBlock}
-                    content={draftContent}
-                    onContentChange={handleDraftChange}
-                    siteId={currentSite?.id || ""}
-                    subject={draftSubject}
-                    onSubjectChange={setDraftSubject}
-                  />
+          <ModalTabsProvider>
+            <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
+              <AdminModalHeader>
+                <div className="flex min-w-0 items-center gap-4 pr-10">
+                  <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
+                  <ModalTabs />
                 </div>
-              </ScrollArea>
-            </AdminModalBody>
+              </AdminModalHeader>
 
-            <AdminModalFooter className="sm:justify-end">
-              <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                Cancel
-              </Button>
-              <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                {isSavingBlock ? "Saving..." : "Save"}
-              </Button>
-            </AdminModalFooter>
-          </AdminModalContent>
+              <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
+                <ScrollArea className="h-full">
+                  <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
+                    <NewsletterBlockEditor
+                      block={selectedBlock}
+                      content={draftContent}
+                      onContentChange={handleDraftChange}
+                      siteId={currentSite?.id || ""}
+                      subject={draftSubject}
+                      onSubjectChange={setDraftSubject}
+                    />
+                  </div>
+                </ScrollArea>
+              </AdminModalBody>
+
+              <AdminModalFooter className="sm:justify-end">
+                <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                  {isSavingBlock ? "Saving..." : "Save"}
+                </Button>
+              </AdminModalFooter>
+            </AdminModalContent>
+          </ModalTabsProvider>
         </Dialog>
       )}
 

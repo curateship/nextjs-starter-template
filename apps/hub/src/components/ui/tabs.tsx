@@ -4,6 +4,8 @@ import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 import { ArrowLeft } from "lucide-react"
 
+import type { ModalTabItem } from "@/components/admin/layout/dashboard/modal-tabs"
+import { useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
 import { cn } from "@/lib/utils/tailwind"
 
 const Tabs = TabsPrimitive.Root
@@ -77,36 +79,52 @@ function BlockTabs({
   headerClassName,
   contentClassName,
 }: BlockTabsProps) {
-  const [activeTab, setActiveTab] = React.useState(defaultTab || tabs[0]?.value || "content")
+  const dock = useModalTabsDock()
+  const [localActiveTab, setLocalActiveTab] = React.useState(defaultTab || tabs[0]?.value || "content")
   const contentClasses = contentClassName === undefined ? "mt-0" : contentClassName
+  const activeTab = dock ? dock.activeTab || defaultTab || tabs[0]?.value || "content" : localActiveTab
+  const setActiveTab = dock ? dock.setActiveTab : setLocalActiveTab
+  const dockSetTabs = dock?.setTabs
+  const dockClearTabs = dock?.clearTabs
+  const dockTabsKey = JSON.stringify(tabs.map((tab) => ({ value: tab.value, label: tab.label })))
+
+  React.useEffect(() => {
+    if (!dockSetTabs || !dockClearTabs) return
+
+    const dockTabs = JSON.parse(dockTabsKey) as ModalTabItem[]
+    dockSetTabs(dockTabs, defaultTab)
+    return dockClearTabs
+  }, [dockSetTabs, dockClearTabs, dockTabsKey, defaultTab])
 
   React.useEffect(() => {
     if (!tabs.some((tab) => tab.value === activeTab)) {
       setActiveTab(defaultTab || tabs[0]?.value || "content")
     }
-  }, [activeTab, defaultTab, tabs])
+  }, [activeTab, defaultTab, tabs, setActiveTab])
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className={cn("flex w-full flex-col gap-4", className)}>
-      <div className={cn("flex items-center gap-2", headerClassName || "px-4 pt-3")}>
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground transition-all hover:bg-background hover:text-foreground hover:shadow-sm"
-          >
-            <ArrowLeft className="mr-1.5 h-4 w-3.5" />
-            Back
-          </button>
-        ) : null}
-        <TabsList>
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </div>
+      {!dock && (
+        <div className={cn("flex items-center gap-2", headerClassName || "px-4 pt-3")}>
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-md bg-muted px-3 text-sm font-medium text-muted-foreground transition-all hover:bg-background hover:text-foreground hover:shadow-sm"
+            >
+              <ArrowLeft className="mr-1.5 h-4 w-3.5" />
+              Back
+            </button>
+          ) : null}
+          <TabsList>
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+      )}
 
       {tabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value} className={cn(contentClasses)}>
