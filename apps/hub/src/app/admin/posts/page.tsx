@@ -8,6 +8,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { getPostAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -318,7 +319,7 @@ export default function PostsPage() {
 
   return (
     <>
-      <StickyHeader />
+      <StickyHeader navLinks={getPostAdminTopNavLinks("posts")} />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

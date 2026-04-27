@@ -1,5 +1,12 @@
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { getPostLayoutColumn, normalizePostBlockContent } from "@/lib/actions/posts/post-layout"
+import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
+
+const SUPPORTED_POST_BLOCK_TYPES: PostBlock['type'][] = ['post-content', 'related-posts', 'table-of-contents']
+
+function isSupportedPostBlockType(type: string): type is PostBlock['type'] {
+  return SUPPORTED_POST_BLOCK_TYPES.includes(type as PostBlock['type'])
+}
 
 export function normalizePostBuilderBlock(block: PostBlock, displayOrder = block.display_order): PostBlock {
   return {
@@ -32,4 +39,37 @@ export function postBuilderBlocksToRecord(blocks: PostBlock[]): Record<string, P
   })
 
   return nextBlocks
+}
+
+export function parsePostBlocksFromJson(contentBlocks: Record<string, any>): PostBlock[] {
+  return orderPostBuilderBlocks(
+    convertContentBlocksToArray(contentBlocks || {}, '', SUPPORTED_POST_BLOCK_TYPES)
+      .filter((block): block is PostBlock => isSupportedPostBlockType(block.type))
+      .map((block) => normalizePostBuilderBlock({
+        id: block.id,
+        type: block.type,
+        content: block.content,
+        display_order: block.display_order,
+      }))
+  )
+}
+
+export function postBlocksToJson(
+  blocks: PostBlock[],
+  existingContentBlocks: Record<string, any> = {}
+): Record<string, any> {
+  const preservedSettings: Record<string, any> = {}
+
+  Object.entries(existingContentBlocks).forEach(([key, value]) => {
+    if (typeof value !== 'object' || value === null) {
+      preservedSettings[key] = value
+    } else if (key.startsWith('_')) {
+      preservedSettings[key] = value
+    }
+  })
+
+  return {
+    ...preservedSettings,
+    ...postBuilderBlocksToRecord(blocks),
+  }
 }

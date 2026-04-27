@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   BarChart3,
   Blocks,
+  BookOpen,
   ClipboardCheck,
   Clock3,
   FileText,
@@ -32,6 +33,7 @@ export interface AdminTopNavLink {
 }
 
 type ProductAdminSection = "products" | "orders" | "analytics"
+type PostAdminSection = "posts" | "templates"
 type PageAdminSection = "pages" | "account-pages" | "navigation" | "footer"
 type NewsletterAdminSection =
   | "newsletters"
@@ -52,6 +54,13 @@ export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTo
     { label: "Products", href: "/admin/products", icon: Package, active: active === "products" },
     { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: active === "orders" },
     { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3, active: active === "analytics" },
+  ]
+}
+
+export function getPostAdminTopNavLinks(active: PostAdminSection): AdminTopNavLink[] {
+  return [
+    { label: "Posts", href: "/admin/posts", icon: BookOpen, active: active === "posts" },
+    { label: "Templates", href: "/admin/posts/templates", icon: FileText, active: active === "templates" },
   ]
 }
 

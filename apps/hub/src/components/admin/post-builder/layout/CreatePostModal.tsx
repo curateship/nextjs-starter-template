@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
@@ -13,11 +14,21 @@ import {
   AdminModalBody,
   AdminModalFooter,
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import { ImageIcon, X } from "lucide-react"
+import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getPostTemplatesBySite } from "@/lib/actions/posts/post-template-actions"
+import { parsePostBlocksFromJson, postBlocksToJson } from "@/components/admin/post-builder/config/post-block-utils"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post } from "@/lib/actions/posts/post-actions"
+import type { PostTemplate } from "@/lib/actions/posts/post-template-actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface CreatePostData {
   title: string
@@ -54,6 +65,9 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const [templates, setTemplates] = useState<PostTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('blank')
 
   const handleTitleChange = (title: string) => {
     setFormData((prev) => ({
@@ -89,6 +103,35 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     return () => clearTimeout(timeoutId)
   }, [formData.slug, currentSite?.id])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      if (!currentSite?.id) {
+        setTemplates([])
+        setTemplatesLoading(false)
+        return
+      }
+
+      setTemplatesLoading(true)
+      const { data } = await getPostTemplatesBySite(currentSite.id)
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        const defaultTemplate = loaded.find((template) => template.is_default)
+        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSite?.id])
+
   const handleImageChange = async (newImageUrl: string) => {
     setFormData((prev) => ({ ...prev, featured_image: newImageUrl }))
   }
@@ -112,6 +155,24 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       setLoading(true)
       setError(null)
 
+      const selectedTemplate = selectedTemplateId !== 'blank'
+        ? templates.find((template) => template.id === selectedTemplateId)
+        : null
+      const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === 'object'
+        ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
+        : {}
+      const sanitizedTemplateContentBlocks = selectedTemplate
+        ? postBlocksToJson(parsePostBlocksFromJson(templateContentBlocks), templateContentBlocks)
+        : {}
+      const contentBlocks = selectedTemplate
+        ? {
+            ...sanitizedTemplateContentBlocks,
+            show_featured_image: sanitizedTemplateContentBlocks.show_featured_image ?? showFeaturedImage,
+          }
+        : {
+            show_featured_image: showFeaturedImage,
+          }
+
       const draftData = {
         title: formData.title,
         slug: formData.slug,
@@ -120,9 +181,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         featured_image: formData.featured_image || null,
         excerpt: formData.excerpt || null,
         is_published: false,
-        content_blocks: {
-          show_featured_image: showFeaturedImage,
-        },
+        content_blocks: contentBlocks,
       }
 
       const response = await fetch("/api/posts", {
@@ -172,6 +231,30 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         )}
 
         <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <Label htmlFor="template">Start from Template</Label>
+            {templatesLoading ? (
+              <div className="border-input mt-2 inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+                <Skeleton className="h-4 w-24 rounded-sm" />
+                <ChevronDown className="size-4 opacity-50" />
+              </div>
+            ) : (
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger id="template">
+                  <SelectValue placeholder="Select template" />
+                </SelectTrigger>
+                <SelectContent className="z-60">
+                  <SelectItem value="blank">Blank</SelectItem>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
           <div className="col-span-2">
             <Label htmlFor="title">Post Title *</Label>
             <Input

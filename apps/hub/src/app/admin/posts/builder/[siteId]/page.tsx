@@ -9,6 +9,7 @@ import Link from "next/link"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { getPostAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { PostSettingsModal } from "@/components/admin/post-builder/layout/PostSettingsModal"
@@ -319,6 +320,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
+        navLinks={getPostAdminTopNavLinks("posts")}
         rightActions={(
           <StickybarTopRightActions
             viewPageHref={publishedViewPageHref}
