@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Trash2, GripVertical, Eye, Plus } from "lucide-react"
+import { Trash2, GripVertical, ExternalLink, Plus } from "lucide-react"
 import type { BlockTypeDefinition } from "@/lib/utils/block-types"
 import { getBlockIcon, getBlockName } from "@/lib/utils/block-types"
 import {
@@ -44,7 +44,7 @@ interface BlockListPanelProps {
   onSelectBlock: (block: any) => void
   onDeleteBlock: (block: any) => void
   onReorderBlocks: (blocks: any[]) => void
-  onPreview?: () => void
+  viewPageHref?: string | null
   onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
@@ -170,7 +170,7 @@ export function BlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
-  onPreview,
+  viewPageHref,
   onAddBlock,
   deleting,
   blocksLoading = false,
@@ -224,10 +224,12 @@ export function BlockListPanel({
         ) : (
           <div className="flex items-center justify-between mb-4 px-5">
             <h2 className="text-lg font-semibold">{panelTitle}</h2>
-            {onPreview && (
-              <Button onClick={onPreview} size="sm" variant="outline" className="flex items-center space-x-1">
-                <Eye className="w-3.5 h-3.5" />
-                <span>Preview</span>
+            {viewPageHref && (
+              <Button size="sm" variant="outline" className="flex items-center space-x-1" asChild>
+                <a href={viewPageHref} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>View Page</span>
+                </a>
               </Button>
             )}
           </div>

@@ -307,7 +307,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
             onSelectBlock={blockEditor.setSelectedBlock}
             onDeleteBlock={blockEditor.handleDeleteBlock}
             onReorderBlocks={blockEditor.handleReorderBlocks}
-            onPreview={() => blockEditor.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
           />
         )}

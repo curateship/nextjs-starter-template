@@ -39,7 +39,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Eye, GripVertical, Plus, Trash2 } from "lucide-react"
+import { ExternalLink, GripVertical, Plus, Trash2 } from "lucide-react"
 
 interface PostBlockListPanelProps {
   blocks: PostBlock[]
@@ -47,7 +47,7 @@ interface PostBlockListPanelProps {
   onSelectBlock: (block: PostBlock) => void
   onDeleteBlock: (block: PostBlock) => void
   onReorderBlocks: (blocks: PostBlock[]) => void
-  onPreview?: () => void
+  viewPageHref?: string | null
   onAddBlock?: () => void
   deleting: string | null
   blocksLoading?: boolean
@@ -212,7 +212,7 @@ export function PostBlockListPanel({
   onSelectBlock,
   onDeleteBlock,
   onReorderBlocks,
-  onPreview,
+  viewPageHref,
   onAddBlock,
   deleting,
   blocksLoading = false,
@@ -370,10 +370,12 @@ export function PostBlockListPanel({
         ) : (
           <div className="flex items-center justify-between mb-4 px-5">
             <h2 className="text-lg font-semibold">Blocks</h2>
-            {onPreview && (
-              <Button onClick={onPreview} size="sm" variant="outline" className="flex items-center space-x-1">
-                <Eye className="w-3.5 h-3.5" />
-                <span>Preview</span>
+            {viewPageHref && (
+              <Button size="sm" variant="outline" className="flex items-center space-x-1" asChild>
+                <a href={viewPageHref} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>View Page</span>
+                </a>
               </Button>
             )}
           </div>

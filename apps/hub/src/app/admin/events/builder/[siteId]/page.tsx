@@ -321,7 +321,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
@@ -395,7 +394,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreview={() => builderState.setSelectedBlock(null)}
+            viewPageHref={viewPageHref}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={blocksLoading}

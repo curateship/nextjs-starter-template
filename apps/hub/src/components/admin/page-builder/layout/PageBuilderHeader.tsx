@@ -27,7 +27,6 @@ interface PageBuilderHeaderProps {
   saveMessage: string
   isSaving: boolean
   onSave: () => void
-  onPreviewPage?: () => void
   pagesLoading?: boolean
 }
 
@@ -41,7 +40,6 @@ export function PageBuilderHeader({
   saveMessage,
   isSaving,
   onSave,
-  onPreviewPage,
   pagesLoading = false
 }: PageBuilderHeaderProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -95,14 +93,6 @@ export function PageBuilderHeader({
               </div>
             </SelectContent>
           </Select>
-          <Button 
-            variant="outline"
-            size="sm" 
-            onClick={onPreviewPage}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Preview Page
-          </Button>
           <Button
             variant="outline"
             size="sm"

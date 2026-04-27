@@ -317,7 +317,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
         navLinks={getProductAdminTopNavLinks("products")}
         rightActions={(
           <StickybarTopRightActions
-            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
@@ -630,7 +629,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreview={() => builderState.setSelectedBlock(null)}
+            viewPageHref={viewPageHref}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={blocksLoading}

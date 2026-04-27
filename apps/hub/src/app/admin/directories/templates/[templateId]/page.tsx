@@ -447,7 +447,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
             onSelectBlock={setSelectedBlock}
             onDeleteBlock={handleDeleteBlock}
             onReorderBlocks={handleReorderBlocks}
-            onPreview={() => setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={loading}

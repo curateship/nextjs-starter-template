@@ -251,7 +251,6 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
             onSelectBlock={(field) => setSelectedFieldId(field.id)}
             onDeleteBlock={handleDeleteField}
             onReorderBlocks={handleReorderFields}
-            onPreview={() => setSelectedFieldId(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             panelTitle="Fields"

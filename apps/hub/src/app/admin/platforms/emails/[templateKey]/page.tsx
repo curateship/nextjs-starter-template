@@ -283,7 +283,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
             onSelectBlock={blockEditor.setSelectedBlock}
             onDeleteBlock={blockEditor.handleDeleteBlock}
             onReorderBlocks={blockEditor.handleReorderBlocks}
-            onPreview={() => blockEditor.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             panelTitle="Blocks"
           />

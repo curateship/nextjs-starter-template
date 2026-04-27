@@ -235,7 +235,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         navLinks={getPageAdminTopNavLinks(siteId, "pages")}
         rightActions={(
           <StickybarTopRightActions
-            viewPageHref={viewPageHref}
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
             onSave={builderState.handleSaveAllBlocks}
@@ -297,7 +296,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreview={() => builderState.setSelectedBlock(null)}
+            viewPageHref={viewPageHref}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={builderState.deleting}
             blocksLoading={blocksLoading}

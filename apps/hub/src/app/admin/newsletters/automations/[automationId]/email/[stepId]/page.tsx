@@ -217,7 +217,6 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
             onSelectBlock={builder.setSelectedBlock}
             onDeleteBlock={builder.handleDeleteBlock}
             onReorderBlocks={builder.handleReorderBlocks}
-            onPreview={() => builder.setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
           />
         )}

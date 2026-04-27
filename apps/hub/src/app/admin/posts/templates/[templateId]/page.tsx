@@ -406,7 +406,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
             onSelectBlock={setSelectedBlock}
             onDeleteBlock={handleDeleteBlock}
             onReorderBlocks={handleReorderBlocks}
-            onPreview={() => setSelectedBlock(null)}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={loading}

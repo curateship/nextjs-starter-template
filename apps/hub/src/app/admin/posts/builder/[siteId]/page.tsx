@@ -323,7 +323,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         navLinks={getPostAdminTopNavLinks("posts")}
         rightActions={(
           <StickybarTopRightActions
-            viewPageHref={publishedViewPageHref}
             saveMessage={builderState.saveMessage}
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
@@ -395,7 +394,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
             onSelectBlock={builderState.setSelectedBlock}
             onDeleteBlock={builderState.handleDeleteBlock}
             onReorderBlocks={builderState.handleReorderBlocks}
-            onPreview={() => builderState.setSelectedBlock(null)}
+            viewPageHref={publishedViewPageHref}
             onAddBlock={() => setBlockModalOpen(true)}
             deleting={null}
             blocksLoading={loading}
