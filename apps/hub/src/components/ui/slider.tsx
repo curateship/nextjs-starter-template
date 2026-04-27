@@ -34,11 +34,11 @@ export function Slider({
         step={step}
         value={value[0]}
         onChange={handleChange}
-        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+        className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
         style={{
-          background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${
+          background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${
             ((value[0] - min) / (max - min)) * 100
-          }%, #e5e7eb ${((value[0] - min) / (max - min)) * 100}%, #e5e7eb 100%)`
+          }%, var(--muted) ${((value[0] - min) / (max - min)) * 100}%, var(--muted) 100%)`
         }}
       />
       <style jsx>{`
@@ -46,14 +46,14 @@ export function Slider({
           appearance: none;
           width: 16px;
           height: 16px;
-          background: hsl(var(--primary));
+          background: var(--primary);
           border-radius: 50%;
           cursor: pointer;
         }
         .slider::-moz-range-thumb {
           width: 16px;
           height: 16px;
-          background: hsl(var(--primary));
+          background: var(--primary);
           border-radius: 50%;
           cursor: pointer;
           border: none;

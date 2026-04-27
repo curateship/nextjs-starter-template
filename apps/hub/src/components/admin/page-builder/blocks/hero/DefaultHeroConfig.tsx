@@ -2,14 +2,16 @@
 
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical, X } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
+import { getMutedHeroBackgroundColor } from "@/lib/utils/page-hero-background"
 import {
   DndContext,
   closestCenter,
@@ -30,6 +32,22 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HeroStyleAdminProps } from "./index"
+
+const HERO_BACKGROUND_COLOR_OPTIONS = [
+  { value: "muted", label: "Muted" },
+  { value: "custom", label: "Custom" },
+] as const
+
+function getMutedShade(value?: unknown) {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return Math.min(10, Math.max(1, Math.round(value)))
+  }
+  return 1
+}
+
+function getSafeHexColor(value?: string) {
+  return /^#[0-9a-fA-F]{6}$/.test(value || "") ? value! : "#ffffff"
+}
 
 // Sortable avatar item component
 function SortableAvatarItem({
@@ -103,19 +121,19 @@ function SortableAvatarItem({
   )
 }
 
-export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: HeroStyleAdminProps) {
+export function TrustedByBadgeFields({
+  config,
+  onConfigChange,
+}: {
+  config: Record<string, any>
+  onConfigChange: (field: string, value: any) => void
+}) {
   const [showPicker, setShowPicker] = useState<number | null>(null)
-  const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
-
-  const heroImage = config.heroImage || ''
   const trustedByText = config.trustedByText || ''
   const trustedByAvatars: Array<{ src: string; alt: string; fallback: string; id?: string }> = useMemo(
     () => config.trustedByAvatars || [],
     [config.trustedByAvatars]
   )
-  const backgroundPattern = config.backgroundPattern || 'none'
-  const backgroundPatternSize = config.backgroundPatternSize || 'medium'
-  const backgroundPatternOpacity = config.backgroundPatternOpacity ?? 80
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -242,6 +260,29 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
         </Field>
       </section>
 
+      <MediaPicker
+        open={showPicker !== null}
+        onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
+        onSelectMedia={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
+        currentMediaUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
+      />
+    </div>
+  )
+}
+
+export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProps) {
+  const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
+
+  const heroImage = config.heroImage || ''
+  const backgroundColor = config.backgroundColor === 'custom' ? 'custom' : 'muted'
+  const backgroundCustomColor = getSafeHexColor(config.backgroundCustomColor)
+  const backgroundMutedShade = getMutedShade(config.backgroundMutedShade)
+  const backgroundPattern = config.backgroundPattern || 'none'
+  const backgroundPatternSize = config.backgroundPatternSize || 'medium'
+  const backgroundPatternOpacity = config.backgroundPatternOpacity ?? 80
+
+  return (
+    <div className="space-y-8">
       <section className="space-y-4">
         <div>
           <h3 className="text-base font-medium">Hero Image</h3>
@@ -380,6 +421,111 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
 
       <section className="space-y-4">
         <div>
+          <h3 className="text-base font-medium">Background Color</h3>
+        </div>
+
+        <div className="grid max-w-md gap-2 sm:grid-cols-2">
+          {HERO_BACKGROUND_COLOR_OPTIONS.map((option) => {
+            const isSelected = backgroundColor === option.value
+            const swatch = option.value === 'custom'
+              ? backgroundCustomColor
+              : getMutedHeroBackgroundColor(backgroundMutedShade)
+
+            return (
+              <Button
+                key={option.value}
+                type="button"
+                variant="outline"
+                data-state={isSelected ? 'checked' : 'unchecked'}
+                onClick={() => {
+                  onConfigChange('backgroundColor', option.value)
+                }}
+                className="justify-start data-[state=checked]:border-primary data-[state=checked]:bg-primary/5 data-[state=checked]:text-foreground"
+              >
+                <span
+                  className="h-5 w-5 shrink-0 rounded-full border"
+                  style={{ background: swatch }}
+                />
+                <span>{option.label}</span>
+              </Button>
+            )
+          })}
+        </div>
+
+        {backgroundColor === 'muted' && (
+          <Field className="max-w-xl rounded-lg border p-4">
+            <FieldContent className="gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <FieldLabel className="text-sm">Muted shade</FieldLabel>
+                <span className="text-sm text-muted-foreground">{backgroundMutedShade}/10</span>
+              </div>
+              <Slider
+                min={1}
+                max={10}
+                step={1}
+                value={[backgroundMutedShade]}
+                onValueChange={(value) => {
+                  onConfigChange('backgroundColor', 'muted')
+                  onConfigChange('backgroundMutedShade', value[0])
+                }}
+              />
+              <div className="grid grid-cols-10 gap-1">
+                {Array.from({ length: 10 }, (_, index) => {
+                  const shade = index + 1
+                  const isShadeSelected = backgroundMutedShade === shade
+                  return (
+                    <Button
+                      key={shade}
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      aria-label={`Muted shade ${shade}`}
+                      data-state={isShadeSelected ? 'checked' : 'unchecked'}
+                      onClick={() => {
+                        onConfigChange('backgroundColor', 'muted')
+                        onConfigChange('backgroundMutedShade', shade)
+                      }}
+                      className="h-6 w-full rounded-sm p-0 data-[state=checked]:border-primary data-[state=checked]:ring-2 data-[state=checked]:ring-primary/20"
+                      style={{ background: getMutedHeroBackgroundColor(shade) }}
+                    />
+                  )
+                })}
+              </div>
+            </FieldContent>
+          </Field>
+        )}
+
+        {backgroundColor === 'custom' && (
+          <div className="flex max-w-xs items-center gap-2">
+            <Input
+              type="color"
+              value={backgroundCustomColor}
+              onChange={(event) => onConfigChange('backgroundCustomColor', event.target.value)}
+              className="h-9 w-12 p-1"
+              aria-label="Custom background color"
+            />
+            <Input
+              value={config.backgroundCustomColor || ''}
+              onChange={(event) => onConfigChange('backgroundCustomColor', event.target.value)}
+              placeholder="#ffffff"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="extendBackgroundUnderNavigation"
+            checked={config.extendBackgroundUnderNavigation === true}
+            onCheckedChange={(checked) => onConfigChange('extendBackgroundUnderNavigation', !!checked)}
+          />
+          <Label htmlFor="extendBackgroundUnderNavigation" className="text-sm cursor-pointer">
+            Extend background under navigation
+          </Label>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
           <h3 className="text-base font-medium">Background Pattern</h3>
         </div>
 
@@ -444,14 +590,6 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
           )}
         </div>
       </section>
-
-      {/* Image Picker Modal for Avatars */}
-      <MediaPicker
-        open={showPicker !== null}
-        onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
-        onSelectMedia={(imageUrl) => showPicker !== null && handleSelectImage(imageUrl, showPicker)}
-        currentMediaUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
-      />
 
       {/* Image Picker Modal for Hero Image */}
       <MediaPicker

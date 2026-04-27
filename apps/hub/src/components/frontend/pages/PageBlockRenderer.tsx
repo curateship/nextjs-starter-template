@@ -13,6 +13,7 @@ import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
+import { getHeroNavigationBackgroundColor } from "@/lib/utils/page-hero-background"
 
 interface BlockRendererProps {
   site: SiteWithBlocks
@@ -34,6 +35,7 @@ export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false 
   })
 
   const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
+  const navigationBackgroundColor = getHeroNavigationBackgroundColor(visibleBlocks)
   const navigation = siteChrome.navigation || undefined
   const footer = siteChrome.footer || undefined
   const publicSite = toPublicSiteClientProps(site)
@@ -54,6 +56,7 @@ export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false 
         site={publicSite}
         isPreview={isPreview}
         hideChrome={hideSiteChrome}
+        navigationBackgroundColor={navigationBackgroundColor}
       >
       {visibleBlocks.map((block) => {
         if (block.type === 'hero') {

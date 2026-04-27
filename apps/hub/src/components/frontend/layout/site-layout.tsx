@@ -20,9 +20,10 @@ interface SiteLayoutProps {
   }
   isPreview?: boolean
   hideChrome?: boolean
+  navigationBackgroundColor?: string
 }
 
-export function SiteLayout({ children, site, navigation, footer, isPreview = false, hideChrome = false }: SiteLayoutProps) {
+export function SiteLayout({ children, site, navigation, footer, isPreview = false, hideChrome = false, navigationBackgroundColor }: SiteLayoutProps) {
   const activeNavStyle = navigation?.navigationStyle || 'default'
   const resolvedNavStyle = navigation?.styleConfig?.[activeNavStyle]
   const enableThemeToggle = resolvedNavStyle?.showDarkModeToggle !== false
@@ -30,7 +31,14 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
   return (
     <SiteThemeProvider site={site} isPreview={isPreview} enableThemeToggle={enableThemeToggle}>
       {/* Navigation - only render if navigation data exists */}
-      {!hideChrome && navigation && <NavBlock {...navigation} site={site} isPreview={isPreview} />}
+      {!hideChrome && navigation && (
+        <NavBlock
+          {...navigation}
+          site={site}
+          isPreview={isPreview}
+          backgroundColor={navigationBackgroundColor}
+        />
+      )}
 
       {/* Main content */}
       <main className={navigation && !isPreview && !hideChrome ? "pt-12 lg:pt-18" : ""}>

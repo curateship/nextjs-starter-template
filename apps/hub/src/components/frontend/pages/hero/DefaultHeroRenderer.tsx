@@ -6,6 +6,7 @@ import DotPattern from "@/components/ui/dot-pattern";
 import { cn } from "@/lib/utils/tailwind";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
 import type { HeroStyleRendererProps } from ".";
+import { getHeroBackgroundColor } from "@/lib/utils/page-hero-background";
 
 // Background Pattern component that supports different pattern types
 const BackgroundPattern = ({
@@ -30,7 +31,7 @@ const BackgroundPattern = ({
   };
 
   const getPatternOpacity = (opacity?: number) => {
-    return opacity ? opacity / 100 : 0.8;
+    return typeof opacity === 'number' ? opacity / 100 : 0.8;
   };
 
   const patternSize = getPatternSize(size);
@@ -81,12 +82,24 @@ const BackgroundPattern = ({
 };
 
 // Gradient overlay component for blending background pattern into page background
-const GradientOverlays = () => (
+const GradientOverlays = ({ backgroundColor }: { backgroundColor: string }) => (
   <>
-    <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-background via-background/80 via-background/40 to-transparent pointer-events-none" />
-    <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-background via-background/80 via-background/40 to-transparent pointer-events-none" />
-    <div className="absolute top-0 left-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent pointer-events-none" />
-    <div className="absolute top-0 right-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+    <div
+      className="pointer-events-none absolute left-0 right-0 top-0 h-64"
+      style={{ background: `linear-gradient(to bottom, ${backgroundColor}, transparent)` }}
+    />
+    <div
+      className="pointer-events-none absolute bottom-0 left-0 right-0 h-64"
+      style={{ background: `linear-gradient(to top, ${backgroundColor}, transparent)` }}
+    />
+    <div
+      className="pointer-events-none absolute bottom-0 left-0 top-0 w-8"
+      style={{ background: `linear-gradient(to right, ${backgroundColor}, transparent)` }}
+    />
+    <div
+      className="pointer-events-none absolute bottom-0 right-0 top-0 w-8"
+      style={{ background: `linear-gradient(to left, ${backgroundColor}, transparent)` }}
+    />
   </>
 );
 
@@ -156,6 +169,9 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
     heroImage,
     trustedByText,
     trustedByAvatars,
+    backgroundColor,
+    backgroundCustomColor,
+    backgroundMutedShade,
     backgroundPattern,
     backgroundPatternSize,
     backgroundPatternOpacity,
@@ -171,20 +187,21 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
   const alignItems = alignment === 'left' ? 'items-start' : alignment === 'right' ? 'items-end' : 'items-center';
   const textAlign = alignment === 'left' ? 'text-left' : alignment === 'right' ? 'text-right' : 'text-center';
   const isFixedWidth = contentWidth === 'fixed';
+  const heroBackgroundColor = getHeroBackgroundColor(backgroundColor, backgroundCustomColor, backgroundMutedShade);
 
   return (
     <>
       {/* Background layer with pattern and gradient overlays */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0" style={{ backgroundColor: heroBackgroundColor }}>
         <BackgroundPattern
-          pattern={backgroundPattern || 'dots'}
-          size={backgroundPatternSize || 'medium'}
-          opacity={backgroundPatternOpacity || 80}
+          pattern={backgroundPattern ?? 'none'}
+          size={backgroundPatternSize ?? 'medium'}
+          opacity={backgroundPatternOpacity ?? 80}
         />
-        <GradientOverlays />
+        <GradientOverlays backgroundColor={heroBackgroundColor} />
         <div
-          className="absolute top-0 left-0 right-0 h-24 bg-background pointer-events-none"
-          style={{ opacity: 1, zIndex: 1 }}
+          className="pointer-events-none absolute left-0 right-0 top-0 h-24"
+          style={{ backgroundColor: heroBackgroundColor, opacity: 1, zIndex: 1 }}
         />
       </div>
 

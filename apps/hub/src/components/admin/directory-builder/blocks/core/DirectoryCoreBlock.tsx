@@ -156,6 +156,7 @@ function CoreMenuIconField({
 
   const SelectedIcon = getQuickLinkIconOrNull(value)
   const DefaultIcon = getQuickLinkIcon(defaultIcon)
+  const DisplayIcon = SelectedIcon || DefaultIcon
   const normalizedQuery = query.trim().toLowerCase()
   const showDefaultOption =
     !normalizedQuery || "default icon".includes(normalizedQuery)
@@ -181,20 +182,14 @@ function CoreMenuIconField({
           type="button"
           variant="outline"
           className={cn(
-            "h-9 w-full shrink-0 px-3",
-            SelectedIcon ? "w-9 p-0" : "text-muted-foreground"
+            "h-9 w-9 shrink-0 p-0",
+            !SelectedIcon && "text-muted-foreground"
           )}
           onClick={() => setOpen(true)}
         >
-          {SelectedIcon ? (
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-              <SelectedIcon className="h-4 w-4 shrink-0" />
-            </span>
-          ) : (
-            <span className="text-center text-[10px] font-medium leading-tight">
-              Default Icon
-            </span>
-          )}
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            <DisplayIcon className="h-4 w-4 shrink-0" />
+          </span>
         </Button>
       </div>
 

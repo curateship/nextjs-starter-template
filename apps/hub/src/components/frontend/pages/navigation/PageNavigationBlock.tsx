@@ -61,6 +61,7 @@ interface NavBlockProps {
   styleConfig?: Record<string, NavigationStyle>;
   visibility?: Record<string, boolean>;
   isPreview?: boolean;
+  backgroundColor?: string;
 }
 
 interface SessionUser {
@@ -513,6 +514,7 @@ export const NavBlock = memo(function NavBlock({
   styleConfig,
   visibility,
   isPreview = false,
+  backgroundColor,
 }: NavBlockProps) {
   const style = useMemo<NavigationStyle | undefined>(() => {
     const activeStyle = navigationStyle || 'default'
@@ -846,8 +848,9 @@ export const NavBlock = memo(function NavBlock({
         'z-50 w-full border-b',
         isPreview ? 'sticky top-0' : 'fixed top-0',
         blurClass,
-        'bg-background/90'
+        !backgroundColor && 'bg-background/90'
       )}
+      style={backgroundColor ? { backgroundColor } : undefined}
     >
       <nav
         data-state={menuState && 'active'}

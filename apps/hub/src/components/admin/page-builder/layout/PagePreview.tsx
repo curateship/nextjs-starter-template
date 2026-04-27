@@ -5,6 +5,7 @@ import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPr
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
+import { getHeroNavigationBackgroundColor } from "@/lib/utils/page-hero-background"
 
 interface PagePreviewProps {
   blocks: PreviewBlock[]
@@ -36,6 +37,10 @@ export function PagePreview({
   const previewSite = createPreviewSite(blocks, site)
   const siteChrome = resolveSiteChrome(site?.settings)
   const hasRenderablePreview = blocks.length > 0 || !!siteChrome.navigation || !!siteChrome.footer
+  const visibleBlocks = blocks.filter((block) => block.content?.visibility?.hideBlock !== true)
+  const navigationBackgroundColor = siteChrome.navigation
+    ? getHeroNavigationBackgroundColor(visibleBlocks)
+    : undefined
 
   return (
     <BuilderPreviewShell
@@ -46,6 +51,7 @@ export function PagePreview({
       isLoading={blocksLoading}
       onSelectBlock={onSelectBlock}
       onSelectSiteChrome={onSelectSiteChrome}
+      navigationBackgroundColor={navigationBackgroundColor}
       site={site}
       showSiteChrome
     >

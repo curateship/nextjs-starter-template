@@ -12,7 +12,8 @@ const LEGACY_STYLE_FIELDS = [
   'rainbowButtonText', 'rainbowButtonIcon', 'githubLink',
   'showParticles', 'trustedByText', 'trustedByCount',
   'trustedByAvatars', 'backgroundPattern', 'backgroundPatternSize',
-  'backgroundPatternOpacity', 'showTrustedByBadge',
+  'backgroundPatternOpacity', 'backgroundColor', 'backgroundCustomColor',
+  'backgroundMutedShade', 'showTrustedByBadge', 'extendBackgroundUnderNavigation',
 ] as const;
 
 interface EmailFormConfig {
@@ -51,6 +52,10 @@ interface PageHeroBlockProps {
   backgroundPattern?: string;
   backgroundPatternSize?: string;
   backgroundPatternOpacity?: number;
+  backgroundColor?: string;
+  backgroundCustomColor?: string;
+  backgroundMutedShade?: number;
+  extendBackgroundUnderNavigation?: boolean;
   heroImage?: string;
   githubLink?: string;
   showHeroImage?: boolean;

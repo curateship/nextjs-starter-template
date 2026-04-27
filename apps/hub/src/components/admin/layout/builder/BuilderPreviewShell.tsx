@@ -40,6 +40,7 @@ interface BuilderPreviewShellProps<TBlock extends SelectablePreviewBlock> {
   onSelectSiteChrome?: (type: "navigation" | "footer") => void
   site?: PreviewSiteChrome
   showSiteChrome?: boolean
+  navigationBackgroundColor?: string
 }
 
 const DEFAULT_EMPTY_TITLE = "No blocks added yet"
@@ -89,6 +90,7 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
   onSelectSiteChrome,
   site,
   showSiteChrome = false,
+  navigationBackgroundColor,
 }: BuilderPreviewShellProps<TBlock>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [hoveredEl, setHoveredEl] = useState<HTMLElement | null>(null)
@@ -183,6 +185,14 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
               cursor: pointer;
             }
             .preview-container .block-hovered {
+              position: relative;
+            }
+            .preview-container .block-hovered::after {
+              content: "";
+              position: absolute;
+              inset: 0;
+              z-index: 2147483647;
+              pointer-events: none;
               outline: 2px dashed #3b82f6;
               outline-offset: -2px;
             }
@@ -191,7 +201,12 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
 
         <div className="relative flex h-full min-h-0 flex-col bg-background">
           {navigation && (
-            <NavBlock {...navigation} site={publicSite} isPreview />
+            <NavBlock
+              {...navigation}
+              site={publicSite}
+              isPreview
+              backgroundColor={navigationBackgroundColor}
+            />
           )}
 
           <ScrollArea className="min-h-0 flex-1">

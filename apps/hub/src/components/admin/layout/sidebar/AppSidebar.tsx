@@ -48,6 +48,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       url: "/admin/posts",
       icon: BookOpen,
       featureKey: "posts",
+      items: [
+        { title: "Templates", url: "/admin/posts/templates" },
+      ],
     },
     {
       title: "Products",
