@@ -1,7 +1,7 @@
 import { format } from "date-fns"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
-import type { PostContentStyleRendererProps } from "./index"
+import type { CoreStyleRendererProps } from "./index"
 
 function getInitials(name: string) {
   return name
@@ -13,7 +13,7 @@ function getInitials(name: string) {
     .toUpperCase()
 }
 
-export function DefaultPostContentRenderer({ config, sharedContent }: PostContentStyleRendererProps) {
+export function DefaultCoreRenderer({ config, sharedContent }: CoreStyleRendererProps) {
   const alignment = config.alignment || 'center'
   const contentMaxWidth = config.contentMaxWidth as number | undefined
   const titleSize = config.titleSize || 'large'

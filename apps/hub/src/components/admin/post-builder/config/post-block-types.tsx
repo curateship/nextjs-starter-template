@@ -5,7 +5,7 @@ export type { BlockTypeDefinition }
 
 export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
-    type: 'post-content',
+    type: 'core',
     name: 'Core',
     icon: FileText,
     description: 'Post title, display options, and rich text content',
@@ -42,7 +42,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     type: 'table-of-contents',
     name: 'Table of Contents',
     icon: TableOfContents,
-    description: 'Display links to H2 sections in the post content',
+    description: 'Display links to H2 sections in the Core block',
     conflictsWith: ['table-of-contents'],
     defaultContent: {
       layoutColumn: 'sidebar',

@@ -259,7 +259,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
       )
 
       if (
-        selectedBlock.type === "post-content" &&
+        selectedBlock.type === "core" &&
         draftPostTitle.trim() &&
         draftPostTitle.trim() !== (currentPostData?.title || "")
       ) {

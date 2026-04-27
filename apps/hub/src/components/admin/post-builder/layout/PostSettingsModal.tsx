@@ -375,7 +375,7 @@ export function PostSettingsModal({
               id="excerpt"
               value={formData.excerpt || ''}
               onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
-              placeholder="A brief summary of your post content"
+              placeholder="A brief summary of your post"
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Brief summary shown in post listings and previews

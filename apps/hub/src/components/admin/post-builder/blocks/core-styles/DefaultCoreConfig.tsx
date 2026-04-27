@@ -5,9 +5,9 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import type { PostContentStyleAdminProps } from "./index"
+import type { CoreStyleAdminProps } from "./index"
 
-export function DefaultPostContentConfig({ config, onConfigChange }: PostContentStyleAdminProps) {
+export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProps) {
   const { currentSite } = useSiteSwitcher()
   const siteDefaultWidth = currentSite?.settings?.custom_width
   const alignment = config.alignment || 'center'

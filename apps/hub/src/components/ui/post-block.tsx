@@ -135,7 +135,7 @@ export function PostBlock({
               id="content"
               value={content}
               onChange={(e) => onContentChange(e.target.value)}
-              placeholder="Write your post content here..."
+              placeholder="Write your post here..."
               className="w-full p-3 min-h-[300px] resize-none border-0 focus:outline-none focus:ring-0"
             />
           </div>

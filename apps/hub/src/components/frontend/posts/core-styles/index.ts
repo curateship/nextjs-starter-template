@@ -1,7 +1,7 @@
 import { ComponentType, ReactNode } from "react"
-import { DefaultPostContentRenderer } from "./DefaultPostContentRenderer"
+import { DefaultCoreRenderer } from "./DefaultCoreRenderer"
 
-export interface PostContentStyleRendererProps {
+export interface CoreStyleRendererProps {
   config: Record<string, any>
   sharedContent: {
     title?: string
@@ -21,6 +21,6 @@ export interface PostContentStyleRendererProps {
   children?: ReactNode
 }
 
-export const POST_CONTENT_STYLE_RENDERERS: Record<string, ComponentType<PostContentStyleRendererProps>> = {
-  default: DefaultPostContentRenderer,
+export const CORE_STYLE_RENDERERS: Record<string, ComponentType<CoreStyleRendererProps>> = {
+  default: DefaultCoreRenderer,
 }

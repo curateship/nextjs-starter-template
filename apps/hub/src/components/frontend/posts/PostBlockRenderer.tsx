@@ -1,6 +1,6 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
-import { PostContentBlock } from "@/components/frontend/posts/PostContentBlock"
+import { CoreBlock } from "@/components/frontend/posts/CoreBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
@@ -10,7 +10,7 @@ import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { cn } from "@/lib/utils/tailwind"
 import { preparePostTableOfContents } from "./table-of-content/table-of-contents-utils"
 
-const SUPPORTED_POST_BLOCK_TYPES = ['post-content', 'related-posts', 'table-of-contents']
+const SUPPORTED_POST_BLOCK_TYPES = ['core', 'related-posts', 'table-of-contents']
 
 interface PostBlockRendererProps {
   site: SiteWithBlocks
@@ -69,7 +69,7 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
   const containerClassName = siteWidth === 'custom' ? "mx-auto px-6 mt-10" : "px-6 mt-8"
-  const postContent = {
+  const core = {
     title: post.title,
     excerpt: post.excerpt,
     featured_image: post.featured_image,
@@ -79,14 +79,14 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
     created_at: post.created_at || new Date().toISOString()
   }
   const renderPostBlocks = (blocks: typeof sortedBlocks, container = true) => (
-    <PostContentBlock
+    <CoreBlock
       blocks={blocks}
-      post={postContent}
+      post={core}
       siteId={post.site_id}
       currentPostId={post.id}
       preloadedRelatedPosts={preloadedRelatedPosts}
       tableOfContentsItems={tableOfContents.items}
-      postContentHtmlByBlockId={tableOfContents.bodyHtmlByBlockId}
+      coreHtmlByBlockId={tableOfContents.bodyHtmlByBlockId}
       hasFixedNavigation={hasFixedNavigation}
       siteWidth={siteWidth}
       customWidth={customWidth}

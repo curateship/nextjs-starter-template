@@ -1,7 +1,7 @@
 "use client"
 
-import { PostContentBlock } from "@/components/admin/post-builder/blocks/PostContentBlock"
-import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import { CoreBlock } from "@/components/admin/post-builder/blocks/CoreBlock"
+import type { CoreBlockTab } from "@/components/admin/post-builder/blocks/CoreBlock"
 import { RelatedPostsBlock } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import type { RelatedPostsBlockTab } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import { TableOfContentsBlock } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
@@ -16,7 +16,7 @@ interface PostBlockEditorProps {
   postTitle: string
   postData?: Record<string, any>
   onPostTitleChange: (title: string) => void
-  postContentTab?: PostContentBlockTab
+  coreTab?: CoreBlockTab
   relatedPostsTab?: RelatedPostsBlockTab
   tableOfContentsTab?: TableOfContentsBlockTab
 }
@@ -29,20 +29,20 @@ export function PostBlockEditor({
   postTitle,
   postData,
   onPostTitleChange,
-  postContentTab,
+  coreTab,
   relatedPostsTab,
   tableOfContentsTab,
 }: PostBlockEditorProps) {
-  if (block.type === "post-content") {
+  if (block.type === "core") {
     return (
-      <PostContentBlock
+      <CoreBlock
         content={content}
         onContentChange={onContentChange}
         siteId={siteId}
         blockId={block.id}
         postData={{ ...postData, title: postTitle }}
         onPostTitleChange={onPostTitleChange}
-        activeTab={postContentTab}
+        activeTab={coreTab}
       />
     )
   }

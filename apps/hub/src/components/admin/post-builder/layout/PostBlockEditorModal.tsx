@@ -15,7 +15,7 @@ import {
 import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { getBlockName } from "@/components/admin/post-builder/config/post-block-types"
-import type { PostContentBlockTab } from "@/components/admin/post-builder/blocks/PostContentBlock"
+import type { CoreBlockTab } from "@/components/admin/post-builder/blocks/CoreBlock"
 import type { RelatedPostsBlockTab } from "@/components/admin/post-builder/blocks/RelatedPostsBlock"
 import type { TableOfContentsBlockTab } from "@/components/admin/post-builder/blocks/TableOfContentsBlock"
 
@@ -89,7 +89,7 @@ function PostBlockEditorModalContent({
 }: PostBlockEditorModalProps & { block: PostBlock }) {
   const dock = useModalTabsDock()
   const modalTabs = useMemo<ModalTabItem[]>(() => {
-    const postContentTabs: Array<{ value: PostContentBlockTab; label: string }> = [
+    const coreTabs: Array<{ value: CoreBlockTab; label: string }> = [
       { value: "content", label: "Content" },
       { value: "styling", label: "Styling" },
       { value: "settings", label: "Settings" },
@@ -104,14 +104,14 @@ function PostBlockEditorModalContent({
       { value: "settings", label: "Settings" },
     ]
 
-    if (block.type === "post-content") return postContentTabs
+    if (block.type === "core") return coreTabs
     if (block.type === "related-posts") return relatedPostsTabs
     if (block.type === "table-of-contents") return tableOfContentsTabs
     return []
   }, [block.type])
   const setModalTabs = dock?.setTabs
   const clearModalTabs = dock?.clearTabs
-  const activeTab = (dock?.activeTab || "content") as PostContentBlockTab | RelatedPostsBlockTab | TableOfContentsBlockTab
+  const activeTab = (dock?.activeTab || "content") as CoreBlockTab | RelatedPostsBlockTab | TableOfContentsBlockTab
 
   useEffect(() => {
     if (!setModalTabs || !clearModalTabs) return
@@ -138,7 +138,7 @@ function PostBlockEditorModalContent({
           postTitle={postTitle}
           postData={postData}
           onPostTitleChange={onPostTitleChange}
-          postContentTab={block.type === "post-content" ? activeTab as PostContentBlockTab : undefined}
+          coreTab={block.type === "core" ? activeTab as CoreBlockTab : undefined}
           relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}
           tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
         />

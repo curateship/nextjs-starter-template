@@ -2,7 +2,7 @@ import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { getPostLayoutColumn, normalizePostBlockContent } from "@/lib/actions/posts/post-layout"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 
-const SUPPORTED_POST_BLOCK_TYPES: PostBlock['type'][] = ['post-content', 'related-posts', 'table-of-contents']
+const SUPPORTED_POST_BLOCK_TYPES: PostBlock['type'][] = ['core', 'related-posts', 'table-of-contents']
 
 function isSupportedPostBlockType(type: string): type is PostBlock['type'] {
   return SUPPORTED_POST_BLOCK_TYPES.includes(type as PostBlock['type'])

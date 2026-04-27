@@ -14,7 +14,7 @@ export interface PageContent {
   display_order?: number
 }
 
-export interface PostContent {
+export interface PostRouteContent {
   id: string
   title: string
   slug: string
@@ -36,7 +36,7 @@ export interface ProductContent {
 
 export interface PathResolution {
   type: 'page' | 'post' | 'product'
-  content: PageContent | PostContent | ProductContent
+  content: PageContent | PostRouteContent | ProductContent
 }
 
 export interface PathResolutionResult {
@@ -57,12 +57,12 @@ async function checkPageBySlug(siteId: string, slug: string): Promise<PageConten
   }
 }
 
-async function checkPostBySlug(siteId: string, slug: string): Promise<PostContent | null> {
+async function checkPostBySlug(siteId: string, slug: string): Promise<PostRouteContent | null> {
   try {
     const post = await db.query.posts.findFirst({
       where: and(eq(posts.siteId, siteId), eq(posts.slug, slug), eq(posts.isPublished, true)),
     })
-    return post ? (post as unknown as PostContent) : null
+    return post ? (post as unknown as PostRouteContent) : null
   } catch (error) {
     console.warn('Error checking post by slug:', error)
     return null

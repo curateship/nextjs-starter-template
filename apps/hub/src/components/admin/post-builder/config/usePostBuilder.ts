@@ -23,10 +23,8 @@ export interface PostBuilderHookResult {
   blocks: Record<string, PostBlock>
   selectedBlock: PostBlock | null
   setSelectedBlock: (block: PostBlock | null) => void
-  loading: boolean
   saveMessage: string
   handleAddBlocks: (selections: BlockSelection[]) => void
-  handleAddPostContentBlock: () => void
   handleDeleteBlock: (block: PostBlock) => void
   handleUpdateBlock: (blockId: string, updates: Partial<PostBlock>) => void
   handleReorderBlocks: (newOrder: PostBlock[]) => void
@@ -36,7 +34,6 @@ export interface PostBuilderHookResult {
 
 export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UsePostBuilderParams): PostBuilderHookResult {
   const [selectedBlock, setSelectedBlock] = useState<PostBlock | null>(null)
-  const [loading, setLoading] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
   
   // Clear selection when switching posts
@@ -100,29 +97,6 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     if (newBlocksToAdd.length > 0) {
       setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
     }
-  }
-
-  // Add a new post content block (local-first)
-  const handleAddPostContentBlock = () => {
-    const currentBlocks = Object.values(blocks)
-    const timestamp = Date.now()
-
-    const newBlock: PostBlock = {
-      id: `post-content-${timestamp}`,
-      type: 'post-content',
-      display_order: currentBlocks.length + 1,
-      content: normalizePostBlockContent('post-content', { showFeaturedImage: true, showExcerpt: true, showAuthor: true, showDate: true, body: '', format: 'html' }),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-
-    // Update blocks using setBlocks
-    setBlocks(prev => ({
-      ...prev,
-      [newBlock.id]: newBlock
-    }))
-
-    setSelectedBlock(newBlock)
   }
 
   // Delete a block (local-first)
@@ -227,10 +201,8 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
     blocks,
     selectedBlock,
     setSelectedBlock,
-    loading,
     saveMessage,
     handleAddBlocks,
-    handleAddPostContentBlock,
     handleDeleteBlock,
     handleUpdateBlock,
     handleReorderBlocks,

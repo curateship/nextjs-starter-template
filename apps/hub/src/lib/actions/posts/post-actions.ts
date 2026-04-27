@@ -8,7 +8,7 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface PostBlock {
   id: string
-  type: 'post-content' | 'related-posts' | 'table-of-contents'
+  type: 'core' | 'related-posts' | 'table-of-contents'
   content: Record<string, any>
   display_order: number
   created_at?: string
@@ -43,7 +43,6 @@ export interface CreatePostData {
   meta_description?: string
   featured_image?: string
   excerpt?: string
-  content?: string // Add content field
   content_blocks?: Record<string, PostBlock>
   is_published?: boolean
 }

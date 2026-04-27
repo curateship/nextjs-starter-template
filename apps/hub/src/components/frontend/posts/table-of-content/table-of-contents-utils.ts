@@ -87,7 +87,7 @@ export function preparePostTableOfContents(blocks: PostBlockLike[]) {
   const bodyHtmlByBlockId: Record<string, string> = {}
 
   for (const block of blocks) {
-    if (block.type !== "post-content" || typeof block.content.body !== "string") continue
+    if (block.type !== "core" || typeof block.content.body !== "string") continue
 
     const result = annotateHeadingHtml(block.content.body, usedIds)
     bodyHtmlByBlockId[block.id] = result.annotatedHtml

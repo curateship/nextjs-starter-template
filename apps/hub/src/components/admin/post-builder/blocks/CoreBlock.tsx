@@ -8,11 +8,11 @@ import { BlockEditorSection } from "@/components/ui/tabs"
 import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
-import { POST_CONTENT_STYLES } from "./post-content-styles"
+import { CORE_STYLES } from "./core-styles"
 
-export type PostContentBlockTab = "content" | "styling" | "settings"
+export type CoreBlockTab = "content" | "styling" | "settings"
 
-interface PostContentBlockProps {
+interface CoreBlockProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
   siteId: string
@@ -23,16 +23,16 @@ interface PostContentBlockProps {
     [key: string]: any
   }
   onPostTitleChange?: (title: string) => void
-  activeTab?: PostContentBlockTab
+  activeTab?: CoreBlockTab
   onBack?: () => void
 }
 
-export function PostContentBlock({ content, onContentChange, siteId, blockId, postData, onPostTitleChange, activeTab = "content" }: PostContentBlockProps) {
+export function CoreBlock({ content, onContentChange, siteId, blockId, postData, onPostTitleChange, activeTab = "content" }: CoreBlockProps) {
   const [localTitle, setLocalTitle] = useState(postData?.title || postData?.name || 'Untitled Post')
 
-  const postContentStyle = content.postContentStyle || 'default'
+  const coreStyle = content.coreStyle || 'default'
   const styleConfig = content.styleConfig || {}
-  const currentStyleConfig = styleConfig[postContentStyle] || {}
+  const currentStyleConfig = styleConfig[coreStyle] || {}
 
   const showAuthor = content.showAuthor ?? true
   const showDate = content.showDate ?? true
@@ -44,19 +44,19 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
     setLocalTitle(postData?.title || postData?.name || 'Untitled Post')
   }, [postData?.title, postData?.name])
 
-  // Lazy migration: ensure postContentStyle is set
+  // Lazy migration: ensure coreStyle is set
   useEffect(() => {
-    if (!content.postContentStyle) {
-      onContentChange('postContentStyle', 'default')
+    if (!content.coreStyle) {
+      onContentChange('coreStyle', 'default')
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     onContentChange('styleConfig', {
       ...styleConfig,
-      [postContentStyle]: { ...currentStyleConfig, [field]: value },
+      [coreStyle]: { ...currentStyleConfig, [field]: value },
     })
-  }, [styleConfig, postContentStyle, currentStyleConfig, onContentChange])
+  }, [styleConfig, coreStyle, currentStyleConfig, onContentChange])
 
   const handleTitleChange = (value: string) => {
     setLocalTitle(value)
@@ -72,7 +72,7 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
     }
   }, [content.format, onContentChange])
 
-  const ActivePanel = POST_CONTENT_STYLES[postContentStyle]?.AdminPanel
+  const ActivePanel = CORE_STYLES[coreStyle]?.AdminPanel
   const editorContent = {
     ...content,
     htmlContent: content.body || content.text || '',
@@ -122,25 +122,25 @@ export function PostContentBlock({ content, onContentChange, siteId, blockId, po
           <div className="space-y-2">
             <Label className="text-sm font-medium">Block Style</Label>
             <div className="grid grid-cols-2 gap-2 max-w-sm">
-              {Object.entries(POST_CONTENT_STYLES).map(([key, style]) => (
+              {Object.entries(CORE_STYLES).map(([key, style]) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => onContentChange('postContentStyle', key)}
+                  onClick={() => onContentChange('coreStyle', key)}
                   className={cn(
                     "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                    postContentStyle === key
+                    coreStyle === key
                       ? "border-primary bg-primary/5"
                       : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
                   )}
                 >
                   <div className={cn(
                     "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                    postContentStyle === key
+                    coreStyle === key
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-muted-foreground/30"
                   )}>
-                    {postContentStyle === key && <Check className="h-3 w-3" />}
+                    {coreStyle === key && <Check className="h-3 w-3" />}
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-medium">{style.label}</div>

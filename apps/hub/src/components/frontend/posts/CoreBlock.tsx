@@ -1,13 +1,13 @@
 import { useMemo } from "react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { POST_CONTENT_STYLE_RENDERERS } from "./post-content-styles"
+import { CORE_STYLE_RENDERERS } from "./core-styles"
 import { RelatedPostsBlock } from "./RelatedPostsBlock"
 import { TableOfContentsBlock } from "./table-of-content/TableOfContentsBlock"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import type { TableOfContentsItem } from "./table-of-content/table-of-contents-utils"
 import { cn } from "@/lib/utils/tailwind"
 
-interface PostContentBlockProps {
+interface CoreBlockProps {
   blocks: Array<{
     id: string
     type: string
@@ -29,26 +29,26 @@ interface PostContentBlockProps {
   currentPostId?: string
   preloadedRelatedPosts?: RelatedPostsData | null
   tableOfContentsItems?: TableOfContentsItem[]
-  postContentHtmlByBlockId?: Record<string, string>
+  coreHtmlByBlockId?: Record<string, string>
   hasFixedNavigation?: boolean
   siteWidth?: 'full' | 'custom'
   customWidth?: number
   container?: boolean
 }
 
-export function PostContentBlock({
+export function CoreBlock({
   blocks,
   post,
   siteId,
   currentPostId,
   preloadedRelatedPosts,
   tableOfContentsItems = [],
-  postContentHtmlByBlockId = {},
+  coreHtmlByBlockId = {},
   hasFixedNavigation = false,
   siteWidth = 'custom',
   customWidth,
   container = true,
-}: PostContentBlockProps) {
+}: CoreBlockProps) {
   return (
     <>
       {blocks.map((block) => {
@@ -61,7 +61,7 @@ export function PostContentBlock({
             currentPostId={currentPostId}
             preloadedRelatedPosts={preloadedRelatedPosts}
             tableOfContentsItems={tableOfContentsItems}
-            postContentHtmlByBlockId={postContentHtmlByBlockId}
+            coreHtmlByBlockId={coreHtmlByBlockId}
             hasFixedNavigation={hasFixedNavigation}
           />
         )
@@ -91,7 +91,7 @@ function PostBlockContent({
   currentPostId,
   preloadedRelatedPosts,
   tableOfContentsItems,
-  postContentHtmlByBlockId,
+  coreHtmlByBlockId,
   hasFixedNavigation,
 }: {
   block: { id: string; type: string; content: Record<string, any> }
@@ -108,7 +108,7 @@ function PostBlockContent({
   currentPostId?: string
   preloadedRelatedPosts?: RelatedPostsData | null
   tableOfContentsItems: TableOfContentsItem[]
-  postContentHtmlByBlockId: Record<string, string>
+  coreHtmlByBlockId: Record<string, string>
   hasFixedNavigation: boolean
 }) {
   const isStickyBlock = block.type === 'table-of-contents' && block.content?.sticky !== false
@@ -122,11 +122,11 @@ function PostBlockContent({
         isStickyBlock && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
       )}
     >
-      {block.type === 'post-content' && (
-        <PostContentStyled
+      {block.type === 'core' && (
+        <CoreStyled
           block={block}
           post={post}
-          bodyHtml={postContentHtmlByBlockId[block.id]}
+          bodyHtml={coreHtmlByBlockId[block.id]}
         />
       )}
 
@@ -146,8 +146,8 @@ function PostBlockContent({
   )
 }
 
-/** Renders post-content block using the style renderer registry */
-function PostContentStyled({ block, post, bodyHtml }: {
+/** Renders core block using the style renderer registry */
+function CoreStyled({ block, post, bodyHtml }: {
   block: { id: string; type: string; content: Record<string, any> }
   post: {
     title: string
@@ -160,17 +160,17 @@ function PostContentStyled({ block, post, bodyHtml }: {
   }
   bodyHtml?: string
 }) {
-  const postContentStyle = block.content.postContentStyle || 'default'
+  const coreStyle = block.content.coreStyle || 'default'
   const styleConfig = block.content.styleConfig || {}
 
   const resolvedConfig = useMemo(() => {
-    if (styleConfig[postContentStyle]) {
-      return styleConfig[postContentStyle]
+    if (styleConfig[coreStyle]) {
+      return styleConfig[coreStyle]
     }
     return {}
-  }, [postContentStyle, styleConfig])
+  }, [coreStyle, styleConfig])
 
-  const StyleRenderer = POST_CONTENT_STYLE_RENDERERS[postContentStyle] || POST_CONTENT_STYLE_RENDERERS.default
+  const StyleRenderer = CORE_STYLE_RENDERERS[coreStyle] || CORE_STYLE_RENDERERS.default
 
   return (
     <StyleRenderer

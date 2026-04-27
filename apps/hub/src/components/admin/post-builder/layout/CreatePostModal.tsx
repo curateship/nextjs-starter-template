@@ -337,7 +337,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
             id="excerpt"
             value={formData.excerpt}
             onChange={(e) => setFormData((prev) => ({ ...prev, excerpt: e.target.value }))}
-            placeholder="A brief summary of your post content"
+            placeholder="A brief summary of your post"
             className="min-h-[40px] resize-none overflow-hidden"
             style={{ height: "auto" }}
             onInput={(e) => {
