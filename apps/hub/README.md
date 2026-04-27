@@ -37,8 +37,8 @@ Read these files in this order before changing HUB code:
 - Drizzle schema and runtime code are the current database source of truth.
 - `apps/hub/migrations/**` contains historical SQL and is not the runtime architecture authority.
 - Site rendering is block-driven with separate admin builder and frontend renderer layers.
-- Site navigation and footer are shared site structure stored in top-level `site.settings.navigation` and `site.settings.footer`.
-- Page and account-page builders edit page content blocks only. Navigation and footer are edited from the admin Structure screens, not as page blocks.
+- Site navigation, footer, and breadcrumbs are shared site structure stored in top-level `site.settings`.
+- Page and account-page builders edit page content blocks only. Navigation, footer, and breadcrumbs are edited from the admin Structure screens, not as page blocks.
 - Frontend page-builder pages own the normal public slug space. If a public page slug does not match, the frontend catch-all can render a published account-page-builder page at that same slug.
 - User-page-builder auth pages are defined by an `auth` block and resolve through normal frontend slugs.
 - Published account pages without an `auth` block are treated as authenticated pages. Platform admin auth is handled separately at `/admin-login`.

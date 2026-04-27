@@ -11,18 +11,27 @@ When triggered with "validate live", open a real browser to verify the page work
 
 Use the existing HUB dev server whenever possible. Do not disrupt the user's local ports.
 
-- First check `http://localhost:3000` or `http://127.0.0.1:3000`.
+- First check whether anything is already listening on port `3000`:
+
+```bash
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+```
+
+- If anything is listening on `3000`, never start another dev server on `3000`.
+- If a sandboxed `curl` to `localhost:3000` or `127.0.0.1:3000` reports connection refused while `lsof` shows a listener, assume the sandbox may be blocking localhost networking. Re-run the same localhost check with escalation before deciding the server is unavailable.
+- If the escalated localhost check succeeds, continue validation against `http://localhost:3000`.
+- If the escalated localhost check fails while a listener exists, stop validation and report that port `3000` is occupied but not reachable from the tool environment.
 - Never run `npm run dev` from the repo root for validation. It starts the whole Turbo stack and can collide with other apps.
 - Never kill, restart, or replace whatever is using port `3000`.
 - Never start HUB on a new port unless the user explicitly approves that alternate port in the current turn.
 - If port `3000` is unavailable, occupied, or not responding, stop validation and report that live validation is blocked.
-- If HUB is not running and port `3000` is free, start only HUB:
+- Only if port `3000` is free, start only HUB:
 
 ```bash
 npm --workspace @repo/hub run dev
 ```
 
-Use the same base URL throughout the validation. If validation is blocked by the server/port state, do not keep probing random ports.
+Use the same base URL throughout the validation. If validation is blocked by the server/port state, do not keep probing random ports and do not try to "test start" HUB on `3000`.
 
 ## Auth State
 

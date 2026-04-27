@@ -34,7 +34,7 @@ export interface AdminTopNavLink {
 
 type ProductAdminSection = "products" | "orders" | "analytics"
 type PostAdminSection = "posts" | "templates"
-type PageAdminSection = "pages" | "account-pages" | "navigation" | "footer"
+type PageAdminSection = "pages" | "account-pages" | "navigation" | "footer" | "breadcrumbs"
 type NewsletterAdminSection =
   | "newsletters"
   | "contacts"
@@ -70,6 +70,7 @@ export function getPageAdminTopNavLinks(siteId: string, active: PageAdminSection
     { label: "Account Pages", href: `/admin/account-pages/${siteId}`, icon: Users, active: active === "account-pages" },
     { label: "Navigation", href: `/admin/sites/${siteId}/structure/navigation`, icon: Navigation, active: active === "navigation" },
     { label: "Footer", href: `/admin/sites/${siteId}/structure/footer`, icon: PanelBottom, active: active === "footer" },
+    { label: "Breadcrumbs", href: `/admin/sites/${siteId}/structure/breadcrumbs`, icon: Link2, active: active === "breadcrumbs" },
   ]
 }
 

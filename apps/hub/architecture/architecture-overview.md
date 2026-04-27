@@ -81,7 +81,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 
 **Site data flow:**
 1. Request comes in → `getSiteFromHeaders()` resolves site by Host header
-2. Shared site chrome lives in top-level `site.settings.navigation` and `site.settings.footer`
+2. Shared site chrome lives in top-level `site.settings.navigation`, `site.settings.footer`, and `site.settings.breadcrumbs`
 3. Page/content rows store only their own content blocks as JSON
 4. Each content type (products, posts, pages, categories, directories, events) belongs to a site via `site_id`
 5. Site-facing users are global Better Auth users linked to sites through `site_memberships`; site role/status/activity live on that join table, not on the global user row
@@ -184,7 +184,7 @@ Use this map before changing code:
 - Admin builder bug or feature: inspect the admin route in `src/app/admin/**`, then the builder under `src/components/admin/**`, then the action and schema it saves through.
 - Admin modal or builder form change: check whether the work belongs on the shared admin form modal primitives before hand-rolling new dialog spacing or footer layout.
 - Account/auth page routing task: inspect `src/app/[...slug]/page.tsx`, `src/lib/actions/account-pages/account-pages-frontend-actions.ts`, and the account-page builder/runtime files before changing redirects or slug behavior.
-- Structure/navigation/footer task: inspect the Structure routes plus `src/lib/utils/site-structure.ts` before changing page-builder behavior.
+- Structure/navigation/footer/breadcrumbs task: inspect the Structure routes plus `src/lib/utils/site-structure.ts` before changing page-builder behavior.
 - Auth task: inspect `src/lib/auth/server.ts`, `src/lib/auth/client.ts`, and `src/app/api/auth/[...all]/route.ts` first.
 - Data or query task: inspect the relevant Drizzle schema file before changing actions or UI.
 - Tenant/domain task: inspect site resolution and URL generation before changing host or domain logic.

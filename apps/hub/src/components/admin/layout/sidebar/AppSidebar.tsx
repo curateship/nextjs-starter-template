@@ -111,6 +111,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         { title: "Account Pages", url: currentSite ? `/admin/account-pages/${currentSite.id}` : "/admin/sites" },
         { title: "Navigation", url: currentSite ? `/admin/sites/${currentSite.id}/structure/navigation` : "/admin/sites" },
         { title: "Footer", url: currentSite ? `/admin/sites/${currentSite.id}/structure/footer` : "/admin/sites" },
+        { title: "Breadcrumbs", url: currentSite ? `/admin/sites/${currentSite.id}/structure/breadcrumbs` : "/admin/sites" },
       ],
     },
     {
