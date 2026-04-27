@@ -69,7 +69,7 @@ import {
   UserRound,
   ArrowLeft,
 } from "lucide-react"
-import { NAVIGATION_STYLES } from "."
+import { NAVIGATION_STYLES } from "@/components/admin/structure-builder/navigation"
 
 interface NavigationLink {
   text: string
@@ -87,7 +87,7 @@ interface NavigationButton {
   icon?: QuickLinkIconName
 }
 
-interface PageNavigationBlockProps {
+interface NavigationProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
   onContentPersist?: (nextContent: Record<string, any>) => Promise<boolean>
@@ -744,13 +744,13 @@ function StaticBuiltInActionItem({
   )
 }
 
-export function PageNavigationBlock({
+export function Navigation({
   content,
   onContentChange,
   onContentPersist,
   siteFavicon,
   onBack,
-}: PageNavigationBlockProps) {
+}: NavigationProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)

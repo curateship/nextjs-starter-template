@@ -67,7 +67,7 @@ interface SocialLink {
   id?: string
 }
 
-interface FooterBlockProps {
+interface FooterProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
   onContentPersist?: (nextContent: Record<string, any>) => Promise<boolean>
@@ -381,14 +381,14 @@ function StaticSocialLinkItem({
   )
 }
 
-export function PageFooterBlock({
+export function Footer({
   content,
   onContentChange,
   onContentPersist,
   siteFavicon,
   siteName = "Your Site",
   onBack,
-}: FooterBlockProps) {
+}: FooterProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)

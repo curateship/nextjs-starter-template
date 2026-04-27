@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
-import { PageNavigationBlock } from "@/components/admin/page-builder/blocks/navigation/PageNavigationBlock"
-import { PageFooterBlock } from "@/components/admin/page-builder/blocks/footer/PageFooterBlock"
+import { Navigation } from "@/components/admin/structure-builder/navigation/Navigation"
+import { Footer } from "@/components/admin/structure-builder/Footer"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { updateSiteNavigationAction, updateSiteFooterAction } from "@/lib/actions/sites/site-actions"
 import { BUILT_IN_NAVIGATION_ACTION_ITEM_IDS } from "@/lib/utils/navigation-action-items"
@@ -327,7 +327,7 @@ export function SiteChromeEditorPage({
               </CardContent>
             </Card>
           ) : mode === 'navigation' ? (
-            <PageNavigationBlock
+            <Navigation
               content={navigationContent}
               onContentChange={(field, value) => {
                 setNavigationContent(prev => ({ ...prev, [field]: value }))
@@ -338,7 +338,7 @@ export function SiteChromeEditorPage({
               siteFavicon={site.settings?.favicon}
             />
           ) : (
-            <PageFooterBlock
+            <Footer
               content={footerContent}
               onContentChange={(field, value) => {
                 setFooterContent(prev => ({ ...prev, [field]: value }))
