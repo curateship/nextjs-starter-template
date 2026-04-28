@@ -192,23 +192,22 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
       const showAuthorMeta = showAuthor && Boolean(authorName)
 
       return (
-        <Card
+        <Link
           key={item.id}
-          className="mx-0 grid grid-rows-[auto_auto_1fr_auto] overflow-hidden pt-0"
+          href={href}
+          className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label={`Read ${item.title || (contentType === 'posts' ? 'post' : 'product')}`}
         >
-          {showImage && (
-            <div className="aspect-video w-full">
-              <Link
-                href={href}
-                className="block h-full transition-opacity duration-200 hover:opacity-70"
-              >
+          <Card className="mx-0 grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden pt-0 transition-shadow group-hover:shadow-md">
+            {showImage && (
+              <div className="aspect-video w-full">
                 {item.featured_image ? (
                   <Image
                     src={item.featured_image}
                     alt={item.title || `${contentType === 'posts' ? 'Post' : 'Product'} image`}
                     width={640}
                     height={360}
-                    className="h-full w-full object-cover object-center"
+                    className="h-full w-full object-cover object-center transition-opacity duration-200 group-hover:opacity-75"
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     priority={isLCP}
                   />
@@ -217,49 +216,46 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
                     No Image
                   </div>
                 )}
-              </Link>
-            </div>
-          )}
-          <CardHeader>
-            {showTitle && (
-              <h3 className="text-xl hover:underline md:text-xl">
-                <Link href={href}>{item.title}</Link>
-              </h3>
-            )}
-            {showDescription && summary && (
-              <p className="leading-relaxed text-muted-foreground">
-                {summary}
-              </p>
-            )}
-            {(showAuthorMeta || published) && (
-              <div className="mt-3 flex items-center gap-2">
-                {showAuthorMeta && (
-                  <Avatar className="size-9 border">
-                    {item.author_image && <AvatarImage src={item.author_image} alt={authorName} />}
-                    <AvatarFallback className="text-xs">{getInitials(authorName)}</AvatarFallback>
-                  </Avatar>
-                )}
-                <div className="flex min-w-0 flex-col">
-                  {showAuthorMeta && (
-                    <span className="text-sm font-semibold text-foreground/80">{authorName}</span>
-                  )}
-                  {published && (
-                    <span className="text-xs text-muted-foreground">{published}</span>
-                  )}
-                </div>
               </div>
             )}
-          </CardHeader>
-          <CardFooter>
-            <Link
-              href={href}
-              className="flex items-center text-muted-foreground hover:underline"
-            >
-              Read more
-              <ArrowRight className="ml-1 size-4" />
-            </Link>
-          </CardFooter>
-        </Card>
+            <CardHeader>
+              {showTitle && (
+                <h3 className="text-xl md:text-xl">
+                  {item.title}
+                </h3>
+              )}
+              {showDescription && summary && (
+                <p className="my-4 leading-relaxed text-muted-foreground">
+                  {summary}
+                </p>
+              )}
+              {(showAuthorMeta || published) && (
+                <div className="mt-3 flex items-center gap-2">
+                  {showAuthorMeta && (
+                    <Avatar className="size-9 border">
+                      {item.author_image && <AvatarImage src={item.author_image} alt={authorName} />}
+                      <AvatarFallback className="text-xs">{getInitials(authorName)}</AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className="flex min-w-0 flex-col">
+                    {showAuthorMeta && (
+                      <span className="text-sm font-semibold text-foreground/80">{authorName}</span>
+                    )}
+                    {published && (
+                      <span className="text-xs text-muted-foreground">{published}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardHeader>
+            <CardFooter>
+              <span className="flex items-center text-muted-foreground">
+                Read more
+                <ArrowRight className="ml-1 size-4" />
+              </span>
+            </CardFooter>
+          </Card>
+        </Link>
       )
     }
 
