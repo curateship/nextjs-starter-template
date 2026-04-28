@@ -12,6 +12,7 @@ RUN npm ci --workspace=@repo/hub
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/hub/node_modules ./apps/hub/node_modules
 COPY package.json turbo.json ./
 COPY apps/hub/ ./apps/hub/
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -47,10 +47,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../../'),
-  serverActions: {
-    bodySizeLimit: '10mb',
-  },
   experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
     optimizePackageImports: [
       'lucide-react',
       'framer-motion',
