@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getDirectoryBuilderDataAction, type Directory } from "@/lib/actions/directories/directory-actions"
 import type { DirectorySummary } from "@/lib/actions/directories/directory-list-actions"
@@ -64,7 +64,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
     setSiteLoading(!currentSite)
   }, [currentSite])
 
-  const loadDirectoryData = async () => {
+  const loadDirectoryData = useCallback(async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
@@ -103,9 +103,9 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }
+  }, [siteId, selectedDirectory])
 
-  const reloadBlocks = async () => {
+  const reloadBlocks = useCallback(async () => {
     if (!selectedDirectory) {
       setDirectory(null)
       setBlocks({})
@@ -150,11 +150,11 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
     }
 
     setBlocksLoading(false)
-  }
+  }, [siteId, selectedDirectory])
 
   useEffect(() => {
     loadDirectoryData()
-  }, [siteId, selectedDirectory]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadDirectoryData])
 
   return {
     site: currentSite,

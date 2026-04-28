@@ -1,10 +1,20 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSitePagesAction, type Page } from "@/lib/actions/pages/page-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 
 function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
   return convertJsonToBlocks(contentBlocks)
+}
+
+function getBlocksBySlug(pages: Page[]) {
+  const blocksData: Record<string, any[]> = {}
+
+  pages.forEach(page => {
+    blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
+  })
+
+  return blocksData
 }
 interface UsePageDataReturn {
   site: SiteWithTheme | null
@@ -28,7 +38,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
   })
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadSiteAndBlocks = async () => {
+  const loadSiteAndBlocks = useCallback(async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
@@ -48,13 +58,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
 
       if (pagesResult.data) {
         setPages(pagesResult.data)
-
-        // Convert JSON content_blocks to blocks format for each page
-        const blocksData: Record<string, any[]> = {}
-        pagesResult.data.forEach(page => {
-          blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
-        })
-        setBlocks(blocksData)
+        setBlocks(getBlocksBySlug(pagesResult.data))
       } else {
         console.error('Failed to load pages:', pagesResult.error)
       }
@@ -65,9 +69,9 @@ export function usePageData(siteId: string): UsePageDataReturn {
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
-  const reloadBlocks = async () => {
+  const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
     
     // Need to reload both site and pages data to get updated navigation/footer
@@ -82,20 +86,14 @@ export function usePageData(siteId: string): UsePageDataReturn {
     
     if (pagesResult.data) {
       setPages(pagesResult.data)
-      
-      // Convert JSON content_blocks to blocks format for each page
-      const blocksData: Record<string, any[]> = {}
-      pagesResult.data.forEach(page => {
-        blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
-      })
-      setBlocks(blocksData)
+      setBlocks(getBlocksBySlug(pagesResult.data))
     }
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
   useEffect(() => {
     loadSiteAndBlocks()
-  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadSiteAndBlocks])
 
   return {
     site,

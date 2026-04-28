@@ -42,13 +42,13 @@ export function PageEmbeddedBlock({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="html">HTML (Newsletter forms, widgets)</SelectItem>
-                        <SelectItem value="script">Script (Tracking, analytics)</SelectItem>
+                        <SelectItem value="script">Script (stored, not executed)</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
                       {type === 'html'
                         ? 'Paste HTML code like newsletter signup forms or embedded widgets'
-                        : 'Paste JavaScript code or script tags for tracking and analytics'}
+                        : 'Script tags are not executed on public pages. Use HTML or a trusted integration instead.'}
                     </p>
                   </div>
               </BlockEditorSection>
@@ -70,7 +70,7 @@ export function PageEmbeddedBlock({
                       className="font-mono text-sm min-h-[300px]"
                     />
                     <p className="text-xs text-muted-foreground">
-                      The code will be rendered exactly as entered on your public page.
+                      Only sanitized HTML is rendered on public pages. Script tags and event handlers are removed.
                     </p>
                   </div>
               </BlockEditorSection>

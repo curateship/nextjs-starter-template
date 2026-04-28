@@ -23,6 +23,10 @@ function jsonError(error: string, status: number) {
   return NextResponse.json({ data: null, error }, { status })
 }
 
+function jsonServerError() {
+  return jsonError('Server error', 500)
+}
+
 /** Authenticate the request and return the user ID */
 async function authenticateRequest(request: NextRequest): Promise<string | NextResponse> {
   const session = await auth.api.getSession({ headers: request.headers })
@@ -147,10 +151,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       return NextResponse.json({ data: newRow, error: null }, { status: 201 })
     } catch (error) {
       console.error('API Error:', error)
-      return NextResponse.json(
-        { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` },
-        { status: 500 }
-      )
+      return jsonServerError()
     }
   }
 }
@@ -207,10 +208,7 @@ export function getResourceHandler(config: ItemResourceConfig) {
       return NextResponse.json({ data: entity, error: null })
     } catch (error) {
       console.error('API Error:', error)
-      return NextResponse.json(
-        { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` },
-        { status: 500 }
-      )
+      return jsonServerError()
     }
   }
 }
@@ -283,10 +281,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
       return NextResponse.json({ data: updatedRow, error: null })
     } catch (error) {
       console.error('API Error:', error)
-      return NextResponse.json(
-        { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` },
-        { status: 500 }
-      )
+      return jsonServerError()
     }
   }
 }

@@ -26,6 +26,57 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTR = ['class', 'href', 'rel', 'target']
 
+const EMBED_ALLOWED_TAGS = [
+  ...ALLOWED_TAGS,
+  'article',
+  'aside',
+  'audio',
+  'button',
+  'figcaption',
+  'figure',
+  'form',
+  'iframe',
+  'img',
+  'input',
+  'label',
+  'option',
+  'picture',
+  'section',
+  'select',
+  'source',
+  'textarea',
+  'video',
+]
+
+const EMBED_ALLOWED_ATTR = [
+  ...ALLOWED_ATTR,
+  'accept',
+  'action',
+  'allow',
+  'allowfullscreen',
+  'alt',
+  'aria-label',
+  'autocomplete',
+  'checked',
+  'controls',
+  'disabled',
+  'frameborder',
+  'height',
+  'loading',
+  'method',
+  'name',
+  'placeholder',
+  'poster',
+  'referrerpolicy',
+  'required',
+  'sandbox',
+  'src',
+  'title',
+  'type',
+  'value',
+  'width',
+]
+
 export function sanitizeRichHtml(value?: string | null) {
   if (!value) return ''
 
@@ -33,6 +84,19 @@ export function sanitizeRichHtml(value?: string | null) {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     ALLOW_DATA_ATTR: false,
+    SANITIZE_DOM: true,
+    SANITIZE_NAMED_PROPS: true,
+  })
+}
+
+export function sanitizeEmbedHtml(value?: string | null) {
+  if (!value) return ''
+
+  return DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: EMBED_ALLOWED_TAGS,
+    ALLOWED_ATTR: EMBED_ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: true,
+    FORBID_TAGS: ['script', 'style', 'object', 'embed', 'base', 'link', 'meta'],
     SANITIZE_DOM: true,
     SANITIZE_NAMED_PROPS: true,
   })

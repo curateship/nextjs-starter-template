@@ -721,7 +721,7 @@ export function ProductCheckoutBlock({
 
                   {(productPricingTiers?.length === 0 || !productPricingTiers) && (
                     <BlockEditorEmptyState>
-                      No pricing tiers yet. Click "Add Tier" to create one.
+                      No pricing tiers yet. Click Add Tier to create one.
                     </BlockEditorEmptyState>
                   )}
 
@@ -780,7 +780,7 @@ export function ProductCheckoutBlock({
                     <p>
                       The success page is where customers are redirected after a successful payment.
                       You can customize the download content for each pricing tier in the Checkout tab
-                      by enabling "Enable Download Page" on individual tiers.
+                      by enabling Enable Download Page on individual tiers.
                     </p>
                   </div>
               </BlockEditorSection>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
@@ -20,6 +20,20 @@ interface UseProductDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
+function getProductBlocksBySlug(products: Array<{ id: string; slug: string; content_blocks?: Record<string, any> | null }>) {
+  const convertedBlocks: Record<string, ProductBlock[]> = {}
+
+  products.forEach((product) => {
+    const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
+    convertedBlocks[product.slug] = productBlocks.map(block => ({
+      ...block,
+      title: getBlockName(block.type)
+    }))
+  })
+
+  return convertedBlocks
+}
+
 export function useProductData(siteId: string): UseProductDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteLoading, setSiteLoading] = useState(true)
@@ -27,7 +41,7 @@ export function useProductData(siteId: string): UseProductDataReturn {
   const [blocks, setBlocks] = useState<Record<string, ProductBlock[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadSiteAndBlocks = async () => {
+  const loadSiteAndBlocks = useCallback(async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
@@ -44,24 +58,8 @@ export function useProductData(siteId: string): UseProductDataReturn {
         setSiteError(siteResult.error || 'Failed to load site')
       }
       
-      let convertedBlocks: Record<string, ProductBlock[]> = {}
-      
       if (productsResult.data) {
-        // Convert products with JSON content_blocks to the block format the UI expects
-        productsResult.data.forEach((product) => {
-          // Convert JSON content_blocks to block array format
-          const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
-          
-          // Add titles to blocks
-          const blocksWithTitles = productBlocks.map(block => ({
-            ...block,
-            title: getBlockName(block.type)
-          }))
-          
-          convertedBlocks[product.slug] = blocksWithTitles
-        })
-        
-        setBlocks(convertedBlocks)
+        setBlocks(getProductBlocksBySlug(productsResult.data))
       } else {
         console.error('Failed to load products:', productsResult.error)
         setBlocks({})
@@ -74,9 +72,9 @@ export function useProductData(siteId: string): UseProductDataReturn {
     
     setSiteLoading(false)
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
-  const reloadBlocks = async () => {
+  const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
     const [siteResult, productsResult] = await Promise.all([
       getSiteByIdAction(siteId),
@@ -88,34 +86,18 @@ export function useProductData(siteId: string): UseProductDataReturn {
     }
     
     if (productsResult.data) {
-      // Convert products with JSON content_blocks to the block format the UI expects
-      const convertedBlocks: Record<string, ProductBlock[]> = {}
-      
-      productsResult.data.forEach((product) => {
-        // Convert JSON content_blocks to block array format
-        const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
-        
-        // Add titles to blocks
-        const blocksWithTitles = productBlocks.map(block => ({
-          ...block,
-          title: getBlockName(block.type)
-        }))
-        
-        convertedBlocks[product.slug] = blocksWithTitles
-      })
-      
-      setBlocks(convertedBlocks)
+      setBlocks(getProductBlocksBySlug(productsResult.data))
     } else {
       setBlocks({})
     }
     
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
 
   useEffect(() => {
     loadSiteAndBlocks()
-  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadSiteAndBlocks])
 
   return {
     site,

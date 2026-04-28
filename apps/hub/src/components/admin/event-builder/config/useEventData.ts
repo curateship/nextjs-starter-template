@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteEventsAction } from "@/lib/actions/events/event-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
@@ -21,6 +21,20 @@ interface UseEventDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
+function getEventBlocksBySlug(events: Array<{ id: string; slug: string; content_blocks?: Record<string, any> | null }>) {
+  const convertedBlocks: Record<string, EventBlock[]> = {}
+
+  events.forEach((event) => {
+    const eventBlocks = convertContentBlocksToArray(event.content_blocks || {}, event.id)
+    convertedBlocks[event.slug] = eventBlocks.map(block => ({
+      ...block,
+      title: getBlockName(block.type)
+    }))
+  })
+
+  return convertedBlocks
+}
+
 export function useEventData(siteId: string): UseEventDataReturn {
   const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
@@ -29,7 +43,7 @@ export function useEventData(siteId: string): UseEventDataReturn {
   const [blocks, setBlocks] = useState<Record<string, EventBlock[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadSiteAndBlocks = async () => {
+  const loadSiteAndBlocks = useCallback(async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
@@ -45,24 +59,8 @@ export function useEventData(siteId: string): UseEventDataReturn {
         setSiteError(siteResult.error || 'Failed to load site')
       }
 
-      let convertedBlocks: Record<string, EventBlock[]> = {}
-
       if (eventsResult.data) {
-        // Convert events with JSON content_blocks to the block format the UI expects
-        eventsResult.data.forEach((event) => {
-          // Convert JSON content_blocks to block array format
-          const eventBlocks = convertContentBlocksToArray(event.content_blocks || {}, event.id)
-
-          // Add titles to blocks
-          const blocksWithTitles = eventBlocks.map(block => ({
-            ...block,
-            title: getBlockName(block.type)
-          }))
-
-          convertedBlocks[event.slug] = blocksWithTitles
-        })
-
-        setBlocks(convertedBlocks)
+        setBlocks(getEventBlocksBySlug(eventsResult.data))
       } else {
         console.error('Failed to load events:', eventsResult.error)
         setBlocks({})
@@ -75,41 +73,25 @@ export function useEventData(siteId: string): UseEventDataReturn {
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }
+  }, [currentSite, siteId])
 
-  const reloadBlocks = async () => {
+  const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
     const eventsResult = await getSiteEventsAction(siteId)
 
     if (eventsResult.data) {
-      // Convert events with JSON content_blocks to the block format the UI expects
-      const convertedBlocks: Record<string, EventBlock[]> = {}
-
-      eventsResult.data.forEach((event) => {
-        // Convert JSON content_blocks to block array format
-        const eventBlocks = convertContentBlocksToArray(event.content_blocks || {}, event.id)
-
-        // Add titles to blocks
-        const blocksWithTitles = eventBlocks.map(block => ({
-          ...block,
-          title: getBlockName(block.type)
-        }))
-
-        convertedBlocks[event.slug] = blocksWithTitles
-      })
-
-      setBlocks(convertedBlocks)
+      setBlocks(getEventBlocksBySlug(eventsResult.data))
     } else {
       setBlocks({})
     }
 
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
 
   useEffect(() => {
     loadSiteAndBlocks()
-  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadSiteAndBlocks])
 
   return {
     site,

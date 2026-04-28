@@ -43,7 +43,7 @@ interface ProductHeroBlockProps {
 const HeroTitle = ({ title }: { title?: string }) => {
   if (!title || !title.trim()) return null;
   return (
-    <h1 className="text-4xl md:text-6xl lg:text-7xl !font-bold py-2 md:py-5 leading-none tracking-tight">
+    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-2 md:py-5 leading-none tracking-tight">
       {title}
     </h1>
   );

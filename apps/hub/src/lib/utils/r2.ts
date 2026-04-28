@@ -81,10 +81,11 @@ export function getPublicUrl(fileName: string): string {
 /**
  * Get object from R2 (for proxying)
  */
-export async function getFromR2(fileName: string) {
+export async function getFromR2(fileName: string, range?: string | null) {
   const command = new GetObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: fileName,
+    Range: range || undefined,
   })
 
   const response = await r2Client.send(command)

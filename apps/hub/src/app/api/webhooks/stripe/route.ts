@@ -84,14 +84,6 @@ export async function POST(req: NextRequest) {
           ? session.payment_intent
           : session.payment_intent?.id ?? null
 
-        console.log('Payment successful:', {
-          sessionId: session.id,
-          customerEmail,
-          amount: session.amount_total,
-          productSlug: session.metadata?.productSlug,
-          siteId: sessionSiteId,
-        })
-
         await recordPaidPurchase({
           siteId: sessionSiteId,
           productId: sessionProductId,
@@ -113,8 +105,6 @@ export async function POST(req: NextRequest) {
       }
 
       case 'checkout.session.expired': {
-        const session = event.data.object as Stripe.Checkout.Session
-        console.log('Checkout session expired:', session.id)
         break
       }
 
@@ -141,14 +131,6 @@ export async function POST(req: NextRequest) {
           ? await getProductIdFromPurchaseMetadata(intentSiteId, fullPaymentIntent.metadata)
           : null
 
-        console.log('Payment intent succeeded:', {
-          paymentIntentId: fullPaymentIntent.id,
-          customerEmail,
-          amount: fullPaymentIntent.amount,
-          productSlug: fullPaymentIntent.metadata?.productSlug,
-          siteId: intentSiteId,
-        })
-
         await recordPaidPurchase({
           siteId: intentSiteId,
           productId: intentProductId,
@@ -169,13 +151,11 @@ export async function POST(req: NextRequest) {
       }
 
       case 'payment_intent.payment_failed': {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent
-        console.log('Payment failed:', paymentIntent.id)
         break
       }
 
       default:
-        console.log(`Unhandled event type: ${event.type}`)
+        break
     }
 
     return NextResponse.json({ received: true })

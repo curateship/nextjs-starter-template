@@ -325,7 +325,7 @@ export function ProductFeaturesBlock({
 
                     {featuresCollection.length === 0 && (
                       <BlockEditorEmptyState>
-                        No features yet. Click "Add Feature" to create one.
+                        No features yet. Click Add Feature to create one.
                       </BlockEditorEmptyState>
                     )}
 

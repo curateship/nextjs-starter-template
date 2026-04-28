@@ -12,9 +12,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 })
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
-
   try {
     const range = request.headers.get('range')
 
@@ -23,117 +20,82 @@ export async function GET(request: NextRequest) {
       // Extract filename from r2:// URL
       const fileName = url.replace('r2://', '')
 
-      // Get from R2
-      const r2Object = await getFromR2(fileName)
+      const r2Object = await getFromR2(fileName, range)
 
       if (!r2Object.Body) {
         throw new Error('No body in R2 response')
       }
 
-      // Convert stream to buffer
-      const body = await streamToBuffer(r2Object.Body as any)
+      const contentType = r2Object.ContentType || 'application/octet-stream'
+      const contentLength = r2Object.ContentLength?.toString()
+      const contentRange = r2Object.ContentRange
+      const headers: Record<string, string> = {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Accept-Ranges': 'bytes',
+      }
 
+      if (contentLength) headers['Content-Length'] = contentLength
+      if (contentRange) headers['Content-Range'] = contentRange
+
+      return new NextResponse(toBodyInit(r2Object.Body), {
+        status: range && contentRange ? 206 : 200,
+        headers,
+      })
+    }
+
+    const parsedUrl = parseAllowedMediaUrl(url)
+    if (parsedUrl instanceof NextResponse) {
+      return parsedUrl
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT)
+
+    try {
+      const response = await fetch(parsedUrl.toString(), {
+        signal: controller.signal,
+        headers: range ? { Range: range } : {},
+      })
       clearTimeout(timeoutId)
 
-      const contentType = r2Object.ContentType || 'application/octet-stream'
-      const contentLength = r2Object.ContentLength?.toString() || body.length.toString()
+      if (!response.ok) {
+        throw new Error(`Failed to fetch media: ${response.status}`)
+      }
 
-      // Handle range requests for video streaming
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-')
-        const start = parseInt(parts[0], 10)
-        const end = parts[1] ? parseInt(parts[1], 10) : body.length - 1
-        const chunksize = (end - start) + 1
-        const chunk = body.slice(start, end + 1)
+      const contentType = response.headers.get('content-type') || 'application/octet-stream'
+      const contentLength = response.headers.get('content-length')
+      const contentRange = response.headers.get('content-range')
 
-        return new NextResponse(new Uint8Array(chunk), {
+      if (range && contentRange) {
+        return new NextResponse(response.body, {
           status: 206,
           headers: {
-            'Content-Range': `bytes ${start}-${end}/${body.length}`,
+            'Content-Range': contentRange,
             'Accept-Ranges': 'bytes',
-            'Content-Length': chunksize.toString(),
+            'Content-Length': contentLength || '',
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=31536000, immutable',
           },
         })
       }
 
-      return new NextResponse(new Uint8Array(body), {
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': contentLength,
-          'Cache-Control': 'public, max-age=31536000, immutable',
-        },
-      })
-    }
-
-    // Fallback: proxy external URLs from the current media hosts only
-    // SSRF protection: only allow known media hosts
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(url)
-    } catch {
-      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
-    }
-
-    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
-      return NextResponse.json({ error: 'Invalid URL scheme' }, { status: 400 })
-    }
-
-    const allowedHosts = [
-      '.r2.dev',
-      '.cloudflare.com',
-    ]
-    const hostname = parsedUrl.hostname.toLowerCase()
-    const isAllowed = allowedHosts.some(host => hostname.endsWith(host))
-
-    if (!isAllowed) {
-      return NextResponse.json({ error: 'URL host not allowed' }, { status: 403 })
-    }
-
-    const fetchOptions: RequestInit = {
-      signal: controller.signal,
-      headers: range ? { Range: range } : {},
-    }
-
-    const response = await fetch(url, fetchOptions)
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch media: ${response.statusText}`)
-    }
-
-    const contentType = response.headers.get('content-type') || 'application/octet-stream'
-    const contentLength = response.headers.get('content-length')
-    const contentRange = response.headers.get('content-range')
-
-    if (range && contentRange) {
       return new NextResponse(response.body, {
-        status: 206,
         headers: {
-          'Content-Range': contentRange,
-          'Accept-Ranges': 'bytes',
-          'Content-Length': contentLength || '',
           'Content-Type': contentType,
+          'Content-Length': contentLength || '',
           'Cache-Control': 'public, max-age=31536000, immutable',
+          'Accept-Ranges': 'bytes',
         },
       })
+    } catch (error) {
+      clearTimeout(timeoutId)
+      throw error
     }
-
-    return new NextResponse(response.body, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': contentLength || '',
-        'Cache-Control': 'public, max-age=31536000, immutable',
-        'Accept-Ranges': 'bytes',
-      },
-    })
 
   } catch (error) {
-    clearTimeout(timeoutId)
-
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error(`Media proxy timeout after ${FETCH_TIMEOUT}ms for URL:`, url)
+      console.error(`Media proxy timeout after ${FETCH_TIMEOUT}ms`)
       return NextResponse.json(
         { error: 'Request timeout - media server took too long to respond' },
         { status: 504 }
@@ -141,25 +103,57 @@ export async function GET(request: NextRequest) {
     }
 
     console.error('Media proxy error:', error)
-    return NextResponse.json({
-      error: 'Failed to proxy media',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to proxy media' }, { status: 500 })
   }
 }
 
-// Helper to convert stream to buffer
-async function streamToBuffer(stream: ReadableStream): Promise<Buffer> {
-  const reader = stream.getReader()
-  const chunks: Uint8Array[] = []
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
+function parseAllowedMediaUrl(url: string): URL | NextResponse {
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
   }
 
-  return Buffer.concat(chunks)
+  if (parsedUrl.protocol !== 'https:') {
+    return NextResponse.json({ error: 'Invalid URL scheme' }, { status: 400 })
+  }
+
+  const allowedHostSuffixes = ['.r2.dev', '.r2.cloudflarestorage.com']
+  const allowedExactHosts = getExactAllowedHosts()
+  const hostname = parsedUrl.hostname.toLowerCase()
+  const isAllowed = allowedExactHosts.includes(hostname)
+    || allowedHostSuffixes.some(host => hostname.endsWith(host))
+
+  if (!isAllowed) {
+    return NextResponse.json({ error: 'URL host not allowed' }, { status: 403 })
+  }
+
+  return parsedUrl
+}
+
+function getExactAllowedHosts() {
+  const publicUrl = process.env.R2_PUBLIC_URL
+  if (!publicUrl) return []
+
+  try {
+    return [new URL(publicUrl).hostname.toLowerCase()]
+  } catch {
+    return []
+  }
+}
+
+function toBodyInit(body: NonNullable<Awaited<ReturnType<typeof getFromR2>>['Body']>): BodyInit {
+  if (
+    typeof body === 'object'
+    && body !== null
+    && 'transformToWebStream' in body
+    && typeof body.transformToWebStream === 'function'
+  ) {
+    return body.transformToWebStream()
+  }
+
+  return body as BodyInit
 }
 
 export async function OPTIONS() {

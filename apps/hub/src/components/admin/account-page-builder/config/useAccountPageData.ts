@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   getAccountPagesAction,
   type AccountPage
@@ -10,6 +10,16 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 
 function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
   return convertJsonToBlocks(contentBlocks).filter((block) => isSupportedAccountPageBlockType(block.type))
+}
+
+function getBlocksBySlug(pages: AccountPage[]) {
+  const blocksData: Record<string, any[]> = {}
+
+  pages.forEach(page => {
+    blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
+  })
+
+  return blocksData
 }
 
 interface UseAccountPagesDataReturn {
@@ -31,7 +41,7 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
   const [blocks, setBlocks] = useState<Record<string, any[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadAccountPagesAndBlocks = async () => {
+  const loadAccountPagesAndBlocks = useCallback(async () => {
     setConfigLoading(true)
     setBlocksLoading(true)
     setConfigError("")
@@ -49,13 +59,7 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
 
       if (pagesResult.data && siteResult.data) {
         setPages(pagesResult.data)
-
-        // Convert JSON content_blocks to blocks format for each page
-        const blocksData: Record<string, any[]> = {}
-        pagesResult.data.forEach(page => {
-          blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
-        })
-        setBlocks(blocksData)
+        setBlocks(getBlocksBySlug(pagesResult.data))
       } else {
         console.error('Failed to load account pages:', pagesResult.error)
       }
@@ -66,9 +70,9 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
 
     setConfigLoading(false)
     setBlocksLoading(false)
-  }
+  }, [currentSite, siteId])
 
-  const reloadBlocks = async () => {
+  const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
 
     const pagesResult = await getAccountPagesAction(siteId)
@@ -80,20 +84,14 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
 
     if (pagesResult.data && siteData) {
       setPages(pagesResult.data)
-
-      // Convert JSON content_blocks to blocks format for each page
-      const blocksData: Record<string, any[]> = {}
-      pagesResult.data.forEach(page => {
-        blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
-      })
-      setBlocks(blocksData)
+      setBlocks(getBlocksBySlug(pagesResult.data))
     }
     setBlocksLoading(false)
-  }
+  }, [currentSite, siteId])
 
   useEffect(() => {
     loadAccountPagesAndBlocks()
-  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadAccountPagesAndBlocks])
 
   return {
     site,

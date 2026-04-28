@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getSiteByIdAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 import { getCategoriesForSiteAction, type Category } from '@/lib/actions/categories/category-actions'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
@@ -21,6 +21,20 @@ interface UseCategoryDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
+function getCategoryBlocksBySlug(categories: Category[]) {
+  const convertedBlocks: Record<string, CategoryBlock[]> = {}
+
+  categories.forEach((category) => {
+    const categoryBlocks = convertContentBlocksToArray(category.content_blocks || {}, category.id)
+    convertedBlocks[category.slug] = categoryBlocks.map(block => ({
+      ...block,
+      title: getBlockName(block.type)
+    }))
+  })
+
+  return convertedBlocks
+}
+
 export function useCategoryData(siteId: string): UseCategoryDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
@@ -29,7 +43,7 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
   const [blocks, setBlocks] = useState<Record<string, CategoryBlock[]>>({})
   const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadSiteAndCategories = async () => {
+  const loadSiteAndCategories = useCallback(async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
@@ -46,23 +60,9 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
         setSiteError(siteResult.error || 'Failed to load site')
       }
 
-      let convertedBlocks: Record<string, CategoryBlock[]> = {}
-
       if (categoriesResult.data) {
         setCategories(categoriesResult.data)
-
-        categoriesResult.data.forEach((category) => {
-          const categoryBlocks = convertContentBlocksToArray(category.content_blocks || {}, category.id)
-
-          const blocksWithTitles = categoryBlocks.map(block => ({
-            ...block,
-            title: getBlockName(block.type)
-          }))
-
-          convertedBlocks[category.slug] = blocksWithTitles
-        })
-
-        setBlocks(convertedBlocks)
+        setBlocks(getCategoryBlocksBySlug(categoriesResult.data))
       } else {
         setCategories([])
         setBlocks({})
@@ -75,37 +75,24 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
-  const reloadBlocks = async () => {
+  const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
     const categoriesResult = await getCategoriesForSiteAction(siteId)
 
     if (categoriesResult.data) {
-      const convertedBlocks: Record<string, CategoryBlock[]> = {}
-
-      categoriesResult.data.forEach((category) => {
-        const categoryBlocks = convertContentBlocksToArray(category.content_blocks || {}, category.id)
-
-        const blocksWithTitles = categoryBlocks.map(block => ({
-          ...block,
-          title: getBlockName(block.type)
-        }))
-
-        convertedBlocks[category.slug] = blocksWithTitles
-      })
-
-      setBlocks(convertedBlocks)
+      setBlocks(getCategoryBlocksBySlug(categoriesResult.data))
     } else {
       setBlocks({})
     }
 
     setBlocksLoading(false)
-  }
+  }, [siteId])
 
   useEffect(() => {
     loadSiteAndCategories()
-  }, [siteId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadSiteAndCategories])
 
   return {
     site,
