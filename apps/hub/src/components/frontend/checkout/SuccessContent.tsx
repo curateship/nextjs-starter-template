@@ -4,6 +4,7 @@ import { CheckCircle2, Download, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
+import { sanitizeRichHtml } from '@/lib/utils/html-sanitizer'
 
 interface Product {
   id: string
@@ -148,16 +149,16 @@ export function SuccessContent({
             {/* Rich text content */}
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: downloadContent }}
+              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(downloadContent) }}
             />
           </CardContent>
         </Card>
       )}
 
-      {/* What's Next */}
+      {/* What&apos;s Next */}
       <Card>
         <CardHeader>
-          <CardTitle>What's Next?</CardTitle>
+          <CardTitle>What&apos;s Next?</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-start gap-3">
@@ -167,7 +168,7 @@ export function SuccessContent({
             <div>
               <p className="font-medium">Check your email</p>
               <p className="text-sm text-muted-foreground">
-                You'll receive a confirmation email with your order details and receipt.
+                You&apos;ll receive a confirmation email with your order details and receipt.
               </p>
             </div>
           </div>

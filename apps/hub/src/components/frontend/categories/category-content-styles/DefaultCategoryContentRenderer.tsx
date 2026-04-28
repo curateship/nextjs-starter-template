@@ -1,4 +1,5 @@
 import type { CategoryContentStyleRendererProps } from "./index"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
 export function DefaultCategoryContentRenderer({ config, sharedContent }: CategoryContentStyleRendererProps) {
   const alignment = config.alignment || 'center'
@@ -22,7 +23,7 @@ export function DefaultCategoryContentRenderer({ config, sharedContent }: Catego
   }
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
-  const htmlContent = body || description
+  const htmlContent = sanitizeRichHtml(body || description)
 
   return (
     <div

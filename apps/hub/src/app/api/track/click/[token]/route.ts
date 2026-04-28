@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getOrderByToken, markLinkClicked } from '@/lib/actions/email/order-actions'
+import { verifyTrackedRedirect } from '@/lib/utils/link-tracking'
 
 /**
  * GET /api/track/click/[token]?redirect=https://example.com
@@ -13,6 +14,7 @@ export async function GET(
     const { token } = await params
     const searchParams = request.nextUrl.searchParams
     const redirectUrl = searchParams.get('redirect')
+    const signature = searchParams.get('sig')
 
     // Validate token
     if (!token) {
@@ -31,8 +33,16 @@ export async function GET(
     // Redirect to destination URL if provided
     if (redirectUrl) {
       try {
-        // Validate URL
-        new URL(redirectUrl)
+        const destination = new URL(redirectUrl)
+        if (destination.protocol !== 'https:' && destination.protocol !== 'http:') {
+          throw new Error('Unsupported redirect URL')
+        }
+        if (!verifyTrackedRedirect(token, redirectUrl, signature)) {
+          return NextResponse.json(
+            { error: 'Invalid redirect signature' },
+            { status: 400 }
+          )
+        }
         return NextResponse.redirect(redirectUrl)
       } catch {
         return NextResponse.json(

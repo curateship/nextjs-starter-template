@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils/tailwind"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import type {
   DirectoryCustomBlockField,
   DirectoryCustomBlockRepeaterField,
@@ -112,7 +113,7 @@ function FieldRenderer({
         {field.label && <FieldLabel label={field.label} />}
         <div
           className="prose max-w-none prose-neutral dark:prose-invert"
-          dangerouslySetInnerHTML={{ __html: value }}
+          dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(value) }}
         />
       </div>
     )
@@ -186,7 +187,7 @@ function RepeaterFieldRenderer({
         {field.label && <FieldLabel label={field.label} small />}
         <div
           className="prose prose-sm max-w-none prose-neutral dark:prose-invert"
-          dangerouslySetInnerHTML={{ __html: value }}
+          dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(value) }}
         />
       </div>
     )

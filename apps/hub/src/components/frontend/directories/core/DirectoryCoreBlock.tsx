@@ -20,7 +20,7 @@ import {
   type DirectoryCoreSocialLink,
 } from "@/lib/actions/directories/directory-core"
 import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
-import { sanitizeString } from "@/lib/utils/sanitize"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DirectoryCoreBlockProps {
@@ -128,7 +128,7 @@ export function DirectoryCoreBlock({
   const title = directory.title || "Directory Listing"
   const description = directory.description || ""
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
-  const safeDescription = description ? sanitizeString(description) : ""
+  const safeDescription = sanitizeRichHtml(description)
 
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">

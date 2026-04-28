@@ -1,4 +1,5 @@
 import { getEmailProvider } from '@/lib/actions/email/provider'
+import { signTrackedRedirect } from '@/lib/utils/link-tracking'
 import { generateProductEmail } from './templates/product-delivery'
 
 /**
@@ -91,7 +92,8 @@ class EmailService {
 
       // Build tracking URL
       const encodedRedirect = encodeURIComponent(href)
-      const trackingUrl = `${baseUrl}/api/track/click/${token}?redirect=${encodedRedirect}`
+      const signature = signTrackedRedirect(token, href)
+      const trackingUrl = `${baseUrl}/api/track/click/${token}?redirect=${encodedRedirect}&sig=${signature}`
 
       // Reconstruct the anchor tag with tracking URL
       return `<a ${beforeHref}href="${trackingUrl}"${afterHref}>`

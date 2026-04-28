@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Download } from "lucide-react"
 import type { ProductContentStyleRendererProps } from "."
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
 export function DefaultProductContentRenderer({ config, sharedContent }: ProductContentStyleRendererProps) {
   const alignment = config.alignment || 'left'
@@ -25,7 +26,7 @@ export function DefaultProductContentRenderer({ config, sharedContent }: Product
   }
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
-  const richText = body || description
+  const richText = sanitizeRichHtml(body || description)
 
   return (
     <div

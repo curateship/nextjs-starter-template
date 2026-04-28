@@ -1,5 +1,7 @@
 'use server'
 
+import { createHmac } from 'node:crypto'
+import { resolveTxt } from 'node:dns/promises'
 import { eq, and, ne, desc, asc } from 'drizzle-orm'
 import { revalidateTag, revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
@@ -63,6 +65,9 @@ export interface CloneSiteData {
   clone_pages?: boolean
 }
 
+const CUSTOM_DOMAIN_VERIFICATION_RECORD = '_site-verification'
+const CUSTOM_DOMAIN_VERIFICATION_VALUE_PREFIX = 'site-verification'
+
 function sanitizeCustomDomain(input?: string | null): string | null {
   if (!input) return null
   let d = String(input).trim().toLowerCase()
@@ -72,6 +77,81 @@ function sanitizeCustomDomain(input?: string | null): string | null {
   d = d.split('/')[0].split('?')[0].split('#')[0]
   if (!d) return null
   return d
+}
+
+function getCustomDomainVerificationSecret() {
+  return process.env.AUTH_SECRET
+    || process.env.BETTER_AUTH_SECRET
+    || process.env.INTEGRATION_ENCRYPTION_KEY
+}
+
+function getCustomDomainVerificationRecord(domain: string) {
+  return `${CUSTOM_DOMAIN_VERIFICATION_RECORD}.${domain}`
+}
+
+function getCustomDomainVerificationValue(domain: string, userId: string) {
+  const secret = getCustomDomainVerificationSecret()
+  if (!secret) return null
+
+  const token = createHmac('sha256', secret)
+    .update(`${userId}:${domain}`)
+    .digest('base64url')
+
+  return `${CUSTOM_DOMAIN_VERIFICATION_VALUE_PREFIX}=${token}`
+}
+
+function isValidCustomDomain(domain: string) {
+  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(domain)
+}
+
+async function verifyCustomDomainDns(domain: string, userId: string) {
+  const expected = getCustomDomainVerificationValue(domain, userId)
+  if (!expected) return false
+
+  try {
+    const records = await resolveTxt(getCustomDomainVerificationRecord(domain))
+    return records.some((record) => record.join('').trim() === expected)
+  } catch {
+    return false
+  }
+}
+
+async function prepareCustomDomain(
+  input: string | null | undefined,
+  userId: string,
+  currentSiteId?: string
+): Promise<{ domain: string | null; error: string | null }> {
+  const domain = sanitizeCustomDomain(input)
+  if (!domain) return { domain: null, error: null }
+
+  if (!isValidCustomDomain(domain)) {
+    return { domain: null, error: 'Invalid custom domain format' }
+  }
+
+  const existing = await db.query.sites.findFirst({
+    where: currentSiteId
+      ? and(eq(sites.customDomain, domain), ne(sites.id, currentSiteId))
+      : eq(sites.customDomain, domain),
+    columns: { id: true },
+  })
+  if (existing) {
+    return { domain: null, error: 'Custom domain is already assigned to another site' }
+  }
+
+  const verified = await verifyCustomDomainDns(domain, userId)
+  if (!verified) {
+    const verificationValue = getCustomDomainVerificationValue(domain, userId)
+    if (!verificationValue) {
+      return { domain: null, error: 'Custom domain verification is not configured' }
+    }
+
+    return {
+      domain: null,
+      error: `Add TXT record ${getCustomDomainVerificationRecord(domain)} with value ${verificationValue} before using this domain`,
+    }
+  }
+
+  return { domain, error: null }
 }
 
 function buildSubdomain(input: string): string {
@@ -122,6 +202,9 @@ export async function getAllSitesAction(): Promise<{ data: Site[] | null; error:
 
 export async function createSiteAction(siteData: CreateSiteData): Promise<{ data: Site | null; error: string | null }> {
   try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'User not authenticated. Please log in first.' }
+
     let subdomain = siteData.subdomain || siteData.name.toLowerCase()
       .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-')
@@ -143,8 +226,8 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       subdomainSuffix = `-${attempts}`
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'User not authenticated. Please log in first.' }
+    const customDomain = await prepareCustomDomain(siteData.custom_domain ?? null, user.id)
+    if (customDomain.error) return { data: null, error: customDomain.error }
 
     const settings = {
       ...(siteData.settings || {
@@ -168,7 +251,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
         subdomain,
         status: siteData.status || 'draft',
         isTemplate: siteData.is_template || false,
-        customDomain: sanitizeCustomDomain(siteData.custom_domain ?? null),
+        customDomain: customDomain.domain,
         settings,
       })
       .returning()
@@ -336,7 +419,9 @@ export async function updateSiteAction(
     }
 
     if (updates.hasOwnProperty('custom_domain')) {
-      finalUpdates.customDomain = sanitizeCustomDomain(updates.custom_domain as any)
+      const customDomain = await prepareCustomDomain(updates.custom_domain as any, user.id, siteId)
+      if (customDomain.error) return { data: null, error: customDomain.error }
+      finalUpdates.customDomain = customDomain.domain
     }
 
     finalUpdates.updatedAt = new Date()

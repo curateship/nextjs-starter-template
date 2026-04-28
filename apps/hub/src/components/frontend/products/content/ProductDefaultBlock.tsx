@@ -2,6 +2,7 @@ import { BlockContainer } from '@/components/frontend/layout/block-container'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Download } from 'lucide-react'
+import { sanitizeRichHtml } from '@/lib/utils/html-sanitizer'
 
 interface ProductDefaultBlockProps {
   title?: string
@@ -88,7 +89,7 @@ const ProductDefaultBlock = ({
             {richText && (
               <div 
                 className="prose prose-lg max-w-none text-muted-foreground"
-                dangerouslySetInnerHTML={{ __html: richText }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(richText) }}
               />
             )}
           </div>

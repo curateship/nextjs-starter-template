@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { analyticsEvents, analyticsSessions, sites } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
+import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
 interface TrackEvent {
   type: string
@@ -12,6 +13,11 @@ interface TrackEvent {
   event_data?: Record<string, unknown>
   timestamp?: string
 }
+
+const MAX_EVENTS_PER_REQUEST = 20
+const MAX_EVENT_DATA_BYTES = 4096
+const TRACK_WINDOW_MS = 60_000
+const TRACK_MAX_REQUESTS = 120
 
 function parseDeviceType(ua: string): string {
   if (/Mobile|Android.*Mobile|iPhone|iPod/.test(ua)) return 'mobile'
@@ -71,21 +77,32 @@ export async function POST(request: NextRequest) {
     }
     if (!site) return new NextResponse(null, { status: 204 })
 
-    const body = await request.json()
-    const events: TrackEvent[] = body.events
+    const body = await request.json().catch(() => null)
+    const events: TrackEvent[] = Array.isArray(body?.events) ? body.events.slice(0, MAX_EVENTS_PER_REQUEST) : []
     if (!events?.length) return new NextResponse(null, { status: 204 })
 
     const ua = request.headers.get('user-agent') || ''
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-               request.headers.get('x-real-ip') ||
-               '0.0.0.0'
+    const ip = getClientIp(request.headers)
+
+    if (isRateLimited(`analytics:${site.id}:${ip}`, TRACK_MAX_REQUESTS, TRACK_WINDOW_MS)) {
+      return new NextResponse(null, { status: 204 })
+    }
 
     const visitorHash = await hashVisitor(ip, ua)
     const deviceType = parseDeviceType(ua)
     const browser = parseBrowser(ua)
 
     // Build event rows
-    const rows = events.map(event => {
+    const rows = events
+      .filter(event => (
+        event &&
+        typeof event.type === 'string' &&
+        event.type.length <= 50 &&
+        typeof event.session_id === 'string' &&
+        event.session_id.length <= 128 &&
+        JSON.stringify(event.event_data || {}).length <= MAX_EVENT_DATA_BYTES
+      ))
+      .map(event => {
       const utmParams = event.page_path ? extractUtmParams(event.page_path) : {}
       const referrerDomain = event.referrer ? extractDomain(event.referrer) : null
       let cleanPath = event.page_path
@@ -109,7 +126,9 @@ export async function POST(request: NextRequest) {
         eventData: event.event_data || {},
         createdAt: event.timestamp ? new Date(event.timestamp) : new Date(),
       }
-    })
+      })
+
+    if (!rows.length) return new NextResponse(null, { status: 204 })
 
     // Batch insert events
     await db.insert(analyticsEvents).values(rows)

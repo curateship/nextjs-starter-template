@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, text, boolean, jsonb, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
 import { authUsers } from './auth-users'
 
@@ -55,6 +56,7 @@ export const sites = pgTable('sites', {
   index('idx_sites_status').on(table.status),
   index('idx_sites_subdomain').on(table.subdomain),
   index('idx_sites_custom_domain').on(table.customDomain),
+  uniqueIndex('idx_sites_custom_domain_unique').on(table.customDomain).where(sql`${table.customDomain} is not null and ${table.customDomain} <> ''`),
 ])
 
 export const sitesRelations = relations(sites, ({ one }) => ({

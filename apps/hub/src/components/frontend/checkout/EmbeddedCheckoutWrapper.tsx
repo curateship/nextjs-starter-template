@@ -40,18 +40,22 @@ interface Product {
 
 interface EmbeddedCheckoutWrapperProps {
   product: Product
+  siteId: string
   selectedTier: PricingTier
   checkoutSettings: CheckoutSettings
   selectedBumps: string[]
   stripePublishableKey?: string
+  checkoutOrigin?: string
 }
 
 export function EmbeddedCheckoutWrapper({
   product,
+  siteId,
   selectedTier,
   checkoutSettings,
   selectedBumps,
   stripePublishableKey,
+  checkoutOrigin,
 }: EmbeddedCheckoutWrapperProps) {
   const resolvedKey = stripePublishableKey
   const stripePromiseRef = useRef(resolvedKey ? loadStripe(resolvedKey) : null)
@@ -77,6 +81,7 @@ export function EmbeddedCheckoutWrapper({
 
         // Create checkout session with embedded mode
         const result = await createCheckoutSession({
+          productId: product.id,
           productSlug: product.slug,
           productName: product.title,
           mainPriceId: selectedTier.stripePriceId,
@@ -85,6 +90,8 @@ export function EmbeddedCheckoutWrapper({
           selectedBumps: selectedOrderBumps,
           successUrl,
           uiMode: 'embedded',
+          siteId,
+          checkoutOrigin,
         })
 
         if (!result.success || !result.clientSecret) {
@@ -99,7 +106,7 @@ export function EmbeddedCheckoutWrapper({
     }
 
     createSession()
-  }, [product, selectedTier, checkoutSettings, selectedBumps])
+  }, [product, selectedTier, checkoutSettings, selectedBumps, siteId, checkoutOrigin])
 
   if (!stripePromiseRef.current) {
     return (

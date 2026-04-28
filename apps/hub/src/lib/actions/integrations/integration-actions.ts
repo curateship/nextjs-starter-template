@@ -39,8 +39,11 @@ export interface SiteIntegration {
  */
 function encryptConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
   const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
-  if (sensitiveKeys.length === 0 || !process.env.INTEGRATION_ENCRYPTION_KEY) {
+  if (sensitiveKeys.length === 0) {
     return config
+  }
+  if (!process.env.INTEGRATION_ENCRYPTION_KEY) {
+    throw new Error('INTEGRATION_ENCRYPTION_KEY is required before saving integration secrets')
   }
 
   const encrypted = { ...config }
@@ -57,8 +60,11 @@ function encryptConfig(integrationType: string, config: Record<string, any>): Re
  */
 function decryptConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
   const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
-  if (sensitiveKeys.length === 0 || !process.env.INTEGRATION_ENCRYPTION_KEY) {
+  if (sensitiveKeys.length === 0) {
     return config
+  }
+  if (!process.env.INTEGRATION_ENCRYPTION_KEY) {
+    throw new Error('INTEGRATION_ENCRYPTION_KEY is required before reading integration secrets')
   }
 
   const decrypted = { ...config }

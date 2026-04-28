@@ -2,6 +2,12 @@
 
 import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
+import { db } from '@/lib/db'
+import { products } from '@/lib/db/schema'
+import { requireSiteOwnership } from '@/lib/db/helpers'
+import { and, eq } from 'drizzle-orm'
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Create a Stripe client for a specific site.
@@ -62,27 +68,132 @@ export interface CheckoutSessionData {
   checkoutOrigin?: string
 }
 
+type ResolvedOrderBump = Pick<OrderBump, 'id' | 'title' | 'stripePriceId'>
+
+function getSelectedBumpIds(selectedBumps: Array<OrderBump | string>) {
+  return selectedBumps
+    .map((bump) => typeof bump === 'string' ? bump : bump.id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+}
+
+function getCheckoutBlock(contentBlocks: Record<string, any>) {
+  return Object.values(contentBlocks || {}).find((block: any) => block?.type === 'product-checkout') as any | undefined
+}
+
+async function resolveCheckoutSelection(data: {
+  siteId?: string
+  productId?: string
+  tierId?: string
+  mainPriceId?: string
+  selectedBumps: Array<OrderBump | string>
+}): Promise<{
+  product: {
+    id: string
+    siteId: string
+    title: string
+    slug: string
+  }
+  tier: Record<string, any>
+  selectedBumps: ResolvedOrderBump[]
+  mainPriceId: string
+  successUrl: string
+}> {
+  if (!data.siteId || !UUID_REGEX.test(data.siteId)) {
+    throw new Error('Valid siteId is required')
+  }
+  if (!data.productId || !UUID_REGEX.test(data.productId)) {
+    throw new Error('Valid productId is required')
+  }
+
+  const [product] = await db
+    .select({
+      id: products.id,
+      siteId: products.siteId,
+      title: products.title,
+      slug: products.slug,
+      isPublished: products.isPublished,
+      contentBlocks: products.contentBlocks,
+    })
+    .from(products)
+    .where(and(
+      eq(products.id, data.productId),
+      eq(products.siteId, data.siteId),
+      eq(products.isPublished, true),
+    ))
+    .limit(1)
+
+  if (!product) {
+    throw new Error('Product not found')
+  }
+
+  const checkoutBlock = getCheckoutBlock((product.contentBlocks || {}) as Record<string, any>)
+  const content = checkoutBlock?.content || {}
+  const tiers = Array.isArray(content.productPricingTiers)
+    ? content.productPricingTiers
+    : Array.isArray(content.tiers)
+      ? content.tiers
+      : []
+  const tier = tiers.find((item: any) => item?.id === data.tierId)
+
+  if (!tier?.stripePriceId) {
+    throw new Error('Selected checkout tier is not available')
+  }
+  if (data.mainPriceId && data.mainPriceId !== tier.stripePriceId) {
+    throw new Error('Selected price does not match this product')
+  }
+
+  const selectedBumpIds = new Set(getSelectedBumpIds(data.selectedBumps))
+  const allowedBumps = tier.enableOrderBumps && Array.isArray(tier.orderBumps) ? tier.orderBumps : []
+  const selectedBumps = allowedBumps
+    .filter((bump: any) => selectedBumpIds.has(bump.id) && bump.stripePriceId)
+    .map((bump: any) => ({
+      id: bump.id,
+      title: String(bump.title || ''),
+      stripePriceId: String(bump.stripePriceId),
+    }))
+
+  const checkoutSettings = content.checkoutSettings || {}
+  const successUrl = typeof checkoutSettings.successUrl === 'string' && checkoutSettings.successUrl
+    ? checkoutSettings.successUrl.replace('[slug]', product.slug)
+    : `/products/${product.slug}/success`
+
+  return {
+    product,
+    tier,
+    selectedBumps,
+    mainPriceId: String(tier.stripePriceId),
+    successUrl,
+  }
+}
+
 /**
  * Create a Stripe Checkout Session with main product and order bumps
  */
 export async function createCheckoutSession(data: CheckoutSessionData) {
   try {
     const stripe = await getStripeClient(data.siteId)
+    const selection = await resolveCheckoutSelection({
+      siteId: data.siteId,
+      productId: data.productId,
+      tierId: data.tierId,
+      mainPriceId: data.mainPriceId,
+      selectedBumps: data.selectedBumps,
+    })
 
     // Fetch the main price to determine if it's one-time or recurring
-    const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
+    const mainPrice = await stripe.prices.retrieve(selection.mainPriceId)
     const mode: 'payment' | 'subscription' = mainPrice.type === 'recurring' ? 'subscription' : 'payment'
 
     // Build line items array
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
-        price: data.mainPriceId,
+        price: selection.mainPriceId,
         quantity: 1,
       },
     ]
 
     // Add selected order bumps
-    data.selectedBumps.forEach((bump) => {
+    selection.selectedBumps.forEach((bump) => {
       lineItems.push({
         price: bump.stripePriceId,
         quantity: 1,
@@ -94,12 +205,14 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
       mode,
       line_items: lineItems,
       metadata: {
-        productSlug: data.productSlug,
-        productName: data.productName,
-        ...(data.productId && { productId: data.productId }),
-        ...(data.tierId && { tierId: data.tierId }),
-        ...(data.tierName && { tierName: data.tierName }),
-        ...(data.siteId && { siteId: data.siteId }),
+        productSlug: selection.product.slug,
+        productName: selection.product.title,
+        productId: selection.product.id,
+        tierId: selection.tier.id,
+        tierName: selection.tier.name,
+        siteId: selection.product.siteId,
+        mainPriceId: selection.mainPriceId,
+        orderBumps: JSON.stringify(selection.selectedBumps),
       },
       allow_promotion_codes: true,
       billing_address_collection: 'required',
@@ -108,9 +221,9 @@ export async function createCheckoutSession(data: CheckoutSessionData) {
     // Add UI mode specific parameters
     if (data.uiMode === 'embedded') {
       sessionParams.ui_mode = 'embedded'
-      sessionParams.return_url = `${getAppUrl(data.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.return_url = `${getAppUrl(selection.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
     } else {
-      sessionParams.success_url = `${getAppUrl(data.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
+      sessionParams.success_url = `${getAppUrl(selection.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams)
@@ -145,6 +258,12 @@ export async function verifyCheckoutSession(sessionId: string, siteId?: string) 
       return {
         success: false,
         error: 'Payment not completed',
+      }
+    }
+    if (siteId && session.metadata?.siteId !== siteId) {
+      return {
+        success: false,
+        error: 'Checkout session does not belong to this site',
       }
     }
 
@@ -188,14 +307,21 @@ export async function createPaymentIntent(data: {
 }) {
   try {
     const stripe = await getStripeClient(data.siteId)
+    const selection = await resolveCheckoutSelection({
+      siteId: data.siteId,
+      productId: data.productId,
+      tierId: data.tierId,
+      mainPriceId: data.mainPriceId,
+      selectedBumps: data.selectedBumps,
+    })
 
     // Get price details to calculate amount
-    const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
+    const mainPrice = await stripe.prices.retrieve(selection.mainPriceId)
 
     let totalAmount = mainPrice.unit_amount || 0
 
     // Add order bump amounts
-    for (const bump of data.selectedBumps) {
+    for (const bump of selection.selectedBumps) {
       const bumpPrice = await stripe.prices.retrieve(bump.stripePriceId)
       totalAmount += bumpPrice.unit_amount || 0
     }
@@ -205,18 +331,14 @@ export async function createPaymentIntent(data: {
       amount: totalAmount,
       currency: mainPrice.currency || 'usd',
       metadata: {
-        productSlug: data.productSlug,
-        productName: data.productName,
-        ...(data.productId && { productId: data.productId }),
-        mainPriceId: data.mainPriceId,
-        ...(data.tierId && { tierId: data.tierId }),
-        ...(data.tierName && { tierName: data.tierName }),
-        ...(data.siteId && { siteId: data.siteId }),
-        orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
-          id: b.id,
-          title: b.title,
-          priceId: b.stripePriceId,
-        }))),
+        productSlug: selection.product.slug,
+        productName: selection.product.title,
+        productId: selection.product.id,
+        mainPriceId: selection.mainPriceId,
+        tierId: selection.tier.id,
+        tierName: selection.tier.name,
+        siteId: selection.product.siteId,
+        orderBumps: JSON.stringify(selection.selectedBumps),
       },
       automatic_payment_methods: {
         enabled: true,
@@ -248,14 +370,26 @@ export async function updatePaymentIntent(data: {
 }) {
   try {
     const stripe = await getStripeClient(data.siteId)
+    const existingIntent = await stripe.paymentIntents.retrieve(data.paymentIntentId)
+    if (data.siteId && existingIntent.metadata?.siteId !== data.siteId) {
+      throw new Error('Payment intent does not belong to this site')
+    }
+
+    const selection = await resolveCheckoutSelection({
+      siteId: existingIntent.metadata?.siteId,
+      productId: existingIntent.metadata?.productId,
+      tierId: existingIntent.metadata?.tierId,
+      mainPriceId: existingIntent.metadata?.mainPriceId || data.mainPriceId,
+      selectedBumps: data.selectedBumps,
+    })
 
     // Get price details to calculate new amount
-    const mainPrice = await stripe.prices.retrieve(data.mainPriceId)
+    const mainPrice = await stripe.prices.retrieve(selection.mainPriceId)
 
     let totalAmount = mainPrice.unit_amount || 0
 
     // Add order bump amounts
-    for (const bump of data.selectedBumps) {
+    for (const bump of selection.selectedBumps) {
       const bumpPrice = await stripe.prices.retrieve(bump.stripePriceId)
       totalAmount += bumpPrice.unit_amount || 0
     }
@@ -264,11 +398,7 @@ export async function updatePaymentIntent(data: {
     const paymentIntent = await stripe.paymentIntents.update(data.paymentIntentId, {
       amount: totalAmount,
       metadata: {
-        orderBumps: JSON.stringify(data.selectedBumps.map(b => ({
-          id: b.id,
-          title: b.title,
-          priceId: b.stripePriceId,
-        }))),
+        orderBumps: JSON.stringify(selection.selectedBumps),
       },
     })
 
@@ -297,6 +427,10 @@ export async function updatePaymentIntentCustomer(data: {
 }) {
   try {
     const stripe = await getStripeClient(data.siteId)
+    const existingIntent = await stripe.paymentIntents.retrieve(data.paymentIntentId)
+    if (data.siteId && existingIntent.metadata?.siteId !== data.siteId) {
+      throw new Error('Payment intent does not belong to this site')
+    }
 
     await stripe.paymentIntents.update(data.paymentIntentId, {
       receipt_email: data.email,
@@ -332,6 +466,12 @@ export async function verifyPaymentIntent(paymentIntentId: string, siteId?: stri
         error: 'Payment not completed',
       }
     }
+    if (siteId && paymentIntent.metadata?.siteId !== siteId) {
+      return {
+        success: false,
+        error: 'Payment does not belong to this site',
+      }
+    }
 
     return {
       success: true,
@@ -365,17 +505,23 @@ export async function createStripePrice(params: {
   siteId?: string
 }) {
   try {
+    if (!params.siteId) throw new Error('siteId is required')
+    if (!params.productName.trim()) throw new Error('Product name is required')
+    if (!Number.isFinite(params.amount) || params.amount <= 0) throw new Error('Amount must be greater than zero')
+
+    await requireSiteOwnership(params.siteId)
     const stripe = await getStripeClient(params.siteId)
+    const safeProductName = params.productName.replace(/['\\]/g, ' ').trim()
 
     // First, create or retrieve product
-    const products = await stripe.products.search({
-      query: `name:'${params.productName}'`,
+    const stripeProducts = await stripe.products.search({
+      query: `name:'${safeProductName}'`,
     })
 
     let product: Stripe.Product
 
-    if (products.data.length > 0) {
-      product = products.data[0]
+    if (stripeProducts.data.length > 0) {
+      product = stripeProducts.data[0]
     } else {
       product = await stripe.products.create({
         name: params.productName,

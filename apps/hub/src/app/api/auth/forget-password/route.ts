@@ -8,6 +8,7 @@ import {
   renderSystemEmailContent,
   renderSystemEmailSubject,
 } from '@/lib/email/system-email'
+import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
 const DEFAULT_REDIRECT_PATH = '/admin-login'
 const VERIFICATION_TABLE = 'user_verifications'
@@ -15,6 +16,8 @@ const GENERIC_RESPONSE = {
   status: true,
   message: 'If this email exists in our system, check your email for the reset link',
 }
+const RESET_WINDOW_MS = 15 * 60 * 1000
+const RESET_MAX_REQUESTS = 5
 
 function getBaseUrl(request: Request) {
   return process.env.BETTER_AUTH_URL || new URL(request.url).origin
@@ -94,6 +97,14 @@ export async function POST(request: Request) {
   const redirectPath = getSafeRedirectPath(body.redirectTo)
 
   if (!email || !email.includes('@')) {
+    return Response.json(GENERIC_RESPONSE)
+  }
+
+  const ip = getClientIp(request.headers)
+  if (
+    isRateLimited(`password-reset:ip:${ip}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS) ||
+    isRateLimited(`password-reset:email:${email}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)
+  ) {
     return Response.json(GENERIC_RESPONSE)
   }
 

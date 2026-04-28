@@ -1,4 +1,4 @@
-'use server'
+import 'server-only'
 
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -9,8 +9,11 @@ import { SENSITIVE_FIELDS, type IntegrationType } from './types'
 
 function decryptConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
   const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
-  if (sensitiveKeys.length === 0 || !process.env.INTEGRATION_ENCRYPTION_KEY) {
+  if (sensitiveKeys.length === 0) {
     return config
+  }
+  if (!process.env.INTEGRATION_ENCRYPTION_KEY) {
+    throw new Error('INTEGRATION_ENCRYPTION_KEY is required before reading integration secrets')
   }
 
   const decrypted = { ...config }

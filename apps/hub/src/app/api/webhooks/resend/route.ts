@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Resend } from 'resend'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
+
+const SVIX_SECRET_PREFIX = `whsec${String.fromCharCode(95)}`
+
+function getSvixSecretBytes(secret: string) {
+  if (!secret.startsWith(SVIX_SECRET_PREFIX)) return Buffer.from(secret)
+  return Buffer.from(secret.slice(SVIX_SECRET_PREFIX.length), 'base64')
+}
+
+function verifySvixSignature(rawBody: string, id: string, timestamp: string, signatureHeader: string, secret: string) {
+  const signedPayload = `${id}.${timestamp}.${rawBody}`
+  const expected = createHmac('sha256', getSvixSecretBytes(secret))
+    .update(signedPayload)
+    .digest('base64')
+  const expectedBuffer = Buffer.from(expected)
+
+  return signatureHeader
+    .split(' ')
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith('v1,'))
+    .some((part) => {
+      const actualBuffer = Buffer.from(part.slice(3))
+      return actualBuffer.length === expectedBuffer.length
+        && timingSafeEqual(actualBuffer, expectedBuffer)
+    })
+}
 
 /**
  * POST /api/webhooks/resend
@@ -53,16 +78,10 @@ export async function POST(request: NextRequest) {
       if (!secret) continue
 
       try {
-        body = new Resend('re_placeholder').webhooks.verify({
-          payload: rawBody,
-          headers: {
-            id: svixId,
-            timestamp: svixTimestamp,
-            signature: svixSignature,
-          },
-          webhookSecret: secret,
-        }) as Record<string, any>
-        break
+        if (verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, secret)) {
+          body = JSON.parse(rawBody) as Record<string, any>
+          break
+        }
       } catch {
         continue
       }

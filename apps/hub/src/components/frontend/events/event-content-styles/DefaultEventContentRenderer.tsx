@@ -1,4 +1,5 @@
 import type { EventContentStyleRendererProps } from "./index"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
 export function DefaultEventContentRenderer({ config, sharedContent }: EventContentStyleRendererProps) {
   const alignment = config.alignment || 'center'
@@ -23,7 +24,7 @@ export function DefaultEventContentRenderer({ config, sharedContent }: EventCont
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
   // Use body from block content, fall back to event description
-  const htmlContent = body || description
+  const htmlContent = sanitizeRichHtml(body || description)
 
   return (
     <div

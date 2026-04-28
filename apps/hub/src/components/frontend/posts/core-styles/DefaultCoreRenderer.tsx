@@ -2,6 +2,7 @@ import { format } from "date-fns"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import type { CoreStyleRendererProps } from "./index"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
 function getInitials(name: string) {
   return name
@@ -93,7 +94,7 @@ export function DefaultCoreRenderer({ config, sharedContent }: CoreStyleRenderer
         <div
           className="prose dark:prose-invert max-w-none w-full mt-6 [&_h2]:scroll-mt-24"
         >
-          <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: body }} />
+          <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
         </div>
       )}
     </div>

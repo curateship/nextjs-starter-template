@@ -2,7 +2,30 @@
 
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
+import { getAuthenticatedUser } from '@/lib/db/helpers'
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function verifyAnalyticsAccess(siteId: string) {
+  if (!UUID_REGEX.test(siteId)) return false
+
+  const user = await getAuthenticatedUser()
+  if (!user) return false
+  if (user.role === 'super_admin') return true
+
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
+    .limit(1)
+
+  return !!site
+}
+
+function clampLimit(limit: number) {
+  return Math.min(100, Math.max(1, Math.floor(limit || 10)))
+}
 
 interface DateRange {
   from: string  // ISO date string
@@ -40,6 +63,10 @@ function getDateRange(period: string): DateRange {
 }
 
 export async function getAnalyticsOverview(siteId: string, period: string) {
+  if (!await verifyAnalyticsAccess(siteId)) {
+    return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
+  }
+
   const { from, to } = getDateRange(period)
 
   try {
@@ -62,10 +89,13 @@ export async function getAnalyticsOverview(siteId: string, period: string) {
 }
 
 export async function getTopPages(siteId: string, period: string, limit = 10) {
+  if (!await verifyAnalyticsAccess(siteId)) return []
+
   const { from, to } = getDateRange(period)
+  const safeLimit = clampLimit(limit)
 
   try {
-    const result = await db.execute(sql`SELECT get_top_pages(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int) as data`)
+    const result = await db.execute(sql`SELECT get_top_pages(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${safeLimit}::int) as data`)
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { path: string; views: number }[]
@@ -75,10 +105,13 @@ export async function getTopPages(siteId: string, period: string, limit = 10) {
 }
 
 export async function getTopReferrers(siteId: string, period: string, limit = 10) {
+  if (!await verifyAnalyticsAccess(siteId)) return []
+
   const { from, to } = getDateRange(period)
+  const safeLimit = clampLimit(limit)
 
   try {
-    const result = await db.execute(sql`SELECT get_top_referrers(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int) as data`)
+    const result = await db.execute(sql`SELECT get_top_referrers(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${safeLimit}::int) as data`)
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { domain: string; visits: number }[]
@@ -88,6 +121,8 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
 }
 
 export async function getTrafficOverTime(siteId: string, period: string) {
+  if (!await verifyAnalyticsAccess(siteId)) return []
+
   const { from, to } = getDateRange(period)
   const useHourly = period === 'today' || period === 'yesterday'
 
@@ -102,10 +137,13 @@ export async function getTrafficOverTime(siteId: string, period: string) {
 }
 
 export async function getUserJourneys(siteId: string, period: string, limit = 10) {
+  if (!await verifyAnalyticsAccess(siteId)) return []
+
   const { from, to } = getDateRange(period)
+  const safeLimit = clampLimit(limit)
 
   try {
-    const result = await db.execute(sql`SELECT get_user_journeys(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${limit}::int) as data`)
+    const result = await db.execute(sql`SELECT get_user_journeys(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${safeLimit}::int) as data`)
 
     const data = (result.rows[0] as any)?.data
     return (Array.isArray(data) ? data : []) as { path: string; count: number }[]
@@ -119,6 +157,8 @@ export async function getUserJourneys(siteId: string, period: string, limit = 10
  * Only fetches fields needed for display.
  */
 export async function getSiteForDashboard(siteId: string) {
+  if (!await verifyAnalyticsAccess(siteId)) return null
+
   const result = await db
     .select({
       id: sites.id,
