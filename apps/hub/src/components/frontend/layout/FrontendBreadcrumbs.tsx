@@ -28,8 +28,8 @@ export function FrontendBreadcrumbs({
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
   const containerClassName = siteWidth === 'custom'
-    ? "mx-auto px-6 pt-10 lg:pt-6"
-    : "px-6 pt-10 lg:pt-6"
+    ? "mx-auto px-6 pt-4 md:pt-6 pb-2"
+    : "px-6 pt-4 md:pt-6 pb-6"
 
   return (
     <div className={containerClassName} style={containerStyle}>

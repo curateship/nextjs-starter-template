@@ -43,7 +43,7 @@ interface ProductHeroBlockProps {
 const HeroTitle = ({ title }: { title?: string }) => {
   if (!title || !title.trim()) return null;
   return (
-    <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold py-2 md:py-5 leading-none tracking-tight">
+    <h1 className="text-4xl md:text-6xl lg:text-7xl !font-bold py-2 md:py-5 leading-none tracking-tight">
       {title}
     </h1>
   );
@@ -159,7 +159,7 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
   };
 
   return (
-    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 pt-12 pb-4 md:pb-10 overflow-hidden">
+    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 -mt-[var(--site-page-start-offset,0px)] pt-[calc(var(--site-page-start-offset,0px)_+_3rem)] pb-4 md:pb-10 overflow-hidden">
       <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
         <HeroTitle title={title} />
         <HeroSubtitle subtitle={subtitle} />
