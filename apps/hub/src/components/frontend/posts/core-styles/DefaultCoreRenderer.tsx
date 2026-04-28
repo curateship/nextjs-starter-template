@@ -95,7 +95,7 @@ export function DefaultCoreRenderer({ config, sharedContent, children }: CoreSty
           className="prose dark:prose-invert max-w-none w-full mt-6 [&_h2]:scroll-mt-24"
         >
           {children || (
-            <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
+            <div className="text-lg text-black dark:text-white" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
           )}
         </div>
       )}

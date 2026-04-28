@@ -10,6 +10,8 @@ interface PostBlockLike {
 }
 
 const headingRegex = /<h2([^>]*)>([\s\S]*?)<\/h2>/gi
+// Matches DOMPurify's SANITIZE_NAMED_PROPS id prefix.
+const sanitizedNamedPropPrefix = "user-content-"
 
 function decodeHtmlEntities(value: string): string {
   return value
@@ -58,6 +60,10 @@ function uniqueHeadingId(text: string, usedIds: Set<string>): string {
   return id
 }
 
+function getRenderedHeadingId(id: string): string {
+  return `${sanitizedNamedPropPrefix}${id}`
+}
+
 function annotateHeadingHtml(html: string, usedIds: Set<string>) {
   const items: TableOfContentsItem[] = []
 
@@ -67,14 +73,15 @@ function annotateHeadingHtml(html: string, usedIds: Set<string>) {
 
     const existingId = getIdAttribute(attributes)
     const id = existingId || uniqueHeadingId(text, usedIds)
+    const renderedId = getRenderedHeadingId(id)
 
     if (existingId) {
       usedIds.add(existingId)
-      items.push({ id, text })
+      items.push({ id: renderedId, text })
       return match
     }
 
-    items.push({ id, text })
+    items.push({ id: renderedId, text })
     return `<h2${attributes} id="${id}">${innerHtml}</h2>`
   })
 

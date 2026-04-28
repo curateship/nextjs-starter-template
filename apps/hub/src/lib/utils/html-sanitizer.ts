@@ -24,7 +24,7 @@ const ALLOWED_TAGS = [
   'ul',
 ]
 
-const ALLOWED_ATTR = ['class', 'href', 'rel', 'target']
+const ALLOWED_ATTR = ['class', 'href', 'id', 'rel', 'target']
 
 const EMBED_ALLOWED_TAGS = [
   ...ALLOWED_TAGS,

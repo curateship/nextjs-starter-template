@@ -1297,7 +1297,7 @@ export function NewsletterInlineRichTextEditor({
       )}
 
       {variant === "post" ? (
-        <div className="prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-lg [&_.ProseMirror]:text-gray-600 dark:[&_.ProseMirror]:text-gray-400">
+        <div className="prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-lg [&_.ProseMirror]:text-black dark:[&_.ProseMirror]:text-white">
           {editorContent}
         </div>
       ) : (
