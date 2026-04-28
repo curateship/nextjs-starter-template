@@ -371,7 +371,20 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
               className="min-h-full"
               blocksLoading={loading}
               allBlocks={currentPost.blocks as any}
+              selectedBlock={selectedBlock as any}
               onSelectBlock={builderState.setSelectedBlock as any}
+              onUpdateCoreBody={(blockId, htmlContent) => {
+                const block = builderState.blocks[blockId]
+                if (!block) return
+
+                builderState.handleUpdateBlock(blockId, {
+                  content: {
+                    ...block.content,
+                    body: htmlContent,
+                    format: "html",
+                  },
+                })
+              }}
             />
           </ScrollArea>
         </div>

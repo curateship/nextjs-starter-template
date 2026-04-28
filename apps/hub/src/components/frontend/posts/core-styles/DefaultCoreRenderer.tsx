@@ -14,7 +14,7 @@ function getInitials(name: string) {
     .toUpperCase()
 }
 
-export function DefaultCoreRenderer({ config, sharedContent }: CoreStyleRendererProps) {
+export function DefaultCoreRenderer({ config, sharedContent, children }: CoreStyleRendererProps) {
   const alignment = config.alignment || 'center'
   const contentMaxWidth = config.contentMaxWidth as number | undefined
   const titleSize = config.titleSize || 'large'
@@ -90,11 +90,13 @@ export function DefaultCoreRenderer({ config, sharedContent }: CoreStyleRenderer
           />
         </div>
       )}
-      {body && (
+      {(body || children) && (
         <div
           className="prose dark:prose-invert max-w-none w-full mt-6 [&_h2]:scroll-mt-24"
         >
-          <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
+          {children || (
+            <div className="text-lg text-gray-600 dark:text-gray-400" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
+          )}
         </div>
       )}
     </div>

@@ -265,7 +265,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
   };
 
   return (
-    <section className="relative w-full flex flex-col items-center justify-center -mt-[var(--site-page-start-offset,0px)] pt-[calc(var(--site-page-start-offset,0px)_+_1.5rem)] md:pt-[calc(var(--site-page-start-offset,0px)_+_3rem)] pb-4 md:pb-10 overflow-hidden">
+    <section className="relative w-full flex flex-col items-center justify-center -mt-(--site-page-start-offset,0px) pt-[calc(var(--site-page-start-offset,0px)+1.5rem)] md:pt-[calc(var(--site-page-start-offset,0px)+3rem)] pb-4 md:pb-10 overflow-hidden">
       <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
         {visibility?.title !== false && <HeroTitle title={title} />}
         {visibility?.subtitle !== false && <HeroSubtitle subtitle={subtitle} alignment={alignment} />}

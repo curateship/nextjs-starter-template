@@ -75,7 +75,7 @@ const FaqBlock = ({ content, siteWidth = 'custom', customWidth }: FaqBlockProps)
                     <Accordion
                         type="single"
                         collapsible
-                        className="bg-card ring-foreground/5 rounded-(--radius) w-full border border-transparent px-8 py-3 shadow ring-1">
+                        className="bg-card ring-foreground/5 rounded-lg w-full border border-transparent px-8 py-3 shadow ring-1">
                         {faqItems.map((item, index) => (
                             <AccordionItem
                                 key={item.id || `faq-${index}`}

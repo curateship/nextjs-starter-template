@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, type ReactNode } from "react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { CORE_STYLE_RENDERERS } from "./core-styles"
 import { RelatedPostsBlock } from "./RelatedPostsBlock"
@@ -34,6 +34,8 @@ interface CoreBlockProps {
   siteWidth?: 'full' | 'custom'
   customWidth?: number
   container?: boolean
+  renderCoreBody?: (block: { id: string; type: string; content: Record<string, any> }, bodyHtml: string) => ReactNode
+  renderBlockOverlay?: (block: { id: string; type: string; content: Record<string, any> }) => ReactNode
 }
 
 export function CoreBlock({
@@ -48,6 +50,8 @@ export function CoreBlock({
   siteWidth = 'custom',
   customWidth,
   container = true,
+  renderCoreBody,
+  renderBlockOverlay,
 }: CoreBlockProps) {
   return (
     <>
@@ -63,6 +67,8 @@ export function CoreBlock({
             tableOfContentsItems={tableOfContentsItems}
             coreHtmlByBlockId={coreHtmlByBlockId}
             hasFixedNavigation={hasFixedNavigation}
+            renderCoreBody={renderCoreBody}
+            renderBlockOverlay={renderBlockOverlay}
           />
         )
 
@@ -93,6 +99,8 @@ function PostBlockContent({
   tableOfContentsItems,
   coreHtmlByBlockId,
   hasFixedNavigation,
+  renderCoreBody,
+  renderBlockOverlay,
 }: {
   block: { id: string; type: string; content: Record<string, any> }
   post: {
@@ -110,6 +118,8 @@ function PostBlockContent({
   tableOfContentsItems: TableOfContentsItem[]
   coreHtmlByBlockId: Record<string, string>
   hasFixedNavigation: boolean
+  renderCoreBody?: (block: { id: string; type: string; content: Record<string, any> }, bodyHtml: string) => ReactNode
+  renderBlockOverlay?: (block: { id: string; type: string; content: Record<string, any> }) => ReactNode
 }) {
   const isStickyBlock = block.type === 'table-of-contents' && block.content?.sticky !== false
 
@@ -118,15 +128,19 @@ function PostBlockContent({
       data-block-id={block.id}
       data-block-type={block.type}
       className={cn(
+        "relative group/post-preview-block",
         isStickyBlock && "lg:sticky lg:self-start",
         isStickyBlock && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
       )}
     >
+      {renderBlockOverlay?.(block)}
+
       {block.type === 'core' && (
         <CoreStyled
           block={block}
           post={post}
           bodyHtml={coreHtmlByBlockId[block.id]}
+          renderCoreBody={renderCoreBody}
         />
       )}
 
@@ -147,7 +161,7 @@ function PostBlockContent({
 }
 
 /** Renders core block using the style renderer registry */
-function CoreStyled({ block, post, bodyHtml }: {
+function CoreStyled({ block, post, bodyHtml, renderCoreBody }: {
   block: { id: string; type: string; content: Record<string, any> }
   post: {
     title: string
@@ -159,18 +173,20 @@ function CoreStyled({ block, post, bodyHtml }: {
     created_at: string
   }
   bodyHtml?: string
+  renderCoreBody?: (block: { id: string; type: string; content: Record<string, any> }, bodyHtml: string) => ReactNode
 }) {
   const coreStyle = block.content.coreStyle || 'default'
-  const styleConfig = block.content.styleConfig || {}
 
   const resolvedConfig = useMemo(() => {
+    const styleConfig = block.content.styleConfig || {}
     if (styleConfig[coreStyle]) {
       return styleConfig[coreStyle]
     }
     return {}
-  }, [coreStyle, styleConfig])
+  }, [block.content.styleConfig, coreStyle])
 
   const StyleRenderer = CORE_STYLE_RENDERERS[coreStyle] || CORE_STYLE_RENDERERS.default
+  const resolvedBodyHtml = bodyHtml ?? block.content.body ?? ''
 
   return (
     <StyleRenderer
@@ -185,8 +201,10 @@ function CoreStyled({ block, post, bodyHtml }: {
         createdAt: post.created_at,
         showAuthor: block.content.showAuthor ?? true,
         showDate: block.content.showDate ?? true,
-        body: bodyHtml ?? block.content.body,
+        body: resolvedBodyHtml,
       }}
-    />
+    >
+      {renderCoreBody?.(block, resolvedBodyHtml)}
+    </StyleRenderer>
   )
 }

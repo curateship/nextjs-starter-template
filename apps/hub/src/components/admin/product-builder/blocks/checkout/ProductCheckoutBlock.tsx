@@ -353,7 +353,7 @@ function SortablePricingTierItem({
               target.style.height = `${target.scrollHeight}px`
             }}
             placeholder="Add features on every new line"
-            className="min-h-[2.5rem] py-2 resize-none overflow-hidden"
+            className="min-h-10 py-2 resize-none overflow-hidden"
             style={{ height: 'auto' }}
           />
         </div>

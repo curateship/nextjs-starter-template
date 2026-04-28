@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { Settings } from "lucide-react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
+import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
+import { Button } from "@/components/ui/button"
 import {
   createPreviewEntityBlocks,
   createPreviewSite,
@@ -11,6 +14,7 @@ import {
 import { getCurrentUser } from "@/lib/actions/auth/auth-actions"
 import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import { cn } from "@/lib/utils/tailwind"
 
 interface PostBlock {
   id: string
@@ -53,7 +57,9 @@ interface PostPreviewProps {
   className?: string
   blocksLoading?: boolean
   allBlocks?: PostBlock[]
+  selectedBlock?: PostBlock | null
   onSelectBlock?: (block: PostBlock) => void
+  onUpdateCoreBody?: (blockId: string, htmlContent: string) => void
 }
 
 export function PostPreview({
@@ -63,12 +69,25 @@ export function PostPreview({
   className = "",
   blocksLoading = false,
   allBlocks,
+  selectedBlock,
   onSelectBlock,
+  onUpdateCoreBody,
 }: PostPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const [author, setAuthor] = useState<{ name?: string | null; image?: string | null } | null>(null)
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
+  const canInlineEdit = Boolean(onUpdateCoreBody && onSelectBlock)
+
+  const getEditableBlock = (block: { id: string; type: string; content: Record<string, any> }) =>
+    allBlocks?.find(item => item.id === block.id) ||
+    blocks.find(item => item.id === block.id) || {
+      id: block.id,
+      type: block.type,
+      title: block.type,
+      content: block.content,
+    }
 
   useEffect(() => {
     let cancelled = false
@@ -100,6 +119,47 @@ export function PostPreview({
     }
   }, [post?.id, post?.updated_at, site?.settings?.breadcrumbs?.posts])
 
+  useEffect(() => {
+    if (selectedBlock) {
+      setEditingBlockId(null)
+    }
+  }, [selectedBlock])
+
+  useEffect(() => {
+    if (!editingBlockId) return
+
+    const editingBlock = blocks.find((block) => block.id === editingBlockId)
+    if (!editingBlock || editingBlock.type !== "core") {
+      setEditingBlockId(null)
+    }
+  }, [blocks, editingBlockId])
+
+  useEffect(() => {
+    if (!editingBlockId) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      const targetElement =
+        target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+
+      if (!targetElement) return
+
+      if (
+        targetElement.closest('[data-post-inline-editor-shell="true"]') ||
+        targetElement.closest('[data-newsletter-inline-editor-menu="true"]') ||
+        targetElement.closest('[data-media-picker-dialog="true"]') ||
+        targetElement.closest('[data-newsletter-inline-link-dialog="true"]')
+      ) {
+        return
+      }
+
+      setEditingBlockId(null)
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [editingBlockId])
+
   const previewPost = {
     id: post?.id || "preview",
     title: post?.title || "Preview Post",
@@ -126,7 +186,70 @@ export function PostPreview({
       site={site}
       showSiteChrome
     >
-      <PostBlockRenderer site={previewSite} post={previewPost} breadcrumbs={breadcrumbs} isPreview hideSiteChrome />
+      <PostBlockRenderer
+        site={previewSite}
+        post={previewPost}
+        breadcrumbs={breadcrumbs}
+        isPreview
+        hideSiteChrome
+        renderCoreBody={canInlineEdit ? (block) => {
+          const editorContent = {
+            ...block.content,
+            htmlContent: block.content.body || block.content.text || "",
+          }
+
+          return (
+            <div
+              data-post-inline-editor-shell="true"
+              className="cursor-text"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                setEditingBlockId(block.id)
+              }}
+            >
+              <NewsletterInlineRichTextEditor
+                blockId={block.id}
+                content={editorContent}
+                onContentChange={(htmlContent) => onUpdateCoreBody?.(block.id, htmlContent)}
+                siteId={site?.id || post?.site_id || ""}
+                isActive={editingBlockId === block.id}
+                editorPadding={0}
+                variant="post"
+              />
+            </div>
+          )
+        } : undefined}
+        renderBlockOverlay={onSelectBlock ? (block) => {
+          if (block.type !== "core") return null
+
+          return (
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className={cn(
+                "absolute right-3 top-3 z-20 h-8 w-8 rounded-full border bg-background/90 shadow-sm transition-opacity opacity-0 group-hover/post-preview-block:opacity-100",
+                editingBlockId === block.id && "opacity-100",
+              )}
+              data-post-settings-button="true"
+              onMouseDown={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                setEditingBlockId(null)
+                onSelectBlock(getEditableBlock(block))
+              }}
+              title="Open block settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          )
+        } : undefined}
+      />
     </BuilderPreviewShell>
   )
 }

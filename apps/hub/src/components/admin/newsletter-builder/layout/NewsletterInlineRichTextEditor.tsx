@@ -43,6 +43,7 @@ interface NewsletterInlineRichTextEditorProps {
   scrollTarget?: HTMLElement | null
   isActive: boolean
   editorPadding?: number
+  variant?: "newsletter" | "post"
 }
 
 interface SlashCommandRange {
@@ -295,6 +296,7 @@ export function NewsletterInlineRichTextEditor({
   scrollTarget,
   isActive,
   editorPadding,
+  variant = "newsletter",
 }: NewsletterInlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
@@ -1043,7 +1045,7 @@ export function NewsletterInlineRichTextEditor({
     <div
       ref={slashMenuElementRef}
       data-newsletter-inline-editor-menu="true"
-      className={cn(slashMenuDialogContainer ? "absolute" : "fixed", "z-[60]")}
+      className={cn(slashMenuDialogContainer ? "absolute" : "fixed", "z-60")}
       style={{
         top: slashMenuPosition.top,
         left: slashMenuPosition.left,
@@ -1133,6 +1135,21 @@ export function NewsletterInlineRichTextEditor({
     </div>
   ) : null
 
+  const editorContent = (
+    <EditorContent
+      editor={editor}
+      className={
+        variant === "post"
+          ? "post-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap"
+          : "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap"
+      }
+      style={{
+        ["--newsletter-image-border-size" as string]: `${imageBorderSize}px`,
+        ["--newsletter-image-border-color" as string]: imageBorderColor,
+      }}
+    />
+  )
+
   return (
     <div
       ref={rootRef}
@@ -1140,7 +1157,7 @@ export function NewsletterInlineRichTextEditor({
       data-inline-newsletter-block-id={blockId}
       className="relative"
       style={{
-        backgroundColor: content.backgroundColor || "#ffffff",
+        backgroundColor: variant === "newsletter" ? content.backgroundColor || "#ffffff" : undefined,
       }}
       onMouseDownCapture={(event) => {
         if (isActive) {
@@ -1279,30 +1296,29 @@ export function NewsletterInlineRichTextEditor({
         </BubbleMenu>
       )}
 
-      <table width="100%" cellPadding="0" cellSpacing="0" border={0}>
-        <tbody>
-          <tr>
-            <td
-              style={{
-                padding: `${editorPadding ?? content.padding ?? 20}px`,
-                fontFamily: "Arial, sans-serif",
-                fontSize: "16px",
-                lineHeight: 1.6,
-                color: "#333333",
-              }}
-            >
-              <EditorContent
-                editor={editor}
-                className="newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap"
+      {variant === "post" ? (
+        <div className="prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-lg [&_.ProseMirror]:text-gray-600 dark:[&_.ProseMirror]:text-gray-400">
+          {editorContent}
+        </div>
+      ) : (
+        <table width="100%" cellPadding="0" cellSpacing="0" border={0}>
+          <tbody>
+            <tr>
+              <td
                 style={{
-                  ["--newsletter-image-border-size" as string]: `${imageBorderSize}px`,
-                  ["--newsletter-image-border-color" as string]: imageBorderColor,
+                  padding: `${editorPadding ?? content.padding ?? 20}px`,
+                  fontFamily: "Arial, sans-serif",
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                  color: "#333333",
                 }}
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              >
+                {editorContent}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
 
       {isActive && selectedImageButtonPosition && (
         <Button

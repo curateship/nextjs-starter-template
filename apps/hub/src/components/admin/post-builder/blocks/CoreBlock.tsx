@@ -103,6 +103,7 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
               siteId={siteId}
               isActive
               editorPadding={0}
+              variant="post"
             />
           </div>
         </>

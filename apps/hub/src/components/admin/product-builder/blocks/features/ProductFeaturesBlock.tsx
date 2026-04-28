@@ -105,7 +105,7 @@ function SortableFeatureItem({
         <div
           {...attributes}
           {...listeners}
-          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 self-center"
+          className="grip-handle text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0 self-center"
         >
           <GripVertical className="w-4 h-4" />
         </div>
@@ -172,7 +172,7 @@ function SortableFeatureItem({
           variant="ghost"
           size="sm"
           onClick={() => removeFeature(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 shrink-0"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -298,7 +298,7 @@ export function ProductFeaturesBlock({
                 </BlockEditorSection>
 
                 <section className="space-y-4">
-                  <h3 className="!pt-0 text-base font-medium">Features</h3>
+                  <h3 className="pt-0! text-base font-medium">Features</h3>
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}

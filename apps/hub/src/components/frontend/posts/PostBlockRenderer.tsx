@@ -1,4 +1,5 @@
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
+import type { ReactNode } from "react"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { CoreBlock } from "@/components/frontend/posts/CoreBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -11,6 +12,13 @@ import { cn } from "@/lib/utils/tailwind"
 import { preparePostTableOfContents } from "./table-of-content/table-of-contents-utils"
 
 const SUPPORTED_POST_BLOCK_TYPES = ['core', 'related-posts', 'table-of-contents']
+
+type PostRendererBlock = {
+  id: string
+  type: string
+  content: Record<string, any>
+  display_order?: number
+}
 
 interface PostBlockRendererProps {
   site: SiteWithBlocks
@@ -31,20 +39,26 @@ interface PostBlockRendererProps {
     is_published: boolean
     created_at?: string
     updated_at?: string
-    blocks: Array<{
-      id: string
-      type: string
-      content: Record<string, any>
-      display_order: number
-    }>
+    blocks: PostRendererBlock[]
   }
   preloadedRelatedPosts?: RelatedPostsData | null
   breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
+  renderCoreBody?: (block: PostRendererBlock, bodyHtml: string) => ReactNode
+  renderBlockOverlay?: (block: PostRendererBlock) => ReactNode
 }
 
-export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: PostBlockRendererProps) {
+export function PostBlockRenderer({
+  site,
+  post,
+  preloadedRelatedPosts,
+  breadcrumbs = [],
+  isPreview = false,
+  hideSiteChrome = false,
+  renderCoreBody,
+  renderBlockOverlay,
+}: PostBlockRendererProps) {
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
@@ -91,6 +105,8 @@ export function PostBlockRenderer({ site, post, preloadedRelatedPosts, breadcrum
       siteWidth={siteWidth}
       customWidth={customWidth}
       container={container}
+      renderCoreBody={renderCoreBody}
+      renderBlockOverlay={renderBlockOverlay}
     />
   )
 
