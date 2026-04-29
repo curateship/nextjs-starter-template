@@ -106,13 +106,9 @@ export async function generateMetadata({ params }: ProductPageProps) {
       }
     }
 
-    const cleanDescription = (product as any).description
-      ? (product as any).description.replace(/<[^>]*>/g, '').trim()
-      : `${product.title} from ${site.name}`
-
     return {
       title: `${product.title} | ${site.name}`,
-      description: cleanDescription,
+      description: product.metaDescription || `${product.title} from ${site.name}`,
       ...buildSeoMetadata(site, product as any, 'product', `/products/${slug}`),
     }
   } catch (error) {

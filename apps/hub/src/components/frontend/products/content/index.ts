@@ -5,7 +5,6 @@ export interface ProductContentStyleRendererProps {
   config: Record<string, any>
   sharedContent: {
     title?: string
-    description?: string | null
     featuredImage?: string | null
     showFeaturedImage?: boolean
     downloadButtonText?: string

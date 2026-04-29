@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import {
   AdminModalBody,
   AdminModalFooter,
@@ -16,7 +17,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -27,6 +27,7 @@ import type { Product } from "@/lib/actions/products/product-actions"
 interface CreateProductData {
   title: string
   slug?: string
+  meta_description?: string
   is_published: boolean
 }
 
@@ -40,10 +41,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [formData, setFormData] = useState<CreateProductData>({
     title: '',
     slug: '',
+    meta_description: '',
     is_published: false
   })
   const [isPrivate, setIsPrivate] = useState(false)
-  const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -124,7 +125,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         site_id: currentSite.id,
         is_published: false,
         featured_image: featuredImage || null,
-        description: richTextContent || null,
+        meta_description: formData.meta_description?.trim() || null,
         content_blocks: {
           _settings: { is_private: isPrivate }
         }
@@ -299,19 +300,16 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           )}
 
           <Field>
-            <FieldLabel htmlFor="rich_text">Product Description</FieldLabel>
-            <RichTextEditor
-              content={{
-                content: richTextContent,
-                hideHeader: true,
-                hideEditorHeader: true
-              }}
-              onContentChange={(content) => setRichTextContent(content.content)}
-              compact={true}
-              inline={true}
+            <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+            <Textarea
+              id="meta_description"
+              value={formData.meta_description || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+              placeholder="SEO meta description"
+              rows={3}
             />
             <FieldDescription>
-              Rich text content for the product description. This is saved into the product content.
+              Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
             </FieldDescription>
           </Field>
         </FieldGroup>

@@ -61,7 +61,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftProductData, setDraftProductData] = useState({
     title: "",
-    description: "",
     featured_image: "",
   })
   const [isSavingBlock, setIsSavingBlock] = useState(false)
@@ -157,10 +156,9 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     setDraftContent(selectedBlock.content)
     setDraftProductData({
       title: currentProductData?.title || "",
-      description: currentProductData?.description || "",
       featured_image: currentProductData?.featured_image || "",
     })
-  }, [selectedBlock, currentProductData?.description, currentProductData?.featured_image, currentProductData?.title])
+  }, [selectedBlock, currentProductData?.featured_image, currentProductData?.title])
   
   // Handle product updates
   const handleProductUpdated = (updatedProduct: Product) => {
@@ -186,7 +184,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   }
 
   // Handle product information updates
-  const updateCurrentProduct = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
+  const updateCurrentProduct = async (updates: { title?: string; featured_image?: string; is_published?: boolean }) => {
     if (!currentProductData?.id) return false
     
     try {
@@ -220,7 +218,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     setDraftContent(selectedBlock.content)
     setDraftProductData({
       title: currentProductData?.title || "",
-      description: currentProductData?.description || "",
       featured_image: currentProductData?.featured_image || "",
     })
     builderState.setSelectedBlock(null)
@@ -236,20 +233,14 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     if (selectedBlock.type === "product-content" || selectedBlock.type === "product-default") {
       const productUpdates: {
         title?: string
-        description?: string
         featured_image?: string
       } = {}
 
       const currentTitle = currentProductData?.title || ""
-      const currentDescription = currentProductData?.description || ""
       const currentFeaturedImage = currentProductData?.featured_image || ""
 
       if (draftProductData.title !== currentTitle) {
         productUpdates.title = draftProductData.title
-      }
-
-      if (draftProductData.description !== currentDescription) {
-        productUpdates.description = draftProductData.description
       }
 
       if (draftProductData.featured_image !== currentFeaturedImage) {
@@ -347,10 +338,9 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                 id: currentProductData.id,
                 title: currentProductData.title,
                 slug: currentProductData.slug,
-                meta_description: currentProductData.description || undefined,
+                meta_description: currentProductData.meta_description || undefined,
                 site_id: currentProductData.site_id,
                 featured_image: currentProductData.featured_image || null,
-                description: currentProductData.description || null,
                 is_published: currentProductData.is_published || false,
                 updated_at: currentProductData.updated_at,
               } : undefined}
@@ -397,13 +387,9 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                           title: draftProductData.title,
                           name: currentProductData?.title,
                           featured_image: draftProductData.featured_image || null,
-                          description: draftProductData.description,
                         }}
                         onProductTitleChange={(title) => {
                           setDraftProductData((current) => ({ ...current, title }))
-                        }}
-                        onProductDescriptionChange={(description) => {
-                          setDraftProductData((current) => ({ ...current, description }))
                         }}
                         onProductFeaturedImageChange={(featured_image) => {
                           setDraftProductData((current) => ({ ...current, featured_image }))

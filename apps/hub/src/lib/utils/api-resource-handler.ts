@@ -66,6 +66,8 @@ interface CreateResourceConfig {
   defaultBlocksKey: string
   /** Build the insert values from the request data. Receives siteId, slug, nextOrder, contentBlocks. */
   buildInsertValues: (data: any, siteId: string, slug: string, nextOrder: number, contentBlocks: any) => Record<string, any>
+  /** Optional response serializer for routes that expose snake_case action shapes. */
+  serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful create. */
   revalidateTags?: string[]
 }
@@ -148,7 +150,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       const newRow = result[0]
       revalidateResourceTags(config.revalidateTags)
 
-      return NextResponse.json({ data: newRow, error: null }, { status: 201 })
+      return NextResponse.json({ data: config.serializeResponse ? config.serializeResponse(newRow) : newRow, error: null }, { status: 201 })
     } catch (error) {
       console.error('API Error:', error)
       return jsonServerError()
@@ -169,6 +171,8 @@ interface ItemResourceConfig {
   updateFieldMap: Record<string, string>
   /** Optional transform for resource-specific update behavior */
   transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>
+  /** Optional response serializer for routes that expose snake_case action shapes. */
+  serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful update. */
   revalidateTags?: string[]
 }
@@ -205,7 +209,7 @@ export function getResourceHandler(config: ItemResourceConfig) {
       const siteOrError = await verifySiteOwnership(entity.siteId, userIdOrError)
       if (siteOrError instanceof NextResponse) return siteOrError
 
-      return NextResponse.json({ data: entity, error: null })
+      return NextResponse.json({ data: config.serializeResponse ? config.serializeResponse(entity) : entity, error: null })
     } catch (error) {
       console.error('API Error:', error)
       return jsonServerError()
@@ -278,7 +282,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
       const updatedRow = updateResult[0]
       revalidateResourceTags(config.revalidateTags)
 
-      return NextResponse.json({ data: updatedRow, error: null })
+      return NextResponse.json({ data: config.serializeResponse ? config.serializeResponse(updatedRow) : updatedRow, error: null })
     } catch (error) {
       console.error('API Error:', error)
       return jsonServerError()

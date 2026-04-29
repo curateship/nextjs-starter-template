@@ -10,7 +10,6 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 
 export default function NewProductPage() {
   const [title, setTitle] = useState("")
-  const [description, setDescription] = useState("")
   const [richText, setRichText] = useState("")
   const [status, setStatus] = useState("draft")
   const [featured, setFeatured] = useState(false)
@@ -51,14 +50,12 @@ export default function NewProductPage() {
           <div className="space-y-6">
             <BasicBlock
               title={title}
-              description={description}
               richText={richText}
               status={status}
               featured={featured}
               image={image}
               imagePreview={imagePreview}
               onTitleChange={setTitle}
-              onDescriptionChange={setDescription}
               onRichTextChange={setRichText}
               onStatusChange={setStatus}
               onFeaturedChange={setFeatured}

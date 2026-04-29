@@ -12,12 +12,10 @@ export const products = pgTable('products', {
   slug: varchar('slug', { length: 100 }).notNull(),
   metaDescription: text('meta_description'),
   metaKeywords: text('meta_keywords'),
-  isHomepage: boolean('is_homepage').notNull().default(false),
   isPublished: boolean('is_published').notNull().default(true),
   displayOrder: integer('display_order').notNull().default(0),
   contentBlocks: jsonb('content_blocks').default({}),
   featuredImage: text('featured_image'),
-  description: text('description'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [

@@ -296,7 +296,7 @@ export default function ProductsPage() {
     if (filterPrivacy === 'private') privacyMatch = isProductPrivate(product)
 
     const categoryText = productCategories[product.id]?.map(category => category.title).join(" ") ?? ""
-    const searchText = `${product.title} ${product.slug} ${product.description ?? ""} ${categoryText}`.toLowerCase()
+    const searchText = `${product.title} ${product.slug} ${product.meta_description ?? ""} ${categoryText}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
     
     return statusMatch && privacyMatch && searchMatch

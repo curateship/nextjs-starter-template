@@ -1,17 +1,20 @@
 import { products } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
+import { serializeProduct } from '@/lib/utils/product-serializer'
 
 export const POST = createResourceHandler({
   entityName: 'Product',
   table: products,
   defaultBlocksKey: 'products',
+  serializeResponse: serializeProduct,
   buildInsertValues: (data, siteId, slug, nextOrder, contentBlocks) => ({
     siteId,
     title: data.title.trim(),
     slug,
-    isHomepage: false,
     isPublished: data.is_published !== false,
     displayOrder: nextOrder,
+    featuredImage: data.featured_image || null,
+    metaDescription: data.meta_description || null,
     contentBlocks,
   }),
 })

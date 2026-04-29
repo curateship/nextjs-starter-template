@@ -62,7 +62,6 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
                   config={styleConfig}
                   sharedContent={{
                     title: product.title,
-                    description: product.description || '',
                     featuredImage: product.featured_image || '',
                     showFeaturedImage: block.content?.showFeaturedImage ?? true,
                     downloadButtonText: block.content?.downloadButtonText,

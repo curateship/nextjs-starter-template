@@ -10,14 +10,12 @@ import { BlockEditorSection } from "@/components/ui/tabs"
 
 interface BasicBlockProps {
   title: string
-  description: string
   richText: string
   status: string
   featured: boolean
   image: File | null
   imagePreview: string | null
   onTitleChange: (value: string) => void
-  onDescriptionChange: (value: string) => void
   onRichTextChange: (value: string) => void
   onStatusChange: (value: string) => void
   onFeaturedChange: (value: boolean) => void
@@ -27,14 +25,12 @@ interface BasicBlockProps {
 
 export function BasicBlock({
   title,
-  description,
   richText,
   status,
   featured,
   image,
   imagePreview,
   onTitleChange,
-  onDescriptionChange,
   onRichTextChange,
   onStatusChange,
   onFeaturedChange,

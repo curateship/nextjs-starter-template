@@ -10,7 +10,6 @@ export function DefaultProductContentRenderer({ config, sharedContent }: Product
 
   const {
     title,
-    description,
     featuredImage,
     showFeaturedImage = true,
     downloadButtonText,
@@ -26,7 +25,7 @@ export function DefaultProductContentRenderer({ config, sharedContent }: Product
   }
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
-  const richText = sanitizeRichHtml(body || description)
+  const richText = sanitizeRichHtml(body || '')
 
   return (
     <div

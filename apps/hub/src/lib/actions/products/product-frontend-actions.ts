@@ -13,7 +13,7 @@ export interface ProductWithBlocks {
   slug: string
   is_published: boolean
   featured_image: string | null
-  description: string | null
+  meta_description: string | null
   blocks: ProductBlock[]
 }
 
@@ -52,16 +52,15 @@ async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
  */
 export async function getProductBySlug(siteId: string, productSlug: string): Promise<GetProductResult> {
   try {
-    // Use raw SQL to include featured_image and description columns
     const result = await db.execute<{
       id: string
       title: string
       slug: string
       is_published: boolean
       featured_image: string | null
-      description: string | null
+      meta_description: string | null
     }>(sql`
-      SELECT id, title, slug, is_published, featured_image, description
+      SELECT id, title, slug, is_published, featured_image, meta_description
       FROM products
       WHERE site_id = ${siteId} AND slug = ${productSlug} AND is_published = true
       LIMIT 1
@@ -84,7 +83,7 @@ export async function getProductBySlug(siteId: string, productSlug: string): Pro
       slug: product.slug,
       is_published: product.is_published,
       featured_image: product.featured_image ?? null,
-      description: product.description ?? null,
+      meta_description: product.meta_description ?? null,
       blocks
     }
 
@@ -105,7 +104,6 @@ export async function getProductBySlug(siteId: string, productSlug: string): Pro
  */
 export async function getProductBySlugDirect(productSlug: string): Promise<GetProductResult> {
   try {
-    // Find the product across all sites, using raw SQL for featured_image/description
     const productResult = await db.execute<{
       id: string
       site_id: string
@@ -113,9 +111,9 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
       slug: string
       is_published: boolean
       featured_image: string | null
-      description: string | null
+      meta_description: string | null
     }>(sql`
-      SELECT id, site_id, title, slug, is_published, featured_image, description
+      SELECT id, site_id, title, slug, is_published, featured_image, meta_description
       FROM products
       WHERE slug = ${productSlug} AND is_published = true
       LIMIT 1
@@ -151,7 +149,7 @@ export async function getProductBySlugDirect(productSlug: string): Promise<GetPr
       slug: product.slug,
       is_published: product.is_published,
       featured_image: product.featured_image ?? null,
-      description: product.description ?? null,
+      meta_description: product.meta_description ?? null,
       blocks
     }
 

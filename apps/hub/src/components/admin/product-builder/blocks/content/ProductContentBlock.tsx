@@ -40,11 +40,9 @@ interface ProductContentBlockProps {
     title?: string
     name?: string
     featured_image?: string | null
-    description?: string | null
     [key: string]: any
   }
   onProductTitleChange?: (title: string) => void
-  onProductDescriptionChange?: (description: string) => void
   onProductFeaturedImageChange?: (featuredImage: string) => void
   onBack?: () => void
 }
@@ -56,7 +54,6 @@ export function ProductContentBlock({
   blockId,
   productData,
   onProductTitleChange,
-  onProductDescriptionChange,
   onProductFeaturedImageChange,
   onBack,
 }: ProductContentBlockProps) {
@@ -100,7 +97,7 @@ export function ProductContentBlock({
         },
       }),
     ],
-    content: content.body || productData?.description || '',
+    content: content.body || '',
     immediatelyRender: false,
     editorProps: {
       attributes: {
@@ -110,21 +107,18 @@ export function ProductContentBlock({
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
       onContentChange('body', html)
-      if (onProductDescriptionChange) {
-        onProductDescriptionChange(html)
-      }
     },
   })
 
   // Update editor content when block changes
   useEffect(() => {
     if (editor) {
-      const editorContent = content.body || productData?.description || ''
+      const editorContent = content.body || ''
       if (editor.getHTML() !== editorContent) {
         editor.commands.setContent(editorContent)
       }
     }
-  }, [blockId, content.body, productData?.description, editor])
+  }, [blockId, content.body, editor])
 
   const handleTitleChange = (value: string) => {
     setLocalTitle(value)

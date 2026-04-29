@@ -13,12 +13,11 @@ export interface Product {
   site_id: string
   title: string
   slug: string
-  is_homepage: boolean
   is_published: boolean
   display_order: number
   content_blocks: Record<string, any>
   featured_image: string | null
-  description: string | null
+  meta_description: string | null
   created_at: string
   updated_at: string
 }
@@ -34,7 +33,7 @@ export interface CreateProductData {
   slug?: string
   is_published?: boolean
   featured_image?: string | null
-  description?: string | null
+  meta_description?: string | null
   content_blocks?: Record<string, any>
 }
 
@@ -43,7 +42,7 @@ export interface UpdateProductData {
   slug?: string
   is_published?: boolean
   featured_image?: string | null
-  description?: string | null
+  meta_description?: string | null
 }
 
 function rowToProduct(row: typeof products.$inferSelect): Product {
@@ -52,12 +51,11 @@ function rowToProduct(row: typeof products.$inferSelect): Product {
     site_id: row.siteId,
     title: row.title,
     slug: row.slug,
-    is_homepage: row.isHomepage,
     is_published: row.isPublished,
     display_order: row.displayOrder,
     content_blocks: (row.contentBlocks || {}) as Record<string, any>,
     featured_image: (row as any).featuredImage ?? (row as any).featured_image ?? null,
-    description: (row as any).description ?? null,
+    meta_description: row.metaDescription ?? (row as any).meta_description ?? null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -97,9 +95,9 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
     const [countResult, data] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
       db.execute<{
-        id: string; site_id: string; title: string; slug: string; is_homepage: boolean;
+        id: string; site_id: string; title: string; slug: string;
         is_published: boolean; display_order: number; content_blocks: Record<string, any>;
-        featured_image: string | null; description: string | null; created_at: string; updated_at: string;
+        featured_image: string | null; meta_description: string | null; created_at: string; updated_at: string;
       }>(sql`SELECT * FROM products WHERE site_id = ${siteId} ORDER BY display_order ASC LIMIT ${pageSize} OFFSET ${from}`),
     ])
 
@@ -108,12 +106,11 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
       site_id: row.site_id,
       title: row.title,
       slug: row.slug,
-      is_homepage: row.is_homepage,
       is_published: row.is_published,
       display_order: row.display_order,
       content_blocks: row.content_blocks || {},
       featured_image: row.featured_image ?? null,
-      description: row.description ?? null,
+      meta_description: row.meta_description ?? null,
       created_at: new Date(row.created_at).toISOString(),
       updated_at: new Date(row.updated_at).toISOString(),
     }))
@@ -171,12 +168,11 @@ export async function getSiteProductsWithCategoriesAction(
       site_id: string
       title: string
       slug: string
-      is_homepage: boolean
       is_published: boolean
       display_order: number
       content_blocks: Record<string, any>
       featured_image: string | null
-      description: string | null
+      meta_description: string | null
       created_at: string
       updated_at: string
     }>(sql`
@@ -193,12 +189,11 @@ export async function getSiteProductsWithCategoriesAction(
       site_id: row.site_id,
       title: row.title,
       slug: row.slug,
-      is_homepage: row.is_homepage,
       is_published: row.is_published,
       display_order: row.display_order,
       content_blocks: row.content_blocks || {},
       featured_image: row.featured_image ?? null,
-      description: row.description ?? null,
+      meta_description: row.meta_description ?? null,
       created_at: new Date(row.created_at).toISOString(),
       updated_at: new Date(row.updated_at).toISOString(),
     }))
@@ -300,18 +295,16 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
       return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
-    // Use raw SQL to get all columns including featured_image and description
     const result = await db.execute<{
       id: string
       site_id: string
       title: string
       slug: string
-      is_homepage: boolean
       is_published: boolean
       display_order: number
       content_blocks: Record<string, any>
       featured_image: string | null
-      description: string | null
+      meta_description: string | null
       created_at: string
       updated_at: string
     }>(sql`SELECT * FROM products WHERE id = ${productId} LIMIT 1`)
@@ -336,12 +329,11 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
       site_id: product.site_id,
       title: product.title,
       slug: product.slug,
-      is_homepage: product.is_homepage,
       is_published: product.is_published,
       display_order: product.display_order,
       content_blocks: product.content_blocks || {},
       featured_image: product.featured_image ?? null,
-      description: product.description ?? null,
+      meta_description: product.meta_description ?? null,
       created_at: new Date(product.created_at).toISOString(),
       updated_at: new Date(product.updated_at).toISOString(),
     }
@@ -365,12 +357,11 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
       site_id: string
       title: string
       slug: string
-      is_homepage: boolean
       is_published: boolean
       display_order: number
       content_blocks: Record<string, any>
       featured_image: string | null
-      description: string | null
+      meta_description: string | null
       created_at: string
       updated_at: string
     }>(sql`SELECT * FROM products WHERE slug = ${slug} AND is_published = true LIMIT 1`)
@@ -383,12 +374,11 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
       site_id: product.site_id,
       title: product.title,
       slug: product.slug,
-      is_homepage: product.is_homepage,
       is_published: product.is_published,
       display_order: product.display_order,
       content_blocks: product.content_blocks || {},
       featured_image: product.featured_image ?? null,
-      description: product.description ?? null,
+      meta_description: product.meta_description ?? null,
       created_at: new Date(product.created_at).toISOString(),
       updated_at: new Date(product.updated_at).toISOString(),
     }
@@ -475,7 +465,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     }
 
     // SECURITY: Only allow whitelisted fields to prevent content_blocks bypass
-    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'description'] as const
+    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'meta_description'] as const
     const finalUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((processedUpdates as any)[field] !== undefined) {
@@ -489,32 +479,21 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       }
     }
 
-    // Build SET clause dynamically with raw SQL (to handle featured_image/description not in schema)
-    const setClauses: string[] = ['updated_at = NOW()']
-    const values: any[] = []
-    if (finalUpdates.title !== undefined) { setClauses.push(`title = $${values.length + 1}`); values.push(finalUpdates.title) }
-    if (finalUpdates.slug !== undefined) { setClauses.push(`slug = $${values.length + 1}`); values.push(finalUpdates.slug) }
-    if (finalUpdates.is_published !== undefined) { setClauses.push(`is_published = $${values.length + 1}`); values.push(finalUpdates.is_published) }
-    if (finalUpdates.featured_image !== undefined) { setClauses.push(`featured_image = $${values.length + 1}`); values.push(finalUpdates.featured_image) }
-    if (finalUpdates.description !== undefined) { setClauses.push(`description = $${values.length + 1}`); values.push(finalUpdates.description) }
+    const drizzleUpdates: Partial<typeof products.$inferInsert> = {
+      updatedAt: new Date(),
+    }
+    if (finalUpdates.title !== undefined) drizzleUpdates.title = finalUpdates.title
+    if (finalUpdates.slug !== undefined) drizzleUpdates.slug = finalUpdates.slug
+    if (finalUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalUpdates.is_published
+    if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
+    if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
 
-    // Use Drizzle raw SQL for the update to handle extra columns
-    const updateResult = await db.execute<{
-      id: string
-      site_id: string
-      title: string
-      slug: string
-      is_homepage: boolean
-      is_published: boolean
-      display_order: number
-      content_blocks: Record<string, any>
-      featured_image: string | null
-      description: string | null
-      created_at: string
-      updated_at: string
-    }>(sql.raw(`UPDATE products SET ${setClauses.join(', ')} WHERE id = '${productId}' RETURNING *`))
+    const [updated] = await db
+      .update(products)
+      .set(drizzleUpdates)
+      .where(eq(products.id, productId))
+      .returning()
 
-    const updated = updateResult.rows?.[0]
     if (!updated) {
       return { data: null, error: 'Failed to update product' }
     }
@@ -523,20 +502,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     revalidateTag('listing-views')
 
     return {
-      data: {
-        id: updated.id,
-        site_id: updated.site_id,
-        title: updated.title,
-        slug: updated.slug,
-        is_homepage: updated.is_homepage,
-        is_published: updated.is_published,
-        display_order: updated.display_order,
-        content_blocks: updated.content_blocks || {},
-        featured_image: updated.featured_image ?? null,
-        description: updated.description ?? null,
-        created_at: new Date(updated.created_at).toISOString(),
-        updated_at: new Date(updated.updated_at).toISOString(),
-      },
+      data: rowToProduct(updated),
       error: null
     }
   } catch (error) {
@@ -734,9 +700,10 @@ export async function duplicateProductAction(productId: string, newTitle: string
         siteId: originalProduct.siteId,
         title: newTitle.trim(),
         slug: newSlug,
-        isHomepage: false,
         isPublished: originalProduct.isPublished,
         displayOrder: nextOrder,
+        featuredImage: originalProduct.featuredImage,
+        metaDescription: originalProduct.metaDescription,
         contentBlocks: originalProduct.contentBlocks || {},
       })
       .returning()

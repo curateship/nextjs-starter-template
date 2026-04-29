@@ -41,7 +41,6 @@ interface Product {
   id: string
   slug: string
   title: string
-  description?: string
   featuredImage?: string
 }
 

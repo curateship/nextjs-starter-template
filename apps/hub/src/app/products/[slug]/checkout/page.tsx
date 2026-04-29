@@ -70,7 +70,6 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
         id: product.id,
         slug: product.slug,
         title: product.title,
-        description: product.description || undefined,
         featuredImage: product.featured_image || undefined,
       }}
       site={{
