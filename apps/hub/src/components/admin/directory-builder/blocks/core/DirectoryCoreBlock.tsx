@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/select"
 import { BlockEditorEmptyState, BlockTabs } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import {
   AdminModalBody,
@@ -86,11 +85,9 @@ interface DirectoryCoreBlockProps {
   siteId: string
   directoryData?: {
     title?: string
-    description?: string | null
     featured_image?: string | null
   }
   onDirectoryTitleChange?: (title: string) => void
-  onDirectoryDescriptionChange?: (description: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   onBack?: () => void
   showDirectoryTitleField?: boolean
@@ -554,7 +551,6 @@ export function DirectoryCoreBlock({
   siteId,
   directoryData,
   onDirectoryTitleChange,
-  onDirectoryDescriptionChange,
   onDirectoryFeaturedImageChange,
   onBack,
   showDirectoryTitleField = true,
@@ -856,24 +852,10 @@ export function DirectoryCoreBlock({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <RichTextEditor
-                  content={{
-                    content: directoryData?.description || "",
-                    hideHeader: true,
-                    hideEditorHeader: true,
-                  }}
-                  onContentChange={(nextContent) => onDirectoryDescriptionChange?.(nextContent.content)}
-                  compact
-                  inline
-                  mediaPickerSiteId={siteId}
-                />
-              </div>
             </>
           ) : (
             <BlockEditorEmptyState>
-              Title, featured image, and description come from each real directory item.
+              Title and featured image come from each real directory item.
             </BlockEditorEmptyState>
           )}
         </div>
@@ -1040,7 +1022,6 @@ export function DirectoryCoreBlock({
             fields={[
               { key: "image", label: "Image" },
               { key: "title", label: "Title" },
-              { key: "description", label: "Description" },
               { key: "socialLinks", label: "Social Links" },
               { key: "menuLinks", label: "Menu Links" },
             ]}

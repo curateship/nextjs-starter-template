@@ -20,7 +20,6 @@ interface DirectoryWithBlocks {
   id: string
   title: string
   slug: string
-  description?: string | null
   featured_image?: string | null
   blocks: Array<{
     id: string

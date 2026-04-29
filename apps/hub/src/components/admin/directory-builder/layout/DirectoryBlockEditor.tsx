@@ -19,10 +19,8 @@ interface DirectoryBlockEditorProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   directoryTitle: string
-  directoryDescription?: string | null
   directoryFeaturedImage?: string | null
   onDirectoryTitleChange: (title: string) => void
-  onDirectoryDescriptionChange?: (description: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   showDirectoryTitleField?: boolean
@@ -34,10 +32,8 @@ export function DirectoryBlockEditor({
   onContentChange,
   siteId,
   directoryTitle,
-  directoryDescription,
   directoryFeaturedImage,
   onDirectoryTitleChange,
-  onDirectoryDescriptionChange,
   onDirectoryFeaturedImageChange,
   customBlockTemplates,
   showDirectoryTitleField = true,
@@ -50,11 +46,9 @@ export function DirectoryBlockEditor({
         siteId={siteId}
         directoryData={{
           title: directoryTitle,
-          description: directoryDescription,
           featured_image: directoryFeaturedImage,
         }}
         onDirectoryTitleChange={onDirectoryTitleChange}
-        onDirectoryDescriptionChange={onDirectoryDescriptionChange}
         onDirectoryFeaturedImageChange={onDirectoryFeaturedImageChange}
         showDirectoryTitleField={showDirectoryTitleField}
       />

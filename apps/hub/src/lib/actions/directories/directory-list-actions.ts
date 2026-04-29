@@ -29,7 +29,6 @@ export interface DirectorySummary {
   status: DirectoryStatus
   display_order: number
   featured_image: string | null
-  description: string | null
   meta_description: string | null
   created_at: string
   updated_at: string
@@ -76,7 +75,6 @@ function toDirectorySummary(row: {
   status: DirectoryStatus
   displayOrder: number
   featuredImage: string | null
-  description: string | null
   metaDescription: string | null
   createdAt: Date
   updatedAt: Date
@@ -89,7 +87,6 @@ function toDirectorySummary(row: {
     status: row.status,
     display_order: row.displayOrder,
     featured_image: row.featuredImage,
-    description: row.description,
     meta_description: row.metaDescription,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -111,7 +108,7 @@ function buildSearchCondition(query: string) {
   return or(
     sql`lower(${directories.title}) like ${pattern}`,
     sql`lower(${directories.slug}) like ${pattern}`,
-    sql`lower(coalesce(${directories.description}, '')) like ${pattern}`
+    sql`lower(coalesce(${directories.metaDescription}, '')) like ${pattern}`
   )
 }
 
@@ -316,7 +313,6 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
       status: directories.status,
       displayOrder: directories.displayOrder,
       featuredImage: directories.featuredImage,
-      description: directories.description,
       metaDescription: directories.metaDescription,
       createdAt: directories.createdAt,
       updatedAt: directories.updatedAt,

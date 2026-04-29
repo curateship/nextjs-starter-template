@@ -20,14 +20,12 @@ import {
   type DirectoryCoreSocialLink,
 } from "@/lib/actions/directories/directory-core"
 import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
-import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DirectoryCoreBlockProps {
   content?: Record<string, any>
   directory: {
     title?: string | null
-    description?: string | null
     featured_image?: string | null
   }
 }
@@ -126,9 +124,7 @@ export function DirectoryCoreBlock({
       .filter((link): link is DirectoryCoreMenuLink => !!link)
     : []
   const title = directory.title || "Directory Listing"
-  const description = directory.description || ""
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
-  const safeDescription = sanitizeRichHtml(description)
 
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -147,12 +143,6 @@ export function DirectoryCoreBlock({
             </h1>
           ) : null}
 
-          {safeDescription && visibility.description !== false ? (
-            <div className="prose prose-neutral max-w-none text-base leading-relaxed text-muted-foreground">
-              <div dangerouslySetInnerHTML={{ __html: safeDescription }} />
-            </div>
-          ) : null}
-
           {socialLinks.length > 0 && visibility.socialLinks !== false ? (
             <div className="flex flex-wrap items-center gap-5 pt-1">
               {socialLinks.map((link, index) => (
@@ -163,7 +153,7 @@ export function DirectoryCoreBlock({
         </div>
 
         {menuLinks.length > 0 && visibility.menuLinks !== false ? (
-          <div className={cn(featuredImage || title || safeDescription || socialLinks.length ? "" : "border-t-0")}>
+          <div className={cn(featuredImage || title || socialLinks.length ? "" : "border-t-0")}>
             {menuLinks.map((link, index) => (
               <MenuLink key={link.id || `${link.type}-${index}`} link={link} />
             ))}

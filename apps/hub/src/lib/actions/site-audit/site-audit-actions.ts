@@ -48,7 +48,6 @@ async function getPublishedDirectoryAuditRows(siteId: string) {
     title: string
     slug: string
     metaDescription: string | null
-    description: string | null
     status: 'draft' | 'published'
     createdAt: Date
     updatedAt: Date
@@ -62,7 +61,6 @@ async function getPublishedDirectoryAuditRows(siteId: string) {
       title: directories.title,
       slug: directories.slug,
       metaDescription: directories.metaDescription,
-      description: directories.description,
       status: directories.status,
       createdAt: directories.createdAt,
       updatedAt: directories.updatedAt,
@@ -195,7 +193,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
     })),
     ...directoryRows.map(r => ({
       id: r.id, title: r.title, slug: r.slug, type: 'directory',
-      meta_description: r.metaDescription || (r as any).description || null,
+      meta_description: r.metaDescription || null,
       featured_image: null,
       status: r.status,
       created_at: r.createdAt?.toISOString() || null,

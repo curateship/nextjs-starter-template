@@ -30,7 +30,6 @@ interface Directory {
   meta_description?: string
   site_id: string
   featured_image?: string | null
-  description?: string | null
   status?: "draft" | "published"
   updated_at?: string
 }
@@ -149,7 +148,6 @@ export function DirectoryPreview({
     id: directory?.id || "preview",
     title: directory?.title || "Preview Directory",
     slug: directory?.slug || "preview",
-    description: directory?.description || null,
     featured_image: directory?.featured_image || null,
     blocks: createPreviewEntityBlocks(previewBlocks),
   }

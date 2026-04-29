@@ -13,7 +13,6 @@ const config = {
     display_order: 'displayOrder',
     content_blocks: 'contentBlocks',
     featured_image: 'featuredImage',
-    description: 'description',
   },
   transformUpdateValues: (updates: Record<string, unknown>, _entity: any, updateValues: Record<string, unknown>) => {
     if (updates.is_published === true) {

@@ -141,7 +141,7 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
 
     return {
       title: `${directory.title} | ${site.name}`,
-      description: directory.metaDescription || directory.description || `${directory.title} on ${site.name}`,
+      description: directory.metaDescription || `${directory.title} on ${site.name}`,
       ...buildSeoMetadata(site, directory as any, 'directory', `/directories/${slug}`),
     }
   } catch (error) {

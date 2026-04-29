@@ -44,8 +44,7 @@ async function seedSite(pool: Pool, siteId: string) {
           is_published,
           is_private,
           display_order,
-          content_blocks,
-          description
+          content_blocks
         )
         select
           $1::uuid,
@@ -55,8 +54,7 @@ async function seedSite(pool: Pool, siteId: string) {
           true,
           false,
           series,
-          jsonb_build_object('_settings', jsonb_build_object('is_private', false)),
-          'Seeded description ' || series
+          jsonb_build_object('_settings', jsonb_build_object('is_private', false))
         from generate_series($2::int, $3::int) as series
       `,
       [siteId, startIndex, endIndex]

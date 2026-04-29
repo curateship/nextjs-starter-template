@@ -22,7 +22,6 @@ export interface Directory {
   display_order: number
   content_blocks: Record<string, any>
   featured_image: string | null
-  description: string | null
   meta_description: string | null
   created_at: string
   updated_at: string
@@ -46,7 +45,6 @@ export interface UpdateDirectoryData {
   slug?: string
   status?: DirectoryStatus
   featured_image?: string | null
-  description?: string | null
   meta_description?: string | null
 }
 
@@ -60,7 +58,6 @@ function toDirectory(row: typeof directories.$inferSelect): Directory {
     display_order: row.displayOrder,
     content_blocks: (row.contentBlocks ?? {}) as Record<string, any>,
     featured_image: row.featuredImage,
-    description: row.description,
     meta_description: row.metaDescription,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -293,11 +290,11 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     }
 
     // Build updates with explicit field whitelist
-    const allowedFields = ['title', 'slug', 'status', 'featured_image', 'description', 'meta_description'] as const
+    const allowedFields = ['title', 'slug', 'status', 'featured_image', 'meta_description'] as const
     const finalUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((data as any)[field] !== undefined) {
-        if (field === 'title' || field === 'description' || field === 'meta_description' || field === 'featured_image') {
+        if (field === 'title' || field === 'meta_description' || field === 'featured_image') {
           finalUpdates[field] = typeof (data as any)[field] === 'string'
             ? (data as any)[field].trim() || null
             : (data as any)[field]
@@ -313,7 +310,6 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     if (finalUpdates.slug !== undefined) drizzleUpdates.slug = finalUpdates.slug
     if (finalUpdates.status !== undefined) drizzleUpdates.status = finalUpdates.status
     if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
-    if (finalUpdates.description !== undefined) drizzleUpdates.description = finalUpdates.description
     if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
 
     // Update the directory
@@ -522,7 +518,6 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
         slug,
         status: 'draft',
         featuredImage: originalDirectory.featuredImage,
-        description: originalDirectory.description,
         metaDescription: originalDirectory.metaDescription,
         contentBlocks: originalDirectory.contentBlocks || {},
         displayOrder: nextDisplayOrder,

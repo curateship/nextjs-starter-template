@@ -306,7 +306,6 @@ export default function DirectoriesPage() {
       slug: updatedDirectory.slug,
       status: updatedDirectory.status,
       featured_image: updatedDirectory.featured_image,
-      description: updatedDirectory.description,
       meta_description: updatedDirectory.meta_description,
       updated_at: updatedDirectory.updated_at,
     } : directory))

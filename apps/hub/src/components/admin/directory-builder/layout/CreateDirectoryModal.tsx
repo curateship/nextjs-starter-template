@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -36,10 +35,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
-    description: '',
     meta_description: '',
   })
-  const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -140,7 +137,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
         site_id: currentSite.id,
-        description: formData.description.trim() || richTextContent.trim() || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
         status: 'draft',
@@ -318,24 +314,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           </p>
         </div>
       )}
-
-      {/* Rich Text Content */}
-      <div>
-        <Label htmlFor="rich_text">Directory Description</Label>
-        <RichTextEditor
-          content={{
-            content: richTextContent,
-            hideHeader: true,
-            hideEditorHeader: true
-          }}
-          onContentChange={(content) => setRichTextContent(content.content)}
-          compact={true}
-          inline={true}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Rich text content for the directory description.
-        </p>
-      </div>
 
       {/* Meta Description */}
       <div>

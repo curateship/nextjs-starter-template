@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -38,10 +37,8 @@ export function DirectorySettingsModal({
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
-    description: '',
     meta_description: ''
   })
-  const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,11 +87,9 @@ export function DirectorySettingsModal({
     setFormData({
       title: directory.title || '',
       slug: directory.slug || '',
-      description: directory.description || '',
       meta_description: directory.meta_description || ''
     })
     setFeaturedImage(directory.featured_image || '')
-    setRichTextContent(directory.description || '')
     setSlugManuallyEdited(false)
 
     setSelectedCategoryIds([])
@@ -128,7 +123,6 @@ export function DirectorySettingsModal({
       const draftData = { 
         ...formData, 
         status: 'draft' as const,
-        description: richTextContent.trim() || null,
         featured_image: featuredImage || null
       }
 
@@ -177,7 +171,6 @@ export function DirectorySettingsModal({
       const publishData = { 
         ...formData, 
         status: 'published' as const,
-        description: richTextContent.trim() || null,
         featured_image: featuredImage || null
       }
 
@@ -341,26 +334,6 @@ export function DirectorySettingsModal({
               </p>
             </div>
           )}
-
-          {/* Rich Text Content */}
-          <div>
-            <Label htmlFor="rich_text">Directory Description</Label>
-            <RichTextEditor
-              content={{
-                content: richTextContent,
-                hideHeader: true,
-                hideEditorHeader: true
-              }}
-              onContentChange={(content) => {
-                setRichTextContent(content.content)
-              }}
-              compact={true}
-              inline={true}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Rich text content for the directory description.
-            </p>
-          </div>
 
           {/* Meta Description */}
           <div>

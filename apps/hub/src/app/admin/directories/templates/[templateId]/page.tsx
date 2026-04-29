@@ -433,7 +433,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
                 id: 'preview',
                 site_id: template?.site_id || currentSite?.id || 'preview-site',
                 featured_image: null,
-                description: null,
                 status: 'draft',
               } as any}
               site={previewSite}

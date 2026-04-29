@@ -12,7 +12,6 @@ export const POST = createResourceHandler({
     status: data.status === 'published' || data.is_published === true ? 'published' : 'draft',
     displayOrder: nextOrder,
     featuredImage: data.featured_image || null,
-    description: data.description || null,
     metaDescription: data.meta_description || null,
     contentBlocks,
   }),

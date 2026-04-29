@@ -92,7 +92,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const selectedBlock = builderState.selectedBlock
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftDirectoryTitle, setDraftDirectoryTitle] = useState("")
-  const [draftDirectoryDescription, setDraftDirectoryDescription] = useState("")
   const [draftDirectoryFeaturedImage, setDraftDirectoryFeaturedImage] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
@@ -108,7 +107,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     if (!selectedBlock) {
       setDraftContent({})
       setDraftDirectoryTitle("")
-      setDraftDirectoryDescription("")
       setBlockSaveError(null)
       return
     }
@@ -119,10 +117,9 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         : {}
     )
     setDraftDirectoryTitle(currentDirectoryData?.title || selectedDirectory)
-    setDraftDirectoryDescription(currentDirectoryData?.description || "")
     setDraftDirectoryFeaturedImage(currentDirectoryData?.featured_image || "")
     setBlockSaveError(null)
-  }, [selectedBlock, currentDirectoryData?.description, currentDirectoryData?.featured_image, currentDirectoryData?.title, selectedDirectory])
+  }, [selectedBlock, currentDirectoryData?.featured_image, currentDirectoryData?.title, selectedDirectory])
 
   const customBlockDefinitions = customBlockTemplates.map(template => ({
     type: getDirectoryCustomBlockSelectionType(template.id),
@@ -156,7 +153,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }
 
   // Handle directory information updates
-  const updateCurrentDirectory = async (updates: { title?: string; description?: string; featured_image?: string; status?: 'draft' | 'published' }) => {
+  const updateCurrentDirectory = async (updates: { title?: string; featured_image?: string; status?: 'draft' | 'published' }) => {
     if (!currentDirectoryData?.id) return
 
     try {
@@ -218,18 +215,12 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       let updatedDirectory: Directory | null = null
       if (selectedBlock.type === DIRECTORY_CORE_BLOCK_TYPE) {
         const nextTitle = draftDirectoryTitle.trim() || currentDirectoryData.title
-        const nextDescription = draftDirectoryDescription.trim() || null
         const nextFeaturedImage = draftDirectoryFeaturedImage.trim() || null
-        const currentDescription = currentDirectoryData.description || null
         const currentFeaturedImage = currentDirectoryData.featured_image || null
-        const directoryUpdates: { title?: string; description?: string | null; featured_image?: string | null } = {}
+        const directoryUpdates: { title?: string; featured_image?: string | null } = {}
 
         if (nextTitle !== currentDirectoryData.title) {
           directoryUpdates.title = nextTitle
-        }
-
-        if (nextDescription !== currentDescription) {
-          directoryUpdates.description = nextDescription
         }
 
         if (nextFeaturedImage !== currentFeaturedImage) {
@@ -308,10 +299,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     ? draftDirectoryTitle.trim() || currentDirectoryData?.title || currentDirectory.name
     : currentDirectoryData?.title || currentDirectory.name
 
-  const previewDirectoryDescription = selectedBlockIsCore
-    ? draftDirectoryDescription.trim() || null
-    : currentDirectoryData?.description || null
-
   const previewDirectoryFeaturedImage = selectedBlockIsCore
     ? draftDirectoryFeaturedImage.trim() || null
     : currentDirectoryData?.featured_image || null
@@ -362,7 +349,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
                 meta_description: currentDirectoryData.meta_description || undefined,
                 site_id: currentDirectoryData.site_id,
                 featured_image: previewDirectoryFeaturedImage,
-                description: previewDirectoryDescription,
                 status: currentDirectoryData.status || 'draft',
                 updated_at: currentDirectoryData.updated_at,
               } : undefined}
@@ -399,10 +385,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           content={draftContent}
           siteId={siteId}
           directoryTitle={draftDirectoryTitle}
-          directoryDescription={draftDirectoryDescription}
           directoryFeaturedImage={draftDirectoryFeaturedImage}
           onDirectoryTitleChange={setDraftDirectoryTitle}
-          onDirectoryDescriptionChange={setDraftDirectoryDescription}
           onDirectoryFeaturedImageChange={handleDraftFeaturedImageChange}
           onContentChange={handleDraftChange}
           customBlockTemplates={customBlockTemplates}
