@@ -10,6 +10,7 @@ import { BlockTabs } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
+import { createPortal } from "react-dom"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
@@ -32,6 +33,23 @@ interface ProductHotspotBlockProps {
   siteId: string
   blockId: string
   onBack?: () => void
+}
+
+const HOTSPOT_EDITOR_WIDTH = 320
+const HOTSPOT_EDITOR_HEIGHT = 152
+const HOTSPOT_EDITOR_MARGIN = 16
+const HOTSPOT_EDITOR_OFFSET = 12
+const HOTSPOT_EDITOR_X_ADJUST = -4
+
+type HotspotEditorPosition = {
+  left: number
+  top: number
+  arrowLeft: number
+  showAbove: boolean
+}
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.min(Math.max(value, min), max)
 }
 
 export function ProductHotspotBlock({
@@ -57,9 +75,41 @@ export function ProductHotspotBlock({
   const [editingHotspot, setEditingHotspot] = useState<string | null>(null)
   const [hotspotForm, setHotspotForm] = useState({ text: "" })
   const [isAddingHotspot, setIsAddingHotspot] = useState(false)
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0, showAbove: false })
+  const [tooltipPosition, setTooltipPosition] = useState<HotspotEditorPosition>({
+    left: HOTSPOT_EDITOR_MARGIN,
+    top: HOTSPOT_EDITOR_MARGIN,
+    arrowLeft: HOTSPOT_EDITOR_WIDTH / 2,
+    showAbove: false,
+  })
   const imageRef = useRef<HTMLImageElement>(null)
 
+  const getEditorPosition = (screenX: number, screenY: number): HotspotEditorPosition => {
+    const modal = imageRef.current?.closest("[data-slot='dialog-content']") as HTMLElement | null
+    const modalRect = modal?.getBoundingClientRect()
+    const modalStyle = modal ? window.getComputedStyle(modal) : null
+    const borderLeft = Number.parseFloat(modalStyle?.borderLeftWidth ?? "0") || 0
+    const borderTop = Number.parseFloat(modalStyle?.borderTopWidth ?? "0") || 0
+    const borderRight = Number.parseFloat(modalStyle?.borderRightWidth ?? "0") || 0
+    const borderBottom = Number.parseFloat(modalStyle?.borderBottomWidth ?? "0") || 0
+    const width = modalRect ? modalRect.width - borderLeft - borderRight : window.innerWidth
+    const height = modalRect ? modalRect.height - borderTop - borderBottom : window.innerHeight
+    const localX = screenX - (modalRect?.left ?? 0) - borderLeft
+    const localY = screenY - (modalRect?.top ?? 0) - borderTop
+    const maxLeft = Math.max(HOTSPOT_EDITOR_MARGIN, width - HOTSPOT_EDITOR_MARGIN - HOTSPOT_EDITOR_WIDTH)
+    const left = clamp(localX - HOTSPOT_EDITOR_WIDTH / 2 + HOTSPOT_EDITOR_X_ADJUST, HOTSPOT_EDITOR_MARGIN, maxLeft)
+    const showAbove = localY > height / 2 && localY > HOTSPOT_EDITOR_HEIGHT + HOTSPOT_EDITOR_MARGIN
+    const desiredTop = showAbove
+      ? localY - HOTSPOT_EDITOR_HEIGHT - HOTSPOT_EDITOR_OFFSET
+      : localY + HOTSPOT_EDITOR_OFFSET
+    const maxTop = Math.max(HOTSPOT_EDITOR_MARGIN, height - HOTSPOT_EDITOR_MARGIN - HOTSPOT_EDITOR_HEIGHT)
+
+    return {
+      left,
+      top: clamp(desiredTop, HOTSPOT_EDITOR_MARGIN, maxTop),
+      arrowLeft: clamp(localX - left, HOTSPOT_EDITOR_MARGIN, HOTSPOT_EDITOR_WIDTH - HOTSPOT_EDITOR_MARGIN),
+      showAbove,
+    }
+  }
 
   // Handle background image changes
   const handleBackgroundImageChange = async (newImageUrl: string) => {
@@ -77,12 +127,12 @@ export function ProductHotspotBlock({
       id: `hotspot-${Date.now()}-${Math.random()}`,
       x: Math.round(x * 100) / 100,
       y: Math.round(y * 100) / 100,
-      text: "Click to edit this hotspot"
+      text: ""
     }
 
     onProductHotspotsChange([...productHotspots, newHotspot])
     setEditingHotspot(newHotspot.id)
-    setHotspotForm({ text: "Click to edit this hotspot" })
+    setHotspotForm({ text: "" })
     setIsAddingHotspot(false)
     
     // Calculate tooltip position for the new hotspot
@@ -90,11 +140,7 @@ export function ProductHotspotBlock({
     const hotspotScreenX = imageRect.left + (newHotspot.x / 100) * imageRect.width
     const hotspotScreenY = imageRect.top + (newHotspot.y / 100) * imageRect.height
     
-    setTooltipPosition({
-      x: hotspotScreenX,
-      y: hotspotScreenY,
-      showAbove: hotspotScreenY > window.innerHeight / 2
-    })
+    setTooltipPosition(getEditorPosition(hotspotScreenX, hotspotScreenY))
   }
 
   const handleEditHotspot = (hotspotId: string, event?: React.MouseEvent) => {
@@ -110,14 +156,7 @@ export function ProductHotspotBlock({
         const centerX = buttonRect.left + buttonRect.width / 2
         const centerY = buttonRect.top + buttonRect.height / 2
         
-        // Determine if tooltip should show above or below
-        const showAbove = centerY > window.innerHeight / 2
-        
-        setTooltipPosition({
-          x: centerX,
-          y: centerY,
-          showAbove
-        })
+        setTooltipPosition(getEditorPosition(centerX, centerY))
       }
     }
   }
@@ -324,14 +363,13 @@ export function ProductHotspotBlock({
         currentMediaUrl={backgroundImage}
       />
 
-      {/* Fixed position tooltip for editing hotspots */}
-      {editingHotspot && (
+      {/* Hotspot editor is portaled to the modal shell to avoid scroll-area clipping. */}
+      {editingHotspot && imageRef.current?.closest("[data-slot='dialog-content']") && createPortal(
         <div 
-          className="fixed rounded-lg border border-gray-200 bg-white p-3 shadow-2xl min-w-64 max-w-80 z-9999"
+          className="absolute z-[60] w-80 max-w-[calc(100%-2rem)] rounded-lg border border-gray-200 bg-white p-3 shadow-2xl"
           style={{
-            left: `${tooltipPosition.x}px`,
-            top: tooltipPosition.showAbove ? `${tooltipPosition.y - 120}px` : `${tooltipPosition.y + 20}px`,
-            transform: 'translateX(-50%)'
+            left: `${tooltipPosition.left}px`,
+            top: `${tooltipPosition.top}px`,
           }}
         >
           <div className="space-y-2">
@@ -375,13 +413,15 @@ export function ProductHotspotBlock({
           </div>
           {/* Tooltip arrow */}
           <div 
-            className={`absolute left-1/2 transform -translate-x-1/2 ${
+            style={{ left: `${tooltipPosition.arrowLeft}px` }}
+            className={`absolute transform -translate-x-1/2 ${
               tooltipPosition.showAbove 
                 ? 'bottom-[-8px] w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white' 
                 : 'top-[-8px] w-0 h-0 border-l-8 border-r-8 border-b-8 border-l-transparent border-r-transparent border-b-white'
             }`} 
           />
-        </div>
+        </div>,
+        imageRef.current.closest("[data-slot='dialog-content']")!
       )}
     </>
   )
