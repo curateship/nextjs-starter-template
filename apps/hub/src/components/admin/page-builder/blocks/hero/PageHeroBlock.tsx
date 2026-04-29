@@ -266,26 +266,6 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="emailFormId">Form ID</Label>
-                      <Input
-                        id="emailFormId"
-                        value={content.emailForm?.formId || ''}
-                        onChange={(e) => onContentChange('emailForm', { ...content.emailForm, formId: e.target.value })}
-                        placeholder="e.g. abc123"
-                      />
-                      <p className="text-xs text-muted-foreground">Optional identifier for your form provider</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="emailFormApi">API Endpoint</Label>
-                      <Input
-                        id="emailFormApi"
-                        value={content.emailForm?.apiEndpoint || ''}
-                        onChange={(e) => onContentChange('emailForm', { ...content.emailForm, apiEndpoint: e.target.value })}
-                        placeholder="https://api.example.com/subscribe"
-                      />
-                      <p className="text-xs text-muted-foreground">The URL where form submissions will be sent via POST</p>
-                    </div>
-                    <div className="space-y-2">
                       <Label htmlFor="emailFormSuccess">Success Message</Label>
                       <Input
                         id="emailFormSuccess"

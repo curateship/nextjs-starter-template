@@ -20,8 +20,6 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       secondaryButtonStyle: 'outline',
       emailForm: {
         enabled: false,
-        formId: '',
-        apiEndpoint: '',
         placeholder: 'Enter your email address',
         buttonText: 'Subscribe',
         successMessage: 'Thanks for subscribing!',

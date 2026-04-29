@@ -18,8 +18,6 @@ const LEGACY_STYLE_FIELDS = [
 
 interface EmailFormConfig {
   enabled?: boolean;
-  formId?: string;
-  apiEndpoint?: string;
   placeholder?: string;
   buttonText?: string;
   successMessage?: string;
@@ -149,41 +147,25 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
 // Email subscription form component
 const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig; alignment?: string }) => {
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [message, setMessage] = useState('');
+  const [submitted, setSubmitted] = useState(false);
 
   const placeholder = config.placeholder || 'Enter your email address';
   const buttonText = config.buttonText || 'Subscribe';
   const successMessage = config.successMessage || 'Thanks for subscribing!';
   const layout = config.layout || 'inline';
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
 
-    setStatus('loading');
-    try {
-      if (config.apiEndpoint) {
-        const res = await fetch(config.apiEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, formId: config.formId }),
-        });
-        if (!res.ok) throw new Error('Subscription failed');
-      }
-      setStatus('success');
-      setMessage(successMessage);
-      setEmail('');
-    } catch {
-      setStatus('error');
-      setMessage('Something went wrong. Please try again.');
-    }
+    setSubmitted(true);
+    setEmail('');
   };
 
-  if (status === 'success') {
+  if (submitted) {
     return (
       <div className={`mt-6 ${alignment === 'left' ? 'text-left' : alignment === 'right' ? 'text-right' : 'text-center'}`}>
-        <p className="text-sm text-green-600 dark:text-green-400 font-medium">{message}</p>
+        <p className="text-sm text-green-600 dark:text-green-400 font-medium">{successMessage}</p>
       </div>
     );
   }
@@ -202,13 +184,8 @@ const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig;
           required
           className="flex-1 h-11 text-base px-4"
         />
-        <Button type="submit" disabled={status === 'loading'} className="h-11 text-base px-6">
-          {status === 'loading' ? 'Sending...' : buttonText}
-        </Button>
+        <Button type="submit" className="h-11 text-base px-6">{buttonText}</Button>
       </div>
-      {status === 'error' && (
-        <p className="text-sm text-red-600 dark:text-red-400 mt-2">{message}</p>
-      )}
     </form>
   );
 };
