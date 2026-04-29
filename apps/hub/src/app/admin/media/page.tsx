@@ -21,6 +21,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -43,6 +53,7 @@ export default function ImagesPage() {
   // Tracks if user selected all items across all pages
   const [allSelected, setAllSelected] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [sortColumn, setSortColumn] = useState<'name' | 'type' | 'size' | 'added' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [typeCounts, setTypeCounts] = useState<{ all: number; image: number; video: number }>({ all: 0, image: 0, video: 0 })
@@ -260,19 +271,18 @@ export default function ImagesPage() {
   }
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return
-
-    const count = selectedIds.size
-    if (!confirm(`Are you sure you want to delete ${count} ${count === 1 ? 'item' : 'items'}? This action cannot be undone.`)) {
+    if (selectedIds.size === 0) {
+      setMassDeleteConfirmOpen(false)
       return
     }
 
+    const idsToDelete = Array.from(selectedIds)
     setIsDeleting(true)
     let successCount = 0
     let failCount = 0
 
     try {
-      for (const id of Array.from(selectedIds)) {
+      for (const id of idsToDelete) {
         try {
           const { success } = await deleteImageAction(id)
           if (success) {
@@ -294,6 +304,7 @@ export default function ImagesPage() {
 
       setSelectedIds(new Set())
       setAllSelected(false)
+      setMassDeleteConfirmOpen(false)
       loadImages()
       loadTypeCounts()
 
@@ -391,7 +402,7 @@ export default function ImagesPage() {
                 {selectedIds.size > 0 && (
                   <Button
                     variant="destructive"
-                    onClick={handleBulkDelete}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
                     disabled={isDeleting}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -715,6 +726,32 @@ export default function ImagesPage() {
             </div>
           )}
         </Card>
+
+        <AlertDialog open={massDeleteConfirmOpen} onOpenChange={setMassDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the selected media from the image library. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-white hover:bg-destructive/90"
+                disabled={isDeleting}
+                onClick={(event) => {
+                  event.preventDefault()
+                  handleBulkDelete()
+                }}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Edit Image Dialog */}
         <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>
