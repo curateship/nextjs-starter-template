@@ -64,6 +64,7 @@ export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false 
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <PageHeroBlock
                 {...block.content}
+                siteId={site.id}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />

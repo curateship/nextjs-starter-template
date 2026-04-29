@@ -20,7 +20,8 @@ interface EmailFormConfig {
   enabled?: boolean;
   placeholder?: string;
   buttonText?: string;
-  successMessage?: string;
+  redirectUrl?: string;
+  identifier?: string;
   layout?: 'inline' | 'stacked';
 }
 
@@ -36,6 +37,7 @@ interface PageHeroBlockProps {
   secondaryButtonStyle?: string;
   heroStyle?: string;
   styleConfig?: Record<string, Record<string, any>>;
+  siteId?: string;
   siteWidth?: string;
   customWidth?: number;
   emailForm?: EmailFormConfig;
@@ -145,30 +147,56 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
 };
 
 // Email subscription form component
-const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig; alignment?: string }) => {
+const EmailSubscriptionForm = ({ config, alignment, siteId }: { config: EmailFormConfig; alignment?: string; siteId?: string }) => {
   const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const placeholder = config.placeholder || 'Enter your email address';
   const buttonText = config.buttonText || 'Subscribe';
-  const successMessage = config.successMessage || 'Thanks for subscribing!';
   const layout = config.layout || 'inline';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const getRedirectUrl = () => {
+    const redirectUrl = config.redirectUrl?.trim();
+    if (!redirectUrl) return '';
+    if (redirectUrl.startsWith('/')) return redirectUrl;
+
+    try {
+      const url = new URL(redirectUrl);
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : '';
+    } catch {
+      return '';
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
 
-    setSubmitted(true);
-    setEmail('');
-  };
+    setStatus('loading');
+    setErrorMessage('');
 
-  if (submitted) {
-    return (
-      <div className={`mt-6 ${alignment === 'left' ? 'text-left' : alignment === 'right' ? 'text-right' : 'text-center'}`}>
-        <p className="text-sm text-green-600 dark:text-green-400 font-medium">{successMessage}</p>
-      </div>
-    );
-  }
+    try {
+      const res = await fetch('/api/newsletters/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, siteId, identifier: config.identifier }),
+      });
+
+      if (!res.ok) throw new Error('Subscription failed');
+
+      setEmail('');
+      const redirectUrl = getRedirectUrl();
+      if (redirectUrl) {
+        window.location.assign(redirectUrl);
+        return;
+      }
+      setStatus('idle');
+    } catch {
+      setStatus('error');
+      setErrorMessage('Something went wrong. Please try again.');
+    }
+  };
 
   return (
     <form
@@ -184,8 +212,13 @@ const EmailSubscriptionForm = ({ config, alignment }: { config: EmailFormConfig;
           required
           className="flex-1 h-11 text-base px-4"
         />
-        <Button type="submit" className="h-11 text-base px-6">{buttonText}</Button>
+        <Button type="submit" disabled={status === 'loading'} className="h-11 text-base px-6">
+          {status === 'loading' ? 'Submitting...' : buttonText}
+        </Button>
       </div>
+      {status === 'error' && (
+        <p className="text-sm text-red-600 dark:text-red-400 mt-2">{errorMessage}</p>
+      )}
     </form>
   );
 };
@@ -202,6 +235,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     secondaryButtonStyle,
     heroStyle = 'default',
     styleConfig,
+    siteId,
     siteWidth,
     customWidth,
     emailForm,
@@ -256,7 +290,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
           />
         )}
         {visibility?.emailForm !== false && emailForm?.enabled && (
-          <EmailSubscriptionForm config={emailForm} alignment={alignment} />
+          <EmailSubscriptionForm config={emailForm} alignment={alignment} siteId={siteId} />
         )}
       </StyleRenderer>
     </section>

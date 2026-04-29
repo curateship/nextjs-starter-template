@@ -6,6 +6,8 @@ import { newsletterContacts } from '@/lib/db/schema'
 
 export const SITE_REGISTRATION_CONTACT_SOURCE = 'site_registration'
 export const SITE_REGISTRATION_CONTACT_TAG = 'Site Registration'
+export const EMAIL_FORM_CONTACT_SOURCE = 'Email Form'
+export const EMAIL_FORM_CONTACT_TAG = 'Email Form'
 
 type UpsertSystemNewsletterContactInput = {
   siteId: string

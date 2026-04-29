@@ -266,13 +266,25 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="emailFormSuccess">Success Message</Label>
+                      <Label htmlFor="emailFormRedirectUrl">Redirect URL</Label>
                       <Input
-                        id="emailFormSuccess"
-                        value={content.emailForm?.successMessage || ''}
-                        onChange={(e) => onContentChange('emailForm', { ...content.emailForm, successMessage: e.target.value })}
-                        placeholder="Thanks for subscribing!"
+                        id="emailFormRedirectUrl"
+                        value={content.emailForm?.redirectUrl || ''}
+                        onChange={(e) => onContentChange('emailForm', { ...content.emailForm, redirectUrl: e.target.value })}
+                        placeholder="/thank-you"
                       />
+                      <p className="text-xs text-muted-foreground">Optional URL to send visitors to after subscribing</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emailFormIdentifier">Identifier</Label>
+                      <Input
+                        id="emailFormIdentifier"
+                        value={content.emailForm?.identifier || ''}
+                        onChange={(e) => onContentChange('emailForm', { ...content.emailForm, identifier: e.target.value })}
+                        placeholder="Homepage Hero"
+                        maxLength={100}
+                      />
+                      <p className="text-xs text-muted-foreground">Added as a contact tag with Email Form</p>
                     </div>
                   </>
                 )}
