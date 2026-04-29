@@ -10,6 +10,7 @@ import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { cn } from "@/lib/utils/tailwind"
 import { preparePostTableOfContents } from "./table-of-content/table-of-contents-utils"
+import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 
 const SUPPORTED_POST_BLOCK_TYPES = ['core', 'related-posts', 'table-of-contents']
 
@@ -43,6 +44,7 @@ interface PostBlockRendererProps {
   }
   preloadedRelatedPosts?: RelatedPostsData | null
   breadcrumbs?: FrontendBreadcrumbItem[]
+  sponsorsById?: Record<string, SponsorPublic>
   isPreview?: boolean
   hideSiteChrome?: boolean
   renderCoreBody?: (block: PostRendererBlock, bodyHtml: string) => ReactNode
@@ -54,6 +56,7 @@ export function PostBlockRenderer({
   post,
   preloadedRelatedPosts,
   breadcrumbs = [],
+  sponsorsById = {},
   isPreview = false,
   hideSiteChrome = false,
   renderCoreBody,
@@ -102,6 +105,8 @@ export function PostBlockRenderer({
       tableOfContentsItems={tableOfContents.items}
       coreHtmlByBlockId={tableOfContents.bodyHtmlByBlockId}
       hasFixedNavigation={hasFixedNavigation}
+      sponsorsById={sponsorsById}
+      postId={post.id}
       siteWidth={siteWidth}
       customWidth={customWidth}
       container={container}

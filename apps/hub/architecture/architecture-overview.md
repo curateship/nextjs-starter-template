@@ -83,7 +83,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 1. Request comes in → `getSiteFromHeaders()` resolves site by Host header
 2. Shared site chrome lives in top-level `site.settings.navigation`, `site.settings.footer`, and `site.settings.breadcrumbs`
 3. Page/content rows store only their own content blocks as JSON
-4. Each content type (products, posts, pages, categories, directories, events) belongs to a site via `site_id`
+4. Each content type (products, posts, pages, categories, directories, events, sponsors) belongs to a site via `site_id`
 5. Site-facing users are global Better Auth users linked to sites through `site_memberships`; site role/status/activity live on that join table, not on the global user row
 
 **Frontend slug resolution:**

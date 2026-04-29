@@ -3,6 +3,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Image from "next/image"
 import type { CoreStyleRendererProps } from "./index"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
+import { splitSponsorEmbeds } from "@/lib/utils/sponsor-embeds"
+import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
+import { SponsorCard } from "@/components/shared/SponsorCard"
 
 function getInitials(name: string) {
   return name
@@ -14,7 +17,42 @@ function getInitials(name: string) {
     .toUpperCase()
 }
 
-export function DefaultCoreRenderer({ config, sharedContent, children }: CoreStyleRendererProps) {
+function SponsorRichTextContent({
+  body,
+  sponsorsById,
+  postId,
+}: {
+  body: string
+  sponsorsById?: Record<string, SponsorPublic>
+  postId?: string
+}) {
+  const parts = splitSponsorEmbeds(body)
+
+  if (!parts.some((part) => part.type === 'sponsor')) {
+    return <div className="text-lg text-black dark:text-white" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
+  }
+
+  return (
+    <div className="text-lg text-black dark:text-white">
+      {parts.map((part, index) => {
+        if (part.type === 'html') {
+          return (
+            <div
+              key={`html-${index}`}
+              className="contents"
+              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(part.html) }}
+            />
+          )
+        }
+
+        const sponsor = sponsorsById?.[part.sponsorId]
+        return sponsor ? <SponsorCard key={`sponsor-${part.sponsorId}-${index}`} sponsor={sponsor} postId={postId} /> : null
+      })}
+    </div>
+  )
+}
+
+export function DefaultCoreRenderer({ config, sharedContent, sponsorsById, postId, children }: CoreStyleRendererProps) {
   const alignment = config.alignment || 'center'
   const contentMaxWidth = config.contentMaxWidth as number | undefined
   const titleSize = config.titleSize || 'large'
@@ -95,7 +133,7 @@ export function DefaultCoreRenderer({ config, sharedContent, children }: CoreSty
           className="prose dark:prose-invert max-w-none w-full mt-6 [&_h2]:scroll-mt-24"
         >
           {children || (
-            <div className="text-lg text-black dark:text-white" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(body) }} />
+            <SponsorRichTextContent body={body || ''} sponsorsById={sponsorsById} postId={postId} />
           )}
         </div>
       )}

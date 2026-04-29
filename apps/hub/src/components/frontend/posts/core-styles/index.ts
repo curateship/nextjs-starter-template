@@ -1,5 +1,6 @@
 import { ComponentType, ReactNode } from "react"
 import { DefaultCoreRenderer } from "./DefaultCoreRenderer"
+import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 
 export interface CoreStyleRendererProps {
   config: Record<string, any>
@@ -18,6 +19,8 @@ export interface CoreStyleRendererProps {
     showDate?: boolean
     body?: string
   }
+  sponsorsById?: Record<string, SponsorPublic>
+  postId?: string
   children?: ReactNode
 }
 

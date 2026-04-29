@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { analyticsEvents, analyticsSessions, sites } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { analyticsEvents, analyticsSessions, sites, sponsors } from '@/lib/db/schema'
+import { eq, and, inArray } from 'drizzle-orm'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
@@ -18,6 +18,8 @@ const MAX_EVENTS_PER_REQUEST = 20
 const MAX_EVENT_DATA_BYTES = 4096
 const TRACK_WINDOW_MS = 60_000
 const TRACK_MAX_REQUESTS = 120
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SPONSOR_EVENT_TYPES = new Set(['sponsor_impression', 'sponsor_click'])
 
 function parseDeviceType(ua: string): string {
   if (/Mobile|Android.*Mobile|iPhone|iPod/.test(ua)) return 'mobile'
@@ -62,6 +64,13 @@ async function hashVisitor(ip: string, ua: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+function getSponsorEventId(event: TrackEvent | null | undefined): string | null {
+  if (!event || typeof event !== 'object') return null
+
+  const sponsorId = event.event_data?.sponsor_id
+  return typeof sponsorId === 'string' && UUID_REGEX.test(sponsorId) ? sponsorId : null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const host = request.headers.get('host') || ''
@@ -88,20 +97,43 @@ export async function POST(request: NextRequest) {
       return new NextResponse(null, { status: 204 })
     }
 
+    const sponsorEventIds = Array.from(
+      new Set(events.map(getSponsorEventId).filter((id): id is string => Boolean(id)))
+    )
+    let validSponsorIds = new Set<string>()
+
+    if (sponsorEventIds.length > 0) {
+      const validSponsors = await db
+        .select({ id: sponsors.id })
+        .from(sponsors)
+        .where(and(
+          eq(sponsors.siteId, site.id),
+          eq(sponsors.isActive, true),
+          inArray(sponsors.id, sponsorEventIds)
+        ))
+
+      validSponsorIds = new Set(validSponsors.map((sponsor) => sponsor.id))
+    }
+
     const visitorHash = await hashVisitor(ip, ua)
     const deviceType = parseDeviceType(ua)
     const browser = parseBrowser(ua)
 
     // Build event rows
     const rows = events
-      .filter(event => (
-        event &&
-        typeof event.type === 'string' &&
-        event.type.length <= 50 &&
-        typeof event.session_id === 'string' &&
-        event.session_id.length <= 128 &&
-        JSON.stringify(event.event_data || {}).length <= MAX_EVENT_DATA_BYTES
-      ))
+      .filter(event => {
+        const sponsorId = getSponsorEventId(event)
+
+        return (
+          event &&
+          typeof event.type === 'string' &&
+          event.type.length <= 50 &&
+          typeof event.session_id === 'string' &&
+          event.session_id.length <= 128 &&
+          (!SPONSOR_EVENT_TYPES.has(event.type) || Boolean(sponsorId && validSponsorIds.has(sponsorId))) &&
+          JSON.stringify(event.event_data || {}).length <= MAX_EVENT_DATA_BYTES
+        )
+      })
       .map(event => {
       const utmParams = event.page_path ? extractUtmParams(event.page_path) : {}
       const referrerDomain = event.referrer ? extractDomain(event.referrer) : null
@@ -134,8 +166,8 @@ export async function POST(request: NextRequest) {
     await db.insert(analyticsEvents).values(rows)
 
     // Upsert session
-    const sessionId = events[0].session_id
-    const pageviewEvents = events.filter(e => e.type === 'pageview')
+    const sessionId = rows[0].sessionId
+    const pageviewEvents = rows.filter(e => e.eventType === 'pageview')
 
     if (pageviewEvents.length > 0) {
       const firstEvent = rows[0]

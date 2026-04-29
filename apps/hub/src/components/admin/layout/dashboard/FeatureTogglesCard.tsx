@@ -28,9 +28,10 @@ const FEATURES: Record<string, { label: string; description: string }> = {
   directory: { label: 'Directory', description: 'Directory listings' },
   newsletters: { label: 'Newsletters', description: 'Email newsletters and contacts' },
   events: { label: 'Events', description: 'Event management' },
+  sponsors: { label: 'Sponsors', description: 'Sponsor library and embeds' },
 }
 
-const DEFAULT_ORDER = ['posts', 'products', 'directory', 'newsletters', 'events']
+const DEFAULT_ORDER = ['posts', 'products', 'directory', 'newsletters', 'events', 'sponsors']
 
 function SortableFeatureItem({
   featureKey,

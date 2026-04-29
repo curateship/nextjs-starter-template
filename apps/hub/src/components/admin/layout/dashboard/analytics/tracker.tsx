@@ -28,6 +28,7 @@ export function AnalyticsTracker() {
   const flushTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const sessionId = useRef<string>('')
   const lastPath = useRef<string>('')
+  const trackedSponsorImpressions = useRef<Set<string>>(new Set())
 
   const flush = useCallback(() => {
     if (queue.current.length === 0) return
@@ -83,6 +84,16 @@ export function AnalyticsTracker() {
       const el = anchor || button
       if (!el) return
 
+      const sponsorElement = target.closest('[data-sponsor-id][data-sponsor-track="true"]') as HTMLElement | null
+      if (sponsorElement) {
+        track('sponsor_click', undefined, {
+          sponsor_id: sponsorElement.dataset.sponsorId,
+          placement: sponsorElement.dataset.sponsorPlacement || 'post_editor',
+          post_id: sponsorElement.dataset.sponsorPostId,
+          url: sponsorElement.dataset.sponsorUrl || anchor?.href,
+        })
+      }
+
       track('click', undefined, {
         element_type: anchor ? 'link' : 'button',
         text: el.textContent?.slice(0, 100) || '',
@@ -106,6 +117,49 @@ export function AnalyticsTracker() {
     if (pathname.startsWith('/admin')) return
     lastPath.current = pathname
     track('pageview', pathname + window.location.search)
+  }, [pathname, track])
+
+  useEffect(() => {
+    if (!sessionId.current) return
+    if (pathname.startsWith('/admin')) return
+
+    const sponsorElements = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-sponsor-id][data-sponsor-track="true"]')
+    )
+    if (!sponsorElements.length) return
+
+    const trackSponsorImpression = (element: HTMLElement) => {
+      const sponsorId = element.dataset.sponsorId
+      if (!sponsorId) return
+
+      const key = `${pathname}:${element.dataset.sponsorPostId || ''}:${sponsorId}`
+      if (trackedSponsorImpressions.current.has(key)) return
+
+      trackedSponsorImpressions.current.add(key)
+      track('sponsor_impression', undefined, {
+        sponsor_id: sponsorId,
+        placement: element.dataset.sponsorPlacement || 'post_editor',
+        post_id: element.dataset.sponsorPostId,
+        url: element.dataset.sponsorUrl,
+      })
+    }
+
+    if (typeof IntersectionObserver === 'undefined') {
+      sponsorElements.forEach(trackSponsorImpression)
+      return
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue
+        trackSponsorImpression(entry.target as HTMLElement)
+        observer.unobserve(entry.target)
+      }
+    }, { threshold: 0.35 })
+
+    sponsorElements.forEach((element) => observer.observe(element))
+
+    return () => observer.disconnect()
   }, [pathname, track])
 
   return null

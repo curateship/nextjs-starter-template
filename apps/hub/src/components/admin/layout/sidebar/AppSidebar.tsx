@@ -17,6 +17,7 @@ import {
   BarChart3,
   ClipboardCheck,
   HeartPulse,
+  Handshake,
 } from "lucide-react"
 
 import { SidebarMain } from "@/components/admin/layout/sidebar/SidebarMain"
@@ -114,6 +115,13 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         { title: "Breadcrumbs", url: currentSite ? `/admin/sites/${currentSite.id}/structure/breadcrumbs` : "/admin/sites" },
       ],
     },
+    ...(!enabledFeatures || enabledFeatures.sponsors !== false
+      ? [{
+          name: "Sponsors",
+          url: "/admin/sponsors",
+          icon: Handshake,
+        }]
+      : []),
     {
       name: "Categories",
       url: currentSite ? `/admin/categories/${currentSite.id}` : "/admin/sites",

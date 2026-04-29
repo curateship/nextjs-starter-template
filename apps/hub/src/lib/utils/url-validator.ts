@@ -6,6 +6,10 @@ export function isSafeUrl(url: string | undefined | null): boolean {
   if (!url) return false
   
   const lowerUrl = url.toLowerCase().trim()
+
+  if (lowerUrl.startsWith('//')) {
+    return false
+  }
   
   // Block dangerous protocols
   const dangerousProtocols = [

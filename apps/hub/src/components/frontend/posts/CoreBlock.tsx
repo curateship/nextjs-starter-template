@@ -5,6 +5,7 @@ import { RelatedPostsBlock } from "./RelatedPostsBlock"
 import { TableOfContentsBlock } from "./table-of-content/TableOfContentsBlock"
 import type { RelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import type { TableOfContentsItem } from "./table-of-content/table-of-contents-utils"
+import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 import { cn } from "@/lib/utils/tailwind"
 
 interface CoreBlockProps {
@@ -30,6 +31,8 @@ interface CoreBlockProps {
   preloadedRelatedPosts?: RelatedPostsData | null
   tableOfContentsItems?: TableOfContentsItem[]
   coreHtmlByBlockId?: Record<string, string>
+  sponsorsById?: Record<string, SponsorPublic>
+  postId?: string
   hasFixedNavigation?: boolean
   siteWidth?: 'full' | 'custom'
   customWidth?: number
@@ -46,6 +49,8 @@ export function CoreBlock({
   preloadedRelatedPosts,
   tableOfContentsItems = [],
   coreHtmlByBlockId = {},
+  sponsorsById = {},
+  postId,
   hasFixedNavigation = false,
   siteWidth = 'custom',
   customWidth,
@@ -66,6 +71,8 @@ export function CoreBlock({
             preloadedRelatedPosts={preloadedRelatedPosts}
             tableOfContentsItems={tableOfContentsItems}
             coreHtmlByBlockId={coreHtmlByBlockId}
+            sponsorsById={sponsorsById}
+            postId={postId}
             hasFixedNavigation={hasFixedNavigation}
             renderCoreBody={renderCoreBody}
             renderBlockOverlay={renderBlockOverlay}
@@ -98,6 +105,8 @@ function PostBlockContent({
   preloadedRelatedPosts,
   tableOfContentsItems,
   coreHtmlByBlockId,
+  sponsorsById,
+  postId,
   hasFixedNavigation,
   renderCoreBody,
   renderBlockOverlay,
@@ -117,6 +126,8 @@ function PostBlockContent({
   preloadedRelatedPosts?: RelatedPostsData | null
   tableOfContentsItems: TableOfContentsItem[]
   coreHtmlByBlockId: Record<string, string>
+  sponsorsById: Record<string, SponsorPublic>
+  postId?: string
   hasFixedNavigation: boolean
   renderCoreBody?: (block: { id: string; type: string; content: Record<string, any> }, bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: { id: string; type: string; content: Record<string, any> }) => ReactNode
@@ -140,6 +151,8 @@ function PostBlockContent({
           block={block}
           post={post}
           bodyHtml={coreHtmlByBlockId[block.id]}
+          sponsorsById={sponsorsById}
+          postId={postId}
           renderCoreBody={renderCoreBody}
         />
       )}
@@ -161,7 +174,7 @@ function PostBlockContent({
 }
 
 /** Renders core block using the style renderer registry */
-function CoreStyled({ block, post, bodyHtml, renderCoreBody }: {
+function CoreStyled({ block, post, bodyHtml, sponsorsById, postId, renderCoreBody }: {
   block: { id: string; type: string; content: Record<string, any> }
   post: {
     title: string
@@ -173,6 +186,8 @@ function CoreStyled({ block, post, bodyHtml, renderCoreBody }: {
     created_at: string
   }
   bodyHtml?: string
+  sponsorsById: Record<string, SponsorPublic>
+  postId?: string
   renderCoreBody?: (block: { id: string; type: string; content: Record<string, any> }, bodyHtml: string) => ReactNode
 }) {
   const coreStyle = block.content.coreStyle || 'default'
@@ -203,6 +218,8 @@ function CoreStyled({ block, post, bodyHtml, renderCoreBody }: {
         showDate: block.content.showDate ?? true,
         body: resolvedBodyHtml,
       }}
+      sponsorsById={sponsorsById}
+      postId={postId}
     >
       {renderCoreBody?.(block, resolvedBodyHtml)}
     </StyleRenderer>

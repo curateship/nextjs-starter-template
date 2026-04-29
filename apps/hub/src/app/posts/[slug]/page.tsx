@@ -9,6 +9,8 @@ import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import { getContentBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import { getActiveSponsorsByIdsAction } from "@/lib/actions/sponsors/sponsor-actions"
+import { extractSponsorIdsFromHtml } from "@/lib/utils/sponsor-embeds"
 
 interface PostPageProps {
   params: Promise<{
@@ -106,6 +108,10 @@ export default async function PostPage({ params }: PostPageProps) {
       currentLabel: post.title,
     })
     : []
+  const sponsorIds = blocks.flatMap((block: any) =>
+    block?.type === 'core' ? extractSponsorIdsFromHtml(block.content?.body || block.content?.text || '') : []
+  )
+  const sponsorsById = await getActiveSponsorsByIdsAction(site.id, sponsorIds)
 
   return (
     <>
@@ -115,6 +121,7 @@ export default async function PostPage({ params }: PostPageProps) {
         post={postWithBlocks}
         preloadedRelatedPosts={preloadedRelatedPosts}
         breadcrumbs={breadcrumbs}
+        sponsorsById={sponsorsById}
       />
     </>
   )

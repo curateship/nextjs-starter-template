@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import type { Editor } from "@tiptap/core"
-import { mergeAttributes, posToDOMRect } from "@tiptap/core"
+import { mergeAttributes, Node as TiptapNode, posToDOMRect } from "@tiptap/core"
 import { NodeSelection } from "@tiptap/pm/state"
-import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
+import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, useEditorState } from "@tiptap/react"
 import { BubbleMenu } from "@tiptap/react/menus"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
@@ -13,6 +13,7 @@ import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import { Button } from "@/components/ui/button"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { SponsorPickerDialog } from "@/components/admin/sponsors/SponsorPickerDialog"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +24,7 @@ import {
   Heading2,
   Heading3,
   Heading4,
+  Handshake,
   ImageIcon,
   Italic,
   Link as LinkIcon,
@@ -34,6 +36,8 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
+import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
+import { SponsorCard } from "@/components/shared/SponsorCard"
 
 interface NewsletterInlineRichTextEditorProps {
   blockId: string
@@ -146,6 +150,124 @@ const LinkedImage = Image.extend({
       ),
       ["img", mergedImageAttributes],
     ]
+  },
+})
+
+function SponsorEmbedNodeView(props: any) {
+  const sponsorId = props.node?.attrs?.sponsorId as string | null
+  const siteId = props.extension?.options?.siteId as string | undefined
+  const isEditable = props.editor?.isEditable !== false
+  const [sponsor, setSponsor] = useState<SponsorPublic | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleDelete = (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    props.deleteNode?.()
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSponsor() {
+      if (!siteId || !sponsorId) {
+        setSponsor(null)
+        return
+      }
+
+      setLoading(true)
+      const sponsorsById = await getActiveSponsorsByIdsAction(siteId, [sponsorId])
+
+      if (!cancelled) {
+        setSponsor(sponsorsById[sponsorId] || null)
+        setLoading(false)
+      }
+    }
+
+    loadSponsor()
+
+    return () => {
+      cancelled = true
+    }
+  }, [siteId, sponsorId])
+
+  return (
+    <NodeViewWrapper className="not-prose group relative my-5" contentEditable={false}>
+      <div
+        onClick={(event) => event.preventDefault()}
+      >
+        {sponsor ? (
+          <SponsorCard sponsor={sponsor} tracking={false} className="pointer-events-none my-0" />
+        ) : (
+          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+            {loading ? "Loading sponsor..." : "Sponsor unavailable"}
+          </div>
+        )}
+        {isEditable && (
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon"
+            className="absolute right-2 top-2 z-10 size-8 rounded-full opacity-0 shadow-lg transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={handleDelete}
+            title="Delete sponsor"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete sponsor</span>
+          </Button>
+        )}
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+const SponsorEmbed = TiptapNode.create({
+  name: "sponsor",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+
+  addOptions() {
+    return {
+      siteId: "",
+    }
+  },
+
+  addAttributes() {
+    return {
+      sponsorId: {
+        default: null,
+        parseHTML: element => element.getAttribute("data-sponsor-id"),
+        renderHTML: attributes => ({
+          "data-sponsor-id": attributes.sponsorId,
+        }),
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: "hub-sponsor[data-sponsor-id]" }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "hub-sponsor",
+      mergeAttributes(HTMLAttributes, {
+        class:
+          "not-prose my-5 flex items-center gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground",
+      }),
+      ["span", { class: "flex h-8 w-8 items-center justify-center rounded-md border bg-background" }, "Sponsor"],
+      ["span", { class: "font-medium text-foreground" }, "Sponsor embed"],
+    ]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(SponsorEmbedNodeView)
   },
 })
 
@@ -300,6 +422,7 @@ export function NewsletterInlineRichTextEditor({
 }: NewsletterInlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
+  const pendingSponsorRangeRef = useRef<SlashCommandRange | null>(null)
   const pendingLinkTargetRef = useRef<{ range: SlashCommandRange; isImage: boolean } | null>(null)
   const activationPositionRef = useRef<{ left: number; top: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -316,6 +439,7 @@ export function NewsletterInlineRichTextEditor({
   const [slashMenu, setSlashMenu] = useState<SlashCommandMenuState | null>(null)
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
+  const [isSponsorPickerOpen, setIsSponsorPickerOpen] = useState(false)
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState("")
   const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(
@@ -357,6 +481,7 @@ export function NewsletterInlineRichTextEditor({
           class: "max-w-full h-auto",
         },
       }),
+      ...(variant === "post" ? [SponsorEmbed.configure({ siteId })] : []),
     ],
     content: normalizedContent,
     immediatelyRender: false,
@@ -499,6 +624,32 @@ export function NewsletterInlineRichTextEditor({
     }
   }, [])
 
+  const handleSponsorSelect = useCallback(
+    (sponsor: SponsorPublic) => {
+      if (!editor) {
+        return
+      }
+
+      const range = pendingSponsorRangeRef.current
+      const command = editor.chain().focus()
+
+      if (range) {
+        command.deleteRange(range)
+      }
+
+      command.insertContent({ type: "sponsor", attrs: { sponsorId: sponsor.id } }).run()
+      pendingSponsorRangeRef.current = null
+    },
+    [editor],
+  )
+
+  const handleSponsorPickerOpenChange = useCallback((open: boolean) => {
+    setIsSponsorPickerOpen(open)
+    if (!open) {
+      pendingSponsorRangeRef.current = null
+    }
+  }, [])
+
   const handleLinkDialogOpenChange = useCallback((open: boolean) => {
     setIsLinkDialogOpen(open)
     if (!open) {
@@ -553,13 +704,10 @@ export function NewsletterInlineRichTextEditor({
   }, [editor])
 
   const slashCommands = useMemo(() => {
-    if (!siteId) {
-      return BASE_SLASH_COMMANDS
-    }
+    const commands = [...BASE_SLASH_COMMANDS]
 
-    return [
-      ...BASE_SLASH_COMMANDS,
-      {
+    if (siteId) {
+      commands.push({
         id: "image",
         label: "Image",
         description: "Insert image from media library",
@@ -570,9 +718,26 @@ export function NewsletterInlineRichTextEditor({
           setSlashMenu(null)
           setIsImagePickerOpen(true)
         },
-      },
-    ]
-  }, [siteId])
+      })
+    }
+
+    if (siteId && variant === "post") {
+      commands.push({
+        id: "sponsor",
+        label: "Sponsor",
+        description: "Insert a sponsor card",
+        keywords: ["sponsor", "ad", "advertisement", "partner"],
+        icon: Handshake,
+        run: (_editor: Editor, range: SlashCommandRange) => {
+          pendingSponsorRangeRef.current = range
+          setSlashMenu(null)
+          setIsSponsorPickerOpen(true)
+        },
+      })
+    }
+
+    return commands
+  }, [siteId, variant])
 
   useEffect(() => {
     if (!editor) {
@@ -1353,6 +1518,15 @@ export function NewsletterInlineRichTextEditor({
         showVideos={false}
         site_id={siteId}
       />
+
+      {variant === "post" && (
+        <SponsorPickerDialog
+          open={isSponsorPickerOpen}
+          onOpenChange={handleSponsorPickerOpenChange}
+          siteId={siteId}
+          onSelectSponsor={handleSponsorSelect}
+        />
+      )}
 
       <Dialog open={isLinkDialogOpen} onOpenChange={handleLinkDialogOpenChange}>
         <DialogContent data-newsletter-inline-link-dialog="true" className="sm:max-w-md">
