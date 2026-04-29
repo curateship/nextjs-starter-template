@@ -142,9 +142,7 @@ export function CategoryTree({
                   <div>
                     <h4 className="font-medium hover:underline truncate">{category.title}</h4>
                     <p className="text-sm text-muted-foreground truncate">
-                      {category.description
-                        ? category.description.replace(/<[^>]*>/g, '')
-                        : 'No description'}
+                      {category.meta_description || 'No meta description'}
                     </p>
                   </div>
                 </Link>

@@ -8,7 +8,6 @@ export function DefaultCategoryContentRenderer({ config, sharedContent }: Catego
 
   const {
     title,
-    description,
     featuredImage,
     showFeaturedImage = true,
     body,
@@ -23,7 +22,7 @@ export function DefaultCategoryContentRenderer({ config, sharedContent }: Catego
   }
   const titleClasses = titleSizeMap[titleSize] || 'text-4xl md:text-5xl'
 
-  const htmlContent = sanitizeRichHtml(body || description)
+  const htmlContent = sanitizeRichHtml(body || '')
 
   return (
     <div

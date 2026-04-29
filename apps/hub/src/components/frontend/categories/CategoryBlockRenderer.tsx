@@ -11,7 +11,6 @@ interface CategoryWithBlocks {
   id: string
   title: string
   slug: string
-  description?: string | null
   featured_image?: string | null
   blocks: Array<{
     id: string
@@ -53,7 +52,6 @@ function CategoryContentStyled({
           config={config}
           sharedContent={{
             title: category.title,
-            description: category.description,
             featuredImage: category.featured_image,
             showFeaturedImage: block.content.showFeaturedImage ?? true,
             body: block.content.body,

@@ -9,7 +9,6 @@ export const categories = pgTable('categories', {
   slug: varchar('slug', { length: 100 }).notNull(),
   parentId: uuid('parent_id'),
   featuredImage: text('featured_image'),
-  description: text('description'),
   metaDescription: text('meta_description'),
   contentBlocks: jsonb('content_blocks').default({}),
   isPublished: boolean('is_published').notNull().default(true),

@@ -145,7 +145,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
 
     db.select({
       id: categories.id, title: categories.title, slug: categories.slug,
-      metaDescription: categories.metaDescription, description: categories.description,
+      metaDescription: categories.metaDescription,
       isPublished: categories.isPublished, createdAt: categories.createdAt, updatedAt: categories.updatedAt,
     }).from(categories).where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true))),
     getPublishedDirectoryAuditRows(siteId),
@@ -185,7 +185,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
     })),
     ...categoryRows.map(r => ({
       id: r.id, title: r.title, slug: r.slug, type: 'category',
-      meta_description: r.metaDescription || (r as any).description || null,
+      meta_description: r.metaDescription || null,
       featured_image: null,
       status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,

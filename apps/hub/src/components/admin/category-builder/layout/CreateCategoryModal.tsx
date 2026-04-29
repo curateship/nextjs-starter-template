@@ -5,9 +5,9 @@ import { createCategoryAction, type Category } from "@/lib/actions/categories/ca
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { ImageIcon, X } from "lucide-react"
 import {
   Dialog,
@@ -39,7 +39,7 @@ export function CreateCategoryModal({
   const [title, setTitle] = useState("")
   const [slug, setSlug] = useState("")
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-  const [richTextContent, setRichTextContent] = useState("")
+  const [metaDescription, setMetaDescription] = useState("")
   const [parentId, setParentId] = useState<string>("")
   const [featuredImage, setFeaturedImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
@@ -103,7 +103,7 @@ export function CreateCategoryModal({
         {
           title,
           slug,
-          description: richTextContent || undefined,
+          meta_description: metaDescription.trim() || null,
           parent_id: parentId || null,
           featured_image: featuredImage || null,
           content_blocks: {
@@ -258,19 +258,16 @@ export function CreateCategoryModal({
           </div>
 
           <div>
-            <Label htmlFor="rich_text">Category Description</Label>
-            <RichTextEditor
-              content={{
-                content: richTextContent,
-                hideHeader: true,
-                hideEditorHeader: true
-              }}
-              onContentChange={(content) => setRichTextContent(content.content)}
-              compact={true}
-              inline={true}
+            <Label htmlFor="meta_description">Meta Description</Label>
+            <Textarea
+              id="meta_description"
+              value={metaDescription}
+              onChange={(e) => setMetaDescription(e.target.value)}
+              placeholder="SEO meta description"
+              rows={3}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Rich text content for the category description
+              Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160
             </p>
           </div>
           </AdminModalBody>

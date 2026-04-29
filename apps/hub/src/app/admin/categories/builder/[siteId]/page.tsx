@@ -115,7 +115,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   }
 
   // Handle category information updates
-  const updateCurrentCategory = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
+  const updateCurrentCategory = async (updates: { title?: string; meta_description?: string; featured_image?: string; is_published?: boolean }) => {
     if (!currentCategoryData?.id) return
 
     try {
@@ -218,7 +218,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
             meta_description: currentCategoryData?.meta_description || undefined,
             site_id: currentCategoryData?.site_id,
             featured_image: currentCategoryData?.featured_image,
-            description: currentCategoryData?.description,
             parent_id: currentCategoryData?.parent_id,
             updated_at: currentCategoryData?.updated_at
           }}

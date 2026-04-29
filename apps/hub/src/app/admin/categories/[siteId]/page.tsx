@@ -201,7 +201,7 @@ export default function CategoriesPage({
 
     const levelMatch = filterLevel === 'all' || getDepth(category) === Number(filterLevel)
     const parentTitle = categories.find(c => c.id === category.parent_id)?.title ?? ""
-    const searchText = `${category.title} ${category.slug} ${category.description ?? ""} ${category.meta_description ?? ""} ${parentTitle}`.toLowerCase()
+    const searchText = `${category.title} ${category.slug} ${category.meta_description ?? ""} ${parentTitle}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
 
     return statusMatch && levelMatch && searchMatch

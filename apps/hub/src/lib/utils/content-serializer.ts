@@ -1,7 +1,9 @@
 import type { Event } from '@/lib/actions/events/event-actions'
 import type { Product } from '@/lib/actions/products/product-actions'
-import { events, products } from '@/lib/db/schema'
+import type { Category } from '@/lib/actions/categories/category-actions'
+import { categories, events, products } from '@/lib/db/schema'
 
+type CategoryRow = typeof categories.$inferSelect
 type EventRow = typeof events.$inferSelect
 type ProductRow = typeof products.$inferSelect
 
@@ -9,6 +11,8 @@ type ContentRow = {
   id: string
   siteId?: string
   site_id?: string
+  parentId?: string | null
+  parent_id?: string | null
   title: string
   slug: string
   isPublished?: boolean
@@ -67,6 +71,15 @@ export function serializeContentRow(row: ContentRow): SerializedContent {
     created_at: toIsoString(requireValue(row.createdAt ?? row.created_at, 'created_at')),
     updated_at: toIsoString(requireValue(row.updatedAt ?? row.updated_at, 'updated_at')),
   }
+}
+
+export function serializeCategory(row: CategoryRow | ContentRow): Category {
+  const contentRow = row as ContentRow
+
+  return {
+    ...serializeContentRow(row),
+    parent_id: contentRow.parentId ?? contentRow.parent_id ?? null,
+  } as Category
 }
 
 export function serializeEvent(row: EventRow | ContentRow): Event {

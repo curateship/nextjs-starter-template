@@ -106,7 +106,7 @@ export async function generateMetadata({ params }: CategoryPageProps) {
 
     return {
       title: `${category.title} | ${site.name}`,
-      description: category.metaDescription || category.description || `${category.title} on ${site.name}`,
+      description: category.metaDescription || `${category.title} on ${site.name}`,
       ...buildSeoMetadata(site, category as any, 'category', `/categories/${slug}`),
     }
   } catch (error) {

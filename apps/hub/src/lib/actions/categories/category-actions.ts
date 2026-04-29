@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
+import { serializeCategory } from '@/lib/utils/content-serializer'
 
 export interface Category {
   id: string
@@ -15,7 +16,6 @@ export interface Category {
   slug: string
   parent_id: string | null
   featured_image: string | null
-  description: string | null
   meta_description: string | null
   content_blocks: Record<string, any>
   is_published: boolean
@@ -29,7 +29,6 @@ export interface CreateCategoryData {
   slug?: string
   parent_id?: string | null
   featured_image?: string | null
-  description?: string | null
   meta_description?: string | null
   content_blocks?: Record<string, any>
   is_published?: boolean
@@ -40,7 +39,6 @@ export interface UpdateCategoryData {
   slug?: string
   parent_id?: string | null
   featured_image?: string | null
-  description?: string | null
   meta_description?: string | null
   content_blocks?: Record<string, any>
   is_published?: boolean
@@ -90,7 +88,7 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
 
     const total = Number(countResult[0]?.count ?? 0)
 
-    return { data: categoryRows as unknown as Category[], total, error: null }
+    return { data: categoryRows.map(serializeCategory), total, error: null }
   } catch (error) {
     console.error('Error fetching categories:', error)
     return { data: null, total: 0, error: 'Failed to fetch categories' }
@@ -134,7 +132,6 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
           slug: categories.slug,
           parent_id: categories.parentId,
           featured_image: categories.featuredImage,
-          description: categories.description,
           meta_description: categories.metaDescription,
           content_blocks: categories.contentBlocks,
           is_published: categories.isPublished,
@@ -170,7 +167,7 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
     }
 
     return {
-      data: categoriesResult as unknown as Category[],
+      data: categoriesResult.map(serializeCategory),
       total,
       counts,
       error: null
@@ -275,7 +272,6 @@ export async function createCategoryAction(
         slug,
         parentId: data.parent_id || null,
         featuredImage: data.featured_image || null,
-        description: data.description || null,
         metaDescription: data.meta_description || null,
         contentBlocks: applyDefaultBlocks(data.content_blocks, 'categories', (site as any).settings?.default_blocks?.categories),
         isPublished: data.is_published ?? false,
@@ -290,7 +286,7 @@ export async function createCategoryAction(
     revalidateTag('categories')
     revalidateTag(`site-${siteId}`)
 
-    return { data: newCategory as unknown as Category, error: null }
+    return { data: serializeCategory(newCategory), error: null }
   } catch (error) {
     console.error('Error creating category:', error)
     return { data: null, error: 'Failed to create category' }
@@ -402,9 +398,6 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
     if (data.featured_image !== undefined) {
       finalUpdates.featuredImage = typeof data.featured_image === 'string' ? data.featured_image.trim() || null : data.featured_image
     }
-    if (data.description !== undefined) {
-      finalUpdates.description = typeof data.description === 'string' ? data.description.trim() || null : data.description
-    }
     if (data.meta_description !== undefined) {
       finalUpdates.metaDescription = typeof data.meta_description === 'string' ? data.meta_description.trim() || null : data.meta_description
     }
@@ -428,7 +421,7 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
     revalidateTag(`category-${categoryId}`)
     revalidateTag(`site-${category.siteId}`)
 
-    return { data: updatedCategory as unknown as Category, error: null }
+    return { data: serializeCategory(updatedCategory), error: null }
   } catch (error) {
     console.error('Error updating category:', error)
     return { data: null, error: 'Failed to update category' }

@@ -23,7 +23,6 @@ interface BlockPropertiesPanelProps {
     meta_description?: string
     site_id?: string
     featured_image?: string | null
-    description?: string | null
     is_published?: boolean
     parent_id?: string | null
     updated_at?: string
@@ -88,7 +87,6 @@ export function BlockPropertiesPanel({
               meta_description: currentCategory.meta_description,
               site_id: currentCategory.site_id || siteId,
               featured_image: currentCategory.featured_image || null,
-              description: currentCategory.description || null,
               is_published: currentCategory.is_published || false,
               parent_id: currentCategory.parent_id || null,
               updated_at: currentCategory.updated_at

@@ -25,7 +25,6 @@ interface CategoryData {
   meta_description?: string
   site_id: string
   featured_image?: string | null
-  description?: string | null
   is_published?: boolean
   parent_id?: string | null
   updated_at?: string
@@ -86,7 +85,6 @@ export function CategoryPreview({
     id: category?.id || "preview",
     title: category?.title || "Preview Category",
     slug: category?.slug || "preview",
-    description: category?.description || null,
     featured_image: category?.featured_image || null,
     blocks: createPreviewEntityBlocks(previewBlocks),
   }
