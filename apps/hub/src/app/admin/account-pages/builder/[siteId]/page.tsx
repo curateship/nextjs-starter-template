@@ -211,9 +211,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
-          selectedBlock={builderState.selectedBlock}
-          updateBlockContent={builderState.updateBlockContent}
-          siteId={siteId}
           currentPage={currentPage}
           site={site ? {
             id: site.id,

@@ -5,11 +5,11 @@ import {
 } from "@/lib/actions/account-pages/account-pages-actions"
 import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
-import { isSupportedAccountPageBlockType } from "@/lib/constants/account-page-block-types"
+import { isAccountPageBuilderBlockType } from "./account-page-block-types"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
-  return convertJsonToBlocks(contentBlocks).filter((block) => isSupportedAccountPageBlockType(block.type))
+  return convertJsonToBlocks(contentBlocks).filter((block) => isAccountPageBuilderBlockType(block.type))
 }
 
 function getBlocksBySlug(pages: AccountPage[]) {
@@ -57,10 +57,10 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
         setConfigError(siteResult.error || 'Failed to load site data')
       }
 
-      if (pagesResult.data && siteResult.data) {
+      if (pagesResult.data) {
         setPages(pagesResult.data)
         setBlocks(getBlocksBySlug(pagesResult.data))
-      } else {
+      } else if (pagesResult.error) {
         console.error('Failed to load account pages:', pagesResult.error)
       }
     } catch (error) {
@@ -82,7 +82,7 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
       setSite(siteData)
     }
 
-    if (pagesResult.data && siteData) {
+    if (pagesResult.data) {
       setPages(pagesResult.data)
       setBlocks(getBlocksBySlug(pagesResult.data))
     }

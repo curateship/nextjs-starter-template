@@ -1,5 +1,3 @@
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { CategoryContentBlock } from "@/components/admin/category-builder/blocks/CategoryContentBlock"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { CategoryPreview } from "./CategoryPreview"
 
@@ -11,8 +9,6 @@ interface CategoryBlock {
 }
 
 interface BlockPropertiesPanelProps {
-  selectedBlock: CategoryBlock | null
-  updateBlockContent: (field: string, value: any) => void
   siteId: string
   currentCategory?: {
     slug: string
@@ -38,45 +34,19 @@ interface BlockPropertiesPanelProps {
     }
   }
   blocksLoading?: boolean
-  onTitleChange?: (title: string) => void
   onSelectBlock?: (block: any) => void
-  onBack?: () => void
 }
 
 export function BlockPropertiesPanel({
-  selectedBlock,
-  updateBlockContent,
   siteId,
   currentCategory,
   site,
   blocksLoading = false,
-  onTitleChange,
   onSelectBlock,
-  onBack,
 }: BlockPropertiesPanelProps) {
   return (
     <div className="flex-1 overflow-hidden border-r bg-background">
       <ScrollArea className="h-full">
-      {selectedBlock ? (
-        <div className="pb-10">
-        <AdminLayout>
-            {selectedBlock.type === 'taxonomy-content' && (
-              <CategoryContentBlock
-                content={selectedBlock.content}
-                onContentChange={updateBlockContent}
-                siteId={siteId}
-                blockId={selectedBlock.id}
-                categoryData={{
-                  title: currentCategory?.title || currentCategory?.name,
-                  name: currentCategory?.name,
-                }}
-                onCategoryTitleChange={onTitleChange}
-                onBack={onBack}
-              />
-            )}
-        </AdminLayout>
-        </div>
-      ) : (
         <div className="min-h-full">
           <CategoryPreview
             blocks={currentCategory?.blocks || []}
@@ -101,7 +71,6 @@ export function BlockPropertiesPanel({
             onSelectBlock={onSelectBlock}
           />
         </div>
-      )}
       </ScrollArea>
     </div>
   )

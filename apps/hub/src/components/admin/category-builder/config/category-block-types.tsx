@@ -3,19 +3,13 @@ import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getB
 
 export type { BlockTypeDefinition }
 
-export const CATEGORY_BLOCK_TYPES: BlockTypeDefinition[] = [
-  {
-    type: 'taxonomy-content',
-    name: 'Content',
-    icon: FileText,
-    description: 'Display category details and information',
-    defaultContent: {
-      showFeaturedImage: true,
-      body: '',
-      format: 'html'
-    }
-  }
-]
+export const CATEGORY_BLOCK_TYPES: BlockTypeDefinition[] = []
+
+const CATEGORY_BLOCK_TYPE_SET = new Set(CATEGORY_BLOCK_TYPES.map(blockType => blockType.type))
+
+export function isCategoryBuilderBlockType(type: string | null | undefined) {
+  return !!type && CATEGORY_BLOCK_TYPE_SET.has(type)
+}
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
   return findBlockType(CATEGORY_BLOCK_TYPES, type)

@@ -143,10 +143,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     }
   }
 
-  const handleTitleChange = (title: string) => {
-    updateCurrentCategory({ title })
-  }
-
   // Only show loading state for critical errors
   if (!site && siteError) {
     return (
@@ -208,8 +204,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
       />
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
-          selectedBlock={builderState.selectedBlock}
-          updateBlockContent={builderState.updateBlockContent}
           siteId={siteId}
           currentCategory={{
             ...currentCategory,
@@ -228,9 +222,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
             settings: site?.settings
           }}
           blocksLoading={blocksLoading}
-          onTitleChange={handleTitleChange}
           onSelectBlock={builderState.setSelectedBlock}
-          onBack={() => builderState.setSelectedBlock(null)}
         />
 
         {blockListOpen && (

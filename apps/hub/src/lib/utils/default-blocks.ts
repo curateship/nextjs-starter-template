@@ -47,11 +47,13 @@ export function buildDefaultContentBlocks(
 
   blockTypeStrings.forEach((type, index) => {
     const def = definitions.find(d => d.type === type)
+    if (!def) return
+
     const id = `${type}-${Date.now()}-${index}`
     blocks[id] = {
       id,
       type,
-      content: def?.defaultContent || {},
+      content: def.defaultContent || {},
       display_order: index + 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { getSiteByIdAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 import { getCategoriesForSiteAction, type Category } from '@/lib/actions/categories/category-actions'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
-import { getBlockName } from './category-block-types'
+import { getBlockName, isCategoryBuilderBlockType } from './category-block-types'
 
 interface CategoryBlock {
   id: string
@@ -26,10 +26,12 @@ function getCategoryBlocksBySlug(categories: Category[]) {
 
   categories.forEach((category) => {
     const categoryBlocks = convertContentBlocksToArray(category.content_blocks || {}, category.id)
-    convertedBlocks[category.slug] = categoryBlocks.map(block => ({
-      ...block,
-      title: getBlockName(block.type)
-    }))
+    convertedBlocks[category.slug] = categoryBlocks
+      .filter(block => isCategoryBuilderBlockType(block.type))
+      .map(block => ({
+        ...block,
+        title: getBlockName(block.type)
+      }))
   })
 
   return convertedBlocks

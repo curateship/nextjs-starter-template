@@ -30,7 +30,6 @@ interface UseCategoryBuilderReturn {
   setSelectedBlock: React.Dispatch<React.SetStateAction<CategoryBlock | null>>
   isSaving: boolean
   saveMessage: string
-  updateBlockContent: (field: string, value: any) => void
   handleDeleteBlock: (block: CategoryBlock) => void
   handleReorderBlocks: (blocks: CategoryBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
@@ -51,24 +50,6 @@ export function useCategoryBuilder({
   useEffect(() => {
     setSelectedBlock(null)
   }, [selectedCategory])
-
-  const updateBlockContent = (field: string, value: any) => {
-    if (!selectedBlock) return
-
-    const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedCategory].findIndex(b => b.id === selectedBlock.id)
-    if (blockIndex !== -1) {
-      updatedBlocks[selectedCategory][blockIndex] = {
-        ...updatedBlocks[selectedCategory][blockIndex],
-        content: {
-          ...updatedBlocks[selectedCategory][blockIndex].content,
-          [field]: value
-        }
-      }
-      setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedCategory][blockIndex])
-    }
-  }
 
   const handleDeleteBlock = (block: CategoryBlock) => {
     const updatedBlocks = { ...blocks }
@@ -179,7 +160,6 @@ export function useCategoryBuilder({
     setSelectedBlock,
     isSaving,
     saveMessage,
-    updateBlockContent,
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,
