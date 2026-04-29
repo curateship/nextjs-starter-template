@@ -258,7 +258,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     if (!newBlocks.length) return
 
     setBlocks((prev) => [...prev, ...newBlocks])
-    setSelectedBlock(newBlocks[newBlocks.length - 1])
   }
 
   async function handleSave() {

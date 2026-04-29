@@ -207,11 +207,6 @@ export function useProductBuilder({
     updatedBlocks[selectedProduct] = [...currentBlocks, ...newBlocks]
 
     setBlocks(updatedBlocks)
-
-    // Select the last added block
-    if (newBlocks.length > 0) {
-      setSelectedBlock(newBlocks[newBlocks.length - 1])
-    }
   }
 
   const handleSaveAllBlocks = async () => {

@@ -208,10 +208,6 @@ export function usePageBuilder({
     updatedBlocks[selectedPage] = newBlocks
     setBlocks(updatedBlocks)
 
-    if (newBlocksToAdd.length > 0) {
-      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
-    }
-
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
       const jsonBlocks = convertBlocksToJson(newBlocks)

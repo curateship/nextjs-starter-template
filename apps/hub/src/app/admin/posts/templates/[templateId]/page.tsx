@@ -207,7 +207,6 @@ export default function PostTemplateEditorPage({ params }: PageProps) {
 
     const nextBlocks = orderPostBuilderBlocks([...blocks, ...newBlocks])
     setBlocks(nextBlocks)
-    setSelectedBlock(newBlocks[newBlocks.length - 1])
   }
 
   async function handleSave() {

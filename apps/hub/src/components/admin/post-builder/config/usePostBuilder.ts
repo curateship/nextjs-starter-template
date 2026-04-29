@@ -92,11 +92,6 @@ export function usePostBuilder({ blocks, setBlocks, postId, selectedPost }: UseP
       })
       return updated
     })
-
-    // Select the last added block
-    if (newBlocksToAdd.length > 0) {
-      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
-    }
   }
 
   // Delete a block (local-first)

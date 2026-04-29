@@ -201,10 +201,6 @@ export function useAccountPageBuilder({
 
     updatedBlocks[selectedPage] = newBlocks
     setBlocks(updatedBlocks)
-
-    if (newBlocksToAdd.length > 0) {
-      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
-    }
   }
 
   return {

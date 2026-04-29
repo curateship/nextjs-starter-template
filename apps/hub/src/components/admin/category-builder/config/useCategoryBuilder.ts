@@ -113,10 +113,6 @@ export function useCategoryBuilder({
     const newBlocks = [...currentBlocks, ...newBlocksToAdd]
     updatedBlocks[selectedCategory] = newBlocks
     setBlocks(updatedBlocks)
-
-    if (newBlocksToAdd.length > 0) {
-      setSelectedBlock(newBlocksToAdd[newBlocksToAdd.length - 1])
-    }
   }
 
   const handleSaveAllBlocks = async () => {
