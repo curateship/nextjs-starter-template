@@ -38,6 +38,7 @@ interface SharedListingViewsBlockProps {
   showDescription?: boolean
   showAuthor?: boolean
   showDate?: boolean
+  showReadMore?: boolean
   isPaginated?: boolean
   itemsPerPage?: number
   viewAllText?: string
@@ -60,6 +61,7 @@ interface SharedListingViewsBlockProps {
   onShowDescriptionChange: (value: boolean) => void
   onShowAuthorChange: (value: boolean) => void
   onShowDateChange: (value: boolean) => void
+  onShowReadMoreChange: (value: boolean) => void
   onIsPaginatedChange: (value: boolean) => void
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
@@ -84,6 +86,7 @@ export function PageListingViewBlock({
   showDescription = true,
   showAuthor = true,
   showDate = true,
+  showReadMore = true,
   isPaginated = false,
   itemsPerPage = 12,
   viewAllText = '',
@@ -106,6 +109,7 @@ export function PageListingViewBlock({
   onShowDescriptionChange,
   onShowAuthorChange,
   onShowDateChange,
+  onShowReadMoreChange,
   onIsPaginatedChange,
   onItemsPerPageChange,
   onViewAllTextChange,
@@ -329,6 +333,19 @@ export function PageListingViewBlock({
                 </div>
               </BlockEditorSection>
 
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Header Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  includeHideBlock={false}
+                  fields={[
+                    { key: 'title', label: 'Title' },
+                    { key: 'subtitle', label: 'Subtitle' },
+                  ]}
+                />
+              )}
+
               <BlockEditorSection heading="Display Options">
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -377,6 +394,15 @@ export function PageListingViewBlock({
 
                   <div className="flex items-center space-x-2">
                     <Checkbox
+                      id="showReadMore"
+                      checked={showReadMore}
+                      onCheckedChange={(checked) => onShowReadMoreChange(!!checked)}
+                    />
+                    <Label htmlFor="showReadMore" className="cursor-pointer">Show Read More</Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
                       id="isPaginated"
                       checked={isPaginated}
                       onCheckedChange={(checked) => onIsPaginatedChange(!!checked)}
@@ -406,24 +432,12 @@ export function PageListingViewBlock({
               </BlockEditorSection>
 
               {onVisibilityChange && (
-                <>
-                  <VisibilitySettings
-                    title="Header Visibility"
-                    visibility={visibility}
-                    onChange={onVisibilityChange}
-                    includeHideBlock={false}
-                    fields={[
-                      { key: 'title', label: 'Title' },
-                      { key: 'subtitle', label: 'Subtitle' },
-                    ]}
-                  />
-                  <VisibilitySettings
-                    title="Block Visibility"
-                    visibility={visibility}
-                    onChange={onVisibilityChange}
-                    fields={[]}
-                  />
-                </>
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  fields={[]}
+                />
               )}
 
             </div>

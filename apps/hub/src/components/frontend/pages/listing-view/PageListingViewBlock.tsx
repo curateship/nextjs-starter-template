@@ -45,6 +45,7 @@ interface ListingViewsBlockProps {
     showDescription?: boolean
     showAuthor?: boolean
     showDate?: boolean
+    showReadMore?: boolean
     isPaginated?: boolean
     itemsPerPage?: number
     viewAllText?: string
@@ -89,6 +90,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     showDescription = true,
     showAuthor = true,
     showDate = true,
+    showReadMore = true,
     isPaginated = false,
     itemsPerPage = 12,
     viewAllText = '',
@@ -248,12 +250,14 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
                 </div>
               )}
             </CardHeader>
-            <CardFooter>
-              <span className="flex items-center text-muted-foreground">
-                Read more
-                <ArrowRight className="ml-1 size-4" />
-              </span>
-            </CardFooter>
+            {showReadMore && (
+              <CardFooter>
+                <span className="flex items-center text-muted-foreground">
+                  Read more
+                  <ArrowRight className="ml-1 size-4" />
+                </span>
+              </CardFooter>
+            )}
           </Card>
         </Link>
       )

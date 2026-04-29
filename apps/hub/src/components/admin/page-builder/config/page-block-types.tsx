@@ -84,6 +84,7 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       listingStyle: 'default',
       showAuthor: true,
       showDate: true,
+      showReadMore: true,
     }
   },
   {
