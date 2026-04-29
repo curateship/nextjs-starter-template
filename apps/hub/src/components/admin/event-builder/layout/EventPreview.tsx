@@ -25,7 +25,6 @@ interface Event {
   meta_description?: string
   site_id: string
   featured_image?: string | null
-  description?: string | null
   is_published?: boolean
   updated_at?: string
 }
@@ -85,7 +84,6 @@ export function EventPreview({
     id: event?.id || "preview",
     title: event?.title || "Preview Event",
     slug: event?.slug || "preview",
-    description: event?.description || null,
     featured_image: event?.featured_image || null,
     blocks: createPreviewEntityBlocks(previewBlocks),
   }

@@ -12,9 +12,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { ImageIcon, X, Check } from "lucide-react"
+import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Event } from "@/lib/actions/events/event-actions"
@@ -37,15 +36,12 @@ export function EventSettingsModal({
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
-    description: '',
     meta_description: ''
   })
-  const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
@@ -89,12 +85,10 @@ export function EventSettingsModal({
       setFormData({
         title: event.title || '',
         slug: event.slug || '',
-        description: event.description || '',
         meta_description: event.meta_description || ''
       })
       setFeaturedImage(event.featured_image || '')
       setIsPrivate(event.content_blocks?._settings?.is_private === true)
-      setRichTextContent(event.description || '')
       setSlugManuallyEdited(false)
 
       setSelectedCategoryIds([])
@@ -124,13 +118,9 @@ export function EventSettingsModal({
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage(null)
-      
 
-      
       const draftData = { 
         ...formData, 
-        description: richTextContent || null,
         is_published: false,
         featured_image: featuredImage || null
       }
@@ -156,17 +146,11 @@ export function EventSettingsModal({
           return
         }
 
-        setSaveMessage('Event saved as draft successfully!')
-        
-        // Call success callback with updated event
         if (onSuccess) {
           onSuccess(result.data)
         }
-        
-        // Clear success message after 3 seconds but keep modal open
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+
+        onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to save event')
@@ -182,13 +166,9 @@ export function EventSettingsModal({
     try {
       setSaving(true)
       setError(null)
-      setSaveMessage(null)
-      
 
-      
       const publishData = { 
         ...formData, 
-        description: richTextContent || null,
         is_published: true,
         featured_image: featuredImage || null
       }
@@ -214,17 +194,11 @@ export function EventSettingsModal({
           return
         }
 
-        setSaveMessage(event?.is_published ? 'Event saved successfully!' : 'Event published successfully!')
-        
-        // Call success callback with updated event
         if (onSuccess) {
           onSuccess(result.data)
         }
-        
-        // Clear success message after 3 seconds but keep modal open
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+
+        onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to publish event')
@@ -377,26 +351,6 @@ export function EventSettingsModal({
             </div>
           )}
 
-          {/* Rich Text Content */}
-          <div>
-            <Label htmlFor="rich_text">Event Description</Label>
-            <RichTextEditor
-              content={{
-                content: richTextContent,
-                hideHeader: true,
-                hideEditorHeader: true
-              }}
-              onContentChange={(content) => {
-                setRichTextContent(content.content)
-              }}
-              compact={true}
-              inline={true}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Rich text content for the event description (will be saved as an event block)
-            </p>
-          </div>
-
           {/* Meta Description */}
           <div>
             <Label htmlFor="meta_description">Meta Description</Label>
@@ -426,12 +380,6 @@ export function EventSettingsModal({
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              {saveMessage && (
-                <div className="flex items-center space-x-1 text-green-600">
-                  <Check className="h-4 w-4" />
-                  <span className="text-sm font-medium">{saveMessage}</span>
-                </div>
-              )}
               <Button 
                 type="submit" 
                 variant="outline"

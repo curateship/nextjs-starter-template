@@ -1,10 +1,12 @@
 import { events } from '@/lib/db/schema'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
+import { serializeEvent } from '@/lib/utils/content-serializer'
 
 const config = {
   entityName: 'Event',
   table: events,
   paramName: 'eventId',
+  serializeResponse: serializeEvent,
   updateFieldMap: {
     title: 'title',
     slug: 'slug',
@@ -13,7 +15,6 @@ const config = {
     display_order: 'displayOrder',
     content_blocks: 'contentBlocks',
     featured_image: 'featuredImage',
-    description: 'description',
   },
 }
 

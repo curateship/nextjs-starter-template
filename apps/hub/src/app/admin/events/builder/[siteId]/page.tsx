@@ -172,7 +172,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }
 
   // Handle event information updates
-  const updateCurrentEvent = async (updates: { title?: string; description?: string; featured_image?: string; is_published?: boolean }) => {
+  const updateCurrentEvent = async (updates: { title?: string; featured_image?: string; is_published?: boolean }) => {
     if (!currentEventData?.id) return
 
     try {
@@ -354,7 +354,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
                 meta_description: currentEventData.meta_description || undefined,
                 site_id: currentEventData.site_id,
                 featured_image: currentEventData.featured_image || null,
-                description: currentEventData.description || null,
                 is_published: currentEventData.is_published || false,
                 updated_at: currentEventData.updated_at,
               } : undefined}

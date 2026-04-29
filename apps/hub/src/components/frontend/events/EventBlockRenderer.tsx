@@ -11,7 +11,6 @@ interface EventWithBlocks {
   id: string
   title: string
   slug: string
-  description?: string | null
   featured_image?: string | null
   blocks: Array<{
     id: string
@@ -53,7 +52,6 @@ function EventContentStyled({
           config={config}
           sharedContent={{
             title: event.title,
-            description: event.description,
             featuredImage: event.featured_image,
             showFeaturedImage: block.content.showFeaturedImage ?? true,
             body: block.content.body,

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { events, sites, contentCategoryRelationships, categories } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
+import { serializeEvent } from '@/lib/utils/content-serializer'
 
 
 
@@ -18,7 +19,6 @@ export interface Event {
   display_order: number
   content_blocks: Record<string, any>
   featured_image: string | null
-  description: string | null
   meta_description: string | null
   created_at: string
   updated_at: string
@@ -29,7 +29,6 @@ export interface UpdateEventData {
   slug?: string
   is_published?: boolean
   featured_image?: string | null
-  description?: string | null
   meta_description?: string | null
 }
 
@@ -65,7 +64,7 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
       db.select().from(events).where(eq(events.siteId, siteId)).orderBy(asc(events.displayOrder), desc(events.createdAt)).limit(pageSize).offset(from),
     ])
 
-    return { data: result as unknown as Event[], total: countResult[0]?.count ?? 0, error: null }
+    return { data: result.map(serializeEvent), total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching events:', error)
     return { data: null, total: 0, error: 'Failed to fetch events' }
@@ -110,7 +109,7 @@ export async function getSiteEventsWithCategoriesAction(
       db.select().from(events).where(eq(events.siteId, siteId)).orderBy(desc(events.displayOrder)).limit(pageSize).offset(from),
     ])
 
-    const evts = result as unknown as Event[]
+    const evts = result.map(serializeEvent)
 
     let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
     if (evts.length > 0) {
@@ -264,11 +263,11 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
     }
 
     // Build updates with explicit field whitelist
-    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'description', 'meta_description'] as const
+    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'meta_description'] as const
     const finalUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((data as any)[field] !== undefined) {
-        if (field === 'title' || field === 'description' || field === 'meta_description' || field === 'featured_image') {
+        if (field === 'title' || field === 'meta_description' || field === 'featured_image') {
           finalUpdates[field] = typeof (data as any)[field] === 'string'
             ? (data as any)[field].trim() || null
             : (data as any)[field]
@@ -284,7 +283,6 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
     if (finalUpdates.slug !== undefined) drizzleUpdates.slug = finalUpdates.slug
     if (finalUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalUpdates.is_published
     if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
-    if (finalUpdates.description !== undefined) drizzleUpdates.description = finalUpdates.description
     if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
     drizzleUpdates.updatedAt = new Date()
 
@@ -304,7 +302,7 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
     revalidateTag(`event-${eventId}`)
     revalidateTag(`site-${event.siteId}`)
 
-    return { data: updatedEvent as unknown as Event, error: null }
+    return { data: serializeEvent(updatedEvent), error: null }
   } catch (error) {
     console.error('Error updating event:', error)
     return { data: null, error: 'Failed to update event' }
@@ -489,7 +487,6 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
         slug,
         isPublished: false, // Always create duplicates as draft
         featuredImage: originalEvent.featuredImage,
-        description: originalEvent.description,
         metaDescription: originalEvent.metaDescription,
         contentBlocks: originalEvent.contentBlocks || {},
         displayOrder: nextDisplayOrder
@@ -504,7 +501,7 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
     revalidateTag('events')
     revalidateTag(`site-${originalEvent.siteId}`)
 
-    return { data: newEvent as unknown as Event, error: null }
+    return { data: serializeEvent(newEvent), error: null }
   } catch (error) {
     console.error('Error duplicating event:', error)
     return { data: null, error: 'Failed to duplicate event' }

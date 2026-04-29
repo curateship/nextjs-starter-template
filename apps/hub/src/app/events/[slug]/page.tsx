@@ -108,7 +108,7 @@ export async function generateMetadata({ params }: EventPageProps) {
 
     return {
       title: `${event.title} | ${site.name}`,
-      description: event.metaDescription || event.description || `${event.title} on ${site.name}`,
+      description: event.metaDescription || `${event.title} on ${site.name}`,
       ...buildSeoMetadata(site, event as any, 'event', `/events/${slug}`),
     }
   } catch (error) {

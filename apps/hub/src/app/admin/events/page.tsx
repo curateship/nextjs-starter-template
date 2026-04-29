@@ -269,7 +269,7 @@ export default function EventsPage() {
     if (filterPrivacy === 'private') privacyMatch = isEventPrivate(event)
 
     const categoryText = eventCategories[event.id]?.map(category => category.title).join(" ") ?? ""
-    const searchText = `${event.title} ${event.slug} ${event.description ?? ""} ${event.meta_description ?? ""} ${categoryText}`.toLowerCase()
+    const searchText = `${event.title} ${event.slug} ${event.meta_description ?? ""} ${categoryText}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
     
     return statusMatch && privacyMatch && searchMatch

@@ -5,7 +5,6 @@ export interface EventContentStyleRendererProps {
   config: Record<string, any>
   sharedContent: {
     title?: string
-    description?: string | null
     featuredImage?: string | null
     showFeaturedImage?: boolean
     body?: string

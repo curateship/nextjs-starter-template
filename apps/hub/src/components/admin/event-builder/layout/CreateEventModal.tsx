@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -25,12 +24,10 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
-    description: '',
     meta_description: '',
     is_published: false
   })
   const [isPrivate, setIsPrivate] = useState(false)
-  const [richTextContent, setRichTextContent] = useState('')
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,7 +82,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
         site_id: currentSite.id,
-        description: richTextContent || null,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
         is_published: false,
@@ -253,24 +249,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           </p>
         </div>
       )}
-
-      {/* Rich Text Content */}
-      <div>
-        <Label htmlFor="rich_text">Event Description</Label>
-        <RichTextEditor
-          content={{
-            content: richTextContent,
-            hideHeader: true,
-            hideEditorHeader: true
-          }}
-          onContentChange={(content) => setRichTextContent(content.content)}
-          compact={true}
-          inline={true}
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Rich text content for the event description (will be saved as an event block)
-        </p>
-      </div>
 
       {/* Meta Description */}
       <div>

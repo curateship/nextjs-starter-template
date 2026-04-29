@@ -152,7 +152,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
 
     db.select({
       id: events.id, title: events.title, slug: events.slug,
-      metaDescription: events.metaDescription, description: events.description,
+      metaDescription: events.metaDescription,
       isPublished: events.isPublished, createdAt: events.createdAt, updatedAt: events.updatedAt,
     }).from(events).where(and(eq(events.siteId, siteId), eq(events.isPublished, true))),
   ])
@@ -201,7 +201,7 @@ export async function getSiteAuditData(siteId: string): Promise<ContentAuditItem
     })),
     ...eventRows.map(r => ({
       id: r.id, title: r.title, slug: r.slug, type: 'event',
-      meta_description: r.metaDescription || (r as any).description || null,
+      meta_description: r.metaDescription || null,
       featured_image: null,
       status: 'published' as const,
       created_at: r.createdAt?.toISOString() || null,

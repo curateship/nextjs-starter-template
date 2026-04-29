@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { products, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { serializeProduct } from '@/lib/utils/content-serializer'
 
 
 
@@ -43,22 +44,6 @@ export interface UpdateProductData {
   is_published?: boolean
   featured_image?: string | null
   meta_description?: string | null
-}
-
-function rowToProduct(row: typeof products.$inferSelect): Product {
-  return {
-    id: row.id,
-    site_id: row.siteId,
-    title: row.title,
-    slug: row.slug,
-    is_published: row.isPublished,
-    display_order: row.displayOrder,
-    content_blocks: (row.contentBlocks || {}) as Record<string, any>,
-    featured_image: (row as any).featuredImage ?? (row as any).featured_image ?? null,
-    meta_description: row.metaDescription ?? (row as any).meta_description ?? null,
-    created_at: row.createdAt.toISOString(),
-    updated_at: row.updatedAt.toISOString(),
-  }
 }
 
 /**
@@ -101,19 +86,7 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
       }>(sql`SELECT * FROM products WHERE site_id = ${siteId} ORDER BY display_order ASC LIMIT ${pageSize} OFFSET ${from}`),
     ])
 
-    const mapped: Product[] = (data.rows || []).map(row => ({
-      id: row.id,
-      site_id: row.site_id,
-      title: row.title,
-      slug: row.slug,
-      is_published: row.is_published,
-      display_order: row.display_order,
-      content_blocks: row.content_blocks || {},
-      featured_image: row.featured_image ?? null,
-      meta_description: row.meta_description ?? null,
-      created_at: new Date(row.created_at).toISOString(),
-      updated_at: new Date(row.updated_at).toISOString(),
-    }))
+    const mapped = (data.rows || []).map(serializeProduct)
 
     return { data: mapped, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
@@ -184,19 +157,7 @@ export async function getSiteProductsWithCategoriesAction(
     ])
 
     const countResult = countPromise[0]
-    const productRows: Product[] = (data.rows || []).map(row => ({
-      id: row.id,
-      site_id: row.site_id,
-      title: row.title,
-      slug: row.slug,
-      is_published: row.is_published,
-      display_order: row.display_order,
-      content_blocks: row.content_blocks || {},
-      featured_image: row.featured_image ?? null,
-      meta_description: row.meta_description ?? null,
-      created_at: new Date(row.created_at).toISOString(),
-      updated_at: new Date(row.updated_at).toISOString(),
-    }))
+    const productRows = (data.rows || []).map(serializeProduct)
 
     // Fetch categories via Drizzle
     let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
@@ -324,21 +285,7 @@ export async function getProductByIdAction(productId: string): Promise<{ data: P
       return { data: null, error: 'Site not found or access denied' }
     }
 
-    const serializedProduct: Product = {
-      id: product.id,
-      site_id: product.site_id,
-      title: product.title,
-      slug: product.slug,
-      is_published: product.is_published,
-      display_order: product.display_order,
-      content_blocks: product.content_blocks || {},
-      featured_image: product.featured_image ?? null,
-      meta_description: product.meta_description ?? null,
-      created_at: new Date(product.created_at).toISOString(),
-      updated_at: new Date(product.updated_at).toISOString(),
-    }
-
-    return { data: serializedProduct, error: null }
+    return { data: serializeProduct(product), error: null }
   } catch (error) {
     return {
       data: null,
@@ -369,19 +316,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     const product = result.rows?.[0]
     if (!product) return null
 
-    return {
-      id: product.id,
-      site_id: product.site_id,
-      title: product.title,
-      slug: product.slug,
-      is_published: product.is_published,
-      display_order: product.display_order,
-      content_blocks: product.content_blocks || {},
-      featured_image: product.featured_image ?? null,
-      meta_description: product.meta_description ?? null,
-      created_at: new Date(product.created_at).toISOString(),
-      updated_at: new Date(product.updated_at).toISOString(),
-    }
+    return serializeProduct(product)
   } catch (error) {
     console.error('Error fetching product by slug:', error)
     return null
@@ -502,7 +437,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     revalidateTag('listing-views')
 
     return {
-      data: rowToProduct(updated),
+      data: serializeProduct(updated),
       error: null
     }
   } catch (error) {
@@ -712,7 +647,7 @@ export async function duplicateProductAction(productId: string, newTitle: string
       return { data: null, error: 'Failed to duplicate product' }
     }
 
-    return { data: rowToProduct(newProduct), error: null }
+    return { data: serializeProduct(newProduct), error: null }
   } catch (error) {
     return {
       data: null,

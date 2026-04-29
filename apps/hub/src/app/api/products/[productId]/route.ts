@@ -1,6 +1,6 @@
 import { products } from '@/lib/db/schema'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
-import { serializeProduct } from '@/lib/utils/product-serializer'
+import { serializeProduct } from '@/lib/utils/content-serializer'
 
 const config = {
   entityName: 'Product',
