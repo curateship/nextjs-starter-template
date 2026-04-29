@@ -244,7 +244,7 @@ export function NewsletterSettingsModal({
             </AdminModalDescription>
           </AdminModalHeader>
 
-          <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+          <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
             {error && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="text-sm text-red-800">{error}</p>
@@ -263,7 +263,7 @@ export function NewsletterSettingsModal({
                 <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="general" className="mt-0 space-y-4 min-h-[340px]">
+              <TabsContent value="general" className="mt-0 space-y-6 min-h-[340px]">
                 <div>
                   <Label htmlFor="settings-subject">Subject Line *</Label>
                   <Input
@@ -312,7 +312,7 @@ export function NewsletterSettingsModal({
                 )}
               </TabsContent>
 
-              <TabsContent value="drip-options" className="mt-0 space-y-4 min-h-[340px]">
+              <TabsContent value="drip-options" className="mt-0 space-y-6 min-h-[340px]">
                 {isSent && (
                   <p className="text-sm text-muted-foreground">
                     Drip settings are locked after sending starts.
@@ -330,8 +330,8 @@ export function NewsletterSettingsModal({
                     <Label htmlFor="drip-toggle">Enable drip sending</Label>
                   </div>
                   {dripEnabled && (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-6">
                         <div>
                           <Label htmlFor="drip-batch-min">Batch size min</Label>
                           <Input
@@ -355,7 +355,7 @@ export function NewsletterSettingsModal({
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-6">
                         <div>
                           <Label htmlFor="drip-interval-min">Interval min (minutes)</Label>
                           <Input
@@ -406,8 +406,8 @@ export function NewsletterSettingsModal({
                           <Label htmlFor="send-window-toggle">Limit sending to specific hours</Label>
                         </div>
                         {dripSendWindowEnabled && (
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-6">
                               <div>
                                 <Label htmlFor="send-window-start">Start time</Label>
                                 <Input
@@ -455,7 +455,7 @@ export function NewsletterSettingsModal({
                 </div>
               </TabsContent>
 
-              <TabsContent value="audience-filter" className="mt-0 space-y-4 min-h-[340px]">
+              <TabsContent value="audience-filter" className="mt-0 space-y-6 min-h-[340px]">
                 <div>
                   <div>
                     <Label htmlFor="audience-select">Segment</Label>

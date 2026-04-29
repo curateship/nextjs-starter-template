@@ -155,7 +155,7 @@ export function CreateCategoryModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div className="col-span-2">
               <Label htmlFor="title">Category Title *</Label>
               <Input
@@ -243,7 +243,7 @@ export function CreateCategoryModal({
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Label>Privacy Settings</Label>
             <div className="flex items-center space-x-2">
               <Checkbox

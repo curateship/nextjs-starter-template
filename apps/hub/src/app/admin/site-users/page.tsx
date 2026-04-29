@@ -1019,7 +1019,7 @@ export default function SiteUsersPage() {
             <DialogHeader>
               <DialogTitle>Add Site User</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreateUser} className="space-y-4 [&_label+input]:mt-2 [&_label+button]:mt-2">
+            <form onSubmit={handleCreateUser} className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
               {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
               <div>
                 <Label htmlFor="site-user-email">Email *</Label>
@@ -1049,7 +1049,7 @@ export default function SiteUsersPage() {
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, password: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="site-user-role">Role</Label>
                   <Select value={createForm.role} onValueChange={(value: "admin" | "member") => setCreateForm((prev) => ({ ...prev, role: value }))}>
@@ -1094,7 +1094,7 @@ export default function SiteUsersPage() {
             <DialogHeader>
               <DialogTitle>Edit Site User</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleUpdateUser} className="space-y-4 [&_label+input]:mt-2 [&_label+button]:mt-2">
+            <form onSubmit={handleUpdateUser} className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
               {errorMessage && <p className="text-sm text-red-600">{errorMessage}</p>}
               <div>
                 <Label>Email</Label>
@@ -1108,7 +1108,7 @@ export default function SiteUsersPage() {
                   onChange={(e) => setEditForm((prev) => ({ ...prev, displayName: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="edit-site-user-role">Role</Label>
                   <Select

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ChevronDown, ImageIcon, X } from "lucide-react"
@@ -185,14 +186,14 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+    <form onSubmit={handleSubmit} className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
       {error && (
         <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-6">
         <div className="col-span-2">
           <Label htmlFor="template">Start from Template</Label>
           {templatesLoading ? (
@@ -300,8 +301,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
 
       {/* Categories */}
       {currentSite?.id && (
-        <div>
-          <Label>Categories</Label>
+        <Field>
+          <FieldLabel>Categories</FieldLabel>
           <CategoryPicker
             siteId={currentSite.id}
             selectedCategoryIds={selectedCategoryIds}
@@ -309,10 +310,10 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             primaryCategoryId={primaryCategoryId}
             onPrimaryCategoryChange={setPrimaryCategoryId}
           />
-          <p className="text-xs text-muted-foreground mt-1">
+          <FieldDescription>
             Assign this directory to one or more categories
-          </p>
-        </div>
+          </FieldDescription>
+        </Field>
       )}
 
       {/* Meta Description */}

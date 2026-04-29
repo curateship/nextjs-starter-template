@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
@@ -129,14 +130,14 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+    <form onSubmit={handleSubmit} className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
       {error && (
         <div className="p-4 text-sm text-red-800 bg-red-100 border border-red-200 rounded-md">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-6">
         {/* Event Title */}
         <div className="col-span-2">
           <Label htmlFor="title">Event Title *</Label>
@@ -219,7 +220,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       </div>
 
       {/* Privacy Settings */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <Label>Privacy Settings</Label>
         <div className="flex items-center space-x-2">
           <Checkbox
@@ -235,8 +236,8 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
 
       {/* Categories */}
       {currentSite?.id && (
-        <div>
-          <Label>Categories</Label>
+        <Field>
+          <FieldLabel>Categories</FieldLabel>
           <CategoryPicker
             siteId={currentSite.id}
             selectedCategoryIds={selectedCategoryIds}
@@ -244,10 +245,10 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
             primaryCategoryId={primaryCategoryId}
             onPrimaryCategoryChange={setPrimaryCategoryId}
           />
-          <p className="text-xs text-muted-foreground mt-1">
+          <FieldDescription>
             Assign this event to one or more categories
-          </p>
-        </div>
+          </FieldDescription>
+        </Field>
       )}
 
       {/* Meta Description */}

@@ -17,6 +17,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
@@ -307,7 +308,7 @@ export function PostSettingsModal({
             )}
 
           {/* Post Title */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div className="col-span-2">
               <Label htmlFor="modal-title">Post Title *</Label>
               <Input
@@ -397,8 +398,8 @@ export function PostSettingsModal({
 
           {/* Categories */}
           {post?.site_id && (
-            <div>
-              <Label>Categories</Label>
+            <Field>
+              <FieldLabel>Categories</FieldLabel>
               <CategoryPicker
                 siteId={post.site_id}
                 selectedCategoryIds={selectedCategoryIds}
@@ -407,10 +408,10 @@ export function PostSettingsModal({
                 onPrimaryCategoryChange={setPrimaryCategoryId}
                 loadingSelectedCategories={loadingCategories}
               />
-              <p className="mt-1 text-xs text-muted-foreground">
+              <FieldDescription>
                 Assign this post to one or more categories
-              </p>
-            </div>
+              </FieldDescription>
+            </Field>
           )}
 
           {/* Meta Description */}

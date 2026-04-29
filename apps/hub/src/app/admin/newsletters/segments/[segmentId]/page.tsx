@@ -757,7 +757,7 @@ export default function SegmentDashboardPage() {
             </AdminModalDescription>
           </AdminModalHeader>
           <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-            <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
               <div>
                 <Label htmlFor="segment-name">Name</Label>
                 <Input

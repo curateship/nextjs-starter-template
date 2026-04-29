@@ -199,7 +199,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="mt-0 min-h-[320px] space-y-4">
+          <TabsContent value="general" className="mt-0 min-h-[320px] space-y-6">
             <div>
               <Label htmlFor="newsletter-template">Start from template</Label>
               {templatesLoading ? (
@@ -234,7 +234,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             </div>
           </TabsContent>
 
-          <TabsContent value="drip-options" className="mt-0 min-h-[320px] space-y-4">
+          <TabsContent value="drip-options" className="mt-0 min-h-[320px] space-y-6">
             <div>
               <div className="mb-3 flex items-center gap-2">
                 <Checkbox
@@ -245,8 +245,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                 <Label htmlFor="create-drip-toggle">Enable drip sending</Label>
               </div>
               {dripEnabled && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="create-drip-batch-min">Batch size min</Label>
                       <Input
@@ -268,7 +268,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="create-drip-interval-min">Interval min (minutes)</Label>
                       <Input
@@ -315,8 +315,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                       <Label htmlFor="create-send-window-toggle">Limit sending to specific hours</Label>
                     </div>
                     {dripSendWindowEnabled && (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-6">
                           <div>
                             <Label htmlFor="create-send-window-start">Start time</Label>
                             <Input

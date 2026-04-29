@@ -424,7 +424,7 @@ export default function EmailAutomationsPage() {
                 </AdminModalDescription>
               </AdminModalHeader>
               <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
-                <AdminModalBody className="space-y-4 [&_label+input]:mt-2">
+                <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
                   <div>
                     <Label>Name *</Label>
                     <Input value={createName} onChange={e => setCreateName(e.target.value)} placeholder="e.g. Fitness Lead Magnet Sequence" required />

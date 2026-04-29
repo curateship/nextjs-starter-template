@@ -113,8 +113,8 @@ function SortableOrderBumpItem({
         </Button>
       </div>
 
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+        <div className="grid grid-cols-2 gap-6">
           <div>
             <Label htmlFor={`bump-title-${bumpIndex}`}>Title</Label>
             <Input
@@ -245,7 +245,7 @@ export function OrderBumpsModal({
               </p>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <p className="text-sm text-muted-foreground">
                   {orderBumps.length === 0
@@ -273,7 +273,7 @@ export function OrderBumpsModal({
                     items={orderBumps.map((b) => b.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {orderBumps.map((bump, index) => (
                         <SortableOrderBumpItem
                           key={bump.id}

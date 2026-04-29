@@ -159,7 +159,7 @@ export function PublishNewsletterModal({
           </AdminModalDescription>
         </AdminModalHeader>
 
-        <AdminModalBody className="space-y-4 [&_label+input]:mt-2">
+        <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-800">{error}</p>
@@ -268,7 +268,7 @@ export function PublishNewsletterModal({
                   value={testEmail}
                   onChange={(e) => setTestEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="mt-1"
+                  className="mt-2"
                 />
               </div>
               <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>

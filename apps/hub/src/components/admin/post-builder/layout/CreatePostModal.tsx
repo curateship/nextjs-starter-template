@@ -12,6 +12,7 @@ import {
   AdminModalBody,
   AdminModalFooter,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -218,7 +219,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-6">
           <div className="col-span-2">
             <Label htmlFor="template">Start from Template</Label>
             {templatesLoading ? (
@@ -352,8 +353,8 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         </div>
 
         {currentSite?.id && (
-          <div>
-            <Label>Categories</Label>
+          <Field>
+            <FieldLabel>Categories</FieldLabel>
             <CategoryPicker
               siteId={currentSite.id}
               selectedCategoryIds={selectedCategoryIds}
@@ -361,10 +362,10 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
               primaryCategoryId={primaryCategoryId}
               onPrimaryCategoryChange={setPrimaryCategoryId}
             />
-            <p className="mt-1 text-xs text-muted-foreground">
+            <FieldDescription>
               Assign this post to one or more categories
-            </p>
-          </div>
+            </FieldDescription>
+          </Field>
         )}
 
         <div>

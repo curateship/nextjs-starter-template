@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
@@ -240,9 +241,9 @@ export function EventSettingsModal({
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+        <form onSubmit={handleSubmit} className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {/* Event Title */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div className="col-span-2">
               <Label htmlFor="modal-title">Event Title *</Label>
               <Input
@@ -317,7 +318,7 @@ export function EventSettingsModal({
           </div>
 
           {/* Privacy Settings */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Label>Privacy Settings</Label>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -335,8 +336,8 @@ export function EventSettingsModal({
 
           {/* Categories */}
           {event?.site_id && (
-            <div>
-              <Label>Categories</Label>
+            <Field>
+              <FieldLabel>Categories</FieldLabel>
               <CategoryPicker
                 siteId={event.site_id}
                 selectedCategoryIds={selectedCategoryIds}
@@ -345,10 +346,10 @@ export function EventSettingsModal({
                 onPrimaryCategoryChange={setPrimaryCategoryId}
                 loadingSelectedCategories={loadingCategories}
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <FieldDescription>
                 Assign this event to one or more categories
-              </p>
-            </div>
+              </FieldDescription>
+            </Field>
           )}
 
           {/* Meta Description */}

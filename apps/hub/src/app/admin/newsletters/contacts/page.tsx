@@ -1214,7 +1214,7 @@ export default function ContactsPage() {
                   Build rules to narrow the contacts shown in this dashboard.
                 </AdminModalDescription>
               </AdminModalHeader>
-              <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+              <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
                 <div className="flex items-center gap-3 text-sm font-medium">
                   <span>Matching</span>
                   <Tabs
@@ -1606,7 +1606,7 @@ export default function ContactsPage() {
               </AdminModalHeader>
 
               <form onSubmit={handleAddContact} className="flex min-h-0 flex-1 flex-col">
-                <AdminModalBody className="space-y-4 [&_label+input]:mt-2">
+                <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
                   <div>
                     <Label htmlFor="add-email">Email *</Label>
                     <Input
@@ -1618,7 +1618,7 @@ export default function ContactsPage() {
                       onChange={(e) => setAddForm(prev => ({ ...prev, email: e.target.value }))}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="add-first">First Name</Label>
                       <Input
@@ -1674,8 +1674,8 @@ export default function ContactsPage() {
               </AdminModalHeader>
 
               <form onSubmit={handleEditContact} className="flex min-h-0 flex-1 flex-col">
-                <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
-                  <div className="grid grid-cols-2 gap-4">
+                <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
+                  <div className="grid grid-cols-2 gap-6">
                     <div>
                       <Label htmlFor="edit-first">First Name</Label>
                       <Input

@@ -313,21 +313,23 @@ export function ProductSettingsModal({
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <AdminModalBody>
-            <div className="space-y-4">
-              {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                  <p className="text-sm text-red-800">{error}</p>
-                </div>
-              )}
+            {(error || saveMessage) && (
+              <div className="space-y-4">
+                {error && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
 
-              {saveMessage && (
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                  <p className="text-sm text-green-800">{saveMessage}</p>
-                </div>
-              )}
-            </div>
+                {saveMessage && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                    <p className="text-sm text-green-800">{saveMessage}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <FieldGroup className="gap-6">
+            <FieldGroup className={error || saveMessage ? "gap-6 pt-4" : "gap-6"}>
               <Field>
                 <FieldLabel htmlFor="modal-title">Product Title *</FieldLabel>
                 <Input

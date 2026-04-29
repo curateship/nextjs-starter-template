@@ -171,7 +171,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-6">
           <div className="col-span-2">
             <Label htmlFor="title">Page Title *</Label>
             <Input

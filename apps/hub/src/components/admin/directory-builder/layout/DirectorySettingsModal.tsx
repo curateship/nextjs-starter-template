@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
@@ -241,9 +242,9 @@ export function DirectorySettingsModal({
         )}
 
 
-        <form onSubmit={handleSubmit} className="space-y-4 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+        <form onSubmit={handleSubmit} className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {/* Directory Title */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-6">
             <div className="col-span-2">
               <Label htmlFor="modal-title">Directory Title *</Label>
               <Input
@@ -319,8 +320,8 @@ export function DirectorySettingsModal({
 
           {/* Categories */}
           {directory?.site_id && (
-            <div>
-              <Label>Categories</Label>
+            <Field>
+              <FieldLabel>Categories</FieldLabel>
               <CategoryPicker
                 siteId={directory.site_id}
                 selectedCategoryIds={selectedCategoryIds}
@@ -329,10 +330,10 @@ export function DirectorySettingsModal({
                 onPrimaryCategoryChange={setPrimaryCategoryId}
                 loadingSelectedCategories={loadingCategories}
               />
-              <p className="text-xs text-muted-foreground mt-1">
+              <FieldDescription>
                 Assign this directory to one or more categories
-              </p>
-            </div>
+              </FieldDescription>
+            </Field>
           )}
 
           {/* Meta Description */}

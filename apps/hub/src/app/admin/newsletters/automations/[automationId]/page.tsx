@@ -866,7 +866,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 Choose what event enrolls a contact into this automation.
               </AdminModalDescription>
             </AdminModalHeader>
-            <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>When should this automation start?</Label>
                 <Select
@@ -983,7 +983,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 Set how long the automation should wait before the next step runs.
               </AdminModalDescription>
             </AdminModalHeader>
-            <AdminModalBody className="space-y-4 [&_label+button]:mt-2 [&_label+input]:mt-2">
+            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>Wait for</Label>
                 <Select value={delayType} onValueChange={setDelayType}>
@@ -998,7 +998,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               </div>
 
               {delayType === "amount_of_time" && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-6">
                   <div>
                     <Label>Amount</Label>
                     <Input type="number" min="1" value={delayValue} onChange={event => setDelayValue(event.target.value)} />
