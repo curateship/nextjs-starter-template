@@ -265,7 +265,7 @@ button:not(:disabled),
   @apply py-2 border-b border-border/50;
 }
 
-.prose a {
+.prose :where(a):not(:where(.not-prose, .not-prose *)) {
   @apply text-primary hover:underline;
 }
 

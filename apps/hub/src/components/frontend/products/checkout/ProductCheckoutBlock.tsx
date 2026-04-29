@@ -79,17 +79,17 @@ const SinglePricingCard = ({
   const getRibbonColorClasses = (color: string) => {
     switch (color) {
       case 'blue':
-        return 'bg-blue-500 text-white'
+        return 'bg-blue-700 text-white'
       case 'green':
-        return 'bg-green-500 text-white'
+        return 'bg-green-700 text-white'
       case 'purple':
-        return 'bg-purple-500 text-white'
+        return 'bg-purple-700 text-white'
       case 'red':
-        return 'bg-red-500 text-white'
+        return 'bg-red-700 text-white'
       case 'yellow':
-        return 'bg-yellow-400 text-black'
+        return 'bg-yellow-700 text-white'
       default:
-        return 'bg-blue-500 text-white'
+        return 'bg-blue-700 text-white'
     }
   }
 
@@ -187,17 +187,17 @@ const PricingCard = ({
   const getRibbonColorClasses = (color: string) => {
     switch (color) {
       case 'blue':
-        return 'bg-blue-500 text-white'
+        return 'bg-blue-700 text-white'
       case 'green':
-        return 'bg-green-500 text-white'
+        return 'bg-green-700 text-white'
       case 'purple':
-        return 'bg-purple-500 text-white'
+        return 'bg-purple-700 text-white'
       case 'red':
-        return 'bg-red-500 text-white'
+        return 'bg-red-700 text-white'
       case 'yellow':
-        return 'bg-yellow-400 text-black'
+        return 'bg-yellow-700 text-white'
       default:
-        return 'bg-blue-500 text-white'
+        return 'bg-blue-700 text-white'
     }
   }
 

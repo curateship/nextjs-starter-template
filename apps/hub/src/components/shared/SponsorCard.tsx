@@ -25,7 +25,7 @@ export function SponsorCard({ sponsor, postId, className, tracking = true }: Spo
       data-sponsor-post-id={tracking ? postId : undefined}
       data-sponsor-url={tracking ? href : undefined}
       className={cn(
-        "not-prose my-6 flex items-center gap-4 rounded-lg border bg-card p-4 text-card-foreground !no-underline shadow-sm transition-shadow hover:!no-underline hover:shadow-lg focus:!no-underline active:!no-underline visited:!no-underline [&_*]:!no-underline",
+        "not-prose my-6 flex items-center gap-4 rounded-lg border bg-card p-4 text-card-foreground shadow-sm transition-shadow hover:shadow-lg",
         className
       )}
     >
