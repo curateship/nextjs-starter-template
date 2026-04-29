@@ -49,7 +49,7 @@ export function BlockContainer({
   );
 
   return (
-    <section id={id} className={`py-8 md:py-12 ${className}`}>
+    <section id={id} className={`py-8 md:py-14 ${className}`}>
       <div 
         className={container ? `mx-auto ${containerClass} px-6` : ""} 
         style={containerStyle}

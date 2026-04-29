@@ -1,6 +1,7 @@
 'use client'
 
-import { SiteSwitcherProvider } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useEffect } from "react"
+import { SiteSwitcherProvider, useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { DashboardHeaderActionsSlotProvider } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { AppSidebar } from "@/components/admin/layout/sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@/components/admin/layout/sidebar/Sidebar"
@@ -15,6 +16,25 @@ interface AdminClientShellProps {
   initialSites: SiteWithTheme[]
   pageSize: number
   user: { name: string; email: string; avatar?: string }
+}
+
+function AdminDocumentTitle() {
+  const { currentSite } = useSiteSwitcher()
+
+  useEffect(() => {
+    if (!currentSite) {
+      document.title = "Admin"
+      return
+    }
+
+    const siteTitle = typeof currentSite.settings?.site_title === "string"
+      ? currentSite.settings.site_title.trim()
+      : ""
+
+    document.title = `${siteTitle || currentSite.name} Admin`
+  }, [currentSite])
+
+  return null
 }
 
 export function AdminClientShell({
@@ -38,6 +58,7 @@ export function AdminClientShell({
         secondaryFontFamily={secondaryFontFamily}
       />
       <SiteSwitcherProvider initialSites={initialSites} pageSize={pageSize}>
+        <AdminDocumentTitle />
         <DashboardHeaderActionsSlotProvider>
           <div className="admin-layout min-h-screen bg-background">
             <SidebarProvider className="h-screen">
