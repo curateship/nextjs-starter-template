@@ -60,10 +60,7 @@ export async function POST(request: NextRequest) {
     const integrations = await db
       .select({ siteId: siteIntegrations.siteId, config: siteIntegrations.config })
       .from(siteIntegrations)
-      .where(and(
-        eq(siteIntegrations.integrationType, 'resend'),
-        eq(siteIntegrations.isEnabled, true),
-      ))
+      .where(eq(siteIntegrations.integrationType, 'resend'))
 
     if (!integrations.length) {
       return NextResponse.json({ error: 'No Resend integrations configured' }, { status: 400 })

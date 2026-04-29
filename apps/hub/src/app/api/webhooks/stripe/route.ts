@@ -3,7 +3,7 @@ import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
 import { siteIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { getProductIdFromPurchaseMetadata, recordPaidPurchase } from '@/lib/checkout/paid-purchase-recording'
 
 /**
@@ -28,10 +28,7 @@ export async function POST(req: NextRequest) {
     const integrations = await db
       .select({ siteId: siteIntegrations.siteId })
       .from(siteIntegrations)
-      .where(and(
-        eq(siteIntegrations.integrationType, 'stripe'),
-        eq(siteIntegrations.isEnabled, true),
-      ))
+      .where(eq(siteIntegrations.integrationType, 'stripe'))
 
     if (!integrations.length) {
       return NextResponse.json(

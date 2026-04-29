@@ -33,7 +33,7 @@ async function getServerIntegration(siteId: string, integrationType: string) {
     ),
   })
 
-  if (!integration || !integration.isEnabled) {
+  if (!integration) {
     return null
   }
 

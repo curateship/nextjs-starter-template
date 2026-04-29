@@ -11,14 +11,13 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import {
   getSiteIntegrations,
   createOrUpdateIntegration,
-  toggleIntegration,
 } from '@/lib/actions/integrations/integration-actions'
 import type { SiteIntegration } from '@/lib/actions/integrations/integration-actions'
 import { INTEGRATION_REGISTRY, type IntegrationCategory, type IntegrationRegistryEntry } from '@/lib/actions/integrations/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CheckCircle, Eye, EyeOff } from "lucide-react"
@@ -29,37 +28,22 @@ import { SiteSettingsHeaderNav } from "@/components/admin/layout/settings/SiteSe
 // --- IntegrationCard ---
 
 interface IntegrationCardProps {
-  siteId: string
   entry: IntegrationRegistryEntry
   integration: SiteIntegration | null
   formValues: Record<string, string>
   onFormChange: (type: string, key: string, value: string) => void
-  onToggle: (integrationId: string, isEnabled: boolean) => Promise<void>
-  onSuccess?: (message: string) => void
-  onError?: (message: string) => void
 }
 
 function IntegrationCard({
-  siteId,
   entry,
   integration,
   formValues,
   onFormChange,
-  onToggle,
-  onSuccess,
-  onError,
 }: IntegrationCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
 
   const isConfigured = integration !== null
-  const isEnabled = integration?.isEnabled ?? false
   const stripeMode = (formValues.mode || integration?.config?.mode) === 'sandbox' ? 'Sandbox' : 'Live'
-
-  const handleToggle = async (checked: boolean) => {
-    if (!integration) return
-    await onToggle(integration.id, checked)
-  }
 
   const toggleReveal = (key: string) => {
     setRevealedFields((prev) => {
@@ -75,23 +59,11 @@ function IntegrationCard({
 
   return (
     <Card>
-      <CardHeader
-        className="cursor-pointer select-none"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
+      <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <CardTitle className="text-base flex items-center gap-2">
               {entry.label}
-              {isConfigured && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  isEnabled
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                }`}>
-                  {isEnabled ? 'Connected' : 'Disabled'}
-                </span>
-              )}
               {!isConfigured && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
                   Not configured
@@ -100,8 +72,8 @@ function IntegrationCard({
               {entry.type === 'stripe' && isConfigured && (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                   stripeMode === 'Sandbox'
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                 }`}>
                   Using {stripeMode}
                 </span>
@@ -109,81 +81,82 @@ function IntegrationCard({
             </CardTitle>
             <CardDescription className="mt-1">{entry.description}</CardDescription>
           </div>
-          {isConfigured && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <Switch
-                checked={isEnabled}
-                onCheckedChange={handleToggle}
-              />
-            </div>
-          )}
         </div>
       </CardHeader>
 
-      {isExpanded && (
-        <CardContent className="pt-0 space-y-4">
-          {entry.fields.map((field) => (
-            <div key={field.key} className="space-y-2">
-              {entry.type === 'stripe' && field.key === 'secret_key' && (
-                <h3 className="pt-4 text-base font-semibold">Live Credentials</h3>
-              )}
-              {entry.type === 'stripe' && field.key === 'sandbox_secret_key' && (
-                <h3 className="pt-4 text-base font-semibold">Sandbox Credentials</h3>
-              )}
-              <Label htmlFor={`${entry.type}-${field.key}`}>
-                {field.label}
-                {field.required && <span className="text-destructive ml-1">*</span>}
-              </Label>
-              <div className="relative">
-                {field.type === 'select' ? (
-                  <Select
-                    value={formValues[field.key] || field.options?.[0]?.value || ''}
-                    onValueChange={(value) => onFormChange(entry.type, field.key, value)}
-                  >
-                    <SelectTrigger id={`${entry.type}-${field.key}`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {field.options?.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
+      <CardContent className="pt-0 space-y-4">
+        {entry.fields.map((field) => (
+          <div key={field.key} className="space-y-2">
+            {entry.type === 'stripe' && field.key === 'secret_key' && (
+              <h3 className="pt-4 text-base font-semibold">Live Credentials</h3>
+            )}
+            {entry.type === 'stripe' && field.key === 'sandbox_secret_key' && (
+              <h3 className="pt-4 text-base font-semibold">Sandbox Credentials</h3>
+            )}
+            <Label htmlFor={`${entry.type}-${field.key}`}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            <div className="relative">
+              {entry.type === 'stripe' && field.key === 'mode' ? (
+                <div className="flex h-10 items-center gap-2">
+                  <Checkbox
                     id={`${entry.type}-${field.key}`}
-                    type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : field.type}
-                    placeholder={field.placeholder}
-                    value={formValues[field.key] || ''}
-                    onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
-                    className={field.type === 'password' ? 'pr-10' : ''}
+                    checked={(formValues[field.key] || field.options?.[0]?.value || '') === 'sandbox'}
+                    onCheckedChange={(checked) => onFormChange(entry.type, field.key, checked ? 'sandbox' : 'live')}
                   />
-                )}
-                {field.type === 'password' && (
-                  <button
-                    type="button"
-                    onClick={() => toggleReveal(field.key)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {revealedFields.has(field.key) ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                )}
-              </div>
-              {entry.type === 'stripe' && field.key === 'mode' && (
-                <p className="text-sm text-muted-foreground">
-                  This selects whether checkout payments and Stripe webhooks use the live keys or sandbox keys below.
-                </p>
+                  <Label htmlFor={`${entry.type}-${field.key}`} className="cursor-pointer font-normal">
+                    Use sandbox keys
+                  </Label>
+                </div>
+              ) : field.type === 'select' ? (
+                <Select
+                  value={formValues[field.key] || field.options?.[0]?.value || ''}
+                  onValueChange={(value) => onFormChange(entry.type, field.key, value)}
+                >
+                  <SelectTrigger id={`${entry.type}-${field.key}`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.options?.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id={`${entry.type}-${field.key}`}
+                  type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : field.type}
+                  placeholder={field.placeholder}
+                  value={formValues[field.key] || ''}
+                  onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
+                  className={field.type === 'password' ? 'pr-10' : ''}
+                />
+              )}
+              {field.type === 'password' && (
+                <button
+                  type="button"
+                  onClick={() => toggleReveal(field.key)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {revealedFields.has(field.key) ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               )}
             </div>
-          ))}
-        </CardContent>
-      )}
+            {entry.type === 'stripe' && field.key === 'mode' && (
+              <p className="text-sm text-muted-foreground">
+                Unchecked uses live keys for checkout payments and webhooks.
+              </p>
+            )}
+          </div>
+        ))}
+      </CardContent>
     </Card>
   )
 }
@@ -256,7 +229,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
           }
         }
         if (hasValues) {
-          await createOrUpdateIntegration(siteId, entry.type, config, true)
+          await createOrUpdateIntegration(siteId, entry.type, config)
           saved++
         }
       }
@@ -278,16 +251,6 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
     }))
   }, [])
 
-  const handleToggle = async (integrationId: string, isEnabled: boolean) => {
-    try {
-      await toggleIntegration(integrationId, isEnabled)
-      await loadIntegrations()
-    } catch (err) {
-      console.error('Error toggling integration:', err)
-      onError?.('Failed to toggle integration')
-    }
-  }
-
   const getIntegration = (type: string): SiteIntegration | null => {
     return integrations.find((i) => i.integrationType ===type) ?? null
   }
@@ -298,13 +261,30 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
         {entries.map((entry) => (
           <Card key={entry.type}>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex-1 space-y-2">
-                  <div className="h-5 bg-muted rounded animate-pulse w-32" />
-                  <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 bg-muted rounded animate-pulse w-24" />
+                  {entry.type === 'stripe' && (
+                    <div className="h-5 bg-muted rounded-full animate-pulse w-20" />
+                  )}
                 </div>
+                <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
               </div>
             </CardHeader>
+            <CardContent className="pt-0 space-y-4">
+              {entry.fields.map((field) => (
+                <div key={field.key} className="space-y-2">
+                  {entry.type === 'stripe' && (field.key === 'secret_key' || field.key === 'sandbox_secret_key') && (
+                    <div className="h-5 bg-muted rounded animate-pulse w-36" />
+                  )}
+                  <div className="h-4 bg-muted rounded animate-pulse w-44" />
+                  <div className={field.key === 'mode'
+                    ? "h-5 bg-muted rounded animate-pulse w-36"
+                    : "h-10 bg-muted rounded animate-pulse w-full"}
+                  />
+                </div>
+              ))}
+            </CardContent>
           </Card>
         ))}
       </div>
@@ -316,14 +296,10 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       {entries.map((entry) => (
         <IntegrationCard
           key={entry.type}
-          siteId={siteId}
           entry={entry}
           integration={getIntegration(entry.type)}
           formValues={allFormValues[entry.type] || {}}
           onFormChange={handleFormChange}
-          onToggle={handleToggle}
-          onSuccess={onSuccess}
-          onError={onError}
         />
       ))}
     </div>

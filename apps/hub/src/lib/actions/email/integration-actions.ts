@@ -9,7 +9,6 @@ export {
   getSiteIntegration,
   getSiteIntegrations,
   createOrUpdateIntegration,
-  toggleIntegration,
 } from '@/lib/actions/integrations/integration-actions'
 
 export {

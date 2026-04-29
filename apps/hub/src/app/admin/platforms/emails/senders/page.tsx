@@ -16,7 +16,7 @@ interface SenderRow {
   name: string
   email: string
   provider: string
-  status: "Connected" | "Disabled"
+  status: "Connected"
   updatedAt: string | null
 }
 
@@ -30,7 +30,7 @@ function buildSenderRows(integration: SiteIntegration | null): SenderRow[] {
     name: integration?.config?.from_name?.trim() || "Unnamed Sender",
     email: fromEmail,
     provider: "Resend",
-    status: integration?.isEnabled ? "Connected" : "Disabled",
+    status: "Connected",
     updatedAt: integration?.updatedAt?.toISOString?.() ?? null,
   }]
 }

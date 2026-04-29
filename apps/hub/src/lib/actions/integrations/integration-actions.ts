@@ -29,7 +29,6 @@ export interface SiteIntegration {
   siteId: string
   integrationType: string
   config: Record<string, any>
-  isEnabled: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -138,8 +137,7 @@ export async function getSiteIntegrations(
 export async function createOrUpdateIntegration(
   siteId: string,
   integrationType: string,
-  config: Record<string, any>,
-  isEnabled: boolean = true
+  config: Record<string, any>
 ): Promise<SiteIntegration> {
   try {
     await verifyOwnership(siteId)
@@ -151,14 +149,12 @@ export async function createOrUpdateIntegration(
         siteId,
         integrationType,
         config: encryptedConfig,
-        isEnabled,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [siteIntegrations.siteId, siteIntegrations.integrationType],
         set: {
           config: encryptedConfig,
-          isEnabled,
           updatedAt: new Date(),
         },
       })
@@ -174,36 +170,6 @@ export async function createOrUpdateIntegration(
     } as SiteIntegration
   } catch (error) {
     console.error('Error in createOrUpdateIntegration:', error)
-    throw error
-  }
-}
-
-/**
- * Toggle integration enabled/disabled status.
- */
-export async function toggleIntegration(
-  integrationId: string,
-  isEnabled: boolean
-): Promise<void> {
-  try {
-    // Look up integration to get site_id, then verify ownership
-    const integration = await db.query.siteIntegrations.findFirst({
-      where: eq(siteIntegrations.id, integrationId),
-      columns: { siteId: true },
-    })
-
-    if (!integration) throw new Error('Integration not found')
-    await verifyOwnership(integration.siteId)
-
-    await db
-      .update(siteIntegrations)
-      .set({
-        isEnabled,
-        updatedAt: new Date(),
-      })
-      .where(eq(siteIntegrations.id, integrationId))
-  } catch (error) {
-    console.error('Error in toggleIntegration:', error)
     throw error
   }
 }
