@@ -34,6 +34,7 @@ export interface SiteSettings extends SiteSeoSettings {
   enabled_features?: Record<string, boolean>
   feature_order?: string[]
   maintenance?: { enabled?: boolean }
+  welcome_email_enabled?: boolean
   tracking_scripts?: string
   custom_analytics_enabled?: boolean
   [key: string]: any  // Allow other dynamic settings

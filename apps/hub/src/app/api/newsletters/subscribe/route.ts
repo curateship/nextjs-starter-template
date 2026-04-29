@@ -3,6 +3,14 @@ import { eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
+import { getEmailConfig } from '@/lib/actions/email/integration-actions'
+import { getEmailProvider } from '@/lib/actions/email/provider'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/email/system-email'
 import {
   EMAIL_FORM_CONTACT_SOURCE,
   EMAIL_FORM_CONTACT_TAG,
@@ -92,8 +100,10 @@ export async function POST(request: NextRequest) {
     const [site] = await db
       .select({
         id: sites.id,
+        name: sites.name,
         subdomain: sites.subdomain,
         customDomain: sites.customDomain,
+        settings: sites.settings,
       })
       .from(sites)
       .where(eq(sites.id, siteId))
@@ -134,6 +144,39 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Failed to subscribe' },
         { status: 500 }
       )
+    }
+
+    const siteSettings = (site.settings || {}) as Record<string, any>
+    if (siteSettings.welcome_email_enabled !== false) {
+      try {
+        const emailConfig = await getEmailConfig(siteId)
+        if (emailConfig?.apiKey && emailConfig.fromEmail) {
+          const template = await getSystemEmailTemplate('welcome_email', siteId)
+          if (template.is_enabled) {
+            const tokens = await buildSystemEmailTokens({
+              siteId,
+              subscriberEmail: email,
+              emailFormIdentifier: identifier,
+            })
+            const provider = getEmailProvider(emailConfig.apiKey, emailConfig.providerType)
+            const fromName = template.from_name || emailConfig.fromName || site.name || 'Your Company'
+
+            const sendResult = await provider.send({
+              from: `${fromName} <${emailConfig.fromEmail}>`,
+              to: email,
+              subject: renderSystemEmailSubject(template.subject, tokens),
+              html: renderSystemEmailContent(template, tokens),
+              replyTo: template.reply_to || undefined,
+            })
+
+            if (!sendResult.success) {
+              console.error('Welcome email send failed:', sendResult.error)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Welcome email error:', error)
+      }
     }
 
     return NextResponse.json({ success: true })

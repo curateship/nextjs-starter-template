@@ -9,6 +9,7 @@ export type SystemEmailTemplateKey =
   | 'email_verification'
   | 'lead_magnet_delivery'
   | 'paid_purchase_delivery'
+  | 'welcome_email'
 
 export interface SystemEmailTemplateRecord {
   id: string | null
@@ -53,6 +54,7 @@ export const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'email_verification',
   'lead_magnet_delivery',
   'paid_purchase_delivery',
+  'welcome_email',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
@@ -107,6 +109,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       subject: 'Your {{product_name}} is ready',
       bodyHtml: '<p>Your {{product_name}} is ready.</p><p><a href="{{product_url}}">Open {{product_name}}</a></p>',
       tokens: ['{{product_name}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
+    }
+  }
+
+  if (templateKey === 'welcome_email') {
+    return {
+      name: 'Welcome Email',
+      description: 'Sent after someone subscribes through a page email form.',
+      scopeLabel: 'Current Site',
+      subject: 'Welcome to {{site_name}}',
+      bodyHtml: '<p>Thanks for subscribing to {{site_name}}.</p><p>You are on the list.</p><p><a href="{{site_url}}">Visit {{site_name}}</a></p>',
+      tokens: ['{{site_name}}', '{{site_url}}', '{{subscriber_email}}', '{{email_form_identifier}}'],
     }
   }
 
@@ -177,16 +190,21 @@ async function getStoredTemplate(templateKey: SystemEmailTemplateKey, siteId?: s
   }
 
   const scopeKey = getSystemEmailScopeKey(templateKey, siteId)
-  const [row] = await db
-    .select()
-    .from(emailSystemTemplates)
-    .where(and(
-      eq(emailSystemTemplates.templateKey, templateKey),
-      eq(emailSystemTemplates.scopeKey, scopeKey),
-    ))
-    .limit(1)
+  try {
+    const [row] = await db
+      .select()
+      .from(emailSystemTemplates)
+      .where(and(
+        eq(emailSystemTemplates.templateKey, templateKey),
+        eq(emailSystemTemplates.scopeKey, scopeKey),
+      ))
+      .limit(1)
 
-  return row ? rowToSystemEmailTemplate(row) : null
+    return row ? rowToSystemEmailTemplate(row) : null
+  } catch (error) {
+    console.error('Failed to load stored system email template:', error)
+    return null
+  }
 }
 
 export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey, siteId?: string | null) {
@@ -194,14 +212,15 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, leadMagnet, paidPurchase] = await Promise.all([
+  const [passwordReset, emailVerification, leadMagnet, paidPurchase, welcomeEmail] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('lead_magnet_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
+    getSystemEmailTemplate('welcome_email', siteId),
   ])
 
-  return [passwordReset, emailVerification, leadMagnet, paidPurchase].map((template) => {
+  return [passwordReset, emailVerification, leadMagnet, paidPurchase, welcomeEmail].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
@@ -288,6 +307,8 @@ export async function buildSystemEmailTokens(params: {
   productSlug?: string | null
   tierName?: string | null
   downloadPageContent?: string | null
+  subscriberEmail?: string | null
+  emailFormIdentifier?: string | null
 }) {
   const tokens: Record<string, string> = {
     app_name: 'System Everything',
@@ -299,6 +320,8 @@ export async function buildSystemEmailTokens(params: {
     product_url: '',
     tier_name: params.tierName || '',
     download_page_content: params.downloadPageContent || '',
+    subscriber_email: params.subscriberEmail || '',
+    email_form_identifier: params.emailFormIdentifier || '',
   }
 
   if (params.siteId) {

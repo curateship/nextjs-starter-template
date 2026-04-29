@@ -687,6 +687,7 @@ export default function ContactsPage() {
   const getSourceBadge = (source: string) => {
     switch (source) {
       case "site_registration": return <Badge variant="outline" className="border-amber-200 text-amber-700">Site Registration</Badge>
+      case "Email Form": return <Badge variant="outline" className="border-sky-200 text-sky-700">Email Form</Badge>
       case "lead_magnet": return <Badge variant="outline">Lead Magnet</Badge>
       case "paid_purchase": return <Badge variant="outline" className="border-green-200 text-green-700">Purchase</Badge>
       case "import": return <Badge variant="outline" className="border-blue-200 text-blue-700">Import</Badge>

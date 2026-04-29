@@ -236,7 +236,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       await loadIntegrations()
       if (saved > 0) {
         onSuccess?.('Integration settings saved')
-      } else {
+      } else if (category !== 'email') {
         onSuccess?.('No changes to save')
       }
     }
@@ -353,6 +353,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [customWidth, setCustomWidth] = useState<number | undefined>(contextSite?.settings?.custom_width)
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
+  const [welcomeEmailEnabled, setWelcomeEmailEnabled] = useState<boolean>(contextSite?.settings?.welcome_email_enabled !== false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -420,6 +421,28 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           }
           showSuccess('Settings saved successfully')
         }
+      } else if (activeTab === 'email') {
+        const { data, error } = await updateSiteAction(siteId, {
+          settings: {
+            ...site?.settings,
+            welcome_email_enabled: welcomeEmailEnabled,
+          },
+        })
+
+        if (error) {
+          setError(error)
+          return
+        }
+
+        if (data) {
+          setSite(prev => prev ? { ...prev, ...data } : null)
+          if (currentSite?.id === siteId) {
+            setCurrentSite({ ...currentSite, ...data })
+          }
+          showSuccess('Email settings saved')
+        }
+
+        setIntegrationSaveTrigger((prev) => prev + 1)
       } else {
         setIntegrationSaveTrigger((prev) => prev + 1)
       }
@@ -550,7 +573,29 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
               )}
 
               {activeTab === 'email' && (
-                <IntegrationTab siteId={siteId} category="email" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
+                <div className="space-y-3">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Welcome Email</CardTitle>
+                      <CardDescription>
+                        Send the Welcome Email template when someone subscribes through a page email form.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex h-10 items-center gap-2">
+                        <Checkbox
+                          id="welcome-email-enabled"
+                          checked={welcomeEmailEnabled}
+                          onCheckedChange={(checked) => setWelcomeEmailEnabled(checked === true)}
+                        />
+                        <Label htmlFor="welcome-email-enabled" className="cursor-pointer font-normal">
+                          Enable welcome email
+                        </Label>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <IntegrationTab siteId={siteId} category="email" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
+                </div>
               )}
 
               {activeTab === 'ai' && (
