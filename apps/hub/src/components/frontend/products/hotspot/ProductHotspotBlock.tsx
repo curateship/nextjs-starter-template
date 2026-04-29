@@ -38,6 +38,7 @@ const ProductHotspotBlock = ({
   customWidth
 }: ProductHotspotBlockProps) => {
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [activeHotspotId, setActiveHotspotId] = useState<string | null>(null)
 
   return (
     <BlockContainer
@@ -90,7 +91,11 @@ const ProductHotspotBlock = ({
                 </div>
               </div>
             ) : (
-              <Tooltip key={hotspot.id}>
+              <Tooltip
+                key={hotspot.id}
+                open={activeHotspotId === hotspot.id}
+                onOpenChange={(open) => setActiveHotspotId(open ? hotspot.id : null)}
+              >
                 <TooltipTrigger asChild>
                   <button
                     className="absolute z-10 flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg transition-transform hover:scale-110 focus:scale-110 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
@@ -101,6 +106,12 @@ const ProductHotspotBlock = ({
                       animation: 'hotspot-blink 2s infinite'
                     }}
                     aria-label={`Hotspot: ${hotspot.text}`}
+                    aria-expanded={activeHotspotId === hotspot.id}
+                    onClick={() => {
+                      setActiveHotspotId((currentId) => (
+                        currentId === hotspot.id ? null : hotspot.id
+                      ))
+                    }}
                   >
                     <div className="h-2 w-2 rounded-full bg-white" />
                   </button>
