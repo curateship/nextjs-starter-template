@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Settings } from "lucide-react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
-import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import { Button } from "@/components/ui/button"
 import {
@@ -208,7 +208,7 @@ export function PostPreview({
                 setEditingBlockId(block.id)
               }}
             >
-              <NewsletterInlineRichTextEditor
+              <InlineRichTextEditor
                 blockId={block.id}
                 content={editorContent}
                 onContentChange={(htmlContent) => onUpdateCoreBody?.(block.id, htmlContent)}

@@ -5,7 +5,7 @@ import { Footprints, Settings } from "lucide-react"
 import DOMPurify from "dompurify"
 import type { NewsletterBlock } from "../config/useNewsletterBuilder"
 import { renderNewsletterBlockHtml } from "@/lib/actions/newsletters/render"
-import { NewsletterInlineRichTextEditor } from "./NewsletterInlineRichTextEditor"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils/tailwind"
@@ -172,7 +172,7 @@ export function NewsletterCanvas({
                 )}
 
                 {block.type === "newsletter-rich-text" ? (
-                  <NewsletterInlineRichTextEditor
+                  <InlineRichTextEditor
                     blockId={block.id}
                     content={block.content}
                     onContentChange={(htmlContent) => onUpdateInlineRichText?.(block.id, htmlContent)}

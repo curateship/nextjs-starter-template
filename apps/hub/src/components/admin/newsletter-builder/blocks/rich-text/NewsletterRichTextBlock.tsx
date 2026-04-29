@@ -3,7 +3,7 @@
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR } from "@/lib/actions/newsletters/render"
 
 interface NewsletterRichTextBlockProps {
@@ -35,7 +35,7 @@ export function NewsletterRichTextBlock({
           value: "content",
           label: "Content",
           content: (
-            <NewsletterInlineRichTextEditor
+            <InlineRichTextEditor
               blockId={blockId}
               content={content}
               onContentChange={(htmlContent) => onContentChange('htmlContent', htmlContent)}

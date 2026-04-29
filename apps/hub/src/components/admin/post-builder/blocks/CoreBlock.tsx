@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { BlockEditorSection } from "@/components/ui/tabs"
-import { NewsletterInlineRichTextEditor } from "@/components/admin/newsletter-builder/layout/NewsletterInlineRichTextEditor"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { CORE_STYLES } from "./core-styles"
@@ -96,7 +96,7 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
 
           {/* Rich Text Editor */}
           <div>
-            <NewsletterInlineRichTextEditor
+            <InlineRichTextEditor
               blockId={blockId}
               content={editorContent}
               onContentChange={handleBodyChange}

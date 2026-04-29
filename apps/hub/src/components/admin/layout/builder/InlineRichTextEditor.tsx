@@ -32,6 +32,7 @@ import {
   ListOrdered,
   Pilcrow,
   Quote,
+  Settings,
   Trash2,
 } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -39,7 +40,7 @@ import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml 
 import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 import { SponsorCard } from "@/components/shared/SponsorCard"
 
-interface NewsletterInlineRichTextEditorProps {
+interface InlineRichTextEditorProps {
   blockId: string
   content: Record<string, any>
   onContentChange: (htmlContent: string) => void
@@ -156,14 +157,26 @@ const LinkedImage = Image.extend({
 function SponsorEmbedNodeView(props: any) {
   const sponsorId = props.node?.attrs?.sponsorId as string | null
   const siteId = props.extension?.options?.siteId as string | undefined
-  const isEditable = props.editor?.isEditable !== false
   const [sponsor, setSponsor] = useState<SponsorPublic | null>(null)
   const [loading, setLoading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const handleDelete = (event: React.MouseEvent) => {
     event.preventDefault()
     event.stopPropagation()
     props.deleteNode?.()
+  }
+
+  const handleOpenPicker = (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setPickerOpen(true)
+  }
+
+  const handleSponsorSelect = (nextSponsor: SponsorPublic) => {
+    props.updateAttributes?.({ sponsorId: nextSponsor.id })
+    setSponsor(nextSponsor)
+    setPickerOpen(false)
   }
 
   useEffect(() => {
@@ -203,23 +216,50 @@ function SponsorEmbedNodeView(props: any) {
             {loading ? "Loading sponsor..." : "Sponsor unavailable"}
           </div>
         )}
-        {isEditable && (
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            className="absolute right-2 top-2 z-10 size-8 rounded-full opacity-0 shadow-lg transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-            onMouseDown={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-            }}
-            onClick={handleDelete}
-            title="Delete sponsor"
-          >
-            <Trash2 className="h-4 w-4" />
-            <span className="sr-only">Delete sponsor</span>
-          </Button>
-        )}
+        <>
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+            {siteId && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="size-8 rounded-full shadow-lg"
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onClick={handleOpenPicker}
+                title="Change sponsor"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="sr-only">Change sponsor</span>
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="size-8 rounded-full shadow-lg"
+              onMouseDown={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+              }}
+              onClick={handleDelete}
+              title="Delete sponsor"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Delete sponsor</span>
+            </Button>
+          </div>
+          {siteId && (
+            <SponsorPickerDialog
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              siteId={siteId}
+              onSelectSponsor={handleSponsorSelect}
+            />
+          )}
+        </>
       </div>
     </NodeViewWrapper>
   )
@@ -410,7 +450,7 @@ function getSlashMenuState(editor: Editor): SlashCommandMenuState | null {
   }
 }
 
-export function NewsletterInlineRichTextEditor({
+export function InlineRichTextEditor({
   blockId,
   content,
   onContentChange,
@@ -419,7 +459,7 @@ export function NewsletterInlineRichTextEditor({
   isActive,
   editorPadding,
   variant = "newsletter",
-}: NewsletterInlineRichTextEditorProps) {
+}: InlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
   const pendingSponsorRangeRef = useRef<SlashCommandRange | null>(null)
