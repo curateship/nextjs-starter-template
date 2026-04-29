@@ -25,6 +25,7 @@ const ALLOWED_TAGS = [
 ]
 
 const ALLOWED_ATTR = ['class', 'href', 'id', 'rel', 'target']
+const URL_ATTRS = new Set(['href', 'src'])
 
 const EMBED_ALLOWED_TAGS = [
   ...ALLOWED_TAGS,
@@ -92,13 +93,25 @@ export function sanitizeRichHtml(value?: string | null) {
 export function sanitizeRichMediaHtml(value?: string | null) {
   if (!value) return ''
 
-  return DOMPurify.sanitize(value, {
-    ALLOWED_TAGS: [...ALLOWED_TAGS, 'img'],
-    ALLOWED_ATTR: [...ALLOWED_ATTR, 'alt', 'height', 'loading', 'src', 'title', 'width'],
-    ALLOW_DATA_ATTR: false,
-    SANITIZE_DOM: true,
-    SANITIZE_NAMED_PROPS: true,
-  })
+  const removeDataUrls = (_node: Element, data: { attrName: string; attrValue: string; keepAttr: boolean }) => {
+    if (URL_ATTRS.has(data.attrName.toLowerCase()) && data.attrValue.trim().toLowerCase().startsWith('data:')) {
+      data.keepAttr = false
+    }
+  }
+
+  DOMPurify.addHook('uponSanitizeAttribute', removeDataUrls)
+
+  try {
+    return DOMPurify.sanitize(value, {
+      ALLOWED_TAGS: [...ALLOWED_TAGS, 'img'],
+      ALLOWED_ATTR: [...ALLOWED_ATTR, 'alt', 'height', 'loading', 'src', 'title', 'width'],
+      ALLOW_DATA_ATTR: false,
+      SANITIZE_DOM: true,
+      SANITIZE_NAMED_PROPS: true,
+    })
+  } finally {
+    DOMPurify.removeHook('uponSanitizeAttribute', removeDataUrls)
+  }
 }
 
 export function sanitizeEmbedHtml(value?: string | null) {
