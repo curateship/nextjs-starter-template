@@ -29,6 +29,7 @@ interface UseDirectoryBuilderReturn {
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
+  handleUpdateBlock: (blockId: string, updates: Partial<DirectoryEditorBlock>) => void
   handleDeleteBlock: (block: DirectoryEditorBlock) => void
   handleReorderBlocks: (blocks: DirectoryEditorBlock[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => void
@@ -73,6 +74,33 @@ export function useDirectoryBuilder({
       updatedBlocks[selectedDirectory] = currentBlocks
       setBlocks(updatedBlocks)
       setSelectedBlock(updatedBlocks[selectedDirectory][blockIndex])
+    }
+  }
+
+  const handleUpdateBlock = (blockId: string, updates: Partial<DirectoryEditorBlock>) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = [...(updatedBlocks[selectedDirectory] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === blockId)
+
+    if (blockIndex === -1) return
+
+    const nextType = updates.type || currentBlocks[blockIndex].type
+    const updatedBlock = {
+      ...currentBlocks[blockIndex],
+      ...updates,
+      type: nextType,
+      content: normalizeDirectoryBlockContent(
+        nextType,
+        updates.content || currentBlocks[blockIndex].content
+      ),
+    }
+
+    currentBlocks[blockIndex] = updatedBlock
+    updatedBlocks[selectedDirectory] = currentBlocks
+    setBlocks(updatedBlocks)
+
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(updatedBlock)
     }
   }
 
@@ -196,6 +224,7 @@ export function useDirectoryBuilder({
     isSaving,
     saveMessage,
     updateBlockContent,
+    handleUpdateBlock,
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,

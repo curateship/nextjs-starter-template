@@ -21,6 +21,7 @@ Before planning or coding in `apps/hub/`:
 - Treat `apps/hub/migrations/**` as historical reference only, not runtime authority.
 - Auth is Better Auth. Do not import Supabase-era assumptions into current code.
 - Keep admin builder code and frontend renderer code as separate layers.
+- Do not ship shortcut props, one-off overrides, or patchwork fixes around builder/editor/rendering abstractions. If a behavior is a real content-type variant, name that variant and wire it through the shared API cleanly.
 - Treat site navigation, footer, and breadcrumbs as shared structure in top-level site settings, not as page-specific content blocks.
 - Do not add special frontend auth/dashboard namespaces. Site auth pages come from the account-pages builder and resolve through normal frontend slugs.
 - Do not treat `NEXT_PUBLIC_APP_DOMAIN` and `NEXT_PUBLIC_APP_URL` as interchangeable.

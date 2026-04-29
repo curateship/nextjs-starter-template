@@ -13,6 +13,7 @@ import {
   parseDirectoryBlocksFromJson,
   type DirectoryEditorBlock,
 } from "@/components/admin/directory-builder/config/directory-block-utils"
+import { normalizeDirectoryBlockContent } from "@/lib/actions/directories/directory-layout"
 import {
   getDirectoryTemplateById,
   updateDirectoryTemplate,
@@ -133,6 +134,26 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
 
       return next
     })
+  }
+
+  function handleUpdateBlock(blockId: string, updates: Partial<DirectoryEditorBlock>) {
+    const nextBlocks = blocks.map((block) => {
+      if (block.id !== blockId) return block
+
+      const nextType = updates.type || block.type
+      return {
+        ...block,
+        ...updates,
+        type: nextType,
+        content: normalizeDirectoryBlockContent(nextType, updates.content || block.content),
+      }
+    })
+
+    setBlocks(nextBlocks)
+
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(nextBlocks.find((block) => block.id === blockId) || null)
+    }
   }
 
   function handleDeleteBlock(block: DirectoryEditorBlock) {
@@ -420,7 +441,20 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
               customBlockTemplates={customBlockTemplates}
               blocksLoading={loading}
               allBlocks={blocks}
+              selectedBlock={selectedBlock}
               onSelectBlock={setSelectedBlock as any}
+              onUpdateRichTextBody={(blockId, htmlContent) => {
+                const block = blocks.find((item) => item.id === blockId)
+                if (!block) return
+
+                handleUpdateBlock(blockId, {
+                  content: {
+                    ...block.content,
+                    body: htmlContent,
+                    format: "html",
+                  },
+                })
+              }}
             />
           </ScrollArea>
         </div>

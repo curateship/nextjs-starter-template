@@ -6,6 +6,12 @@ Guidance for Codex working in this repository.
 
 Simplicity is mandatory. Always implement the simplest solution that works. If a simple feature needs more than 20 lines, stop and reconsider. Direct solutions beat clever architecture. Try removing code before adding code. Question every new dependency, hook, or context.
 
+## Coding Standards
+
+- Do not layer shortcut props, one-off overrides, or patchwork fixes on top of a mismatched abstraction. If behavior represents a real product or domain variant, name it directly and wire it through the existing pattern.
+- Prefer coherent changes that align the shared API, call sites, and rendering behavior together. Remove temporary workaround code once the correct shape is clear.
+- When reusing an existing component, preserve its intended semantics. If only part of the behavior is shared, split or extend the abstraction cleanly instead of borrowing a nearby mode and overriding side effects.
+
 ## Rules
 
 ### App-Specific Instructions

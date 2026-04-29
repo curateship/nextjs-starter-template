@@ -89,6 +89,18 @@ export function sanitizeRichHtml(value?: string | null) {
   })
 }
 
+export function sanitizeRichMediaHtml(value?: string | null) {
+  if (!value) return ''
+
+  return DOMPurify.sanitize(value, {
+    ALLOWED_TAGS: [...ALLOWED_TAGS, 'img'],
+    ALLOWED_ATTR: [...ALLOWED_ATTR, 'alt', 'height', 'loading', 'src', 'title', 'width'],
+    ALLOW_DATA_ATTR: false,
+    SANITIZE_DOM: true,
+    SANITIZE_NAMED_PROPS: true,
+  })
+}
+
 export function sanitizeEmbedHtml(value?: string | null) {
   if (!value) return ''
 

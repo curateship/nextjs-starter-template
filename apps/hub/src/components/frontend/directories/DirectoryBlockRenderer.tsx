@@ -2,6 +2,8 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { DirectoryCoreBlock } from "./core/DirectoryCoreBlock"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
+import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
+import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
@@ -35,9 +37,20 @@ interface DirectoryBlockRendererProps {
   breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
+  renderRichTextBody?: (block: DirectoryWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
+  renderBlockOverlay?: (block: DirectoryWithBlocks["blocks"][number]) => ReactNode
 }
 
-export function DirectoryBlockRenderer({ site, directory, customBlockTemplates = {}, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: DirectoryBlockRendererProps) {
+export function DirectoryBlockRenderer({
+  site,
+  directory,
+  customBlockTemplates = {},
+  breadcrumbs = [],
+  isPreview = false,
+  hideSiteChrome = false,
+  renderRichTextBody,
+  renderBlockOverlay,
+}: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
@@ -45,7 +58,7 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
   // Sort directory blocks by display_order
   const sortedBlocks = [...directoryBlocks]
     .sort((a, b) => a.display_order - b.display_order)
-    .filter((block) => block.type === DIRECTORY_CORE_BLOCK_TYPE || block.type === 'directory-custom')
+    .filter((block) => block.type === DIRECTORY_CORE_BLOCK_TYPE || block.type === 'directory-custom' || block.type === 'directory-rich-text')
     .map((block) => (
       block.type === DIRECTORY_CORE_BLOCK_TYPE
         ? {
@@ -93,6 +106,33 @@ export function DirectoryBlockRenderer({ site, directory, customBlockTemplates =
             content={block.content}
             directory={directory}
           />
+        </div>
+      )
+    }
+
+    if (block.type === 'directory-rich-text') {
+      const bodyHtml = typeof block.content?.body === 'string' ? block.content.body : ''
+      const visibility = block.content?.visibility && typeof block.content.visibility === 'object'
+        ? block.content.visibility as Record<string, boolean>
+        : {}
+
+      if (!renderRichTextBody && (visibility.hideBlock === true || visibility.body === false || !bodyHtml.trim())) {
+        return null
+      }
+
+      const inlineBody = renderRichTextBody?.(block, bodyHtml)
+
+      return (
+        <div
+          key={`directory-rich-text-${block.id}`}
+          data-block-id={block.id}
+          data-block-type={block.type}
+          className="relative group/directory-preview-block"
+        >
+          {renderBlockOverlay?.(block)}
+          <DirectoryRichTextBlock content={block.content}>
+            {inlineBody}
+          </DirectoryRichTextBlock>
         </div>
       )
     }

@@ -375,8 +375,21 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
               className="min-h-full"
               blocksLoading={blocksLoading}
               allBlocks={currentDirectory.blocks}
+              selectedBlock={selectedBlock}
               customBlockTemplates={customBlockTemplates}
               onSelectBlock={builderState.setSelectedBlock}
+              onUpdateRichTextBody={(blockId, htmlContent) => {
+                const block = currentDirectory.blocks.find((item) => item.id === blockId)
+                if (!block) return
+
+                builderState.handleUpdateBlock(blockId, {
+                  content: {
+                    ...block.content,
+                    body: htmlContent,
+                    format: "html",
+                  },
+                })
+              }}
             />
           </ScrollArea>
         </div>

@@ -2,6 +2,7 @@
 
 import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
+import { DirectoryRichTextEditorBlock } from "@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
@@ -67,6 +68,17 @@ export function DirectoryBlockEditor({
         onContentChange={onContentChange}
         siteId={siteId}
         template={customBlockTemplates.find((template) => template.id === content?.templateId) || null}
+      />
+    )
+  }
+
+  if (block.type === "directory-rich-text") {
+    return (
+      <DirectoryRichTextEditorBlock
+        content={content}
+        onContentChange={onContentChange}
+        siteId={siteId}
+        blockId={block.id}
       />
     )
   }

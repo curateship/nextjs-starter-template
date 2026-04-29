@@ -1,4 +1,4 @@
-import { BadgeInfo } from "lucide-react"
+import { BadgeInfo, FileText } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 
@@ -18,6 +18,18 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
       visibility: {},
     },
     conflictsWith: [DIRECTORY_CORE_BLOCK_TYPE],
+  },
+  {
+    type: 'directory-rich-text',
+    name: 'Rich Text Editor',
+    icon: FileText,
+    description: 'Add formatted text content with links and media',
+    defaultContent: {
+      body: '',
+      format: 'html',
+      layoutColumn: 'main',
+      visibility: {},
+    },
   }
 ]
 

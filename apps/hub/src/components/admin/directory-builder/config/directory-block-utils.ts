@@ -15,7 +15,7 @@ export interface DirectoryEditorBlock {
 }
 
 function isSupportedDirectoryBlockType(type: string) {
-  return type === DIRECTORY_CORE_BLOCK_TYPE || type === 'directory-custom'
+  return type === DIRECTORY_CORE_BLOCK_TYPE || type === 'directory-custom' || type === 'directory-rich-text'
 }
 
 export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {
@@ -25,7 +25,7 @@ export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): Dire
 
   return {
     ...block,
-    title: block.type === DIRECTORY_CORE_BLOCK_TYPE ? getBlockName(block.type) : block.title,
+    title: block.type === 'directory-custom' ? block.title : getBlockName(block.type),
     content: normalizeDirectoryBlockContent(block.type, content),
   }
 }
@@ -59,7 +59,7 @@ export function parseDirectoryBlocksFromJson(
           }
         }
 
-        if (block.type !== DIRECTORY_CORE_BLOCK_TYPE) {
+        if (!isSupportedDirectoryBlockType(block.type)) {
           return null
         }
 
@@ -67,7 +67,9 @@ export function parseDirectoryBlocksFromJson(
           id: block.id,
           type: block.type,
           title: block.title || getBlockName(block.type),
-          content: normalizeDirectoryCoreContent(block.content),
+          content: block.type === DIRECTORY_CORE_BLOCK_TYPE
+            ? normalizeDirectoryCoreContent(block.content)
+            : block.content,
         }
       })
       .filter((block): block is DirectoryEditorBlock => Boolean(block))

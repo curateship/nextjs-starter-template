@@ -40,6 +40,9 @@ import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml 
 import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 import { SponsorCard } from "@/components/shared/SponsorCard"
 
+type InlineRichTextEditorVariant = "newsletter" | "post" | "directory"
+type ProseEditorVariant = Exclude<InlineRichTextEditorVariant, "newsletter">
+
 interface InlineRichTextEditorProps {
   blockId: string
   content: Record<string, any>
@@ -48,7 +51,7 @@ interface InlineRichTextEditorProps {
   scrollTarget?: HTMLElement | null
   isActive: boolean
   editorPadding?: number
-  variant?: "newsletter" | "post"
+  variant?: InlineRichTextEditorVariant
 }
 
 interface SlashCommandRange {
@@ -77,6 +80,19 @@ interface SlashCommandDefinition {
 
 const SLASH_MENU_WIDTH = 320
 const SLASH_MENU_MODAL_INSET = 12
+const PROSE_EDITOR_CLASS =
+  "prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-black dark:[&_.ProseMirror]:text-white"
+const PROSE_EDITOR_TEXT_CLASS: Record<ProseEditorVariant, string> = {
+  post: "[&_.ProseMirror]:text-lg",
+  directory: "[&_.ProseMirror]:text-base",
+}
+const EDITOR_CONTENT_CLASS: Record<InlineRichTextEditorVariant, string> = {
+  post: "post-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
+  directory:
+    "directory-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
+  newsletter:
+    "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
+}
 
 function normalizeLinkedImageAttribute(value: string | null): string | null {
   return value && value.trim().length > 0 ? value : null
@@ -1340,14 +1356,11 @@ export function InlineRichTextEditor({
     </div>
   ) : null
 
+  const isProseEditor = variant === "post" || variant === "directory"
   const editorContent = (
     <EditorContent
       editor={editor}
-      className={
-        variant === "post"
-          ? "post-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap"
-          : "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap"
-      }
+      className={EDITOR_CONTENT_CLASS[variant]}
       style={{
         ["--newsletter-image-border-size" as string]: `${imageBorderSize}px`,
         ["--newsletter-image-border-color" as string]: imageBorderColor,
@@ -1501,8 +1514,8 @@ export function InlineRichTextEditor({
         </BubbleMenu>
       )}
 
-      {variant === "post" ? (
-        <div className="prose dark:prose-invert max-w-none w-full text-left [&_h2]:scroll-mt-24 [&_.ProseMirror]:text-lg [&_.ProseMirror]:text-black dark:[&_.ProseMirror]:text-white">
+      {isProseEditor ? (
+        <div className={cn(PROSE_EDITOR_CLASS, PROSE_EDITOR_TEXT_CLASS[variant])}>
           {editorContent}
         </div>
       ) : (
