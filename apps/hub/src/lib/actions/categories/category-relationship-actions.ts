@@ -144,7 +144,7 @@ export async function assignCategoryToContentAction(
     // Fetch category and verify ownership
     const category = await db.query.categories.findFirst({
       where: eq(categories.id, categoryId),
-      columns: { id: true, siteId: true },
+      columns: { id: true, siteId: true, isPublished: true },
     })
 
     if (!category) {
@@ -158,6 +158,10 @@ export async function assignCategoryToContentAction(
 
     if (!site || site.userId !== user.id) {
       return { success: false, error: 'Unauthorized' }
+    }
+
+    if (!category.isPublished) {
+      return { success: false, error: 'Draft categories cannot be assigned to content' }
     }
 
     const contentTable = getTableForContentType(contentType)
@@ -594,7 +598,7 @@ export async function bulkAssignCategoriesToContentAction(
 
     if (uniqueCategoryIds.length > 0) {
       const categoryRows = await db
-        .select({ id: categories.id, siteId: categories.siteId })
+        .select({ id: categories.id, siteId: categories.siteId, isPublished: categories.isPublished })
         .from(categories)
         .where(inArray(categories.id, uniqueCategoryIds))
 
@@ -604,6 +608,10 @@ export async function bulkAssignCategoriesToContentAction(
 
       if (categoryRows.some((category) => category.siteId !== content.siteId)) {
         return { success: false, error: 'Content and categories must belong to the same site' }
+      }
+
+      if (categoryRows.some((category) => !category.isPublished)) {
+        return { success: false, error: 'Draft categories cannot be assigned to content' }
       }
     }
 

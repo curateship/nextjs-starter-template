@@ -33,6 +33,14 @@ interface CategoryPickerProps {
   loadingSelectedCategories?: boolean
 }
 
+function isCategoryPublished(category: Category) {
+  return (category.is_published ?? (category as Category & { isPublished?: boolean }).isPublished) === true
+}
+
+function getCategoryParentId(category: Category) {
+  return category.parent_id ?? (category as Category & { parentId?: string | null }).parentId ?? null
+}
+
 export function CategoryPicker({
   siteId,
   selectedCategoryIds,
@@ -59,6 +67,26 @@ export function CategoryPicker({
   }, [siteId])
 
   useEffect(() => {
+    if (loading || selectedCategoryIds.length === 0) return
+
+    const draftCategoryIds = new Set(
+      categories
+        .filter((category) => !isCategoryPublished(category))
+        .map((category) => category.id)
+    )
+
+    if (draftCategoryIds.size === 0) return
+
+    const nextCategoryIds = selectedCategoryIds.filter((id) => !draftCategoryIds.has(id))
+    if (nextCategoryIds.length === selectedCategoryIds.length) return
+
+    onSelectionChange(nextCategoryIds)
+    if (primaryCategoryId && draftCategoryIds.has(primaryCategoryId)) {
+      onPrimaryCategoryChange?.(nextCategoryIds[0] || null)
+    }
+  }, [categories, loading, onPrimaryCategoryChange, onSelectionChange, primaryCategoryId, selectedCategoryIds])
+
+  useEffect(() => {
     if (!onPrimaryCategoryChange) return
 
     if (selectedCategoryIds.length === 0) {
@@ -75,11 +103,12 @@ export function CategoryPicker({
     const map = new Map<string, string>()
     const getPath = (cat: Category): string => {
       if (map.has(cat.id)) return map.get(cat.id)!
-      if (!cat.parent_id) {
+      const parentId = getCategoryParentId(cat)
+      if (!parentId) {
         map.set(cat.id, cat.title)
         return cat.title
       }
-      const parent = categories.find((c) => c.id === cat.parent_id)
+      const parent = categories.find((c) => c.id === parentId)
       if (!parent) {
         map.set(cat.id, cat.title)
         return cat.title
@@ -93,7 +122,9 @@ export function CategoryPicker({
   }, [categories])
 
   const filteredCategories = useMemo(() => {
-    const unselected = categories.filter((cat) => !selectedCategoryIds.includes(cat.id))
+    const unselected = categories.filter((cat) =>
+      isCategoryPublished(cat) && !selectedCategoryIds.includes(cat.id)
+    )
     if (!searchQuery) return unselected
     const query = searchQuery.toLowerCase()
     return unselected.filter((cat) => {
@@ -113,6 +144,9 @@ export function CategoryPicker({
         onPrimaryCategoryChange?.(nextCategoryIds[0] || null)
       }
     } else {
+      const category = categories.find((cat) => cat.id === categoryId)
+      if (!category || !isCategoryPublished(category)) return
+
       onSelectionChange([...selectedCategoryIds, categoryId])
       if (!primaryCategoryId) {
         onPrimaryCategoryChange?.(categoryId)
@@ -194,7 +228,7 @@ export function CategoryPicker({
                 <CommandGroup>
                   {filteredCategories.map((cat) => {
                     const path = categoryPathMap.get(cat.id) || ""
-                    const hasParent = !!cat.parent_id
+                    const hasParent = !!getCategoryParentId(cat)
 
                     return (
                       <div

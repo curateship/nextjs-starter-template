@@ -45,7 +45,7 @@ const DirectorySettingsModal = dynamic(() =>
 
 export default function DirectoriesPage() {
   const router = useRouter()
-  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize: contextPageSize } = useSiteSwitcher()
   const pageSize = contextPageSize
 
   const [directories, setDirectories] = useState<DirectorySummary[]>([])
@@ -84,14 +84,16 @@ export default function DirectoriesPage() {
   }, [currentSite?.id, filterStatus, searchQuery, sortBy, sortDirection])
 
   useEffect(() => {
+    let cancelled = false
+
     async function loadDirectories() {
       if (!currentSite?.id) {
-        setLoading(false)
         setDirectories([])
         setDirectoryCategories({})
         setTotal(0)
         setStatusCounts({ all: 0, published: 0, draft: 0 })
         setNextCursor(null)
+        setLoading(siteLoading)
         return
       }
 
@@ -109,6 +111,8 @@ export default function DirectoriesPage() {
           limit: pageSize,
         })
 
+        if (cancelled) return
+
         if (directoriesError || !data) {
           setError(directoriesError || 'Failed to load directories')
           setDirectories([])
@@ -125,14 +129,21 @@ export default function DirectoriesPage() {
         setStatusCounts(data.statusCounts)
         setNextCursor(data.nextCursor)
       } catch (err) {
+        if (cancelled) return
         setError(err instanceof Error ? err.message : 'Failed to load directories')
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     void loadDirectories()
-  }, [currentSite?.id, filterStatus, searchQuery, sortBy, sortDirection, activeCursor, pageSize, reloadToken])
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSite?.id, siteLoading, filterStatus, searchQuery, sortBy, sortDirection, activeCursor, pageSize, reloadToken])
 
   useEffect(() => {
     async function loadSettingsDirectory() {
