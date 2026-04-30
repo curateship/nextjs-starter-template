@@ -275,6 +275,22 @@ type AccountMenuGuestAction = NavigationActionSettings & {
   id: 'login' | 'register'
 }
 
+function groupNavigationActionItems(items: NavigationActionItem[]) {
+  return items.reduce<NavigationActionItem[][]>((groups, item) => {
+    const lastGroup = groups[groups.length - 1]
+    const lastGroupKind = lastGroup?.[0]?.kind === 'button' ? 'button' : 'icon'
+    const itemKind = item.kind === 'button' ? 'button' : 'icon'
+
+    if (lastGroup && lastGroupKind === itemKind) {
+      lastGroup.push(item)
+    } else {
+      groups.push([item])
+    }
+
+    return groups
+  }, [])
+}
+
 const NavigationActionButton = ({
   button,
   className,
@@ -675,11 +691,7 @@ export const NavBlock = memo(function NavBlock({
 
   const renderDesktopActionItem = (item: NavigationActionItem) => {
     if (item.kind === 'button') {
-      return (
-        <span key={item.id} className="flex items-center px-2">
-          <NavigationActionButton button={item.button} />
-        </span>
-      )
+      return <NavigationActionButton key={item.id} button={item.button} />
     }
 
     if (item.kind === 'account-menu') {
@@ -723,12 +735,11 @@ export const NavBlock = memo(function NavBlock({
   const renderMobileInlineActionItem = (item: NavigationActionItem) => {
     if (item.kind === 'button') {
       return (
-        <span key={item.id} className="flex items-center px-2">
-          <NavigationActionButton
-            button={item.button}
-            className="h-8 px-2 py-1 text-xs"
-          />
-        </span>
+        <NavigationActionButton
+          key={item.id}
+          button={item.button}
+          className="h-8 px-2 py-1 text-xs"
+        />
       )
     }
 
@@ -818,8 +829,12 @@ export const NavBlock = memo(function NavBlock({
                 )}
               </Link>
 
-              <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5 lg:hidden">
-                {mobileActionItems.map(renderMobileInlineActionItem)}
+              <div className="flex flex-1 flex-wrap items-center justify-end gap-x-4 gap-y-1.5 lg:hidden">
+                {groupNavigationActionItems(mobileActionItems).map((group) => (
+                  <div key={group.map((item) => item.id).join('-')} className="flex items-center gap-1.5">
+                    {group.map(renderMobileInlineActionItem)}
+                  </div>
+                ))}
                 <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
               </div>
               <DesktopNav 
@@ -831,8 +846,12 @@ export const NavBlock = memo(function NavBlock({
             </div>
 
             {/* Desktop Actions */}
-            <div className="hidden lg:flex items-center gap-3">
-              {desktopActionItems.map(renderDesktopActionItem)}
+            <div className="hidden lg:flex items-center gap-4">
+              {groupNavigationActionItems(desktopActionItems).map((group) => (
+                <div key={group.map((item) => item.id).join('-')} className="flex items-center gap-3">
+                  {group.map(renderDesktopActionItem)}
+                </div>
+              ))}
             </div>
 
             <MobileMenuPanel
