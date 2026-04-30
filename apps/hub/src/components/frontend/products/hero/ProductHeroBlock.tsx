@@ -25,6 +25,8 @@ interface ProductHeroBlockProps {
   secondaryButtonStyle?: string;
   heroStyle?: string;
   styleConfig?: Record<string, Record<string, any>>;
+  siteWidth?: 'full' | 'custom';
+  customWidth?: number;
   // Legacy fields (for migration fallback)
   trustedByText?: string;
   trustedByCount?: string;
@@ -130,12 +132,14 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
     secondaryButtonStyle,
     heroStyle = 'default',
     styleConfig,
+    siteWidth,
+    customWidth,
   } = props;
 
   // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
   let resolvedConfig: Record<string, any>;
   if (styleConfig && styleConfig[heroStyle]) {
-    resolvedConfig = styleConfig[heroStyle];
+    resolvedConfig = { ...styleConfig[heroStyle] };
   } else {
     resolvedConfig = {};
     LEGACY_STYLE_FIELDS.forEach(field => {
@@ -143,6 +147,14 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
         resolvedConfig[field] = props[field];
       }
     });
+  }
+
+  if (resolvedConfig.siteWidth === undefined && siteWidth) {
+    resolvedConfig.siteWidth = siteWidth;
+  }
+
+  if (resolvedConfig.contentMaxWidth === undefined && customWidth) {
+    resolvedConfig.contentMaxWidth = customWidth;
   }
 
   const StyleRenderer = HERO_STYLE_RENDERERS[heroStyle] || HERO_STYLE_RENDERERS.default;
@@ -159,7 +171,7 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
   };
 
   return (
-    <section id="hero" className="relative w-full flex flex-col items-center justify-center px-6 -mt-(--site-page-start-offset,0px) pt-[calc(var(--site-page-start-offset,0px)+2rem)] pb-4 md:pb-10 overflow-hidden">
+    <section id="hero" className="relative w-full flex flex-col items-center justify-center -mt-(--site-page-start-offset,0px) pt-[calc(var(--site-page-start-offset,0px)+2rem)] pb-4 md:pb-10 overflow-hidden">
       <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
         <HeroTitle title={title} />
         <HeroSubtitle subtitle={subtitle} />

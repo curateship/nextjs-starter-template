@@ -81,6 +81,8 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
             <div key={`product-hero-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductHeroBlock
               {...block.content}
+              siteWidth={siteWidth as 'full' | 'custom'}
+              customWidth={customWidth}
             />
             </div>
           )

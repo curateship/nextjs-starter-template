@@ -89,11 +89,23 @@ const SocialProof = ({ trustedByText, trustedByAvatars }: { trustedByText?: stri
 );
 
 // Hero Image component — matches original product styling
-const HeroImage = ({ heroImage }: { heroImage?: string }) => {
+const HeroImage = ({
+  heroImage,
+  siteWidth,
+  contentMaxWidth,
+}: {
+  heroImage?: string;
+  siteWidth?: 'full' | 'custom';
+  contentMaxWidth?: number;
+}) => {
   if (!heroImage) return null;
 
+  const imageMaxWidth = contentMaxWidth || 1100;
+  const imageStyle = siteWidth === 'full' ? undefined : { maxWidth: `${imageMaxWidth}px` };
+  const imageSizes = siteWidth === 'full' ? '100vw' : `(max-width: ${imageMaxWidth}px) 100vw, ${imageMaxWidth}px`;
+
   return (
-    <div className="w-full max-w-[1100px] mx-auto">
+    <div className="w-full mx-auto px-6" style={imageStyle}>
       <div className="overflow-hidden sm:mt-8 pb-4 md:pb-8">
         <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15">
           <Image
@@ -104,6 +116,7 @@ const HeroImage = ({ heroImage }: { heroImage?: string }) => {
             height={1002}
             priority
             fetchPriority="high"
+            sizes={imageSizes}
           />
         </div>
       </div>
@@ -119,6 +132,8 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
     backgroundPattern,
     backgroundPatternSize,
     backgroundPatternOpacity,
+    siteWidth = 'custom',
+    contentMaxWidth,
   } = config;
 
   return (
@@ -135,14 +150,14 @@ export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroSty
 
       {/* Content layer above background */}
       <div className="relative z-10 w-full flex flex-col items-center">
-        <div className="relative z-10 text-center max-w-3xl space-y-6">
+        <div className="relative z-10 w-full max-w-3xl px-6 text-center space-y-6">
           {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
           {children}
           {trustedByAvatars && trustedByAvatars.length > 0 && (
             <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} />
           )}
         </div>
-        <HeroImage heroImage={heroImage} />
+        <HeroImage heroImage={heroImage} siteWidth={siteWidth} contentMaxWidth={contentMaxWidth} />
       </div>
     </>
   );
