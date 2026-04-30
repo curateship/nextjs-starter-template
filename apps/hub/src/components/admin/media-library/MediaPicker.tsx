@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,6 +26,7 @@ import {
 import { getPaginatedMediaAction } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import Image from "next/image"
 import { Search, ImageIcon, VideoIcon, Upload, X, Play, Filter } from "lucide-react"
 import { toast } from "sonner"
@@ -39,6 +40,7 @@ interface MediaPickerProps {
   currentMediaUrl?: string
   showVideos?: boolean
   site_id?: string
+  siteId?: string
   // Legacy props for backward compatibility
   onSelectImage?: (imageUrl: string, altText?: string) => void
   currentImageUrl?: string
@@ -52,8 +54,10 @@ export function MediaPicker({
   currentMediaUrl,
   currentImageUrl,
   showVideos = true,
-  site_id
+  site_id,
+  siteId
 }: MediaPickerProps) {
+  const { currentSite, loading: siteLoading } = useSiteSwitcher()
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -61,7 +65,8 @@ export function MediaPicker({
   const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(12) // Smaller page size for modal
-  const scopedSiteId = site_id && UUID_REGEX.test(site_id) ? site_id : undefined
+  const requestedSiteId = site_id || siteId || currentSite?.id
+  const scopedSiteId = requestedSiteId && UUID_REGEX.test(requestedSiteId) ? requestedSiteId : undefined
   
   // Support legacy props
   const actualCurrentUrl = currentMediaUrl || currentImageUrl
@@ -73,43 +78,16 @@ export function MediaPicker({
   const [altText, setAltText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
 
-  // Load images when dialog opens or pagination/filter changes
-  useEffect(() => {
-    if (open) {
-      loadImages()
-    } else {
-      // Reset state when dialog closes
-      setCurrentPage(1)
-      setSearchQuery('')
-      setSelectedMedia(null)
-    }
-  }, [open, currentPage, pageSize, filterType, scopedSiteId])
-
-  const loadImages = async () => {
+  const loadImages = useCallback(async () => {
     try {
       setIsLoading(true)
+      if (!scopedSiteId) {
+        setPaginatedData({ data: [], total: 0, page: currentPage, pageSize, totalPages: 0 })
+        return
+      }
+
       const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const loadMediaPage = (nextSiteId?: string) =>
-        getPaginatedMediaAction(currentPage, pageSize, fileType, nextSiteId)
-      let result: Awaited<ReturnType<typeof getPaginatedMediaAction>>
-
-      try {
-        result = await loadMediaPage(scopedSiteId)
-      } catch (error) {
-        if (!scopedSiteId) {
-          throw error
-        }
-
-        result = await loadMediaPage()
-      }
-
-      let { data, error } = result
-
-      if (error && scopedSiteId) {
-        const fallback = await loadMediaPage()
-        data = fallback.data
-        error = fallback.error
-      }
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, scopedSiteId)
 
       if (error) {
         toast.error(`Failed to load media: ${error}`)
@@ -121,7 +99,20 @@ export function MediaPicker({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [scopedSiteId, currentPage, pageSize, filterType])
+
+  // Load images when dialog opens or pagination/filter changes
+  useEffect(() => {
+    if (open && !siteLoading) {
+      loadImages()
+      return
+    }
+
+    // Reset state when dialog closes
+    setCurrentPage(1)
+    setSearchQuery('')
+    setSelectedMedia(null)
+  }, [open, siteLoading, loadImages])
 
   // Get current media from paginated data and apply search filtering
   const mediaFiles = paginatedData?.data || []
@@ -208,6 +199,10 @@ export function MediaPicker({
 
   const handleUpload = async () => {
     if (!uploadFile) return
+    if (!scopedSiteId) {
+      toast.error('Select a site before uploading media')
+      return
+    }
 
     setIsUploading(true)
 
@@ -217,9 +212,7 @@ export function MediaPicker({
       if (altText.trim()) {
         formData.append('altText', altText.trim())
       }
-      if (scopedSiteId) {
-        formData.append('siteId', scopedSiteId)
-      }
+      formData.append('siteId', scopedSiteId)
 
       const response = await fetch('/api/media/upload', {
         method: 'POST',

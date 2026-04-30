@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
@@ -38,7 +38,8 @@ import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 
 
 export default function ImagesPage() {
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const currentSiteId = currentSite?.id
   const [viewMode, setViewMode] = useState<'list' | 'gallery'>('list')
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -58,34 +59,35 @@ export default function ImagesPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [typeCounts, setTypeCounts] = useState<{ all: number; image: number; video: number }>({ all: 0, image: 0, video: 0 })
 
-  // Load images when page, pageSize, or filterType changes
-  useEffect(() => {
-    loadImages()
-  }, [currentPage, pageSize, filterType])
-
   // Load type counts after mutations
-  const loadTypeCounts = async () => {
+  const loadTypeCounts = useCallback(async () => {
+    if (!currentSiteId) {
+      setTypeCounts({ all: 0, image: 0, video: 0 })
+      return
+    }
+
     const [allRes, imgRes, vidRes] = await Promise.all([
-      getPaginatedMediaAction(1, 1),
-      getPaginatedMediaAction(1, 1, 'image'),
-      getPaginatedMediaAction(1, 1, 'video'),
+      getPaginatedMediaAction(1, 1, undefined, currentSiteId),
+      getPaginatedMediaAction(1, 1, 'image', currentSiteId),
+      getPaginatedMediaAction(1, 1, 'video', currentSiteId),
     ])
     setTypeCounts({
       all: allRes.data?.total ?? 0,
       image: imgRes.data?.total ?? 0,
       video: vidRes.data?.total ?? 0,
     })
-  }
+  }, [currentSiteId])
 
-  useEffect(() => {
-    loadTypeCounts()
-  }, [])
-
-  const loadImages = async () => {
+  const loadImages = useCallback(async () => {
     try {
       setIsLoading(true)
+      if (!currentSiteId) {
+        setPaginatedData({ data: [], total: 0, page: currentPage, pageSize, totalPages: 0 })
+        return
+      }
+
       const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType)
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSiteId)
       if (error) {
         toast.error(`Failed to load images: ${error}`)
       } else {
@@ -96,7 +98,24 @@ export default function ImagesPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [currentSiteId, currentPage, pageSize, filterType])
+
+  // Load images when page, pageSize, or filterType changes
+  useEffect(() => {
+    if (siteLoading) return
+    loadImages()
+  }, [siteLoading, loadImages])
+
+  useEffect(() => {
+    setCurrentPage(1)
+    setSelectedIds(new Set())
+    setAllSelected(false)
+  }, [currentSiteId])
+
+  useEffect(() => {
+    if (siteLoading) return
+    loadTypeCounts()
+  }, [siteLoading, loadTypeCounts])
 
   // Reset to first page when filter changes
   const handleFilterChange = (newFilter: 'all' | 'image' | 'video') => {
@@ -112,12 +131,14 @@ export default function ImagesPage() {
   }
 
   const handleDeleteImage = async (image: MediaData) => {
+    if (!currentSiteId) return
+
     if (!confirm(`Are you sure you want to delete "${image.original_name}"? This action cannot be undone.`)) {
       return
     }
 
     try {
-      const { error } = await deleteImageAction(image.id)
+      const { error } = await deleteImageAction(image.id, currentSiteId)
       if (error) {
         toast.error(`Failed to delete image: ${error}`)
       } else {
@@ -136,12 +157,12 @@ export default function ImagesPage() {
   }
 
   const handleSaveEdit = async () => {
-    if (!editingImage) return
+    if (!editingImage || !currentSiteId) return
 
     try {
       const { data, error } = await updateImageAction(editingImage.id, {
         alt_text: editAltText.trim() || undefined
-      })
+      }, currentSiteId)
       
       if (error) {
         toast.error(`Failed to update image: ${error}`)
@@ -255,9 +276,9 @@ export default function ImagesPage() {
   // Select all items across all pages (lightweight ID-only fetch)
   const handleSelectAll = async () => {
     const total = paginatedData?.total ?? 0
-    if (total === 0) return
+    if (!currentSiteId || total === 0) return
     const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-    const { ids } = await getMediaIdsAction(fileType)
+    const { ids } = await getMediaIdsAction(fileType, currentSiteId)
     if (ids) {
       setSelectedIds(new Set(ids))
       setAllSelected(true)
@@ -271,7 +292,7 @@ export default function ImagesPage() {
   }
 
   const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) {
+    if (!currentSiteId || selectedIds.size === 0) {
       setMassDeleteConfirmOpen(false)
       return
     }
@@ -284,7 +305,7 @@ export default function ImagesPage() {
     try {
       for (const id of idsToDelete) {
         try {
-          const { success } = await deleteImageAction(id)
+          const { success } = await deleteImageAction(id, currentSiteId)
           if (success) {
             successCount++
           } else {

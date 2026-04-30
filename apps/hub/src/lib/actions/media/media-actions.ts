@@ -47,6 +47,21 @@ function toMediaData(row: any): MediaData {
   }
 }
 
+type SiteScopeResult = { siteId: string; error: null } | { siteId: null; error: string }
+
+async function validateSiteScope(userId: string, site_id?: string | null): Promise<SiteScopeResult> {
+  if (!site_id) return { siteId: null, error: 'Site ID is required' }
+  if (!UUID_REGEX.test(site_id)) return { siteId: null, error: 'Invalid site ID format' }
+
+  const [site] = await db
+    .select({ id: sites.id })
+    .from(sites)
+    .where(and(eq(sites.id, site_id), eq(sites.userId, userId)))
+
+  if (!site) return { siteId: null, error: 'Site not found or unauthorized' }
+  return { siteId: site.id, error: null }
+}
+
 export async function uploadMediaAction(
   file: File,
   alt_text?: string,
@@ -72,18 +87,8 @@ export async function uploadMediaAction(
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
-    if (site_id) {
-      if (!UUID_REGEX.test(site_id)) {
-        return { data: null, error: 'Invalid site ID format' }
-      }
-
-      const [site] = await db
-        .select({ id: sites.id })
-        .from(sites)
-        .where(and(eq(sites.id, site_id), eq(sites.userId, user.id)))
-
-      if (!site) return { data: null, error: 'Site not found or unauthorized' }
-    }
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
 
     const timestamp = Date.now()
     const fileExtension = file.name.split('.').pop() || ''
@@ -107,7 +112,7 @@ export async function uploadMediaAction(
       .insert(media)
       .values({
         userId: user.id,
-        siteId: site_id || null,
+        siteId: scope.siteId,
         filename: `${timestamp}_${cleanFilename}.${fileExtension}`,
         originalName: file.name,
         altText: alt_text || null,
@@ -148,8 +153,10 @@ export async function getMediaAction(
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
-    const conditions = [eq(media.userId, user.id)]
-    if (site_id) conditions.push(eq(media.siteId, site_id))
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
+
+    const conditions = [eq(media.userId, user.id), eq(media.siteId, scope.siteId)]
     if (fileType) conditions.push(eq(media.fileType, fileType))
 
     const result = await db
@@ -174,8 +181,10 @@ export async function getPaginatedMediaAction(
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
-    const conditions = [eq(media.userId, user.id)]
-    if (site_id) conditions.push(eq(media.siteId, site_id))
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
+
+    const conditions = [eq(media.userId, user.id), eq(media.siteId, scope.siteId)]
     if (fileType) conditions.push(eq(media.fileType, fileType))
 
     const whereClause = and(...conditions)
@@ -207,43 +216,57 @@ export async function getPaginatedMediaAction(
 
 export async function updateMediaAction(
   mediaId: string,
-  updates: { alt_text?: string }
+  updates: { alt_text?: string },
+  site_id?: string
 ): Promise<{ data: MediaData | null; error: string | null }> {
   try {
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
+
     const [updated] = await db
       .update(media)
       .set({ altText: updates.alt_text, updatedAt: new Date() })
-      .where(and(eq(media.id, mediaId), eq(media.userId, user.id)))
+      .where(and(eq(media.id, mediaId), eq(media.userId, user.id), eq(media.siteId, scope.siteId)))
       .returning()
 
     if (!updated) return { data: null, error: 'Media not found or access denied' }
 
     revalidatePath('/admin/media')
     revalidatePath('/admin/images')
-    return { data: updated as unknown as MediaData, error: null }
+    return { data: toMediaData(updated), error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
 
-export async function deleteMediaAction(mediaId: string): Promise<{ success: boolean; error: string | null }> {
+export async function deleteMediaAction(mediaId: string, site_id?: string): Promise<{ success: boolean; error: string | null }> {
   try {
     const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Authentication required' }
 
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { success: false, error: scope.error }
+
     const existing = await db.query.media.findFirst({
-      where: and(eq(media.id, mediaId), eq(media.userId, user.id)),
+      where: and(eq(media.id, mediaId), eq(media.userId, user.id), eq(media.siteId, scope.siteId)),
       columns: { storagePath: true },
     })
 
     if (!existing) return { success: false, error: 'Media file not found or access denied' }
 
-    await db.delete(media).where(and(eq(media.id, mediaId), eq(media.userId, user.id)))
+    await db.delete(media).where(and(eq(media.id, mediaId), eq(media.userId, user.id), eq(media.siteId, scope.siteId)))
 
-    try { await deleteFromR2(existing.storagePath) } catch (e) { console.error('R2 deletion failed:', e) }
+    const remaining = await db.query.media.findFirst({
+      where: eq(media.storagePath, existing.storagePath),
+      columns: { id: true },
+    })
+
+    if (!remaining) {
+      try { await deleteFromR2(existing.storagePath) } catch (e) { console.error('R2 deletion failed:', e) }
+    }
 
     revalidatePath('/admin/media')
     revalidatePath('/admin/images')
@@ -253,15 +276,18 @@ export async function deleteMediaAction(mediaId: string): Promise<{ success: boo
   }
 }
 
-export async function getMediaByUrlAction(publicUrl: string): Promise<{ data: string | null; error: string | null }> {
+export async function getMediaByUrlAction(publicUrl: string, site_id?: string): Promise<{ data: string | null; error: string | null }> {
   try {
     if (!publicUrl) return { data: null, error: 'No URL provided' }
 
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
+
     const result = await db.query.media.findFirst({
-      where: and(eq(media.publicUrl, publicUrl), eq(media.userId, user.id)),
+      where: and(eq(media.publicUrl, publicUrl), eq(media.userId, user.id), eq(media.siteId, scope.siteId)),
       columns: { id: true },
     })
 
@@ -272,18 +298,21 @@ export async function getMediaByUrlAction(publicUrl: string): Promise<{ data: st
   }
 }
 
-export async function getMediaDataByUrlAction(publicUrl: string): Promise<{ data: MediaData | null; error: string | null }> {
+export async function getMediaDataByUrlAction(publicUrl: string, site_id?: string): Promise<{ data: MediaData | null; error: string | null }> {
   try {
     if (!publicUrl) return { data: null, error: 'No URL provided' }
 
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
 
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
+
     const result = await db.query.media.findFirst({
-      where: and(eq(media.publicUrl, publicUrl), eq(media.userId, user.id)),
+      where: and(eq(media.publicUrl, publicUrl), eq(media.userId, user.id), eq(media.siteId, scope.siteId)),
     })
 
-    return { data: (result as unknown as MediaData) || null, error: null }
+    return { data: result ? toMediaData(result) : null, error: null }
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
@@ -291,13 +320,17 @@ export async function getMediaDataByUrlAction(publicUrl: string): Promise<{ data
 
 /** Returns only media IDs for bulk selection — lightweight alternative to full record fetch */
 export async function getMediaIdsAction(
-  fileType?: 'image' | 'video'
+  fileType?: 'image' | 'video',
+  site_id?: string
 ): Promise<{ ids: string[]; error: string | null }> {
   try {
     const user = await getAuthenticatedUser()
     if (!user) return { ids: [], error: 'Authentication required' }
 
-    const conditions = [eq(media.userId, user.id)]
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { ids: [], error: scope.error }
+
+    const conditions = [eq(media.userId, user.id), eq(media.siteId, scope.siteId)]
     if (fileType) conditions.push(eq(media.fileType, fileType))
 
     const rows = await db

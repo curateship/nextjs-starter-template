@@ -22,6 +22,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!siteId) {
+      return NextResponse.json(
+        { error: 'Site ID is required' },
+        { status: 400 }
+      )
+    }
+
     // Validate file type
     const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
@@ -46,12 +53,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await uploadMediaAction(file, altText || undefined, siteId || undefined)
+    const result = await uploadMediaAction(file, altText || undefined, siteId)
 
     if (result.error) {
+      const status = result.error === 'Invalid site ID format'
+        ? 400
+        : result.error === 'Site not found or unauthorized'
+          ? 403
+          : 500
+
       return NextResponse.json(
         { error: result.error },
-        { status: 500 }
+        { status }
       )
     }
 
