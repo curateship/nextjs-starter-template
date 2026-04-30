@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { updatePageBlocksAction, type Page } from "@/lib/actions/pages/page-actions"
 import { convertBlocksToJson, generateBlockId } from "@/lib/utils/block-utils"
 import { getBlockTypeDefinition } from "./page-block-types"
+import { normalizePageBlock, normalizePageBlockContent } from "./page-block-utils"
 
 interface BlockSelection {
   type: string
@@ -24,6 +25,7 @@ interface UsePageBuilderReturn {
   saveMessage: string
   deleting: string | null
   saveSelectedBlockContent: (content: Record<string, any>) => Promise<boolean>
+  handleUpdateBlock: (blockId: string, updates: Record<string, any>) => void
   handleDeleteBlock: (block: any) => Promise<void>
   handleReorderBlocks: (blocks: any[]) => void
   handleAddBlocks: (selections: BlockSelection[]) => Promise<void>
@@ -59,7 +61,8 @@ export function usePageBuilder({
         return false
       }
 
-      const jsonBlocks = convertBlocksToJson(pageBlocks)
+      const normalizedPageBlocks = pageBlocks.map(normalizePageBlock)
+      const jsonBlocks = convertBlocksToJson(normalizedPageBlocks)
       const { error } = await updatePageBlocksAction(currentPage.id, jsonBlocks)
 
       if (error) {
@@ -91,10 +94,11 @@ export function usePageBuilder({
       return false
     }
 
-    updatedBlocks[selectedPage][blockIndex] = {
-      ...updatedBlocks[selectedPage][blockIndex],
-      content,
-    }
+    const currentBlock = updatedBlocks[selectedPage][blockIndex]
+    updatedBlocks[selectedPage][blockIndex] = normalizePageBlock({
+      ...currentBlock,
+      content: normalizePageBlockContent(currentBlock.type, content),
+    })
 
     setBlocks(updatedBlocks)
     setSelectedBlock(updatedBlocks[selectedPage][blockIndex])
@@ -102,12 +106,42 @@ export function usePageBuilder({
     return persistBlocks(updatedBlocks[selectedPage])
   }
 
+  const handleUpdateBlock = (blockId: string, updates: Record<string, any>) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = [...(updatedBlocks[selectedPage] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === blockId)
+
+    if (blockIndex === -1) return
+
+    const currentBlock = currentBlocks[blockIndex]
+    const nextType = updates.type || currentBlock.type
+    const updatedBlock = normalizePageBlock({
+      ...currentBlock,
+      ...updates,
+      type: nextType,
+      content: normalizePageBlockContent(
+        nextType,
+        updates.content !== undefined ? updates.content : currentBlock.content
+      ),
+    })
+
+    currentBlocks[blockIndex] = updatedBlock
+    updatedBlocks[selectedPage] = currentBlocks
+    setBlocks(updatedBlocks)
+
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(updatedBlock)
+    }
+  }
+
   const handleDeleteBlock = async (block: any) => {
     setDeleting(block.id)
 
     try {
       const updatedBlocks = { ...blocks }
-      updatedBlocks[selectedPage] = updatedBlocks[selectedPage].filter(b => b.id !== block.id)
+      updatedBlocks[selectedPage] = updatedBlocks[selectedPage]
+        .filter(b => b.id !== block.id)
+        .map(normalizePageBlock)
       setBlocks(updatedBlocks)
 
       if (selectedBlock?.id === block.id) {
@@ -137,7 +171,7 @@ export function usePageBuilder({
 
   const handleReorderBlocks = async (reorderedBlocks: any[]) => {
     const originalBlocks = { ...blocks }
-    const finalBlocks = reorderedBlocks.map((block, index) => ({
+    const finalBlocks = reorderedBlocks.map((block, index) => normalizePageBlock({
       ...block,
       display_order: index
     }))
@@ -168,7 +202,12 @@ export function usePageBuilder({
       return
     }
 
-    await persistBlocks(blocks[selectedPage])
+    const normalizedBlocks = blocks[selectedPage].map(normalizePageBlock)
+    setBlocks({
+      ...blocks,
+      [selectedPage]: normalizedBlocks,
+    })
+    await persistBlocks(normalizedBlocks)
   }
 
   const handleAddBlocks = async (selections: BlockSelection[]) => {
@@ -185,14 +224,14 @@ export function usePageBuilder({
       }
 
       for (let i = 0; i < selection.quantity; i++) {
-        newBlocksToAdd.push({
+        newBlocksToAdd.push(normalizePageBlock({
           id: generateBlockId(),
           type: selection.type,
           content: { ...blockDefinition.defaultContent },
           display_order: 0,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        })
+        }))
       }
     }
 
@@ -201,16 +240,17 @@ export function usePageBuilder({
     }
 
     const newBlocks = [...currentBlocks, ...newBlocksToAdd]
-    newBlocks.forEach((block, index) => {
-      block.display_order = index
-    })
+    const normalizedBlocks = newBlocks.map((block, index) => normalizePageBlock({
+      ...block,
+      display_order: index,
+    }))
 
-    updatedBlocks[selectedPage] = newBlocks
+    updatedBlocks[selectedPage] = normalizedBlocks
     setBlocks(updatedBlocks)
 
     const currentPage = pages.find(p => p.slug === selectedPage)
     if (currentPage) {
-      const jsonBlocks = convertBlocksToJson(newBlocks)
+      const jsonBlocks = convertBlocksToJson(normalizedBlocks)
       await updatePageBlocksAction(currentPage.id, jsonBlocks)
     }
   }
@@ -222,6 +262,7 @@ export function usePageBuilder({
     saveMessage,
     deleting,
     saveSelectedBlockContent,
+    handleUpdateBlock,
     handleDeleteBlock,
     handleReorderBlocks,
     handleAddBlocks,

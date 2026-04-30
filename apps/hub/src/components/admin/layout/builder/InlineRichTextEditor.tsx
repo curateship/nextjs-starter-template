@@ -40,7 +40,7 @@ import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml 
 import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 import { SponsorCard } from "@/components/shared/SponsorCard"
 
-type InlineRichTextEditorVariant = "newsletter" | "post" | "directory"
+type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page"
 type ProseEditorVariant = Exclude<InlineRichTextEditorVariant, "newsletter">
 
 interface InlineRichTextEditorProps {
@@ -85,11 +85,13 @@ const PROSE_EDITOR_CLASS =
 const PROSE_EDITOR_TEXT_CLASS: Record<ProseEditorVariant, string> = {
   post: "[&_.ProseMirror]:text-lg",
   directory: "[&_.ProseMirror]:text-base",
+  page: "[&_.ProseMirror]:text-lg",
 }
 const EDITOR_CONTENT_CLASS: Record<InlineRichTextEditorVariant, string> = {
   post: "post-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   directory:
     "directory-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
+  page: "page-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   newsletter:
     "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
 }
@@ -1356,7 +1358,7 @@ export function InlineRichTextEditor({
     </div>
   ) : null
 
-  const isProseEditor = variant === "post" || variant === "directory"
+  const isProseEditor = variant === "post" || variant === "directory" || variant === "page"
   const editorContent = (
     <EditorContent
       editor={editor}

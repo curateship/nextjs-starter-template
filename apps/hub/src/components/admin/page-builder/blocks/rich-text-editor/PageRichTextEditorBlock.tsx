@@ -1,37 +1,73 @@
 "use client"
 
-import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
-import type { RichTextEditorProps } from "@/components/admin/layout/builder/RichTextEditor"
+import { useCallback, useMemo } from "react"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
+import { normalizePageRichTextContent } from "@/components/admin/page-builder/config/page-block-utils"
+import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 
-interface PageRichTextEditorBlockProps extends RichTextEditorProps {
-  content: RichTextEditorProps['content'] & {
-    visibility?: Record<string, boolean>
-  }
-  onVisibilityChange?: (value: Record<string, boolean>) => void
+interface PageRichTextEditorBlockProps {
+  content: Record<string, any>
+  onContentChange: (field: string, value: any) => void
+  siteId: string
+  blockId: string
+  onBack?: () => void
 }
 
-export function PageRichTextEditorBlock({ content, onContentChange, onVisibilityChange, compact }: PageRichTextEditorBlockProps) {
+export function PageRichTextEditorBlock({
+  content,
+  onContentChange,
+  siteId,
+  blockId,
+  onBack,
+}: PageRichTextEditorBlockProps) {
+  const normalizedContent = useMemo(() => normalizePageRichTextContent(content), [content])
+  const editorContent = useMemo(() => ({
+    ...normalizedContent,
+    htmlContent: normalizedContent.body,
+  }), [normalizedContent])
+
+  const handleBodyChange = useCallback((htmlContent: string) => {
+    onContentChange("body", htmlContent)
+    if (content.format !== "html") {
+      onContentChange("format", "html")
+    }
+  }, [content.format, onContentChange])
+
   return (
-    <ProductRichTextEditorBlock
-      content={{
-        header: content.title,
-        subheader: content.subtitle,
-        headerAlign: content.headerAlign,
-        richtextContent: content.content,
-        hideHeader: content.hideHeader,
-        hideEditorHeader: content.hideEditorHeader,
-      }}
-      onContentChange={(nextContent) =>
-        onContentChange({
-          title: nextContent.header,
-          subtitle: nextContent.subheader,
-          headerAlign: nextContent.headerAlign,
-          content: nextContent.richtextContent,
-        })
-      }
-      compact={compact}
-      visibility={content.visibility}
-      onVisibilityChange={onVisibilityChange}
+    <BlockTabs
+      onBack={onBack}
+      headerClassName="pt-0"
+      tabs={[
+        {
+          value: "content",
+          label: "Content",
+          content: (
+            <BlockEditorSection>
+              <InlineRichTextEditor
+                blockId={blockId}
+                content={editorContent}
+                onContentChange={handleBodyChange}
+                siteId={siteId}
+                isActive
+                editorPadding={0}
+                variant="page"
+              />
+            </BlockEditorSection>
+          ),
+        },
+        {
+          value: "settings",
+          label: "Settings",
+          content: (
+            <VisibilitySettings
+              visibility={normalizedContent.visibility}
+              onChange={(visibility) => onContentChange("visibility", visibility)}
+              fields={[{ key: "body", label: "Content" }]}
+            />
+          ),
+        },
+      ]}
     />
   )
 }

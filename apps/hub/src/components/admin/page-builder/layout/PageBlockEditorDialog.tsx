@@ -67,22 +67,10 @@ export function PageBlockEditorDialog({
 
               {selectedBlock.type === "rich-text" && (
                 <PageRichTextEditorBlock
-                  content={{
-                    title: draftContent.title || "",
-                    subtitle: draftContent.subtitle || "",
-                    headerAlign: draftContent.headerAlign || "left",
-                    content: draftContent.content || "",
-                    hideHeader: draftContent.hideHeader,
-                    hideEditorHeader: draftContent.hideEditorHeader,
-                    visibility: draftContent.visibility,
-                  }}
-                  onContentChange={(contentObj) => {
-                    onContentChange("title", contentObj.title)
-                    onContentChange("subtitle", contentObj.subtitle)
-                    onContentChange("headerAlign", contentObj.headerAlign)
-                    onContentChange("content", contentObj.content)
-                  }}
-                  onVisibilityChange={(value) => onContentChange("visibility", value)}
+                  content={draftContent}
+                  onContentChange={onContentChange}
+                  siteId={siteId}
+                  blockId={selectedBlock.id}
                 />
               )}
 

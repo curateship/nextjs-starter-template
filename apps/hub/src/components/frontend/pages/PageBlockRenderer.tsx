@@ -1,4 +1,4 @@
-import { Suspense } from "react"
+import { Suspense, type ReactNode } from "react"
 import { PageHeroBlock } from "@/components/frontend/pages/hero/PageHeroBlock"
 import { FaqBlock } from "@/components/frontend/pages/faq/PageFaqBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
@@ -19,9 +19,17 @@ interface BlockRendererProps {
   site: SiteWithBlocks
   isPreview?: boolean
   hideSiteChrome?: boolean
+  renderRichTextBody?: (block: SiteWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
+  renderBlockOverlay?: (block: SiteWithBlocks["blocks"][number]) => ReactNode
 }
 
-export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false }: BlockRendererProps) {
+export function BlockRenderer({
+  site,
+  isPreview = false,
+  hideSiteChrome = false,
+  renderRichTextBody,
+  renderBlockOverlay,
+}: BlockRendererProps) {
   const { blocks = [] } = site
   const siteChrome = resolveSiteChrome(site.settings)
 
@@ -73,18 +81,36 @@ export function BlockRenderer({ site, isPreview = false, hideSiteChrome = false 
         }
 
         if (block.type === 'rich-text') {
+          const bodyHtml = typeof block.content.body === 'string'
+            ? block.content.body
+            : typeof block.content.content === 'string'
+              ? block.content.content
+              : ''
+          const visibility = block.content?.visibility && typeof block.content.visibility === 'object'
+            ? block.content.visibility as Record<string, boolean>
+            : {}
+
+          if (visibility.body === false || (!renderRichTextBody && !bodyHtml.trim())) {
+            return null
+          }
+
+          const inlineBody = renderRichTextBody?.(block, bodyHtml)
+
           return (
-            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+            <div
+              key={block.id}
+              data-block-id={block.id}
+              data-block-type={block.type}
+              className={renderBlockOverlay ? "relative group/page-preview-block" : undefined}
+            >
+              {renderBlockOverlay?.(block)}
               <RichTextBlock
-                content={{
-                  title: block.content.title,
-                  subtitle: block.content.subtitle,
-                  headerAlign: block.content.headerAlign || 'left',
-                  content: block.content.content || ''
-                }}
+                content={block.content}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
-              />
+              >
+                {inlineBody}
+              </RichTextBlock>
             </div>
           )
         }

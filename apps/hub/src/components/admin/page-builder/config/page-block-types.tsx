@@ -52,11 +52,13 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
   },
   {
     type: 'rich-text',
-    name: 'Rich Text',
+    name: 'Rich Text Editor',
     icon: FileText,
     description: 'Flexible content editor for formatted text, images, and media',
     defaultContent: {
-      content: '<p>Add your content here...</p>'
+      body: '',
+      format: 'html',
+      visibility: {},
     }
   },
   {

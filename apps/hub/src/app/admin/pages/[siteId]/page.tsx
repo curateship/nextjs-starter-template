@@ -267,8 +267,21 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
               className="min-h-full"
               blocksLoading={blocksLoading}
               allBlocks={currentPage.blocks}
+              selectedBlock={builderState.selectedBlock}
               onSelectBlock={builderState.setSelectedBlock}
               onSelectSiteChrome={handleSelectSiteChrome}
+              onUpdateRichTextBody={(blockId, htmlContent) => {
+                const block = currentPage.blocks.find((item) => item.id === blockId)
+                if (!block) return
+
+                builderState.handleUpdateBlock(blockId, {
+                  content: {
+                    ...block.content,
+                    body: htmlContent,
+                    format: "html",
+                  },
+                })
+              }}
             />
           </ScrollArea>
         </div>

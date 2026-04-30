@@ -1,43 +1,62 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { useMemo } from "react"
-import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
+import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 
 interface RichTextBlockProps {
   content: {
-    title?: string
-    subtitle?: string
-    headerAlign?: 'left' | 'center'
-    content: string
-    hideHeader?: boolean
+    body?: string
+    content?: string
     visibility?: Record<string, boolean>
   }
+  children?: ReactNode
   className?: string
   siteWidth?: 'full' | 'custom'
   customWidth?: number
 }
 
-export function RichTextBlock({ content, className = "", siteWidth = 'custom', customWidth }: RichTextBlockProps) {
-  const sanitizedContent = useMemo(() => {
-    return sanitizeRichHtml(content.content)
-  }, [content.content])
+export function RichTextBlock({
+  content,
+  children,
+  className = "",
+  siteWidth = 'custom',
+  customWidth,
+}: RichTextBlockProps) {
+  const visibility = content.visibility && typeof content.visibility === "object"
+    ? content.visibility
+    : {}
+
+  if (visibility.hideBlock === true || visibility.body === false) {
+    return null
+  }
+
+  const body = typeof content.body === "string"
+    ? content.body
+    : typeof content.content === "string"
+      ? content.content
+      : ""
+  let richTextBody = children
+
+  if (!richTextBody) {
+    const safeBody = sanitizeRichMediaHtml(body)
+
+    if (!safeBody.trim()) {
+      return null
+    }
+
+    richTextBody = <div dangerouslySetInnerHTML={{ __html: safeBody }} />
+  }
 
   return (
     <BlockContainer
-      header={{
-        title: (content.visibility?.header !== false && !content.hideHeader) ? content.title : undefined,
-        subtitle: (content.visibility?.header !== false && !content.hideHeader) ? content.subtitle : undefined,
-        align: content.headerAlign || 'left'
-      }}
       className={className}
       siteWidth={siteWidth}
       customWidth={customWidth}
     >
-      <div 
-        className="prose prose-lg max-w-none"
-        dangerouslySetInnerHTML={{ __html: sanitizedContent }}
-      />
+      <div className="prose prose-lg dark:prose-invert max-w-none [&_img]:h-auto [&_img]:max-w-full">
+        {richTextBody}
+      </div>
     </BlockContainer>
   )
 }
