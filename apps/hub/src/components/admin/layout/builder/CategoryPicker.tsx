@@ -31,6 +31,7 @@ interface CategoryPickerProps {
   primaryCategoryId?: string | null
   onPrimaryCategoryChange?: (categoryId: string | null) => void
   loadingSelectedCategories?: boolean
+  selectedCategoryDetails?: Array<{ id: string; title: string }>
 }
 
 function isCategoryPublished(category: Category) {
@@ -48,6 +49,7 @@ export function CategoryPicker({
   primaryCategoryId,
   onPrimaryCategoryChange,
   loadingSelectedCategories = false,
+  selectedCategoryDetails = [],
 }: CategoryPickerProps) {
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
@@ -183,12 +185,19 @@ export function CategoryPicker({
     setCreating(false)
   }
 
-  const selectedCategories = categories.filter((cat) =>
-    selectedCategoryIds.includes(cat.id)
-  )
+  const selectedCategoryMap = useMemo(() => {
+    const map = new Map<string, { id: string; title: string }>()
+    categories.forEach((category) => map.set(category.id, category))
+    selectedCategoryDetails.forEach((category) => map.set(category.id, category))
+    return map
+  }, [categories, selectedCategoryDetails])
+  const selectedCategories = selectedCategoryIds
+    .map((categoryId) => selectedCategoryMap.get(categoryId))
+    .filter((category): category is { id: string; title: string } => Boolean(category))
+  const hasUnresolvedSelectedCategories = selectedCategoryIds.length > selectedCategories.length
   const showSelectedCategorySkeleton =
     loadingSelectedCategories ||
-    (loading && selectedCategoryIds.length > 0 && selectedCategories.length === 0)
+    (selectedCategoryIds.length > 0 && hasUnresolvedSelectedCategories && loading)
 
   return (
     <div className="space-y-2">

@@ -173,7 +173,11 @@ export async function getSiteProductsWithCategoriesAction(
           cat_parent_id: categories.parentId,
         })
         .from(contentCategoryRelationships)
-        .innerJoin(categories, eq(categories.id, contentCategoryRelationships.categoryId))
+        .innerJoin(categories, and(
+          eq(categories.id, contentCategoryRelationships.categoryId),
+          eq(categories.siteId, siteId),
+          eq(categories.isPublished, true)
+        ))
         .where(and(
           inArray(contentCategoryRelationships.contentId, productIds),
           eq(contentCategoryRelationships.contentType, 'product')
@@ -189,7 +193,11 @@ export async function getSiteProductsWithCategoriesAction(
           const parents = await db
             .select({ id: categories.id, title: categories.title })
             .from(categories)
-            .where(inArray(categories.id, Array.from(parentIds)))
+            .where(and(
+              inArray(categories.id, Array.from(parentIds)),
+              eq(categories.siteId, siteId),
+              eq(categories.isPublished, true)
+            ))
           parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
         }
         for (const rel of rels) {
@@ -706,16 +714,19 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
 
     // SECURITY: Validate allowed block types
     const allowedBlockTypes = ['product-content', 'product-default', 'product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-lead-magnet', 'product-checkout', 'product-faq', 'listing-views', 'product-rich-text', 'product-video', '_settings']
-    for (const blockType of Object.keys(contentBlocks)) {
-      const baseType = blockType.replace(/-[a-f0-9]{6,}$/, '')
-      if (!allowedBlockTypes.includes(blockType) && !allowedBlockTypes.includes(baseType)) {
-        return { success: false, error: `Invalid block type: ${blockType}` }
+    for (const [blockKey, blockData] of Object.entries(contentBlocks)) {
+      // Validate block data structure
+      if (typeof blockData !== 'object' || blockData === null) {
+        return { success: false, error: `Invalid data for block type: ${blockKey}` }
       }
 
-      // Validate block data structure
-      const blockData = contentBlocks[blockType]
-      if (typeof blockData !== 'object' || blockData === null) {
-        return { success: false, error: `Invalid data for block type: ${blockType}` }
+      if (blockKey.startsWith('_')) {
+        continue
+      }
+
+      const blockType = typeof blockData.type === 'string' ? blockData.type : blockKey
+      if (!allowedBlockTypes.includes(blockType)) {
+        return { success: false, error: `Invalid block type: ${blockType}` }
       }
     }
 

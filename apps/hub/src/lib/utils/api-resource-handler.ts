@@ -62,8 +62,8 @@ interface CreateResourceConfig {
   entityName: string
   /** Drizzle table reference */
   table: any
-  /** Key for default_blocks in site settings, e.g. "posts" */
-  defaultBlocksKey: string
+  /** Optional key for default_blocks in site settings, e.g. "posts" */
+  defaultBlocksKey?: string
   /** Build the insert values from the request data. Receives siteId, slug, nextOrder, contentBlocks. */
   buildInsertValues: (data: any, siteId: string, slug: string, nextOrder: number, contentBlocks: any) => Record<string, any>
   /** Optional response serializer for routes that expose snake_case action shapes. */
@@ -141,8 +141,12 @@ export function createResourceHandler(config: CreateResourceConfig) {
 
       /* Default blocks */
       const siteSettings = site.settings as Record<string, unknown> | null
-      const defaultBlocks = (siteSettings?.default_blocks as Record<string, unknown> | undefined)?.[config.defaultBlocksKey]
-      const contentBlocks = applyDefaultBlocks(data.content_blocks, config.defaultBlocksKey, defaultBlocks as string[] | undefined)
+      const defaultBlocks = config.defaultBlocksKey
+        ? (siteSettings?.default_blocks as Record<string, unknown> | undefined)?.[config.defaultBlocksKey]
+        : undefined
+      const contentBlocks = config.defaultBlocksKey
+        ? applyDefaultBlocks(data.content_blocks, config.defaultBlocksKey, defaultBlocks as string[] | undefined)
+        : data.content_blocks || {}
 
       /* Insert */
       const insertValues = config.buildInsertValues(data, data.site_id, slug, nextOrder, contentBlocks)

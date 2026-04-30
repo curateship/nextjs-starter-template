@@ -334,6 +334,30 @@ export async function getContentCategoriesAction(contentId: string, contentType:
       return { data: null, error: 'Authentication required' }
     }
 
+    const contentTable = getTableForContentType(contentType)
+    if (!contentTable) {
+      return { data: null, error: 'Invalid content type' }
+    }
+
+    const [content] = await db
+      .select({ siteId: contentTable.siteId })
+      .from(contentTable)
+      .where(eq(contentTable.id, contentId))
+      .limit(1)
+
+    if (!content) {
+      return { data: null, error: 'Content not found' }
+    }
+
+    const site = await db.query.sites.findFirst({
+      where: and(eq(sites.id, content.siteId), eq(sites.userId, user.id)),
+      columns: { id: true },
+    })
+
+    if (!site) {
+      return { data: null, error: 'Unauthorized' }
+    }
+
     // Get relationships for this content
     const relationships = await db
       .select({
@@ -362,7 +386,11 @@ export async function getContentCategoriesAction(contentId: string, contentType:
         parentId: categories.parentId,
       })
       .from(categories)
-      .where(inArray(categories.id, categoryIds))
+      .where(and(
+        inArray(categories.id, categoryIds),
+        eq(categories.siteId, content.siteId),
+        eq(categories.isPublished, true)
+      ))
 
     // Collect parent IDs and fetch parent titles
     const parentIds = categoryRows.filter(c => c.parentId).map(c => c.parentId!)
@@ -371,7 +399,11 @@ export async function getContentCategoriesAction(contentId: string, contentType:
       const parentRows = await db
         .select({ id: categories.id, title: categories.title })
         .from(categories)
-        .where(inArray(categories.id, parentIds))
+        .where(and(
+          inArray(categories.id, parentIds),
+          eq(categories.siteId, content.siteId),
+          eq(categories.isPublished, true)
+        ))
 
       parentTitles = Object.fromEntries(parentRows.map(p => [p.id, p.title]))
     }

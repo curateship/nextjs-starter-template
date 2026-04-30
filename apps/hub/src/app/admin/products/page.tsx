@@ -42,6 +42,8 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import type { Product } from "@/lib/actions/products/product-actions"
 
+const EMPTY_PRODUCT_CATEGORIES: CategoryInfo[] = []
+
 export default function ProductsPage() {
   const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -672,10 +674,12 @@ export default function ProductsPage() {
 
         {/* Product Settings Modal */}
         <ProductSettingsModal 
+          key={settingsProductId || "product-settings-modal"}
           open={settingsProductId !== null}
           onOpenChange={(open) => setSettingsProductId(open ? settingsProductId : null)}
           product={products.find(p => p.id === settingsProductId) || null}
           site={null}
+          initialCategories={settingsProductId ? productCategories[settingsProductId] || EMPTY_PRODUCT_CATEGORIES : EMPTY_PRODUCT_CATEGORIES}
           onSuccess={handleProductUpdated}
         />
 

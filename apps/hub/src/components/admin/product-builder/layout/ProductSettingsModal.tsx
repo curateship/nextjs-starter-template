@@ -26,15 +26,19 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Product, UpdateProductData } from "@/lib/actions/products/product-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
+
+const EMPTY_INITIAL_CATEGORIES: CategoryInfo[] = []
 
 interface ProductSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   product: Product | null
   site: SiteWithTheme | null
+  initialCategories?: CategoryInfo[]
   onSuccess?: (updatedProduct: Product) => void
 }
 
@@ -43,6 +47,7 @@ export function ProductSettingsModal({
   onOpenChange, 
   product, 
   site,
+  initialCategories,
   onSuccess 
 }: ProductSettingsModalProps) {
   const [formData, setFormData] = useState<UpdateProductData>({})
@@ -55,8 +60,12 @@ export function ProductSettingsModal({
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryInfo[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
+  const hasInitialCategorySnapshot = initialCategories !== undefined
+  const hasInitialSelectedCategories = (initialCategories?.length ?? 0) > 0
+  const showCategorySkeleton = loadingCategories && (!hasInitialCategorySnapshot || hasInitialSelectedCategories)
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -119,14 +128,21 @@ export function ProductSettingsModal({
       setError(null)
       setSaveMessage(null)
 
-      setSelectedCategoryIds([])
+      const startingCategories = initialCategories ?? EMPTY_INITIAL_CATEGORIES
+      setSelectedCategoryIds(startingCategories.map((category) => category.id))
+      setSelectedCategoryDetails([])
       setPrimaryCategoryId(null)
       setLoadingCategories(true)
       getContentCategoriesAction(product.id, 'product').then(({ data }) => {
         if (cancelled) return
         if (data) {
           setSelectedCategoryIds(data.map((c) => c.id))
+          setSelectedCategoryDetails(data)
           setPrimaryCategoryId(data.find((c) => c.is_primary)?.id || data[0]?.id || null)
+        } else {
+          setSelectedCategoryIds([])
+          setSelectedCategoryDetails([])
+          setPrimaryCategoryId(null)
         }
       }).finally(() => {
         if (cancelled) return
@@ -137,7 +153,7 @@ export function ProductSettingsModal({
     return () => {
       cancelled = true
     }
-  }, [product])
+  }, [initialCategories, product])
 
 
   // Handle saving as draft
@@ -199,11 +215,10 @@ export function ProductSettingsModal({
         if (onSuccess) {
           onSuccess(result.data)
         }
-        
-        // Clear success message after 3 seconds but keep modal open
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+
+        setSaveMessage(null)
+        setIsSaved(false)
+        onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to save product as draft')
@@ -271,11 +286,10 @@ export function ProductSettingsModal({
         if (onSuccess) {
           onSuccess(result.data)
         }
-        
-        // Clear success message after 3 seconds but keep modal open
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+
+        setSaveMessage(null)
+        setIsSaved(false)
+        onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to publish product')
@@ -428,9 +442,10 @@ export function ProductSettingsModal({
                     siteId={product.site_id}
                     selectedCategoryIds={selectedCategoryIds}
                     onSelectionChange={setSelectedCategoryIds}
+                    selectedCategoryDetails={selectedCategoryDetails}
                     primaryCategoryId={primaryCategoryId}
                     onPrimaryCategoryChange={setPrimaryCategoryId}
-                    loadingSelectedCategories={loadingCategories}
+                    loadingSelectedCategories={showCategorySkeleton}
                   />
                   <FieldDescription>
                     Assign this product to one or more categories.

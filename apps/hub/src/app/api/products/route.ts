@@ -5,7 +5,6 @@ import { serializeProduct } from '@/lib/utils/content-serializer'
 export const POST = createResourceHandler({
   entityName: 'Product',
   table: products,
-  defaultBlocksKey: 'products',
   serializeResponse: serializeProduct,
   buildInsertValues: (data, siteId, slug, nextOrder, contentBlocks) => ({
     siteId,
