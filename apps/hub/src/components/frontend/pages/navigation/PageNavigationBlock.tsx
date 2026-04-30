@@ -675,7 +675,11 @@ export const NavBlock = memo(function NavBlock({
 
   const renderDesktopActionItem = (item: NavigationActionItem) => {
     if (item.kind === 'button') {
-      return <NavigationActionButton key={item.id} button={item.button} />
+      return (
+        <span key={item.id} className="flex items-center px-2">
+          <NavigationActionButton button={item.button} />
+        </span>
+      )
     }
 
     if (item.kind === 'account-menu') {
@@ -719,11 +723,12 @@ export const NavBlock = memo(function NavBlock({
   const renderMobileInlineActionItem = (item: NavigationActionItem) => {
     if (item.kind === 'button') {
       return (
-        <NavigationActionButton
-          key={item.id}
-          button={item.button}
-          className="h-8 px-2 py-1 text-xs"
-        />
+        <span key={item.id} className="flex items-center px-2">
+          <NavigationActionButton
+            button={item.button}
+            className="h-8 px-2 py-1 text-xs"
+          />
+        </span>
       )
     }
 
