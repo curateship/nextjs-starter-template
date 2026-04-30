@@ -275,20 +275,10 @@ type AccountMenuGuestAction = NavigationActionSettings & {
   id: 'login' | 'register'
 }
 
-function groupNavigationActionItems(items: NavigationActionItem[]) {
-  return items.reduce<NavigationActionItem[][]>((groups, item) => {
-    const lastGroup = groups[groups.length - 1]
-    const lastGroupKind = lastGroup?.[0]?.kind === 'button' ? 'button' : 'icon'
-    const itemKind = item.kind === 'button' ? 'button' : 'icon'
+function hasActionTypeBoundary(items: NavigationActionItem[], index: number) {
+  if (index === 0) return false
 
-    if (lastGroup && lastGroupKind === itemKind) {
-      lastGroup.push(item)
-    } else {
-      groups.push([item])
-    }
-
-    return groups
-  }, [])
+  return (items[index - 1]?.kind === 'button') !== (items[index]?.kind === 'button')
 }
 
 const NavigationActionButton = ({
@@ -829,13 +819,26 @@ export const NavBlock = memo(function NavBlock({
                 )}
               </Link>
 
-              <div className="flex flex-1 flex-wrap items-center justify-end gap-x-4 gap-y-1.5 lg:hidden">
-                {groupNavigationActionItems(mobileActionItems).map((group) => (
-                  <div key={group.map((item) => item.id).join('-')} className="flex items-center gap-1.5">
-                    {group.map(renderMobileInlineActionItem)}
+              <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5 lg:hidden">
+                {mobileActionItems.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "flex items-center",
+                      hasActionTypeBoundary(mobileActionItems, index) && "ml-2.5"
+                    )}
+                  >
+                    {renderMobileInlineActionItem(item)}
                   </div>
                 ))}
-                <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
+                <div
+                  className={cn(
+                    "flex items-center",
+                    mobileActionItems.at(-1)?.kind === 'button' && "ml-2.5"
+                  )}
+                >
+                  <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
+                </div>
               </div>
               <DesktopNav 
                 menuItems={menuItems}
@@ -846,10 +849,16 @@ export const NavBlock = memo(function NavBlock({
             </div>
 
             {/* Desktop Actions */}
-            <div className="hidden lg:flex items-center gap-4">
-              {groupNavigationActionItems(desktopActionItems).map((group) => (
-                <div key={group.map((item) => item.id).join('-')} className="flex items-center gap-3">
-                  {group.map(renderDesktopActionItem)}
+            <div className="hidden lg:flex items-center gap-3">
+              {desktopActionItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "flex items-center",
+                    hasActionTypeBoundary(desktopActionItems, index) && "ml-1"
+                  )}
+                >
+                  {renderDesktopActionItem(item)}
                 </div>
               ))}
             </div>
