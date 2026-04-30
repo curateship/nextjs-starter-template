@@ -11,6 +11,8 @@ import {
   FolderOpen,
   Globe,
   HeartPulse,
+  Images,
+  ImageOff,
   Link2,
   Mail,
   Package,
@@ -48,6 +50,7 @@ type PlatformSettingsAdminSection = "settings" | "apps-integration"
 type SiteHealthAdminSection = "overview" | "cron"
 type SiteAuditAdminSection = "site-audit" | "audit" | "links"
 type SitesAdminSection = "sites" | "themes"
+type MediaAdminSection = "library" | "unused"
 
 export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTopNavLink[] {
   return [
@@ -102,6 +105,13 @@ export function getSitesAdminTopNavLinks(active: SitesAdminSection): AdminTopNav
   return [
     { label: "Sites", href: "/admin/sites", icon: Globe, active: active === "sites" },
     { label: "Themes", href: "/admin/themes", icon: Paintbrush, active: active === "themes" },
+  ]
+}
+
+export function getMediaAdminTopNavLinks(active: MediaAdminSection): AdminTopNavLink[] {
+  return [
+    { label: "Library", href: "/admin/media", icon: Images, active: active === "library" },
+    { label: "Unused", href: "/admin/media/unused", icon: ImageOff, active: active === "unused" },
   ]
 }
 

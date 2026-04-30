@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from 'next/cache'
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, desc, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { media, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -28,8 +28,20 @@ export interface MediaUploadData {
   alt_text?: string
 }
 
+export interface UnusedMediaScanResponse {
+  data: MediaData[]
+  total: number
+  scanned_at: string
+}
+
 export type ImageData = MediaData
 export type ImageUploadData = MediaUploadData
+
+function toIsoDate(value: unknown): string {
+  if (!value) return new Date().toISOString()
+  if (value instanceof Date) return value.toISOString()
+  return new Date(value as string).toISOString()
+}
 
 function toMediaData(row: any): MediaData {
   return {
@@ -37,13 +49,13 @@ function toMediaData(row: any): MediaData {
     filename: row.filename,
     original_name: row.originalName ?? row.original_name,
     alt_text: row.altText ?? row.alt_text ?? null,
-    file_size: row.fileSize ?? row.file_size,
+    file_size: Number(row.fileSize ?? row.file_size ?? 0),
     file_type: row.fileType ?? row.file_type,
     storage_path: row.storagePath ?? row.storage_path,
     public_url: row.publicUrl ?? row.public_url,
     site_id: row.siteId ?? row.site_id ?? null,
-    created_at: row.createdAt ? new Date(row.createdAt).toISOString() : row.created_at,
-    updated_at: row.updatedAt ? new Date(row.updatedAt).toISOString() : row.updated_at,
+    created_at: toIsoDate(row.createdAt ?? row.created_at),
+    updated_at: toIsoDate(row.updatedAt ?? row.updated_at),
   }
 }
 
@@ -214,6 +226,177 @@ export async function getPaginatedMediaAction(
   }
 }
 
+export async function scanUnusedMediaAction(
+  site_id?: string
+): Promise<{ data: UnusedMediaScanResponse | null; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Authentication required' }
+
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { data: null, error: scope.error }
+
+    const result = await db.execute<{
+      id: string
+      filename: string
+      original_name: string
+      alt_text: string | null
+      file_size: number | string
+      file_type: 'image' | 'video'
+      storage_path: string
+      public_url: string
+      site_id: string | null
+      created_at: Date | string
+      updated_at: Date | string
+    }>(sql`
+      select
+        m.id,
+        m.filename,
+        m.original_name,
+        m.alt_text,
+        m.file_size,
+        m.file_type,
+        m.storage_path,
+        m.public_url,
+        m.site_id,
+        m.created_at,
+        m.updated_at
+      from media m
+      where m.user_id = ${user.id}
+        and m.site_id = ${scope.siteId}::uuid
+        and not (
+          exists (
+            select 1 from users u
+            where u.id = ${user.id}
+              and u.image = m.public_url
+          )
+          or exists (
+            select 1 from sites s
+            where s.id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(s.settings::text, '')) > 0
+          )
+          or exists (
+            select 1 from site_dashboard_config c
+            where c.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(c.settings::text, '')) > 0
+          )
+          or exists (
+            select 1 from pages p
+            where p.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(p.content_blocks::text, '')) > 0
+          )
+          or exists (
+            select 1 from site_dashboard_pages p
+            where p.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(p.content_blocks::text, '')) > 0
+          )
+          or exists (
+            select 1 from products p
+            where p.site_id = ${scope.siteId}::uuid
+              and (
+                p.featured_image = m.public_url
+                or position(m.public_url in coalesce(p.content_blocks::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1 from posts p
+            where p.site_id = ${scope.siteId}::uuid
+              and (
+                p.featured_image = m.public_url
+                or position(m.public_url in coalesce(p.content, '')) > 0
+                or position(m.public_url in coalesce(p.content_blocks::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1 from categories c
+            where c.site_id = ${scope.siteId}::uuid
+              and (
+                c.featured_image = m.public_url
+                or position(m.public_url in coalesce(c.content_blocks::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1 from directory d
+            where d.site_id = ${scope.siteId}::uuid
+              and (
+                d.featured_image = m.public_url
+                or position(m.public_url in coalesce(d.content_blocks::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1 from events e
+            where e.site_id = ${scope.siteId}::uuid
+              and (
+                e.featured_image = m.public_url
+                or position(m.public_url in coalesce(e.content_blocks::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1 from sponsors s
+            where s.site_id = ${scope.siteId}::uuid
+              and s.image_url = m.public_url
+          )
+          or exists (
+            select 1 from directory_templates t
+            where t.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(t.content_blocks::text, '')) > 0
+          )
+          or exists (
+            select 1 from post_templates t
+            where t.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(t.content_blocks::text, '')) > 0
+          )
+          or exists (
+            select 1 from newsletter_templates t
+            where t.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(t.content_blocks::text, '')) > 0
+          )
+          or exists (
+            select 1 from newsletters n
+            where n.site_id = ${scope.siteId}::uuid
+              and (
+                position(m.public_url in coalesce(n.content, '')) > 0
+                or position(m.public_url in coalesce(n.content_blocks::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1
+            from email_automation_steps step
+            join email_automations automation on automation.id = step.automation_id
+            where automation.site_id = ${scope.siteId}::uuid
+              and (
+                position(m.public_url in coalesce(step.content, '')) > 0
+                or position(m.public_url in coalesce(step.content_blocks::text, '')) > 0
+                or position(m.public_url in coalesce(step.node_config::text, '')) > 0
+              )
+          )
+          or exists (
+            select 1 from email_automations automation
+            where automation.site_id = ${scope.siteId}::uuid
+              and (
+                position(m.public_url in coalesce(automation.trigger_config::text, '')) > 0
+                or position(m.public_url in coalesce(automation.goal_config::text, '')) > 0
+              )
+          )
+        )
+      order by m.created_at desc
+    `)
+
+    const unusedMedia = (result.rows || []).map(toMediaData)
+
+    return {
+      data: {
+        data: unusedMedia,
+        total: unusedMedia.length,
+        scanned_at: new Date().toISOString(),
+      },
+      error: null,
+    }
+  } catch (error) {
+    return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
 export async function updateMediaAction(
   mediaId: string,
   updates: { alt_text?: string },
@@ -273,6 +456,64 @@ export async function deleteMediaAction(mediaId: string, site_id?: string): Prom
     return { success: true, error: null }
   } catch (error) {
     return { success: false, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+  }
+}
+
+export async function deleteMediaItemsAction(
+  mediaIds: string[],
+  site_id?: string
+): Promise<{ success: boolean; deletedCount: number; error: string | null }> {
+  try {
+    const user = await getAuthenticatedUser()
+    if (!user) return { success: false, deletedCount: 0, error: 'Authentication required' }
+
+    const scope = await validateSiteScope(user.id, site_id)
+    if (scope.error !== null) return { success: false, deletedCount: 0, error: scope.error }
+
+    const uniqueIds = [...new Set(mediaIds)].filter((id) => UUID_REGEX.test(id))
+    if (uniqueIds.length === 0) return { success: false, deletedCount: 0, error: 'No valid media IDs provided' }
+
+    const rows = await db
+      .select({ id: media.id, storagePath: media.storagePath })
+      .from(media)
+      .where(and(
+        inArray(media.id, uniqueIds),
+        eq(media.userId, user.id),
+        eq(media.siteId, scope.siteId)
+      ))
+
+    if (rows.length === 0) return { success: false, deletedCount: 0, error: 'Media files not found or access denied' }
+
+    await db
+      .delete(media)
+      .where(and(
+        inArray(media.id, rows.map((row) => row.id)),
+        eq(media.userId, user.id),
+        eq(media.siteId, scope.siteId)
+      ))
+
+    const storagePaths = [...new Set(rows.map((row) => row.storagePath))]
+    for (const storagePath of storagePaths) {
+      const remaining = await db.query.media.findFirst({
+        where: eq(media.storagePath, storagePath),
+        columns: { id: true },
+      })
+
+      if (!remaining) {
+        try { await deleteFromR2(storagePath) } catch (e) { console.error('R2 deletion failed:', e) }
+      }
+    }
+
+    revalidatePath('/admin/media')
+    revalidatePath('/admin/media/unused')
+    revalidatePath('/admin/images')
+    return { success: true, deletedCount: rows.length, error: null }
+  } catch (error) {
+    return {
+      success: false,
+      deletedCount: 0,
+      error: `Server error: ${error instanceof Error ? error.message : String(error)}`,
+    }
   }
 }
 
