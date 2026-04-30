@@ -20,7 +20,6 @@ import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/g
 import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/features/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/hotspot/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/checkout/ProductCheckoutBlock"
-import { ProductLeadMagnetBlock } from "@/components/admin/product-builder/blocks/lead-magnet/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
@@ -480,15 +479,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                         onCheckoutSettingsChange={(value) => handleDraftChange("checkoutSettings", value)}
                         visibility={draftContent.visibility}
                         onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                      />
-                    )}
-
-                    {selectedBlock.type === "product-lead-magnet" && (
-                      <ProductLeadMagnetBlock
-                        content={draftContent}
-                        onContentChange={handleDraftChange}
-                        siteId={siteId}
-                        blockId={selectedBlock.id}
                       />
                     )}
 

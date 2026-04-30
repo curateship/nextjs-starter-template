@@ -175,10 +175,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const configuredTriggerNodes = triggerNodes.filter(node => isAutomationTriggerConfigured(node.type, node.config))
   const triggerConfigured = configuredTriggerNodes.length > 0
   const displayedTriggerNodes: AutomationTriggerNode[] = triggerNodes.length ? triggerNodes : [EMPTY_TRIGGER_NODE]
-  const leadMagnetProducts = products.filter(product => Boolean(product.content_blocks?.["product-lead-magnet"]))
   const purchaseProducts = products.filter(product => Boolean(product.content_blocks?.["product-checkout"]))
-  const productTriggerOptions = draftTriggerType === "lead_magnet_signup" ? leadMagnetProducts : purchaseProducts
-  const productTriggerLabel = draftTriggerType === "lead_magnet_signup" ? "Lead magnet" : "Product"
+  const productTriggerOptions = purchaseProducts
+  const productTriggerLabel = "Product"
   const centerAxisStyle = { transform: "translateX(1.5px)" }
   const newsletterSettingsHref = siteId ? `/admin/sites/${siteId}/settings/newsletters` : undefined
   const newsletterNavLinks = getNewsletterAdminTopNavLinks("automations", newsletterSettingsHref)
@@ -380,8 +379,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       setError("Choose a segment before saving this trigger.")
       return
     }
-    if ((draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase") && !draftProductId) {
-      setError(`Choose a ${draftTriggerType === "lead_magnet_signup" ? "lead magnet" : "product"} before saving this trigger.`)
+    if (draftTriggerType === "paid_purchase" && !draftProductId) {
+      setError("Choose a product before saving this trigger.")
       return
     }
 
@@ -510,7 +509,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     if (triggerNode.type === "lead_magnet_signup") {
       const productId = typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : ""
-      const productName = leadMagnetProducts.find(product => product.id === productId)?.title
+      const productName = products.find(product => product.id === productId)?.title
 
       return {
         label: productName || "Choose lead magnet",
@@ -874,7 +873,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     const nextTriggerType = value as AutomationTriggerType
                     setDraftTriggerType(nextTriggerType)
                     if (nextTriggerType !== "segment_added") setDraftSegmentId("")
-                    if (nextTriggerType !== "lead_magnet_signup" && nextTriggerType !== "paid_purchase") {
+                    if (nextTriggerType !== "paid_purchase") {
                       setDraftProductId("")
                     }
                   }}
@@ -882,7 +881,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="segment_added">Added to segment</SelectItem>
-                    <SelectItem value="lead_magnet_signup">Lead magnet signup</SelectItem>
                     <SelectItem value="paid_purchase">Paid purchase</SelectItem>
                     <SelectItem value="none">Remove trigger</SelectItem>
                   </SelectContent>
@@ -912,7 +910,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </div>
               )}
 
-              {(draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase") && (
+              {draftTriggerType === "paid_purchase" && (
                 <div className="space-y-2">
                   <div>
                     <Label>{productTriggerLabel}</Label>
@@ -929,9 +927,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   </div>
                   {!loadingProducts && productTriggerOptions.length === 0 && (
                     <p className="text-sm text-muted-foreground">
-                      {draftTriggerType === "lead_magnet_signup"
-                        ? "Create a product with a lead magnet block first, then come back here to use a lead magnet trigger."
-                        : "Create a product with a checkout block first, then come back here to use a paid purchase trigger."}
+                      Create a product with a checkout block first, then come back here to use a paid purchase trigger.
                     </p>
                   )}
                 </div>
@@ -963,7 +959,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   savingTrigger
                   || (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0))
                   || (
-                    (draftTriggerType === "lead_magnet_signup" || draftTriggerType === "paid_purchase")
+                    draftTriggerType === "paid_purchase"
                     && (!draftProductId || productTriggerOptions.length === 0)
                   )
                 }
