@@ -9,9 +9,9 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AdminModalContent,
-  AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
@@ -134,6 +134,7 @@ export default function NewslettersPage() {
   const [newsletters, setNewsletters] = useState<Newsletter[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [createActiveTab, setCreateActiveTab] = useState("general")
   const [settingsNewsletterId, setSettingsNewsletterId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -683,21 +684,35 @@ export default function NewslettersPage() {
           </Card>
 
           {/* Create Newsletter Dialog */}
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <Dialog
+            open={showCreateDialog}
+            onOpenChange={(open) => {
+              setShowCreateDialog(open)
+              if (open) {
+                setCreateActiveTab("general")
+              }
+            }}
+          >
             <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Newsletter</AdminModalTitle>
-                <AdminModalDescription>
-                  Set the subject, delivery options, and audience for a new newsletter draft.
-                </AdminModalDescription>
-              </AdminModalHeader>
-              <CreateNewsletterModal
-                onSuccess={(newsletter) => {
-                  setShowCreateDialog(false)
-                  router.push(`/admin/newsletters/${newsletter.id}`)
-                }}
-                onCancel={() => setShowCreateDialog(false)}
-              />
+              <Tabs value={createActiveTab} onValueChange={setCreateActiveTab} className="flex min-h-0 flex-1 flex-col">
+                <AdminModalHeader>
+                  <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
+                    <AdminModalTitle className="shrink-0">Create New Newsletter</AdminModalTitle>
+                    <TabsList className="h-9 shrink-0">
+                      <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+                      <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                      <TabsTrigger value="audience-filter" className="h-7 py-0">Audience Filter</TabsTrigger>
+                    </TabsList>
+                  </div>
+                </AdminModalHeader>
+                <CreateNewsletterModal
+                  onSuccess={(newsletter) => {
+                    setShowCreateDialog(false)
+                    router.push(`/admin/newsletters/${newsletter.id}`)
+                  }}
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              </Tabs>
             </AdminModalContent>
           </Dialog>
 

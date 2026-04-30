@@ -25,7 +25,6 @@ import { Users, TestTube } from "lucide-react"
 import {
   AdminModalBody,
   AdminModalContent,
-  AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle,
@@ -229,39 +228,35 @@ export function NewsletterSettingsModal({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle className="flex items-center gap-3">
-              Newsletter Settings
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
-                <span className="text-sm font-medium">
-                  {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
-                </span>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+            <AdminModalHeader>
+              <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
+                <AdminModalTitle className="shrink-0">Newsletter Settings</AdminModalTitle>
+                <div className="flex shrink-0 items-center space-x-2">
+                  <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <span className="text-sm font-medium">
+                    {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
+                  </span>
+                </div>
+                <TabsList className="h-9 shrink-0">
+                  <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+                  <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                  <TabsTrigger value="audience-filter" className="h-7 py-0">Audience Filter</TabsTrigger>
+                </TabsList>
               </div>
-            </AdminModalTitle>
-            <AdminModalDescription>
-              Update the subject, drip settings, and audience for this newsletter.
-            </AdminModalDescription>
-          </AdminModalHeader>
+            </AdminModalHeader>
 
-          <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
-            {successMsg && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                <p className="text-sm text-green-800">{successMsg}</p>
-              </div>
-            )}
-
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="grid-cols-3">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="drip-options">Drip Options</TabsTrigger>
-                <TabsTrigger value="audience-filter">Audience Filter</TabsTrigger>
-              </TabsList>
+            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              )}
+              {successMsg && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                  <p className="text-sm text-green-800">{successMsg}</p>
+                </div>
+              )}
 
               <TabsContent value="general" className="mt-0 space-y-6 min-h-[340px]">
                 <div>
@@ -502,17 +497,17 @@ export function NewsletterSettingsModal({
                   )}
                 </div>
               </TabsContent>
-            </Tabs>
 
-          </AdminModalBody>
-          <AdminModalFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Close
-            </Button>
-            <Button onClick={handleSave} disabled={saving || isSent}>
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-          </AdminModalFooter>
+            </AdminModalBody>
+            <AdminModalFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Close
+              </Button>
+              <Button onClick={handleSave} disabled={saving || isSent}>
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </AdminModalFooter>
+          </Tabs>
         </AdminModalContent>
       </Dialog>
 
