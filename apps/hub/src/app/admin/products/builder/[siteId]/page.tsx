@@ -22,7 +22,6 @@ import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
-import { ProductVideoBlock } from "@/components/admin/product-builder/blocks/video/ProductVideoBlock"
 import {
   Dialog,
 } from "@/components/ui/dialog"
@@ -500,30 +499,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                       />
                     )}
 
-                    {selectedBlock.type === "product-video" && (
-                      <ProductVideoBlock
-                        header={draftContent.header ?? ""}
-                        subheader={draftContent.subheader ?? ""}
-                        headerAlign={draftContent.headerAlign ?? "left"}
-                        videoUrl={draftContent.videoUrl || ""}
-                        coverImage={draftContent.coverImage || ""}
-                        autoplay={draftContent.autoplay || false}
-                        loop={draftContent.loop || false}
-                        muted={draftContent.muted || false}
-                        onHeaderChange={(value) => handleDraftChange("header", value)}
-                        onSubheaderChange={(value) => handleDraftChange("subheader", value)}
-                        onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
-                        onVideoUrlChange={(value) => handleDraftChange("videoUrl", value)}
-                        onCoverImageChange={(value) => handleDraftChange("coverImage", value)}
-                        onAutoplayChange={(value) => handleDraftChange("autoplay", value)}
-                        onLoopChange={(value) => handleDraftChange("loop", value)}
-                        onMutedChange={(value) => handleDraftChange("muted", value)}
-                        visibility={draftContent.visibility}
-                        onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                        siteId={siteId}
-                        blockId={selectedBlock.id}
-                      />
-                    )}
                 </AdminModalScrollBody>
 
                 <AdminModalFooter className="sm:justify-end">

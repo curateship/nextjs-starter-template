@@ -1,4 +1,4 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Video } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -114,20 +114,6 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Add formatted text content with rich editing capabilities',
     defaultContent: {
       richtextContent: '<p>Add your content here...</p>'
-    }
-  },
-  {
-    type: 'product-video',
-    name: 'Product Video',
-    icon: Video,
-    description: 'Embed video content with customizable player',
-    defaultContent: {
-      header: 'Watch Video',
-      videoUrl: '',
-      coverImage: '',
-      autoplay: false,
-      loop: false,
-      muted: false
     }
   }
 ]
