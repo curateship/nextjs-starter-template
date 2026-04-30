@@ -1,0 +1,678 @@
+"use client"
+
+import { use, useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
+import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
+import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
+import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
+import {
+  AdminModalContent,
+  AdminModalFooter,
+  AdminModalHeader,
+  AdminModalScrollBody,
+  AdminModalTitle,
+} from "@/components/admin/layout/builder/AdminModalLayout"
+import { PRODUCT_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/product-builder/config/product-block-types"
+import {
+  parseProductBlocksFromJson,
+  productBlocksToJson,
+  type ProductBuilderBlock,
+} from "@/components/admin/product-builder/config/product-block-utils"
+import {
+  getProductTemplateById,
+  updateProductTemplate,
+  type ProductTemplate,
+} from "@/lib/actions/products/product-template-actions"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
+import { ProductPreview } from "@/components/admin/product-builder/layout/ProductPreview"
+import { ProductContentBlock } from "@/components/admin/product-builder/blocks/content/ProductContentBlock"
+import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/hero/ProductHeroBlock"
+import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/details/ProductDetailsBlock"
+import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/gallery/ProductGalleryBlock"
+import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/features/ProductFeaturesBlock"
+import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/hotspot/ProductHotspotBlock"
+import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/checkout/ProductCheckoutBlock"
+import { ProductLeadMagnetBlock } from "@/components/admin/product-builder/blocks/lead-magnet/ProductLeadMagnetBlock"
+import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
+import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
+import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
+import { ProductVideoBlock } from "@/components/admin/product-builder/blocks/video/ProductVideoBlock"
+import { Check, Pencil, X } from "lucide-react"
+
+interface PageProps {
+  params: Promise<{ templateId: string }>
+}
+
+interface BlockSelection {
+  type: string
+  quantity: number
+}
+
+export default function ProductTemplateEditorPage({ params }: PageProps) {
+  const { templateId } = use(params)
+  const router = useRouter()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
+  const [template, setTemplate] = useState<ProductTemplate | null>(null)
+  const [blocks, setBlocks] = useState<ProductBuilderBlock[]>([])
+  const [selectedBlock, setSelectedBlock] = useState<ProductBuilderBlock | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState("")
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState("")
+  const [previewTitle, setPreviewTitle] = useState("Preview Product")
+  const [previewFeaturedImage, setPreviewFeaturedImage] = useState("")
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [draftProductData, setDraftProductData] = useState({
+    title: "Preview Product",
+    featured_image: "",
+  })
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
+
+  const productNavLinks = getProductAdminTopNavLinks("templates")
+
+  const loadTemplate = useCallback(async () => {
+    setLoading(true)
+
+    const { data, error: fetchError } = await getProductTemplateById(templateId)
+    if (fetchError || !data) {
+      setError(fetchError || "Not found")
+      setLoading(false)
+      return
+    }
+
+    setTemplate(data)
+    setNameInput(data.name)
+    setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
+    setSelectedBlock(null)
+    setLoading(false)
+  }, [templateId])
+
+  useEffect(() => {
+    loadTemplate()
+  }, [loadTemplate])
+
+  useEffect(() => {
+    if (!template || currentSite?.id === template.site_id) return
+
+    const templateSite = sites.find((site) => site.id === template.site_id)
+    if (templateSite) {
+      setCurrentSite(templateSite)
+    }
+  }, [currentSite?.id, setCurrentSite, sites, template])
+
+  useEffect(() => {
+    if (!selectedBlock) {
+      setDraftContent({})
+      setDraftProductData({
+        title: previewTitle,
+        featured_image: previewFeaturedImage,
+      })
+      setBlockSaveError(null)
+      return
+    }
+
+    setDraftContent(
+      selectedBlock.content
+        ? JSON.parse(JSON.stringify(selectedBlock.content))
+        : {}
+    )
+    setDraftProductData({
+      title: previewTitle,
+      featured_image: previewFeaturedImage,
+    })
+    setBlockSaveError(null)
+  }, [selectedBlock, previewFeaturedImage, previewTitle])
+
+  function handleDeleteBlock(block: ProductBuilderBlock) {
+    setBlocks((prev) => prev.filter((item) => item.id !== block.id))
+
+    if (selectedBlock?.id === block.id) {
+      setSelectedBlock(null)
+    }
+  }
+
+  function handleReorderBlocks(reorderedBlocks: ProductBuilderBlock[]) {
+    setBlocks(reorderedBlocks)
+  }
+
+  function handleDraftChange(field: string, value: any) {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  function handleCloseBlockEditor() {
+    if (isSavingBlock) return
+    setSelectedBlock(null)
+    setBlockSaveError(null)
+  }
+
+  async function handleSaveBlockEditor() {
+    if (!template || !selectedBlock) return
+
+    setIsSavingBlock(true)
+    setBlockSaveError(null)
+
+    try {
+      if (selectedBlock.type === "product-content" || selectedBlock.type === "product-default") {
+        setPreviewTitle(draftProductData.title.trim() || "Preview Product")
+        setPreviewFeaturedImage(draftProductData.featured_image || "")
+      }
+
+      const nextBlocks = blocks.map((block) =>
+        block.id === selectedBlock.id
+          ? {
+              ...block,
+              content: draftContent,
+            }
+          : block
+      )
+      const contentBlocks = productBlocksToJson(nextBlocks, template.content_blocks || {})
+      const { data, error: saveError } = await updateProductTemplate(template.id, {
+        content_blocks: contentBlocks,
+      })
+
+      if (saveError || !data) {
+        setBlockSaveError(saveError || "Failed to save block")
+        return
+      }
+
+      setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
+      setTemplate(data)
+      setSaveMessage("Saved!")
+      setTimeout(() => setSaveMessage(""), 3000)
+      setSelectedBlock(null)
+    } catch (error) {
+      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+    } finally {
+      setIsSavingBlock(false)
+    }
+  }
+
+  function handleAddBlocks(selections: BlockSelection[]) {
+    const newBlocks: ProductBuilderBlock[] = []
+
+    for (const selection of selections) {
+      const blockDefinition = getBlockTypeDefinition(selection.type)
+      if (!blockDefinition) continue
+
+      for (let index = 0; index < selection.quantity; index += 1) {
+        const timestamp = Date.now() + index
+        newBlocks.push({
+          id: `${selection.type}-${timestamp}`,
+          type: selection.type,
+          title: blockDefinition.name,
+          content: JSON.parse(JSON.stringify(blockDefinition.defaultContent)),
+        })
+      }
+    }
+
+    if (!newBlocks.length) return
+    setBlocks((prev) => [...prev, ...newBlocks])
+  }
+
+  async function handleSave() {
+    if (!template) return
+
+    setIsSaving(true)
+    setSaveMessage("Saving...")
+
+    try {
+      const contentBlocks = productBlocksToJson(blocks, template.content_blocks || {})
+      const { data, error: saveError } = await updateProductTemplate(template.id, {
+        content_blocks: contentBlocks,
+      })
+
+      if (saveError) {
+        setSaveMessage(`Error: ${saveError}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+      } else if (data) {
+        setTemplate(data)
+        setBlocks(parseProductBlocksFromJson(data.content_blocks || {}))
+        setSaveMessage("Saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      }
+    } catch (err) {
+      setSaveMessage(`Error: ${err instanceof Error ? err.message : 'Failed to save'}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleSaveName() {
+    if (!template || !nameInput.trim()) return
+
+    const { data, error: saveError } = await updateProductTemplate(template.id, { name: nameInput.trim() })
+    if (!saveError && data) {
+      setTemplate(data)
+    }
+
+    setEditingName(false)
+  }
+
+  const templateSite = template
+    ? sites.find((site) => site.id === template.site_id)
+    : null
+  const previewSiteSource = templateSite || (currentSite?.id === template?.site_id ? currentSite : null)
+  const previewSite = previewSiteSource
+    ? {
+        id: previewSiteSource.id,
+        name: previewSiteSource.name,
+        subdomain: previewSiteSource.subdomain,
+        settings: previewSiteSource.settings,
+      }
+    : undefined
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <DashboardStickyHeader navLinks={productNavLinks} />
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 border-r bg-background overflow-hidden">
+            <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
+              <div className="mx-auto h-96 max-w-4xl rounded-lg bg-white shadow-sm animate-pulse" />
+            </div>
+          </div>
+          <div className="w-[250px] p-2.5">
+            <div className="space-y-1">
+              {[1, 2, 3].map((item) => (
+                <div key={item} className="p-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 bg-muted rounded animate-pulse" />
+                    <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !template) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <DashboardStickyHeader navLinks={productNavLinks} />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-red-600 mb-4">{error}</p>
+            <Button onClick={() => router.push("/admin/products/templates")} variant="outline">
+              Back to Templates
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <DashboardStickyHeader
+        navLinks={productNavLinks}
+        rightActions={(
+          <StickybarTopRightActions
+            rightActions={(
+              <div className="flex items-center gap-2">
+                {editingName ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={nameInput}
+                      onChange={(event) => setNameInput(event.target.value)}
+                      className="h-8 w-48 text-sm"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') handleSaveName()
+                        if (event.key === 'Escape') {
+                          setEditingName(false)
+                          setNameInput(template?.name || "")
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSaveName}>
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => {
+                        setEditingName(false)
+                        setNameInput(template?.name || "")
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => setEditingName(true)} title="Rename template">
+                    <Pencil className="w-3.5 h-3.5 mr-1" />
+                    Rename
+                  </Button>
+                )}
+              </div>
+            )}
+            saveMessage={saveMessage}
+            isSaving={isSaving}
+            onSave={handleSave}
+            blockListOpen={blockListOpen}
+            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+          />
+        )}
+      />
+
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 overflow-hidden border-r bg-background">
+          <ScrollArea className="h-full">
+            <ProductPreview
+              blocks={blocks}
+              product={{
+                id: 'preview',
+                title: previewTitle,
+                slug: 'preview-template',
+                meta_description: undefined,
+                site_id: template?.site_id || currentSite?.id || 'preview-site',
+                featured_image: previewFeaturedImage || null,
+                is_published: false,
+              }}
+              site={previewSite}
+              className="min-h-full"
+              blocksLoading={loading}
+              allBlocks={blocks}
+              onSelectBlock={setSelectedBlock}
+            />
+          </ScrollArea>
+        </div>
+
+        {selectedBlock && (
+          <Dialog
+            open={!!selectedBlock}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseBlockEditor()
+              }
+            }}
+          >
+            <ModalTabsProvider>
+              <AdminModalContent size="wide">
+                <AdminModalHeader>
+                  <div className="flex min-w-0 items-center gap-4 pr-10">
+                    <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
+                    <ModalTabs />
+                  </div>
+                </AdminModalHeader>
+
+                <AdminModalScrollBody>
+                  {(selectedBlock.type === "product-content" || selectedBlock.type === "product-default") && (
+                    <ProductContentBlock
+                      content={draftContent}
+                      onContentChange={handleDraftChange}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
+                      productData={{
+                        title: draftProductData.title,
+                        featured_image: draftProductData.featured_image || null,
+                      }}
+                      onProductTitleChange={(title) => {
+                        setDraftProductData((current) => ({ ...current, title }))
+                      }}
+                      onProductFeaturedImageChange={(featured_image) => {
+                        setDraftProductData((current) => ({ ...current, featured_image }))
+                      }}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-hero" && (
+                    <ProductHeroBlock
+                      content={draftContent}
+                      onContentChange={handleDraftChange}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-details" && (
+                    <ProductDetailsBlock
+                      description={draftContent.description || ""}
+                      specifications={draftContent.specifications || []}
+                      onDescriptionChange={(value) => handleDraftChange("description", value)}
+                      onSpecificationsChange={(specs) => handleDraftChange("specifications", specs)}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-gallery" && (
+                    <ProductGalleryBlock
+                      images={draftContent.images || []}
+                      showThumbnails={draftContent.showThumbnails || false}
+                      onImagesChange={(images) => handleDraftChange("images", images)}
+                      onShowThumbnailsChange={(show) => handleDraftChange("showThumbnails", show)}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-features" && (
+                    <ProductFeaturesBlock
+                      header={draftContent.header ?? ""}
+                      subheader={draftContent.subheader ?? ""}
+                      headerAlign={draftContent.headerAlign || "left"}
+                      featuresCollection={draftContent.featuresCollection || []}
+                      onHeaderChange={(value) => handleDraftChange("header", value)}
+                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                      onFeaturesCollectionChange={(features) => handleDraftChange("featuresCollection", features)}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-hotspot" && (
+                    <ProductHotspotBlock
+                      header={draftContent.header ?? "Interactive Product Overview"}
+                      subheader={draftContent.subheader ?? "Hover over the blinking dots to discover more about our features"}
+                      headerAlign={draftContent.headerAlign ?? "left"}
+                      backgroundImage={draftContent.backgroundImage || ""}
+                      productHotspots={draftContent.productHotspots || []}
+                      showTooltipsAlways={draftContent.showTooltipsAlways || false}
+                      onHeaderChange={(value) => handleDraftChange("header", value)}
+                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                      onBackgroundImageChange={(value) => handleDraftChange("backgroundImage", value)}
+                      onProductHotspotsChange={(value) => handleDraftChange("productHotspots", value)}
+                      onShowTooltipsAlwaysChange={(value) => handleDraftChange("showTooltipsAlways", value)}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-checkout" && (
+                    <ProductCheckoutBlock
+                      header={draftContent.header ?? ""}
+                      subheader={draftContent.subheader ?? ""}
+                      headerAlign={draftContent.headerAlign ?? "left"}
+                      productPricingTiers={draftContent.productPricingTiers || []}
+                      checkoutSettings={draftContent.checkoutSettings}
+                      onHeaderChange={(value) => handleDraftChange("header", value)}
+                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                      onProductPricingTiersChange={(value) => handleDraftChange("productPricingTiers", value)}
+                      onCheckoutSettingsChange={(value) => handleDraftChange("checkoutSettings", value)}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-lead-magnet" && (
+                    <ProductLeadMagnetBlock
+                      content={draftContent}
+                      onContentChange={handleDraftChange}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-faq" && (
+                    <ProductFAQBlock
+                      header={draftContent.header ?? "Product FAQ"}
+                      subheader={draftContent.subheader ?? "Get answers to common questions about this product, its features, compatibility, and support options."}
+                      headerAlign={draftContent.headerAlign ?? "left"}
+                      productFaqItems={draftContent.productFaqItems || []}
+                      onHeaderChange={(value) => handleDraftChange("header", value)}
+                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                      onProductFaqItemsChange={(value) => handleDraftChange("productFaqItems", value)}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "listing-views" && (
+                    <ProductListingViewBlock
+                      header={draftContent.header ?? "Latest Products"}
+                      subheader={draftContent.subheader ?? "Check out our products"}
+                      headerAlign={draftContent.headerAlign ?? "left"}
+                      contentType={draftContent.contentType ?? "products"}
+                      displayMode={draftContent.displayMode ?? "grid"}
+                      itemsToShow={draftContent.itemsToShow ?? 6}
+                      columns={draftContent.columns ?? 3}
+                      sortBy={draftContent.sortBy ?? "date"}
+                      sortOrder={draftContent.sortOrder ?? "desc"}
+                      showImage={draftContent.showImage ?? true}
+                      showTitle={draftContent.showTitle ?? true}
+                      showDescription={draftContent.showDescription ?? true}
+                      isPaginated={draftContent.isPaginated ?? false}
+                      itemsPerPage={draftContent.itemsPerPage ?? 12}
+                      viewAllText={draftContent.viewAllText ?? ""}
+                      viewAllLink={draftContent.viewAllLink ?? ""}
+                      onHeaderChange={(value) => handleDraftChange("header", value)}
+                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                      onContentTypeChange={(value) => handleDraftChange("contentType", value)}
+                      onDisplayModeChange={(value) => handleDraftChange("displayMode", value)}
+                      onItemsToShowChange={(value) => handleDraftChange("itemsToShow", value)}
+                      onColumnsChange={(value) => handleDraftChange("columns", value)}
+                      onSortByChange={(value) => handleDraftChange("sortBy", value)}
+                      onSortOrderChange={(value) => handleDraftChange("sortOrder", value)}
+                      onShowImageChange={(value) => handleDraftChange("showImage", value)}
+                      onShowTitleChange={(value) => handleDraftChange("showTitle", value)}
+                      onShowDescriptionChange={(value) => handleDraftChange("showDescription", value)}
+                      onIsPaginatedChange={(value) => handleDraftChange("isPaginated", value)}
+                      onItemsPerPageChange={(value) => handleDraftChange("itemsPerPage", value)}
+                      onViewAllTextChange={(value) => handleDraftChange("viewAllText", value)}
+                      onViewAllLinkChange={(value) => handleDraftChange("viewAllLink", value)}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-rich-text" && (
+                    <ProductRichTextEditorBlock
+                      content={{
+                        header: draftContent.header || "",
+                        subheader: draftContent.subheader || "",
+                        headerAlign: draftContent.headerAlign || "left",
+                        richtextContent: draftContent.richtextContent || "",
+                        hideHeader: draftContent.hideHeader,
+                        hideEditorHeader: draftContent.hideEditorHeader,
+                      }}
+                      onContentChange={(contentObj) => {
+                        handleDraftChange("header", contentObj.header)
+                        handleDraftChange("subheader", contentObj.subheader)
+                        handleDraftChange("headerAlign", contentObj.headerAlign)
+                        handleDraftChange("richtextContent", contentObj.richtextContent)
+                      }}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-video" && (
+                    <ProductVideoBlock
+                      header={draftContent.header ?? ""}
+                      subheader={draftContent.subheader ?? ""}
+                      headerAlign={draftContent.headerAlign ?? "left"}
+                      videoUrl={draftContent.videoUrl || ""}
+                      coverImage={draftContent.coverImage || ""}
+                      autoplay={draftContent.autoplay || false}
+                      loop={draftContent.loop || false}
+                      muted={draftContent.muted || false}
+                      onHeaderChange={(value) => handleDraftChange("header", value)}
+                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                      onVideoUrlChange={(value) => handleDraftChange("videoUrl", value)}
+                      onCoverImageChange={(value) => handleDraftChange("coverImage", value)}
+                      onAutoplayChange={(value) => handleDraftChange("autoplay", value)}
+                      onLoopChange={(value) => handleDraftChange("loop", value)}
+                      onMutedChange={(value) => handleDraftChange("muted", value)}
+                      visibility={draftContent.visibility}
+                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
+                    />
+                  )}
+                </AdminModalScrollBody>
+
+                {blockSaveError && (
+                  <div className="px-6 pt-3 text-sm text-red-600">{blockSaveError}</div>
+                )}
+
+                <AdminModalFooter className="sm:justify-end">
+                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                    {isSavingBlock ? "Saving..." : "Save"}
+                  </Button>
+                </AdminModalFooter>
+              </AdminModalContent>
+            </ModalTabsProvider>
+          </Dialog>
+        )}
+
+        {blockListOpen && (
+          <BlockListPanel
+            blocks={blocks}
+            blockTypes={PRODUCT_BLOCK_TYPES}
+            entityName="product template"
+            selectedBlock={selectedBlock}
+            onSelectBlock={setSelectedBlock}
+            onDeleteBlock={handleDeleteBlock}
+            onReorderBlocks={handleReorderBlocks}
+            onAddBlock={() => setBlockModalOpen(true)}
+            deleting={null}
+            blocksLoading={loading}
+          />
+        )}
+
+        <BlockSelectionModal
+          open={blockModalOpen}
+          onOpenChange={setBlockModalOpen}
+          onAddBlocks={handleAddBlocks}
+          existingBlockTypes={blocks.map((block) => block.type)}
+          blockTypes={PRODUCT_BLOCK_TYPES}
+          entityName="product template"
+        />
+      </div>
+    </div>
+  )
+}

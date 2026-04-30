@@ -1,13 +1,9 @@
 import { useState, useEffect } from "react"
 import { updateProductBlocksAction } from "@/lib/actions/products/product-actions"
 import { getBlockTypeDefinition } from "./product-block-types"
+import { productBlocksToJson, type ProductBuilderBlock } from "./product-block-utils"
 
-interface ProductBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+type ProductBlock = ProductBuilderBlock
 
 interface UseProductBuilderParams {
   blocks: Record<string, ProductBlock[]>
@@ -52,23 +48,7 @@ export function useProductBuilder({
 
   const buildContentBlocksPayload = (currentBlocks: ProductBlock[]) => {
     const existingContentBlocks = currentProduct?.content_blocks || {}
-    const newContentBlocks: Record<string, any> = {}
-
-    currentBlocks.forEach((block, index) => {
-      newContentBlocks[block.id] = {
-        id: block.id,
-        type: block.type,
-        content: block.content,
-        display_order: index
-      }
-    })
-
-    return {
-      ...newContentBlocks,
-      ...(existingContentBlocks._settings && {
-        _settings: existingContentBlocks._settings
-      })
-    }
+    return productBlocksToJson(currentBlocks, existingContentBlocks)
   }
 
   const persistBlocks = async (currentBlocks: ProductBlock[]) => {

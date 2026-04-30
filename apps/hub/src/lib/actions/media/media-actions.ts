@@ -347,6 +347,11 @@ export async function scanUnusedMediaAction(
               and position(m.public_url in coalesce(t.content_blocks::text, '')) > 0
           )
           or exists (
+            select 1 from product_templates t
+            where t.site_id = ${scope.siteId}::uuid
+              and position(m.public_url in coalesce(t.content_blocks::text, '')) > 0
+          )
+          or exists (
             select 1 from newsletter_templates t
             where t.site_id = ${scope.siteId}::uuid
               and position(m.public_url in coalesce(t.content_blocks::text, '')) > 0

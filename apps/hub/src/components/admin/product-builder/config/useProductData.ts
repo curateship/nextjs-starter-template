@@ -1,15 +1,9 @@
 import { useState, useEffect, useCallback } from "react"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
-import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
-import { getBlockName } from "./product-block-types"
+import { parseProductBlocksFromJson, type ProductBuilderBlock } from "./product-block-utils"
 
-interface ProductBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+type ProductBlock = ProductBuilderBlock
 
 interface UseProductDataReturn {
   site: SiteWithTheme | null
@@ -24,11 +18,7 @@ function getProductBlocksBySlug(products: Array<{ id: string; slug: string; cont
   const convertedBlocks: Record<string, ProductBlock[]> = {}
 
   products.forEach((product) => {
-    const productBlocks = convertContentBlocksToArray(product.content_blocks || {}, product.id)
-    convertedBlocks[product.slug] = productBlocks.map(block => ({
-      ...block,
-      title: getBlockName(block.type)
-    }))
+    convertedBlocks[product.slug] = parseProductBlocksFromJson(product.content_blocks || {})
   })
 
   return convertedBlocks

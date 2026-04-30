@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import {
   AdminModalBody,
@@ -18,11 +19,21 @@ import {
 } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { ImageIcon, X } from "lucide-react"
+import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getProductTemplatesBySite } from "@/lib/actions/products/product-template-actions"
+import { parseProductBlocksFromJson, productBlocksToJson } from "@/components/admin/product-builder/config/product-block-utils"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Product } from "@/lib/actions/products/product-actions"
+import type { ProductTemplate } from "@/lib/actions/products/product-template-actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface CreateProductData {
   title: string
@@ -53,6 +64,9 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [checkingSlug, setCheckingSlug] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<ProductTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState("blank")
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
@@ -93,6 +107,34 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
     return () => clearTimeout(timeoutId)
   }, [formData.slug, currentSite?.id])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      if (!currentSite?.id) {
+        setTemplates([])
+        setTemplatesLoading(false)
+        return
+      }
+
+      setTemplatesLoading(true)
+      const { data } = await getProductTemplatesBySite(currentSite.id)
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        const defaultTemplate = loaded.find((template) => template.is_default)
+        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : "blank")
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSite?.id])
 
   // Handle featured image changes
   const handleImageChange = async (newImageUrl: string) => {
@@ -120,6 +162,16 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setLoading(true)
       setError(null)
 
+      const selectedTemplate = selectedTemplateId !== "blank"
+        ? templates.find((template) => template.id === selectedTemplateId)
+        : null
+      const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === "object"
+        ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
+        : {}
+      const sanitizedTemplateContentBlocks = selectedTemplate
+        ? productBlocksToJson(parseProductBlocksFromJson(templateContentBlocks), templateContentBlocks)
+        : {}
+
       const draftData = {
         ...formData,
         site_id: currentSite.id,
@@ -127,7 +179,11 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         featured_image: featuredImage || null,
         meta_description: formData.meta_description?.trim() || null,
         content_blocks: {
-          _settings: { is_private: isPrivate }
+          ...sanitizedTemplateContentBlocks,
+          _settings: {
+            ...(sanitizedTemplateContentBlocks._settings || {}),
+            is_private: isPrivate,
+          }
         }
       }
 
@@ -180,6 +236,30 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
         )}
 
         <FieldGroup className={error ? "gap-6 pt-4" : "gap-6"}>
+          <Field>
+            <FieldLabel htmlFor="template">Start from Template</FieldLabel>
+            {templatesLoading ? (
+              <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+                <Skeleton className="h-4 w-24 rounded-sm" />
+                <ChevronDown className="size-4 opacity-50" />
+              </div>
+            ) : (
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger id="template">
+                  <SelectValue placeholder="Select template" />
+                </SelectTrigger>
+                <SelectContent className="z-60">
+                  <SelectItem value="blank">Blank</SelectItem>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
+
           <Field>
             <FieldLabel htmlFor="title">Product Title *</FieldLabel>
             <Input

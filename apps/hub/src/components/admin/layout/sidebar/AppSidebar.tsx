@@ -60,6 +60,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       featureKey: "products",
       items: [
         { title: "Purchases", url: "/admin/orders" },
+        { title: "Templates", url: "/admin/products/templates" },
       ],
     },
     {
