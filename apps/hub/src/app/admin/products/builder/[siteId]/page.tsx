@@ -13,7 +13,6 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { ProductSettingsModal } from "@/components/admin/product-builder/layout/ProductSettingsModal"
-import { ProductContentBlock } from "@/components/admin/product-builder/blocks/content/ProductContentBlock"
 import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/hero/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/details/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/gallery/ProductGalleryBlock"
@@ -58,10 +57,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
-  const [draftProductData, setDraftProductData] = useState({
-    title: "",
-    featured_image: "",
-  })
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   
   // Keep the site switcher aligned with the route before redirecting.
@@ -153,11 +148,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     if (!selectedBlock) return
 
     setDraftContent(selectedBlock.content)
-    setDraftProductData({
-      title: currentProductData?.title || "",
-      featured_image: currentProductData?.featured_image || "",
-    })
-  }, [selectedBlock, currentProductData?.featured_image, currentProductData?.title])
+  }, [selectedBlock])
   
   // Handle product updates
   const handleProductUpdated = (updatedProduct: Product) => {
@@ -215,10 +206,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     if (!selectedBlock) return
 
     setDraftContent(selectedBlock.content)
-    setDraftProductData({
-      title: currentProductData?.title || "",
-      featured_image: currentProductData?.featured_image || "",
-    })
     builderState.setSelectedBlock(null)
   }
 
@@ -227,34 +214,10 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
 
     setIsSavingBlock(true)
 
-    let savedProduct = true
-
-    if (selectedBlock.type === "product-content" || selectedBlock.type === "product-default") {
-      const productUpdates: {
-        title?: string
-        featured_image?: string
-      } = {}
-
-      const currentTitle = currentProductData?.title || ""
-      const currentFeaturedImage = currentProductData?.featured_image || ""
-
-      if (draftProductData.title !== currentTitle) {
-        productUpdates.title = draftProductData.title
-      }
-
-      if (draftProductData.featured_image !== currentFeaturedImage) {
-        productUpdates.featured_image = draftProductData.featured_image
-      }
-
-      if (Object.keys(productUpdates).length > 0) {
-        savedProduct = await updateCurrentProduct(productUpdates)
-      }
-    }
-
-    const savedBlock = savedProduct ? await builderState.saveSelectedBlockContent(draftContent) : false
+    const savedBlock = await builderState.saveSelectedBlockContent(draftContent)
     setIsSavingBlock(false)
 
-    if (savedProduct && savedBlock) {
+    if (savedBlock) {
       builderState.setSelectedBlock(null)
     }
   }
@@ -376,26 +339,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                 </AdminModalHeader>
 
                 <AdminModalScrollBody>
-                    {(selectedBlock.type === "product-content" || selectedBlock.type === "product-default") && (
-                      <ProductContentBlock
-                        content={draftContent}
-                        onContentChange={handleDraftChange}
-                        siteId={siteId}
-                        blockId={selectedBlock.id}
-                        productData={{
-                          title: draftProductData.title,
-                          name: currentProductData?.title,
-                          featured_image: draftProductData.featured_image || null,
-                        }}
-                        onProductTitleChange={(title) => {
-                          setDraftProductData((current) => ({ ...current, title }))
-                        }}
-                        onProductFeaturedImageChange={(featured_image) => {
-                          setDraftProductData((current) => ({ ...current, featured_image }))
-                        }}
-                      />
-                    )}
-
                     {selectedBlock.type === "product-hero" && (
                       <ProductHeroBlock
                         content={draftContent}

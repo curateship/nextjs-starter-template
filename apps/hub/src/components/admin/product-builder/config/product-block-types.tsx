@@ -5,17 +5,6 @@ export type { BlockTypeDefinition }
 
 export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
   {
-    type: 'product-content',
-    name: 'Product Content',
-    icon: FileText,
-    description: 'Product title, description, and featured content',
-    defaultContent: {
-      productContentStyle: 'default',
-      styleConfig: { default: {} },
-      showFeaturedImage: true
-    }
-  },
-  {
     type: 'product-hero',
     name: 'Product Hero',
     icon: Zap,

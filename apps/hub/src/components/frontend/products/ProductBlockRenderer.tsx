@@ -1,6 +1,4 @@
 import { Suspense } from "react"
-import { PRODUCT_CONTENT_STYLE_RENDERERS } from "@/components/frontend/products/content"
-import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { ProductHeroBlock } from "@/components/frontend/products/hero/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/features/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
@@ -43,38 +41,6 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
       <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
       {sortedBlocks.map((block) => {
-        if (block.type === 'product-content' || block.type === 'product-default') {
-          const styleName = block.content?.productContentStyle || 'default'
-          const styleConfig = block.content?.styleConfig?.[styleName] || {}
-          const Renderer = PRODUCT_CONTENT_STYLE_RENDERERS[styleName] || PRODUCT_CONTENT_STYLE_RENDERERS['default']
-
-          return (
-            <div key={`product-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-            <BlockContainer
-              id="product-content"
-              className="white"
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            >
-              <div className="max-w-6xl mx-auto">
-                <Renderer
-                  config={styleConfig}
-                  sharedContent={{
-                    title: product.title,
-                    featuredImage: product.featured_image || '',
-                    showFeaturedImage: block.content?.showFeaturedImage ?? true,
-                    downloadButtonText: block.content?.downloadButtonText,
-                    downloadButtonStyle: block.content?.downloadButtonStyle,
-                    downloadButtonUrl: block.content?.downloadButtonUrl,
-                    body: block.content?.body,
-                  }}
-                />
-              </div>
-            </BlockContainer>
-            </div>
-          )
-        }
-
         if (block.type === 'product-hero') {
           return (
             <div key={`product-hero-${block.id}`} data-block-id={block.id} data-block-type={block.type}>

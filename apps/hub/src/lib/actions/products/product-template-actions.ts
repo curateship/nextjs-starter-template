@@ -18,8 +18,6 @@ export interface ProductTemplate {
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_CONTENT_BLOCKS_SIZE = 50000
 const ALLOWED_PRODUCT_BLOCK_TYPES = [
-  'product-content',
-  'product-default',
   'product-hero',
   'product-details',
   'product-gallery',

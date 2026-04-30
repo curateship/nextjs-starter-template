@@ -32,7 +32,6 @@ import {
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { ProductPreview } from "@/components/admin/product-builder/layout/ProductPreview"
-import { ProductContentBlock } from "@/components/admin/product-builder/blocks/content/ProductContentBlock"
 import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/hero/ProductHeroBlock"
 import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/details/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/gallery/ProductGalleryBlock"
@@ -69,13 +68,9 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   const [blockListOpen, setBlockListOpen] = useState(true)
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
-  const [previewTitle, setPreviewTitle] = useState("Preview Product")
-  const [previewFeaturedImage, setPreviewFeaturedImage] = useState("")
+  const previewTitle = "Preview Product"
+  const previewFeaturedImage = ""
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
-  const [draftProductData, setDraftProductData] = useState({
-    title: "Preview Product",
-    featured_image: "",
-  })
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
@@ -114,10 +109,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   useEffect(() => {
     if (!selectedBlock) {
       setDraftContent({})
-      setDraftProductData({
-        title: previewTitle,
-        featured_image: previewFeaturedImage,
-      })
       setBlockSaveError(null)
       return
     }
@@ -127,12 +118,8 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
         ? JSON.parse(JSON.stringify(selectedBlock.content))
         : {}
     )
-    setDraftProductData({
-      title: previewTitle,
-      featured_image: previewFeaturedImage,
-    })
     setBlockSaveError(null)
-  }, [selectedBlock, previewFeaturedImage, previewTitle])
+  }, [selectedBlock])
 
   function handleDeleteBlock(block: ProductBuilderBlock) {
     setBlocks((prev) => prev.filter((item) => item.id !== block.id))
@@ -166,11 +153,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
     setBlockSaveError(null)
 
     try {
-      if (selectedBlock.type === "product-content" || selectedBlock.type === "product-default") {
-        setPreviewTitle(draftProductData.title.trim() || "Preview Product")
-        setPreviewFeaturedImage(draftProductData.featured_image || "")
-      }
-
       const nextBlocks = blocks.map((block) =>
         block.id === selectedBlock.id
           ? {
@@ -416,25 +398,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                 </AdminModalHeader>
 
                 <AdminModalScrollBody>
-                  {(selectedBlock.type === "product-content" || selectedBlock.type === "product-default") && (
-                    <ProductContentBlock
-                      content={draftContent}
-                      onContentChange={handleDraftChange}
-                      siteId={template?.site_id || currentSite?.id || ""}
-                      blockId={selectedBlock.id}
-                      productData={{
-                        title: draftProductData.title,
-                        featured_image: draftProductData.featured_image || null,
-                      }}
-                      onProductTitleChange={(title) => {
-                        setDraftProductData((current) => ({ ...current, title }))
-                      }}
-                      onProductFeaturedImageChange={(featured_image) => {
-                        setDraftProductData((current) => ({ ...current, featured_image }))
-                      }}
-                    />
-                  )}
-
                   {selectedBlock.type === "product-hero" && (
                     <ProductHeroBlock
                       content={draftContent}
