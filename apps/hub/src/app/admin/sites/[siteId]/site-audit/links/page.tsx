@@ -9,6 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
@@ -26,6 +33,7 @@ export default function InternalLinksPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true)
   const [site, setSite] = useState<any>(null)
   const [linkAnalysis, setLinkAnalysis] = useState<any>(null)
+  const [contentTypeFilter, setContentTypeFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   const loadData = useCallback(async () => {
@@ -48,28 +56,30 @@ export default function InternalLinksPage({ params }: PageProps) {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const orphanContent = linkAnalysis?.orphanContent || []
   const brokenLinks = linkAnalysis?.brokenLinks || []
-  const filteredOrphanContent = normalizedSearchQuery
-    ? orphanContent.filter((item: any) => {
-        const searchText = [
-          item.type,
-          item.title,
-          item.slug,
-        ].filter(Boolean).join(' ').toLowerCase()
+  const filteredOrphanContent = orphanContent.filter((item: any) => {
+    if (contentTypeFilter !== 'all' && item.type !== contentTypeFilter) return false
+    if (!normalizedSearchQuery) return true
 
-        return searchText.includes(normalizedSearchQuery)
-      })
-    : orphanContent
-  const filteredBrokenLinks = normalizedSearchQuery
-    ? brokenLinks.filter((item: any) => {
-        const searchText = [
-          item.sourceType,
-          item.sourceTitle,
-          item.href,
-        ].filter(Boolean).join(' ').toLowerCase()
+    const searchText = [
+      item.type,
+      item.title,
+      item.slug,
+    ].filter(Boolean).join(' ').toLowerCase()
 
-        return searchText.includes(normalizedSearchQuery)
-      })
-    : brokenLinks
+    return searchText.includes(normalizedSearchQuery)
+  })
+  const filteredBrokenLinks = brokenLinks.filter((item: any) => {
+    if (contentTypeFilter !== 'all' && item.sourceType !== contentTypeFilter) return false
+    if (!normalizedSearchQuery) return true
+
+    const searchText = [
+      item.sourceType,
+      item.sourceTitle,
+      item.href,
+    ].filter(Boolean).join(' ').toLowerCase()
+
+    return searchText.includes(normalizedSearchQuery)
+  })
 
   return (
     <>
@@ -154,10 +164,26 @@ export default function InternalLinksPage({ params }: PageProps) {
             {/* Orphan content */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                  Orphan Content
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                    Orphan Content
+                  </CardTitle>
+                  <Select value={contentTypeFilter} onValueChange={setContentTypeFilter}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="page">Pages</SelectItem>
+                      <SelectItem value="post">Posts</SelectItem>
+                      <SelectItem value="product">Products</SelectItem>
+                      <SelectItem value="category">Categories</SelectItem>
+                      <SelectItem value="directory">Directories</SelectItem>
+                      <SelectItem value="event">Events</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {filteredOrphanContent.length > 0 ? (
@@ -174,10 +200,12 @@ export default function InternalLinksPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    {!normalizedSearchQuery && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                    {normalizedSearchQuery && orphanContent.length > 0
+                    {orphanContent.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    {orphanContent.length === 0
+                      ? 'No orphan pages found. All content has at least one incoming internal link.'
+                      : normalizedSearchQuery
                       ? 'No orphan content matches your search.'
-                      : 'No orphan pages found. All content has at least one incoming internal link.'}
+                      : 'No orphan content matches the current filters.'}
                   </p>
                 )}
               </CardContent>
@@ -205,10 +233,12 @@ export default function InternalLinksPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    {!normalizedSearchQuery && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                    {normalizedSearchQuery && brokenLinks.length > 0
+                    {brokenLinks.length === 0 && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                    {brokenLinks.length === 0
+                      ? 'No broken internal links found.'
+                      : normalizedSearchQuery
                       ? 'No broken links match your search.'
-                      : 'No broken internal links found.'}
+                      : 'No broken links match the current filters.'}
                   </p>
                 )}
               </CardContent>

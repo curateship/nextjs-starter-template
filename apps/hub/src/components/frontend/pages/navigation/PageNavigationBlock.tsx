@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Menu, X, ChevronDown, Globe, LogOut, MoreVertical, Shield, UserRound } from 'lucide-react'
+import { Menu, X, ChevronDown, Globe, LogOut, Shield, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useMemo, useState, useEffect, memo, type ReactNode } from 'react'
 import { cn } from '@/lib/utils/tailwind'
@@ -46,6 +46,7 @@ interface NavigationStyle {
   containerWidth?: 'full' | 'custom';
   customWidth?: number;
   showDarkModeToggle?: boolean;
+  showDarkModeToggleOnMobile?: boolean;
 }
 
 // NavBlock props interface
@@ -430,64 +431,6 @@ const MobileGuestAccountMenu = ({
   )
 }
 
-const MobileActionOverflowMenu = ({
-  items,
-  defaultTheme = 'system',
-  mounted = true,
-}: {
-  items: NavigationActionItem[]
-  defaultTheme?: 'system' | 'light' | 'dark'
-  mounted?: boolean
-}) => {
-  const renderableItems = items.filter((item) => item.kind !== 'account-menu')
-  if (renderableItems.length === 0) return null
-
-  if (!mounted) {
-    return (
-      <StaticIconMenuButton
-        ariaLabel="More navigation actions"
-        className="h-9 w-9"
-        icon={<MoreVertical className="h-4 w-4" />}
-      />
-    )
-  }
-
-  return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          aria-label="More navigation actions"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        {renderableItems.map((item) => {
-          if (item.kind === 'button') {
-            return (
-              <DropdownMenuItem key={item.id} asChild>
-                <Link href={sanitizeUrl(item.button.url, '#')}>
-                  <NavItemLabel label={item.button.text} icon={item.button.icon} />
-                </Link>
-              </DropdownMenuItem>
-            )
-          }
-
-          return (
-            <DropdownMenuItem key={item.id} asChild>
-              <SiteThemeToggle defaultTheme={defaultTheme} variant="menu-item" />
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
 // Mobile menu panel component
 const MobileMenuPanel = ({
   menuItems,
@@ -618,7 +561,7 @@ export const NavBlock = memo(function NavBlock({
       }
 
       if (itemId === DARK_MODE_ACTION_ITEM_ID) {
-        if (style?.showDarkModeToggle) {
+        if (style?.showDarkModeToggle && style?.showDarkModeToggleOnMobile !== false) {
           items.push({ id: DARK_MODE_ACTION_ITEM_ID, kind: 'dark-mode' })
         }
         return items
@@ -638,34 +581,8 @@ export const NavBlock = memo(function NavBlock({
     resolvedButtons,
     sessionUser,
     style?.showDarkModeToggle,
+    style?.showDarkModeToggleOnMobile,
   ])
-  const { inlineMobileActionItems, overflowMobileActionItems } = useMemo(() => {
-    if (mobileActionItems.length <= 2) {
-      return {
-        inlineMobileActionItems: mobileActionItems,
-        overflowMobileActionItems: [] as NavigationActionItem[],
-      }
-    }
-
-    const inlineIds = new Set<string>()
-    const pinnedAccountMenu = mobileActionItems.find((item) => item.kind === 'account-menu')
-    if (pinnedAccountMenu) {
-      inlineIds.add(pinnedAccountMenu.id)
-    }
-
-    let remainingSlots = 2 - inlineIds.size
-    for (const item of mobileActionItems) {
-      if (inlineIds.has(item.id) || remainingSlots <= 0) continue
-      inlineIds.add(item.id)
-      remainingSlots -= 1
-    }
-
-    return {
-      inlineMobileActionItems: mobileActionItems.filter((item) => inlineIds.has(item.id)),
-      overflowMobileActionItems: mobileActionItems.filter((item) => !inlineIds.has(item.id)),
-    }
-  }, [mobileActionItems])
-
   const handleSignOut = async () => {
     await authClient.signOut()
     window.location.href = '/'
@@ -740,9 +657,9 @@ export const NavBlock = memo(function NavBlock({
   // Get navigation container styles
   const getNavContainerClass = () => {
     if (style?.containerWidth === 'full') {
-      return 'w-full px-6'
+      return 'w-full px-3 sm:px-4 lg:px-6'
     }
-    return 'mx-auto px-6'
+    return 'mx-auto px-3 sm:px-4 lg:px-6'
   }
 
   const getNavContainerStyle = () => {
@@ -865,11 +782,11 @@ export const NavBlock = memo(function NavBlock({
           <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
             
             {/* Logo and navigation */}
-            <div className="flex w-full items-center justify-between gap-26 lg:w-auto">
+            <div className="flex w-full items-center justify-between gap-3 lg:w-auto lg:gap-26">
               <Link
                 href={getLogoUrl()}
                 aria-label="home"
-                className="flex items-center space-x-2"
+                className="flex shrink-0 items-center space-x-2"
               >
                 {logo && logo !== '/images/logo.png' && isSafeUrl(logo) ? (
                   <img 
@@ -896,13 +813,8 @@ export const NavBlock = memo(function NavBlock({
                 )}
               </Link>
 
-              <div className="flex items-center gap-2 lg:hidden">
-                {inlineMobileActionItems.map(renderMobileInlineActionItem)}
-                <MobileActionOverflowMenu
-                  items={overflowMobileActionItems}
-                  defaultTheme={site?.settings?.default_theme}
-                  mounted={mounted}
-                />
+              <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5 lg:hidden">
+                {mobileActionItems.map(renderMobileInlineActionItem)}
                 <MobileMenuButton menuState={menuState} setMenuState={setMenuState} />
               </div>
               <DesktopNav 

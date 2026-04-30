@@ -37,6 +37,7 @@ function createDefaultNavigation(publicAuthPagePath?: string | null) {
       blurEffect: 'light',
       containerWidth: 'custom',
       showDarkModeToggle: true,
+      showDarkModeToggleOnMobile: true,
     },
   },
 }

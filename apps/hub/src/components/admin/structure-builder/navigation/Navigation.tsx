@@ -773,6 +773,7 @@ export function Navigation({
     () => createDefaultNavigationAccountMenu()
   )
   const [darkModeDraft, setDarkModeDraft] = useState(true)
+  const [darkModeMobileDraft, setDarkModeMobileDraft] = useState(true)
   const [modalSaving, setModalSaving] = useState(false)
 
   const sensors = useSensors(
@@ -1021,6 +1022,7 @@ export function Navigation({
       setAccountMenuDraft(accountMenu)
     } else {
       setDarkModeDraft(currentStyleConfig.showDarkModeToggle !== false)
+      setDarkModeMobileDraft(currentStyleConfig.showDarkModeToggleOnMobile !== false)
     }
 
     setEditingBuiltInActionItem(itemId)
@@ -1108,6 +1110,7 @@ export function Navigation({
           [navigationStyle]: {
             ...currentStyleConfig,
             showDarkModeToggle: darkModeDraft,
+            showDarkModeToggleOnMobile: darkModeMobileDraft,
           },
         },
       }
@@ -1117,7 +1120,14 @@ export function Navigation({
       if (editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID) {
         onContentChange("accountMenu", accountMenuDraft)
       } else {
-        handleStyleConfigChange("showDarkModeToggle", darkModeDraft)
+        onContentChange("styleConfig", {
+          ...styleConfig,
+          [navigationStyle]: {
+            ...currentStyleConfig,
+            showDarkModeToggle: darkModeDraft,
+            showDarkModeToggleOnMobile: darkModeMobileDraft,
+          },
+        })
       }
       setEditingBuiltInActionItem(null)
       return
@@ -1669,7 +1679,7 @@ export function Navigation({
             <AdminModalDescription>
               {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID
                 ? "Control how the built-in account menu renders for signed-in users and logged-out visitors."
-                : "Choose whether the theme toggle should render in the navigation."}
+                : "Choose where the theme toggle should render in the navigation."}
             </AdminModalDescription>
           </AdminModalHeader>
 
@@ -1697,19 +1707,37 @@ export function Navigation({
                 />
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <Checkbox
-                  checked={darkModeDraft}
-                  onCheckedChange={(checked) =>
-                    setDarkModeDraft(checked === true)
-                  }
-                  id="navigation-dark-mode-enabled"
-                />
-                <div className="space-y-0.5">
-                  <Label htmlFor="navigation-dark-mode-enabled">Show Toggle</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Display theme switcher in navigation.
-                  </p>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={darkModeDraft}
+                    onCheckedChange={(checked) =>
+                      setDarkModeDraft(checked === true)
+                    }
+                    id="navigation-dark-mode-enabled"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="navigation-dark-mode-enabled">Show Toggle</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display theme switcher in navigation.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={darkModeMobileDraft}
+                    onCheckedChange={(checked) =>
+                      setDarkModeMobileDraft(checked === true)
+                    }
+                    id="navigation-dark-mode-mobile-enabled"
+                  />
+                  <div className="space-y-0.5">
+                    <Label htmlFor="navigation-dark-mode-mobile-enabled">Show on mobile</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Display theme switcher in the mobile navigation actions.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
