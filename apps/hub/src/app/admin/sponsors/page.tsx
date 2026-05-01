@@ -478,7 +478,7 @@ export default function SponsorsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90"
               disabled={deleting}
               onClick={(event) => {
                 event.preventDefault()
@@ -502,7 +502,7 @@ export default function SponsorsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={massDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90"
               disabled={massDeleting}
               onClick={(event) => {
                 event.preventDefault()
