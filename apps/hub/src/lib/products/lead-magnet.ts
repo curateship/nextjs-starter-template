@@ -3,7 +3,6 @@ export const PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT = {
   formPlaceholder: 'Enter your email',
   buttonText: 'Send it to me',
   redirectUrl: '',
-  deliveryEmailSubject: '',
   deliveryEmailBody: '',
   visibility: {},
 }
@@ -29,9 +28,6 @@ export function normalizeProductLeadMagnetContent(content?: Record<string, any> 
       ? source.buttonText
       : PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT.buttonText,
     redirectUrl: typeof source.redirectUrl === 'string' ? source.redirectUrl : '',
-    deliveryEmailSubject: typeof source.deliveryEmailSubject === 'string'
-      ? source.deliveryEmailSubject
-      : PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT.deliveryEmailSubject,
     deliveryEmailBody: typeof source.deliveryEmailBody === 'string'
       ? source.deliveryEmailBody
       : PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT.deliveryEmailBody,
@@ -50,7 +46,7 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => map[char])
 }
 
-export function renderProductLeadMagnetShortcodes(
+export function renderProductLeadMagnetTokens(
   value: string | undefined,
   productTitle: string,
   options: { html?: boolean } = {},
@@ -58,12 +54,5 @@ export function renderProductLeadMagnetShortcodes(
   if (!value) return ''
 
   const title = options.html ? escapeHtml(productTitle) : productTitle
-  return value.replaceAll('[product-title]', title)
-}
-
-export function normalizeLeadMagnetEmailSubject(subject: string | undefined, productTitle: string) {
-  const cleaned = renderProductLeadMagnetShortcodes(subject, productTitle)
-    .replace(/[\r\n]+/g, ' ')
-    .trim()
-  return cleaned || `Your ${productTitle} is ready`
+  return value.replaceAll('{{product_name}}', title)
 }

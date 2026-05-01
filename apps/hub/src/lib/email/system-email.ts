@@ -107,8 +107,8 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       description: 'Sent after someone signs up for a lead magnet.',
       scopeLabel: 'Current Site',
       subject: 'Your {{product_name}} is ready',
-      bodyHtml: '<p>Your {{product_name}} is ready.</p><p><a href="{{product_url}}">Open {{product_name}}</a></p>',
-      tokens: ['{{product_name}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
+      bodyHtml: '<p>Your {{product_name}} is ready.</p>{{product_delivery_email}}',
+      tokens: ['{{product_name}}', '{{product_delivery_email}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
     }
   }
 
@@ -305,6 +305,7 @@ export async function buildSystemEmailTokens(params: {
   productId?: string | null
   productName?: string | null
   productSlug?: string | null
+  productDeliveryEmail?: string | null
   tierName?: string | null
   downloadPageContent?: string | null
   subscriberEmail?: string | null
@@ -317,6 +318,7 @@ export async function buildSystemEmailTokens(params: {
     site_name: '',
     site_url: '',
     product_name: params.productName || '',
+    product_delivery_email: params.productDeliveryEmail || '',
     product_url: '',
     tier_name: params.tierName || '',
     download_page_content: params.downloadPageContent || '',

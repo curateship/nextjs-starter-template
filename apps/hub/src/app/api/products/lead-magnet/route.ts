@@ -7,11 +7,16 @@ import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { findActiveAutomations, enrollContact } from '@/lib/actions/newsletters/automation-actions'
 import { db } from '@/lib/db'
 import { productOrders, products, sites } from '@/lib/db/schema'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/email/system-email'
 import { upsertSystemNewsletterContact } from '@/lib/newsletters/system-contact-sync'
 import {
-  normalizeLeadMagnetEmailSubject,
   normalizeProductLeadMagnetContent,
-  renderProductLeadMagnetShortcodes,
+  renderProductLeadMagnetTokens,
 } from '@/lib/products/lead-magnet'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
@@ -218,17 +223,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Delivery email unavailable' }, { status: 500 })
     }
 
+    const productDeliveryEmail = sanitizeRichMediaHtml(
+      renderProductLeadMagnetTokens(blockContent.deliveryEmailBody, product.title, { html: true })
+    ).trim()
+    const template = await getSystemEmailTemplate('lead_magnet_delivery', siteId)
+    const tokens = await buildSystemEmailTokens({
+      siteId,
+      productId: product.id,
+      productName: product.title,
+      productSlug: product.slug,
+      productDeliveryEmail,
+    })
+
     const result = await emailService.sendProductDeliveryEmail({
       to: email,
-      subject: normalizeLeadMagnetEmailSubject(blockContent.deliveryEmailSubject, product.title),
+      subject: renderSystemEmailSubject(template.subject, tokens),
       productTitle: product.title,
       content: '',
       productSlug: product.slug,
       token: order.accessToken,
-      rawHtml: sanitizeRichMediaHtml(
-        renderProductLeadMagnetShortcodes(blockContent.deliveryEmailBody, product.title, { html: true })
-      ).trim(),
-      config,
+      replyTo: template.reply_to || undefined,
+      rawHtml: renderSystemEmailContent(template, tokens),
+      config: {
+        ...config,
+        fromName: template.from_name || config.fromName,
+        replyTo: template.reply_to || undefined,
+      },
     })
 
     if (!result.success) {

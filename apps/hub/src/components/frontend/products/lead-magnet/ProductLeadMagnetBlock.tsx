@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { normalizeProductLeadMagnetContent, renderProductLeadMagnetShortcodes } from "@/lib/products/lead-magnet"
+import { normalizeProductLeadMagnetContent, renderProductLeadMagnetTokens } from "@/lib/products/lead-magnet"
 import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 
 interface ProductLeadMagnetBlockProps {
@@ -46,7 +46,7 @@ export function ProductLeadMagnetBlock({
     return null
   }
 
-  const renderedBody = renderProductLeadMagnetShortcodes(normalizedContent.body, productTitle, { html: true })
+  const renderedBody = renderProductLeadMagnetTokens(normalizedContent.body, productTitle, { html: true })
   const safeBody = sanitizeRichMediaHtml(renderedBody)
   const showBody = visibility.body !== false && (children || safeBody.trim())
   const showImage = visibility.image !== false && productFeatureImage.length > 0

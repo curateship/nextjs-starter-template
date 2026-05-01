@@ -69,30 +69,18 @@ export function ProductLeadMagnetBlock({
           value: "delivery-email",
           label: "Delivery Email",
           content: (
-            <div className="space-y-6">
-              <BlockEditorSection>
-                <Input
-                  id="lead-magnet-email-subject"
-                  value={normalizedContent.deliveryEmailSubject}
-                  onChange={(event) => onContentChange("deliveryEmailSubject", event.target.value)}
-                  placeholder="Enter email subject"
-                  className="h-auto border-0 px-0 py-0 text-lg leading-relaxed text-black shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 md:text-lg dark:text-white"
-                />
-              </BlockEditorSection>
-
-              <BlockEditorSection>
-                <InlineRichTextEditor
-                  blockId={`${blockId}-delivery-email`}
-                  content={deliveryEditorContent}
-                  onContentChange={handleDeliveryBodyChange}
-                  siteId={siteId}
-                  isActive
-                  editorPadding={0}
-                  variant="product"
-                  placeholder="Enter email delivery text"
-                />
-              </BlockEditorSection>
-            </div>
+            <BlockEditorSection>
+              <InlineRichTextEditor
+                blockId={`${blockId}-delivery-email`}
+                content={deliveryEditorContent}
+                onContentChange={handleDeliveryBodyChange}
+                siteId={siteId}
+                isActive
+                editorPadding={0}
+                variant="product"
+                placeholder="Enter email delivery text"
+              />
+            </BlockEditorSection>
           ),
         },
         {
