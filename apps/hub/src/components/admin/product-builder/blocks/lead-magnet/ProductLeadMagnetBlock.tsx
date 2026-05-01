@@ -76,7 +76,7 @@ export function ProductLeadMagnetBlock({
                   value={normalizedContent.deliveryEmailSubject}
                   onChange={(event) => onContentChange("deliveryEmailSubject", event.target.value)}
                   placeholder="Enter email subject"
-                  className="border-0 px-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="h-auto border-0 px-0 py-0 text-lg leading-relaxed text-black shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 md:text-lg dark:text-white"
                 />
               </BlockEditorSection>
 

@@ -148,6 +148,7 @@ export function ProductBlockRenderer({
               siteId={site.id}
               productId={product.id}
               blockId={block.id}
+              productTitle={product.title}
               featureImage={product.featured_image}
               imageAlt={product.title}
               isPreview={isPreview}

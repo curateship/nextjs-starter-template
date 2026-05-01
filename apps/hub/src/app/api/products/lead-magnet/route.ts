@@ -11,6 +11,7 @@ import { upsertSystemNewsletterContact } from '@/lib/newsletters/system-contact-
 import {
   normalizeLeadMagnetEmailSubject,
   normalizeProductLeadMagnetContent,
+  renderProductLeadMagnetShortcodes,
 } from '@/lib/products/lead-magnet'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
@@ -224,7 +225,9 @@ export async function POST(request: NextRequest) {
       content: '',
       productSlug: product.slug,
       token: order.accessToken,
-      rawHtml: sanitizeRichMediaHtml(blockContent.deliveryEmailBody).trim(),
+      rawHtml: sanitizeRichMediaHtml(
+        renderProductLeadMagnetShortcodes(blockContent.deliveryEmailBody, product.title, { html: true })
+      ).trim(),
       config,
     })
 

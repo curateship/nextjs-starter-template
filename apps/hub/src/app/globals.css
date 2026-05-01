@@ -399,7 +399,7 @@ button:not(:disabled),
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
-  color: #9ca3af;
+  color: var(--muted-foreground);
   pointer-events: none;
   height: 0;
 }

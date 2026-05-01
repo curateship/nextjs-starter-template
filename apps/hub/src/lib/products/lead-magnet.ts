@@ -39,7 +39,31 @@ export function normalizeProductLeadMagnetContent(content?: Record<string, any> 
   }
 }
 
+function escapeHtml(value: string) {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  }
+  return value.replace(/[&<>"']/g, (char) => map[char])
+}
+
+export function renderProductLeadMagnetShortcodes(
+  value: string | undefined,
+  productTitle: string,
+  options: { html?: boolean } = {},
+) {
+  if (!value) return ''
+
+  const title = options.html ? escapeHtml(productTitle) : productTitle
+  return value.replaceAll('[product-title]', title)
+}
+
 export function normalizeLeadMagnetEmailSubject(subject: string | undefined, productTitle: string) {
-  const cleaned = (subject || '').replace(/[\r\n]+/g, ' ').trim()
+  const cleaned = renderProductLeadMagnetShortcodes(subject, productTitle)
+    .replace(/[\r\n]+/g, ' ')
+    .trim()
   return cleaned || `Your ${productTitle} is ready`
 }
