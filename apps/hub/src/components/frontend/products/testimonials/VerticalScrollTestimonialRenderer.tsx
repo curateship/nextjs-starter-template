@@ -56,7 +56,7 @@ export function VerticalScrollTestimonialRenderer({ items, config }: VerticalScr
   const thirdColumn = testimonials.slice(6, 9)
 
   return (
-    <div className="grid w-full max-h-[740px] grid-cols-1 gap-6 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)] md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid w-full max-h-[740px] grid-cols-1 gap-6 overflow-hidden mask-[linear-gradient(to_bottom,transparent,black_25%,black_75%,transparent)] md:grid-cols-2 lg:grid-cols-3">
       <TestimonialsColumn testimonials={firstColumn} className="min-w-0" duration={resolveDuration(config.firstColumnDuration, 15)} />
       <TestimonialsColumn testimonials={secondColumn} className="hidden min-w-0 md:block" duration={resolveDuration(config.secondColumnDuration, 19)} />
       <TestimonialsColumn testimonials={thirdColumn} className="hidden min-w-0 lg:block" duration={resolveDuration(config.thirdColumnDuration, 17)} />

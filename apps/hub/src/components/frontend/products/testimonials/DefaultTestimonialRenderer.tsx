@@ -77,7 +77,7 @@ export function DefaultTestimonialRenderer({ items, config }: DefaultTestimonial
 
   return (
     <div className="lg:container">
-      <div className="space-y-3 [mask-image:linear-gradient(90deg,transparent,black_10%,black_90%,transparent)]">
+      <div className="space-y-3 mask-[linear-gradient(90deg,transparent,black_10%,black_90%,transparent)]">
         <Carousel
           opts={{ loop: true }}
           plugins={[

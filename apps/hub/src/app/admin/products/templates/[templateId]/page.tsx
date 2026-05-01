@@ -130,7 +130,10 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
   }
 
   function handleReorderBlocks(reorderedBlocks: ProductBuilderBlock[]) {
-    setBlocks(reorderedBlocks)
+    setBlocks(reorderedBlocks.map((block, index) => ({
+      ...block,
+      display_order: index,
+    })))
   }
 
   function handleDraftChange(field: string, value: any) {

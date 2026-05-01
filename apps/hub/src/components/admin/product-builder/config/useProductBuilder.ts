@@ -152,7 +152,10 @@ export function useProductBuilder({
 
   const handleReorderBlocks = (reorderedBlocks: ProductBlock[]) => {
     const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedProduct] = reorderedBlocks
+    updatedBlocks[selectedProduct] = reorderedBlocks.map((block, index) => ({
+      ...block,
+      display_order: index,
+    }))
     setBlocks(updatedBlocks)
   }
 
