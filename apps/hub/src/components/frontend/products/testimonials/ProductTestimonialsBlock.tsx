@@ -8,6 +8,11 @@ const DefaultTestimonialRenderer = dynamic(
   { ssr: false }
 )
 
+const VerticalScrollTestimonialRenderer = dynamic(
+  () => import('./VerticalScrollTestimonialRenderer').then(m => m.VerticalScrollTestimonialRenderer),
+  { ssr: false }
+)
+
 interface TestimonialItem {
   id: string
   name: string
@@ -37,11 +42,21 @@ export function ProductTestimonialsBlock({ content, siteWidth, customWidth }: Pr
     headerAlign = 'center',
     testimonialItems = [],
     testimonialStyle = 'default',
-    styleConfig = { default: { speed: 0.7, showSecondRow: true } },
+    styleConfig = {
+      default: { speed: 0.7, showSecondRow: true },
+      'vertical-scroll': {
+        firstColumnDuration: 15,
+        secondColumnDuration: 19,
+        thirdColumnDuration: 17,
+      },
+    },
     visibility,
   } = content
 
   const currentConfig = styleConfig[testimonialStyle] || { speed: 0.7, showSecondRow: true }
+  const Renderer = testimonialStyle === 'vertical-scroll'
+    ? VerticalScrollTestimonialRenderer
+    : DefaultTestimonialRenderer
 
   return (
     <BlockContainer
@@ -53,7 +68,7 @@ export function ProductTestimonialsBlock({ content, siteWidth, customWidth }: Pr
       siteWidth={siteWidth as 'full' | 'custom'}
       customWidth={customWidth}
     >
-      <DefaultTestimonialRenderer items={testimonialItems} config={currentConfig} />
+      <Renderer items={testimonialItems} config={currentConfig} />
     </BlockContainer>
   )
 }

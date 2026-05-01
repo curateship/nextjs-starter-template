@@ -1,5 +1,6 @@
 import { ComponentType } from "react"
 import { DefaultTestimonialConfig } from "./DefaultTestimonialConfig"
+import { VerticalScrollTestimonialConfig } from "./VerticalScrollTestimonialConfig"
 
 export interface TestimonialStyleDefinition {
   label: string
@@ -17,5 +18,10 @@ export const TESTIMONIAL_STYLES: Record<string, TestimonialStyleDefinition> = {
     label: 'Default',
     description: 'Auto-scrolling dual carousel',
     AdminPanel: DefaultTestimonialConfig,
+  },
+  'vertical-scroll': {
+    label: 'Vertical Scroll',
+    description: 'Three vertical scrolling testimonial columns',
+    AdminPanel: VerticalScrollTestimonialConfig,
   },
 }

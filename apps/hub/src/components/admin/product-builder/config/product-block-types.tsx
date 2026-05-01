@@ -130,7 +130,12 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
       ],
       testimonialStyle: 'default',
       styleConfig: {
-        default: { speed: 0.7, showSecondRow: true }
+        default: { speed: 0.7, showSecondRow: true },
+        'vertical-scroll': {
+          firstColumnDuration: 15,
+          secondColumnDuration: 19,
+          thirdColumnDuration: 17,
+        }
       }
     }
   },
