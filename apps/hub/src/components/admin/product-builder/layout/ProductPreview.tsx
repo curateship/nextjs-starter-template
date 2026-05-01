@@ -14,7 +14,8 @@ import {
 import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { normalizeProductLeadMagnetContent } from "@/lib/products/lead-magnet"
+import { normalizeProductLeadMagnetContent, renderProductLeadMagnetShortcodes } from "@/lib/products/lead-magnet"
+import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 import { cn } from "@/lib/utils/tailwind"
 
 interface ProductBlock {
@@ -172,10 +173,10 @@ export function ProductPreview({
         hideSiteChrome
         renderLeadMagnetBody={canInlineEdit ? (block) => {
           const content = normalizeProductLeadMagnetContent(block.content)
-          const editorContent = {
-            ...content,
-            htmlContent: content.body,
-          }
+          const isEditingBody = editingBlockId === block.id
+          const bodyHtml = sanitizeRichMediaHtml(
+            renderProductLeadMagnetShortcodes(content.body, previewProduct.title, { html: true })
+          ).trim()
 
           return (
             <div
@@ -187,17 +188,26 @@ export function ProductPreview({
                 setEditingBlockId(block.id)
               }}
             >
-              <InlineRichTextEditor
-                blockId={block.id}
-                content={editorContent}
-                onContentChange={(htmlContent) => onUpdateLeadMagnetBody?.(block.id, htmlContent)}
-                siteId={site?.id || ""}
-                isActive={editingBlockId === block.id}
-                editorPadding={0}
-                variant="product"
-                placeholder="Enter lead magnet descriptions"
-                hidePlaceholderOnFocus
-              />
+              {isEditingBody ? (
+                <InlineRichTextEditor
+                  blockId={block.id}
+                  content={{
+                    ...content,
+                    htmlContent: content.body,
+                  }}
+                  onContentChange={(htmlContent) => onUpdateLeadMagnetBody?.(block.id, htmlContent)}
+                  siteId={site?.id || ""}
+                  isActive
+                  editorPadding={0}
+                  variant="product"
+                  placeholder="Enter lead magnet descriptions"
+                  hidePlaceholderOnFocus
+                />
+              ) : bodyHtml ? (
+                <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+              ) : (
+                <p className="text-lg text-muted-foreground">Enter lead magnet descriptions</p>
+              )}
             </div>
           )
         } : undefined}
