@@ -38,6 +38,7 @@ import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/g
 import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/features/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/hotspot/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/checkout/ProductCheckoutBlock"
+import { ProductLeadMagnetBlock } from "@/components/admin/product-builder/blocks/lead-magnet/ProductLeadMagnetBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
 import { ProductTestimonialsBlock } from "@/components/admin/product-builder/blocks/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
@@ -142,6 +143,24 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
     }))
   }
 
+  function handleUpdateBlock(blockId: string, updates: Partial<ProductBuilderBlock>) {
+    setBlocks((currentBlocks) => currentBlocks.map((block) => {
+      if (block.id !== blockId) return block
+
+      const updatedBlock = {
+        ...block,
+        ...updates,
+        content: updates.content !== undefined ? updates.content : block.content,
+      }
+
+      if (selectedBlock?.id === blockId) {
+        setSelectedBlock(updatedBlock)
+      }
+
+      return updatedBlock
+    }))
+  }
+
   function handleCloseBlockEditor() {
     if (isSavingBlock) return
     setSelectedBlock(null)
@@ -155,6 +174,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
     setBlockSaveError(null)
 
     try {
+      const previousBlocks = blocks
       const nextBlocks = blocks.map((block) =>
         block.id === selectedBlock.id
           ? {
@@ -163,12 +183,14 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
             }
           : block
       )
+      setBlocks(nextBlocks)
       const contentBlocks = productBlocksToJson(nextBlocks, template.content_blocks || {})
       const { data, error: saveError } = await updateProductTemplate(template.id, {
         content_blocks: contentBlocks,
       })
 
       if (saveError || !data) {
+        setBlocks(previousBlocks)
         setBlockSaveError(saveError || "Failed to save block")
         return
       }
@@ -376,7 +398,19 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
               className="min-h-full"
               blocksLoading={loading}
               allBlocks={blocks}
+              selectedBlock={selectedBlock}
               onSelectBlock={setSelectedBlock}
+              onUpdateLeadMagnetBody={(blockId, htmlContent) => {
+                const block = blocks.find((item) => item.id === blockId)
+                if (!block) return
+
+                handleUpdateBlock(blockId, {
+                  content: {
+                    ...block.content,
+                    body: htmlContent,
+                  },
+                })
+              }}
             />
           </ScrollArea>
         </div>
@@ -483,6 +517,15 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                       onCheckoutSettingsChange={(value) => handleDraftChange("checkoutSettings", value)}
                       visibility={draftContent.visibility}
                       onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                    />
+                  )}
+
+                  {selectedBlock.type === "product-lead-magnet" && (
+                    <ProductLeadMagnetBlock
+                      content={draftContent}
+                      onContentChange={handleDraftChange}
+                      siteId={template?.site_id || currentSite?.id || ""}
+                      blockId={selectedBlock.id}
                     />
                   )}
 

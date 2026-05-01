@@ -24,6 +24,7 @@ const ALLOWED_PRODUCT_BLOCK_TYPES = [
   'product-features',
   'product-hotspot',
   'product-checkout',
+  'product-lead-magnet',
   'product-faq',
   'product-testimonials',
   'listing-views',

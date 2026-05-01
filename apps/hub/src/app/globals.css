@@ -404,6 +404,10 @@ button:not(:disabled),
   height: 0;
 }
 
+.hide-placeholder-on-focus .ProseMirror-focused p.is-editor-empty:first-child::before {
+  content: none;
+}
+
 .ProseMirror img {
   display: block;
   max-width: 100%;

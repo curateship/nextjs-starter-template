@@ -40,7 +40,7 @@ import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml 
 import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 import { SponsorCard } from "@/components/shared/SponsorCard"
 
-type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page"
+type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page" | "product"
 type ProseEditorVariant = Exclude<InlineRichTextEditorVariant, "newsletter">
 
 interface InlineRichTextEditorProps {
@@ -52,6 +52,8 @@ interface InlineRichTextEditorProps {
   isActive: boolean
   editorPadding?: number
   variant?: InlineRichTextEditorVariant
+  placeholder?: string
+  hidePlaceholderOnFocus?: boolean
 }
 
 interface SlashCommandRange {
@@ -86,12 +88,15 @@ const PROSE_EDITOR_TEXT_CLASS: Record<ProseEditorVariant, string> = {
   post: "[&_.ProseMirror]:text-lg",
   directory: "[&_.ProseMirror]:text-base",
   page: "[&_.ProseMirror]:text-lg",
+  product: "[&_.ProseMirror]:text-lg",
 }
 const EDITOR_CONTENT_CLASS: Record<InlineRichTextEditorVariant, string> = {
   post: "post-inline-rich-text [&_.ProseMirror]:min-h-[160px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   directory:
     "directory-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   page: "page-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
+  product:
+    "product-inline-rich-text [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
   newsletter:
     "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
 }
@@ -477,6 +482,8 @@ export function InlineRichTextEditor({
   isActive,
   editorPadding,
   variant = "newsletter",
+  placeholder = "Write your content here...",
+  hidePlaceholderOnFocus = false,
 }: InlineRichTextEditorProps) {
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
@@ -532,7 +539,8 @@ export function InlineRichTextEditor({
         },
       }),
       Placeholder.configure({
-        placeholder: "Write your content here...",
+        placeholder,
+        showOnlyWhenEditable: !hidePlaceholderOnFocus,
       }),
       LinkedImage.configure({
         HTMLAttributes: {
@@ -1358,7 +1366,7 @@ export function InlineRichTextEditor({
     </div>
   ) : null
 
-  const isProseEditor = variant === "post" || variant === "directory" || variant === "page"
+  const isProseEditor = variant === "post" || variant === "directory" || variant === "page" || variant === "product"
   const editorContent = (
     <EditorContent
       editor={editor}
@@ -1375,7 +1383,7 @@ export function InlineRichTextEditor({
       ref={rootRef}
       data-inline-newsletter-editor-root="true"
       data-inline-newsletter-block-id={blockId}
-      className="relative"
+      className={cn("relative", hidePlaceholderOnFocus && "hide-placeholder-on-focus")}
       style={{
         backgroundColor: variant === "newsletter" ? content.backgroundColor || "#ffffff" : undefined,
       }}

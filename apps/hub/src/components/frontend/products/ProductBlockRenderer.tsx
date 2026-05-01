@@ -1,4 +1,4 @@
-import { Suspense } from "react"
+import { Suspense, type ReactNode } from "react"
 import { ProductHeroBlock } from "@/components/frontend/products/hero/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/features/ProductFeaturesBlock"
 import { ProductHotspotBlock } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
@@ -6,6 +6,7 @@ import { ProductCheckoutBlock } from "@/components/frontend/products/checkout/Pr
 import { ProductFAQBlock } from "@/components/frontend/products/faq/ProductFAQBlock"
 import { ProductTestimonialsBlock } from "@/components/frontend/products/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/listing-view/ProductListingViewBlock"
+import { ProductLeadMagnetBlock } from "@/components/frontend/products/lead-magnet/ProductLeadMagnetBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -20,9 +21,19 @@ interface ProductBlockRendererProps {
   breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
+  renderLeadMagnetBody?: (block: ProductWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
+  renderBlockOverlay?: (block: ProductWithBlocks["blocks"][number]) => ReactNode
 }
 
-export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: ProductBlockRendererProps) {
+export function ProductBlockRenderer({
+  site,
+  product,
+  breadcrumbs = [],
+  isPreview = false,
+  hideSiteChrome = false,
+  renderLeadMagnetBody,
+  renderBlockOverlay,
+}: ProductBlockRendererProps) {
   const { blocks: productBlocks = [] } = product
   const siteChrome = resolveSiteChrome(site.settings)
   
@@ -112,6 +123,39 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
+            </div>
+          )
+        }
+
+        if (block.type === 'product-lead-magnet') {
+          const bodyHtml = typeof block.content.body === 'string'
+            ? block.content.body
+            : typeof block.content.content === 'string'
+              ? block.content.content
+              : ''
+          const inlineBody = renderLeadMagnetBody?.(block, bodyHtml)
+
+          return (
+            <div
+              key={`product-lead-magnet-${block.id}`}
+              data-block-id={block.id}
+              data-block-type={block.type}
+              className={renderBlockOverlay ? "relative group/product-preview-block" : undefined}
+            >
+            {renderBlockOverlay?.(block)}
+            <ProductLeadMagnetBlock
+              content={block.content as any}
+              siteId={site.id}
+              productId={product.id}
+              blockId={block.id}
+              featureImage={product.featured_image}
+              imageAlt={product.title}
+              isPreview={isPreview}
+              siteWidth={siteWidth as 'full' | 'custom'}
+              customWidth={customWidth}
+            >
+              {inlineBody}
+            </ProductLeadMagnetBlock>
             </div>
           )
         }

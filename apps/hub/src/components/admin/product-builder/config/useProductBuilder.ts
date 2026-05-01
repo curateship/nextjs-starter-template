@@ -27,6 +27,7 @@ interface UseProductBuilderReturn {
   isSaving: boolean
   saveMessage: string
   updateBlockContent: (field: string, value: any) => void
+  handleUpdateBlock: (blockId: string, updates: Record<string, any>) => void
   replaceSelectedBlockContent: (content: Record<string, any>) => void
   saveSelectedBlockContent: (content: Record<string, any>) => Promise<boolean>
   handleDeleteBlock: (block: ProductBlock) => void
@@ -89,55 +90,92 @@ export function useProductBuilder({
   const updateBlockContent = (field: string, value: any) => {
     if (!selectedBlock) return
 
-    const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
+    const currentBlocks = [...(blocks[selectedProduct] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
-      updatedBlocks[selectedProduct][blockIndex] = {
-        ...updatedBlocks[selectedProduct][blockIndex],
+      const updatedBlock = {
+        ...currentBlocks[blockIndex],
         content: {
-          ...updatedBlocks[selectedProduct][blockIndex].content,
+          ...currentBlocks[blockIndex].content,
           [field]: value
         }
       }
+      currentBlocks[blockIndex] = updatedBlock
+      const updatedBlocks = {
+        ...blocks,
+        [selectedProduct]: currentBlocks,
+      }
       setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
+      setSelectedBlock(updatedBlock)
+    }
+  }
+
+  const handleUpdateBlock = (blockId: string, updates: Record<string, any>) => {
+    const updatedBlocks = { ...blocks }
+    const currentBlocks = [...(updatedBlocks[selectedProduct] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === blockId)
+
+    if (blockIndex === -1) return
+
+    const updatedBlock = {
+      ...currentBlocks[blockIndex],
+      ...updates,
+      content: updates.content !== undefined ? updates.content : currentBlocks[blockIndex].content,
+    }
+
+    currentBlocks[blockIndex] = updatedBlock
+    updatedBlocks[selectedProduct] = currentBlocks
+    setBlocks(updatedBlocks)
+
+    if (selectedBlock?.id === blockId) {
+      setSelectedBlock(updatedBlock)
     }
   }
 
   const replaceSelectedBlockContent = (content: Record<string, any>) => {
     if (!selectedBlock) return
 
-    const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
+    const currentBlocks = [...(blocks[selectedProduct] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === selectedBlock.id)
     if (blockIndex !== -1) {
-      updatedBlocks[selectedProduct][blockIndex] = {
-        ...updatedBlocks[selectedProduct][blockIndex],
+      const updatedBlock = {
+        ...currentBlocks[blockIndex],
         content,
       }
+      currentBlocks[blockIndex] = updatedBlock
+      const updatedBlocks = {
+        ...blocks,
+        [selectedProduct]: currentBlocks,
+      }
       setBlocks(updatedBlocks)
-      setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
+      setSelectedBlock(updatedBlock)
     }
   }
 
   const saveSelectedBlockContent = async (content: Record<string, any>) => {
     if (!selectedBlock) return false
 
-    const updatedBlocks = { ...blocks }
-    const blockIndex = updatedBlocks[selectedProduct].findIndex(b => b.id === selectedBlock.id)
+    const currentBlocks = [...(blocks[selectedProduct] || [])]
+    const blockIndex = currentBlocks.findIndex(b => b.id === selectedBlock.id)
 
     if (blockIndex === -1) {
       return false
     }
 
-    updatedBlocks[selectedProduct][blockIndex] = {
-      ...updatedBlocks[selectedProduct][blockIndex],
+    const updatedBlock = {
+      ...currentBlocks[blockIndex],
       content,
     }
+    currentBlocks[blockIndex] = updatedBlock
 
+    const updatedBlocks = {
+      ...blocks,
+      [selectedProduct]: currentBlocks,
+    }
     setBlocks(updatedBlocks)
-    setSelectedBlock(updatedBlocks[selectedProduct][blockIndex])
+    setSelectedBlock(updatedBlock)
 
-    return persistBlocks(updatedBlocks[selectedProduct])
+    return persistBlocks(currentBlocks)
   }
 
   const handleDeleteBlock = (block: ProductBlock) => {
@@ -202,6 +240,7 @@ export function useProductBuilder({
     isSaving,
     saveMessage,
     updateBlockContent,
+    handleUpdateBlock,
     replaceSelectedBlockContent,
     saveSelectedBlockContent,
     handleDeleteBlock,

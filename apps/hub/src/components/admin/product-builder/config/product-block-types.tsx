@@ -1,5 +1,6 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/products/lead-magnet"
 
 export type { BlockTypeDefinition }
 
@@ -78,6 +79,13 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
       subheader: 'Select the perfect plan for your needs',
       productPricingTiers: []
     }
+  },
+  {
+    type: 'product-lead-magnet',
+    name: 'Lead Magnet',
+    icon: Magnet,
+    description: 'Capture emails and deliver product-specific lead magnet content',
+    defaultContent: PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT,
   },
   {
     type: 'product-faq',
