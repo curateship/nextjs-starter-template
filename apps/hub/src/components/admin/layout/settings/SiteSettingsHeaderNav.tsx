@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Blocks, Check, ChevronDown, Paintbrush, Settings2 } from 'lucide-react'
+import { Blocks, Check, ChevronDown, Settings2, Wrench } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils/tailwind'
 
 interface SiteSettingsHeaderNavProps {
   siteId: string
-  activeSection?: 'general' | 'admin-styling' | 'content-types'
+  activeSection?: 'general' | 'site-tools' | 'content-types'
   activeContentTypeSlug?: SiteSettingsContentTypeConfig['slug']
 }
 
@@ -29,7 +29,7 @@ export function SiteSettingsHeaderNav({
   activeContentTypeSlug,
 }: SiteSettingsHeaderNavProps) {
   const isGeneralActive = activeSection === 'general'
-  const isAdminStylingActive = activeSection === 'admin-styling'
+  const isSiteToolsActive = activeSection === 'site-tools'
   const isContentTypeActive = activeSection === 'content-types'
   const activeContentType = activeContentTypeSlug
     ? SITE_SETTINGS_CONTENT_TYPES.find((contentType) => contentType.slug === activeContentTypeSlug)
@@ -47,6 +47,17 @@ export function SiteSettingsHeaderNav({
       >
         <Settings2 className="mr-1.5 h-3.5 w-3.5" />
         General Settings
+      </Link>
+
+      <Link
+        href={`/admin/sites/${siteId}/settings/site-tools`}
+        className={cn(
+          navItemClassName,
+          isSiteToolsActive ? 'bg-muted text-foreground' : 'hover:bg-muted/50'
+        )}
+      >
+        <Wrench className="mr-1.5 h-3.5 w-3.5" />
+        Site Tools
       </Link>
 
       <DropdownMenu>
@@ -85,17 +96,6 @@ export function SiteSettingsHeaderNav({
           })}
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <Link
-        href={`/admin/sites/${siteId}/settings/admin-styling`}
-        className={cn(
-          navItemClassName,
-          isAdminStylingActive ? 'bg-muted text-foreground' : 'hover:bg-muted/50'
-        )}
-      >
-        <Paintbrush className="mr-1.5 h-3.5 w-3.5" />
-        Admin Styling
-      </Link>
     </div>
   )
 }

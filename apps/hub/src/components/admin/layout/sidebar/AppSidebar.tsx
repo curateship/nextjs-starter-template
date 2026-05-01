@@ -15,8 +15,6 @@ import {
   Tag,
   Workflow,
   BarChart3,
-  ClipboardCheck,
-  HeartPulse,
   Handshake,
 } from "lucide-react"
 
@@ -139,28 +137,17 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       icon: Users,
     },
     {
-      name: "Site Settings",
-      url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites",
-      icon: Settings,
-    },
-  ]
-
-  // Tools items
-  const toolsProjects = [
-    {
       name: "Analytics",
       url: currentSite ? `/admin/sites/${currentSite.id}/analytics` : "/admin/sites",
       icon: BarChart3,
     },
     {
-      name: "Site Audit",
-      url: currentSite ? `/admin/sites/${currentSite.id}/site-audit` : "/admin/sites",
-      icon: ClipboardCheck,
-    },
-    {
-      name: "Site Health",
-      url: "/admin/site-health",
-      icon: HeartPulse,
+      name: "Site Settings",
+      url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites",
+      icon: Settings,
+      items: [
+        { title: "Site Tools", url: currentSite ? `/admin/sites/${currentSite.id}/settings/site-tools` : "/admin/sites" },
+      ],
     },
   ]
 
@@ -207,7 +194,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       <SidebarContent>
         <SidebarMain items={contentNavItems} />
         <SidebarDropdown title="Site Management" projects={siteManagementProjects} />
-        <SidebarDropdown title="Tools" projects={toolsProjects} />
         <SidebarDropdown title="Platform Management" projects={platformProjects} />
       </SidebarContent>
       <SidebarFooter>

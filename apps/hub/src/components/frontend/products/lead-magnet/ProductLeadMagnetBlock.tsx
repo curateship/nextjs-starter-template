@@ -107,7 +107,7 @@ export function ProductLeadMagnetBlock({
       <div className={hasTwoColumns ? "grid items-start gap-8 lg:grid-cols-2" : "max-w-3xl"}>
         <div className="space-y-6">
           {showBody ? (
-            <div className="prose prose-lg dark:prose-invert max-w-none [&>*:first-child]:!mt-0 [&>div:first-child>*:first-child]:!mt-0 [&_.ProseMirror>*:first-child]:!mt-0 [&_img]:h-auto [&_img]:max-w-full">
+            <div className="prose prose-lg dark:prose-invert max-w-none [&>*:first-child]:mt-0! [&>div:first-child>*:first-child]:mt-0! [&_.ProseMirror>*:first-child]:mt-0! [&_img]:h-auto [&_img]:max-w-full">
               {children || <div dangerouslySetInnerHTML={{ __html: safeBody }} />}
             </div>
           ) : null}

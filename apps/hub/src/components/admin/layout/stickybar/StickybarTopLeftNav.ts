@@ -4,20 +4,16 @@ import {
   BarChart3,
   Blocks,
   BookOpen,
-  ClipboardCheck,
-  Clock3,
   FileText,
   Filter,
   FolderOpen,
   Globe,
-  HeartPulse,
   Images,
   ImageOff,
   Link2,
   Mail,
   Package,
   Paintbrush,
-  Search,
   ShoppingCart,
   Settings2,
   Users,
@@ -47,8 +43,6 @@ type NewsletterAdminSection =
 type DirectoryAdminSection = "directory" | "templates" | "custom-blocks"
 type PlatformEmailAdminSection = "templates" | "emails" | "settings"
 type PlatformSettingsAdminSection = "settings" | "apps-integration"
-type SiteHealthAdminSection = "overview" | "cron"
-type SiteAuditAdminSection = "site-audit" | "audit" | "links"
 type SitesAdminSection = "sites" | "themes"
 type MediaAdminSection = "library" | "unused"
 
@@ -133,20 +127,5 @@ export function getPlatformSettingsAdminTopNavLinks(active: PlatformSettingsAdmi
   return [
     { label: "Platform Settings", href: "/admin/platforms/settings", iconName: "settings", active: active === "settings" },
     { label: "Apps Integration", href: "/admin/apps-integration", iconName: "link", active: active === "apps-integration" },
-  ]
-}
-
-export function getSiteHealthAdminTopNavLinks(active: SiteHealthAdminSection): AdminTopNavLink[] {
-  return [
-    { label: "Overview", href: "/admin/site-health", icon: HeartPulse, active: active === "overview" },
-    { label: "Cron Jobs", href: "/admin/site-health/cron", icon: Clock3, active: active === "cron" },
-  ]
-}
-
-export function getSiteAuditAdminTopNavLinks(siteId: string, active: SiteAuditAdminSection): AdminTopNavLink[] {
-  return [
-    { label: "Site Audit", href: `/admin/sites/${siteId}/site-audit`, icon: ClipboardCheck, active: active === "site-audit" },
-    { label: "Content Audit", href: `/admin/sites/${siteId}/site-audit/audit`, icon: Search, active: active === "audit" },
-    { label: "Internal Links", href: `/admin/sites/${siteId}/site-audit/links`, icon: Link2, active: active === "links" },
   ]
 }
