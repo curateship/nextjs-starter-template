@@ -333,7 +333,7 @@ export async function scanUnusedMediaAction(
           )
           or exists (
             select 1 from sponsors s
-            where s.site_id = ${scope.siteId}::uuid
+            where s.site_id = m.site_id
               and s.image_url = m.public_url
           )
           or exists (
