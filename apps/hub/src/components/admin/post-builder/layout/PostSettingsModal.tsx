@@ -348,7 +348,6 @@ export function PostSettingsModal({
                     alt="Featured image preview"
                     className="w-full h-full object-contain"
                   />
-                  <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
                   <button
                     type="button"
                     onClick={handleRemoveImage}
