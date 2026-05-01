@@ -270,7 +270,16 @@ export function updateResourceHandler(config: ItemResourceConfig) {
       const updateValues: Record<string, unknown> = { updatedAt: new Date() }
       for (const [snakeKey, camelKey] of Object.entries(config.updateFieldMap)) {
         if (updates[snakeKey] !== undefined) {
-          updateValues[camelKey] = updates[snakeKey]
+          if (camelKey === 'createdAt' || camelKey === 'updatedAt') {
+            const value = updates[snakeKey]
+            if (value === null || value === '') return jsonError(`Invalid ${snakeKey} value`, 400)
+
+            const date = new Date(value)
+            if (Number.isNaN(date.getTime())) return jsonError(`Invalid ${snakeKey} value`, 400)
+            updateValues[camelKey] = date
+          } else {
+            updateValues[camelKey] = updates[snakeKey]
+          }
         }
       }
 

@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
+import { Calendar as CalendarPicker } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   AdminModalBody,
   AdminModalContent,
@@ -24,7 +26,7 @@ import {
 } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { ImageIcon, X, Check } from "lucide-react"
+import { CalendarIcon, ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
@@ -32,6 +34,56 @@ import type { Product, UpdateProductData } from "@/lib/actions/products/product-
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 const EMPTY_INITIAL_CATEGORIES: CategoryInfo[] = []
+
+function formatDateInputValue(value?: string | null) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function isValidDateInputValue(dateValue: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return false
+
+  const [year, month, day] = dateValue.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
+
+function applyDateInputValue(currentValue: string | undefined, dateValue: string) {
+  if (!isValidDateInputValue(dateValue)) return ''
+
+  const [year, month, day] = dateValue.split('-').map(Number)
+  const date = currentValue ? new Date(currentValue) : new Date()
+  const nextDate = Number.isNaN(date.getTime()) ? new Date() : date
+
+  nextDate.setFullYear(year, month - 1, day)
+
+  return nextDate.toISOString()
+}
+
+function toCalendarDate(value?: string | null) {
+  const dateValue = formatDateInputValue(value)
+  if (!dateValue) return undefined
+
+  const [year, month, day] = dateValue.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function formatCalendarDateInputValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
 
 interface ProductSettingsModalProps {
   open: boolean
@@ -58,6 +110,8 @@ export function ProductSettingsModal({
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const [createdDateInput, setCreatedDateInput] = useState('')
+  const [createdDateOpen, setCreatedDateOpen] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [selectedCategoryDetails, setSelectedCategoryDetails] = useState<CategoryInfo[]>([])
@@ -108,12 +162,16 @@ export function ProductSettingsModal({
     let cancelled = false
 
     if (product) {
+      const createdDateValue = formatDateInputValue(product.created_at)
+
       setFormData({
         title: product.title,
         slug: product.slug,
         is_published: product.is_published,
+        created_at: product.created_at,
         meta_description: product.meta_description || ''
       })
+      setCreatedDateInput(createdDateValue)
       
       // Get is_private from content_blocks
       setIsPrivate(product.content_blocks?._settings?.is_private === true)
@@ -165,6 +223,11 @@ export function ProductSettingsModal({
 
     if (!product) {
       setError('No product selected')
+      return
+    }
+
+    if (!isValidDateInputValue(createdDateInput) || !formData.created_at || Number.isNaN(new Date(formData.created_at).getTime())) {
+      setError('Enter a valid created date')
       return
     }
 
@@ -236,6 +299,11 @@ export function ProductSettingsModal({
 
     if (!product) {
       setError('No product selected')
+      return
+    }
+
+    if (!isValidDateInputValue(createdDateInput) || !formData.created_at || Number.isNaN(new Date(formData.created_at).getTime())) {
+      setError('Enter a valid created date')
       return
     }
 
@@ -367,6 +435,57 @@ export function ProductSettingsModal({
                   {slugManuallyEdited
                     ? "Custom URL slug. Clear this field to auto-generate from title again."
                     : "Auto-generated from title. You can edit this to customize the URL."}
+                </FieldDescription>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="modal-created-date">Created Date</FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="modal-created-date"
+                    type="text"
+                    value={createdDateInput}
+                    onChange={(e) => {
+                      const nextValue = e.target.value
+                      setIsSaved(false)
+                      setCreatedDateInput(nextValue)
+                      setFormData(prev => ({
+                        ...prev,
+                        created_at: applyDateInputValue(prev.created_at, nextValue)
+                      }))
+                    }}
+                    placeholder="YYYY-MM-DD"
+                    required
+                  />
+                  <Popover open={createdDateOpen} onOpenChange={setCreatedDateOpen}>
+                    <PopoverTrigger asChild>
+                      <Button type="button" variant="outline" size="icon" aria-label="Choose created date">
+                        <CalendarIcon className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <CalendarPicker
+                        mode="single"
+                        selected={toCalendarDate(formData.created_at)}
+                        onSelect={(date) => {
+                          if (!date) return
+
+                          const nextValue = formatCalendarDateInputValue(date)
+                          setIsSaved(false)
+                          setCreatedDateInput(nextValue)
+                          setFormData(prev => ({
+                            ...prev,
+                            created_at: applyDateInputValue(prev.created_at, nextValue)
+                          }))
+                          setCreatedDateOpen(false)
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <FieldDescription>
+                  Used when product listings are sorted by date.
                 </FieldDescription>
               </Field>
 

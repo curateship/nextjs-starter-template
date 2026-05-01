@@ -44,6 +44,7 @@ export interface UpdateProductData {
   is_published?: boolean
   featured_image?: string | null
   meta_description?: string | null
+  created_at?: string
 }
 
 /**
@@ -407,8 +408,19 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       processedUpdates.slug = slug
     }
 
+    if (updates.created_at !== undefined) {
+      if (typeof updates.created_at !== 'string' || !updates.created_at.trim()) {
+        return { data: null, error: 'Invalid created date' }
+      }
+
+      const createdAt = new Date(updates.created_at)
+      if (Number.isNaN(createdAt.getTime())) {
+        return { data: null, error: 'Invalid created date' }
+      }
+    }
+
     // SECURITY: Only allow whitelisted fields to prevent content_blocks bypass
-    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'meta_description'] as const
+    const allowedFields = ['title', 'slug', 'is_published', 'featured_image', 'meta_description', 'created_at'] as const
     const finalUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((processedUpdates as any)[field] !== undefined) {
@@ -430,6 +442,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     if (finalUpdates.is_published !== undefined) drizzleUpdates.isPublished = finalUpdates.is_published
     if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
     if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
+    if (finalUpdates.created_at !== undefined) drizzleUpdates.createdAt = new Date(finalUpdates.created_at)
 
     const [updated] = await db
       .update(products)

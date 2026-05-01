@@ -14,9 +14,11 @@ const config = {
     meta_keywords: 'metaKeywords',
     is_published: 'isPublished',
     display_order: 'displayOrder',
+    created_at: 'createdAt',
     content_blocks: 'contentBlocks',
     featured_image: 'featuredImage',
   },
+  revalidateTags: ['listing-views'],
 }
 
 export const GET = getResourceHandler(config)
