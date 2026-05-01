@@ -1,4 +1,4 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Quote } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -148,15 +148,6 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
       displaySettings: {},
       contentType: 'products',
       sortOptions: {}
-    }
-  },
-  {
-    type: 'product-rich-text',
-    name: 'Rich Text',
-    icon: FileText,
-    description: 'Add formatted text content with rich editing capabilities',
-    defaultContent: {
-      richtextContent: '<p>Add your content here...</p>'
     }
   }
 ]

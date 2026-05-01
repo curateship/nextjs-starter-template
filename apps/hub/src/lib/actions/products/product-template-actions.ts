@@ -27,7 +27,6 @@ const ALLOWED_PRODUCT_BLOCK_TYPES = [
   'product-faq',
   'product-testimonials',
   'listing-views',
-  'product-rich-text',
 ]
 
 async function verifySiteOwnership(siteId: string, userId: string) {

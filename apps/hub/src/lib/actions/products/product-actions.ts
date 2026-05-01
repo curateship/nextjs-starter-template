@@ -713,7 +713,7 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
     }
 
     // SECURITY: Validate allowed block types
-    const allowedBlockTypes = ['product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-checkout', 'product-faq', 'product-testimonials', 'listing-views', 'product-rich-text', '_settings']
+    const allowedBlockTypes = ['product-hero', 'product-details', 'product-gallery', 'product-features', 'product-hotspot', 'product-checkout', 'product-faq', 'product-testimonials', 'listing-views', '_settings']
     for (const [blockKey, blockData] of Object.entries(contentBlocks)) {
       // Validate block data structure
       if (typeof blockData !== 'object' || blockData === null) {

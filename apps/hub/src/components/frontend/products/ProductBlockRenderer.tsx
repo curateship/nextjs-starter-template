@@ -6,7 +6,6 @@ import { ProductCheckoutBlock } from "@/components/frontend/products/checkout/Pr
 import { ProductFAQBlock } from "@/components/frontend/products/faq/ProductFAQBlock"
 import { ProductTestimonialsBlock } from "@/components/frontend/products/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/listing-view/ProductListingViewBlock"
-import { ProductRichTextBlock } from "@/components/frontend/products/rich-text/ProductRichTextBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -156,18 +155,6 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
                 customWidth={customWidth}
               />
             </Suspense>
-            </div>
-          )
-        }
-
-        if (block.type === 'product-rich-text') {
-          return (
-            <div key={`product-rich-text-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
-            <ProductRichTextBlock
-              content={block.content as any}
-              siteWidth={siteWidth}
-              customWidth={customWidth}
-            />
             </div>
           )
         }

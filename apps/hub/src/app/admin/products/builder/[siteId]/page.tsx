@@ -22,7 +22,6 @@ import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
 import { ProductTestimonialsBlock } from "@/components/admin/product-builder/blocks/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
-import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
 import {
   Dialog,
 } from "@/components/ui/dialog"
@@ -483,27 +482,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                         onItemsPerPageChange={(value) => handleDraftChange("itemsPerPage", value)}
                         onViewAllTextChange={(value) => handleDraftChange("viewAllText", value)}
                         onViewAllLinkChange={(value) => handleDraftChange("viewAllLink", value)}
-                        visibility={draftContent.visibility}
-                        onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                      />
-                    )}
-
-                    {selectedBlock.type === "product-rich-text" && (
-                      <ProductRichTextEditorBlock
-                        content={{
-                          header: draftContent.header || "",
-                          subheader: draftContent.subheader || "",
-                          headerAlign: draftContent.headerAlign || "left",
-                          richtextContent: draftContent.richtextContent || "",
-                          hideHeader: draftContent.hideHeader,
-                          hideEditorHeader: draftContent.hideEditorHeader,
-                        }}
-                        onContentChange={(contentObj) => {
-                          handleDraftChange("header", contentObj.header)
-                          handleDraftChange("subheader", contentObj.subheader)
-                          handleDraftChange("headerAlign", contentObj.headerAlign)
-                          handleDraftChange("richtextContent", contentObj.richtextContent)
-                        }}
                         visibility={draftContent.visibility}
                         onVisibilityChange={(v) => handleDraftChange("visibility", v)}
                       />
