@@ -7,7 +7,8 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
-import { generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
 import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 import { randomUUID } from 'crypto'
 
@@ -86,6 +87,15 @@ function getSortedNewsletterBlocks(contentBlocks: Record<string, any> | null | u
   return Object.values(contentBlocks || {})
     .filter((block: any) => block?.id && block?.type)
     .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0)) as NewsletterBlock[]
+}
+
+async function generateNewsletterEmailHtml(siteId: string, blocks: NewsletterBlock[], maxWidth = 600) {
+  const sponsorIds = extractNewsletterSponsorIds(blocks)
+  const sponsorsById = sponsorIds.length > 0
+    ? await getActiveSponsorsByIdsAction(siteId, sponsorIds)
+    : {}
+
+  return generateEmailHtml(blocks, maxWidth, { sponsorsById })
 }
 
 function isWithinDripSendWindow(dripConfig: Record<string, any> | undefined) {
@@ -351,7 +361,7 @@ export async function createNewsletter(input: {
     const sortedBlocks = getSortedNewsletterBlocks(contentBlocks)
     const maxWidth = input.metadata?.maxWidth || 600
     const generatedContent = sortedBlocks.length > 0
-      ? generateEmailHtml(sortedBlocks, maxWidth)
+      ? await generateNewsletterEmailHtml(input.siteId, sortedBlocks, maxWidth)
       : (input.content || '')
 
     const [data] = await db
@@ -420,7 +430,7 @@ export async function updateNewsletter(
         // Get maxWidth from metadata (check updates first, then existing DB metadata)
         const existingMeta = newsletter.metadata as Record<string, any> | null
         const maxWidth = updates.metadata?.maxWidth || existingMeta?.maxWidth || 600
-        allowedFields.content = generateEmailHtml(sortedBlocks, maxWidth)
+        allowedFields.content = await generateNewsletterEmailHtml(newsletter.siteId, sortedBlocks, maxWidth)
       }
     }
 
@@ -500,17 +510,13 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
     if (newsletter.status === 'sent' || newsletter.status === 'sending' || newsletter.status === 'paused') {
       return { success: false, error: 'Already sent or in progress' }
     }
-    // Generate HTML from content_blocks if content is empty
-    if (!newsletter.content?.trim()) {
-      const contentBlocks = newsletter.content_blocks || {}
-      const blockEntries = Object.values(contentBlocks).filter((b: any) => b.id && b.type)
-      const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
-      if (sortedBlocks.length > 0) {
-        const maxWidth = newsletter.metadata?.maxWidth || 600
-        newsletter.content = generateEmailHtml(sortedBlocks, maxWidth)
-        await db.update(newsletters).set({ content: newsletter.content }).where(eq(newsletters.id, newsletterId))
-      }
+    const sortedBlocks = getSortedNewsletterBlocks(newsletter.content_blocks)
+    if (sortedBlocks.length > 0) {
+      const maxWidth = newsletter.metadata?.maxWidth || 600
+      newsletter.content = await generateNewsletterEmailHtml(newsletter.site_id, sortedBlocks, maxWidth)
+      await db.update(newsletters).set({ content: newsletter.content }).where(eq(newsletters.id, newsletterId))
     }
+
     if (!newsletter.content?.trim()) {
       return { success: false, error: 'Newsletter has no content' }
     }
@@ -737,12 +743,12 @@ export async function sendTestNewsletter(
     const newsletter = rowToNewsletter(nlRow)
 
     // Generate HTML from content_blocks (always fresh)
-    const contentBlocks = newsletter.content_blocks || {}
-    const blockEntries = Object.values(contentBlocks).filter((b: any) => b.id && b.type)
-    const sortedBlocks = (blockEntries as NewsletterBlock[]).sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+    const sortedBlocks = getSortedNewsletterBlocks(newsletter.content_blocks)
 
     const maxWidth = newsletter.metadata?.maxWidth || 600
-    const html = sortedBlocks.length > 0 ? generateEmailHtml(sortedBlocks, maxWidth) : newsletter.content
+    const html = sortedBlocks.length > 0
+      ? await generateNewsletterEmailHtml(newsletter.site_id, sortedBlocks, maxWidth)
+      : newsletter.content
     if (!html?.trim()) {
       return { success: false, error: 'Newsletter has no content. Add some blocks and save first.' }
     }

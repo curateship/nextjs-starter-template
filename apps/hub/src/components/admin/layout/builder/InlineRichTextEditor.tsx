@@ -518,6 +518,7 @@ export function InlineRichTextEditor({
   const imageBorderColor = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(content.imageBorderColor || "")
     ? content.imageBorderColor
     : DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR
+  const supportsSponsors = variant === "post" || variant === "newsletter"
 
   const editor = useEditor({
     extensions: [
@@ -547,7 +548,7 @@ export function InlineRichTextEditor({
           class: "max-w-full h-auto",
         },
       }),
-      ...(variant === "post" ? [SponsorEmbed.configure({ siteId })] : []),
+      ...(supportsSponsors ? [SponsorEmbed.configure({ siteId })] : []),
     ],
     content: normalizedContent,
     immediatelyRender: false,
@@ -787,7 +788,7 @@ export function InlineRichTextEditor({
       })
     }
 
-    if (siteId && variant === "post") {
+    if (siteId && supportsSponsors) {
       commands.push({
         id: "sponsor",
         label: "Sponsor",
@@ -803,7 +804,7 @@ export function InlineRichTextEditor({
     }
 
     return commands
-  }, [siteId, variant])
+  }, [siteId, supportsSponsors])
 
   useEffect(() => {
     if (!editor) {
@@ -1582,7 +1583,7 @@ export function InlineRichTextEditor({
         site_id={siteId}
       />
 
-      {variant === "post" && (
+      {supportsSponsors && (
         <SponsorPickerDialog
           open={isSponsorPickerOpen}
           onOpenChange={handleSponsorPickerOpenChange}

@@ -4,7 +4,8 @@ import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
+import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
 import {
   getAutomationTriggerNodes,
   isAutomationTriggerType,
@@ -66,6 +67,18 @@ export interface AutomationEnrollment {
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function generateAutomationEmailHtml(
+  siteId: string,
+  blocks: { id: string; type: string; title?: string; content: Record<string, any> }[],
+) {
+  const sponsorIds = extractNewsletterSponsorIds(blocks)
+  const sponsorsById = sponsorIds.length > 0
+    ? await getActiveSponsorsByIdsAction(siteId, sponsorIds)
+    : {}
+
+  return generateEmailHtml(blocks, 600, { sponsorsById })
+}
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -528,7 +541,7 @@ export async function updateStep(
       const sortedBlocks = (blockEntries as { id: string; type: string; title: string; content: Record<string, any> }[])
         .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
       if (sortedBlocks.length > 0) {
-        fields.content = generateEmailHtml(sortedBlocks)
+        fields.content = await generateAutomationEmailHtml(automation.siteId, sortedBlocks)
       }
     }
 

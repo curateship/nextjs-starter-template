@@ -1,8 +1,23 @@
+import { extractSponsorIdsFromHtml, splitSponsorEmbeds } from '@/lib/utils/sponsor-embeds'
+import { sanitizeUrl } from '@/lib/utils/url-validator'
+
 export interface NewsletterRenderBlock {
   id: string
   type: string
   title?: string
   content: Record<string, any>
+}
+
+export interface NewsletterRenderSponsor {
+  id: string
+  title: string
+  description?: string | null
+  image_url?: string | null
+  url: string
+}
+
+interface NewsletterRenderOptions {
+  sponsorsById?: Record<string, NewsletterRenderSponsor>
 }
 
 export const DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR = '#fafafa'
@@ -82,6 +97,37 @@ function getRichTextImageStyles(content: Record<string, any>): string {
   return `display:block;max-width:100%;height:auto;margin:0 auto 24px auto;box-sizing:border-box;border:0;border-radius:8px;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;${frameStyles}`
 }
 
+function renderSponsorEmailHtml(sponsor: NewsletterRenderSponsor): string {
+  const href = sanitizeUrl(sponsor.url, '#')
+  const imageSrc = sanitizeUrl(sponsor.image_url, '')
+  const imageHtml = imageSrc
+    ? `<td width="88" valign="middle" style="padding:0 16px 0 0;"><img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(sponsor.title)}" width="88" style="display:block;width:88px;max-width:88px;height:auto;border:0;outline:none;text-decoration:none;" /></td>`
+    : ''
+  const descriptionHtml = sponsor.description
+    ? `<div style="margin-top:4px;font-size:14px;line-height:1.4;color:#4b5563;">${escapeHtml(sponsor.description)}</div>`
+    : ''
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px 0;"><tr><td><a href="${escapeHtml(href)}" target="_blank" rel="sponsored noopener noreferrer" style="display:block;color:#111827;text-decoration:none;border:1px solid #e5e7eb;border-radius:8px;background-color:#ffffff;padding:16px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${imageHtml}<td valign="middle" style="padding:0;"><div style="font-size:12px;line-height:1.2;font-weight:700;text-transform:uppercase;color:#6b7280;">Sponsored</div><div style="margin-top:4px;font-size:16px;line-height:1.35;font-weight:700;color:#111827;">${escapeHtml(sponsor.title)}</div>${descriptionHtml}</td></tr></table></a></td></tr></table>`
+}
+
+function renderSponsorEmbeds(html: string, options?: NewsletterRenderOptions): string {
+  return splitSponsorEmbeds(html)
+    .map((part) => {
+      if (part.type === 'html') return part.html
+      const sponsor = options?.sponsorsById?.[part.sponsorId]
+      return sponsor ? renderSponsorEmailHtml(sponsor) : ''
+    })
+    .join('')
+}
+
+export function extractNewsletterSponsorIds(blocks: NewsletterRenderBlock[]) {
+  return Array.from(new Set(blocks.flatMap((block) => (
+    block.type === 'newsletter-rich-text'
+      ? extractSponsorIdsFromHtml(block.content?.htmlContent || '')
+      : []
+  ))))
+}
+
 function styleRichTextHtml(htmlContent: string, content: Record<string, any>): string {
   let styledContent = normalizeNewsletterRichTextHtml(htmlContent)
 
@@ -104,7 +150,7 @@ function styleRichTextHtml(htmlContent: string, content: Record<string, any>): s
   })
 }
 
-export function renderNewsletterBlockHtml(block: NewsletterRenderBlock): string {
+export function renderNewsletterBlockHtml(block: NewsletterRenderBlock, options?: NewsletterRenderOptions): string {
   switch (block.type) {
     case 'newsletter-header': {
       const {
@@ -131,7 +177,7 @@ export function renderNewsletterBlockHtml(block: NewsletterRenderBlock): string 
 
     case 'newsletter-rich-text': {
       const { htmlContent = '', backgroundColor = '#ffffff', padding = 20 } = block.content
-      const styledContent = styleRichTextHtml(htmlContent, block.content)
+      const styledContent = renderSponsorEmbeds(styleRichTextHtml(htmlContent, block.content), options)
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#333333;">${styledContent}</td></tr></table>`
     }
 
@@ -157,9 +203,9 @@ export function renderNewsletterBlockHtml(block: NewsletterRenderBlock): string 
   }
 }
 
-export function generateEmailHtml(blocks: NewsletterRenderBlock[], maxWidth: number = 600): string {
+export function generateEmailHtml(blocks: NewsletterRenderBlock[], maxWidth: number = 600, options?: NewsletterRenderOptions): string {
   const wrappedBlocks = blocks
-    .map(renderNewsletterBlockHtml)
+    .map((block) => renderNewsletterBlockHtml(block, options))
     .map((blockHtml) => `<tr><td>${blockHtml}</td></tr>`)
     .join('')
 

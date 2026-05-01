@@ -139,6 +139,12 @@ export function StickybarTopRightActions({
   return (
     <>
       <div className={cn("flex items-center gap-2", className)}>
+        {saveMessage ? (
+          <div className="hidden sm:block">
+            <SaveStatusBadge message={saveMessage} />
+          </div>
+        ) : null}
+
         {preActions}
 
         {search ? (
@@ -181,12 +187,6 @@ export function StickybarTopRightActions({
         ) : null}
 
         {rightActions}
-
-        {saveMessage ? (
-          <div className="hidden sm:block">
-            <SaveStatusBadge message={saveMessage} />
-          </div>
-        ) : null}
 
         {viewPageHref ? (
           <Button variant="outline" size="sm" asChild>
