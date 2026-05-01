@@ -4,6 +4,7 @@ import { ProductFeaturesBlock } from "@/components/frontend/products/features/Pr
 import { ProductHotspotBlock } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/frontend/products/checkout/ProductCheckoutBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/faq/ProductFAQBlock"
+import { ProductTestimonialsBlock } from "@/components/frontend/products/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/frontend/products/listing-view/ProductListingViewBlock"
 import { ProductRichTextBlock } from "@/components/frontend/products/rich-text/ProductRichTextBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
@@ -26,9 +27,11 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
   const { blocks: productBlocks = [] } = product
   const siteChrome = resolveSiteChrome(site.settings)
   
+  const isBlockHidden = (block: typeof productBlocks[number]) => block.content?.visibility?.hideBlock === true
   
   // Sort product blocks by display_order
   const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
+  const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
   
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
@@ -39,7 +42,7 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
       <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
-      {sortedBlocks.map((block) => {
+      {visibleBlocks.map((block) => {
         if (block.type === 'product-hero') {
           return (
             <div key={`product-hero-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
@@ -118,6 +121,18 @@ export function ProductBlockRenderer({ site, product, breadcrumbs = [], isPrevie
           return (
             <div key={`product-faq-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductFAQBlock
+              content={block.content as any}
+              siteWidth={siteWidth}
+              customWidth={customWidth}
+            />
+            </div>
+          )
+        }
+
+        if (block.type === 'product-testimonials') {
+          return (
+            <div key={`product-testimonials-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
+            <ProductTestimonialsBlock
               content={block.content as any}
               siteWidth={siteWidth}
               customWidth={customWidth}

@@ -1,4 +1,4 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, FileText, Quote } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -94,6 +94,44 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
           answer: 'Sample answer here.'
         }
       ]
+    }
+  },
+  {
+    type: 'product-testimonials',
+    name: 'Testimonials',
+    icon: Quote,
+    description: 'Showcase client testimonials in an auto-scrolling carousel',
+    defaultContent: {
+      title: 'Meet Our Happy Clients',
+      subtitle: 'Hear from the teams who have transformed their workflow.',
+      headerAlign: 'center',
+      testimonialItems: [
+        {
+          id: 'item-1',
+          name: 'Sarah Chen',
+          role: 'CEO & Founder',
+          avatar: '',
+          content: 'This product has transformed how we build and ship. We accomplished in weeks what used to take months.',
+        },
+        {
+          id: 'item-2',
+          name: 'Marcus Rodriguez',
+          role: 'CTO',
+          avatar: '',
+          content: 'The attention to detail and performance is impressive. Our team productivity increased significantly.',
+        },
+        {
+          id: 'item-3',
+          name: 'Emily Watson',
+          role: 'Head of Product',
+          avatar: '',
+          content: 'Finally, a solution that developers actually want to use. The documentation is clear and defaults are sensible.',
+        },
+      ],
+      testimonialStyle: 'default',
+      styleConfig: {
+        default: { speed: 0.7, showSecondRow: true }
+      }
     }
   },
   {

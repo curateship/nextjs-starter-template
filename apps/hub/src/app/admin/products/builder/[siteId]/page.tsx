@@ -20,6 +20,7 @@ import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/hotspot/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/checkout/ProductCheckoutBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
+import { ProductTestimonialsBlock } from "@/components/admin/product-builder/blocks/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
 import { ProductRichTextEditorBlock } from "@/components/admin/product-builder/blocks/rich-text-editor/ProductRichTextEditorBlock"
 import {
@@ -436,6 +437,15 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                         onProductFaqItemsChange={(value) => handleDraftChange("productFaqItems", value)}
                         visibility={draftContent.visibility}
                         onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                      />
+                    )}
+
+                    {selectedBlock.type === "product-testimonials" && (
+                      <ProductTestimonialsBlock
+                        content={draftContent}
+                        onContentChange={handleDraftChange}
+                        siteId={siteId}
+                        blockId={selectedBlock.id}
                       />
                     )}
 
