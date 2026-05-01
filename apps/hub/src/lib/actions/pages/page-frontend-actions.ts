@@ -1,84 +1,157 @@
 "use server"
 
-import { eq, and, asc, sql } from 'drizzle-orm'
+import { eq, and, asc, sql, or } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
 
-// Cached site lookup functions (include parameter in cache key)
-export async function getCachedSiteByDomain(domain: string) {
-  return unstable_cache(
-    async () => {
-      const [site] = await db
-        .select()
-        .from(sites)
-        .where(eq(sites.customDomain, domain))
-
-      return site || null
-    },
-    ['site-by-domain', domain],
-    { revalidate: false, tags: ['site-lookup', 'all'] }
-  )()
+type SitePageLookup = {
+  site: typeof sites.$inferSelect
+  page: typeof pages.$inferSelect | null
 }
 
-export async function getCachedSiteBySubdomain(subdomain: string) {
+function normalizeSiteHost(hostname: string) {
+  return hostname
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .split('/')[0]
+    .replace(/^www\./, '')
+    .replace(/:\d+$/, '')
+}
+
+function getSubdomainFromHost(host: string) {
+  if (!host.includes('.')) return null
+
+  const subdomain = host.split('.')[0]
+  return ['www', 'api', 'admin', 'app'].includes(subdomain) ? null : subdomain
+}
+
+function orderSitesByHostMatch(host: string, subdomain: string | null) {
+  return sql`
+    case
+      when ${sites.status} in ('active', 'draft') and ${sites.customDomain} = ${host} then 0
+      when ${sites.status} in ('active', 'draft') and ${sites.subdomain} = ${subdomain} then 1
+      when ${sites.customDomain} = ${host} then 2
+      else 3
+    end
+  `
+}
+
+async function getCachedSiteByHost(hostname: string) {
+  const host = normalizeSiteHost(hostname)
+  const subdomain = getSubdomainFromHost(host)
+
   return unstable_cache(
     async () => {
       const [site] = await db
         .select()
         .from(sites)
-        .where(eq(sites.subdomain, subdomain))
+        .where(
+          subdomain
+            ? or(eq(sites.customDomain, host), eq(sites.subdomain, subdomain))
+            : eq(sites.customDomain, host)
+        )
+        .orderBy(orderSitesByHostMatch(host, subdomain))
+        .limit(1)
 
       return site || null
     },
-    ['site-by-subdomain', subdomain],
+    ['site-by-host', host],
     { revalidate: false, tags: ['site-lookup', 'all'] }
   )()
 }
 
 export async function resolveSiteByHost(hostname: string) {
-  const host = hostname.replace(/^www\./, '')
-  // Try custom domain
-  const byDomain = await getCachedSiteByDomain(host)
-  if (byDomain && (byDomain.status === 'active' || byDomain.status === 'draft')) {
-    return { id: byDomain.id, subdomain: byDomain.subdomain, custom_domain: byDomain.customDomain }
+  const site = await getCachedSiteByHost(hostname)
+
+  if (site && (site.status === 'active' || site.status === 'draft')) {
+    return { id: site.id, subdomain: site.subdomain, custom_domain: site.customDomain }
   }
-  // Try subdomain (skip common system subdomains)
-  if (host.includes('.')) {
-    const sub = host.split('.')[0]
-    if (!['www', 'api', 'admin', 'app'].includes(sub)) {
-      const bySub = await getCachedSiteBySubdomain(sub)
-      if (bySub && (bySub.status === 'active' || bySub.status === 'draft')) {
-        return { id: bySub.id, subdomain: bySub.subdomain, custom_domain: bySub.customDomain }
-      }
-    }
-  }
+
   return null
 }
 
-// Cached page lookup function
-async function getCachedPage(siteId: string, pageSlug: string) {
+async function getCachedSiteAndPageByHost(hostname: string, pageSlug: string) {
+  const host = normalizeSiteHost(hostname)
+  const subdomain = getSubdomainFromHost(host)
+
   return unstable_cache(
     async () => {
-      // Use raw SQL to get content_blocks which is not in the Drizzle schema
-      const result = await db.execute(
-        sql`SELECT * FROM pages WHERE site_id = ${siteId} AND slug = ${pageSlug} AND is_published = true LIMIT 1`
-      )
+      const [row] = await db
+        .select({ site: sites, page: pages })
+        .from(sites)
+        .leftJoin(
+          pages,
+          and(
+            eq(pages.siteId, sites.id),
+            eq(pages.slug, pageSlug),
+            eq(pages.isPublished, true)
+          )
+        )
+        .where(
+          subdomain
+            ? or(eq(sites.customDomain, host), eq(sites.subdomain, subdomain))
+            : eq(sites.customDomain, host)
+        )
+        .orderBy(orderSitesByHostMatch(host, subdomain))
+        .limit(1)
 
-      const page = result.rows?.[0] as any | undefined
-
-      if (!page) {
-        return null
-      }
-
-      return page
+      return row || null
     },
-    ['page-lookup', siteId, pageSlug],
-    {
-      revalidate: false,
-      tags: ['page-lookup', 'all']
-    }
+    ['site-page-by-host', host, pageSlug],
+    { revalidate: false, tags: ['site-lookup', 'page-lookup', 'all'] }
+  )()
+}
+
+async function getCachedSiteAndPageBySubdomain(subdomain: string, pageSlug: string) {
+  return unstable_cache(
+    async () => {
+      const [row] = await db
+        .select({ site: sites, page: pages })
+        .from(sites)
+        .leftJoin(
+          pages,
+          and(
+            eq(pages.siteId, sites.id),
+            eq(pages.slug, pageSlug),
+            eq(pages.isPublished, true)
+          )
+        )
+        .where(eq(sites.subdomain, subdomain))
+        .limit(1)
+
+      return row || null
+    },
+    ['site-page-by-subdomain', subdomain, pageSlug],
+    { revalidate: false, tags: ['site-lookup', 'page-lookup', 'all'] }
+  )()
+}
+
+async function getCachedSiteAndPageByDomain(domain: string, pageSlug: string) {
+  const host = normalizeSiteHost(domain)
+
+  return unstable_cache(
+    async () => {
+      const [row] = await db
+        .select({ site: sites, page: pages })
+        .from(sites)
+        .leftJoin(
+          pages,
+          and(
+            eq(pages.siteId, sites.id),
+            eq(pages.slug, pageSlug),
+            eq(pages.isPublished, true)
+          )
+        )
+        .where(eq(sites.customDomain, host))
+        .limit(1)
+
+      return row || null
+    },
+    ['site-page-by-domain', host, pageSlug],
+    { revalidate: false, tags: ['site-lookup', 'page-lookup', 'all'] }
   )()
 }
 
@@ -116,9 +189,10 @@ function buildPublicPageBlocks(
   }> = []
 
   // Add page-specific blocks
-  if (page && page.content_blocks) {
+  const contentBlocks = page?.contentBlocks || page?.content_blocks
+  if (contentBlocks) {
     // Convert JSON content_blocks to array format
-    const pageBlocks = Object.entries(page.content_blocks)
+    const pageBlocks = Object.entries(contentBlocks)
       .map(([id, block]: [string, any]) => ({
         id,
         type: block.type,
@@ -180,6 +254,67 @@ async function prefetchListingData(
   return listingData
 }
 
+async function buildSiteWithBlocksResult(
+  lookup: SitePageLookup | null,
+  actualPageSlug: string
+): Promise<{
+  success: boolean
+  site?: SiteWithBlocks
+  error?: string
+}> {
+  if (!lookup) {
+    return { success: false, error: 'Site not found' }
+  }
+
+  const { site, page } = lookup
+
+  if (site.status !== 'active' && site.status !== 'draft') {
+    return { success: false, error: 'Site is not available for viewing' }
+  }
+
+  if (!page && actualPageSlug !== 'home') {
+    return { success: false, error: 'Page not found' }
+  }
+
+  const blocks = buildPublicPageBlocks(page)
+  const listingData = await prefetchListingData(blocks, site.id)
+
+  return {
+    success: true,
+    site: {
+      id: site.id,
+      name: site.name,
+      subdomain: site.subdomain,
+      custom_domain: site.customDomain,
+      settings: site.settings as Record<string, any>,
+      blocks,
+      listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
+    },
+  }
+}
+
+/**
+ * Get site data by request host for frontend rendering.
+ */
+export async function getSiteByHost(hostname: string, pageSlug?: string): Promise<{
+  success: boolean
+  site?: SiteWithBlocks
+  error?: string
+}> {
+  try {
+    if (!hostname) {
+      return { success: false, error: 'Host is required' }
+    }
+
+    const actualPageSlug = pageSlug || 'home'
+    const lookup = await getCachedSiteAndPageByHost(hostname, actualPageSlug)
+
+    return await buildSiteWithBlocksResult(lookup, actualPageSlug)
+  } catch (error) {
+    return { success: false, error: 'Failed to load site' }
+  }
+}
+
 /**
  * Get site data by subdomain for frontend rendering
  */
@@ -193,50 +328,10 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
       return { success: false, error: 'Subdomain is required' }
     }
 
-    // Get site from cache
-    const site = await getCachedSiteBySubdomain(subdomain)
+    const actualPageSlug = pageSlug || 'home'
+    const lookup = await getCachedSiteAndPageBySubdomain(subdomain, actualPageSlug)
 
-    if (!site) {
-      return { success: false, error: 'Site not found' }
-    }
-
-    // Check if site is viewable (allow draft for development)
-    if (site.status !== 'active' && site.status !== 'draft') {
-      return { success: false, error: 'Site is not available for viewing' }
-    }
-
-    // Use default 'home' if no page slug provided
-    let actualPageSlug = pageSlug || 'home'
-
-    // Check if the requested page exists and is published (cached)
-    const page = await getCachedPage(site.id, actualPageSlug)
-
-    // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
-    if (!page) {
-      // Only continue if this is the home page (simplified logic for cached version)
-      if (actualPageSlug !== 'home') {
-        return { success: false, error: 'Page not found' }
-      }
-      // For sites without pages system or home page, continue with old behavior
-    }
-
-    // Build blocks array using helper function
-    const blocks = buildPublicPageBlocks(page)
-
-    // Pre-fetch data for listing-views blocks to eliminate client-side loading
-    const listingData = await prefetchListingData(blocks, site.id)
-
-    const siteWithBlocks: SiteWithBlocks = {
-      id: site.id,
-      name: site.name,
-      subdomain: site.subdomain,
-      custom_domain: site.customDomain,
-      settings: site.settings as Record<string, any>,
-      blocks,
-      listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
-    }
-
-    return { success: true, site: siteWithBlocks }
+    return await buildSiteWithBlocksResult(lookup, actualPageSlug)
 
   } catch (error) {
     return { success: false, error: 'Failed to load site' }
@@ -308,50 +403,10 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
       return { success: false, error: 'Domain is required' }
     }
 
-    // Get site from cache
-    const site = await getCachedSiteByDomain(domain)
+    const actualPageSlug = pageSlug || 'home'
+    const lookup = await getCachedSiteAndPageByDomain(domain, actualPageSlug)
 
-    if (!site) {
-      return { success: false, error: 'Site not found' }
-    }
-
-    // Check if site is viewable (allow draft for development)
-    if (site.status !== 'active' && site.status !== 'draft') {
-      return { success: false, error: 'Site is not available for viewing' }
-    }
-
-    // Use default 'home' if no page slug provided
-    let actualPageSlug = pageSlug || 'home'
-
-    // Check if the requested page exists and is published (cached)
-    const page = await getCachedPage(site.id, actualPageSlug)
-
-    // If no pages table exists yet (migration not run), or page not found, check if we can show blocks anyway
-    if (!page) {
-      // Only continue if this is the home page (simplified logic for cached version)
-      if (actualPageSlug !== 'home') {
-        return { success: false, error: 'Page not found' }
-      }
-      // For sites without pages system or home page, continue with old behavior
-    }
-
-    // Build blocks array using helper function
-    const blocks = buildPublicPageBlocks(page)
-
-    // Pre-fetch data for listing-views blocks to eliminate client-side loading
-    const listingData = await prefetchListingData(blocks, site.id)
-
-    const siteWithBlocks: SiteWithBlocks = {
-      id: site.id,
-      name: site.name,
-      subdomain: site.subdomain,
-      custom_domain: site.customDomain,
-      settings: site.settings as Record<string, any>,
-      blocks,
-      listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
-    }
-
-    return { success: true, site: siteWithBlocks }
+    return await buildSiteWithBlocksResult(lookup, actualPageSlug)
 
   } catch (error) {
     return { success: false, error: 'Failed to load site' }

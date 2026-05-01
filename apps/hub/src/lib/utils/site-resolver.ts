@@ -1,6 +1,5 @@
 import { headers } from 'next/headers'
-import { getSiteBySubdomain, getSiteByDomain } from '@/lib/actions/pages/page-frontend-actions'
-import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
+import { getSiteBySubdomain, getSiteByDomain, getSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 
 /**
  * Get site data by querying database directly with host
@@ -10,17 +9,10 @@ export async function getSiteFromHeaders(pageSlug?: string) {
   const headersList = await headers()
   const host = headersList.get('host') || 'localhost:3000'
   
-  // Prefer cached resolver (works regardless of middleware headers)
-  const resolved = await resolveSiteByHost(host)
-  if (resolved) {
-    const result = await getSiteBySubdomain(resolved.subdomain, pageSlug)
-    if (!result.success && pageSlug === 'home') {
-      return await getSiteBySubdomain(resolved.subdomain)
-    }
-    if (!result.success && resolved.custom_domain) {
-      return await getSiteByDomain(resolved.custom_domain, pageSlug)
-    }
-    return result
+  // Prefer direct host lookup so site and page are loaded together.
+  const hostResult = await getSiteByHost(host, pageSlug)
+  if (hostResult.success || hostResult.error === 'Page not found' || hostResult.error === 'Site is not available for viewing') {
+    return hostResult
   }
 
   // Fallback: legacy header-based flow
