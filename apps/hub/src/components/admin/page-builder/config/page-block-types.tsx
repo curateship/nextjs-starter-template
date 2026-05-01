@@ -83,6 +83,7 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       title: 'Product Listings',
       viewType: 'grid',
       listingStyle: 'default',
+      categoryIds: [],
       showAuthor: true,
       showDate: true,
       showReadMore: true,

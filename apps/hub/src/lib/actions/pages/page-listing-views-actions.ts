@@ -1,9 +1,8 @@
 'use server'
 
-import { eq, and, asc, desc, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
-import { authUsers, posts, products, sites } from '@/lib/db/schema'
 
 export type ListingViewsContentType = 'products' | 'posts'
 
@@ -28,134 +27,160 @@ export interface ListingViewsData {
   totalPages: number
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+interface ListingViewsRow extends Record<string, unknown> {
+  id: string | null
+  title: string | null
+  slug: string | null
+  featured_image: string | null
+  rich_text: string | null
+  author: string | null
+  author_image: string | null
+  created_at: Date | string | null
+  display_order: number | null
+  total_count: number | null
+}
+
+function normalizeCategoryIds(categoryIds?: string[]) {
+  return [...new Set((categoryIds || []).filter((id) => UUID_REGEX.test(id)))].sort()
+}
+
 function getCurrentPage(offset: number, limit: number) {
   return Math.floor(offset / limit) + 1
 }
 
-async function getProductsListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number) {
-  let orderByColumn: any = products.createdAt
-  if (sortBy === 'title') {
-    orderByColumn = products.title
-  } else if (sortBy === 'display_order') {
-    orderByColumn = products.displayOrder
-  }
+function getOrderByClause(sortBy: string, sortOrder: string) {
+  const direction = sortOrder === 'asc' ? sql`asc` : sql`desc`
+  if (sortBy === 'title') return sql`title ${direction}`
+  if (sortBy === 'display_order') return sql`display_order ${direction}`
+  return sql`created_at ${direction}`
+}
 
-  const orderFn = sortOrder === 'asc' ? asc : desc
+function getCategoryJoin(categoryIds: string[], contentType: 'product' | 'post', contentId: ReturnType<typeof sql>) {
+  if (categoryIds.length === 0) return sql``
 
-  // Products can be hidden from listings through content_blocks settings.
-  const allProductsData = await db
-    .select({
-      id: products.id,
-      title: products.title,
-      slug: products.slug,
-      createdAt: products.createdAt,
-      displayOrder: products.displayOrder,
-      contentBlocks: products.contentBlocks,
-      featuredImage: products.featuredImage,
-      metaDescription: products.metaDescription,
-      authorName: authUsers.name,
-      authorDisplayName: authUsers.displayName,
-      authorImage: authUsers.image,
-    })
-    .from(products)
-    .innerJoin(sites, eq(sites.id, products.siteId))
-    .innerJoin(authUsers, eq(authUsers.id, sites.userId))
-    .where(and(eq(products.siteId, site_id), eq(products.isPublished, true)))
-    .orderBy(orderFn(orderByColumn))
+  return sql`
+    inner join (
+      select distinct content_id
+      from category_relationships
+      where content_type = ${contentType}
+        and category_id in (${sql.join(categoryIds.map((id) => sql`${id}`), sql`, `)})
+    ) category_matches on category_matches.content_id = ${contentId}
+  `
+}
 
-  const publicProductsData = (allProductsData || []).filter(p => {
-    const cb = p.contentBlocks as Record<string, any> | null
-    return cb?._settings?.is_private !== true
-  })
-
-  const items = publicProductsData.slice(offset, offset + limit).map(product => ({
-    id: product.id,
-    title: product.title || 'Untitled',
-    slug: product.slug || '',
-    richText: product.metaDescription || '',
-    featured_image: product.featuredImage || null,
-    author: product.authorDisplayName || product.authorName || null,
-    author_image: product.authorImage || null,
-    created_at: product.createdAt ? new Date(product.createdAt).toISOString() : new Date().toISOString(),
-    display_order: product.displayOrder || 0
-  }))
+function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) {
+  const totalCount = Number(rows[0]?.total_count ?? 0)
+  const items = rows
+    .filter((row) => row.id)
+    .map((row) => ({
+      id: row.id!,
+      title: row.title || 'Untitled',
+      slug: row.slug || '',
+      richText: row.rich_text || '',
+      featured_image: row.featured_image || null,
+      author: row.author || null,
+      author_image: row.author_image || null,
+      created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      display_order: row.display_order || 0,
+    }))
 
   return {
     items,
-    products: items,
-    totalCount: publicProductsData.length,
+    totalCount,
     currentPage: getCurrentPage(offset, limit),
-    totalPages: Math.ceil(publicProductsData.length / limit)
+    totalPages: Math.ceil(totalCount / limit),
   }
 }
 
-async function getPostsListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number) {
-  let orderByColumn: any = posts.createdAt
-  if (sortBy === 'title') {
-    orderByColumn = posts.title
-  } else if (sortBy === 'display_order') {
-    orderByColumn = posts.displayOrder
-  }
+async function getProductsListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) {
+  const rows = await db.execute<ListingViewsRow>(sql`
+    with filtered as (
+      select
+        p.id,
+        p.title,
+        p.slug,
+        p.featured_image,
+        p.meta_description as rich_text,
+        coalesce(u."displayName", u.name) as author,
+        u.image as author_image,
+        p.created_at,
+        p.display_order
+      from products p
+      inner join sites s on s.id = p.site_id
+      inner join users u on u.id = s.user_id
+      ${getCategoryJoin(categoryIds, 'product', sql`p.id`)}
+      where p.site_id = ${site_id}
+        and p.is_published = true
+        and coalesce(p.content_blocks #>> '{_settings,is_private}', 'false') <> 'true'
+    ),
+    total as (
+      select count(*)::int as total_count from filtered
+    ),
+    paged as (
+      select * from filtered
+      order by ${getOrderByClause(sortBy, sortOrder)}
+      limit ${limit}
+      offset ${offset}
+    )
+    select paged.*, total.total_count
+    from total
+    left join paged on true
+  `)
 
-  const orderFn = sortOrder === 'asc' ? asc : desc
+  const data = mapListingRows(rows.rows, limit, offset)
+  return { ...data, products: data.items }
+}
 
-  const [countResult, rows] = await Promise.all([
-    db.select({ count: sql<number>`count(*)::int` }).from(posts).where(and(eq(posts.siteId, site_id), eq(posts.isPublished, true))),
-    db
-      .select({
-        id: posts.id,
-        title: posts.title,
-        slug: posts.slug,
-        featuredImage: posts.featuredImage,
-        excerpt: posts.excerpt,
-        createdAt: posts.createdAt,
-        displayOrder: posts.displayOrder,
-        authorName: authUsers.name,
-        authorDisplayName: authUsers.displayName,
-        authorImage: authUsers.image,
-      })
-      .from(posts)
-      .innerJoin(sites, eq(sites.id, posts.siteId))
-      .innerJoin(authUsers, eq(authUsers.id, sites.userId))
-      .where(and(eq(posts.siteId, site_id), eq(posts.isPublished, true)))
-      .orderBy(orderFn(orderByColumn))
-      .limit(limit)
-      .offset(offset)
-  ])
+async function getPostsListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) {
+  const rows = await db.execute<ListingViewsRow>(sql`
+    with filtered as (
+      select
+        p.id,
+        p.title,
+        p.slug,
+        p.featured_image,
+        p.excerpt as rich_text,
+        coalesce(u."displayName", u.name) as author,
+        u.image as author_image,
+        p.created_at,
+        p.display_order
+      from posts p
+      inner join sites s on s.id = p.site_id
+      inner join users u on u.id = s.user_id
+      ${getCategoryJoin(categoryIds, 'post', sql`p.id`)}
+      where p.site_id = ${site_id}
+        and p.is_published = true
+    ),
+    total as (
+      select count(*)::int as total_count from filtered
+    ),
+    paged as (
+      select * from filtered
+      order by ${getOrderByClause(sortBy, sortOrder)}
+      limit ${limit}
+      offset ${offset}
+    )
+    select paged.*, total.total_count
+    from total
+    left join paged on true
+  `)
 
-  const items = rows.map(post => ({
-    id: post.id,
-    title: post.title || 'Untitled',
-    slug: post.slug || '',
-    richText: post.excerpt || '',
-    featured_image: post.featuredImage || null,
-    author: post.authorDisplayName || post.authorName || null,
-    author_image: post.authorImage || null,
-    created_at: post.createdAt ? new Date(post.createdAt).toISOString() : new Date().toISOString(),
-    display_order: post.displayOrder || 0
-  }))
-
-  const totalCount = countResult[0]?.count ?? 0
-
-  return {
-    items,
-    posts: items,
-    totalCount,
-    currentPage: getCurrentPage(offset, limit),
-    totalPages: Math.ceil(totalCount / limit)
-  }
+  const data = mapListingRows(rows.rows, limit, offset)
+  return { ...data, posts: data.items }
 }
 
 // Cached listing data function
 const getCachedListingData = unstable_cache(
-  async (site_id: string, contentType: ListingViewsContentType, sortBy: string, sortOrder: string, limit: number, offset: number) => {
+  async (site_id: string, contentType: ListingViewsContentType, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) => {
     if (contentType === 'posts') {
-      return getPostsListingData(site_id, sortBy, sortOrder, limit, offset)
+      return getPostsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
     }
 
-    return getProductsListingData(site_id, sortBy, sortOrder, limit, offset)
+    return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v3'],
+  ['listing-data-v4'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']
@@ -168,6 +193,7 @@ const getCachedListingData = unstable_cache(
 export async function getListingViewsData(params: {
   site_id: string
   contentType: ListingViewsContentType
+  categoryIds?: string[]
   sortBy: 'date' | 'title' | 'display_order'
   sortOrder: 'asc' | 'desc'
   limit?: number
@@ -179,6 +205,7 @@ export async function getListingViewsData(params: {
 }> {
   try {
     const { site_id, contentType, sortBy, sortOrder, limit = 6, offset = 0 } = params
+    const categoryIds = normalizeCategoryIds(params.categoryIds)
 
     if (!site_id) {
       return { success: false, error: 'Site ID is required' }
@@ -189,7 +216,7 @@ export async function getListingViewsData(params: {
     }
 
     // Get cached listing data
-    const data = await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset)
+    const data = await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset, categoryIds)
 
     return {
       success: true,

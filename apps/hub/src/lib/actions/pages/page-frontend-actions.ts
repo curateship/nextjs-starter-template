@@ -148,6 +148,7 @@ async function prefetchListingData(
       try {
         const {
           contentType = 'products',
+          categoryIds = [],
           sortBy = 'date',
           sortOrder = 'desc',
           itemsToShow = 6,
@@ -160,6 +161,7 @@ async function prefetchListingData(
         const result = await getListingViewsData({
           site_id: siteId,
           contentType,
+          categoryIds: Array.isArray(categoryIds) ? categoryIds : [],
           sortBy,
           sortOrder,
           limit,

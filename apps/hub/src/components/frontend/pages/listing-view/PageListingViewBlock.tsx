@@ -34,6 +34,7 @@ interface ListingViewsBlockProps {
     headerAlign?: 'left' | 'center'
     mobileHeaderAlign?: 'left' | 'center'
     contentType?: ListingContentType
+    categoryIds?: string[]
     listingStyle?: ListingStyle
     displayMode?: 'grid' | 'list'
     itemsToShow?: number
@@ -79,6 +80,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     headerAlign = 'left',
     mobileHeaderAlign = 'left',
     contentType = 'products',
+    categoryIds: rawCategoryIds = [],
     listingStyle = 'default',
     displayMode = 'grid',
     itemsToShow = 6,
@@ -97,6 +99,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     viewAllLink = '',
     visibility,
   } = content
+  const categoryIds = Array.isArray(rawCategoryIds) ? rawCategoryIds : []
+  const categoryIdsKey = categoryIds.join('|')
 
   // Extract repeated conditions
   const hasViewAll = viewAllText && viewAllLink && !isPaginated
@@ -143,6 +147,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
       const result = await getListingViewsData({
         site_id: siteId,
         contentType,
+        categoryIds: categoryIdsKey ? categoryIdsKey.split('|') : [],
         sortBy,
         sortOrder,
         limit,
@@ -157,7 +162,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     }
     
     loadData()
-  }, [siteId, contentType, sortBy, sortOrder, itemsToShow, itemsPerPage, isPaginated, currentPage, preloadedData])
+  }, [siteId, contentType, categoryIdsKey, sortBy, sortOrder, itemsToShow, itemsPerPage, isPaginated, currentPage, preloadedData])
 
   const gridColumns = displayMode === 'grid' 
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 

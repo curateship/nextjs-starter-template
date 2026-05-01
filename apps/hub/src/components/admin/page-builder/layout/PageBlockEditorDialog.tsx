@@ -97,6 +97,7 @@ export function PageBlockEditorDialog({
                   onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
                   onMobileHeaderAlignChange={(value) => onContentChange("mobileHeaderAlign", value)}
                   onContentTypeChange={(value) => onContentChange("contentType", value)}
+                  onCategoryIdsChange={(value) => onContentChange("categoryIds", value)}
                   onListingStyleChange={(value) => onContentChange("listingStyle", value)}
                   onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                   onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
@@ -114,6 +115,7 @@ export function PageBlockEditorDialog({
                   onViewAllTextChange={(value) => onContentChange("viewAllText", value)}
                   onViewAllLinkChange={(value) => onContentChange("viewAllLink", value)}
                   onVisibilityChange={(value) => onContentChange("visibility", value)}
+                  siteId={siteId}
                 />
               )}
 

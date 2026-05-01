@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -27,6 +28,7 @@ interface SharedListingViewsBlockProps {
   headerAlign?: 'left' | 'center'
   mobileHeaderAlign?: 'left' | 'center'
   contentType?: ListingContentType
+  categoryIds?: string[]
   listingStyle?: ListingStyle
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
@@ -50,6 +52,7 @@ interface SharedListingViewsBlockProps {
   onHeaderAlignChange: (value: 'left' | 'center') => void
   onMobileHeaderAlignChange: (value: 'left' | 'center') => void
   onContentTypeChange: (value: ListingContentType) => void
+  onCategoryIdsChange: (value: string[]) => void
   onListingStyleChange: (value: ListingStyle) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
@@ -66,6 +69,7 @@ interface SharedListingViewsBlockProps {
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
   onViewAllLinkChange: (value: string) => void
+  siteId: string
   onBack?: () => void
 }
 
@@ -75,6 +79,7 @@ export function PageListingViewBlock({
   headerAlign = 'left',
   mobileHeaderAlign = 'left',
   contentType = 'products',
+  categoryIds = [],
   listingStyle = 'default',
   displayMode = 'grid',
   itemsToShow = 6,
@@ -98,6 +103,7 @@ export function PageListingViewBlock({
   onHeaderAlignChange,
   onMobileHeaderAlignChange,
   onContentTypeChange,
+  onCategoryIdsChange,
   onListingStyleChange,
   onDisplayModeChange,
   onItemsToShowChange,
@@ -114,8 +120,11 @@ export function PageListingViewBlock({
   onItemsPerPageChange,
   onViewAllTextChange,
   onViewAllLinkChange,
+  siteId,
   onBack,
 }: SharedListingViewsBlockProps) {
+  const selectedCategoryIds = Array.isArray(categoryIds) ? categoryIds : []
+
   return (
     <BlockTabs
       onBack={onBack}
@@ -233,6 +242,15 @@ export function PageListingViewBlock({
                   <SelectItem value="posts">Posts</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="min-w-[240px] space-y-2">
+              <Label>Category</Label>
+              <CategoryPicker
+                siteId={siteId}
+                selectedCategoryIds={selectedCategoryIds}
+                onSelectionChange={onCategoryIdsChange}
+              />
             </div>
             
             <div className="space-y-2">
