@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { getSiteForAudit, saveSiteAuditSettings } from '@/lib/actions/site-audit/site-audit-actions'
+import { buildCanonicalUrl, getHomeSeoDescription, getHomeSeoTitle } from '@/lib/utils/seo-helpers'
+import { toCdnUrl } from '@/lib/utils/cdn'
 
 interface SeoSettingsFormTabProps {
   siteId: string
@@ -108,6 +110,66 @@ function getContentTemplateSettings(templates: ContentTemplateState) {
   return settings
 }
 
+function HomePageSearchResultCard({
+  title,
+  description,
+  url,
+}: {
+  title: string
+  description: string
+  url: string
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Home Page Search Result</CardTitle>
+      </CardHeader>
+      <CardContent className="max-w-2xl space-y-1 pt-0">
+        <p className="truncate text-sm text-green-700">{url}</p>
+        <h3 className="text-xl text-blue-700">{title}</h3>
+        <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function HomePageSocialCard({
+  title,
+  description,
+  url,
+  ogImage,
+}: {
+  title: string
+  description: string
+  url: string
+  ogImage: string | null
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Home Page Social Card</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="max-w-xl overflow-hidden rounded-md border bg-background">
+          {ogImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={ogImage} alt="" className="aspect-[1.91/1] w-full object-cover" />
+          ) : (
+            <div className="flex aspect-[1.91/1] items-center justify-center bg-muted text-sm text-muted-foreground">
+              No default image
+            </div>
+          )}
+          <div className="space-y-1 p-4">
+            <p className="truncate text-xs uppercase text-muted-foreground">{new URL(url).host}</p>
+            <h3 className="font-medium">{title}</h3>
+            <p className="line-clamp-2 text-sm text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function SeoSettingsFormTab({
   siteId,
   mode,
@@ -182,6 +244,17 @@ export function SeoSettingsFormTab({
     }
     return site.custom_domain ? `https://${site.custom_domain}` : `https://${site.subdomain}.systemeverything.com`
   }, [canonicalDomain, site])
+
+  const homePreview = useMemo(() => {
+    if (!site) return null
+
+    return {
+      title: homeTitle.trim() || getHomeSeoTitle(site),
+      description: homeDescription.trim() || getHomeSeoDescription(site),
+      url: buildCanonicalUrl(site, '/'),
+      ogImage: ogImage.trim() ? toCdnUrl(ogImage.trim()) : null,
+    }
+  }, [homeDescription, homeTitle, ogImage, site])
 
   const handleSave = async () => {
     if (saving) return
@@ -268,6 +341,14 @@ export function SeoSettingsFormTab({
       )}
       {mode === 'metadata' ? (
         <>
+          {homePreview && (
+            <HomePageSearchResultCard
+              title={homePreview.title}
+              description={homePreview.description}
+              url={homePreview.url}
+            />
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Home Page Title & Description</CardTitle>
@@ -290,7 +371,8 @@ export function SeoSettingsFormTab({
                   value={homeDescription}
                   onChange={(event) => setHomeDescription(event.target.value)}
                   placeholder="Describe the home page for search engines..."
-                  rows={3}
+                  rows={1}
+                  className="h-10 min-h-10 resize-none overflow-hidden"
                 />
                 <p className="text-xs text-muted-foreground">{homeDescription.length}/160 characters</p>
               </div>
@@ -321,13 +403,23 @@ export function SeoSettingsFormTab({
                     value={contentTemplates[card.key].description}
                     onChange={(event) => updateContentTemplate(card.key, 'description', event.target.value)}
                     placeholder={card.defaultDescriptionTemplate}
-                    rows={3}
+                    rows={1}
+                    className="h-10 min-h-10 resize-none overflow-hidden"
                   />
                   <p className="text-xs text-muted-foreground">Used when a {card.itemLabel} does not have its own meta description.</p>
                 </div>
               </CardContent>
             </Card>
           ))}
+
+          {homePreview && (
+            <HomePageSocialCard
+              title={homePreview.title}
+              description={homePreview.description}
+              url={homePreview.url}
+              ogImage={homePreview.ogImage}
+            />
+          )}
 
           <Card>
             <CardHeader>

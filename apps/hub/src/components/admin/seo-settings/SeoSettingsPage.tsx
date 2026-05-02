@@ -13,14 +13,12 @@ import { SiteAuditOverviewTab } from './SiteAuditOverviewTab'
 import { ContentAuditTab } from './ContentAuditTab'
 import { InternalLinksTab } from './InternalLinksTab'
 import { SeoSettingsFormTab } from './SeoSettingsFormTab'
-import { SearchPreviewTab } from './SearchPreviewTab'
 
 const SEO_METADATA_FORM_ID = 'seo-metadata-form'
 const SEO_TECHNICAL_FORM_ID = 'seo-technical-form'
 
 const SEO_TABS = [
   { id: 'metadata', label: 'Metadata', searchPlaceholder: undefined },
-  { id: 'search-preview', label: 'Search Preview', searchPlaceholder: undefined },
   { id: 'site-audit', label: 'Site Audit', searchPlaceholder: 'Search issues' },
   { id: 'content-audit', label: 'Content Audit', searchPlaceholder: 'Search content' },
   { id: 'internal-links', label: 'Internal Links', searchPlaceholder: 'Search links' },
@@ -127,7 +125,6 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
                   onStatusChange={setMetadataStatus}
                 />
               )}
-              {activeTab === 'search-preview' && <SearchPreviewTab siteId={siteId} />}
               {activeTab === 'site-audit' && <SiteAuditOverviewTab siteId={siteId} searchQuery={searchQuery} />}
               {activeTab === 'content-audit' && <ContentAuditTab siteId={siteId} searchQuery={searchQuery} />}
               {activeTab === 'internal-links' && <InternalLinksTab siteId={siteId} searchQuery={searchQuery} />}
