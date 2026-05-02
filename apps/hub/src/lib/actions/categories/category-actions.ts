@@ -2,7 +2,6 @@
 
 import { eq, and, desc, ne, inArray, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
-import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -273,7 +272,7 @@ export async function createCategoryAction(
         parentId: data.parent_id || null,
         featuredImage: data.featured_image || null,
         metaDescription: data.meta_description || null,
-        contentBlocks: applyDefaultBlocks(data.content_blocks, 'categories', (site as any).settings?.default_blocks?.categories),
+        contentBlocks: data.content_blocks || {},
         isPublished: data.is_published ?? false,
         displayOrder: nextDisplayOrder,
       })

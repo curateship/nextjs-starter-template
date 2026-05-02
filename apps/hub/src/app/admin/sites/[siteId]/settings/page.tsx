@@ -321,7 +321,7 @@ const TABS = [
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Providers' },
-  { id: 'content-type-defaults', label: 'Content Type Defaults' },
+  { id: 'enabled-features', label: 'Enabled Features' },
   { id: 'dashboard-quick-links', label: 'Dashboard Quick Links' },
 ] as const
 
@@ -363,7 +363,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [adminSettingsStatus, setAdminSettingsStatus] = useState({ loading: true, saving: false, message: null as string | null })
 
   const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
-  const isAdminSettingsTab = activeTab === 'content-type-defaults' || activeTab === 'dashboard-quick-links'
+  const isAdminSettingsTab = activeTab === 'enabled-features' || activeTab === 'dashboard-quick-links'
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
 
@@ -613,10 +613,10 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                 <IntegrationTab siteId={siteId} category="ai" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
-              {activeTab === 'content-type-defaults' && (
+              {activeTab === 'enabled-features' && (
                 <SiteAdminSettingsTab
                   siteId={siteId}
-                  mode="content-type-defaults"
+                  mode="enabled-features"
                   onStatusChange={setAdminSettingsStatus}
                 />
               )}

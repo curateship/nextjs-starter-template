@@ -4,7 +4,6 @@ import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 export const POST = createResourceHandler({
   entityName: 'Post',
   table: posts,
-  defaultBlocksKey: 'posts',
   revalidateTags: ['listing-views'],
   buildInsertValues: (data, siteId, slug, nextOrder, contentBlocks) => ({
     siteId,

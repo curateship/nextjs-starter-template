@@ -9,7 +9,6 @@ import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
-import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 import { randomUUID } from 'crypto'
 
 export interface Newsletter {
@@ -521,12 +520,7 @@ export async function createNewsletter(input: {
     if (!input.subject?.trim()) return { data: null, error: 'Subject is required' }
 
     const subjectTrimmed = input.subject.trim()
-    const siteRow = await db.query.sites.findFirst({
-      where: eq(sites.id, input.siteId),
-      columns: { settings: true },
-    })
-    const defaultBlocks = (siteRow?.settings as Record<string, any> | undefined)?.default_blocks?.newsletters as string[] | undefined
-    const contentBlocks = applyDefaultBlocks(input.content_blocks, 'newsletters', defaultBlocks)
+    const contentBlocks = input.content_blocks || {}
     const sortedBlocks = getSortedNewsletterBlocks(contentBlocks)
     const maxWidth = input.metadata?.maxWidth || 600
     const generatedContent = sortedBlocks.length > 0

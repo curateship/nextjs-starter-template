@@ -14,7 +14,7 @@ import { normalizeSiteQuickLinks, type SiteQuickLink } from '@/lib/utils/site-qu
 
 interface SiteAdminSettingsTabProps {
   siteId: string
-  mode: 'content-type-defaults' | 'dashboard-quick-links'
+  mode: 'enabled-features' | 'dashboard-quick-links'
   onStatusChange?: (status: { loading: boolean; saving: boolean; message: string | null }) => void
 }
 
@@ -176,7 +176,7 @@ export function SiteAdminSettingsTab({
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
-      {mode === 'content-type-defaults' ? (
+      {mode === 'enabled-features' ? (
         <FeatureTogglesCard
           enabledFeatures={enabledFeatures}
           onEnabledFeaturesChange={setEnabledFeatures}

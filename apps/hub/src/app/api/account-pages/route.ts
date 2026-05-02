@@ -3,7 +3,6 @@ import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { pages, siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
-import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest) {
     // Verify user owns the site
     const site = await db.query.sites.findFirst({
       where: and(eq(sites.id, pageData.site_id), eq(sites.userId, userId)),
-      columns: { id: true, userId: true, settings: true },
+      columns: { id: true, userId: true },
     })
 
     if (!site) {
@@ -116,11 +115,6 @@ export async function POST(request: NextRequest) {
 
     const nextOrder = orderData ? orderData.displayOrder + 1 : 1
 
-    // Create the page
-    const siteSettings = site.settings as Record<string, unknown> | null
-    const defaultBlockSettings = siteSettings?.default_blocks as Record<string, unknown> | undefined
-    const defaultBlocks = defaultBlockSettings?.account_pages
-
     const [newPage] = await db.insert(siteAccountPages)
       .values({
         siteId: pageData.site_id,
@@ -130,7 +124,7 @@ export async function POST(request: NextRequest) {
         isPublished: pageData.is_published !== false,
         displayOrder: nextOrder,
         metaDescription: pageData.meta_description || null,
-        contentBlocks: applyDefaultBlocks(pageData.content_blocks, 'account_pages', defaultBlocks as string[] | undefined),
+        contentBlocks: pageData.content_blocks || {},
       })
       .returning()
 

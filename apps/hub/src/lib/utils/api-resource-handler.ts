@@ -11,7 +11,6 @@ import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
 import { generateSlug } from '@/lib/utils/slug'
-import { applyDefaultBlocks } from '@/lib/utils/default-blocks'
 
 /** Reserved slugs that cannot be used for any content type */
 const RESERVED_SLUGS = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
@@ -38,7 +37,7 @@ async function authenticateRequest(request: NextRequest): Promise<string | NextR
 async function verifySiteOwnership(siteId: string, userId: string) {
   const site = await db.query.sites.findFirst({
     where: and(eq(sites.id, siteId), eq(sites.userId, userId)),
-    columns: { id: true, userId: true, settings: true },
+    columns: { id: true, userId: true },
   })
   if (!site) return jsonError('Site not found or access denied', 403)
   return site
@@ -62,8 +61,6 @@ interface CreateResourceConfig {
   entityName: string
   /** Drizzle table reference */
   table: any
-  /** Optional key for default_blocks in site settings, e.g. "posts" */
-  defaultBlocksKey?: string
   /** Build the insert values from the request data. Receives siteId, slug, nextOrder, contentBlocks. */
   buildInsertValues: (data: any, siteId: string, slug: string, nextOrder: number, contentBlocks: any) => Record<string, any>
   /** Optional response serializer for routes that expose snake_case action shapes. */
@@ -100,7 +97,7 @@ async function getNextDisplayOrder(table: any, siteId: string) {
 
 /**
  * Generic POST handler for creating a content resource.
- * Handles: auth, site ownership, slug generation/validation, uniqueness, display order, default blocks.
+ * Handles: auth, site ownership, slug generation/validation, uniqueness, and display order.
  */
 export function createResourceHandler(config: CreateResourceConfig) {
   return async function POST(request: NextRequest) {
@@ -119,7 +116,6 @@ export function createResourceHandler(config: CreateResourceConfig) {
       /* Site ownership */
       const siteOrError = await verifySiteOwnership(data.site_id, userId)
       if (siteOrError instanceof NextResponse) return siteOrError
-      const site = siteOrError
 
       /* Slug */
       let slug = data.slug || generateSlug(data.title)
@@ -139,14 +135,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
       /* Display order */
       const nextOrder = await getNextDisplayOrder(config.table, data.site_id)
 
-      /* Default blocks */
-      const siteSettings = site.settings as Record<string, unknown> | null
-      const defaultBlocks = config.defaultBlocksKey
-        ? (siteSettings?.default_blocks as Record<string, unknown> | undefined)?.[config.defaultBlocksKey]
-        : undefined
-      const contentBlocks = config.defaultBlocksKey
-        ? applyDefaultBlocks(data.content_blocks, config.defaultBlocksKey, defaultBlocks as string[] | undefined)
-        : data.content_blocks || {}
+      const contentBlocks = data.content_blocks || {}
 
       /* Insert */
       const insertValues = config.buildInsertValues(data, data.site_id, slug, nextOrder, contentBlocks)

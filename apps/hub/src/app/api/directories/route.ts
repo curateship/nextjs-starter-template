@@ -4,7 +4,6 @@ import { createResourceHandler } from '@/lib/utils/api-resource-handler'
 export const POST = createResourceHandler({
   entityName: 'Directory',
   table: directories,
-  defaultBlocksKey: 'directories',
   buildInsertValues: (data, siteId, slug, nextOrder, contentBlocks) => ({
     siteId,
     title: data.title.trim(),
