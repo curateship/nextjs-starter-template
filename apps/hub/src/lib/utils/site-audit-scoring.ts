@@ -60,11 +60,11 @@ export function calculateAuditScore(
   // === Site Settings Score (30 points max) ===
   let siteSettingsScore = 0
 
-  // Site description set (5pt)
-  if (settings.seo_site_description) {
+  // Home page description set (5pt)
+  if (settings.seo_home_description || settings.seo_site_description) {
     siteSettingsScore += 5
   } else {
-    issues.push({ severity: 'warning', message: 'No default site description set', category: 'site_settings', fixAction: 'Set a site-wide meta description in SEO settings' })
+    issues.push({ severity: 'warning', message: 'No home page description set', category: 'site_settings', fixAction: 'Set a home page meta description in SEO settings' })
   }
 
   // Default OG image set (5pt)

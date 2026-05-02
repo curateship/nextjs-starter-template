@@ -1,4 +1,4 @@
-import { SeoSettingsPage } from '@/components/admin/seo-settings/SeoSettingsPage'
+import { SiteToolsPage } from '@/components/admin/seo-settings/SiteToolsPage'
 
 interface SiteToolsRouteProps {
   params: Promise<{
@@ -9,5 +9,5 @@ interface SiteToolsRouteProps {
 export default async function SiteToolsRoute({ params }: SiteToolsRouteProps) {
   const { siteId } = await params
 
-  return <SeoSettingsPage siteId={siteId} />
+  return <SiteToolsPage siteId={siteId} />
 }

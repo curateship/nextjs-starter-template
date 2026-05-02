@@ -60,19 +60,7 @@ export async function generateMetadata() {
       }
     }
 
-    // Get the home page title from blocks
-    const heroBlock = site.blocks?.find(block => block.type === 'hero')
-    const pageTitle = heroBlock?.content?.title || 'Welcome'
-    const pageDescription = heroBlock?.content?.subtitle || ''
-
-    const title = `${pageTitle} | ${site.name}`
-    const description = pageDescription || `Welcome to ${site.name}`
-
-    return {
-      title,
-      description,
-      ...buildSeoMetadata(site, { title: pageTitle, description }, 'home', '/'),
-    }
+    return buildSeoMetadata(site, null, 'home', '/')
   } catch (error) {
     return {
       title: 'Site Not Found',

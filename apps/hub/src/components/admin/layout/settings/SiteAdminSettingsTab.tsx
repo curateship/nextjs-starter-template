@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle } from 'lucide-react'
 import { FeatureTogglesCard } from '@/components/admin/layout/dashboard/FeatureTogglesCard'
 import { QuickLinksSettingsCard } from '@/components/admin/layout/settings/QuickLinksSettingsCard'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,17 +12,17 @@ import {
 } from '@/lib/actions/sites/site-actions'
 import { normalizeSiteQuickLinks, type SiteQuickLink } from '@/lib/utils/site-quick-links'
 
-interface SiteToolsAdminSettingsTabProps {
+interface SiteAdminSettingsTabProps {
   siteId: string
   mode: 'content-type-defaults' | 'dashboard-quick-links'
-  onStatusChange?: (status: { loading: boolean; saving: boolean }) => void
+  onStatusChange?: (status: { loading: boolean; saving: boolean; message: string | null }) => void
 }
 
-export function SiteToolsAdminSettingsTab({
+export function SiteAdminSettingsTab({
   siteId,
   mode,
   onStatusChange,
-}: SiteToolsAdminSettingsTabProps) {
+}: SiteAdminSettingsTabProps) {
   const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
   const contextSite = useMemo(
     () => sites.find((candidate) => candidate.id === siteId) || (currentSite?.id === siteId ? currentSite : null),
@@ -46,8 +45,8 @@ export function SiteToolsAdminSettingsTab({
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    onStatusChange?.({ loading, saving })
-  }, [loading, onStatusChange, saving])
+    onStatusChange?.({ loading, saving, message: saveMessage })
+  }, [loading, onStatusChange, saveMessage, saving])
 
   useEffect(() => {
     if (contextSite) {
@@ -81,7 +80,7 @@ export function SiteToolsAdminSettingsTab({
         setFeatureOrder(result.data.settings?.feature_order || [])
       } catch (loadError) {
         if (!cancelled) {
-          console.error('Error loading site tool settings:', loadError)
+          console.error('Error loading site admin settings:', loadError)
           setError('Failed to load settings')
         }
       } finally {
@@ -131,7 +130,7 @@ export function SiteToolsAdminSettingsTab({
         window.setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (saveError) {
-      console.error('Error saving site tool settings:', saveError)
+      console.error('Error saving site admin settings:', saveError)
       setError('Failed to save settings')
     } finally {
       setSaving(false)
@@ -165,7 +164,7 @@ export function SiteToolsAdminSettingsTab({
 
   return (
     <form
-      id="site-tools-admin-settings-form"
+      id="site-admin-settings-form"
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault()
@@ -177,13 +176,6 @@ export function SiteToolsAdminSettingsTab({
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
-      {saveMessage && (
-        <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <span className="text-sm font-medium text-green-700">{saveMessage}</span>
-        </div>
-      )}
-
       {mode === 'content-type-defaults' ? (
         <FeatureTogglesCard
           enabledFeatures={enabledFeatures}

@@ -32,6 +32,74 @@ interface SeoContent {
 
 // Supported content types for og:type mapping
 type ContentType = 'page' | 'post' | 'product' | 'category' | 'directory' | 'event' | 'home'
+type TemplateContentType = Exclude<ContentType, 'home'>
+
+const CONTENT_SEO_CONFIG: Record<TemplateContentType, {
+  titleSetting: keyof SiteSettings
+  descriptionSetting: keyof SiteSettings
+  titleToken: string
+  defaultTitleTemplate: string
+  defaultDescriptionTemplate: string
+}> = {
+  page: {
+    titleSetting: 'seo_pages_title_template',
+    descriptionSetting: 'seo_pages_description_template',
+    titleToken: 'page_title',
+    defaultTitleTemplate: '{{page_title}} | {{site_title}}',
+    defaultDescriptionTemplate: 'Visit {{page_title}} on {{site_title}}',
+  },
+  post: {
+    titleSetting: 'seo_posts_title_template',
+    descriptionSetting: 'seo_posts_description_template',
+    titleToken: 'post_title',
+    defaultTitleTemplate: '{{post_title}} | {{site_title}}',
+    defaultDescriptionTemplate: 'Read {{post_title}} on {{site_title}}',
+  },
+  product: {
+    titleSetting: 'seo_products_title_template',
+    descriptionSetting: 'seo_products_description_template',
+    titleToken: 'product_title',
+    defaultTitleTemplate: '{{product_title}} | {{site_title}}',
+    defaultDescriptionTemplate: '{{product_title}} from {{site_title}}',
+  },
+  category: {
+    titleSetting: 'seo_categories_title_template',
+    descriptionSetting: 'seo_categories_description_template',
+    titleToken: 'category_title',
+    defaultTitleTemplate: '{{category_title}} | {{site_title}}',
+    defaultDescriptionTemplate: '{{category_title}} on {{site_title}}',
+  },
+  directory: {
+    titleSetting: 'seo_directories_title_template',
+    descriptionSetting: 'seo_directories_description_template',
+    titleToken: 'directory_title',
+    defaultTitleTemplate: '{{directory_title}} | {{site_title}}',
+    defaultDescriptionTemplate: '{{directory_title}} on {{site_title}}',
+  },
+  event: {
+    titleSetting: 'seo_events_title_template',
+    descriptionSetting: 'seo_events_description_template',
+    titleToken: 'event_title',
+    defaultTitleTemplate: '{{event_title}} | {{site_title}}',
+    defaultDescriptionTemplate: '{{event_title}} on {{site_title}}',
+  },
+}
+
+function cleanSeoText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function renderSeoTemplate(template: string, tokens: Record<string, string>): string {
+  return cleanSeoText(
+    template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => tokens[key] || '')
+  )
+    .replace(/^\s*[-|:]\s*/, '')
+    .replace(/\s*[-|:]\s*$/, '')
+    .trim()
+}
 
 /**
  * Build the full site URL (custom domain or subdomain)
@@ -51,22 +119,98 @@ export function buildCanonicalUrl(site: SeoSite, path: string = ''): string {
   return `${cleanBase}${cleanPath}`
 }
 
+export function getSeoSiteTitle(site: SeoSite): string {
+  const title = typeof site.settings?.site_title === 'string'
+    ? site.settings.site_title.trim()
+    : ''
+
+  return title || site.name
+}
+
+export function getHomeSeoTitle(site: SeoSite): string {
+  const title = typeof site.settings?.seo_home_title === 'string'
+    ? site.settings.seo_home_title.trim()
+    : ''
+
+  return title || getSeoSiteTitle(site)
+}
+
+export function getHomeSeoDescription(site: SeoSite): string {
+  const description = typeof site.settings?.seo_home_description === 'string'
+    ? site.settings.seo_home_description.trim()
+    : ''
+
+  if (description) return description
+  if (site.settings?.seo_site_description) return site.settings.seo_site_description
+  return `Visit ${site.name}`
+}
+
+export function resolveSeoTitle(site: SeoSite, content: SeoContent | null): string {
+  const siteTitle = getSeoSiteTitle(site)
+  const contentTitle = typeof content?.title === 'string' ? content.title.trim() : ''
+
+  if (!contentTitle) return siteTitle
+
+  return `${contentTitle} | ${siteTitle}`
+}
+
+function getContentSpecificDescription(content: SeoContent | null): string {
+  const desc = content?.metaDescription || content?.meta_description || content?.description || content?.excerpt
+  return desc ? cleanSeoText(desc) : ''
+}
+
+function getSettingString(settings: SiteSettings | null | undefined, key: keyof SiteSettings): string {
+  const value = settings?.[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function getContentTitle(content: SeoContent | null): string {
+  return typeof content?.title === 'string' ? content.title.trim() : ''
+}
+
+function getTemplateTokens(site: SeoSite, content: SeoContent | null, contentType: TemplateContentType) {
+  const siteTitle = getSeoSiteTitle(site)
+  const contentTitle = getContentTitle(content)
+  const titleToken = CONTENT_SEO_CONFIG[contentType].titleToken
+
+  return {
+    site_title: siteTitle,
+    [titleToken]: contentTitle,
+  }
+}
+
+function resolveContentSeoTitle(site: SeoSite, content: SeoContent | null, contentType: TemplateContentType): string {
+  const config = CONTENT_SEO_CONFIG[contentType]
+  const template = getSettingString(site.settings, config.titleSetting) || config.defaultTitleTemplate
+  const title = renderSeoTemplate(template, getTemplateTokens(site, content, contentType))
+
+  return title || resolveSeoTitle(site, content)
+}
+
+function resolveContentSeoDescription(site: SeoSite, content: SeoContent | null, contentType: TemplateContentType): string {
+  const config = CONTENT_SEO_CONFIG[contentType]
+  const template = getSettingString(site.settings, config.descriptionSetting) || config.defaultDescriptionTemplate
+  const description = renderSeoTemplate(template, getTemplateTokens(site, content, contentType))
+
+  return description || site.settings?.seo_site_description || `Visit ${site.name}`
+}
+
+function getSeoTitle(site: SeoSite, content: SeoContent | null, contentType: ContentType): string {
+  if (contentType === 'home') return getHomeSeoTitle(site)
+  return resolveContentSeoTitle(site, content, contentType)
+}
+
 /**
  * Get the best available description for a content item
  */
 function getContentDescription(site: SeoSite, content: SeoContent | null, contentType: ContentType): string {
-  if (content) {
-    // Try content-specific descriptions in order of preference
-    const desc = content.metaDescription || content.meta_description || content.description || content.excerpt
-    if (desc) {
-      // Strip HTML tags if present
-      return desc.replace(/<[^>]*>/g, '').trim()
-    }
-  }
-  // Fall back to site-level SEO description
-  const settings = site.settings
-  if (settings?.seo_site_description) return settings.seo_site_description
-  return `Visit ${site.name}`
+  if (contentType === 'home') return getHomeSeoDescription(site)
+
+  const contentDescription = getContentSpecificDescription(content)
+  if (contentDescription) return contentDescription
+
+  return resolveContentSeoDescription(site, content, contentType)
+
 }
 
 /**
@@ -104,7 +248,7 @@ export function buildOpenGraph(
   contentType: ContentType,
   path: string = ''
 ): NonNullable<Metadata['openGraph']> {
-  const title = content?.title ? `${content.title} | ${site.name}` : site.name
+  const title = getSeoTitle(site, content, contentType)
   const description = getContentDescription(site, content, contentType)
   const url = buildCanonicalUrl(site, path)
   const image = getContentImage(site, content)
@@ -113,7 +257,7 @@ export function buildOpenGraph(
     title,
     description,
     url,
-    siteName: site.name,
+    siteName: getSeoSiteTitle(site),
     type: getOgType(contentType),
   }
 
@@ -129,12 +273,13 @@ export function buildOpenGraph(
  */
 export function buildTwitterCard(
   site: SeoSite,
-  content: SeoContent | null
+  content: SeoContent | null,
+  contentType: ContentType = 'page'
 ): NonNullable<Metadata['twitter']> {
   const settings = site.settings
   const cardType = settings?.seo_twitter_card_type || 'summary_large_image'
-  const title = content?.title ? `${content.title} | ${site.name}` : site.name
-  const description = getContentDescription(site, content, 'page')
+  const title = getSeoTitle(site, content, contentType)
+  const description = getContentDescription(site, content, contentType)
   const image = getContentImage(site, content)
 
   const twitter: any = {
@@ -167,9 +312,13 @@ export function buildSeoMetadata(
   contentType: ContentType,
   path: string = ''
 ): Partial<Metadata> {
+  const description = getContentDescription(site, content, contentType)
+
   return {
+    title: getSeoTitle(site, content, contentType),
+    description,
     openGraph: buildOpenGraph(site, content, contentType, path),
-    twitter: buildTwitterCard(site, content),
+    twitter: buildTwitterCard(site, content, contentType),
     alternates: {
       canonical: buildCanonicalUrl(site, path),
     },

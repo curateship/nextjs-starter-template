@@ -5,6 +5,7 @@ import { sites, pages, posts, products, categories, directories, events } from '
 import { eq, and, sql, asc, desc } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import type { SiteSeoSettings } from '@/lib/db/schema/sites'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 // ============================================================
 // Types
@@ -362,10 +363,18 @@ export async function saveSiteAuditSettings(siteId: string, seoSettings: SiteSeo
     ...currentSettings,
     ...seoSettings,
   }
+  for (const [key, value] of Object.entries(seoSettings)) {
+    if (value === undefined) delete updatedSettings[key]
+  }
 
   await db.update(sites)
     .set({ settings: updatedSettings, updatedAt: new Date() })
     .where(eq(sites.id, siteId))
+
+  revalidateTag('site-lookup')
+  revalidateTag('page-lookup')
+  revalidateTag('all')
+  revalidatePath('/', 'layout')
 
   return { success: true }
 }

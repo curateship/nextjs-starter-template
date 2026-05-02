@@ -29,6 +29,12 @@ function isExactPathActive(pathname: string, url: string) {
   return pathname === url
 }
 
+function getActiveChildUrl(pathname: string, items: { url: string }[] = []) {
+  return items
+    .filter((item) => isPathActive(pathname, item.url))
+    .sort((a, b) => b.url.length - a.url.length)[0]?.url
+}
+
 export function SidebarDropdown({
   projects,
   title,
@@ -57,9 +63,8 @@ export function SidebarDropdown({
       <SidebarMenu>
         {projects.map((item) => {
           const hasChildren = Boolean(item.items?.length)
-          const hasActiveChild = Boolean(
-            item.items?.some((subItem) => isPathActive(pathname, subItem.url))
-          )
+          const activeChildUrl = getActiveChildUrl(pathname, item.items)
+          const hasActiveChild = Boolean(activeChildUrl)
           const isActive = isExactPathActive(pathname, item.url)
           const isParentActive = isActive || hasActiveChild
 
@@ -106,7 +111,7 @@ export function SidebarDropdown({
                         <SidebarMenuSubItem key={subItem.title}>
                           <SidebarMenuSubButton
                             asChild
-                            isActive={isPathActive(pathname, subItem.url)}
+                            isActive={subItem.url === activeChildUrl}
                           >
                             <Link href={subItem.url} onClick={handleNavClick}>
                               <span>{subItem.title}</span>

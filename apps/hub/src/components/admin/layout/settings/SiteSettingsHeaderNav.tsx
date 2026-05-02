@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Blocks, Check, ChevronDown, Settings2, Wrench } from 'lucide-react'
+import { Blocks, Check, ChevronDown, Search, Settings2, Wrench } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils/tailwind'
 
 interface SiteSettingsHeaderNavProps {
   siteId: string
-  activeSection?: 'general' | 'site-tools' | 'content-types'
+  activeSection?: 'general' | 'seo' | 'site-tools' | 'content-types'
   activeContentTypeSlug?: SiteSettingsContentTypeConfig['slug']
 }
 
@@ -29,6 +29,7 @@ export function SiteSettingsHeaderNav({
   activeContentTypeSlug,
 }: SiteSettingsHeaderNavProps) {
   const isGeneralActive = activeSection === 'general'
+  const isSeoActive = activeSection === 'seo'
   const isSiteToolsActive = activeSection === 'site-tools'
   const isContentTypeActive = activeSection === 'content-types'
   const activeContentType = activeContentTypeSlug
@@ -47,6 +48,17 @@ export function SiteSettingsHeaderNav({
       >
         <Settings2 className="mr-1.5 h-3.5 w-3.5" />
         General Settings
+      </Link>
+
+      <Link
+        href={`/admin/sites/${siteId}/settings/seo`}
+        className={cn(
+          navItemClassName,
+          isSeoActive ? 'bg-muted text-foreground' : 'hover:bg-muted/50'
+        )}
+      >
+        <Search className="mr-1.5 h-3.5 w-3.5" />
+        SEO
       </Link>
 
       <Link

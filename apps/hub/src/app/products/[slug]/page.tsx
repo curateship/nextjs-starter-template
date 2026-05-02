@@ -106,11 +106,7 @@ export async function generateMetadata({ params }: ProductPageProps) {
       }
     }
 
-    return {
-      title: `${product.title} | ${site.name}`,
-      description: product.metaDescription || `${product.title} from ${site.name}`,
-      ...buildSeoMetadata(site, product as any, 'product', `/products/${slug}`),
-    }
+    return buildSeoMetadata(site, product as any, 'product', `/products/${slug}`)
   } catch (error) {
     return {
       title: 'Product Not Found',

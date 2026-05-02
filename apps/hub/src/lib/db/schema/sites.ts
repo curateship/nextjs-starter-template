@@ -5,6 +5,21 @@ import { authUsers } from './auth-users'
 
 // SEO-related fields stored in site settings JSONB
 export interface SiteSeoSettings {
+  site_title?: string                   // Search/display title for the site
+  seo_home_title?: string               // Home page SEO title
+  seo_home_description?: string         // Home page meta description
+  seo_pages_title_template?: string     // Page SEO title template
+  seo_pages_description_template?: string // Page meta description template
+  seo_posts_title_template?: string     // Post SEO title template
+  seo_posts_description_template?: string // Post meta description template
+  seo_products_title_template?: string  // Product page SEO title template
+  seo_products_description_template?: string // Product page meta description template
+  seo_categories_title_template?: string // Category SEO title template
+  seo_categories_description_template?: string // Category meta description template
+  seo_directories_title_template?: string // Directory SEO title template
+  seo_directories_description_template?: string // Directory meta description template
+  seo_events_title_template?: string    // Event SEO title template
+  seo_events_description_template?: string // Event meta description template
   seo_site_description?: string        // Default meta description fallback
   seo_default_og_image?: string         // Default OG image URL
   seo_twitter_card_type?: 'summary' | 'summary_large_image'  // Twitter card type

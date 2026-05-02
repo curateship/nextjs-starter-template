@@ -24,6 +24,7 @@ import { CheckCircle, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteSettingsHeaderNav } from "@/components/admin/layout/settings/SiteSettingsHeaderNav"
+import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
 
 // --- IntegrationCard ---
 
@@ -320,7 +321,8 @@ const TABS = [
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
   { id: 'ai', label: 'AI Providers' },
-  { id: 'seo', label: 'Integration' },
+  { id: 'content-type-defaults', label: 'Content Type Defaults' },
+  { id: 'dashboard-quick-links', label: 'Dashboard Quick Links' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -358,8 +360,12 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [adminSettingsStatus, setAdminSettingsStatus] = useState({ loading: true, saving: false, message: null as string | null })
 
   const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
+  const isAdminSettingsTab = activeTab === 'content-type-defaults' || activeTab === 'dashboard-quick-links'
+  const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
+  const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
 
   const showSuccess = useCallback((message: string) => {
     setSaveMessage(message)
@@ -394,7 +400,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           status: status as 'active' | 'inactive' | 'draft',
           settings: {
             ...site?.settings,
-            site_title: siteName.trim(),
+            site_title: site?.settings?.site_title || siteName.trim(),
             analytics_enabled: false,
             seo_enabled: true,
             maintenance: { enabled: maintenanceEnabled },
@@ -480,20 +486,25 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           <DashboardSubheader
             items={[
               { label: siteName || "Site", href: `/admin/sites/${siteId}/dashboard` },
-              { label: "General Settings" },
+              { label: activeTabConfig.label },
             ]}
             actions={
               <div className="flex items-center gap-2">
-                {saveMessage && (
+                {headerSaveMessage && (
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
                     <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-green-700 text-sm font-medium">{saveMessage}</span>
+                    <span className="text-green-700 text-sm font-medium">{headerSaveMessage}</span>
                   </div>
                 )}
                 <Button
-                  onClick={isSubmitting ? undefined : handleSaveClick}
+                  type={isAdminSettingsTab ? 'submit' : 'button'}
+                  form={isAdminSettingsTab ? 'site-admin-settings-form' : undefined}
+                  disabled={isAdminSettingsTab ? adminSettingsStatus.loading || adminSettingsStatus.saving : isSubmitting}
+                  onClick={isAdminSettingsTab || isSubmitting ? undefined : handleSaveClick}
                 >
-                  {isSubmitting ? "Saving..." : "Save Changes"}
+                  {isAdminSettingsTab
+                    ? adminSettingsStatus.saving ? "Saving..." : "Save Changes"
+                    : isSubmitting ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
             }
@@ -602,8 +613,20 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                 <IntegrationTab siteId={siteId} category="ai" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
-              {activeTab === 'seo' && (
-                <IntegrationTab siteId={siteId} category="seo" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
+              {activeTab === 'content-type-defaults' && (
+                <SiteAdminSettingsTab
+                  siteId={siteId}
+                  mode="content-type-defaults"
+                  onStatusChange={setAdminSettingsStatus}
+                />
+              )}
+
+              {activeTab === 'dashboard-quick-links' && (
+                <SiteAdminSettingsTab
+                  siteId={siteId}
+                  mode="dashboard-quick-links"
+                  onStatusChange={setAdminSettingsStatus}
+                />
               )}
 
             </div>
