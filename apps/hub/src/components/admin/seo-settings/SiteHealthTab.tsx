@@ -1,16 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, AlertTriangle, CheckCircle, Clock, Mail, Shield, XCircle } from 'lucide-react'
+import { CheckCircle, Clock, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSiteSwitcher } from '@/components/admin/layout/providers/site-switcher-provider'
-import { getCronJobs, type CronJob } from '@/lib/actions/cron/cron-actions'
-import {
-  getDeliverabilityReport,
-  type DeliverabilityReport,
-} from '@/lib/actions/newsletters/deliverability-actions'
+import { getCronJobs, toggleCronJob, type CronJob } from '@/lib/actions/cron/cron-actions'
 
 interface SiteHealthTabProps {
   refreshSignal: number
@@ -37,28 +33,23 @@ function timeAgo(dateStr: string | null) {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-function dnsStatusIcon(status: string) {
-  if (status === 'pass') return <CheckCircle className="h-4 w-4 text-green-600" />
-  if (status === 'fail') return <XCircle className="h-4 w-4 text-red-600" />
-  return <AlertTriangle className="h-4 w-4 text-yellow-600" />
+function formatDuration(ms: number | null | undefined) {
+  if (ms === null || ms === undefined) return null
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabProps) {
-  const { currentSite } = useSiteSwitcher()
-  const [report, setReport] = useState<DeliverabilityReport | null>(null)
   const [jobs, setJobs] = useState<CronJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [togglingJobId, setTogglingJobId] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    const [emailResult, cronResult] = await Promise.all([
-      currentSite?.id ? getDeliverabilityReport(currentSite.id) : Promise.resolve({ data: null, error: null }),
-      getCronJobs(),
-    ])
-    if (emailResult.data) setReport(emailResult.data)
+    const cronResult = await getCronJobs()
     if (cronResult.data) setJobs(cronResult.data)
     setLoading(false)
-  }, [currentSite?.id])
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -68,21 +59,19 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
     onLoadingChange?.(loading)
   }, [loading, onLoadingChange])
 
+  async function handleToggle(jobId: string, enabled: boolean) {
+    setTogglingJobId(jobId)
+    setJobs((prev) => prev.map((job) => job.id === jobId ? { ...job, enabled } : job))
+    const { success } = await toggleCronJob(jobId, enabled)
+    if (!success) {
+      setJobs((prev) => prev.map((job) => job.id === jobId ? { ...job, enabled: !enabled } : job))
+    }
+    setTogglingJobId(null)
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((item) => (
-            <Card key={item}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-16" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
         <Card>
           <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
           <CardContent className="space-y-3">
@@ -94,70 +83,10 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
   }
 
   const enabledJobs = jobs.filter((job) => job.enabled).length
-  const failedJobs = jobs.filter((job) => job.lastRun?.status === 'error').length
+  const failedJobs = jobs.filter((job) => job.lastRun?.status && job.lastRun.status !== 'success').length
 
   return (
     <div className="space-y-4">
-      <div className="grid md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Domain Health</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {report?.domain ? (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{report.domain.domain}</span>
-                <div className="flex items-center gap-3">
-                  {(['spf', 'dkim', 'dmarc'] as const).map((record) => (
-                    <div key={record} className="flex items-center gap-1">
-                      {dnsStatusIcon(report.domain![record])}
-                      <span className="text-xs font-medium uppercase">{record}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Not configured</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Emails Sent (30d)</CardTitle>
-            <Mail className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{report?.emailMetrics?.totalSent?.toLocaleString() ?? '-'}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bounce Rate</CardTitle>
-            {report && report.emailMetrics.bounceRate > 2 && <AlertCircle className="h-4 w-4 text-red-500" />}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${report && report.emailMetrics.bounceRate > 2 ? 'text-red-600' : ''}`}>
-              {report?.emailMetrics?.bounceRate ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Complaint Rate</CardTitle>
-            {report && report.emailMetrics.complaintRate > 0.1 && <AlertCircle className="h-4 w-4 text-red-500" />}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${report && report.emailMetrics.complaintRate > 0.1 ? 'text-red-600' : ''}`}>
-              {report?.emailMetrics?.complaintRate ?? '-'}%
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -172,29 +101,51 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
             <div className="space-y-3">
               <div className="mb-4 flex items-center gap-3">
                 <Badge variant="secondary">{jobs.length} total</Badge>
-                <Badge className="bg-green-100 text-green-800">{enabledJobs} running</Badge>
-                {failedJobs > 0 && <Badge variant="destructive">{failedJobs} failed</Badge>}
+                <Badge className="bg-green-100 text-green-800">{enabledJobs} active</Badge>
+                {failedJobs > 0 && <Badge variant="destructive">{failedJobs} last failed</Badge>}
               </div>
 
               {jobs.map((job) => (
-                <div key={job.id} className="flex items-center justify-between border-b py-2 last:border-0">
-                  <div className="flex items-center gap-3">
-                    {job.lastRun?.status === 'success' ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : job.lastRun?.status === 'error' ? (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    ) : (
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className="text-sm font-medium">{job.name}</span>
-                    <Badge variant="secondary" className="font-mono text-xs">{formatSchedule(job.schedule)}</Badge>
+                <div key={job.id} className="flex items-center justify-between gap-4 border-b py-3 last:border-0">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">{job.name}</span>
+                      <Badge variant="secondary" className="font-mono text-xs">{formatSchedule(job.schedule)}</Badge>
+                      <Badge variant={job.enabled ? 'default' : 'secondary'} className="text-xs">
+                        {job.enabled ? 'Active' : 'Stopped'}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                      {job.lastRun?.status === 'success' ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-green-700">
+                          <CheckCircle className="h-4 w-4" />
+                          Last run succeeded
+                        </span>
+                      ) : job.lastRun?.status ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-red-700">
+                          <XCircle className="h-4 w-4" />
+                          Last run failed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          No runs yet
+                        </span>
+                      )}
+                      <span>{timeAgo(job.lastRun?.startedAt ?? job.lastRunAt)}</span>
+                      {job.lastRun?.httpStatus && <span>HTTP {job.lastRun.httpStatus}</span>}
+                      {formatDuration(job.lastRun?.durationMs) && <span>{formatDuration(job.lastRun?.durationMs)}</span>}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    <span>{timeAgo(job.lastRun?.startedAt ?? job.lastRunAt)}</span>
-                    <Badge variant={job.enabled ? 'default' : 'secondary'} className="text-xs">
-                      {job.enabled ? 'Active' : 'Stopped'}
-                    </Badge>
-                  </div>
+                  <Button
+                    variant={job.enabled ? 'destructive' : 'outline'}
+                    size="sm"
+                    onClick={() => handleToggle(job.id, !job.enabled)}
+                    disabled={togglingJobId === job.id}
+                    className="shrink-0"
+                  >
+                    {job.enabled ? 'Stop' : 'Start'}
+                  </Button>
                 </div>
               ))}
             </div>

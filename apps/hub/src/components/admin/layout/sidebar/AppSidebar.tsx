@@ -148,7 +148,6 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
       items: [
         { title: "General Settings", url: currentSite ? `/admin/sites/${currentSite.id}/settings` : "/admin/sites" },
         { title: "SEO", url: currentSite ? `/admin/sites/${currentSite.id}/settings/seo` : "/admin/sites" },
-        { title: "Site Tools", url: currentSite ? `/admin/sites/${currentSite.id}/settings/site-tools` : "/admin/sites" },
       ],
     },
   ]

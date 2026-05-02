@@ -15,16 +15,19 @@ import {
 import type { SiteIntegration } from '@/lib/actions/integrations/integration-actions'
 import { INTEGRATION_REGISTRY, type IntegrationCategory, type IntegrationRegistryEntry } from '@/lib/actions/integrations/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CheckCircle, Eye, EyeOff } from "lucide-react"
+import { AlertTriangle, CheckCircle, Eye, EyeOff, RefreshCw, Shield, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteSettingsHeaderNav } from "@/components/admin/layout/settings/SiteSettingsHeaderNav"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
+import { checkDomainHealth, type DomainHealth } from '@/lib/actions/newsletters/deliverability-actions'
+import { SiteHealthTab } from '@/components/admin/seo-settings/SiteHealthTab'
 
 // --- IntegrationCard ---
 
@@ -307,6 +310,80 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
   )
 }
 
+// --- EmailDomainHealthCard ---
+
+function dnsStatusIcon(status: DomainHealth['spf']) {
+  if (status === 'pass') return <CheckCircle className="h-4 w-4 text-green-600" />
+  if (status === 'fail') return <XCircle className="h-4 w-4 text-red-600" />
+  return <AlertTriangle className="h-4 w-4 text-yellow-600" />
+}
+
+function dnsStatusBadge(status: DomainHealth['spf']) {
+  if (status === 'pass') return <Badge className="bg-green-100 text-green-800">Pass</Badge>
+  if (status === 'fail') return <Badge variant="destructive">Fail</Badge>
+  return <Badge className="bg-yellow-100 text-yellow-800">Missing</Badge>
+}
+
+function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refreshSignal: number }) {
+  const [domainHealth, setDomainHealth] = useState<DomainHealth | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const loadDomainHealth = useCallback(async () => {
+    setLoading(true)
+    const { data } = await checkDomainHealth(siteId)
+    setDomainHealth(data)
+    setLoading(false)
+  }, [siteId])
+
+  useEffect(() => {
+    void loadDomainHealth()
+  }, [loadDomainHealth, refreshSignal])
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Shield className="h-4 w-4" />
+              Domain Health
+            </CardTitle>
+            <CardDescription className="mt-1">SPF, DKIM, and DMARC status for your Resend sender domain.</CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={loadDomainHealth} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {loading ? (
+          <div className="h-12 animate-pulse rounded-md bg-muted" />
+        ) : domainHealth ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sending domain: <span className="font-medium text-foreground">{domainHealth.domain}</span>
+            </p>
+            <div className="grid gap-3 md:grid-cols-3">
+              {(['spf', 'dkim', 'dmarc'] as const).map((record) => (
+                <div key={record} className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    {dnsStatusIcon(domainHealth[record])}
+                    <span className="text-sm font-medium uppercase">{record}</span>
+                  </div>
+                  {dnsStatusBadge(domainHealth[record])}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Configure a from email in Resend settings to check domain health.</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // --- Settings Page ---
 
 interface SiteEditPageProps {
@@ -320,6 +397,7 @@ const TABS = [
   { id: 'style', label: 'Style' },
   { id: 'payments', label: 'Payments' },
   { id: 'email', label: 'Email' },
+  { id: 'cron-jobs', label: 'Cron Jobs' },
   { id: 'ai', label: 'AI Providers' },
   { id: 'enabled-features', label: 'Enabled Features' },
   { id: 'dashboard-quick-links', label: 'Dashboard Quick Links' },
@@ -363,7 +441,11 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [adminSettingsStatus, setAdminSettingsStatus] = useState({ loading: true, saving: false, message: null as string | null })
 
   const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
+  const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
+  const [cronJobsLoading, setCronJobsLoading] = useState(true)
+  const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
   const isAdminSettingsTab = activeTab === 'enabled-features' || activeTab === 'dashboard-quick-links'
+  const isCronJobsTab = activeTab === 'cron-jobs'
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
 
@@ -375,6 +457,11 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const showError = useCallback((message: string) => {
     setError(message)
   }, [])
+
+  const handleEmailIntegrationSuccess = useCallback((message: string) => {
+    showSuccess(message)
+    setDomainHealthRefreshSignal((current) => current + 1)
+  }, [showSuccess])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -496,16 +583,28 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     <span className="text-green-700 text-sm font-medium">{headerSaveMessage}</span>
                   </div>
                 )}
-                <Button
-                  type={isAdminSettingsTab ? 'submit' : 'button'}
-                  form={isAdminSettingsTab ? 'site-admin-settings-form' : undefined}
-                  disabled={isAdminSettingsTab ? adminSettingsStatus.loading || adminSettingsStatus.saving : isSubmitting}
-                  onClick={isAdminSettingsTab || isSubmitting ? undefined : handleSaveClick}
-                >
-                  {isAdminSettingsTab
-                    ? adminSettingsStatus.saving ? "Saving..." : "Save Changes"
-                    : isSubmitting ? "Saving..." : "Save Changes"}
-                </Button>
+                {isCronJobsTab ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={cronJobsLoading}
+                    onClick={() => setCronJobsRefreshSignal((current) => current + 1)}
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${cronJobsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                ) : (
+                  <Button
+                    type={isAdminSettingsTab ? 'submit' : 'button'}
+                    form={isAdminSettingsTab ? 'site-admin-settings-form' : undefined}
+                    disabled={isAdminSettingsTab ? adminSettingsStatus.loading || adminSettingsStatus.saving : isSubmitting}
+                    onClick={isAdminSettingsTab || isSubmitting ? undefined : handleSaveClick}
+                  >
+                    {isAdminSettingsTab
+                      ? adminSettingsStatus.saving ? "Saving..." : "Save Changes"
+                      : isSubmitting ? "Saving..." : "Save Changes"}
+                  </Button>
+                )}
               </div>
             }
           />
@@ -605,8 +704,16 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                       </div>
                     </CardContent>
                   </Card>
-                  <IntegrationTab siteId={siteId} category="email" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
+                  <IntegrationTab siteId={siteId} category="email" saveTrigger={integrationSaveTrigger} onSuccess={handleEmailIntegrationSuccess} onError={showError} />
+                  <EmailDomainHealthCard siteId={siteId} refreshSignal={domainHealthRefreshSignal} />
                 </div>
+              )}
+
+              {activeTab === 'cron-jobs' && (
+                <SiteHealthTab
+                  refreshSignal={cronJobsRefreshSignal}
+                  onLoadingChange={setCronJobsLoading}
+                />
               )}
 
               {activeTab === 'ai' && (

@@ -1,4 +1,4 @@
-import { SiteToolsPage } from '@/components/admin/seo-settings/SiteToolsPage'
+import { redirect } from 'next/navigation'
 
 interface SiteToolsRouteProps {
   params: Promise<{
@@ -9,5 +9,5 @@ interface SiteToolsRouteProps {
 export default async function SiteToolsRoute({ params }: SiteToolsRouteProps) {
   const { siteId } = await params
 
-  return <SiteToolsPage siteId={siteId} />
+  redirect(`/admin/sites/${siteId}/settings?tab=cron-jobs`)
 }
