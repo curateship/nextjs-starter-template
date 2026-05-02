@@ -67,6 +67,7 @@ export interface ProductAnalyticsRow {
   featuredImage: string | null
   views: number
   visitors: number
+  checkoutClicks: number
   orders: number
   freeSignups: number
   paidPurchases: number
@@ -77,6 +78,7 @@ export interface ProductAnalyticsRow {
 export interface ProductAnalyticsTotals {
   totalViews: number
   totalVisitors: number
+  totalCheckoutClicks: number
   totalOrders: number
   totalRevenue: number
 }
@@ -102,6 +104,7 @@ export async function getProductAnalyticsOverview(
         p.featured_image,
         COALESCE(ev.views, 0)::int AS views,
         COALESCE(ev.visitors, 0)::int AS visitors,
+        COALESCE(chk.checkout_clicks, 0)::int AS checkout_clicks,
         COALESCE(ord.total_orders, 0)::int AS orders,
         COALESCE(ord.free_signups, 0)::int AS free_signups,
         COALESCE(ord.paid_purchases, 0)::int AS paid_purchases,
@@ -116,9 +119,22 @@ export async function getProductAnalyticsOverview(
         WHERE site_id = ${siteId}::uuid
           AND created_at >= ${from}::timestamptz
           AND created_at <= ${to}::timestamptz
+          AND event_type = 'pageview'
           AND page_path LIKE '/products/%'
         GROUP BY page_path
       ) ev ON ev.page_path = '/products/' || p.slug
+      LEFT JOIN (
+        SELECT
+          event_data ->> 'product_slug' AS product_slug,
+          COUNT(*)::int AS checkout_clicks
+        FROM analytics_events
+        WHERE site_id = ${siteId}::uuid
+          AND created_at >= ${from}::timestamptz
+          AND created_at <= ${to}::timestamptz
+          AND event_type = 'product_checkout_click'
+          AND COALESCE(event_data ->> 'product_slug', '') <> ''
+        GROUP BY event_data ->> 'product_slug'
+      ) chk ON chk.product_slug = p.slug
       LEFT JOIN (
         SELECT
           product_id,
@@ -146,6 +162,7 @@ export async function getProductAnalyticsOverview(
       featuredImage: r.featured_image,
       views: Number(r.views),
       visitors: Number(r.visitors),
+      checkoutClicks: Number(r.checkout_clicks),
       orders: Number(r.orders),
       freeSignups: Number(r.free_signups),
       paidPurchases: Number(r.paid_purchases),
@@ -156,6 +173,7 @@ export async function getProductAnalyticsOverview(
     const totals: ProductAnalyticsTotals = {
       totalViews: products.reduce((sum, p) => sum + p.views, 0),
       totalVisitors: products.reduce((sum, p) => sum + p.visitors, 0),
+      totalCheckoutClicks: products.reduce((sum, p) => sum + p.checkoutClicks, 0),
       totalOrders: products.reduce((sum, p) => sum + p.orders, 0),
       totalRevenue: products.reduce((sum, p) => sum + p.revenue, 0),
     }
@@ -163,7 +181,7 @@ export async function getProductAnalyticsOverview(
     return { products, totals }
   } catch (err) {
     console.error('Failed to load product analytics overview:', err)
-    return { products: [], totals: { totalViews: 0, totalVisitors: 0, totalOrders: 0, totalRevenue: 0 } }
+    return { products: [], totals: { totalViews: 0, totalVisitors: 0, totalCheckoutClicks: 0, totalOrders: 0, totalRevenue: 0 } }
   }
 }
 
@@ -190,6 +208,7 @@ export async function getProductTrafficOverTime(
       WHERE site_id = ${siteId}::uuid
         AND created_at >= ${from}::timestamptz
         AND created_at <= ${to}::timestamptz
+        AND event_type = 'pageview'
         AND page_path LIKE '/products/%'
       GROUP BY 1
       ORDER BY 1

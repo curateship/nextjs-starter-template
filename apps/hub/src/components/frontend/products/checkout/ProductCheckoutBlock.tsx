@@ -124,7 +124,12 @@ const SinglePricingCard = ({
 
                   <div className="flex justify-center">
                     {checkoutEnabled && tier.stripePriceId && productSlug ? (
-                      <Link href={`/products/${productSlug}/checkout?tier=${tier.id}`}>
+                      <Link
+                        href={`/products/${productSlug}/checkout?tier=${tier.id}`}
+                        data-product-checkout-click="true"
+                        data-product-slug={productSlug}
+                        data-tier-id={tier.id}
+                      >
                         <Button
                           variant={tier.buttonVariant}
                           size="lg"
@@ -252,7 +257,13 @@ const PricingCard = ({
           {/* CTA Button */}
           <div className="mt-auto px-8 pb-8">
             {checkoutEnabled && tier.stripePriceId && productSlug ? (
-              <Link href={`/products/${productSlug}/checkout?tier=${tier.id}`} className="block">
+              <Link
+                href={`/products/${productSlug}/checkout?tier=${tier.id}`}
+                className="block"
+                data-product-checkout-click="true"
+                data-product-slug={productSlug}
+                data-tier-id={tier.id}
+              >
                 <Button variant={tier.buttonVariant} className="w-full py-6 cursor-pointer">
                   {sanitizeText(tier.buttonText)}
                 </Button>

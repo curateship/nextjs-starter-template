@@ -94,6 +94,16 @@ export function AnalyticsTracker() {
         })
       }
 
+      const checkoutElement = target.closest('[data-product-checkout-click="true"]') as HTMLElement | null
+      if (checkoutElement && anchor) {
+        track('product_checkout_click', undefined, {
+          product_slug: checkoutElement.dataset.productSlug,
+          tier_id: checkoutElement.dataset.tierId,
+          href: anchor.href,
+          text: el.textContent?.slice(0, 100) || '',
+        })
+      }
+
       track('click', undefined, {
         element_type: anchor ? 'link' : 'button',
         text: el.textContent?.slice(0, 100) || '',

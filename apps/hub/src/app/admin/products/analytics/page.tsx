@@ -47,6 +47,7 @@ export default function ProductAnalyticsPage() {
   const [totals, setTotals] = useState<ProductAnalyticsTotals>({
     totalViews: 0,
     totalVisitors: 0,
+    totalCheckoutClicks: 0,
     totalOrders: 0,
     totalRevenue: 0,
   })
@@ -102,7 +103,7 @@ export default function ProductAnalyticsPage() {
   })
 
   /* Sorting state for product performance table */
-  type SortColumn = "title" | "views" | "visitors" | "orders" | "conv" | "revenue" | null
+  type SortColumn = "title" | "views" | "visitors" | "checkoutClicks" | "orders" | "conv" | "revenue" | null
   const [sortColumn, setSortColumn] = useState<SortColumn>("views")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
@@ -140,6 +141,7 @@ export default function ProductAnalyticsPage() {
       if (sortColumn === "title") return a.title.localeCompare(b.title) * dir
       if (sortColumn === "views") return (a.views - b.views) * dir
       if (sortColumn === "visitors") return (a.visitors - b.visitors) * dir
+      if (sortColumn === "checkoutClicks") return (a.checkoutClicks - b.checkoutClicks) * dir
       if (sortColumn === "orders") return (a.orders - b.orders) * dir
       if (sortColumn === "revenue") return (a.revenue - b.revenue) * dir
       if (sortColumn === "conv") {
@@ -153,6 +155,7 @@ export default function ProductAnalyticsPage() {
 
   /* Loading skeleton for stat cards */
   const StatSkeleton = () => <div className="h-8 w-20 bg-muted rounded animate-pulse" />
+  const performanceGridClass = "grid grid-cols-[minmax(180px,2fr)_repeat(6,minmax(88px,1fr))] gap-4"
 
   return (
     <>
@@ -263,8 +266,8 @@ export default function ProductAnalyticsPage() {
           <Card className="shadow-sm">
             {/* Table Header */}
             <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-3">
+              <div className={`${performanceGridClass} text-sm font-medium text-muted-foreground`}>
+                <div>
                   <button
                     type="button"
                     onClick={() => toggleSort("title")}
@@ -278,7 +281,7 @@ export default function ProductAnalyticsPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("title")}</span>
                   </button>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <button
                     type="button"
                     onClick={() => toggleSort("views")}
@@ -292,7 +295,7 @@ export default function ProductAnalyticsPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("views")}</span>
                   </button>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <button
                     type="button"
                     onClick={() => toggleSort("visitors")}
@@ -306,7 +309,21 @@ export default function ProductAnalyticsPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("visitors")}</span>
                   </button>
                 </div>
-                <div className="col-span-1">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("checkoutClicks")}
+                    className={cn(
+                      "flex items-center gap-1.5",
+                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                      "cursor-pointer outline-none transition-colors"
+                    )}
+                  >
+                    <span>Check Out</span>
+                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("checkoutClicks")}</span>
+                  </button>
+                </div>
+                <div>
                   <button
                     type="button"
                     onClick={() => toggleSort("orders")}
@@ -320,7 +337,7 @@ export default function ProductAnalyticsPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("orders")}</span>
                   </button>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <button
                     type="button"
                     onClick={() => toggleSort("conv")}
@@ -334,7 +351,7 @@ export default function ProductAnalyticsPage() {
                     <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("conv")}</span>
                   </button>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <button
                     type="button"
                     onClick={() => toggleSort("revenue")}
@@ -357,18 +374,19 @@ export default function ProductAnalyticsPage() {
                 <div className="space-y-0">
                   {[1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="px-6 py-3 border-b border-muted/80">
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-3">
+                      <div className={`${performanceGridClass} items-center`}>
+                        <div>
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 bg-muted rounded animate-pulse shrink-0" />
                             <div className="h-4 bg-muted rounded animate-pulse w-32" />
                           </div>
                         </div>
-                        <div className="col-span-2"><div className="h-4 bg-muted rounded animate-pulse w-16" /></div>
-                        <div className="col-span-2"><div className="h-4 bg-muted rounded animate-pulse w-16" /></div>
-                        <div className="col-span-1"><div className="h-4 bg-muted rounded animate-pulse w-10" /></div>
-                        <div className="col-span-2"><div className="h-4 bg-muted rounded animate-pulse w-14" /></div>
-                        <div className="col-span-2"><div className="h-4 bg-muted rounded animate-pulse w-16" /></div>
+                        <div><div className="h-4 bg-muted rounded animate-pulse w-12" /></div>
+                        <div><div className="h-4 bg-muted rounded animate-pulse w-12" /></div>
+                        <div><div className="h-4 bg-muted rounded animate-pulse w-16" /></div>
+                        <div><div className="h-4 bg-muted rounded animate-pulse w-10" /></div>
+                        <div><div className="h-4 bg-muted rounded animate-pulse w-14" /></div>
+                        <div><div className="h-4 bg-muted rounded animate-pulse w-16" /></div>
                       </div>
                     </div>
                   ))}
@@ -386,8 +404,8 @@ export default function ProductAnalyticsPage() {
 
                   return (
                     <div key={product.id} className="px-6 py-3">
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-3">
+                      <div className={`${performanceGridClass} items-center`}>
+                        <div>
                           <div className="flex items-center gap-3">
                             {product.featuredImage && (
                               <img
@@ -399,19 +417,22 @@ export default function ProductAnalyticsPage() {
                             <span className="font-medium truncate">{product.title}</span>
                           </div>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <span className="text-sm">{product.views.toLocaleString()}</span>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <span className="text-sm">{product.visitors.toLocaleString()}</span>
                         </div>
-                        <div className="col-span-1">
+                        <div>
+                          <span className="text-sm">{product.checkoutClicks.toLocaleString()}</span>
+                        </div>
+                        <div>
                           <span className="text-sm">{product.orders.toLocaleString()}</span>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <span className="text-sm">{convRate}%</span>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <span className="text-sm font-semibold">{formatRevenue(product.revenue)}</span>
                         </div>
                       </div>
