@@ -45,16 +45,25 @@ async function acquireDeliveryLock(newsletterId: string, metadata: Record<string
 
 async function releaseDeliveryLock(
   newsletterId: string,
-  metadata: Record<string, any> | null | undefined,
   token: string,
 ) {
   await db
     .update(newsletters)
-    .set({ metadata: clearDeliveryLock(metadata) })
+    .set({ metadata: sql`coalesce(${newsletters.metadata}, '{}'::jsonb) - 'delivery_lock_token' - 'delivery_lock_started_at'` })
     .where(and(
       eq(newsletters.id, newsletterId),
       sql`${newsletters.metadata}->>'delivery_lock_token' = ${token}`,
     ))
+}
+
+async function isNewsletterPaused(newsletterId: string) {
+  const [row] = await db
+    .select({ status: newsletters.status })
+    .from(newsletters)
+    .where(eq(newsletters.id, newsletterId))
+    .limit(1)
+
+  return row?.status === 'paused'
 }
 
 /**
@@ -233,9 +242,15 @@ export async function GET(request: NextRequest) {
         const baseUrl = process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
 
         let batchSent = 0
+        let pausedDuringBatch = false
 
         for (const contact of batch) {
           try {
+            if (await isNewsletterPaused(newsletter.id)) {
+              pausedDuringBatch = true
+              break
+            }
+
             const unsubToken = generateUnsubscribeToken(newsletter.siteId, contact.email)
             const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.siteId}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}&newsletter=${newsletter.id}`
 
@@ -286,8 +301,21 @@ export async function GET(request: NextRequest) {
         const updatedTotalRecipients = Math.max(preservedTotalRecipients, newTotalSent)
         const remainingUnsentCount = unsent.length - batchSent
         const allDone = remainingUnsentCount === 0
+        if (!pausedDuringBatch && await isNewsletterPaused(newsletter.id)) {
+          pausedDuringBatch = true
+        }
 
-        if (isDrip && !allDone) {
+        if (pausedDuringBatch) {
+          await db
+            .update(newsletters)
+            .set({
+              totalRecipients: updatedTotalRecipients,
+              totalSent: newTotalSent,
+              metadata: sql`coalesce(${newsletters.metadata}, '{}'::jsonb) - 'delivery_lock_token' - 'delivery_lock_started_at'`,
+            })
+            .where(eq(newsletters.id, newsletter.id))
+          lockReleased = true
+        } else if (isDrip && !allDone) {
           // Bounce check
           const [bounceResult] = await db
             .select({ count: sql<number>`count(*)` })
@@ -366,7 +394,7 @@ export async function GET(request: NextRequest) {
         // Skip failed newsletter, will retry next cron tick
       } finally {
         if (!lockReleased) {
-          await releaseDeliveryLock(newsletter.id, meta, lock.token)
+          await releaseDeliveryLock(newsletter.id, lock.token)
         }
       }
     }

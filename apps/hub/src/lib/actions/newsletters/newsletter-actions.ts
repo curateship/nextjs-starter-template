@@ -35,6 +35,13 @@ export interface Newsletter {
   updated_at: string
 }
 
+export interface NewsletterStatusEvent {
+  id: string
+  email: string
+  event: string
+  status: 'OK' | 'Bounced' | 'Unsubscribed' | 'Duplicate'
+}
+
 interface NewsletterBlock {
   id: string
   type: string
@@ -56,7 +63,7 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
-function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: number): Newsletter {
+function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: number, duplicateSendEvents = 0): Newsletter {
   const uniqueSent = row.totalSent ?? 0
   const sendEvents = totalSendEvents ?? uniqueSent
   return {
@@ -73,7 +80,7 @@ function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: numb
     total_recipients: row.totalRecipients ?? 0,
     total_sent: uniqueSent,
     total_send_events: sendEvents,
-    duplicate_send_events: Math.max(sendEvents - uniqueSent, 0),
+    duplicate_send_events: duplicateSendEvents,
     total_opened: row.totalOpened ?? 0,
     total_clicked: row.totalClicked ?? 0,
     total_unsubscribed: totalUnsubscribed,
@@ -148,16 +155,75 @@ async function acquireDeliveryLock(newsletterId: string, metadata: Record<string
 
 async function releaseDeliveryLock(
   newsletterId: string,
-  metadata: Record<string, any> | null | undefined,
   token: string,
 ) {
   await db
     .update(newsletters)
-    .set({ metadata: clearDeliveryLock(metadata) })
+    .set({ metadata: sql`coalesce(${newsletters.metadata}, '{}'::jsonb) - 'delivery_lock_token' - 'delivery_lock_started_at'` })
     .where(and(
       eq(newsletters.id, newsletterId),
       sql`${newsletters.metadata}->>'delivery_lock_token' = ${token}`,
     ))
+}
+
+async function isNewsletterPaused(newsletterId: string) {
+  const [row] = await db
+    .select({ status: newsletters.status })
+    .from(newsletters)
+    .where(eq(newsletters.id, newsletterId))
+    .limit(1)
+
+  return row?.status === 'paused'
+}
+
+async function getConfirmedDuplicateSendCounts(siteId: string, newsletterIds: string[]) {
+  if (!newsletterIds.length) return new Map<string, number>()
+
+  const rows = await db.execute<{ source_id: string; duplicate_count: number }>(sql`
+    with sent_events as (
+      select source_id, contact_id, provider_message_id
+      from newsletter_events
+      where site_id = ${siteId}
+        and source_type = 'broadcast'
+        and event_type = 'sent'
+        and source_id in (${sql.join(newsletterIds.map((id) => sql`${id}`), sql`, `)})
+    ),
+    local_duplicate_rows as (
+      select source_id, sum(event_count - 1)::int as duplicate_count
+      from (
+        select source_id, contact_id, provider_message_id, count(*)::int as event_count
+        from sent_events
+        where contact_id is not null
+          and provider_message_id is not null
+        group by source_id, contact_id, provider_message_id
+        having count(*) > 1
+      ) grouped
+      group by source_id
+    ),
+    actual_duplicate_sends as (
+      select source_id, sum(provider_count - 1)::int as duplicate_count
+      from (
+        select source_id, contact_id, count(distinct provider_message_id)::int as provider_count
+        from sent_events
+        where contact_id is not null
+          and provider_message_id is not null
+        group by source_id, contact_id
+        having count(distinct provider_message_id) > 1
+      ) grouped
+      group by source_id
+    )
+    select
+      ids.source_id::text,
+      (
+        coalesce(local_duplicate_rows.duplicate_count, 0)
+        + coalesce(actual_duplicate_sends.duplicate_count, 0)
+      )::int as duplicate_count
+    from (select unnest(array[${sql.join(newsletterIds.map((id) => sql`${id}`), sql`, `)}]::uuid[]) as source_id) ids
+    left join local_duplicate_rows on local_duplicate_rows.source_id = ids.source_id
+    left join actual_duplicate_sends on actual_duplicate_sends.source_id = ids.source_id
+  `)
+
+  return new Map(rows.rows.map((row) => [row.source_id, Number(row.duplicate_count ?? 0)]))
 }
 
 export async function getNewslettersBySite(
@@ -193,8 +259,8 @@ export async function getNewslettersBySite(
     ])
 
     const newsletterIds = rows.map((row) => row.id)
-    const [unsubscribeRows, sendEventRows] = newsletterIds.length === 0
-      ? [[], []]
+    const [unsubscribeRows, sendEventRows, duplicateSendCounts] = newsletterIds.length === 0
+      ? [[], [], new Map<string, number>()]
       : await Promise.all([
         db
           .select({
@@ -222,6 +288,7 @@ export async function getNewslettersBySite(
             inArray(newsletterEvents.sourceId, newsletterIds),
           ))
           .groupBy(newsletterEvents.sourceId),
+        getConfirmedDuplicateSendCounts(siteId, newsletterIds),
       ])
 
     const unsubscribeCounts = new Map(
@@ -239,6 +306,7 @@ export async function getNewslettersBySite(
         row,
         unsubscribeCounts.get(row.id) ?? 0,
         sendEventCounts.get(row.id) ?? (row.totalSent ?? 0),
+        duplicateSendCounts.get(row.id) ?? 0,
       )),
       total: countResult[0]?.count ?? 0,
       error: null,
@@ -293,7 +361,7 @@ export async function getNewsletterById(
       return { data: null, error: 'Access denied' }
     }
 
-    const [sendEventRow, unsubscribeRow] = await Promise.all([
+    const [sendEventRow, unsubscribeRow, duplicateSendCounts] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(newsletterEvents)
@@ -314,6 +382,7 @@ export async function getNewsletterById(
           eq(newsletterEvents.sourceId, row.id),
         ))
         .limit(1),
+      getConfirmedDuplicateSendCounts(row.siteId, [row.id]),
     ])
 
     return {
@@ -321,11 +390,111 @@ export async function getNewsletterById(
         row,
         unsubscribeRow[0]?.count ?? 0,
         sendEventRow[0]?.count ?? (row.totalSent ?? 0),
+        duplicateSendCounts.get(row.id) ?? 0,
       ),
       error: null,
     }
   } catch (err) {
     console.error('getNewsletterById error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
+export async function getNewsletterStatusEvents(
+  newsletterId: string,
+): Promise<{ data: NewsletterStatusEvent[] | null; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid newsletter ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const [newsletter] = await db
+      .select({ id: newsletters.id, siteId: newsletters.siteId })
+      .from(newsletters)
+      .where(eq(newsletters.id, newsletterId))
+      .limit(1)
+
+    if (!newsletter) return { data: null, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(newsletter.siteId, user.id)) return { data: null, error: 'Access denied' }
+
+    const rows = await db.execute<{
+      id: string
+      email: string | null
+      event: string
+      status: NewsletterStatusEvent['status']
+    }>(sql`
+      with sent_message_counts as (
+        select
+          contact_id,
+          provider_message_id,
+          count(*) as rows_for_message
+        from newsletter_events
+        where site_id = ${newsletter.siteId}
+          and source_type = 'broadcast'
+          and source_id = ${newsletterId}
+          and event_type = 'sent'
+        group by contact_id, provider_message_id
+      ),
+      sent_contact_counts as (
+        select
+          contact_id,
+          count(distinct provider_message_id) as provider_messages_for_contact
+        from newsletter_events
+        where site_id = ${newsletter.siteId}
+          and source_type = 'broadcast'
+          and source_id = ${newsletterId}
+          and event_type = 'sent'
+          and provider_message_id is not null
+        group by contact_id
+      )
+      select
+        e.id::text,
+        c.email,
+        e.event_type as event,
+        case
+          when e.event_type = 'bounced' then 'Bounced'
+          when e.event_type = 'unsubscribed' then 'Unsubscribed'
+          when e.event_type = 'sent'
+            and coalesce(smc.rows_for_message, 0) > 1 then 'Duplicate'
+          when e.event_type = 'sent'
+            and coalesce(scc.provider_messages_for_contact, 0) > 1 then 'Duplicate'
+          else 'OK'
+        end as status
+      from newsletter_events e
+      left join newsletter_contacts c on c.id = e.contact_id
+      left join sent_message_counts smc
+        on smc.contact_id is not distinct from e.contact_id
+        and smc.provider_message_id is not distinct from e.provider_message_id
+      left join sent_contact_counts scc
+        on scc.contact_id is not distinct from e.contact_id
+      where e.site_id = ${newsletter.siteId}
+        and e.source_type = 'broadcast'
+        and e.source_id = ${newsletterId}
+      order by
+        case
+          when e.event_type in ('bounced', 'unsubscribed') then 0
+          when e.event_type = 'sent' and (
+            coalesce(smc.rows_for_message, 0) > 1
+            or coalesce(scc.provider_messages_for_contact, 0) > 1
+          ) then 1
+          else 2
+        end,
+        e.created_at desc
+      limit 500
+    `)
+
+    return {
+      data: rows.rows.map((row) => ({
+        id: row.id,
+        email: row.email || 'Unknown contact',
+        event: row.event,
+        status: row.status,
+      })),
+      error: null,
+    }
+  } catch (err) {
+    console.error('getNewsletterStatusEvents error:', err)
     return { data: null, error: 'Server error' }
   }
 }
@@ -629,9 +798,15 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
 
       let totalSent = 0
       const errors: string[] = []
+      let pausedDuringSend = false
 
       for (const contact of contactsToSend) {
         try {
+          if (await isNewsletterPaused(newsletterId)) {
+            pausedDuringSend = true
+            break
+          }
+
           const unsubToken = generateUnsubscribeToken(newsletter.site_id, contact.email)
           const unsubUrl = `${baseUrl}/unsubscribe?site=${newsletter.site_id}&email=${encodeURIComponent(contact.email)}&token=${unsubToken}&newsletter=${newsletterId}`
 
@@ -666,8 +841,20 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
           errors.push(contact.email)
         }
       }
+      if (!pausedDuringSend && await isNewsletterPaused(newsletterId)) {
+        pausedDuringSend = true
+      }
 
-      if (isDrip && contacts.length > contactsToSend.length) {
+      if (pausedDuringSend) {
+        await db
+          .update(newsletters)
+          .set({
+            totalRecipients: contacts.length,
+            totalSent,
+            metadata: sql`coalesce(${newsletters.metadata}, '{}'::jsonb) - 'delivery_lock_token' - 'delivery_lock_started_at'`,
+          })
+          .where(eq(newsletters.id, newsletterId))
+      } else if (isDrip && contacts.length > contactsToSend.length) {
         // Drip mode: set next batch time, keep status as 'sending'
         const intervalMin = dripConfig.interval_min_minutes || 30
         const intervalMax = dripConfig.interval_max_minutes || 60
@@ -710,7 +897,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       return { success: true, error: null }
     } finally {
       if (!lockReleased) {
-        await releaseDeliveryLock(newsletterId, baseMetadata, lock.token)
+        await releaseDeliveryLock(newsletterId, lock.token)
       }
     }
   } catch (err) {

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  AdminModalBody,
   AdminModalContent,
   AdminModalHeader,
   AdminModalTitle,
@@ -26,7 +27,8 @@ const NewsletterSettingsModal = dynamic(() =>
   { ssr: false }
 )
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
-import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
+import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction, getNewsletterStatusEvents } from "@/lib/actions/newsletters/newsletter-actions"
+import type { NewsletterStatusEvent } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, Users, Zap, FileText, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -128,6 +130,13 @@ function getDeliveryChips(newsletter: Newsletter) {
   return chips
 }
 
+function getStatusEventBadge(status: NewsletterStatusEvent['status']) {
+  if (status === 'Duplicate') return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Duplicate</Badge>
+  if (status === 'Bounced') return <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Bounced</Badge>
+  if (status === 'Unsubscribed') return <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">Unsubscribed</Badge>
+  return <Badge variant="secondary">OK</Badge>
+}
+
 export default function NewslettersPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const router = useRouter()
@@ -136,6 +145,9 @@ export default function NewslettersPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createActiveTab, setCreateActiveTab] = useState("general")
   const [settingsNewsletterId, setSettingsNewsletterId] = useState<string | null>(null)
+  const [statusNewsletterId, setStatusNewsletterId] = useState<string | null>(null)
+  const [statusEvents, setStatusEvents] = useState<NewsletterStatusEvent[]>([])
+  const [statusEventsLoading, setStatusEventsLoading] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -193,6 +205,32 @@ export default function NewslettersPage() {
 
     return () => window.clearInterval(interval)
   }, [hasSendingNewsletter, loadNewsletters])
+
+  useEffect(() => {
+    if (!statusNewsletterId) {
+      setStatusEvents([])
+      return
+    }
+
+    let cancelled = false
+    setStatusEventsLoading(true)
+
+    getNewsletterStatusEvents(statusNewsletterId).then((result) => {
+      if (cancelled) return
+      if (result.error) {
+        setErrorMessage(result.error)
+        setErrorDialogOpen(true)
+        setStatusEvents([])
+      } else {
+        setStatusEvents(result.data ?? [])
+      }
+      setStatusEventsLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [statusNewsletterId])
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id)
@@ -650,6 +688,14 @@ export default function NewslettersPage() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2"
+                          onClick={() => setStatusNewsletterId(newsletter.id)}
+                        >
+                          Status
+                        </Button>
+                        <Button
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
@@ -726,6 +772,36 @@ export default function NewslettersPage() {
               setNewsletters((prev) => prev.map((n) => (n.id === updated.id ? updated : n)))
             }}
           />
+
+          <Dialog open={statusNewsletterId !== null} onOpenChange={(open) => setStatusNewsletterId(open ? statusNewsletterId : null)}>
+            <AdminModalContent size="wide">
+              <AdminModalHeader>
+                <AdminModalTitle>Status</AdminModalTitle>
+              </AdminModalHeader>
+              <AdminModalBody className="pb-6">
+                <div className="overflow-hidden rounded-md border">
+                  <div className="grid grid-cols-3 gap-4 border-b bg-muted/40 px-4 py-2 text-sm font-medium text-muted-foreground">
+                    <div>Email</div>
+                    <div>Event</div>
+                    <div>Status</div>
+                  </div>
+                  <div className="max-h-[560px] overflow-y-auto divide-y">
+                    {statusEventsLoading ? (
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading status events...</div>
+                    ) : statusEvents.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">No events found.</div>
+                    ) : statusEvents.map((event) => (
+                      <div key={event.id} className="grid grid-cols-3 gap-4 px-4 py-3 text-sm">
+                        <div className="min-w-0 truncate">{event.email}</div>
+                        <div className="capitalize text-muted-foreground">{event.event}</div>
+                        <div>{getStatusEventBadge(event.status)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </AdminModalBody>
+            </AdminModalContent>
+          </Dialog>
 
           {/* Confirmation Dialog */}
           {confirmDialogOpen && (
