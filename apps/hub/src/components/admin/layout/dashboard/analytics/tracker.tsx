@@ -22,6 +22,17 @@ function getSessionId(): string {
   return sid
 }
 
+function getPageContentData(): Record<string, unknown> | undefined {
+  const element = document.querySelector<HTMLElement>('[data-analytics-content-type]')
+  if (!element?.dataset.analyticsContentType) return undefined
+
+  return {
+    content_type: element.dataset.analyticsContentType,
+    content_id: element.dataset.analyticsContentId,
+    content_slug: element.dataset.analyticsContentSlug,
+  }
+}
+
 export function AnalyticsTracker() {
   const pathname = usePathname()
   const queue = useRef<AnalyticsEvent[]>([])
@@ -97,18 +108,16 @@ export function AnalyticsTracker() {
       const checkoutElement = target.closest('[data-product-checkout-click="true"]') as HTMLElement | null
       if (checkoutElement && anchor) {
         track('product_checkout_click', undefined, {
+          content_type: 'product',
+          content_id: checkoutElement.dataset.productId,
+          content_slug: checkoutElement.dataset.productSlug,
+          product_id: checkoutElement.dataset.productId,
           product_slug: checkoutElement.dataset.productSlug,
           tier_id: checkoutElement.dataset.tierId,
           href: anchor.href,
           text: el.textContent?.slice(0, 100) || '',
         })
       }
-
-      track('click', undefined, {
-        element_type: anchor ? 'link' : 'button',
-        text: el.textContent?.slice(0, 100) || '',
-        href: anchor?.href || undefined,
-      })
     }
     document.addEventListener('click', handleClick, { capture: true })
 
@@ -126,7 +135,7 @@ export function AnalyticsTracker() {
     if (pathname === lastPath.current) return
     if (pathname.startsWith('/admin')) return
     lastPath.current = pathname
-    track('pageview', pathname + window.location.search)
+    track('pageview', pathname + window.location.search, getPageContentData())
   }, [pathname, track])
 
   useEffect(() => {

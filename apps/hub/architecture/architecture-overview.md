@@ -106,6 +106,11 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - The relevant schema leaf file in `src/lib/db/schema/`
 - The matching action file in `src/lib/actions/**`
 
+**Analytics retention:**
+- `analytics_events` is the recent raw event log.
+- `analytics_daily_events` and `analytics_daily_visitors` are generic daily rollups for long-term dashboard queries.
+- Product analytics is the first dashboard reader moved to these rollups; future content dashboards should reuse the same rollup shape.
+
 ### Frontend Rendering
 
 **Layout hierarchy:**

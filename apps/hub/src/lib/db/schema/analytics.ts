@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, integer, boolean, jsonb, timestamp, index, date, uniqueIndex } from 'drizzle-orm/pg-core'
 import { sites } from './sites'
 
 export const analyticsEvents = pgTable('analytics_events', {
@@ -42,4 +42,41 @@ export const analyticsSessions = pgTable('analytics_sessions', {
 }, (table) => [
   index('idx_analytics_sessions_site_started').on(table.siteId, table.startedAt),
   index('idx_analytics_sessions_site_referrer').on(table.siteId, table.referrerDomain),
+])
+
+export const analyticsDailyEvents = pgTable('analytics_daily_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  day: date('day').notNull(),
+  contentKey: text('content_key').notNull(),
+  contentType: text('content_type').notNull(),
+  contentId: text('content_id'),
+  contentSlug: text('content_slug'),
+  pagePath: text('page_path'),
+  eventType: text('event_type').notNull(),
+  count: integer('count').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('idx_analytics_daily_events_unique').on(table.siteId, table.day, table.contentKey, table.eventType),
+  index('idx_analytics_daily_events_site_day').on(table.siteId, table.day),
+  index('idx_analytics_daily_events_content').on(table.siteId, table.contentType, table.contentId, table.day),
+  index('idx_analytics_daily_events_path').on(table.siteId, table.pagePath, table.day),
+])
+
+export const analyticsDailyVisitors = pgTable('analytics_daily_visitors', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  day: date('day').notNull(),
+  contentKey: text('content_key').notNull(),
+  contentType: text('content_type').notNull(),
+  contentId: text('content_id'),
+  contentSlug: text('content_slug'),
+  pagePath: text('page_path'),
+  visitorHash: text('visitor_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('idx_analytics_daily_visitors_unique').on(table.siteId, table.day, table.contentKey, table.visitorHash),
+  index('idx_analytics_daily_visitors_site_day').on(table.siteId, table.day),
+  index('idx_analytics_daily_visitors_content').on(table.siteId, table.contentType, table.contentId, table.day),
 ])
