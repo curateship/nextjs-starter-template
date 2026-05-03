@@ -89,24 +89,17 @@ function getDripStatusLabel(newsletter: Newsletter) {
   return 'Sending'
 }
 
-function getDripRowChips(newsletter: Newsletter) {
+function getNextBatchLabel(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
-  const batchesSent = dripConfig?.batches_sent || 0
-  const totalBounced = dripConfig?.total_bounced || 0
-  const batchLabel = batchesSent === 1 ? 'batch' : 'batches'
 
-  return [
-    {
-      key: 'batches',
-      label: `${batchesSent} ${batchLabel}`,
-      className: 'bg-muted/40 text-muted-foreground',
-    },
-    {
-      key: 'bounced',
-      label: `${totalBounced} bounced`,
-      className: 'border-red-200 bg-red-50 text-red-700',
-    },
-  ]
+  if (newsletter.status !== 'sending' || dripConfig?.enabled !== true || typeof dripConfig?.next_batch_at !== 'string') {
+    return null
+  }
+
+  const nextBatchAt = new Date(dripConfig.next_batch_at)
+  if (nextBatchAt <= new Date()) return null
+
+  return `Next batch: ${nextBatchAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
 }
 
 function getDeliveryChips(newsletter: Newsletter) {
@@ -115,28 +108,47 @@ function getDeliveryChips(newsletter: Newsletter) {
   if (newsletter.total_send_events > 0) {
     chips.push({
       key: 'delivery-summary',
-      label: `${newsletter.total_send_events.toLocaleString()} send events to ${newsletter.total_recipients.toLocaleString()} original audience`,
+      label: `${newsletter.total_send_events.toLocaleString()} of ${newsletter.total_recipients.toLocaleString()} sent`,
       className: 'bg-muted/40 text-muted-foreground',
-    })
-  }
-
-  if (newsletter.total_sent > 0) {
-    chips.push({
-      key: 'unique-sent',
-      label: `${newsletter.total_sent.toLocaleString()} unique sent`,
-      className: 'bg-muted/40 text-muted-foreground',
-    })
-  }
-
-  if (newsletter.duplicate_send_events > 0) {
-    chips.push({
-      key: 'duplicate-events',
-      label: `${newsletter.duplicate_send_events.toLocaleString()} ${newsletter.duplicate_send_events === 1 ? 'duplicate' : 'duplicates'}`,
-      className: 'border-orange-200 bg-orange-50 text-orange-700',
     })
   }
 
   return chips
+}
+
+function getSentStatsChips(newsletter: Newsletter) {
+  return [
+    {
+      key: 'sent',
+      label: `${newsletter.total_sent.toLocaleString()} sent`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'opened',
+      label: `${newsletter.total_opened.toLocaleString()} opened`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'clicked',
+      label: `${newsletter.total_clicked.toLocaleString()} clicked`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'unsubscribed',
+      label: `${newsletter.total_unsubscribed.toLocaleString()} unsubscribed`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'bounced',
+      label: `${newsletter.total_bounced.toLocaleString()} bounced`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+    {
+      key: 'duplicates',
+      label: `${newsletter.duplicate_send_events.toLocaleString()} duplicates`,
+      className: 'bg-muted/40 text-muted-foreground',
+    },
+  ]
 }
 
 const STATUS_EVENTS_PAGE_SIZE = 50
@@ -687,7 +699,7 @@ export default function NewslettersPage() {
                             >
                               <h4 className="font-medium hover:underline">{newsletter.subject}</h4>
                             </Link>
-                            <div className="mt-1.5 flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden">
+                            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
                               {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
                                 <>
                                   <button
@@ -710,12 +722,12 @@ export default function NewslettersPage() {
                                   <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-medium">
                                     {getDripStatusLabel(newsletter)}
                                   </Badge>
-                                  {getDeliveryChips(newsletter).map((chip) => (
-                                    <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
-                                      {chip.label}
+                                  {getNextBatchLabel(newsletter) ? (
+                                    <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-normal">
+                                      {getNextBatchLabel(newsletter)}
                                     </Badge>
-                                  ))}
-                                  {getDripRowChips(newsletter).map((chip) => (
+                                  ) : null}
+                                  {getDeliveryChips(newsletter).map((chip) => (
                                     <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
                                       {chip.label}
                                     </Badge>
@@ -725,7 +737,7 @@ export default function NewslettersPage() {
                               {!(newsletter.status === 'sending' || newsletter.status === 'paused') || !newsletter.metadata?.drip_config?.enabled ? (
                                 <>
                                   {getStatusBadge(newsletter)}
-                                  {getDeliveryChips(newsletter).map((chip) => (
+                                  {(newsletter.status === 'sent' ? getSentStatsChips(newsletter) : getDeliveryChips(newsletter)).map((chip) => (
                                     <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
                                       {chip.label}
                                     </Badge>

@@ -29,6 +29,7 @@ export interface Newsletter {
   total_opened: number
   total_clicked: number
   total_unsubscribed: number
+  total_bounced: number
   metadata: Record<string, any>
   created_at: string
   updated_at: string
@@ -70,7 +71,7 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
-function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: number, duplicateSendEvents = 0): Newsletter {
+function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: number, duplicateSendEvents = 0, totalBounced = 0): Newsletter {
   const uniqueSent = row.totalSent ?? 0
   const sendEvents = totalSendEvents ?? uniqueSent
   return {
@@ -91,6 +92,7 @@ function rowToNewsletter(row: any, totalUnsubscribed = 0, totalSendEvents?: numb
     total_opened: row.totalOpened ?? 0,
     total_clicked: row.totalClicked ?? 0,
     total_unsubscribed: totalUnsubscribed,
+    total_bounced: totalBounced,
     metadata: row.metadata ?? {},
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
@@ -266,8 +268,8 @@ export async function getNewslettersBySite(
     ])
 
     const newsletterIds = rows.map((row) => row.id)
-    const [unsubscribeRows, sendEventRows, duplicateSendCounts] = newsletterIds.length === 0
-      ? [[], [], new Map<string, number>()]
+    const [unsubscribeRows, bouncedRows, sendEventRows, duplicateSendCounts] = newsletterIds.length === 0
+      ? [[], [], [], new Map<string, number>()]
       : await Promise.all([
         db
           .select({
@@ -279,6 +281,19 @@ export async function getNewslettersBySite(
             eq(newsletterEvents.siteId, siteId),
             eq(newsletterEvents.sourceType, 'broadcast'),
             eq(newsletterEvents.eventType, 'unsubscribed'),
+            inArray(newsletterEvents.sourceId, newsletterIds),
+          ))
+          .groupBy(newsletterEvents.sourceId),
+        db
+          .select({
+            sourceId: newsletterEvents.sourceId,
+            count: sql<number>`count(*)::int`,
+          })
+          .from(newsletterEvents)
+          .where(and(
+            eq(newsletterEvents.siteId, siteId),
+            eq(newsletterEvents.sourceType, 'broadcast'),
+            eq(newsletterEvents.eventType, 'bounced'),
             inArray(newsletterEvents.sourceId, newsletterIds),
           ))
           .groupBy(newsletterEvents.sourceId),
@@ -303,6 +318,11 @@ export async function getNewslettersBySite(
         .filter((row) => row.sourceId)
         .map((row) => [row.sourceId as string, row.count]),
     )
+    const bouncedCounts = new Map(
+      bouncedRows
+        .filter((row) => row.sourceId)
+        .map((row) => [row.sourceId as string, row.count]),
+    )
     const sendEventCounts = new Map(
       sendEventRows
         .filter((row) => row.sourceId)
@@ -314,6 +334,7 @@ export async function getNewslettersBySite(
         unsubscribeCounts.get(row.id) ?? 0,
         sendEventCounts.get(row.id) ?? (row.totalSent ?? 0),
         duplicateSendCounts.get(row.id) ?? 0,
+        bouncedCounts.get(row.id) ?? 0,
       )),
       total: countResult[0]?.count ?? 0,
       error: null,
@@ -368,7 +389,7 @@ export async function getNewsletterById(
       return { data: null, error: 'Access denied' }
     }
 
-    const [sendEventRow, unsubscribeRow, duplicateSendCounts] = await Promise.all([
+    const [sendEventRow, unsubscribeRow, bouncedRow, duplicateSendCounts] = await Promise.all([
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(newsletterEvents)
@@ -389,6 +410,16 @@ export async function getNewsletterById(
           eq(newsletterEvents.sourceId, row.id),
         ))
         .limit(1),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(newsletterEvents)
+        .where(and(
+          eq(newsletterEvents.siteId, row.siteId),
+          eq(newsletterEvents.sourceType, 'broadcast'),
+          eq(newsletterEvents.eventType, 'bounced'),
+          eq(newsletterEvents.sourceId, row.id),
+        ))
+        .limit(1),
       getConfirmedDuplicateSendCounts(row.siteId, [row.id]),
     ])
 
@@ -398,6 +429,7 @@ export async function getNewsletterById(
         unsubscribeRow[0]?.count ?? 0,
         sendEventRow[0]?.count ?? (row.totalSent ?? 0),
         duplicateSendCounts.get(row.id) ?? 0,
+        bouncedRow[0]?.count ?? 0,
       ),
       error: null,
     }
@@ -431,53 +463,67 @@ export async function getNewsletterStatusEvents(
     const offset = (page - 1) * pageSize
     const allowedFilters = new Set<NewsletterStatusEventFilter>(['all', 'bounced', 'unsubscribed', 'opened', 'clicked', 'duplicates'])
     const eventFilter = allowedFilters.has(options?.eventFilter ?? 'all') ? options?.eventFilter ?? 'all' : 'all'
-    const duplicateCondition = sql`
-      e.event_type = 'sent'
-      and (
-        coalesce(smc.rows_for_message, 0) > 1
-        or coalesce(scc.provider_messages_for_contact, 0) > 1
-      )
-    `
     const filterCondition =
       eventFilter === 'all'
         ? sql``
         : eventFilter === 'duplicates'
-          ? sql`and ${duplicateCondition}`
+          ? sql`and e.is_duplicate_send = true`
           : sql`and e.event_type = ${eventFilter}`
 
-    const baseEvents = sql`
-      from newsletter_events e
-      left join newsletter_contacts c on c.id = e.contact_id
-      left join (
+    const eventRowsCte = sql`
+      with scoped_events as (
+        select *
+        from newsletter_events
+        where site_id = ${newsletter.siteId}
+          and source_type = 'broadcast'
+          and source_id = ${newsletterId}
+      ),
+      sent_ranked as (
         select
+          id,
           contact_id,
           provider_message_id,
-          count(*) as rows_for_message
-        from newsletter_events
-        where site_id = ${newsletter.siteId}
-          and source_type = 'broadcast'
-          and source_id = ${newsletterId}
-          and event_type = 'sent'
-        group by contact_id, provider_message_id
-      ) smc
-        on smc.contact_id is not distinct from e.contact_id
-        and smc.provider_message_id is not distinct from e.provider_message_id
-      left join (
-        select
-          contact_id,
-          count(distinct provider_message_id) as provider_messages_for_contact
-        from newsletter_events
-        where site_id = ${newsletter.siteId}
-          and source_type = 'broadcast'
-          and source_id = ${newsletterId}
-          and event_type = 'sent'
+          created_at,
+          row_number() over (
+            partition by contact_id, provider_message_id
+            order by created_at asc, id asc
+          ) as message_row_number
+        from scoped_events
+        where event_type = 'sent'
+          and contact_id is not null
           and provider_message_id is not null
-        group by contact_id
-      ) scc
-        on scc.contact_id is not distinct from e.contact_id
-      where e.site_id = ${newsletter.siteId}
-        and e.source_type = 'broadcast'
-        and e.source_id = ${newsletterId}
+      ),
+      canonical_sent_messages as (
+        select
+          id,
+          contact_id,
+          row_number() over (
+            partition by contact_id
+            order by created_at asc, id asc
+          ) as contact_message_number
+        from sent_ranked
+        where message_row_number = 1
+      ),
+      event_rows as (
+        select
+          e.*,
+          (
+            e.event_type = 'sent'
+            and (
+              coalesce(sr.message_row_number, 1) > 1
+              or coalesce(csm.contact_message_number, 1) > 1
+            )
+          ) as is_duplicate_send
+        from scoped_events e
+        left join sent_ranked sr on sr.id = e.id
+        left join canonical_sent_messages csm on csm.id = e.id
+      )
+    `
+
+    const baseEvents = sql`
+      from event_rows e
+      left join newsletter_contacts c on c.id = e.contact_id
+      where true
         ${filterCondition}
     `
 
@@ -488,10 +534,11 @@ export async function getNewsletterStatusEvents(
         event: string
         created_at: Date
       }>(sql`
+        ${eventRowsCte}
         select
           e.id::text,
           c.email,
-          case when ${duplicateCondition} then 'duplicate' else e.event_type end as event,
+          case when e.is_duplicate_send then 'duplicate' else e.event_type end as event,
           e.created_at
         ${baseEvents}
         order by e.created_at desc
@@ -499,6 +546,7 @@ export async function getNewsletterStatusEvents(
         offset ${offset}
       `),
       db.execute<{ count: number }>(sql`
+        ${eventRowsCte}
         select count(*)::int as count
         ${baseEvents}
       `),
