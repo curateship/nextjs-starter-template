@@ -9,6 +9,7 @@ import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
+import { isWithinNewsletterSendWindow } from '@/lib/newsletters/send-windows'
 import { randomUUID } from 'crypto'
 
 export interface Newsletter {
@@ -112,21 +113,6 @@ async function generateNewsletterEmailHtml(siteId: string, blocks: NewsletterBlo
     : {}
 
   return generateEmailHtml(blocks, maxWidth, { sponsorsById })
-}
-
-function isWithinDripSendWindow(dripConfig: Record<string, any> | undefined) {
-  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return true
-
-  const tz = dripConfig.send_window_timezone || 'America/New_York'
-  const nowInTz = new Date().toLocaleString('en-US', { timeZone: tz })
-  const localizedNow = new Date(nowInTz)
-  const currentMinutes = localizedNow.getHours() * 60 + localizedNow.getMinutes()
-  const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
-  const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
-  const windowStart = startH * 60 + startM
-  const windowEnd = endH * 60 + endM
-
-  return currentMinutes >= windowStart && currentMinutes < windowEnd
 }
 
 function clearDeliveryLock(metadata: Record<string, any> | null | undefined) {
@@ -835,7 +821,7 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
       const dripConfig = newsletter.metadata?.drip_config
       const isDrip = dripConfig?.enabled === true
 
-      if (isDrip && !isWithinDripSendWindow(dripConfig)) {
+      if (isDrip && !isWithinNewsletterSendWindow(dripConfig)) {
         await db
           .update(newsletters)
           .set({

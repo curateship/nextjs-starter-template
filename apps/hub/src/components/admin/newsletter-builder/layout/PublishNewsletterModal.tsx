@@ -23,6 +23,7 @@ import { getCronStatus } from "@/lib/actions/cron/cron-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Users, TestTube, Send, Radio, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { formatNewsletterSendWindows, getNewsletterSendWindows } from "@/lib/newsletters/send-windows"
 
 interface PublishNewsletterModalProps {
   open: boolean
@@ -132,6 +133,9 @@ export function PublishNewsletterModal({
   const filter = newsletter.audience_filter || {}
   const drip = newsletter.metadata?.drip_config
   const hasAudience = filter.audience === 'all' || filter.tags?.length || filter.segment_id
+  const sendWindowLabel = drip?.enabled && getNewsletterSendWindows(drip).length > 0
+    ? formatNewsletterSendWindows(drip)
+    : null
 
   // Resolve segment name
   const segmentName = filter.segment_id
@@ -216,6 +220,11 @@ export function PublishNewsletterModal({
                   <p className="text-xs text-muted-foreground">
                     Every {drip.interval_min_minutes}-{drip.interval_max_minutes} min
                   </p>
+                  {sendWindowLabel && (
+                    <p className="text-xs text-muted-foreground">
+                      Window: {sendWindowLabel}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Bounce threshold: {drip.bounce_threshold_percent}%
                   </p>

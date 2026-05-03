@@ -28,6 +28,7 @@ import {
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { Monitor, Tablet, Smartphone, Pause, Play } from "lucide-react"
+import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/newsletters/send-windows"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>
@@ -39,40 +40,11 @@ const PREVIEW_WIDTHS = {
   mobile: 320,
 } as const
 
-function isWithinSendWindow(dripConfig: Record<string, any> | undefined) {
-  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return true
-
-  const tz = dripConfig.send_window_timezone || 'America/New_York'
-  const localizedNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }))
-  const currentMinutes = localizedNow.getHours() * 60 + localizedNow.getMinutes()
-  const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
-  const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
-  const windowStart = startH * 60 + startM
-  const windowEnd = endH * 60 + endM
-
-  return currentMinutes >= windowStart && currentMinutes < windowEnd
-}
-
-function formatSendWindow(dripConfig: Record<string, any> | undefined) {
-  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return 'send'
-
-  const formatTime = (value: string) => {
-    const [hours, minutes] = value.split(':').map(Number)
-    const period = hours >= 12 ? 'pm' : 'am'
-    const displayHour = hours % 12 || 12
-
-    if (minutes === 0) return `${displayHour}${period}`
-    return `${displayHour}:${String(minutes).padStart(2, '0')}${period}`
-  }
-
-  return `${formatTime(dripConfig.send_window_start)} - ${formatTime(dripConfig.send_window_end)}`
-}
-
 function getDripStatusLabel(newsletter: { status: string; metadata?: Record<string, any> }) {
   const dripConfig = newsletter.metadata?.drip_config
 
   if (newsletter.status === 'paused') return 'Paused'
-  if (!isWithinSendWindow(dripConfig)) return `Waiting for ${formatSendWindow(dripConfig)}`
+  if (!isWithinNewsletterSendWindow(dripConfig)) return `Waiting for ${formatNewsletterSendWindows(dripConfig, 'send')}`
 
   if (typeof dripConfig?.next_batch_at === 'string') {
     const nextBatchAt = new Date(dripConfig.next_batch_at)

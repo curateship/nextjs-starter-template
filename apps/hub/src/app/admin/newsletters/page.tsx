@@ -38,6 +38,7 @@ const NewsletterSettingsModal = dynamic(() =>
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction, getNewsletterStatusEvents } from "@/lib/actions/newsletters/newsletter-actions"
 import type { NewsletterStatusEvent, NewsletterStatusEventFilter } from "@/lib/actions/newsletters/newsletter-actions"
+import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -47,41 +48,12 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-function isWithinSendWindow(dripConfig: Record<string, any> | undefined) {
-  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return true
-
-  const tz = dripConfig.send_window_timezone || 'America/New_York'
-  const localizedNow = new Date(new Date().toLocaleString('en-US', { timeZone: tz }))
-  const currentMinutes = localizedNow.getHours() * 60 + localizedNow.getMinutes()
-  const [startH, startM] = dripConfig.send_window_start.split(':').map(Number)
-  const [endH, endM] = dripConfig.send_window_end.split(':').map(Number)
-  const windowStart = startH * 60 + startM
-  const windowEnd = endH * 60 + endM
-
-  return currentMinutes >= windowStart && currentMinutes < windowEnd
-}
-
-function formatSendWindow(dripConfig: Record<string, any> | undefined) {
-  if (!dripConfig?.send_window_start || !dripConfig?.send_window_end) return 'window'
-
-  const formatTime = (value: string) => {
-    const [hours, minutes] = value.split(':').map(Number)
-    const period = hours >= 12 ? 'pm' : 'am'
-    const displayHour = hours % 12 || 12
-
-    if (minutes === 0) return `${displayHour}${period}`
-    return `${displayHour}:${String(minutes).padStart(2, '0')}${period}`
-  }
-
-  return `${formatTime(dripConfig.send_window_start)} - ${formatTime(dripConfig.send_window_end)}`
-}
-
 function getDripStatusLabel(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
 
   if (newsletter.status === 'paused') return 'Paused'
   if (newsletter.status !== 'sending' || dripConfig?.enabled !== true) return 'Sending'
-  if (!isWithinSendWindow(dripConfig)) return `Waiting for ${formatSendWindow(dripConfig)}`
+  if (!isWithinNewsletterSendWindow(dripConfig)) return `Waiting for ${formatNewsletterSendWindows(dripConfig)}`
   if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date()) {
     return 'Waiting for cron'
   }
@@ -839,7 +811,6 @@ export default function NewslettersPage() {
                     <TabsList className="h-9 shrink-0">
                       <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
                       <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
-                      <TabsTrigger value="audience-filter" className="h-7 py-0">Audience Filter</TabsTrigger>
                     </TabsList>
                   </div>
                 </AdminModalHeader>

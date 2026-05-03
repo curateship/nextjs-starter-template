@@ -28,6 +28,7 @@ import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-acti
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ChevronDown, Users } from "lucide-react"
+import { DEFAULT_NEWSLETTER_SEND_WINDOWS, formatNewsletterSendWindows } from "@/lib/newsletters/send-windows"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -52,15 +53,17 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
 
   // Drip config state
-  const [dripEnabled, setDripEnabled] = useState(false)
+  const [dripEnabled, setDripEnabled] = useState(true)
   const [dripBatchMin, setDripBatchMin] = useState('400')
   const [dripBatchMax, setDripBatchMax] = useState('500')
   const [dripIntervalMin, setDripIntervalMin] = useState('30')
   const [dripIntervalMax, setDripIntervalMax] = useState('60')
   const [dripBounceThreshold, setDripBounceThreshold] = useState('5')
-  const [dripSendWindowEnabled, setDripSendWindowEnabled] = useState(false)
-  const [dripSendWindowStart, setDripSendWindowStart] = useState('08:00')
-  const [dripSendWindowEnd, setDripSendWindowEnd] = useState('15:00')
+  const [dripSendWindowEnabled, setDripSendWindowEnabled] = useState(true)
+  const [dripSendWindowOneStart, setDripSendWindowOneStart] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[0].start)
+  const [dripSendWindowOneEnd, setDripSendWindowOneEnd] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[0].end)
+  const [dripSendWindowTwoStart, setDripSendWindowTwoStart] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[1].start)
+  const [dripSendWindowTwoEnd, setDripSendWindowTwoEnd] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[1].end)
   const [dripSendWindowTimezone, setDripSendWindowTimezone] = useState('America/New_York')
 
   // Load segments and templates
@@ -130,6 +133,15 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       return
     }
 
+    const sendWindows = [
+      { start: dripSendWindowOneStart, end: dripSendWindowOneEnd },
+      { start: dripSendWindowTwoStart, end: dripSendWindowTwoEnd },
+    ]
+    if (dripEnabled && dripSendWindowEnabled && sendWindows.some((window) => !window.start || !window.end)) {
+      setError('Both send windows need a start and end time')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -145,10 +157,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
         interval_max_minutes: parseInt(dripIntervalMax) || 60,
         bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
         ...(dripSendWindowEnabled ? {
-          send_window_start: dripSendWindowStart,
-          send_window_end: dripSendWindowEnd,
+          send_windows: sendWindows,
+          send_window_start: sendWindows[0].start,
+          send_window_end: sendWindows[0].end,
           send_window_timezone: dripSendWindowTimezone,
         } : {
+          send_windows: [],
           send_window_start: null,
           send_window_end: null,
           send_window_timezone: null,
@@ -224,6 +238,49 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               required
             />
           </div>
+
+          <div>
+            <Label htmlFor="create-audience-select">Segment</Label>
+            <Select value={audienceMode} onValueChange={handleAudienceModeChange}>
+              <SelectTrigger id="create-audience-select" size="button">
+                <SelectValue placeholder="Select audience" />
+              </SelectTrigger>
+              <SelectContent className="z-60">
+                <SelectItem value="none">No segment</SelectItem>
+                <SelectItem value="all">All Contacts</SelectItem>
+                {segments.map(seg => (
+                  <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+                ))}
+                <SelectItem value="custom">Custom filter...</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {audienceMode === 'custom' && (
+            <div>
+              <Label htmlFor="create-filter-tags">Filter by Tags</Label>
+              <Input
+                id="create-filter-tags"
+                value={filterTags}
+                onChange={(e) => setFilterTags(e.target.value)}
+                placeholder="austin, fitness (comma-separated)"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Only contacts with ALL these tags will receive this newsletter.
+              </p>
+            </div>
+          )}
+
+          {audienceMode !== 'none' && (
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span>
+                {audienceCount !== null
+                  ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
+                  : 'Calculating...'}
+              </span>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="drip-options" className="mt-0 min-h-[320px] space-y-6">
@@ -308,24 +365,46 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                   </div>
                   {dripSendWindowEnabled && (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                        <div>
-                          <Label htmlFor="create-send-window-start">Start time</Label>
-                          <Input
-                            id="create-send-window-start"
-                            type="time"
-                            value={dripSendWindowStart}
-                            onChange={(e) => setDripSendWindowStart(e.target.value)}
-                          />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="create-send-window-one-start">Start 1</Label>
+                            <Input
+                              id="create-send-window-one-start"
+                              type="time"
+                              value={dripSendWindowOneStart}
+                              onChange={(e) => setDripSendWindowOneStart(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="create-send-window-one-end">End 1</Label>
+                            <Input
+                              id="create-send-window-one-end"
+                              type="time"
+                              value={dripSendWindowOneEnd}
+                              onChange={(e) => setDripSendWindowOneEnd(e.target.value)}
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <Label htmlFor="create-send-window-end">End time</Label>
-                          <Input
-                            id="create-send-window-end"
-                            type="time"
-                            value={dripSendWindowEnd}
-                            onChange={(e) => setDripSendWindowEnd(e.target.value)}
-                          />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="create-send-window-two-start">Start 2</Label>
+                            <Input
+                              id="create-send-window-two-start"
+                              type="time"
+                              value={dripSendWindowTwoStart}
+                              onChange={(e) => setDripSendWindowTwoStart(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="create-send-window-two-end">End 2</Label>
+                            <Input
+                              id="create-send-window-two-end"
+                              type="time"
+                              value={dripSendWindowTwoEnd}
+                              onChange={(e) => setDripSendWindowTwoEnd(e.target.value)}
+                            />
+                          </div>
                         </div>
                       </div>
                       <div>
@@ -344,58 +423,14 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                         </Select>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Emails will only be sent between {dripSendWindowStart} and {dripSendWindowEnd} in the selected timezone
+                        Emails will only be sent during {formatNewsletterSendWindows({ send_windows: [
+                          { start: dripSendWindowOneStart, end: dripSendWindowOneEnd },
+                          { start: dripSendWindowTwoStart, end: dripSendWindowTwoEnd },
+                        ] })} in the selected timezone
                       </p>
                     </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="audience-filter" className="mt-0 min-h-[320px] space-y-6">
-          <div>
-            <div>
-              <Label htmlFor="create-audience-select">Segment</Label>
-              <Select value={audienceMode} onValueChange={handleAudienceModeChange}>
-                <SelectTrigger id="create-audience-select" size="button">
-                  <SelectValue placeholder="Select audience" />
-                </SelectTrigger>
-                <SelectContent className="z-60">
-                  <SelectItem value="none">No segment</SelectItem>
-                  <SelectItem value="all">All Contacts</SelectItem>
-                  {segments.map(seg => (
-                    <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
-                  ))}
-                  <SelectItem value="custom">Custom filter...</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {audienceMode === 'custom' && (
-              <div className="mt-3">
-                <Label htmlFor="create-filter-tags">Filter by Tags</Label>
-                <Input
-                  id="create-filter-tags"
-                  value={filterTags}
-                  onChange={(e) => setFilterTags(e.target.value)}
-                  placeholder="austin, fitness (comma-separated)"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Only contacts with ALL these tags will receive this newsletter.
-                </p>
-              </div>
-            )}
-
-            {audienceMode !== 'none' && (
-              <div className="mt-3 flex items-center gap-2 text-sm">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {audienceCount !== null
-                    ? <>{audienceCount.toLocaleString()} active contact{audienceCount !== 1 ? 's' : ''}</>
-                    : 'Calculating...'}
-                </span>
               </div>
             )}
           </div>
