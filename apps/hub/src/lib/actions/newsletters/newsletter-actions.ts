@@ -38,8 +38,16 @@ export interface NewsletterStatusEvent {
   id: string
   email: string
   event: string
-  status: 'OK' | 'Bounced' | 'Unsubscribed' | 'Duplicate'
+  created_at: string
 }
+
+export type NewsletterStatusEventFilter =
+  | 'all'
+  | 'bounced'
+  | 'unsubscribed'
+  | 'opened'
+  | 'clicked'
+  | 'duplicates'
 
 interface NewsletterBlock {
   id: string
@@ -401,12 +409,13 @@ export async function getNewsletterById(
 
 export async function getNewsletterStatusEvents(
   newsletterId: string,
-): Promise<{ data: NewsletterStatusEvent[] | null; error: string | null }> {
+  options?: { page?: number; pageSize?: number; eventFilter?: NewsletterStatusEventFilter },
+): Promise<{ data: NewsletterStatusEvent[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(newsletterId)) return { data: null, error: 'Invalid newsletter ID' }
+    if (!UUID_REGEX.test(newsletterId)) return { data: null, total: 0, error: 'Invalid newsletter ID' }
 
     const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
+    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
 
     const [newsletter] = await db
       .select({ id: newsletters.id, siteId: newsletters.siteId })
@@ -414,16 +423,32 @@ export async function getNewsletterStatusEvents(
       .where(eq(newsletters.id, newsletterId))
       .limit(1)
 
-    if (!newsletter) return { data: null, error: 'Newsletter not found' }
-    if (!await verifySiteOwnership(newsletter.siteId, user.id)) return { data: null, error: 'Access denied' }
+    if (!newsletter) return { data: null, total: 0, error: 'Newsletter not found' }
+    if (!await verifySiteOwnership(newsletter.siteId, user.id)) return { data: null, total: 0, error: 'Access denied' }
 
-    const rows = await db.execute<{
-      id: string
-      email: string | null
-      event: string
-      status: NewsletterStatusEvent['status']
-    }>(sql`
-      with sent_message_counts as (
+    const page = Math.max(1, Math.floor(options?.page ?? 1))
+    const pageSize = Math.min(50, Math.max(1, Math.floor(options?.pageSize ?? 50)))
+    const offset = (page - 1) * pageSize
+    const allowedFilters = new Set<NewsletterStatusEventFilter>(['all', 'bounced', 'unsubscribed', 'opened', 'clicked', 'duplicates'])
+    const eventFilter = allowedFilters.has(options?.eventFilter ?? 'all') ? options?.eventFilter ?? 'all' : 'all'
+    const duplicateCondition = sql`
+      e.event_type = 'sent'
+      and (
+        coalesce(smc.rows_for_message, 0) > 1
+        or coalesce(scc.provider_messages_for_contact, 0) > 1
+      )
+    `
+    const filterCondition =
+      eventFilter === 'all'
+        ? sql``
+        : eventFilter === 'duplicates'
+          ? sql`and ${duplicateCondition}`
+          : sql`and e.event_type = ${eventFilter}`
+
+    const baseEvents = sql`
+      from newsletter_events e
+      left join newsletter_contacts c on c.id = e.contact_id
+      left join (
         select
           contact_id,
           provider_message_id,
@@ -434,8 +459,10 @@ export async function getNewsletterStatusEvents(
           and source_id = ${newsletterId}
           and event_type = 'sent'
         group by contact_id, provider_message_id
-      ),
-      sent_contact_counts as (
+      ) smc
+        on smc.contact_id is not distinct from e.contact_id
+        and smc.provider_message_id is not distinct from e.provider_message_id
+      left join (
         select
           contact_id,
           count(distinct provider_message_id) as provider_messages_for_contact
@@ -446,55 +473,50 @@ export async function getNewsletterStatusEvents(
           and event_type = 'sent'
           and provider_message_id is not null
         group by contact_id
-      )
-      select
-        e.id::text,
-        c.email,
-        e.event_type as event,
-        case
-          when e.event_type = 'bounced' then 'Bounced'
-          when e.event_type = 'unsubscribed' then 'Unsubscribed'
-          when e.event_type = 'sent'
-            and coalesce(smc.rows_for_message, 0) > 1 then 'Duplicate'
-          when e.event_type = 'sent'
-            and coalesce(scc.provider_messages_for_contact, 0) > 1 then 'Duplicate'
-          else 'OK'
-        end as status
-      from newsletter_events e
-      left join newsletter_contacts c on c.id = e.contact_id
-      left join sent_message_counts smc
-        on smc.contact_id is not distinct from e.contact_id
-        and smc.provider_message_id is not distinct from e.provider_message_id
-      left join sent_contact_counts scc
+      ) scc
         on scc.contact_id is not distinct from e.contact_id
       where e.site_id = ${newsletter.siteId}
         and e.source_type = 'broadcast'
         and e.source_id = ${newsletterId}
-      order by
-        case
-          when e.event_type in ('bounced', 'unsubscribed') then 0
-          when e.event_type = 'sent' and (
-            coalesce(smc.rows_for_message, 0) > 1
-            or coalesce(scc.provider_messages_for_contact, 0) > 1
-          ) then 1
-          else 2
-        end,
-        e.created_at desc
-      limit 500
-    `)
+        ${filterCondition}
+    `
+
+    const [rows, countResult] = await Promise.all([
+      db.execute<{
+        id: string
+        email: string | null
+        event: string
+        created_at: Date
+      }>(sql`
+        select
+          e.id::text,
+          c.email,
+          case when ${duplicateCondition} then 'duplicate' else e.event_type end as event,
+          e.created_at
+        ${baseEvents}
+        order by e.created_at desc
+        limit ${pageSize}
+        offset ${offset}
+      `),
+      db.execute<{ count: number }>(sql`
+        select count(*)::int as count
+        ${baseEvents}
+      `),
+    ])
 
     return {
       data: rows.rows.map((row) => ({
         id: row.id,
         email: row.email || 'Unknown contact',
         event: row.event,
-        status: row.status,
+        created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
       })),
+      total: countResult.rows[0]?.count ?? 0,
       error: null,
     }
   } catch (err) {
     console.error('getNewsletterStatusEvents error:', err)
-    return { data: null, error: 'Server error' }
+    return { data: null, total: 0, error: 'Server error' }
   }
 }
 

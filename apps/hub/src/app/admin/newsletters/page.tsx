@@ -10,6 +10,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   AdminModalBody,
   AdminModalContent,
@@ -28,9 +37,9 @@ const NewsletterSettingsModal = dynamic(() =>
 )
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction, getNewsletterStatusEvents } from "@/lib/actions/newsletters/newsletter-actions"
-import type { NewsletterStatusEvent } from "@/lib/actions/newsletters/newsletter-actions"
+import type { NewsletterStatusEvent, NewsletterStatusEventFilter } from "@/lib/actions/newsletters/newsletter-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, Users, Zap, FileText, List, FileEdit, Send, ChevronDown } from "lucide-react"
+import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -130,11 +139,49 @@ function getDeliveryChips(newsletter: Newsletter) {
   return chips
 }
 
-function getStatusEventBadge(status: NewsletterStatusEvent['status']) {
-  if (status === 'Duplicate') return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">Duplicate</Badge>
-  if (status === 'Bounced') return <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Bounced</Badge>
-  if (status === 'Unsubscribed') return <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">Unsubscribed</Badge>
-  return <Badge variant="secondary">OK</Badge>
+const STATUS_EVENTS_PAGE_SIZE = 50
+
+const statusEventFilterOptions: { value: NewsletterStatusEventFilter; label: string }[] = [
+  { value: 'all', label: 'All events' },
+  { value: 'bounced', label: 'Bounced' },
+  { value: 'unsubscribed', label: 'Unsubscribes' },
+  { value: 'opened', label: 'Opened' },
+  { value: 'clicked', label: 'Clicks' },
+  { value: 'duplicates', label: 'Duplicates' },
+]
+
+function getStatusEventLabel(event: string) {
+  const labels: Record<string, string> = {
+    duplicate: 'Duplicate',
+    bounced: 'Bounced',
+    unsubscribed: 'Unsubscribed',
+    opened: 'Opened',
+    clicked: 'Clicked',
+    sent: 'Sent',
+    delivered: 'Delivered',
+    complained: 'Complained',
+  }
+
+  return labels[event] ?? event.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function getStatusEventBadge(event: NewsletterStatusEvent['event']) {
+  const label = getStatusEventLabel(event)
+  if (event === 'duplicate') return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">{label}</Badge>
+  if (event === 'bounced') return <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">{label}</Badge>
+  if (event === 'unsubscribed') return <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">{label}</Badge>
+  if (event === 'opened') return <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">{label}</Badge>
+  if (event === 'clicked') return <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{label}</Badge>
+  return <Badge variant="secondary">{label}</Badge>
+}
+
+function formatStatusEventDate(dateString: string) {
+  return new Date(dateString).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 export default function NewslettersPage() {
@@ -147,6 +194,9 @@ export default function NewslettersPage() {
   const [settingsNewsletterId, setSettingsNewsletterId] = useState<string | null>(null)
   const [statusNewsletterId, setStatusNewsletterId] = useState<string | null>(null)
   const [statusEvents, setStatusEvents] = useState<NewsletterStatusEvent[]>([])
+  const [statusEventsTotal, setStatusEventsTotal] = useState(0)
+  const [statusEventsPage, setStatusEventsPage] = useState(1)
+  const [statusEventFilter, setStatusEventFilter] = useState<NewsletterStatusEventFilter>('all')
   const [statusEventsLoading, setStatusEventsLoading] = useState(false)
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -209,20 +259,27 @@ export default function NewslettersPage() {
   useEffect(() => {
     if (!statusNewsletterId) {
       setStatusEvents([])
+      setStatusEventsTotal(0)
       return
     }
 
     let cancelled = false
     setStatusEventsLoading(true)
 
-    getNewsletterStatusEvents(statusNewsletterId).then((result) => {
+    getNewsletterStatusEvents(statusNewsletterId, {
+      page: statusEventsPage,
+      pageSize: STATUS_EVENTS_PAGE_SIZE,
+      eventFilter: statusEventFilter,
+    }).then((result) => {
       if (cancelled) return
       if (result.error) {
         setErrorMessage(result.error)
         setErrorDialogOpen(true)
         setStatusEvents([])
+        setStatusEventsTotal(0)
       } else {
         setStatusEvents(result.data ?? [])
+        setStatusEventsTotal(result.total)
       }
       setStatusEventsLoading(false)
     })
@@ -230,7 +287,7 @@ export default function NewslettersPage() {
     return () => {
       cancelled = true
     }
-  }, [statusNewsletterId])
+  }, [statusNewsletterId, statusEventsPage, statusEventFilter])
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id)
@@ -409,7 +466,30 @@ export default function NewslettersPage() {
     setCurrentPage(1)
   }
 
+  const openStatusEvents = (newsletterId: string) => {
+    setStatusNewsletterId(newsletterId)
+    setStatusEventsPage(1)
+    setStatusEventFilter('all')
+  }
+
+  const handleStatusModalOpenChange = (open: boolean) => {
+    if (open) return
+    setStatusNewsletterId(null)
+    setStatusEvents([])
+    setStatusEventsTotal(0)
+    setStatusEventsPage(1)
+    setStatusEventFilter('all')
+    setStatusEventsLoading(false)
+  }
+
+  const handleStatusEventFilterChange = (value: NewsletterStatusEventFilter) => {
+    setStatusEventFilter(value)
+    setStatusEventsPage(1)
+  }
+
   const activeFilter = filterOptions.find((option) => option.value === filterStatus) ?? filterOptions[0]
+  const activeStatusEventFilter = statusEventFilterOptions.find((option) => option.value === statusEventFilter) ?? statusEventFilterOptions[0]
+  const statusEventsTotalPages = Math.max(1, Math.ceil(statusEventsTotal / STATUS_EVENTS_PAGE_SIZE))
 
   return (
     <>
@@ -691,9 +771,9 @@ export default function NewslettersPage() {
                           variant="outline"
                           size="sm"
                           className="h-8 px-2"
-                          onClick={() => setStatusNewsletterId(newsletter.id)}
+                          onClick={() => openStatusEvents(newsletter.id)}
                         >
-                          Status
+                          Events
                         </Button>
                         <Button
                           variant="ghost"
@@ -773,30 +853,99 @@ export default function NewslettersPage() {
             }}
           />
 
-          <Dialog open={statusNewsletterId !== null} onOpenChange={(open) => setStatusNewsletterId(open ? statusNewsletterId : null)}>
+          <Dialog open={statusNewsletterId !== null} onOpenChange={handleStatusModalOpenChange}>
             <AdminModalContent size="wide">
               <AdminModalHeader>
-                <AdminModalTitle>Status</AdminModalTitle>
+                <div className="flex min-w-0 flex-wrap items-center gap-3 pr-10">
+                  <AdminModalTitle className="shrink-0">Events</AdminModalTitle>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" aria-label="Filter events">
+                        <span>{activeStatusEventFilter.label}</span>
+                        <ChevronDown className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-44 space-y-1">
+                      {statusEventFilterOptions.map((option) => (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onSelect={() => handleStatusEventFilterChange(option.value)}
+                          className={cn(option.value === statusEventFilter && "bg-accent text-accent-foreground")}
+                        >
+                          {option.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </AdminModalHeader>
-              <AdminModalBody className="pb-6">
-                <div className="overflow-hidden rounded-md border">
-                  <div className="grid grid-cols-3 gap-4 border-b bg-muted/40 px-4 py-2 text-sm font-medium text-muted-foreground">
-                    <div>Email</div>
-                    <div>Event</div>
-                    <div>Status</div>
+              <AdminModalBody className="flex flex-1 flex-col pb-6">
+                <div className="flex min-h-0 flex-1 flex-col gap-4">
+                  <div className="relative min-h-[420px] flex-1 overflow-hidden sm:min-h-[520px]">
+                    <ScrollArea className="h-full w-full">
+                      <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
+                        <TableHeader className="sticky top-0 z-20 bg-background">
+                          <TableRow className="hover:bg-transparent">
+                            <TableHead className="relative h-12 w-[48%] bg-muted/50 px-4 text-left text-sm font-medium select-none first:rounded-l-lg first:pl-5">
+                              Email
+                            </TableHead>
+                            <TableHead className="relative h-12 w-[22%] bg-muted/50 px-4 text-left text-sm font-medium select-none">
+                              Event
+                            </TableHead>
+                            <TableHead className="relative h-12 w-[30%] bg-muted/50 px-4 text-left text-sm font-medium select-none last:rounded-r-lg last:pr-5">
+                              Date
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {statusEventsLoading ? (
+                            Array.from({ length: 8 }).map((_, index) => (
+                              <TableRow key={index} className="border-0 hover:bg-transparent">
+                                <TableCell className="px-3 py-2 first:pl-3 sm:px-4 sm:py-3 sm:first:pl-5">
+                                  <Skeleton className="h-4 w-56 max-w-full" />
+                                </TableCell>
+                                <TableCell className="px-3 py-2 sm:px-4 sm:py-3">
+                                  <Skeleton className="h-6 w-20 rounded-full" />
+                                </TableCell>
+                                <TableCell className="px-3 py-2 sm:px-4 sm:py-3 sm:last:pr-5">
+                                  <Skeleton className="h-4 w-28" />
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : statusEvents.length === 0 ? (
+                            <TableRow className="border-0">
+                              <TableCell colSpan={3} className="h-24 px-4 text-center text-sm text-muted-foreground">
+                                No events found.
+                              </TableCell>
+                            </TableRow>
+                          ) : statusEvents.map((event) => (
+                            <TableRow key={event.id} className="border-0 hover:bg-muted/50">
+                              <TableCell className="min-w-0 px-3 py-2 text-xs first:pl-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5">
+                                <div className="truncate">{event.email}</div>
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
+                                {getStatusEventBadge(event.event)}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-xs text-muted-foreground sm:px-4 sm:py-3 sm:text-sm sm:last:pr-5">
+                                {formatStatusEventDate(event.created_at)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </table>
+                      <ScrollBar orientation="vertical" />
+                      <ScrollBar orientation="horizontal" />
+                    </ScrollArea>
                   </div>
-                  <div className="max-h-[560px] overflow-y-auto divide-y">
-                    {statusEventsLoading ? (
-                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading status events...</div>
-                    ) : statusEvents.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">No events found.</div>
-                    ) : statusEvents.map((event) => (
-                      <div key={event.id} className="grid grid-cols-3 gap-4 px-4 py-3 text-sm">
-                        <div className="min-w-0 truncate">{event.email}</div>
-                        <div className="capitalize text-muted-foreground">{event.event}</div>
-                        <div>{getStatusEventBadge(event.status)}</div>
-                      </div>
-                    ))}
+
+                  <div className="flex items-center justify-between gap-4 pt-4">
+                    <PaginationInfo currentPage={statusEventsPage} pageSize={STATUS_EVENTS_PAGE_SIZE} total={statusEventsTotal} />
+                    <Pagination
+                      currentPage={statusEventsPage}
+                      totalPages={statusEventsTotalPages}
+                      onPageChange={setStatusEventsPage}
+                      showFirstLast={false}
+                    />
                   </div>
                 </div>
               </AdminModalBody>
