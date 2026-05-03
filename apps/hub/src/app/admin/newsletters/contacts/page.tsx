@@ -61,6 +61,7 @@ import {
   type ContactDataFieldOperator,
   CONTACT_DATA_FIELD_OPERATOR_OPTIONS,
   CONTACT_DATA_FIELD_OPTIONS,
+  CONTACT_EMAIL_OPEN_OPERATOR_OPTIONS,
   CONTACT_FILTER_TYPE_OPTIONS,
   CONTACT_RELATIVE_DAY_OPTIONS,
   CONTACT_SOURCE_OPTIONS,
@@ -70,6 +71,7 @@ import {
   formatContactFilterRule,
   getContactFilterTypeLabel,
   pruneContactFilterGroup,
+  type ContactEmailOpenOperator,
   type ContactFilterGroup,
   type ContactFilterRule,
   type ContactFilterType,
@@ -116,6 +118,10 @@ function isDateRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule,
 
 function isValueRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'status' | 'source' }> {
   return rule.type === "status" || rule.type === "source"
+}
+
+function isEmailOpenRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'emailOpens' }> {
+  return rule.type === "emailOpens"
 }
 
 function shouldShowDataFieldValueInput(
@@ -844,6 +850,20 @@ export default function ContactsPage() {
     })
   }
 
+  function updatePendingEmailOpenOperator(ruleId: string, operator: ContactEmailOpenOperator) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isEmailOpenRule(rule)) return rule
+      return { ...rule, operator }
+    })
+  }
+
+  function updatePendingEmailOpenTimes(ruleId: string, times: string) {
+    updatePendingRule(ruleId, (rule) => {
+      if (!isEmailOpenRule(rule)) return rule
+      return { ...rule, times }
+    })
+  }
+
   function clearAllFilters() {
     setFilters(emptyContactFilterGroup())
     resetSelectionForFilteredView()
@@ -877,52 +897,52 @@ export default function ContactsPage() {
               },
               placeholder: "Search contacts",
             }}
+            preActions={selectedIds.size > 0 ? (
+              <div className="flex items-center gap-1.5 sm:gap-3">
+                {segments.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                      <SelectTrigger size="button" className="w-[180px] text-sm">
+                        <SelectValue placeholder="Select segment..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {segments.map(seg => (
+                          <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant={selectedSegmentId ? "default" : "outline"}
+                      className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                      onClick={handleAddToSegment}
+                      disabled={!selectedSegmentId || addingToSegment}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      {addingToSegment ? "Adding..." : "Add to Segment"}
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  variant="destructive"
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  disabled={massDeleting}
+                >
+                  {massDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      <span className="hidden sm:inline">Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            ) : null}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
-                {selectedIds.size > 0 && (
-                  <>
-                    {segments.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                          <SelectTrigger size="button" className="w-[180px] text-sm">
-                            <SelectValue placeholder="Select segment..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {segments.map(seg => (
-                              <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant={selectedSegmentId ? "default" : "outline"}
-                          className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
-                          onClick={handleAddToSegment}
-                          disabled={!selectedSegmentId || addingToSegment}
-                        >
-                          <ArrowLeft className="h-4 w-4" />
-                          {addingToSegment ? "Adding..." : "Add to Segment"}
-                        </Button>
-                      </div>
-                    )}
-                    <Button
-                      variant="destructive"
-                      onClick={() => setMassDeleteConfirmOpen(true)}
-                      disabled={massDeleting}
-                    >
-                      {massDeleting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                          <span className="hidden sm:inline">Deleting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="h-4 w-4" />
-                          <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
                 {successMessage && (
                   <div className="p-2 px-3 bg-green-50 border border-green-200 rounded-lg">
                     <p className="text-green-800 text-sm">{successMessage}</p>
@@ -1340,6 +1360,39 @@ export default function ContactsPage() {
                               placeholder="Type any value"
                             />
                           )}
+                        </div>
+                      )}
+
+                      {rule.type === "emailOpens" && (
+                        <div className="space-y-2">
+                          <div className="grid gap-3 sm:grid-cols-[170px,1fr]">
+                            <Select
+                              value={rule.operator}
+                              onValueChange={(value: ContactEmailOpenOperator) => updatePendingEmailOpenOperator(rule.id, value)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONTACT_EMAIL_OPEN_OPERATOR_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={rule.times}
+                              onChange={(event) => updatePendingEmailOpenTimes(rule.id, event.target.value)}
+                              placeholder="Emails"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Checks every contact against the latest emails sent from this site.
+                          </p>
                         </div>
                       )}
 

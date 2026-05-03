@@ -3,11 +3,13 @@ export type ContactMatchMode = 'all' | 'any'
 export type ContactFilterType =
   | 'status'
   | 'lastEngaged'
+  | 'emailOpens'
   | 'dateAdded'
   | 'source'
   | 'dataField'
 
 export type ContactDateOperator = 'is' | 'isnt'
+export type ContactEmailOpenOperator = 'has_opened' | 'hasnt_opened'
 export type ContactDataField = 'tag'
 export type ContactDataFieldOperator =
   | 'matchesExact'
@@ -51,6 +53,12 @@ export type ContactFilterRule =
     }
   | {
       id: string
+      type: 'emailOpens'
+      operator: ContactEmailOpenOperator
+      times: number | string
+    }
+  | {
+      id: string
       type: 'lastEngaged' | 'dateAdded'
       operator: ContactDateOperator
       value: ContactDateFilterValue
@@ -64,6 +72,7 @@ export interface ContactFilterGroup {
 export const CONTACT_FILTER_TYPE_OPTIONS: Array<{ value: ContactFilterType; label: string }> = [
   { value: 'status', label: 'Status' },
   { value: 'lastEngaged', label: 'Last engaged' },
+  { value: 'emailOpens', label: 'Email opens' },
   { value: 'dateAdded', label: 'Date added' },
   { value: 'source', label: 'Source' },
   { value: 'dataField', label: 'Data field' },
@@ -80,6 +89,11 @@ export const CONTACT_DATA_FIELD_OPERATOR_OPTIONS: Array<{ value: ContactDataFiel
   { value: 'notContains', label: "Doesn't contain the value" },
   { value: 'isEmpty', label: 'Is empty' },
   { value: 'isNotEmpty', label: "Isn't empty" },
+]
+
+export const CONTACT_EMAIL_OPEN_OPERATOR_OPTIONS: Array<{ value: ContactEmailOpenOperator; label: string }> = [
+  { value: 'has_opened', label: 'Opened any of the last' },
+  { value: 'hasnt_opened', label: 'Opened none of the last' },
 ]
 
 export const CONTACT_STATUS_OPTIONS = [
@@ -118,6 +132,8 @@ export function createContactFilterRule(id: string, type: ContactFilterType): Co
       return { id, type, value: [] }
     case 'dataField':
       return { id, type, field: 'tag', operator: 'matchesExact', value: '' }
+    case 'emailOpens':
+      return { id, type, operator: 'has_opened', times: 1 }
     case 'lastEngaged':
     case 'dateAdded':
       return {
@@ -139,6 +155,9 @@ export function cloneContactFilterGroup(group: ContactFilterGroup): ContactFilte
       if (rule.type === 'dataField') {
         return { ...rule }
       }
+      if (rule.type === 'emailOpens') {
+        return { ...rule }
+      }
       if (rule.value.mode === 'relative') {
         return { ...rule, value: { ...rule.value } }
       }
@@ -157,6 +176,10 @@ export function pruneContactFilterGroup(group: ContactFilterGroup): ContactFilte
       if (rule.type === 'dataField') {
         if (rule.operator === 'isEmpty' || rule.operator === 'isNotEmpty') return true
         return rule.value.trim().length > 0
+      }
+      if (rule.type === 'emailOpens') {
+        const times = Number(rule.times)
+        return Number.isInteger(times) && times >= 1
       }
       if (rule.value.mode === 'relative') {
         return true
@@ -208,6 +231,14 @@ export function formatContactFilterRule(rule: ContactFilterRule): string {
       return `${fieldLabel} ${operatorLabel.toLowerCase()}`
     }
     return rule.value ? `${fieldLabel} ${operatorLabel.toLowerCase()}: ${rule.value}` : `${fieldLabel} ${operatorLabel.toLowerCase()}`
+  }
+
+  if (rule.type === 'emailOpens') {
+    const times = Number(rule.times)
+    const timesLabel = `${times} email${times === 1 ? '' : 's'}`
+    return rule.operator === 'has_opened'
+      ? `Opened any of last ${timesLabel}`
+      : `Opened none of last ${timesLabel}`
   }
 
   const fieldLabel = getContactFilterTypeLabel(rule.type)

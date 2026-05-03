@@ -145,6 +145,16 @@ function normalizeContactFilterRule(rule: unknown): ContactFilterRule | null {
     return { id, type, field, operator, value }
   }
 
+  if (type === 'emailOpens') {
+    const operator = (rule as { operator?: unknown }).operator
+    const rawTimes = (rule as { times?: unknown }).times
+    const times = typeof rawTimes === 'string' ? Number(rawTimes) : rawTimes
+
+    if (operator !== 'has_opened' && operator !== 'hasnt_opened') return null
+    if (!Number.isInteger(times) || Number(times) < 1) return null
+    return { id, type, operator, times: Number(times) }
+  }
+
   if (type === 'lastEngaged' || type === 'dateAdded') {
     const operator = (rule as { operator?: unknown }).operator
     const value = normalizeDateFilterValue((rule as { value?: unknown }).value)
@@ -274,6 +284,33 @@ function buildRuleCondition(rule: ContactFilterRule): SQL | null {
       from jsonb_array_elements_text(${tagArray}) as tag(value)
       where tag.value ilike ${likeValue}
     )`
+  }
+
+  if (rule.type === 'emailOpens') {
+    const recentEmails = sql`
+      select sent.source_type, sent.source_id
+      from newsletter_events as sent
+      where sent.site_id = ${newsletterContacts.siteId}
+        and sent.event_type = 'sent'
+        and sent.source_id is not null
+      group by sent.source_type, sent.source_id
+      order by max(sent.created_at) desc
+      limit ${Number(rule.times)}
+    `
+    const hasOpenedRecentEmail = sql`exists (
+      select 1
+      from newsletter_events as opened
+      inner join (${recentEmails}) as recent_email
+        on opened.source_type = recent_email.source_type
+        and opened.source_id = recent_email.source_id
+      where opened.contact_id = ${newsletterContacts.id}
+        and opened.site_id = ${newsletterContacts.siteId}
+        and opened.event_type = 'opened'
+    )`
+
+    return rule.operator === 'has_opened'
+      ? hasOpenedRecentEmail
+      : sql`not ${hasOpenedRecentEmail}`
   }
 
   const column = rule.type === 'lastEngaged' ? newsletterContacts.lastEngagedAt : newsletterContacts.createdAt
