@@ -48,7 +48,7 @@ export function ChartBarVisitors({ data, totalVisitors }: ChartBarVisitorsProps)
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Unique Visitors</CardTitle>
+        <CardTitle>Daily Visitors</CardTitle>
         <CardDescription>Daily visitors - last 7 days</CardDescription>
       </CardHeader>
       <CardContent>
@@ -80,7 +80,7 @@ export function ChartBarVisitors({ data, totalVisitors }: ChartBarVisitorsProps)
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
         <div className="flex gap-2 leading-none font-medium">
-          {totalVisitors.toLocaleString()} total unique visitors <TrendingUp className="h-4 w-4" />
+          {totalVisitors.toLocaleString()} total daily visitors <TrendingUp className="h-4 w-4" />
         </div>
         <div className="leading-none text-muted-foreground">
           Showing daily visitors for the last 7 days

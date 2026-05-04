@@ -1,7 +1,6 @@
 import type { QuickLinkIconName } from "@/lib/utils/site-quick-links"
 import type { LucideIcon } from "lucide-react"
 import {
-  BarChart3,
   Blocks,
   BookOpen,
   FileText,
@@ -30,7 +29,7 @@ export interface AdminTopNavLink {
   iconName?: QuickLinkIconName
 }
 
-type ProductAdminSection = "products" | "orders" | "analytics" | "templates"
+type ProductAdminSection = "products" | "orders" | "templates"
 type PostAdminSection = "posts" | "templates"
 type PageAdminSection = "pages" | "account-pages" | "navigation" | "footer" | "breadcrumbs"
 type NewsletterAdminSection =
@@ -51,7 +50,6 @@ export function getProductAdminTopNavLinks(active: ProductAdminSection): AdminTo
     { label: "Products", href: "/admin/products", icon: Package, active: active === "products" },
     { label: "Orders", href: "/admin/orders", icon: ShoppingCart, active: active === "orders" },
     { label: "Templates", href: "/admin/products/templates", icon: FileText, active: active === "templates" },
-    { label: "Analytics", href: "/admin/products/analytics", icon: BarChart3, active: active === "analytics" },
   ]
 }
 

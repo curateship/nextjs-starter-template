@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { analyticsEvents, analyticsSessions, sites, sponsors } from '@/lib/db/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { sites } from '@/lib/db/schema'
+import { eq, sql } from 'drizzle-orm'
 import { resolveSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
@@ -9,66 +9,63 @@ interface TrackEvent {
   type: string
   page_path?: string
   referrer?: string
-  session_id: string
-  event_data?: Record<string, unknown>
+  daily_visitor?: boolean
   timestamp?: string
 }
 
 const MAX_EVENTS_PER_REQUEST = 20
-const MAX_EVENT_DATA_BYTES = 4096
+const MAX_BODY_BYTES = 20_000
+const MAX_PATH_LENGTH = 2048
+const MAX_REFERRER_LENGTH = 2048
 const TRACK_WINDOW_MS = 60_000
 const TRACK_MAX_REQUESTS = 120
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const SPONSOR_EVENT_TYPES = new Set(['sponsor_impression', 'sponsor_click'])
 
-function parseDeviceType(ua: string): string {
-  if (/Mobile|Android.*Mobile|iPhone|iPod/.test(ua)) return 'mobile'
-  if (/iPad|Android(?!.*Mobile)|Tablet/.test(ua)) return 'tablet'
-  return 'desktop'
+interface DailyPageviewGroup {
+  pageViews: number
+  uniqueVisitors: number
+  pages: Record<string, number>
+  referrers: Record<string, number>
 }
 
-function parseBrowser(ua: string): string {
-  if (ua.includes('Firefox/')) return 'Firefox'
-  if (ua.includes('Edg/')) return 'Edge'
-  if (ua.includes('Chrome/') && !ua.includes('Edg/')) return 'Chrome'
-  if (ua.includes('Safari/') && !ua.includes('Chrome/')) return 'Safari'
-  return 'Other'
+function normalizeHost(host: string): string {
+  return host.split(':')[0]?.replace(/^www\./, '').toLowerCase() || ''
 }
 
-function extractDomain(url: string): string | null {
+function extractReferrerDomain(url: string | undefined, requestHost: string): string | null {
+  if (typeof url !== 'string' || url.length > MAX_REFERRER_LENGTH) return null
+
   try {
-    return new URL(url).hostname.replace(/^www\./, '')
+    const domain = normalizeHost(new URL(url).hostname)
+    if (!domain || domain === normalizeHost(requestHost)) return null
+    return domain
   } catch {
     return null
   }
 }
 
-function extractUtmParams(pagePath: string): { utm_source?: string; utm_medium?: string; utm_campaign?: string } {
+function cleanPagePath(pagePath: string | undefined): string | null {
+  if (typeof pagePath !== 'string' || pagePath.length > MAX_PATH_LENGTH) return null
+
   try {
     const url = new URL(pagePath, 'http://localhost')
-    return {
-      utm_source: url.searchParams.get('utm_source') || undefined,
-      utm_medium: url.searchParams.get('utm_medium') || undefined,
-      utm_campaign: url.searchParams.get('utm_campaign') || undefined,
-    }
+    return url.pathname || '/'
   } catch {
-    return {}
+    return null
   }
 }
 
-async function hashVisitor(ip: string, ua: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(`${ip}:${ua}`)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+function getEventDay(timestamp: string | undefined): string {
+  const now = new Date()
+  const parsed = typeof timestamp === 'string' ? new Date(timestamp) : null
+  const date = parsed && Number.isFinite(parsed.getTime()) && Math.abs(parsed.getTime() - now.getTime()) <= 86_400_000
+    ? parsed
+    : now
+
+  return date.toISOString().slice(0, 10)
 }
 
-function getSponsorEventId(event: TrackEvent | null | undefined): string | null {
-  if (!event || typeof event !== 'object') return null
-
-  const sponsorId = event.event_data?.sponsor_id
-  return typeof sponsorId === 'string' && UUID_REGEX.test(sponsorId) ? sponsorId : null
+function incrementCounter(counters: Record<string, number>, key: string) {
+  counters[key] = (counters[key] ?? 0) + 1
 }
 
 export async function POST(request: NextRequest) {
@@ -86,138 +83,108 @@ export async function POST(request: NextRequest) {
     }
     if (!site) return new NextResponse(null, { status: 204 })
 
-    const body = await request.json().catch(() => null)
-    const events: TrackEvent[] = Array.isArray(body?.events) ? body.events.slice(0, MAX_EVENTS_PER_REQUEST) : []
+    const contentLength = Number(request.headers.get('content-length') || 0)
+    if (contentLength > MAX_BODY_BYTES) return new NextResponse(null, { status: 204 })
+
+    const rawBody = await request.text().catch(() => '')
+    if (!rawBody || rawBody.length > MAX_BODY_BYTES) return new NextResponse(null, { status: 204 })
+
+    let body: unknown
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      return new NextResponse(null, { status: 204 })
+    }
+    const events: TrackEvent[] = typeof body === 'object' && body && Array.isArray((body as { events?: unknown }).events)
+      ? ((body as { events: TrackEvent[] }).events).slice(0, MAX_EVENTS_PER_REQUEST)
+      : []
     if (!events?.length) return new NextResponse(null, { status: 204 })
 
-    const ua = request.headers.get('user-agent') || ''
     const ip = getClientIp(request.headers)
 
     if (isRateLimited(`analytics:${site.id}:${ip}`, TRACK_MAX_REQUESTS, TRACK_WINDOW_MS)) {
       return new NextResponse(null, { status: 204 })
     }
 
-    const sponsorEventIds = Array.from(
-      new Set(events.map(getSponsorEventId).filter((id): id is string => Boolean(id)))
-    )
-    let validSponsorIds = new Set<string>()
+    const groups = new Map<string, DailyPageviewGroup>()
+    const countedDailyVisitorDays = new Set<string>()
 
-    if (sponsorEventIds.length > 0) {
-      const validSponsors = await db
-        .select({ id: sponsors.id })
-        .from(sponsors)
-        .where(and(
-          eq(sponsors.siteId, site.id),
-          eq(sponsors.isActive, true),
-          inArray(sponsors.id, sponsorEventIds)
-        ))
+    for (const event of events) {
+      if (!event || event.type !== 'pageview') continue
 
-      validSponsorIds = new Set(validSponsors.map((sponsor) => sponsor.id))
+      const pagePath = cleanPagePath(event.page_path)
+      if (!pagePath) continue
+
+      const day = getEventDay(event.timestamp)
+      const group = groups.get(day) ?? { pageViews: 0, uniqueVisitors: 0, pages: {}, referrers: {} }
+      group.pageViews += 1
+      incrementCounter(group.pages, pagePath)
+
+      if (event.daily_visitor === true && !countedDailyVisitorDays.has(day)) {
+        group.uniqueVisitors += 1
+        countedDailyVisitorDays.add(day)
+      }
+
+      const referrerDomain = extractReferrerDomain(event.referrer, host)
+      if (referrerDomain) incrementCounter(group.referrers, referrerDomain)
+
+      groups.set(day, group)
     }
 
-    const visitorHash = await hashVisitor(ip, ua)
-    const deviceType = parseDeviceType(ua)
-    const browser = parseBrowser(ua)
+    if (!groups.size) return new NextResponse(null, { status: 204 })
 
-    // Build event rows
-    const rows = events
-      .filter(event => {
-        const sponsorId = getSponsorEventId(event)
-
-        return (
-          event &&
-          typeof event.type === 'string' &&
-          event.type.length <= 50 &&
-          typeof event.session_id === 'string' &&
-          event.session_id.length <= 128 &&
-          (!SPONSOR_EVENT_TYPES.has(event.type) || Boolean(sponsorId && validSponsorIds.has(sponsorId))) &&
-          JSON.stringify(event.event_data || {}).length <= MAX_EVENT_DATA_BYTES
-        )
-      })
-      .map(event => {
-      const utmParams = event.page_path ? extractUtmParams(event.page_path) : {}
-      const referrerDomain = event.referrer ? extractDomain(event.referrer) : null
-      let cleanPath = event.page_path
-      try {
-        if (cleanPath) cleanPath = new URL(cleanPath, 'http://localhost').pathname
-      } catch { /* keep as-is */ }
-
-      return {
-        siteId: site!.id,
-        sessionId: event.session_id,
-        visitorHash,
-        eventType: event.type,
-        pagePath: cleanPath,
-        referrer: event.referrer || null,
-        referrerDomain,
-        utmSource: utmParams.utm_source || null,
-        utmMedium: utmParams.utm_medium || null,
-        utmCampaign: utmParams.utm_campaign || null,
-        deviceType,
-        browser,
-        eventData: event.event_data || {},
-        createdAt: event.timestamp ? new Date(event.timestamp) : new Date(),
+    await db.transaction(async (tx) => {
+      for (const [day, group] of groups) {
+        await tx.execute(sql`
+          INSERT INTO analytic_daily_visitors (
+            site_id,
+            day,
+            page_views,
+            unique_visitors,
+            pages,
+            referrers,
+            updated_at
+          )
+          VALUES (
+            ${site!.id}::uuid,
+            ${day}::date,
+            ${group.pageViews},
+            ${group.uniqueVisitors},
+            ${JSON.stringify(group.pages)}::jsonb,
+            ${JSON.stringify(group.referrers)}::jsonb,
+            now()
+          )
+          ON CONFLICT (site_id, day) DO UPDATE SET
+            page_views = analytic_daily_visitors.page_views + EXCLUDED.page_views,
+            unique_visitors = analytic_daily_visitors.unique_visitors + EXCLUDED.unique_visitors,
+            pages = COALESCE((
+              SELECT jsonb_object_agg(key, to_jsonb(total::int))
+              FROM (
+                SELECT key, SUM(value::int) AS total
+                FROM (
+                  SELECT key, value FROM jsonb_each_text(COALESCE(analytic_daily_visitors.pages, '{}'::jsonb))
+                  UNION ALL
+                  SELECT key, value FROM jsonb_each_text(COALESCE(EXCLUDED.pages, '{}'::jsonb))
+                ) page_counts
+                GROUP BY key
+              ) merged_pages
+            ), '{}'::jsonb),
+            referrers = COALESCE((
+              SELECT jsonb_object_agg(key, to_jsonb(total::int))
+              FROM (
+                SELECT key, SUM(value::int) AS total
+                FROM (
+                  SELECT key, value FROM jsonb_each_text(COALESCE(analytic_daily_visitors.referrers, '{}'::jsonb))
+                  UNION ALL
+                  SELECT key, value FROM jsonb_each_text(COALESCE(EXCLUDED.referrers, '{}'::jsonb))
+                ) referrer_counts
+                GROUP BY key
+              ) merged_referrers
+            ), '{}'::jsonb),
+            updated_at = now()
+        `)
       }
-      })
-
-    if (!rows.length) return new NextResponse(null, { status: 204 })
-
-    // Batch insert events
-    await db.insert(analyticsEvents).values(rows)
-
-    // Upsert session
-    const sessionId = rows[0].sessionId
-    const pageviewEvents = rows.filter(e => e.eventType === 'pageview')
-
-    if (pageviewEvents.length > 0) {
-      const firstEvent = rows[0]
-      const lastPageview = rows.filter(r => r.eventType === 'pageview').pop()
-
-      const [existingSession] = await db
-        .select({
-          id: analyticsSessions.id,
-          pageCount: analyticsSessions.pageCount,
-          entryPage: analyticsSessions.entryPage,
-          startedAt: analyticsSessions.startedAt,
-        })
-        .from(analyticsSessions)
-        .where(and(
-          eq(analyticsSessions.siteId, site.id),
-          eq(analyticsSessions.sessionId, sessionId),
-        ))
-
-      if (existingSession) {
-        const newPageCount = (existingSession.pageCount ?? 0) + pageviewEvents.length
-        const durationSeconds = Math.floor(
-          (new Date().getTime() - new Date(existingSession.startedAt).getTime()) / 1000
-        )
-        await db
-          .update(analyticsSessions)
-          .set({
-            exitPage: lastPageview?.pagePath || null,
-            pageCount: newPageCount,
-            durationSeconds,
-            isBounce: newPageCount <= 1,
-            endedAt: new Date(),
-          })
-          .where(eq(analyticsSessions.id, existingSession.id))
-      } else {
-        await db.insert(analyticsSessions).values({
-          siteId: site.id,
-          sessionId,
-          visitorHash,
-          entryPage: firstEvent.pagePath,
-          exitPage: lastPageview?.pagePath || firstEvent.pagePath,
-          pageCount: pageviewEvents.length,
-          referrerDomain: firstEvent.referrerDomain,
-          utmSource: firstEvent.utmSource,
-          deviceType,
-          isBounce: pageviewEvents.length <= 1,
-          startedAt: firstEvent.createdAt,
-          endedAt: new Date(),
-        })
-      }
-    }
+    })
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {

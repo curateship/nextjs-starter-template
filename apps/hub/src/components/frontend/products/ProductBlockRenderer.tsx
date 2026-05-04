@@ -50,11 +50,7 @@ export function ProductBlockRenderer({
   
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
-      <div
-        data-analytics-content-type="product"
-        data-analytics-content-id={product.id}
-        data-analytics-content-slug={product.slug}
-      >
+      <div>
       <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
       {visibleBlocks.map((block) => {
@@ -123,7 +119,6 @@ export function ProductBlockRenderer({
               headerAlign={block.content.headerAlign}
               pricingTiers={transformedTiers}
               checkoutSettings={block.content.checkoutSettings}
-              productId={product.id}
               productSlug={product.slug}
               visibility={block.content.visibility}
               siteWidth={siteWidth}

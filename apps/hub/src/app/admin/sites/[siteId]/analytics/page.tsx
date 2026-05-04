@@ -6,13 +6,12 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { Users, Globe, TrendingDown, Clock, ArrowUpRight } from 'lucide-react'
+import { Users, Globe, ArrowUpRight } from 'lucide-react'
 import {
   getAnalyticsOverview,
   getTopPages,
   getTopReferrers,
   getTrafficOverTime,
-  getUserJourneys,
 } from '@/lib/actions/analytics/analytics-actions'
 import {
   LineChart,
@@ -41,27 +40,24 @@ export default function AnalyticsPage({ params }: PageProps) {
   const { siteId } = use(params)
   const [period, setPeriod] = useState<Period>('7d')
   const [loading, setLoading] = useState(true)
-  const [overview, setOverview] = useState({ pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 })
+  const [overview, setOverview] = useState({ pageViews: 0, uniqueVisitors: 0 })
   const [topPages, setTopPages] = useState<{ path: string; views: number }[]>([])
   const [topReferrers, setTopReferrers] = useState<{ domain: string; visits: number }[]>([])
   const [traffic, setTraffic] = useState<{ date: string; views: number; visitors: number }[]>([])
-  const [journeys, setJourneys] = useState<{ path: string; count: number }[]>([])
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [overviewData, pagesData, referrersData, trafficData, journeysData] = await Promise.all([
+      const [overviewData, pagesData, referrersData, trafficData] = await Promise.all([
         getAnalyticsOverview(siteId, period),
         getTopPages(siteId, period),
         getTopReferrers(siteId, period),
         getTrafficOverTime(siteId, period),
-        getUserJourneys(siteId, period),
       ])
       setOverview(overviewData)
       setTopPages(pagesData)
       setTopReferrers(referrersData)
       setTraffic(trafficData)
-      setJourneys(journeysData)
     } catch (err) {
       console.error('Failed to load analytics:', err)
     } finally {
@@ -70,13 +66,6 @@ export default function AnalyticsPage({ params }: PageProps) {
   }, [siteId, period])
 
   useEffect(() => { loadData() }, [loadData])
-
-  function formatDuration(seconds: number): string {
-    if (seconds < 60) return `${seconds}s`
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}m ${secs}s`
-  }
 
   return (
     <>
@@ -103,10 +92,10 @@ export default function AnalyticsPage({ params }: PageProps) {
             }
           />
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unique Visitors</CardTitle>
+            <CardTitle className="text-sm font-medium">Daily Visitors</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -124,30 +113,6 @@ export default function AnalyticsPage({ params }: PageProps) {
           <CardContent>
             {loading ? <div className="h-8 w-20 bg-muted rounded animate-pulse" /> : (
               <div className="text-2xl font-bold">{overview.pageViews.toLocaleString()}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bounce Rate</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loading ? <div className="h-8 w-16 bg-muted rounded animate-pulse" /> : (
-              <div className="text-2xl font-bold">{overview.bounceRate}%</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Session</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loading ? <div className="h-8 w-16 bg-muted rounded animate-pulse" /> : (
-              <div className="text-2xl font-bold">{formatDuration(overview.avgDuration)}</div>
             )}
           </CardContent>
         </Card>
@@ -239,24 +204,6 @@ export default function AnalyticsPage({ params }: PageProps) {
                 </Card>
               </div>
 
-              {/* User Journeys */}
-              {journeys.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Common User Journeys</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {journeys.map((journey, i) => (
-                        <div key={i} className="flex items-center justify-between">
-                          <span className="text-sm font-mono truncate mr-4">{journey.path}</span>
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">{journey.count}x</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
         </div>
       </AdminLayout>
     </>

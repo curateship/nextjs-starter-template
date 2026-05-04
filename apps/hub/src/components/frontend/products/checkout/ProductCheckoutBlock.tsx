@@ -60,7 +60,6 @@ interface ProductCheckoutBlockProps {
   headerAlign?: 'left' | 'center'
   pricingTiers?: PricingTier[]
   checkoutSettings?: CheckoutSettings
-  productId?: string
   productSlug?: string
   visibility?: Record<string, boolean>
   siteWidth?: 'full' | 'custom'
@@ -70,12 +69,10 @@ interface ProductCheckoutBlockProps {
 const SinglePricingCard = ({
   tier,
   checkoutEnabled = false,
-  productId,
   productSlug
 }: {
   tier: PricingTier
   checkoutEnabled?: boolean
-  productId?: string
   productSlug?: string
 }) => {
   // Function to get ribbon color classes
@@ -129,10 +126,6 @@ const SinglePricingCard = ({
                     {checkoutEnabled && tier.stripePriceId && productSlug ? (
                       <Link
                         href={`/products/${productSlug}/checkout?tier=${tier.id}`}
-                        data-product-checkout-click="true"
-                        data-product-id={productId}
-                        data-product-slug={productSlug}
-                        data-tier-id={tier.id}
                       >
                         <Button
                           variant={tier.buttonVariant}
@@ -186,12 +179,10 @@ const SinglePricingCard = ({
 const PricingCard = ({
   tier,
   checkoutEnabled = false,
-  productId,
   productSlug
 }: {
   tier: PricingTier
   checkoutEnabled?: boolean
-  productId?: string
   productSlug?: string
 }) => {
   // Function to get ribbon color classes
@@ -266,10 +257,6 @@ const PricingCard = ({
               <Link
                 href={`/products/${productSlug}/checkout?tier=${tier.id}`}
                 className="block"
-                data-product-checkout-click="true"
-                data-product-id={productId}
-                data-product-slug={productSlug}
-                data-tier-id={tier.id}
               >
                 <Button variant={tier.buttonVariant} className="w-full py-6 cursor-pointer">
                   {sanitizeText(tier.buttonText)}
@@ -312,7 +299,6 @@ const ProductCheckoutBlock = ({
   headerAlign = 'center',
   pricingTiers = [],
   checkoutSettings,
-  productId,
   productSlug,
   visibility,
   siteWidth = 'custom',
@@ -344,7 +330,6 @@ const ProductCheckoutBlock = ({
         <SinglePricingCard
           tier={singleTier}
           checkoutEnabled={checkoutEnabled}
-          productId={productId}
           productSlug={productSlug}
         />
       </BlockContainer>
@@ -371,7 +356,6 @@ const ProductCheckoutBlock = ({
             <PricingCard
               tier={tier}
               checkoutEnabled={checkoutEnabled}
-              productId={productId}
               productSlug={productSlug}
             />
           </div>

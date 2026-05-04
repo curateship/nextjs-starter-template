@@ -7,29 +7,20 @@ interface AnalyticsEvent {
   type: string
   page_path?: string
   referrer?: string
-  session_id: string
-  event_data?: Record<string, unknown>
+  daily_visitor?: boolean
   timestamp: string
 }
 
-function getSessionId(): string {
-  const key = '_a_sid'
-  let sid = sessionStorage.getItem(key)
-  if (!sid) {
-    sid = crypto.randomUUID()
-    sessionStorage.setItem(key, sid)
-  }
-  return sid
-}
+function shouldCountDailyVisitor(): boolean {
+  const day = new Date().toISOString().slice(0, 10)
+  const key = `_a_dv:${day}`
 
-function getPageContentData(): Record<string, unknown> | undefined {
-  const element = document.querySelector<HTMLElement>('[data-analytics-content-type]')
-  if (!element?.dataset.analyticsContentType) return undefined
-
-  return {
-    content_type: element.dataset.analyticsContentType,
-    content_id: element.dataset.analyticsContentId,
-    content_slug: element.dataset.analyticsContentSlug,
+  try {
+    if (localStorage.getItem(key)) return false
+    localStorage.setItem(key, '1')
+    return true
+  } catch {
+    return true
   }
 }
 
@@ -37,9 +28,7 @@ export function AnalyticsTracker() {
   const pathname = usePathname()
   const queue = useRef<AnalyticsEvent[]>([])
   const flushTimer = useRef<ReturnType<typeof setInterval> | null>(null)
-  const sessionId = useRef<string>('')
   const lastPath = useRef<string>('')
-  const trackedSponsorImpressions = useRef<Set<string>>(new Set())
 
   const flush = useCallback(() => {
     if (queue.current.length === 0) return
@@ -59,26 +48,21 @@ export function AnalyticsTracker() {
     }
   }, [])
 
-  const track = useCallback((type: string, pagePath?: string, eventData?: Record<string, unknown>) => {
-    if (!sessionId.current) return
+  const trackPageview = useCallback((pagePath: string) => {
+    const dailyVisitor = shouldCountDailyVisitor()
+
     queue.current.push({
-      type,
-      page_path: pagePath || pathname,
+      type: 'pageview',
+      page_path: pagePath,
       referrer: document.referrer || undefined,
-      session_id: sessionId.current,
-      event_data: eventData,
+      daily_visitor: dailyVisitor || undefined,
       timestamp: new Date().toISOString(),
     })
-  }, [pathname])
+  }, [])
 
-  // Initialize
   useEffect(() => {
-    sessionId.current = getSessionId()
-
-    // Flush every 5 seconds
     flushTimer.current = setInterval(flush, 5000)
 
-    // Flush on tab hide/close
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         flush()
@@ -86,100 +70,19 @@ export function AnalyticsTracker() {
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
-    // Click tracking via event delegation
-    const handleClick = (e: MouseEvent) => {
-      if (window.location.pathname.startsWith('/admin')) return
-      const target = e.target as HTMLElement
-      const anchor = target.closest('a')
-      const button = target.closest('button')
-      const el = anchor || button
-      if (!el) return
-
-      const sponsorElement = target.closest('[data-sponsor-id][data-sponsor-track="true"]') as HTMLElement | null
-      if (sponsorElement) {
-        track('sponsor_click', undefined, {
-          sponsor_id: sponsorElement.dataset.sponsorId,
-          placement: sponsorElement.dataset.sponsorPlacement || 'post_editor',
-          post_id: sponsorElement.dataset.sponsorPostId,
-          url: sponsorElement.dataset.sponsorUrl || anchor?.href,
-        })
-      }
-
-      const checkoutElement = target.closest('[data-product-checkout-click="true"]') as HTMLElement | null
-      if (checkoutElement && anchor) {
-        track('product_checkout_click', undefined, {
-          content_type: 'product',
-          content_id: checkoutElement.dataset.productId,
-          content_slug: checkoutElement.dataset.productSlug,
-          product_id: checkoutElement.dataset.productId,
-          product_slug: checkoutElement.dataset.productSlug,
-          tier_id: checkoutElement.dataset.tierId,
-          href: anchor.href,
-          text: el.textContent?.slice(0, 100) || '',
-        })
-      }
-    }
-    document.addEventListener('click', handleClick, { capture: true })
-
     return () => {
       flush()
       if (flushTimer.current) clearInterval(flushTimer.current)
       document.removeEventListener('visibilitychange', handleVisibility)
-      document.removeEventListener('click', handleClick, true)
     }
-  }, [flush, track])
+  }, [flush])
 
-  // Track pageviews on route change (skip admin pages)
   useEffect(() => {
-    if (!sessionId.current) return
     if (pathname === lastPath.current) return
     if (pathname.startsWith('/admin')) return
     lastPath.current = pathname
-    track('pageview', pathname + window.location.search, getPageContentData())
-  }, [pathname, track])
-
-  useEffect(() => {
-    if (!sessionId.current) return
-    if (pathname.startsWith('/admin')) return
-
-    const sponsorElements = Array.from(
-      document.querySelectorAll<HTMLElement>('[data-sponsor-id][data-sponsor-track="true"]')
-    )
-    if (!sponsorElements.length) return
-
-    const trackSponsorImpression = (element: HTMLElement) => {
-      const sponsorId = element.dataset.sponsorId
-      if (!sponsorId) return
-
-      const key = `${pathname}:${element.dataset.sponsorPostId || ''}:${sponsorId}`
-      if (trackedSponsorImpressions.current.has(key)) return
-
-      trackedSponsorImpressions.current.add(key)
-      track('sponsor_impression', undefined, {
-        sponsor_id: sponsorId,
-        placement: element.dataset.sponsorPlacement || 'post_editor',
-        post_id: element.dataset.sponsorPostId,
-        url: element.dataset.sponsorUrl,
-      })
-    }
-
-    if (typeof IntersectionObserver === 'undefined') {
-      sponsorElements.forEach(trackSponsorImpression)
-      return
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue
-        trackSponsorImpression(entry.target as HTMLElement)
-        observer.unobserve(entry.target)
-      }
-    }, { threshold: 0.35 })
-
-    sponsorElements.forEach((element) => observer.observe(element))
-
-    return () => observer.disconnect()
-  }, [pathname, track])
+    trackPageview(pathname + window.location.search)
+  }, [pathname, trackPageview])
 
   return null
 }

@@ -64,27 +64,41 @@ function getDateRange(period: string): DateRange {
 
 export async function getAnalyticsOverview(siteId: string, period: string) {
   if (!await verifyAnalyticsAccess(siteId)) {
-    return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
+    return { pageViews: 0, uniqueVisitors: 0 }
   }
 
   const { from, to } = getDateRange(period)
 
   try {
-    const result = await db.execute(sql`SELECT get_analytics_overview(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz) as data`)
+    const result = await db.execute(sql`
+      SELECT
+        (
+          SELECT COALESCE(SUM(page_views), 0)::int
+          FROM analytic_daily_visitors
+          WHERE site_id = ${siteId}::uuid
+            AND day >= ${from}::timestamptz::date
+            AND day <= ${to}::timestamptz::date
+        ) AS page_views,
+        (
+          SELECT COALESCE(SUM(unique_visitors), 0)::int
+          FROM analytic_daily_visitors
+          WHERE site_id = ${siteId}::uuid
+            AND day >= ${from}::timestamptz::date
+            AND day <= ${to}::timestamptz::date
+        ) AS unique_visitors
+    `)
 
     if (!result.rows || result.rows.length === 0) {
-      return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
+      return { pageViews: 0, uniqueVisitors: 0 }
     }
 
-    const data = (result.rows[0] as any).data || {}
+    const data = (result.rows[0] as any) || {}
     return {
-      pageViews: Number(data.pageViews ?? 0),
-      uniqueVisitors: Number(data.uniqueVisitors ?? 0),
-      bounceRate: Number(data.bounceRate ?? 0),
-      avgDuration: Number(data.avgDuration ?? 0),
-    } as { pageViews: number; uniqueVisitors: number; bounceRate: number; avgDuration: number }
+      pageViews: Number(data.page_views ?? 0),
+      uniqueVisitors: Number(data.unique_visitors ?? 0),
+    } as { pageViews: number; uniqueVisitors: number }
   } catch {
-    return { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
+    return { pageViews: 0, uniqueVisitors: 0 }
   }
 }
 
@@ -95,10 +109,22 @@ export async function getTopPages(siteId: string, period: string, limit = 10) {
   const safeLimit = clampLimit(limit)
 
   try {
-    const result = await db.execute(sql`SELECT get_top_pages(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${safeLimit}::int) as data`)
+    const result = await db.execute(sql`
+      SELECT page_counts.path, SUM(page_counts.views::int)::int AS views
+      FROM analytic_daily_visitors ads
+      CROSS JOIN LATERAL jsonb_each_text(COALESCE(ads.pages, '{}'::jsonb)) AS page_counts(path, views)
+      WHERE ads.site_id = ${siteId}::uuid
+        AND ads.day >= ${from}::timestamptz::date
+        AND ads.day <= ${to}::timestamptz::date
+      GROUP BY page_counts.path
+      ORDER BY views DESC
+      LIMIT ${safeLimit}
+    `)
 
-    const data = (result.rows[0] as any)?.data
-    return (Array.isArray(data) ? data : []) as { path: string; views: number }[]
+    return (result.rows || []).map((row: any) => ({
+      path: String(row.path),
+      views: Number(row.views),
+    }))
   } catch {
     return []
   }
@@ -111,10 +137,22 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
   const safeLimit = clampLimit(limit)
 
   try {
-    const result = await db.execute(sql`SELECT get_top_referrers(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${safeLimit}::int) as data`)
+    const result = await db.execute(sql`
+      SELECT referrer_counts.domain, SUM(referrer_counts.visits::int)::int AS visits
+      FROM analytic_daily_visitors ads
+      CROSS JOIN LATERAL jsonb_each_text(COALESCE(ads.referrers, '{}'::jsonb)) AS referrer_counts(domain, visits)
+      WHERE ads.site_id = ${siteId}::uuid
+        AND ads.day >= ${from}::timestamptz::date
+        AND ads.day <= ${to}::timestamptz::date
+      GROUP BY referrer_counts.domain
+      ORDER BY visits DESC
+      LIMIT ${safeLimit}
+    `)
 
-    const data = (result.rows[0] as any)?.data
-    return (Array.isArray(data) ? data : []) as { domain: string; visits: number }[]
+    return (result.rows || []).map((row: any) => ({
+      domain: String(row.domain),
+      visits: Number(row.visits),
+    }))
   } catch {
     return []
   }
@@ -124,29 +162,25 @@ export async function getTrafficOverTime(siteId: string, period: string) {
   if (!await verifyAnalyticsAccess(siteId)) return []
 
   const { from, to } = getDateRange(period)
-  const useHourly = period === 'today' || period === 'yesterday'
 
   try {
-    const result = await db.execute(sql`SELECT get_traffic_over_time(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${useHourly}::bool) as data`)
+    const result = await db.execute(sql`
+      SELECT
+        to_char(ads.day, 'Mon DD') AS date,
+        ads.page_views::int AS views,
+        ads.unique_visitors::int AS visitors
+      FROM analytic_daily_visitors ads
+      WHERE ads.site_id = ${siteId}::uuid
+        AND ads.day >= ${from}::timestamptz::date
+        AND ads.day <= ${to}::timestamptz::date
+      ORDER BY ads.day
+    `)
 
-    const data = (result.rows[0] as any)?.data
-    return (Array.isArray(data) ? data : []) as { date: string; views: number; visitors: number }[]
-  } catch {
-    return []
-  }
-}
-
-export async function getUserJourneys(siteId: string, period: string, limit = 10) {
-  if (!await verifyAnalyticsAccess(siteId)) return []
-
-  const { from, to } = getDateRange(period)
-  const safeLimit = clampLimit(limit)
-
-  try {
-    const result = await db.execute(sql`SELECT get_user_journeys(${siteId}::uuid, ${from}::timestamptz, ${to}::timestamptz, ${safeLimit}::int) as data`)
-
-    const data = (result.rows[0] as any)?.data
-    return (Array.isArray(data) ? data : []) as { path: string; count: number }[]
+    return (result.rows || []).map((row: any) => ({
+      date: String(row.date),
+      views: Number(row.views),
+      visitors: Number(row.visitors),
+    }))
   } catch {
     return []
   }

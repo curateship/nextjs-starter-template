@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Globe, TrendingDown, Clock, Settings, Edit3, ExternalLink } from 'lucide-react'
+import { Globe, Settings, Edit3, ExternalLink } from 'lucide-react'
 import { ChartLineLabel } from '@/components/admin/layout/dashboard/charts/ChartLineLabel'
 import Link from 'next/link'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
@@ -17,13 +17,6 @@ interface PageProps {
   params: Promise<{
     siteId: string
   }>
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins}m ${secs}s`
 }
 
 function getSiteStatusBadge(status?: string) {
@@ -44,7 +37,7 @@ export default async function SiteDashboard({ params }: PageProps) {
   const { siteId } = await params
 
   // Get the site data and analytics in parallel
-  const defaultAnalytics = { pageViews: 0, uniqueVisitors: 0, bounceRate: 0, avgDuration: 0 }
+  const defaultAnalytics = { pageViews: 0, uniqueVisitors: 0 }
   const [site, analytics, traffic] = await Promise.all([
     getSiteForDashboard(siteId),
     getAnalyticsOverview(siteId, '30d').catch(() => defaultAnalytics),
@@ -119,7 +112,7 @@ export default async function SiteDashboard({ params }: PageProps) {
           />
 
       {/* Stats Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid md:grid-cols-2">
         <ChartBarVisitors data={traffic} totalVisitors={analytics.uniqueVisitors} />
 
         <Card>
@@ -129,28 +122,6 @@ export default async function SiteDashboard({ params }: PageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{analytics.pageViews.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Last 30 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bounce Rate</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.bounceRate}%</div>
-            <p className="text-xs text-muted-foreground">Last 30 days</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Session</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatDuration(analytics.avgDuration)}</div>
             <p className="text-xs text-muted-foreground">Last 30 days</p>
           </CardContent>
         </Card>
