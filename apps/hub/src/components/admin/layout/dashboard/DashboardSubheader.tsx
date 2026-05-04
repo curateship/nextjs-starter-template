@@ -23,6 +23,8 @@ interface DashboardSubheaderProps {
   preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
+  /** Optional content aligned to the far right of the breadcrumb row */
+  rightContent?: React.ReactNode
   className?: string
 }
 
@@ -30,7 +32,7 @@ interface DashboardSubheaderProps {
  * Full-width breadcrumb row that sits below the StickyHeader.
  * Dashboard controls are rendered into the StickyHeader top-right slot.
  */
-export function DashboardSubheader({ items, filterMenu, search, preActions, actions, className }: DashboardSubheaderProps) {
+export function DashboardSubheader({ items, filterMenu, search, preActions, actions, rightContent, className }: DashboardSubheaderProps) {
   const { slot } = useDashboardHeaderActionsSlot()
   const topRightActions = (search || filterMenu || preActions || actions) ? (
     <StickybarTopRightActions
@@ -46,9 +48,9 @@ export function DashboardSubheader({ items, filterMenu, search, preActions, acti
     <>
       {slot && topRightActions ? createPortal(topRightActions, slot) : null}
 
-      <div className={cn("flex items-center mb-6 mx-4 mt-2", className)}>
+      <div className={cn("mb-6 mx-4 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
         {/* Left side: breadcrumbs */}
-        <Breadcrumb>
+        <Breadcrumb className="min-w-0">
           <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
             {items.map((item, index) => {
               const isLast = index === items.length - 1
@@ -67,6 +69,11 @@ export function DashboardSubheader({ items, filterMenu, search, preActions, acti
             })}
           </BreadcrumbList>
         </Breadcrumb>
+        {rightContent ? (
+          <div className="flex max-w-full shrink-0 overflow-x-auto">
+            {rightContent}
+          </div>
+        ) : null}
       </div>
     </>
   )

@@ -32,6 +32,33 @@ interface DateRange {
   to: string    // ISO date string
 }
 
+export type DashboardRange = 'today' | 'yesterday' | '7d' | '30d' | '365d'
+
+export interface DashboardChartPoint {
+  label: string
+  pageViews: number
+  visitors: number
+  contacts: number
+  orders: number
+  revenue: number
+}
+
+export interface SiteDashboardMetrics {
+  totals: {
+    visitors: number
+    contacts: number
+    orders: number
+    revenue: number
+  }
+  previousTotals: {
+    visitors: number
+    contacts: number
+    orders: number
+    revenue: number
+  }
+  chartData: DashboardChartPoint[]
+}
+
 function getDateRange(period: string): DateRange {
   const now = new Date()
   const to = new Date(now)
@@ -60,6 +87,109 @@ function getDateRange(period: string): DateRange {
   }
 
   return { from: from.toISOString(), to: to.toISOString() }
+}
+
+function normalizeDashboardRange(range: string): DashboardRange {
+  return range === 'today' ||
+    range === 'yesterday' ||
+    range === '30d' ||
+    range === '365d'
+    ? range
+    : '7d'
+}
+
+function getUtcDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
+}
+
+function addUtcDays(value: Date, days: number) {
+  const next = new Date(value)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next
+}
+
+function getDashboardDateRange(range: DashboardRange) {
+  const today = getUtcDay(new Date())
+  const endOfToday = new Date(today)
+  endOfToday.setUTCHours(23, 59, 59, 999)
+
+  if (range === 'today') {
+    return { from: today.toISOString(), to: endOfToday.toISOString(), days: 1, groupBy: 'day' as const }
+  }
+
+  if (range === 'yesterday') {
+    const yesterday = addUtcDays(today, -1)
+    const endOfYesterday = new Date(yesterday)
+    endOfYesterday.setUTCHours(23, 59, 59, 999)
+    return { from: yesterday.toISOString(), to: endOfYesterday.toISOString(), days: 1, groupBy: 'day' as const }
+  }
+
+  if (range === '30d') {
+    return { from: addUtcDays(today, -29).toISOString(), to: endOfToday.toISOString(), days: 30, groupBy: 'day' as const }
+  }
+
+  if (range === '365d') {
+    return { from: addUtcDays(today, -364).toISOString(), to: endOfToday.toISOString(), days: 365, groupBy: 'month' as const }
+  }
+
+  return { from: addUtcDays(today, -6).toISOString(), to: endOfToday.toISOString(), days: 7, groupBy: 'day' as const }
+}
+
+function getPreviousDashboardDateRange(from: string, days: number) {
+  const currentFrom = new Date(from)
+  const previousFrom = addUtcDays(currentFrom, -days)
+  const previousTo = new Date(currentFrom)
+  previousTo.setUTCMilliseconds(-1)
+
+  return { from: previousFrom.toISOString(), to: previousTo.toISOString() }
+}
+
+async function getDashboardTotalsForRange(siteId: string, from: string, to: string) {
+  const result = await db.execute(sql`
+    SELECT
+      (
+        SELECT COALESCE(SUM(unique_visitors), 0)::int
+        FROM analytic_daily_visitors
+        WHERE site_id = ${siteId}::uuid
+          AND day >= ${from}::timestamptz::date
+          AND day <= ${to}::timestamptz::date
+      ) AS visitors,
+      (
+        SELECT COUNT(*)::int
+        FROM newsletter_contacts
+        WHERE site_id = ${siteId}::uuid
+          AND created_at >= ${from}::timestamptz
+          AND created_at <= ${to}::timestamptz
+      ) AS contacts,
+      (
+        SELECT COUNT(*)::int
+        FROM product_orders
+        WHERE site_id = ${siteId}::uuid
+          AND created_at >= ${from}::timestamptz
+          AND created_at <= ${to}::timestamptz
+      ) AS orders,
+      (
+        SELECT COALESCE(SUM(COALESCE(amount_total, 0)), 0)::int
+        FROM product_orders
+        WHERE site_id = ${siteId}::uuid
+          AND created_at >= ${from}::timestamptz
+          AND created_at <= ${to}::timestamptz
+          AND order_type = 'paid_purchase'
+      ) AS revenue_cents
+  `)
+
+  const row = (result.rows[0] as {
+    visitors?: unknown
+    contacts?: unknown
+    orders?: unknown
+    revenue_cents?: unknown
+  } | undefined) || {}
+  return {
+    visitors: Number(row.visitors ?? 0),
+    contacts: Number(row.contacts ?? 0),
+    orders: Number(row.orders ?? 0),
+    revenue: Number(row.revenue_cents ?? 0) / 100,
+  }
 }
 
 export async function getAnalyticsOverview(siteId: string, period: string) {
@@ -183,6 +313,182 @@ export async function getTrafficOverTime(siteId: string, period: string) {
     }))
   } catch {
     return []
+  }
+}
+
+export async function getSiteDashboardMetrics(
+  siteId: string,
+  rangeValue: string
+): Promise<SiteDashboardMetrics> {
+  const empty = {
+    totals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
+    previousTotals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
+    chartData: [],
+  }
+
+  if (!await verifyAnalyticsAccess(siteId)) return empty
+
+  const range = normalizeDashboardRange(rangeValue)
+  const { from, to, days, groupBy } = getDashboardDateRange(range)
+  const previousRange = getPreviousDashboardDateRange(from, days)
+
+  try {
+    const [result, previousTotals] = await Promise.all([
+      groupBy === 'month'
+        ? db.execute(sql`
+          WITH buckets AS (
+            SELECT generate_series(
+              date_trunc('month', ${from}::timestamptz)::date,
+              date_trunc('month', ${to}::timestamptz)::date,
+              interval '1 month'
+            )::date AS bucket_date
+          ),
+          visitors AS (
+            SELECT
+              date_trunc('month', day::timestamp)::date AS bucket_date,
+              COALESCE(SUM(page_views), 0)::int AS page_views,
+              COALESCE(SUM(unique_visitors), 0)::int AS visitors
+            FROM analytic_daily_visitors
+            WHERE site_id = ${siteId}::uuid
+              AND day >= ${from}::timestamptz::date
+              AND day <= ${to}::timestamptz::date
+            GROUP BY 1
+          ),
+          contacts AS (
+            SELECT
+              date_trunc('month', created_at)::date AS bucket_date,
+              COUNT(*)::int AS contacts
+            FROM newsletter_contacts
+            WHERE site_id = ${siteId}::uuid
+              AND created_at >= ${from}::timestamptz
+              AND created_at <= ${to}::timestamptz
+            GROUP BY 1
+          ),
+          order_metrics AS (
+            SELECT
+              date_trunc('month', created_at)::date AS bucket_date,
+              COUNT(*)::int AS orders,
+              COALESCE(SUM(
+                CASE
+                  WHEN order_type = 'paid_purchase' THEN COALESCE(amount_total, 0)
+                  ELSE 0
+                END
+              ), 0)::int AS revenue_cents
+            FROM product_orders
+            WHERE site_id = ${siteId}::uuid
+              AND created_at >= ${from}::timestamptz
+              AND created_at <= ${to}::timestamptz
+            GROUP BY 1
+          )
+          SELECT
+            to_char(buckets.bucket_date, 'Mon YYYY') AS label,
+            COALESCE(visitors.page_views, 0)::int AS page_views,
+            COALESCE(visitors.visitors, 0)::int AS visitors,
+            COALESCE(contacts.contacts, 0)::int AS contacts,
+            COALESCE(order_metrics.orders, 0)::int AS orders,
+            COALESCE(order_metrics.revenue_cents, 0)::int AS revenue_cents
+          FROM buckets
+          LEFT JOIN visitors ON visitors.bucket_date = buckets.bucket_date
+          LEFT JOIN contacts ON contacts.bucket_date = buckets.bucket_date
+          LEFT JOIN order_metrics ON order_metrics.bucket_date = buckets.bucket_date
+          ORDER BY buckets.bucket_date
+        `)
+        : db.execute(sql`
+          WITH buckets AS (
+            SELECT generate_series(
+              ${from}::timestamptz::date,
+              ${to}::timestamptz::date,
+              interval '1 day'
+            )::date AS bucket_date
+          ),
+          visitors AS (
+            SELECT
+              day::date AS bucket_date,
+              COALESCE(SUM(page_views), 0)::int AS page_views,
+              COALESCE(SUM(unique_visitors), 0)::int AS visitors
+            FROM analytic_daily_visitors
+            WHERE site_id = ${siteId}::uuid
+              AND day >= ${from}::timestamptz::date
+              AND day <= ${to}::timestamptz::date
+            GROUP BY 1
+          ),
+          contacts AS (
+            SELECT
+              created_at::date AS bucket_date,
+              COUNT(*)::int AS contacts
+            FROM newsletter_contacts
+            WHERE site_id = ${siteId}::uuid
+              AND created_at >= ${from}::timestamptz
+              AND created_at <= ${to}::timestamptz
+            GROUP BY 1
+          ),
+          order_metrics AS (
+            SELECT
+              created_at::date AS bucket_date,
+              COUNT(*)::int AS orders,
+              COALESCE(SUM(
+                CASE
+                  WHEN order_type = 'paid_purchase' THEN COALESCE(amount_total, 0)
+                  ELSE 0
+                END
+              ), 0)::int AS revenue_cents
+            FROM product_orders
+            WHERE site_id = ${siteId}::uuid
+              AND created_at >= ${from}::timestamptz
+              AND created_at <= ${to}::timestamptz
+            GROUP BY 1
+          )
+          SELECT
+            to_char(buckets.bucket_date, 'Mon DD') AS label,
+            COALESCE(visitors.page_views, 0)::int AS page_views,
+            COALESCE(visitors.visitors, 0)::int AS visitors,
+            COALESCE(contacts.contacts, 0)::int AS contacts,
+            COALESCE(order_metrics.orders, 0)::int AS orders,
+            COALESCE(order_metrics.revenue_cents, 0)::int AS revenue_cents
+          FROM buckets
+          LEFT JOIN visitors ON visitors.bucket_date = buckets.bucket_date
+          LEFT JOIN contacts ON contacts.bucket_date = buckets.bucket_date
+          LEFT JOIN order_metrics ON order_metrics.bucket_date = buckets.bucket_date
+          ORDER BY buckets.bucket_date
+        `),
+      getDashboardTotalsForRange(siteId, previousRange.from, previousRange.to),
+    ])
+
+    const chartData = (result.rows || []).map((row) => {
+      const bucket = row as {
+        label?: unknown
+        page_views?: unknown
+        visitors?: unknown
+        contacts?: unknown
+        orders?: unknown
+        revenue_cents?: unknown
+      }
+
+      return {
+        label: String(bucket.label),
+        pageViews: Number(bucket.page_views ?? 0),
+        visitors: Number(bucket.visitors ?? 0),
+        contacts: Number(bucket.contacts ?? 0),
+        orders: Number(bucket.orders ?? 0),
+        revenue: Number(bucket.revenue_cents ?? 0) / 100,
+      }
+    })
+
+    return {
+      chartData,
+      previousTotals,
+      totals: chartData.reduce(
+        (totals, point) => ({
+          visitors: totals.visitors + point.visitors,
+          contacts: totals.contacts + point.contacts,
+          orders: totals.orders + point.orders,
+          revenue: totals.revenue + point.revenue,
+        }),
+        { visitors: 0, contacts: 0, orders: 0, revenue: 0 }
+      ),
+    }
+  } catch {
+    return empty
   }
 }
 

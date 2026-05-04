@@ -1,15 +1,14 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Globe, Settings, Edit3, ExternalLink } from 'lucide-react'
-import { ChartLineLabel } from '@/components/admin/layout/dashboard/charts/ChartLineLabel'
+import { Settings, Edit3, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
-import { SaveAsThemeButton } from '@/components/admin/layout/builder/themes/SaveAsThemeButton'
-import { getAnalyticsOverview, getTrafficOverTime, getSiteForDashboard } from '@/lib/actions/analytics/analytics-actions'
-import { ChartBarVisitors } from '@/components/admin/layout/dashboard/charts/ChartBarVisitors'
+import { ChartGroup7 } from '@/components/chart-group7'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getSiteDashboardMetrics, getSiteForDashboard, type DashboardRange } from '@/lib/actions/analytics/analytics-actions'
 import { isExternalQuickLinkHref, normalizeSiteQuickLinks, resolveSiteQuickLinkHref } from '@/lib/utils/site-quick-links'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
@@ -17,6 +16,43 @@ interface PageProps {
   params: Promise<{
     siteId: string
   }>
+  searchParams?: Promise<{
+    range?: string | string[]
+  }>
+}
+
+function normalizeDashboardRange(value?: string | string[]): DashboardRange {
+  const range = Array.isArray(value) ? value[0] : value
+  return range === 'today' ||
+    range === 'yesterday' ||
+    range === '30d' ||
+    range === '365d'
+    ? range
+    : '7d'
+}
+
+const rangeOptions: Array<{ value: DashboardRange; label: string }> = [
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: '7d', label: '7 Days' },
+  { value: '30d', label: 'Month' },
+  { value: '365d', label: 'Year' },
+]
+
+function DashboardRangeTabs({ siteId, value }: { siteId: string; value: DashboardRange }) {
+  return (
+    <Tabs value={value} className="w-full sm:w-auto">
+      <TabsList className="h-9 max-w-full justify-start overflow-x-auto">
+        {rangeOptions.map((option) => (
+          <TabsTrigger key={option.value} value={option.value} asChild className="h-7 px-2.5 text-xs">
+            <Link href={`/admin/sites/${siteId}/dashboard?range=${option.value}`} scroll={false}>
+              {option.label}
+            </Link>
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  )
 }
 
 function getSiteStatusBadge(status?: string) {
@@ -33,15 +69,25 @@ function getSiteStatusBadge(status?: string) {
   }
 }
 
-export default async function SiteDashboard({ params }: PageProps) {
+export default async function SiteDashboard({ params, searchParams }: PageProps) {
   const { siteId } = await params
+  const resolvedSearchParams = await searchParams
+  const rawRange = Array.isArray(resolvedSearchParams?.range)
+    ? resolvedSearchParams?.range[0]
+    : resolvedSearchParams?.range
+  const selectedRange = normalizeDashboardRange(rawRange)
 
-  // Get the site data and analytics in parallel
-  const defaultAnalytics = { pageViews: 0, uniqueVisitors: 0 }
-  const [site, analytics, traffic] = await Promise.all([
+  if (rawRange !== selectedRange) {
+    redirect(`/admin/sites/${siteId}/dashboard?range=${selectedRange}`)
+  }
+
+  const [site, dashboardMetrics] = await Promise.all([
     getSiteForDashboard(siteId),
-    getAnalyticsOverview(siteId, '30d').catch(() => defaultAnalytics),
-    getTrafficOverTime(siteId, '7d').catch(() => []),
+    getSiteDashboardMetrics(siteId, selectedRange).catch(() => ({
+      totals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
+      previousTotals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
+      chartData: [],
+    })),
   ])
   const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site ? getSiteUrl(site) : null
@@ -109,71 +155,16 @@ export default async function SiteDashboard({ params }: PageProps) {
                 ),
               },
             ]}
+            rightContent={<DashboardRangeTabs siteId={siteId} value={selectedRange} />}
           />
 
-      {/* Stats Grid */}
-      <div className="grid md:grid-cols-2">
-        <ChartBarVisitors data={traffic} totalVisitors={analytics.uniqueVisitors} />
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Page Views</CardTitle>
-            <Globe className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.pageViews.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Last 30 days</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-2">
-        {/* Line Chart */}
-        <ChartLineLabel />
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks for managing your site</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/pages/${siteId}`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Edit Site Content
-              </Link>
-            </Button>
-            <SaveAsThemeButton siteId={siteId} siteName={siteName} fullWidth />
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/posts/new`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Create New Post
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/products/new`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Add Product
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/sites/${siteId}/pages`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Manage Pages
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start">
-              <Link href={`/admin/sites/${siteId}/settings`}>
-                <Settings className="mr-2 h-4 w-4" />
-                Site Settings
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-      </div>
+          <ChartGroup7
+            chartData={dashboardMetrics.chartData}
+            previousTotals={dashboardMetrics.previousTotals}
+            range={selectedRange}
+            totals={dashboardMetrics.totals}
+          />
+        </div>
       </AdminLayout>
     </>
   )
