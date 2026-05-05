@@ -11,6 +11,7 @@ import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-la
 import {
   DIRECTORY_CORE_BLOCK_TYPE,
   normalizeDirectoryCoreContent,
+  type DirectoryCoreCategoryContext,
 } from "@/lib/actions/directories/directory-core"
 import { cn } from "@/lib/utils/tailwind"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
@@ -21,6 +22,7 @@ interface DirectoryWithBlocks {
   title: string
   slug: string
   featured_image?: string | null
+  category_context?: DirectoryCoreCategoryContext | null
   blocks: Array<{
     id: string
     type: string

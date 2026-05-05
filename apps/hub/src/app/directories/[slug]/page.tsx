@@ -9,12 +9,32 @@ import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import { getContentBreadcrumbItems, shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import {
+  getContentBreadcrumbItems,
+  getContentCategoryContext,
+  shouldShowFrontendBreadcrumbs,
+} from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 
 interface DirectoryPageProps {
   params: Promise<{
     slug: string
   }>
+}
+
+function directoryBlocksNeedCategoryContext(blocks: any[]) {
+  return blocks.some((block) => {
+    if (block.type !== DIRECTORY_CORE_BLOCK_TYPE) return false
+
+    const visibility = block.content?.visibility && typeof block.content.visibility === "object"
+      ? block.content.visibility as Record<string, boolean>
+      : {}
+    const introText = typeof block.content?.introText === "string" ? block.content.introText : ""
+
+    return visibility.hideBlock !== true &&
+      visibility.introText !== false &&
+      /\{\{\s*(parent-category|child-category)\s*\}\}/.test(introText)
+  })
 }
 
 export default async function DirectoryPage({ params }: DirectoryPageProps) {
@@ -50,18 +70,30 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     blocks = []
   }
 
+  const needsCategoryContext = directoryBlocksNeedCategoryContext(blocks)
+  const [breadcrumbs, categoryContext] = await Promise.all([
+    shouldShowFrontendBreadcrumbs(site.settings, 'directories')
+      ? getContentBreadcrumbItems({
+        siteId: site.id,
+        contentId: directory.id,
+        contentType: 'directory',
+        currentLabel: directory.title,
+      })
+      : Promise.resolve([]),
+    needsCategoryContext
+      ? getContentCategoryContext({
+        siteId: site.id,
+        contentId: directory.id,
+        contentType: 'directory',
+      })
+      : Promise.resolve({}),
+  ])
+
   const directoryWithBlocks = {
     ...toSnakeCase(directory),
+    category_context: categoryContext,
     blocks
   } as any
-  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'directories')
-    ? await getContentBreadcrumbItems({
-      siteId: site.id,
-      contentId: directory.id,
-      contentType: 'directory',
-      currentLabel: directory.title,
-    })
-    : []
 
   const templateIds = Array.from(new Set(
     blocks

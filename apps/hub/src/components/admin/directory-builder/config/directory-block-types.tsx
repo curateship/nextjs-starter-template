@@ -13,6 +13,7 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     defaultContent: {
       layoutColumn: 'main',
       sticky: false,
+      introText: '',
       socialLinks: [],
       menuLinks: [],
       visibility: {},

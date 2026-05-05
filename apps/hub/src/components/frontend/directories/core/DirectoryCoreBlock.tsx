@@ -16,6 +16,8 @@ import {
   getDirectoryCoreMenuLabel,
   normalizeDirectoryCoreMenuLink,
   normalizeDirectoryCoreSocialLink,
+  renderDirectoryCoreIntroText,
+  type DirectoryCoreCategoryContext,
   type DirectoryCoreMenuLink,
   type DirectoryCoreSocialLink,
 } from "@/lib/actions/directories/directory-core"
@@ -27,6 +29,7 @@ interface DirectoryCoreBlockProps {
   directory: {
     title?: string | null
     featured_image?: string | null
+    category_context?: DirectoryCoreCategoryContext | null
   }
 }
 
@@ -125,6 +128,12 @@ export function DirectoryCoreBlock({
     : []
   const title = directory.title || "Directory Listing"
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
+  const introTemplate = typeof content?.introText === "string" ? content.introText : ""
+  const introText = renderDirectoryCoreIntroText(introTemplate, {
+    directoryTitle: title,
+    parentCategory: directory.category_context?.parent_title,
+    childCategory: directory.category_context?.child_title,
+  })
 
   return (
     <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -141,6 +150,12 @@ export function DirectoryCoreBlock({
             <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">
               {title}
             </h1>
+          ) : null}
+
+          {introText.trim() && visibility.introText !== false ? (
+            <p className="whitespace-pre-line text-base leading-7 text-muted-foreground">
+              {introText}
+            </p>
           ) : null}
 
           {socialLinks.length > 0 && visibility.socialLinks !== false ? (

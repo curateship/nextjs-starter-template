@@ -1,6 +1,7 @@
-import { and, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships } from '@/lib/db/schema'
+import type { DirectoryCoreCategoryContext } from '@/lib/actions/directories/directory-core'
 
 export type BreadcrumbContentType = 'directory' | 'product' | 'post' | 'event'
 export type BreadcrumbContentTypeKey = 'directories' | 'products' | 'posts' | 'events' | 'categories'
@@ -94,6 +95,53 @@ export async function getContentBreadcrumbItems({
     })),
     { label: currentLabel },
   ]
+}
+
+export async function getContentCategoryContext({
+  siteId,
+  contentId,
+  contentType,
+}: {
+  siteId: string
+  contentId: string
+  contentType: BreadcrumbContentType
+}): Promise<DirectoryCoreCategoryContext> {
+  const [category] = await db
+    .select({
+      title: categories.title,
+      parentId: categories.parentId,
+    })
+    .from(contentCategoryRelationships)
+    .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
+    .where(and(
+      eq(contentCategoryRelationships.contentId, contentId),
+      eq(contentCategoryRelationships.contentType, contentType),
+      eq(categories.siteId, siteId),
+      eq(categories.isPublished, true)
+    ))
+    .orderBy(desc(contentCategoryRelationships.isPrimary), asc(contentCategoryRelationships.createdAt))
+    .limit(1)
+
+  if (!category) return {}
+
+  if (!category.parentId) {
+    return { child_title: category.title }
+  }
+
+  const [parentCategory] = await db
+    .select({ title: categories.title })
+    .from(categories)
+    .where(and(
+      eq(categories.id, category.parentId),
+      eq(categories.siteId, siteId),
+      eq(categories.isPublished, true)
+    ))
+    .limit(1)
+
+  return {
+    parent_title: parentCategory?.title || null,
+    child_title: category.title,
+  }
 }
 
 export async function getCategoryBreadcrumbItems({

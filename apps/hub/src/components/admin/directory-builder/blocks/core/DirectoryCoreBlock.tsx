@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -61,6 +62,7 @@ import {
   X,
 } from "lucide-react"
 import {
+  DIRECTORY_CORE_INTRO_SHORTCODES,
   DIRECTORY_CORE_MENU_LINK_TYPES,
   getDirectoryCoreMenuDefaultIcon,
   getDirectoryCoreMenuTypeLabel,
@@ -555,6 +557,7 @@ export function DirectoryCoreBlock({
   onBack,
   showDirectoryTitleField = true,
 }: DirectoryCoreBlockProps) {
+  const introTextRef = useRef<HTMLTextAreaElement | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingSocialLinkIndex, setEditingSocialLinkIndex] = useState<number | null>(null)
@@ -603,6 +606,7 @@ export function DirectoryCoreBlock({
   const sortableSocialLinksReady = sortableReady && socialLinks.every((link) => !!link.id)
   const sortableMenuLinksReady = sortableReady && menuLinks.every((link) => !!link.id)
   const featuredImage = directoryData?.featured_image || ""
+  const introText = typeof content.introText === "string" ? content.introText : ""
 
   useEffect(() => {
     setSortableReady(true)
@@ -782,6 +786,50 @@ export function DirectoryCoreBlock({
     }))
   }
 
+  const insertIntroShortcode = (token: string) => {
+    const textarea = introTextRef.current
+    const start = textarea?.selectionStart ?? introText.length
+    const end = textarea?.selectionEnd ?? introText.length
+    const nextIntroText = `${introText.slice(0, start)}${token}${introText.slice(end)}`
+
+    onContentChange("introText", nextIntroText)
+
+    requestAnimationFrame(() => {
+      if (!introTextRef.current) return
+
+      const cursor = start + token.length
+      introTextRef.current.focus()
+      introTextRef.current.setSelectionRange(cursor, cursor)
+    })
+  }
+
+  const introTextField = (
+    <div className="space-y-3">
+      <Label htmlFor="directory-core-intro-text">Intro Text</Label>
+      <Textarea
+        ref={introTextRef}
+        id="directory-core-intro-text"
+        value={introText}
+        onChange={(event) => onContentChange("introText", event.target.value)}
+        placeholder="{{directory-title}} is an indoor climbing gym in {{parent-category}} {{child-category}}"
+        rows={3}
+      />
+      <div className="flex flex-wrap gap-2">
+        {DIRECTORY_CORE_INTRO_SHORTCODES.map((shortcode) => (
+          <Button
+            key={shortcode}
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => insertIntroShortcode(shortcode)}
+          >
+            {shortcode}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+
   const tabs = [
     {
       value: "content",
@@ -852,11 +900,17 @@ export function DirectoryCoreBlock({
                 />
               </div>
 
+              {introTextField}
+
             </>
           ) : (
-            <BlockEditorEmptyState>
-              Title and featured image come from each real directory item.
-            </BlockEditorEmptyState>
+            <>
+              <BlockEditorEmptyState>
+                Title and featured image come from each real directory item.
+              </BlockEditorEmptyState>
+
+              {introTextField}
+            </>
           )}
         </div>
       ),
@@ -1022,6 +1076,7 @@ export function DirectoryCoreBlock({
             fields={[
               { key: "image", label: "Image" },
               { key: "title", label: "Title" },
+              { key: "introText", label: "Intro Text" },
               { key: "socialLinks", label: "Social Links" },
               { key: "menuLinks", label: "Menu Links" },
             ]}

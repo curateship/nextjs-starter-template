@@ -11,8 +11,12 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
-import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
+import {
+  getContentBreadcrumbPreviewAction,
+  getContentCategoryContextPreviewAction,
+} from "@/lib/actions/categories/category-relationship-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
+import type { DirectoryCoreCategoryContext } from "@/lib/actions/directories/directory-core"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -71,6 +75,7 @@ export function DirectoryPreview({
   onUpdateRichTextBody,
 }: DirectoryPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
+  const [categoryContext, setCategoryContext] = useState<DirectoryCoreCategoryContext>({})
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
@@ -89,13 +94,22 @@ export function DirectoryPreview({
   useEffect(() => {
     let cancelled = false
 
-    if (!directory?.id || directory.id === "preview" || site?.settings?.breadcrumbs?.directories === false) {
+    if (!directory?.id || directory.id === "preview") {
       setBreadcrumbs([])
+      setCategoryContext({})
       return
     }
 
-    getContentBreadcrumbPreviewAction(directory.id, 'directory').then(({ data }) => {
-      if (!cancelled) setBreadcrumbs(data || [])
+    Promise.all([
+      site?.settings?.breadcrumbs?.directories === false
+        ? Promise.resolve({ data: [] as FrontendBreadcrumbItem[], error: null })
+        : getContentBreadcrumbPreviewAction(directory.id, 'directory'),
+      getContentCategoryContextPreviewAction(directory.id, 'directory'),
+    ]).then(([breadcrumbResult, categoryContextResult]) => {
+      if (cancelled) return
+
+      setBreadcrumbs(breadcrumbResult.data || [])
+      setCategoryContext(categoryContextResult.data || {})
     })
 
     return () => {
@@ -149,6 +163,7 @@ export function DirectoryPreview({
     title: directory?.title || "Preview Directory",
     slug: directory?.slug || "preview",
     featured_image: directory?.featured_image || null,
+    category_context: categoryContext,
     blocks: createPreviewEntityBlocks(previewBlocks),
   }
 

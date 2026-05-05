@@ -11,6 +11,7 @@ import {
   type BreadcrumbContentType,
   type FrontendBreadcrumbItem,
 } from '@/lib/actions/categories/frontend-breadcrumb-actions'
+import type { DirectoryCoreCategoryContext } from '@/lib/actions/directories/directory-core'
 
 export type ContentType = 'directory' | 'product' | 'post' | 'event' | 'page'
 
@@ -30,6 +31,17 @@ export interface CategoryInfo {
   parent_id: string | null
   parent_title?: string
   is_primary?: boolean
+}
+
+function getPrimaryCategoryContext(categoryRows: CategoryInfo[]): DirectoryCoreCategoryContext {
+  const category = categoryRows.find((item) => item.is_primary) || categoryRows[0]
+
+  if (!category) return {}
+
+  return {
+    parent_title: category.parent_title || null,
+    child_title: category.title,
+  }
 }
 
 export async function getContentBreadcrumbPreviewAction(
@@ -82,6 +94,16 @@ export async function getContentBreadcrumbPreviewAction(
     console.error('Error getting preview breadcrumbs:', error)
     return { data: null, error: 'Failed to get preview breadcrumbs' }
   }
+}
+
+export async function getContentCategoryContextPreviewAction(
+  contentId: string,
+  contentType: ContentType
+): Promise<{ data: DirectoryCoreCategoryContext | null; error: string | null }> {
+  const { data, error } = await getContentCategoriesAction(contentId, contentType)
+
+  if (error) return { data: null, error }
+  return { data: getPrimaryCategoryContext(data || []), error: null }
 }
 
 export async function getCategoryBreadcrumbPreviewAction(
