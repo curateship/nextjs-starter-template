@@ -5,6 +5,7 @@ import {
   BriefcaseBusinessIcon,
   CalendarIcon,
   ClipboardCheckIcon,
+  CreditCardIcon,
   FolderOpenIcon,
   GlobeIcon,
   HeartPulseIcon,
@@ -70,6 +71,10 @@ export const iconMeta = {
   clipboardCheck: {
     label: "Checklist",
     icon: ClipboardCheckIcon,
+  },
+  creditCard: {
+    label: "Credit Card",
+    icon: CreditCardIcon,
   },
   heartPulse: {
     label: "Health",
@@ -272,6 +277,14 @@ export function createDefaultShellConfig(): ShellConfig {
             label: "Navbar Demo",
             href: "/demo/navbar-09",
             icon: "panelsTopLeft",
+            visible: true,
+          },
+          {
+            type: "item",
+            id: "item-settings",
+            label: "Settings",
+            href: "/admin/settings",
+            icon: "settings",
             visible: true,
           },
         ],
