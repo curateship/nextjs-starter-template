@@ -15,6 +15,7 @@ import {
   normalizeNavigationAccountMenu,
   type NavigationAccountMenuSettings,
   type NavigationActionSettings,
+  type NavigationSignedInLinkSettings,
 } from '@/lib/utils/site-structure'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site-quick-links'
@@ -338,16 +339,23 @@ function getAccountMenuGuestActions(accountMenu: NavigationAccountMenuSettings) 
   return guestActions.filter((action) => action.text && action.url)
 }
 
+function getAccountMenuSignedInLinks(accountMenu: NavigationAccountMenuSettings) {
+  return accountMenu.signedInLinks
+    .filter((link) => link.text && link.url)
+}
+
 const DesktopUserMenu = ({
   user,
   onSignOut,
   showAdminLink,
+  signedInLinks,
   bordered = true,
   mounted = true,
 }: {
   user: SessionUser
   onSignOut: () => void
   showAdminLink: boolean
+  signedInLinks: NavigationSignedInLinkSettings[]
   bordered?: boolean
   mounted?: boolean
 }) => (
@@ -374,6 +382,13 @@ const DesktopUserMenu = ({
         {user.email && <span className="text-xs font-normal text-muted-foreground">{user.email}</span>}
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
+      {signedInLinks.map((link, index) => (
+        <DropdownMenuItem key={link.id || `${link.url}-${index}`} asChild>
+          <Link href={sanitizeUrl(link.url, '#')}>
+            <NavItemLabel label={link.text} icon={link.icon} />
+          </Link>
+        </DropdownMenuItem>
+      ))}
       {showAdminLink && (
         <DropdownMenuItem asChild>
           <Link href="/admin">
@@ -510,6 +525,10 @@ export const NavBlock = memo(function NavBlock({
     () =>
       guestDesktopAccountActions.filter((action) => action.showOnMobile === true),
     [guestDesktopAccountActions]
+  )
+  const signedInAccountMenuLinks = useMemo(
+    () => getAccountMenuSignedInLinks(resolvedAccountMenu),
+    [resolvedAccountMenu]
   )
 
   const sessionUser = useSiteAuthUser() as SessionUser | null
@@ -692,6 +711,7 @@ export const NavBlock = memo(function NavBlock({
             user={sessionUser}
             onSignOut={handleSignOut}
             showAdminLink={showAdminLink}
+            signedInLinks={signedInAccountMenuLinks}
             bordered={false}
             mounted={mounted}
           />
@@ -741,6 +761,7 @@ export const NavBlock = memo(function NavBlock({
             user={sessionUser}
             onSignOut={handleSignOut}
             showAdminLink={showAdminLink}
+            signedInLinks={signedInAccountMenuLinks}
             bordered={false}
             mounted={mounted}
           />

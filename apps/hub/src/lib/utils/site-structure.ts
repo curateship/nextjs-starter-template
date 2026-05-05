@@ -23,10 +23,18 @@ export interface NavigationActionSettings {
   icon?: QuickLinkIconName
 }
 
+export interface NavigationSignedInLinkSettings {
+  id?: string
+  text: string
+  url: string
+  icon?: QuickLinkIconName
+}
+
 export interface NavigationAccountMenuSettings {
   enabled: boolean
   login: NavigationActionSettings
   register: NavigationActionSettings
+  signedInLinks: NavigationSignedInLinkSettings[]
 }
 
 const NAVIGATION_ACTION_STYLES: readonly NavigationActionStyle[] = [
@@ -77,6 +85,7 @@ export function createDefaultNavigationAccountMenu(
       ...DEFAULT_REGISTER_ACTION,
       url: buildAccountMenuAuthUrl(publicAuthPagePath, 'register'),
     },
+    signedInLinks: [],
   }
 }
 
@@ -120,6 +129,7 @@ export function normalizeNavigationAccountMenu(
     enabled: true,
     login: sanitizeNavigationActionSettings(raw.login, fallback.login),
     register: sanitizeNavigationActionSettings(raw.register, fallback.register),
+    signedInLinks: sanitizeNavigationSignedInLinks(raw.signedInLinks),
   }
 }
 
@@ -141,6 +151,32 @@ function sanitizeUrlItems(items: unknown) {
       return sanitizedItem
     })
     .filter(item => item.url)
+}
+
+function sanitizeNavigationSignedInLinks(items: unknown): NavigationSignedInLinkSettings[] {
+  if (!Array.isArray(items)) return []
+
+  return items
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => {
+      const text = typeof item.text === 'string' ? item.text.trim() : ''
+      const url = sanitizeUrl(typeof item.url === 'string' ? item.url : undefined, '')
+      const id = typeof item.id === 'string' && item.id.trim()
+        ? item.id.trim()
+        : undefined
+      const link: NavigationSignedInLinkSettings = { text, url }
+
+      if (id) {
+        link.id = id
+      }
+
+      if (isQuickLinkIconName(item.icon)) {
+        link.icon = item.icon
+      }
+
+      return link
+    })
+    .filter((item) => item.text && item.url)
 }
 
 export function sanitizeNavigationSettings(
