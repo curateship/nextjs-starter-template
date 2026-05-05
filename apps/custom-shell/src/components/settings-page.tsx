@@ -15,12 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
+  { id: "top-navigation", label: "Top Navigation" },
   { id: "style", label: "Style" },
   { id: "payments", label: "Payments" },
   { id: "email", label: "Email" },
@@ -28,6 +30,12 @@ const settingsTabs = [
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
+
+function getSettingsTabHref(tabId: SettingsTabId) {
+  return tabId === "general"
+    ? "#/admin/settings"
+    : `#/admin/settings/${tabId}`
+}
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
@@ -59,7 +67,7 @@ export function SettingsPage({
           {settingsTabs.map((tab) => (
             <a
               key={tab.id}
-              href={tab.id === "general" ? "#/admin/settings" : `#/admin/settings/${tab.id}`}
+              href={getSettingsTabHref(tab.id)}
               className={cn(
                 "rounded-md px-4 py-2.5 text-left text-sm font-medium transition-colors",
                 activeTab === tab.id
@@ -76,6 +84,12 @@ export function SettingsPage({
           {activeTab === "general" ? <GeneralSettings /> : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
+              config={config}
+              onConfigChange={onConfigChange}
+            />
+          ) : null}
+          {activeTab === "top-navigation" ? (
+            <TopNavigationSettings
               config={config}
               onConfigChange={onConfigChange}
             />

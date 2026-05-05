@@ -19,6 +19,7 @@ import {
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
   createDefaultShellConfig,
+  createDefaultTopNavigation,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
@@ -42,6 +43,17 @@ function getShellItems(config: ShellConfig) {
   )
 }
 
+function getDashboardPaths(config: ShellConfig) {
+  return config.topNavigation.map((item) => item.href)
+}
+
+function isActivePath(href: string, currentPath: string) {
+  return (
+    href === currentPath ||
+    (href !== "/" && currentPath.startsWith(`${href}/`))
+  )
+}
+
 function findActiveSectionItem(
   items: ShellItem[],
   currentPath: string
@@ -49,8 +61,8 @@ function findActiveSectionItem(
   return items.find(
     (item) =>
       item.children?.length &&
-      (item.href === currentPath ||
-        item.children.some((child) => child.href === currentPath))
+      (isActivePath(item.href, currentPath) ||
+        item.children.some((child) => isActivePath(child.href, currentPath)))
   )
 }
 
@@ -58,29 +70,22 @@ function getStickyHeaderNavLinks(
   config: ShellConfig,
   currentPath: string
 ) {
-  const dashboardPaths = ["/", "/overview-2"]
+  const dashboardPaths = getDashboardPaths(config)
 
-  if (
-    currentPath === "/admin/settings" ||
-    currentPath.startsWith("/admin/settings/")
-  ) {
-    return []
-  }
-
-  if (dashboardPaths.includes(currentPath)) {
-    return [
-      {
-        label: "Dashboard 1",
-        href: "#/",
-        icon: renderShellIcon("panelsTopLeft", "h-3.5 w-3.5"),
-        active: true,
-      },
-    ]
+  if (currentPath === "/" || dashboardPaths.includes(currentPath)) {
+    return config.topNavigation
+      .filter((item) => item.visible)
+      .map((item) => ({
+        label: item.label,
+        href: `#${item.href}`,
+        icon: renderShellIcon(item.icon, "h-3.5 w-3.5"),
+        active: currentPath === item.href,
+      }))
   }
 
   const items = getShellItems(config)
   const activeSectionItem = findActiveSectionItem(items, currentPath)
-  const activeItem = items.find((item) => item.href === currentPath)
+  const activeItem = items.find((item) => isActivePath(item.href, currentPath))
 
   if (activeSectionItem) {
     return [
@@ -126,12 +131,19 @@ function getInitialShellConfig() {
       return fallback
     }
 
-    const parsedConfig = JSON.parse(storedConfig) as ShellConfig
+    const parsedConfig = JSON.parse(storedConfig) as Partial<ShellConfig>
     if (!parsedConfig || !Array.isArray(parsedConfig.sections)) {
       return fallback
     }
 
-    return parsedConfig
+    return {
+      ...fallback,
+      ...parsedConfig,
+      topNavigation: Array.isArray(parsedConfig.topNavigation)
+        ? parsedConfig.topNavigation
+        : createDefaultTopNavigation(),
+      sections: parsedConfig.sections,
+    }
   } catch (error) {
     console.error("Failed to load custom shell config:", error)
     return fallback
@@ -163,8 +175,12 @@ export function App() {
   }, [])
 
   const navLinks = getStickyHeaderNavLinks(config, currentPath)
+  const dashboardPaths = getDashboardPaths(config)
 
-  const isDashboardRoute = currentPath === "/" || currentPath === "/overview-2"
+  const isDashboardRoute =
+    currentPath === "/" ||
+    currentPath === "/overview-2" ||
+    dashboardPaths.includes(currentPath)
   const isPostsRoute = currentPath === "/admin/posts"
   const isMediaRoute = currentPath === "/admin/media"
   const isImagesRoute = currentPath === "/admin/media/images"

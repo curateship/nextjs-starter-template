@@ -166,12 +166,21 @@ export type ShellSection = {
   entries: ShellEntry[]
 }
 
+export type ShellTopNavigationItem = {
+  id: string
+  label: string
+  href: string
+  icon: IconKey
+  visible: boolean
+}
+
 export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
   themePreset: ThemePresetKey
   fontPreset: FontPresetKey
+  topNavigation: ShellTopNavigationItem[]
   sections: ShellSection[]
 }
 
@@ -229,6 +238,18 @@ export const fontPresets = [
   description: string
 }>
 
+export function createDefaultTopNavigation(): ShellTopNavigationItem[] {
+  return [
+    {
+      id: "top-nav-dashboard",
+      label: "Dashboard 1",
+      href: "/",
+      icon: "panelsTopLeft",
+      visible: true,
+    },
+  ]
+}
+
 export function createDefaultShellConfig(): ShellConfig {
   return {
     appName: "custom-shell",
@@ -236,6 +257,7 @@ export function createDefaultShellConfig(): ShellConfig {
     workspacePlan: "Internal",
     themePreset: "graphite",
     fontPreset: "urbanist",
+    topNavigation: createDefaultTopNavigation(),
     sections: [
       {
         id: "section-starter",

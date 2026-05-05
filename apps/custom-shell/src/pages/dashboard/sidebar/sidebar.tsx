@@ -35,6 +35,13 @@ function getCurrentHashPath() {
   return hash.startsWith("#") ? hash.slice(1) || "/" : hash || "/"
 }
 
+function isActivePath(href: string, currentPath: string) {
+  return (
+    href === currentPath ||
+    (href !== "/" && currentPath.startsWith(`${href}/`))
+  )
+}
+
 function mapSectionEntries(
   section: ShellSection,
   currentPath: string
@@ -62,14 +69,16 @@ function mapSectionEntries(
       href: entry.href,
       icon: renderShellIcon(entry.icon),
       active:
-        currentPath === entry.href ||
-        Boolean(entry.children?.some((child) => child.href === currentPath)),
+        isActivePath(entry.href, currentPath) ||
+        Boolean(
+          entry.children?.some((child) => isActivePath(child.href, currentPath))
+        ),
       children: entry.children?.map((child) => ({
         id: child.id,
         label: child.label,
         href: child.href,
         icon: child.icon ? renderShellIcon(child.icon) : undefined,
-        active: currentPath === child.href,
+        active: isActivePath(child.href, currentPath),
       })),
     })
   })
