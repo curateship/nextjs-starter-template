@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import {
@@ -55,6 +56,7 @@ import {
   arrayMove,
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -130,6 +132,15 @@ function createNavigationItemId(prefix: "link" | "button") {
 function arraysEqual(left: string[], right: unknown) {
   if (!Array.isArray(right) || left.length !== right.length) return false
   return left.every((value, index) => value === right[index])
+}
+
+function ensureSignedInLinkIds(
+  links: NavigationSignedInLinkSettings[]
+): NavigationSignedInLinkSettings[] {
+  return links.map((link) => ({
+    ...link,
+    id: link.id || createNavigationItemId("link"),
+  }))
 }
 
 function NavigationIconField({
@@ -316,6 +327,89 @@ function NavigationIconField({
         </AdminModalContent>
       </Dialog>
     </>
+  )
+}
+
+function NavigationCompactIconField({
+  value,
+  onChange,
+}: {
+  value?: QuickLinkIconName
+  onChange: (value?: QuickLinkIconName) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const SelectedIcon = getQuickLinkIconOrNull(value)
+  const FallbackIcon = getQuickLinkIcon()
+  const currentLabel = value
+    ? QUICK_LINK_ICON_OPTIONS.find((option) => option.value === value)?.label || "Custom icon"
+    : "No icon"
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="h-8 w-8"
+          aria-label={`Choose icon, current icon ${currentLabel}`}
+          title={currentLabel}
+        >
+          {SelectedIcon ? (
+            <SelectedIcon className="h-4 w-4" />
+          ) : (
+            <FallbackIcon className="h-4 w-4 text-muted-foreground" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80">
+        <div className="grid grid-cols-5 gap-1.5">
+          <button
+            type="button"
+            className={cn(
+              "relative flex aspect-square items-center justify-center rounded-md border text-xs transition-colors hover:bg-muted",
+              !value && "border-primary bg-primary/5"
+            )}
+            onClick={() => {
+              onChange(undefined)
+              setOpen(false)
+            }}
+            aria-label="Use no icon"
+          >
+            None
+            {!value ? (
+              <Check className="absolute right-1 top-1 h-3 w-3" />
+            ) : null}
+          </button>
+          {QUICK_LINK_ICON_OPTIONS.map((option) => {
+            const Icon = getQuickLinkIcon(option.value)
+            const isSelected = option.value === value
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={cn(
+                  "relative flex aspect-square items-center justify-center rounded-md border transition-colors hover:bg-muted",
+                  isSelected && "border-primary bg-primary/5"
+                )}
+                onClick={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                }}
+                aria-label={`Use ${option.label} icon`}
+                title={option.label}
+              >
+                <Icon className="h-4 w-4" />
+                {isSelected ? (
+                  <Check className="absolute right-1 top-1 h-3 w-3" />
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -532,6 +626,137 @@ function StaticLinkItem({
         </Button>
       </div>
     </div>
+  )
+}
+
+function UserPanelChildLinkRow({
+  link,
+  index,
+  onChange,
+  onDelete,
+  dragHandle,
+  setNodeRef,
+  style,
+}: {
+  link: NavigationSignedInLinkSettings
+  index: number
+  onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
+  onDelete: (index: number) => void
+  dragHandle: ReactNode
+  setNodeRef?: (node: HTMLElement | null) => void
+  style?: CSSProperties
+}) {
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto]"
+    >
+      {dragHandle}
+      <NavigationCompactIconField
+        value={link.icon}
+        onChange={(icon) => onChange(index, { icon })}
+      />
+      <Input
+        value={link.text}
+        onChange={(event) => onChange(index, { text: event.target.value })}
+        placeholder="Child label"
+        aria-label="Child label"
+        className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
+      />
+      <Input
+        value={link.url}
+        onChange={(event) => onChange(index, { url: event.target.value })}
+        placeholder="/account or https://example.com"
+        aria-label="Child URL"
+        className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => onDelete(index)}
+        aria-label={`Delete ${link.text || "child link"}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
+
+function SortableUserPanelChildLink({
+  link,
+  index,
+  onChange,
+  onDelete,
+}: {
+  link: NavigationSignedInLinkSettings
+  index: number
+  onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
+  onDelete: (index: number) => void
+}) {
+  const itemId = link.id || `user-panel-child-${index}`
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: itemId })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+  }
+
+  return (
+    <UserPanelChildLinkRow
+      link={link}
+      index={index}
+      onChange={onChange}
+      onDelete={onDelete}
+      setNodeRef={setNodeRef}
+      style={style}
+      dragHandle={
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={`Reorder ${link.text || "child link"}`}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      }
+    />
+  )
+}
+
+function StaticUserPanelChildLink({
+  link,
+  index,
+  onChange,
+  onDelete,
+}: {
+  link: NavigationSignedInLinkSettings
+  index: number
+  onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
+  onDelete: (index: number) => void
+}) {
+  return (
+    <UserPanelChildLinkRow
+      link={link}
+      index={index}
+      onChange={onChange}
+      onDelete={onDelete}
+      dragHandle={
+        <div className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground">
+          <GripVertical className="h-4 w-4" />
+        </div>
+      }
+    />
   )
 }
 
@@ -756,16 +981,10 @@ export function Navigation({
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)
-  const [editingSignedInLinkIndex, setEditingSignedInLinkIndex] = useState<number | null>(null)
   const [editingButtonIndex, setEditingButtonIndex] = useState<number | null>(null)
   const [editingBuiltInActionItem, setEditingBuiltInActionItem] =
     useState<BuiltInNavigationActionItemId | null>(null)
   const [linkDraft, setLinkDraft] = useState<Pick<NavigationLink, "text" | "url" | "icon">>({
-    text: "",
-    url: "",
-    icon: undefined,
-  })
-  const [signedInLinkDraft, setSignedInLinkDraft] = useState<Pick<NavigationSignedInLinkSettings, "text" | "url" | "icon">>({
     text: "",
     url: "",
     icon: undefined,
@@ -860,7 +1079,7 @@ export function Navigation({
         {
           id: ACCOUNT_MENU_ACTION_ITEM_ID,
           kind: "special",
-          label: "Account Menu",
+          label: "User Panel",
           hidden: false,
           icon: UserRound,
         },
@@ -1027,87 +1246,6 @@ export function Navigation({
     onContentChange("links", arrayMove(links, oldIndex, newIndex))
   }
 
-  const updateSignedInLinks = (nextSignedInLinks: NavigationSignedInLinkSettings[]) => {
-    onContentChange("accountMenu", {
-      ...accountMenu,
-      signedInLinks: nextSignedInLinks,
-    })
-  }
-
-  const addSignedInLink = () => {
-    updateSignedInLinks([
-      ...signedInLinks,
-      {
-        text: "",
-        url: "",
-        id: createNavigationItemId("link"),
-      },
-    ])
-  }
-
-  const openSignedInLinkEditor = (index: number) => {
-    const link = signedInLinks[index]
-    if (!link) return
-
-    setSignedInLinkDraft({
-      text: link.text,
-      url: link.url,
-      icon: link.icon,
-    })
-    setEditingSignedInLinkIndex(index)
-  }
-
-  const removeSignedInLink = (index: number) => {
-    updateSignedInLinks(signedInLinks.filter((_, itemIndex) => itemIndex !== index))
-  }
-
-  const saveSignedInLinkEditor = () => {
-    if (editingSignedInLinkIndex === null) return
-    const nextSignedInLinks = [...signedInLinks]
-    nextSignedInLinks[editingSignedInLinkIndex] = {
-      ...nextSignedInLinks[editingSignedInLinkIndex],
-      text: signedInLinkDraft.text,
-      url: signedInLinkDraft.url.trim(),
-      icon: signedInLinkDraft.icon,
-    }
-    const nextAccountMenu = {
-      ...accountMenu,
-      signedInLinks: nextSignedInLinks,
-    }
-    const nextContent = {
-      ...content,
-      accountMenu: nextAccountMenu,
-    }
-
-    if (!onContentPersist) {
-      onContentChange("accountMenu", nextAccountMenu)
-      setEditingSignedInLinkIndex(null)
-      return
-    }
-
-    setModalSaving(true)
-    void onContentPersist(nextContent)
-      .then((success) => {
-        if (success) {
-          setEditingSignedInLinkIndex(null)
-        }
-      })
-      .finally(() => {
-        setModalSaving(false)
-      })
-  }
-
-  const handleSignedInLinkDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = signedInLinks.findIndex((link) => link.id === active.id)
-    const newIndex = signedInLinks.findIndex((link) => link.id === over.id)
-
-    if (oldIndex === -1 || newIndex === -1) return
-    updateSignedInLinks(arrayMove(signedInLinks, oldIndex, newIndex))
-  }
-
   const addButton = () => {
     const nextButton = {
       text: "",
@@ -1138,7 +1276,10 @@ export function Navigation({
 
   const openBuiltInActionItemEditor = (itemId: BuiltInNavigationActionItemId) => {
     if (itemId === ACCOUNT_MENU_ACTION_ITEM_ID) {
-      setAccountMenuDraft(accountMenu)
+      setAccountMenuDraft({
+        ...accountMenu,
+        signedInLinks: ensureSignedInLinkIds(signedInLinks),
+      })
     } else {
       setDarkModeDraft(currentStyleConfig.showDarkModeToggle !== false)
       setDarkModeMobileDraft(currentStyleConfig.showDarkModeToggleOnMobile !== false)
@@ -1212,6 +1353,77 @@ export function Navigation({
     }))
   }
 
+  const addAccountMenuSignedInLinkDraft = () => {
+    setAccountMenuDraft((prev) => ({
+      ...prev,
+      signedInLinks: [
+        ...prev.signedInLinks,
+        {
+          id: createNavigationItemId("link"),
+          text: "",
+          url: "",
+        },
+      ],
+    }))
+  }
+
+  const updateAccountMenuSignedInLinkDraft = (
+    index: number,
+    patch: Partial<NavigationSignedInLinkSettings>
+  ) => {
+    setAccountMenuDraft((prev) => ({
+      ...prev,
+      signedInLinks: prev.signedInLinks.map((link, itemIndex) =>
+        itemIndex === index ? { ...link, ...patch } : link
+      ),
+    }))
+  }
+
+  const removeAccountMenuSignedInLinkDraft = (index: number) => {
+    setAccountMenuDraft((prev) => ({
+      ...prev,
+      signedInLinks: prev.signedInLinks.filter((_, itemIndex) => itemIndex !== index),
+    }))
+  }
+
+  const handleAccountMenuSignedInLinkDraftDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setAccountMenuDraft((prev) => {
+      const oldIndex = prev.signedInLinks.findIndex(
+        (link, index) => (link.id || `user-panel-child-${index}`) === active.id
+      )
+      const newIndex = prev.signedInLinks.findIndex(
+        (link, index) => (link.id || `user-panel-child-${index}`) === over.id
+      )
+
+      if (oldIndex === -1 || newIndex === -1) return prev
+
+      return {
+        ...prev,
+        signedInLinks: arrayMove(prev.signedInLinks, oldIndex, newIndex),
+      }
+    })
+  }
+
+  const getAccountMenuDraftForSave = () => ({
+    ...accountMenuDraft,
+    login: {
+      ...accountMenuDraft.login,
+      url: accountMenuDraft.login.url.trim(),
+    },
+    register: {
+      ...accountMenuDraft.register,
+      url: accountMenuDraft.register.url.trim(),
+    },
+    signedInLinks: accountMenuDraft.signedInLinks.map((link) => ({
+      ...link,
+      text: link.text.trim(),
+      url: link.url.trim(),
+    })),
+  })
+
   const saveBuiltInActionItemEditor = () => {
     if (!editingBuiltInActionItem) return
 
@@ -1219,7 +1431,7 @@ export function Navigation({
     if (editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID) {
       nextContent = {
         ...content,
-        accountMenu: accountMenuDraft,
+        accountMenu: getAccountMenuDraftForSave(),
       }
     } else {
       nextContent = {
@@ -1237,7 +1449,7 @@ export function Navigation({
 
     if (!onContentPersist) {
       if (editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID) {
-        onContentChange("accountMenu", accountMenuDraft)
+        onContentChange("accountMenu", getAccountMenuDraftForSave())
       } else {
         onContentChange("styleConfig", {
           ...styleConfig,
@@ -1617,79 +1829,6 @@ export function Navigation({
                 </CardContent>
               </Card>
 
-              <Card className="shadow-sm">
-                <CardHeader>
-                  <h2 className="text-base font-semibold leading-none tracking-tight">User Dropdown Links</h2>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {signedInLinks.length === 0 ? (
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
-                        No user dropdown links.
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addSignedInLink}
-                        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-                        aria-label="Add user dropdown link"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : sortableReady ? (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleSignedInLinkDragEnd}
-                    >
-                      <SortableContext
-                        items={signedInLinks.map((link) => link.id || "")}
-                        strategy={horizontalListSortingStrategy}
-                      >
-                        <div className="flex flex-wrap items-center gap-2">
-                          {signedInLinks.map((link, index) => (
-                            <SortableLinkItem
-                              key={link.id || `user-dropdown-link-${index}`}
-                              link={link}
-                              index={index}
-                              onEdit={openSignedInLinkEditor}
-                              onDelete={removeSignedInLink}
-                            />
-                          ))}
-                          <button
-                            type="button"
-                            onClick={addSignedInLink}
-                            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-                            aria-label="Add user dropdown link"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {signedInLinks.map((link, index) => (
-                        <StaticLinkItem
-                          key={link.id || `user-dropdown-link-static-${index}`}
-                          link={link}
-                          index={index}
-                          onEdit={openSignedInLinkEditor}
-                          onDelete={removeSignedInLink}
-                        />
-                      ))}
-                      <button
-                        type="button"
-                        onClick={addSignedInLink}
-                        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-                        aria-label="Add user dropdown link"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
         </div>
       </div>
 
@@ -1751,70 +1890,6 @@ export function Navigation({
               Remove Icon
             </Button>
             <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
-              {modalSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
-      </Dialog>
-
-      <Dialog
-        open={editingSignedInLinkIndex !== null}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) {
-            setEditingSignedInLinkIndex(null)
-          }
-        }}
-      >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>User Dropdown Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the label, destination URL, and optional icon for this signed-in menu link.
-            </AdminModalDescription>
-          </AdminModalHeader>
-
-          <AdminModalBody className="space-y-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-              <NavigationIconField
-                value={signedInLinkDraft.icon}
-                onChange={(icon) => setSignedInLinkDraft((prev) => ({ ...prev, icon }))}
-              />
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Name</p>
-                <Input
-                  value={signedInLinkDraft.text}
-                  onChange={(event) => setSignedInLinkDraft((prev) => ({ ...prev, text: event.target.value }))}
-                  placeholder="Label"
-                  aria-label="User dropdown link name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={signedInLinkDraft.url}
-                  onChange={(event) => setSignedInLinkDraft((prev) => ({ ...prev, url: event.target.value }))}
-                  placeholder="/account or https://example.com"
-                  aria-label="User dropdown link URL"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setEditingSignedInLinkIndex(null)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={modalSaving}
-              onClick={() => setSignedInLinkDraft((prev) => ({ ...prev, icon: undefined }))}
-            >
-              Remove Icon
-            </Button>
-            <Button type="button" disabled={modalSaving} onClick={saveSignedInLinkEditor}>
               {modalSaving ? "Saving..." : "Save"}
             </Button>
           </AdminModalFooter>
@@ -1926,16 +2001,20 @@ export function Navigation({
           }
         }}
       >
-        <AdminModalContent>
+        <AdminModalContent
+          className={cn(
+            editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID && "sm:max-w-3xl"
+          )}
+        >
           <AdminModalHeader>
             <AdminModalTitle>
               {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID
-                ? "Account Menu Settings"
+                ? "User Panel Settings"
                 : "Dark Mode Settings"}
             </AdminModalTitle>
             <AdminModalDescription>
               {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID
-                ? "Control how the built-in account menu renders for signed-in users and logged-out visitors."
+                ? "Control login and register actions plus signed-in child links."
                 : "Choose where the theme toggle should render in the navigation."}
             </AdminModalDescription>
           </AdminModalHeader>
@@ -1962,6 +2041,71 @@ export function Navigation({
                     updateAccountMenuActionDraft("register", nextAction)
                   }
                 />
+
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Child links</p>
+                      <p className="text-xs text-muted-foreground">
+                        These appear in the signed-in user dropdown.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addAccountMenuSignedInLinkDraft}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Child
+                    </Button>
+                  </div>
+
+                  {accountMenuDraft.signedInLinks.length ? (
+                    sortableReady ? (
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleAccountMenuSignedInLinkDraftDragEnd}
+                      >
+                        <SortableContext
+                          items={accountMenuDraft.signedInLinks.map(
+                            (link, index) => link.id || `user-panel-child-${index}`
+                          )}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div className="space-y-2">
+                            {accountMenuDraft.signedInLinks.map((link, index) => (
+                              <SortableUserPanelChildLink
+                                key={link.id || `user-panel-child-${index}`}
+                                link={link}
+                                index={index}
+                                onChange={updateAccountMenuSignedInLinkDraft}
+                                onDelete={removeAccountMenuSignedInLinkDraft}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+                    ) : (
+                      <div className="space-y-2">
+                        {accountMenuDraft.signedInLinks.map((link, index) => (
+                          <StaticUserPanelChildLink
+                            key={link.id || `user-panel-child-static-${index}`}
+                            link={link}
+                            index={index}
+                            onChange={updateAccountMenuSignedInLinkDraft}
+                            onDelete={removeAccountMenuSignedInLinkDraft}
+                          />
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                      No child links.
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
