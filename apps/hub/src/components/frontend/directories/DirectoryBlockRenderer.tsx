@@ -40,6 +40,7 @@ interface DirectoryBlockRendererProps {
   breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
+  googleMapsEmbedApiKey?: string
   renderRichTextBody?: (block: DirectoryWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: DirectoryWithBlocks["blocks"][number]) => ReactNode
 }
@@ -51,6 +52,7 @@ export function DirectoryBlockRenderer({
   breadcrumbs = [],
   isPreview = false,
   hideSiteChrome = false,
+  googleMapsEmbedApiKey = '',
   renderRichTextBody,
   renderBlockOverlay,
 }: DirectoryBlockRendererProps) {
@@ -80,9 +82,6 @@ export function DirectoryBlockRenderer({
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
   const publicSite = toPublicSiteClientProps(site)
-  const googleMapsEmbedApiKey = typeof site.settings?.google_maps_embed_api_key === 'string'
-    ? site.settings.google_maps_embed_api_key
-    : ''
   const mainBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main')
   const sidebarBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar')
   const outerContainerStyle = siteWidth === 'custom'

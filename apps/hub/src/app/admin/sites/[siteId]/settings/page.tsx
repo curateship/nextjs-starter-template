@@ -29,57 +29,6 @@ import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdm
 import { checkDomainHealth, type DomainHealth } from '@/lib/actions/newsletters/deliverability-actions'
 import { SiteHealthTab } from '@/components/admin/seo-settings/SiteHealthTab'
 
-// --- GoogleApiSettingsCard ---
-
-interface GoogleApiSettingsCardProps {
-  apiKey: string
-  onApiKeyChange: (value: string) => void
-}
-
-function GoogleApiSettingsCard({
-  apiKey,
-  onApiKeyChange,
-}: GoogleApiSettingsCardProps) {
-  const [revealed, setRevealed] = useState(false)
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Google Maps API</CardTitle>
-        <CardDescription>
-          Used by directory Google Map blocks. Use a Maps Embed API key restricted by HTTP referrer.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-2">
-          <Label htmlFor="google-maps-embed-api-key">Maps Embed API Key</Label>
-          <div className="relative">
-            <Input
-              id="google-maps-embed-api-key"
-              type={revealed ? "text" : "password"}
-              value={apiKey}
-              onChange={(event) => onApiKeyChange(event.target.value)}
-              placeholder="AIza..."
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setRevealed((current) => !current)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {revealed ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 // --- IntegrationCard ---
 
 interface IntegrationCardProps {
@@ -486,7 +435,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
   const [welcomeEmailEnabled, setWelcomeEmailEnabled] = useState<boolean>(contextSite?.settings?.welcome_email_enabled !== false)
-  const [googleMapsEmbedApiKey, setGoogleMapsEmbedApiKey] = useState(contextSite?.settings?.google_maps_embed_api_key || "")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -589,26 +537,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         }
 
         setIntegrationSaveTrigger((prev) => prev + 1)
-      } else if (activeTab === 'integrations') {
-        const { data, error } = await updateSiteAction(siteId, {
-          settings: {
-            ...site?.settings,
-            google_maps_embed_api_key: googleMapsEmbedApiKey.trim(),
-          },
-        })
-
-        if (error) {
-          setError(error)
-          return
-        }
-
-        if (data) {
-          setSite(prev => prev ? { ...prev, ...data } : null)
-          if (currentSite?.id === siteId) {
-            setCurrentSite({ ...currentSite, ...data })
-          }
-          showSuccess('Integration settings saved')
-        }
       } else {
         setIntegrationSaveTrigger((prev) => prev + 1)
       }
@@ -783,12 +711,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
               )}
 
               {activeTab === 'integrations' && (
-                <div className="space-y-3">
-                  <GoogleApiSettingsCard
-                    apiKey={googleMapsEmbedApiKey}
-                    onApiKeyChange={setGoogleMapsEmbedApiKey}
-                  />
-                </div>
+                <IntegrationTab siteId={siteId} category="integrations" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
               {activeTab === 'cron-jobs' && (

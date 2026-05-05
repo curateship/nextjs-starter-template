@@ -153,3 +153,18 @@ export async function getResearchConfig(siteId: string): Promise<{
 
   return null
 }
+
+export async function getGoogleMapsConfig(siteId: string): Promise<{
+  apiKey: string
+} | null> {
+  const integration = await getServerIntegration(siteId, 'google_maps')
+
+  if (integration) {
+    const { api_key } = integration.config
+    if (api_key) {
+      return { apiKey: api_key }
+    }
+  }
+
+  return null
+}

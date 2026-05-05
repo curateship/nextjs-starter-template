@@ -5,6 +5,7 @@ export type IntegrationType =
   | 'openai'
   | 'perplexity'
   | 'google_ai'
+  | 'google_maps'
 
 /**
  * Map of config keys that contain sensitive values per integration type.
@@ -17,6 +18,7 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   openai: ['api_key'],
   perplexity: ['api_key'],
   google_ai: ['api_key'],
+  google_maps: ['api_key'],
 }
 
 export interface IntegrationFieldDefinition {
@@ -28,7 +30,7 @@ export interface IntegrationFieldDefinition {
   options?: Array<{ value: string; label: string }>
 }
 
-export type IntegrationCategory = 'payments' | 'email' | 'ai' | 'seo'
+export type IntegrationCategory = 'payments' | 'email' | 'ai' | 'seo' | 'integrations'
 
 export interface IntegrationRegistryEntry {
   type: IntegrationType
@@ -112,6 +114,15 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     category: 'ai',
     fields: [
       { key: 'api_key', label: 'API Key', type: 'password', required: true },
+    ],
+  },
+  {
+    type: 'google_maps',
+    label: 'Google Maps',
+    description: 'Maps Embed API key for directory Google Map blocks',
+    category: 'integrations',
+    fields: [
+      { key: 'api_key', label: 'Maps Embed API Key', type: 'password', placeholder: 'AIza...', required: true },
     ],
   },
 ]

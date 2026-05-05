@@ -15,11 +15,26 @@ import {
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
+import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
+import { getGoogleMapsConfig } from "@/lib/actions/integrations/config-helpers"
 
 interface DirectoryPageProps {
   params: Promise<{
     slug: string
   }>
+}
+
+function directoryBlocksNeedGoogleMapsConfig(blocks: any[]) {
+  return blocks.some((block) => {
+    if (block.type !== DIRECTORY_GOOGLE_MAP_BLOCK_TYPE) return false
+
+    const visibility = block.content?.visibility && typeof block.content.visibility === "object"
+      ? block.content.visibility as Record<string, boolean>
+      : {}
+    const locationQuery = typeof block.content?.locationQuery === "string" ? block.content.locationQuery.trim() : ""
+
+    return visibility.hideBlock !== true && visibility.map !== false && locationQuery.length > 0
+  })
 }
 
 function directoryBlocksNeedCategoryContext(blocks: any[]) {
@@ -71,7 +86,8 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
   }
 
   const needsCategoryContext = directoryBlocksNeedCategoryContext(blocks)
-  const [breadcrumbs, categoryContext] = await Promise.all([
+  const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
+  const [breadcrumbs, categoryContext, googleMapsConfig] = await Promise.all([
     shouldShowFrontendBreadcrumbs(site.settings, 'directories')
       ? getContentBreadcrumbItems({
         siteId: site.id,
@@ -87,6 +103,9 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         contentType: 'directory',
       })
       : Promise.resolve({}),
+    needsGoogleMapsConfig
+      ? getGoogleMapsConfig(site.id)
+      : Promise.resolve(null),
   ])
 
   const directoryWithBlocks = {
@@ -134,6 +153,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         directory={directoryWithBlocks}
         customBlockTemplates={customBlockTemplates}
         breadcrumbs={breadcrumbs}
+        googleMapsEmbedApiKey={googleMapsConfig?.apiKey || ''}
       />
     </>
   )
