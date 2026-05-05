@@ -3,9 +3,18 @@ import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
+import { validateContentBlocks } from '@/lib/utils/content-block-validation'
+import { isSameOriginRequest } from '@/lib/utils/request-origin'
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isSameOriginRequest(request)) {
+      return NextResponse.json(
+        { data: null, error: 'Invalid origin' },
+        { status: 403 }
+      )
+    }
+
     const pageData = await request.json()
 
     // Validate required fields
@@ -102,6 +111,15 @@ export async function POST(request: NextRequest) {
     })
 
     const nextOrder = orderData ? orderData.displayOrder + 1 : 1
+    const contentBlocks = pageData.content_blocks ?? {}
+    const contentBlocksError = validateContentBlocks(contentBlocks)
+
+    if (contentBlocksError) {
+      return NextResponse.json(
+        { data: null, error: contentBlocksError },
+        { status: 400 }
+      )
+    }
 
     const [newPage] = await db.insert(siteAccountPages)
       .values({
@@ -112,7 +130,7 @@ export async function POST(request: NextRequest) {
         isPublished: pageData.is_published !== false,
         displayOrder: nextOrder,
         metaDescription: pageData.meta_description || null,
-        contentBlocks: pageData.content_blocks || {},
+        contentBlocks,
       })
       .returning()
 

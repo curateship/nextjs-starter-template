@@ -3,6 +3,8 @@ import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
+import { validateContentBlocks } from '@/lib/utils/content-block-validation'
+import { isSameOriginRequest } from '@/lib/utils/request-origin'
 
 export async function GET(
   request: NextRequest,
@@ -73,6 +75,13 @@ export async function PUT(
   { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
+    if (!isSameOriginRequest(request)) {
+      return NextResponse.json(
+        { data: null, error: 'Invalid origin' },
+        { status: 403 }
+      )
+    }
+
     const { pageId } = await params
     const updates = await request.json()
 
@@ -177,7 +186,17 @@ export async function PUT(
     if (updates.title !== undefined) updateValues.title = updates.title
     if (updates.slug !== undefined) updateValues.slug = updates.slug
     if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
-    if (updates.content_blocks !== undefined) updateValues.contentBlocks = updates.content_blocks
+    if (updates.content_blocks !== undefined) {
+      const contentBlocksError = validateContentBlocks(updates.content_blocks)
+      if (contentBlocksError) {
+        return NextResponse.json(
+          { data: null, error: contentBlocksError },
+          { status: 400 }
+        )
+      }
+
+      updateValues.contentBlocks = updates.content_blocks
+    }
     if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
     if (updates.is_default !== undefined) updateValues.isDefault = updates.is_default
     if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published

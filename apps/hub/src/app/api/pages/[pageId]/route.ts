@@ -3,6 +3,7 @@ import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
+import { isSameOriginRequest } from '@/lib/utils/request-origin'
 
 export async function GET(
   request: NextRequest,
@@ -73,6 +74,13 @@ export async function PUT(
   { params }: { params: Promise<{ pageId: string }> }
 ) {
   try {
+    if (!isSameOriginRequest(request)) {
+      return NextResponse.json(
+        { data: null, error: 'Invalid origin' },
+        { status: 403 }
+      )
+    }
+
     const { pageId } = await params
     const updates = await request.json()
 

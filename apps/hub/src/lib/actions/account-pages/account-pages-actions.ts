@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { validateContentBlocks } from '@/lib/utils/content-block-validation'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -210,6 +211,12 @@ export async function createAccountPageAction(
       .limit(1)
 
     const nextOrder = lastPage ? lastPage.displayOrder + 1 : 1
+    const contentBlocks = pageData.content_blocks ?? {}
+    const contentBlocksError = validateContentBlocks(contentBlocks)
+
+    if (contentBlocksError) {
+      return { data: null, error: contentBlocksError }
+    }
 
     const [newPage] = await db
       .insert(siteAccountPages)
@@ -220,7 +227,7 @@ export async function createAccountPageAction(
         metaDescription: pageData.meta_description || null,
         isDefault: pageData.is_default || false,
         isPublished: pageData.is_published !== false,
-        contentBlocks: pageData.content_blocks || {},
+        contentBlocks,
         displayOrder: nextOrder
       })
       .returning()
@@ -469,6 +476,11 @@ export async function updateAccountPageBlocksAction(
 
     if (!site) {
       return { data: null, error: 'Access denied' }
+    }
+
+    const contentBlocksError = validateContentBlocks(contentBlocks)
+    if (contentBlocksError) {
+      return { data: null, error: contentBlocksError }
     }
 
     const [updatedPage] = await db

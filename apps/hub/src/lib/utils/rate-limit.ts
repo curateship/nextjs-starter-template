@@ -22,8 +22,23 @@ export function isRateLimited(key: string, limit: number, windowMs: number) {
   return false
 }
 
+function getConfiguredClientIpHeader() {
+  return process.env.TRUSTED_CLIENT_IP_HEADER?.trim().toLowerCase() || ''
+}
+
+function getHeaderIp(headers: Headers, headerName: string) {
+  const value = headers.get(headerName)
+  if (!value) return null
+
+  const parts = value.split(',').map(part => part.trim()).filter(Boolean)
+  return parts[parts.length - 1] || null
+}
+
 export function getClientIp(headers: Headers) {
-  return headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || headers.get('x-real-ip')
-    || 'unknown'
+  const configuredHeader = getConfiguredClientIpHeader()
+  if (configuredHeader) {
+    return getHeaderIp(headers, configuredHeader)
+  }
+
+  return getHeaderIp(headers, 'cf-connecting-ip') || getHeaderIp(headers, 'true-client-ip')
 }

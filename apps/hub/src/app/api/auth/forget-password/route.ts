@@ -146,7 +146,7 @@ export async function POST(request: Request) {
 
   const ip = getClientIp(request.headers)
   if (
-    isRateLimited(`password-reset:ip:${ip}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS) ||
+    (ip && isRateLimited(`password-reset:ip:${ip}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)) ||
     isRateLimited(`password-reset:email:${email}`, RESET_MAX_REQUESTS, RESET_WINDOW_MS)
   ) {
     return Response.json(GENERIC_RESPONSE)

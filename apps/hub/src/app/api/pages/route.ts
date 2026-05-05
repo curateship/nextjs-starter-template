@@ -3,9 +3,17 @@ import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
+import { isSameOriginRequest } from '@/lib/utils/request-origin'
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isSameOriginRequest(request)) {
+      return NextResponse.json(
+        { data: null, error: 'Invalid origin' },
+        { status: 403 }
+      )
+    }
+
     const pageData = await request.json()
 
     // Validate required fields
