@@ -41,29 +41,33 @@ export async function upsertSiteMembership(input: UpsertSiteMembershipInput) {
     })
 }
 
-export async function touchSiteMembershipActivity(siteId: string, userId: string, touchedAt: Date = new Date()) {
-  const cutoff = new Date(touchedAt.getTime() - MEMBERSHIP_TOUCH_WINDOW_MS)
-
+export async function getActiveSiteMembership(siteId: string, userId: string) {
   const [membership] = await db
     .select({
       id: siteMemberships.id,
       lastEngagedAt: siteMemberships.lastEngagedAt,
     })
     .from(siteMemberships)
-    .where(and(eq(siteMemberships.siteId, siteId), eq(siteMemberships.userId, userId)))
+    .where(and(
+      eq(siteMemberships.siteId, siteId),
+      eq(siteMemberships.userId, userId),
+      eq(siteMemberships.status, 'active')
+    ))
     .limit(1)
 
+  return membership || null
+}
+
+export async function touchSiteMembershipActivity(siteId: string, userId: string, touchedAt: Date = new Date()) {
+  const cutoff = new Date(touchedAt.getTime() - MEMBERSHIP_TOUCH_WINDOW_MS)
+  const membership = await getActiveSiteMembership(siteId, userId)
+
   if (!membership) {
-    await upsertSiteMembership({
-      siteId,
-      userId,
-      lastEngagedAt: touchedAt,
-    })
-    return
+    return false
   }
 
   if (membership.lastEngagedAt && membership.lastEngagedAt >= cutoff) {
-    return
+    return true
   }
 
   await db
@@ -73,4 +77,6 @@ export async function touchSiteMembershipActivity(siteId: string, userId: string
       updatedAt: touchedAt,
     })
     .where(eq(siteMemberships.id, membership.id))
+
+  return true
 }

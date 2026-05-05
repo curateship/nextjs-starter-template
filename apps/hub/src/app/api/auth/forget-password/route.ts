@@ -19,16 +19,64 @@ const GENERIC_RESPONSE = {
 const RESET_WINDOW_MS = 15 * 60 * 1000
 const RESET_MAX_REQUESTS = 5
 
+function normalizeTrustedBaseUrl(value?: string | null) {
+  if (!value) return null
+
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      return null
+    }
+
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
+function isLocalBaseUrl(baseUrl: string) {
+  try {
+    const { hostname } = new URL(baseUrl)
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  } catch {
+    return false
+  }
+}
+
 function getBaseUrl(request: Request) {
-  return process.env.BETTER_AUTH_URL || new URL(request.url).origin
+  const configuredBaseUrl = normalizeTrustedBaseUrl(
+    process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL
+  )
+  if (configuredBaseUrl) return configuredBaseUrl
+
+  const requestOrigin = normalizeTrustedBaseUrl(new URL(request.url).origin)
+  if (process.env.NODE_ENV !== 'production' && requestOrigin && isLocalBaseUrl(requestOrigin)) {
+    return requestOrigin
+  }
+
+  return null
 }
 
 function getSafeRedirectPath(redirectTo?: unknown) {
-  if (typeof redirectTo !== 'string' || !redirectTo.startsWith('/')) {
+  if (typeof redirectTo !== 'string') {
     return DEFAULT_REDIRECT_PATH
   }
 
-  return redirectTo
+  const redirectPath = redirectTo.trim()
+  if (!redirectPath.startsWith('/') || redirectPath.startsWith('//') || redirectPath.includes('\\')) {
+    return DEFAULT_REDIRECT_PATH
+  }
+
+  try {
+    const url = new URL(redirectPath, 'https://local.invalid')
+    if (url.origin !== 'https://local.invalid') {
+      return DEFAULT_REDIRECT_PATH
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return DEFAULT_REDIRECT_PATH
+  }
 }
 
 function isAllowedOrigin(request: Request, baseUrl: string) {
@@ -37,15 +85,6 @@ function isAllowedOrigin(request: Request, baseUrl: string) {
 
   try {
     return new URL(origin).origin === new URL(baseUrl).origin
-  } catch {
-    return false
-  }
-}
-
-function isLocalRequest(baseUrl: string) {
-  try {
-    const { hostname } = new URL(baseUrl)
-    return hostname === 'localhost' || hostname === '127.0.0.1'
   } catch {
     return false
   }
@@ -80,6 +119,11 @@ async function sendResetEmail(email: string, resetUrl: string) {
 
 export async function POST(request: Request) {
   const baseUrl = getBaseUrl(request)
+
+  if (!baseUrl) {
+    console.error('Password reset base URL is not configured')
+    return Response.json(GENERIC_RESPONSE)
+  }
 
   if (!isAllowedOrigin(request, baseUrl)) {
     return Response.json({ error: 'Invalid origin' }, { status: 403 })
@@ -148,7 +192,7 @@ export async function POST(request: Request) {
 
   const emailSent = await sendResetEmail(user.email, resetUrl.toString())
 
-  if (!emailSent && isLocalRequest(baseUrl)) {
+  if (process.env.NODE_ENV !== 'production' && !emailSent && isLocalBaseUrl(baseUrl)) {
     return Response.json({
       ...GENERIC_RESPONSE,
       resetUrl: resetUrl.toString(),

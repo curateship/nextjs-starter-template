@@ -3,7 +3,7 @@
 import { eq, and, desc, sql, inArray, like } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { pages, sites, siteAccountPages } from '@/lib/db/schema'
+import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 // =============================================================================
@@ -81,7 +81,7 @@ export async function getAccountPagesAction(siteId: string, options?: { page?: n
     return { data: (result as unknown as AccountPage[]) || [], total: countResult[0]?.count ?? 0, error: null }
   } catch (error: any) {
     console.error('Exception in getAccountPagesAction:', error)
-    return { data: null, total: 0, error: error.message || 'Failed to fetch account pages' }
+    return { data: null, total: 0, error: 'Failed to fetch account pages' }
   }
 }
 
@@ -109,7 +109,8 @@ export async function getAccountPageIdsAction(siteId: string): Promise<{ ids: st
 
     return { ids: rows.map(r => r.id), error: null }
   } catch (error) {
-    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    console.error('Exception in getAccountPageIdsAction:', error)
+    return { ids: [], error: 'Failed to fetch account pages' }
   }
 }
 
@@ -147,7 +148,7 @@ export async function getAccountPageAction(pageId: string): Promise<{ data: Acco
     return { data: page as unknown as AccountPage, error: null }
   } catch (error: any) {
     console.error('Exception in getAccountPageAction:', error)
-    return { data: null, error: error.message || 'Failed to fetch account page' }
+    return { data: null, error: 'Failed to fetch account page' }
   }
 }
 
@@ -200,16 +201,6 @@ export async function createAccountPageAction(
       return { data: null, error: `An account page with the slug "${slug}" already exists. Please choose a different slug.` }
     }
 
-    const [existingPage] = await db
-      .select({ id: pages.id })
-      .from(pages)
-      .where(and(eq(pages.siteId, siteId), eq(pages.slug, slug)))
-      .limit(1)
-
-    if (existingPage) {
-      return { data: null, error: `A page-builder page with the slug "${slug}" already exists. Please choose a different slug.` }
-    }
-
     // Get the highest display_order for this site to append new page at the end
     const [lastPage] = await db
       .select({ displayOrder: siteAccountPages.displayOrder })
@@ -244,7 +235,7 @@ export async function createAccountPageAction(
     return { data: newPage as unknown as AccountPage, error: null }
   } catch (error: any) {
     console.error('Exception in createAccountPageAction:', error)
-    return { data: null, error: error.message || 'Failed to create account page' }
+    return { data: null, error: 'Failed to create account page' }
   }
 }
 
@@ -306,16 +297,6 @@ export async function updateAccountPageAction(
         return { data: null, error: `An account page with the slug "${slug}" already exists. Please choose a different slug.` }
       }
 
-      const [conflictingPage] = await db
-        .select({ id: pages.id })
-        .from(pages)
-        .where(and(eq(pages.siteId, existingPage.siteId), eq(pages.slug, slug)))
-        .limit(1)
-
-      if (conflictingPage) {
-        return { data: null, error: `A page-builder page with the slug "${slug}" already exists. Please choose a different slug.` }
-      }
-
       pageData.slug = slug
     }
 
@@ -343,7 +324,7 @@ export async function updateAccountPageAction(
     return { data: updatedPage as unknown as AccountPage, error: null }
   } catch (error: any) {
     console.error('Exception in updateAccountPageAction:', error)
-    return { data: null, error: error.message || 'Failed to update account page' }
+    return { data: null, error: 'Failed to update account page' }
   }
 }
 
@@ -388,7 +369,7 @@ export async function deleteAccountPageAction(pageId: string): Promise<{ success
     return { success: true, error: null }
   } catch (error: any) {
     console.error('Exception in deleteAccountPageAction:', error)
-    return { success: false, error: error.message || 'Failed to delete account page' }
+    return { success: false, error: 'Failed to delete account page' }
   }
 }
 
@@ -447,9 +428,10 @@ export async function deleteAccountPagesAction(pageIds: string[]): Promise<{ suc
 
     return { success: true, error: null }
   } catch (error) {
+    console.error('Exception in deleteAccountPagesAction:', error)
     return {
       success: false,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to delete account pages'
     }
   }
 }
@@ -506,7 +488,7 @@ export async function updateAccountPageBlocksAction(
     return { data: updatedPage as unknown as AccountPage, error: null }
   } catch (error: any) {
     console.error('Exception in updateAccountPageBlocksAction:', error)
-    return { data: null, error: error.message || 'Failed to update account page blocks' }
+    return { data: null, error: 'Failed to update account page blocks' }
   }
 }
 
@@ -517,59 +499,69 @@ export async function reorderAccountPagesAction(
   pageUpdates: Array<{ id: string; display_order: number }>
 ): Promise<{ success: boolean; error: string | null }> {
   try {
+    if (!Array.isArray(pageUpdates)) {
+      return { success: false, error: 'Invalid reorder payload' }
+    }
+
     const user = await getAuthenticatedUser()
     if (!user) {
       return { success: false, error: 'Authentication required' }
     }
 
-    // Verify ownership via first page
-    if (pageUpdates.length > 0) {
-      const [firstPage] = await db
-        .select({ siteId: siteAccountPages.siteId })
-        .from(siteAccountPages)
-        .where(eq(siteAccountPages.id, pageUpdates[0].id))
-        .limit(1)
+    if (pageUpdates.length === 0) {
+      return { success: true, error: null }
+    }
 
-      if (!firstPage) {
-        return { success: false, error: 'Page not found' }
-      }
-
-      const [site] = await db
-        .select({ id: sites.id })
-        .from(sites)
-        .where(and(eq(sites.id, firstPage.siteId), eq(sites.userId, user.id)))
-        .limit(1)
-
-      if (!site) {
-        return { success: false, error: 'Access denied' }
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    for (const update of pageUpdates) {
+      if (!update || !uuidRegex.test(update.id) || !Number.isInteger(update.display_order)) {
+        return { success: false, error: 'Invalid reorder payload' }
       }
     }
+
+    const pageIds = [...new Set(pageUpdates.map(update => update.id))]
+    const pagesToReorder = await db
+      .select({ id: siteAccountPages.id, siteId: siteAccountPages.siteId })
+      .from(siteAccountPages)
+      .where(inArray(siteAccountPages.id, pageIds))
+
+    if (pagesToReorder.length !== pageIds.length) {
+      return { success: false, error: 'Page not found' }
+    }
+
+    const siteIds = [...new Set(pagesToReorder.map(page => page.siteId))]
+    const ownedSites = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(and(inArray(sites.id, siteIds), eq(sites.userId, user.id)))
+
+    if (ownedSites.length !== siteIds.length) {
+      return { success: false, error: 'Access denied' }
+    }
+
+    const pageSiteIds = new Map(pagesToReorder.map(page => [page.id, page.siteId]))
 
     // Update each page's display_order
     for (const update of pageUpdates) {
+      const siteId = pageSiteIds.get(update.id)
+      if (!siteId) {
+        return { success: false, error: 'Page not found' }
+      }
+
       await db
         .update(siteAccountPages)
         .set({ displayOrder: update.display_order })
-        .where(eq(siteAccountPages.id, update.id))
+        .where(and(eq(siteAccountPages.id, update.id), eq(siteAccountPages.siteId, siteId)))
     }
 
-    // Get site_id for cache revalidation
-    if (pageUpdates.length > 0) {
-      const [page] = await db
-        .select({ siteId: siteAccountPages.siteId })
-        .from(siteAccountPages)
-        .where(eq(siteAccountPages.id, pageUpdates[0].id))
-        .limit(1)
-
-      if (page) {
-        revalidateTag(`account-pages-${page.siteId}`)
-      }
+    for (const siteId of siteIds) {
+      revalidateTag(`account-pages-${siteId}`)
     }
 
     return { success: true, error: null }
   } catch (error: any) {
     console.error('Exception in reorderAccountPagesAction:', error)
-    return { success: false, error: error.message || 'Failed to reorder account pages' }
+    return { success: false, error: 'Failed to reorder account pages' }
   }
 }
 
@@ -665,6 +657,6 @@ export async function duplicateAccountPageAction(
     return { data: newPage as unknown as AccountPage, error: null }
   } catch (error: any) {
     console.error('Exception in duplicateAccountPageAction:', error)
-    return { data: null, error: error.message || 'Failed to duplicate account page' }
+    return { data: null, error: 'Failed to duplicate account page' }
   }
 }

@@ -23,7 +23,7 @@ Before planning or coding in `apps/hub/`:
 - Keep admin builder code and frontend renderer code as separate layers.
 - Do not ship shortcut props, one-off overrides, or patchwork fixes around builder/editor/rendering abstractions. If a behavior is a real content-type variant, name that variant and wire it through the shared API cleanly.
 - Treat site navigation, footer, and breadcrumbs as shared structure in top-level site settings, not as page-specific content blocks.
-- Do not add special frontend auth/dashboard namespaces. Site auth pages come from the account-pages builder and resolve through normal frontend slugs.
+- Keep public Pages and protected Account Pages in separate frontend URL spaces. Public Pages resolve from root slugs; Account Pages require an existing active site membership and resolve only under `/account/*`.
 - Do not treat `NEXT_PUBLIC_APP_DOMAIN` and `NEXT_PUBLIC_APP_URL` as interchangeable.
 - For large directory datasets, list/search/admin paths must use lean summary queries and must not read `content_blocks` unless loading a single item for editing or rendering.
 - Admin create, settings, and block-editor forms should use the shared admin form modal primitives in `src/components/admin/layout/builder/AdminModalLayout.tsx`. Keep feature-specific modal files, but do not hand-roll new dialog chrome for standard builder forms.

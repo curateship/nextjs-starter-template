@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { pages, siteAccountPages, sites } from '@/lib/db/schema'
+import { pages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
 
 export async function GET(
@@ -61,7 +61,7 @@ export async function GET(
     return NextResponse.json(
       {
         data: null,
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+        error: 'Server error'
       },
       { status: 500 }
     )
@@ -138,7 +138,7 @@ export async function PUT(
         )
       }
 
-      const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+      const reservedSlugs = ['account', 'api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
       if (reservedSlugs.includes(slug.toLowerCase())) {
         return NextResponse.json(
           { data: null, error: 'This slug is reserved and cannot be used.' },
@@ -154,18 +154,6 @@ export async function PUT(
       if (conflictingPage) {
         return NextResponse.json(
           { data: null, error: `This slug is already used by another page titled "${conflictingPage.title}". Please choose a different slug.` },
-          { status: 400 }
-        )
-      }
-
-      const conflictingAccountPage = await db.query.siteAccountPages.findFirst({
-        where: and(eq(siteAccountPages.siteId, page.siteId), eq(siteAccountPages.slug, slug)),
-        columns: { title: true },
-      })
-
-      if (conflictingAccountPage) {
-        return NextResponse.json(
-          { data: null, error: `This slug is already used by an account page titled "${conflictingAccountPage.title}". Please choose a different slug.` },
           { status: 400 }
         )
       }
@@ -207,7 +195,7 @@ export async function PUT(
     return NextResponse.json(
       {
         data: null,
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+        error: 'Server error'
       },
       { status: 500 }
     )

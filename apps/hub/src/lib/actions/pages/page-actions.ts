@@ -4,7 +4,7 @@ import { eq, and, ne, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { purgeProxyCache } from '@/lib/utils/cache-purge'
 import { db } from '@/lib/db'
-import { pages, siteAccountPages, sites } from '@/lib/db/schema'
+import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 
 export interface Page {
@@ -96,10 +96,11 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
 
     return { data: serialized, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
+    console.error('Exception in getSitePagesAction:', error)
     return {
       data: null,
       total: 0,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to fetch pages'
     }
   }
 }
@@ -127,7 +128,8 @@ export async function getPageIdsAction(siteId: string): Promise<{ ids: string[];
 
     return { ids: rows.map(r => r.id), error: null }
   } catch (error) {
-    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
+    console.error('Exception in getPageIdsAction:', error)
+    return { ids: [], error: 'Failed to fetch pages' }
   }
 }
 
@@ -183,9 +185,10 @@ export async function getPageByIdAction(pageId: string): Promise<{ data: Page | 
 
     return { data: serializedPage, error: null }
   } catch (error) {
+    console.error('Exception in getPageByIdAction:', error)
     return {
       data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to fetch page'
     }
   }
 }
@@ -243,7 +246,7 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
       }
 
       // Check for reserved slugs
-      const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+      const reservedSlugs = ['account', 'api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
       if (reservedSlugs.includes(slug.toLowerCase())) {
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }
@@ -258,18 +261,6 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
         return {
           data: null,
           error: `A page with the slug "${slug}" already exists. Please choose a different slug.`
-        }
-      }
-
-      const [existingAccountPage] = await db
-        .select({ id: siteAccountPages.id })
-        .from(siteAccountPages)
-        .where(and(eq(siteAccountPages.siteId, page.siteId), eq(siteAccountPages.slug, slug)))
-
-      if (existingAccountPage) {
-        return {
-          data: null,
-          error: `An account page with the slug "${slug}" already exists. Please choose a different slug.`
         }
       }
 
@@ -317,9 +308,10 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
 
     return { data: data as unknown as Page, error: null }
   } catch (error) {
+    console.error('Exception in updatePageAction:', error)
     return {
       data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to update page'
     }
   }
 }
@@ -373,9 +365,10 @@ export async function deletePageAction(pageId: string): Promise<{ success: boole
 
     return { success: true, error: null }
   } catch (error) {
+    console.error('Exception in deletePageAction:', error)
     return {
       success: false,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to delete page'
     }
   }
 }
@@ -429,9 +422,10 @@ export async function deletePagesAction(pageIds: string[]): Promise<{ success: b
 
     return { success: true, error: null }
   } catch (error) {
+    console.error('Exception in deletePagesAction:', error)
     return {
       success: false,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to delete pages'
     }
   }
 }
@@ -530,9 +524,10 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
 
     return { data: newPage as unknown as Page, error: null }
   } catch (error) {
+    console.error('Exception in duplicatePageAction:', error)
     return {
       data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+      error: 'Failed to duplicate page'
     }
   }
 }

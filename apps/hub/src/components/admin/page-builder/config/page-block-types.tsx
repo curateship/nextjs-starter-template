@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -60,6 +60,31 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       format: 'html',
       visibility: {},
     }
+  },
+  {
+    type: 'auth',
+    name: 'Auth',
+    icon: LogIn,
+    description: 'Login, registration, and password reset forms',
+    defaultContent: {
+      defaultTab: 'login',
+      showLoginTab: true,
+      showRegisterTab: true,
+      loginRedirectPath: '/account',
+      registerRedirectPath: '/account',
+      emailVerificationEnabled: true,
+      loginButtonText: 'Sign In',
+      registerButtonText: 'Create Account',
+      resetButtonText: 'Send Reset Link',
+      loginTitle: 'Welcome back',
+      loginDescription: 'Login to your account',
+      registerTitle: 'Create an account',
+      registerDescription: 'Enter your details to get started',
+      resetTitle: 'Reset your password',
+      resetDescription: 'Enter your email to receive a reset link',
+      visibility: {},
+    },
+    conflictsWith: ['auth'],
   },
   {
     type: 'faq',

@@ -6,7 +6,6 @@ import { eq, and } from "drizzle-orm"
 import { notFound, redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { getSessionCookie } from "better-auth/cookies"
-import { getPublicAuthPagePath, getAccountPageBySlug } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 
 async function checkAuth() {
   return !!getSessionCookie(await headers())
@@ -36,7 +35,7 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
     }
   }
 
-  // Public pages always win if both builders claim the same slug.
+  // Root slugs resolve public pages only. Account pages live under /account/*.
   const [page] = await db
     .select()
     .from(pages)
@@ -58,16 +57,5 @@ export default async function CatchAllPage({ params }: CatchAllPageProps) {
     return <BlockRenderer site={pageResult.site} />
   }
 
-  const userPageResult = await getAccountPageBySlug(site.id, fullSlug)
-
-  if (userPageResult.error || !userPageResult.data) {
-    if (userPageResult.error === 'Authentication required') {
-      const { path: authPath } = await getPublicAuthPagePath(site.id)
-      redirect(authPath || '/')
-    }
-
-    notFound()
-  }
-
-  return <BlockRenderer site={userPageResult.data} />
+  notFound()
 }

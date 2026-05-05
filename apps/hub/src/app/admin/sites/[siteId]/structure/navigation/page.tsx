@@ -1,5 +1,5 @@
 import { SiteChromeEditorPage } from "@/components/admin/layout/builder/SiteChromeEditorPage"
-import { getPublicAuthPagePath } from "@/lib/actions/account-pages/account-pages-frontend-actions"
+import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
 
 interface PageProps {
   params: Promise<{

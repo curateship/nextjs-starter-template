@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { pages, siteAccountPages, sites } from '@/lib/db/schema'
+import { siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
 
 export async function POST(request: NextRequest) {
@@ -87,18 +87,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const existingPublicPage = await db.query.pages.findFirst({
-      where: and(eq(pages.siteId, pageData.site_id), eq(pages.slug, slug)),
-      columns: { title: true },
-    })
-
-    if (existingPublicPage) {
-      return NextResponse.json(
-        { data: null, error: `This slug is already used by a page-builder page titled "${existingPublicPage.title}". Please choose a different slug.` },
-        { status: 400 }
-      )
-    }
-
     // If setting as default page, unset any existing default page
     if (pageData.is_default === true) {
       await db.update(siteAccountPages)
@@ -134,7 +122,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         data: null,
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+        error: 'Server error'
       },
       { status: 500 }
     )

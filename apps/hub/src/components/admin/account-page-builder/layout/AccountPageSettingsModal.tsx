@@ -235,8 +235,13 @@ export function AccountPageSettingsModal({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {slugManuallyEdited
                     ? "Custom URL slug. Clear this field to auto-generate from title again."
-                    : "Auto-generated from title. You can edit this to customize the URL."}
+                    : "Auto-generated from title. Account pages render under /account."}
                 </p>
+                {formData.slug && (
+                  <p className="mt-1 text-xs text-blue-600">
+                    Page URL: <strong>/account/{formData.slug}</strong>
+                  </p>
+                )}
               </div>
 
               <div className="col-span-2">

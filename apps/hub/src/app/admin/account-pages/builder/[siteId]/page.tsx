@@ -21,6 +21,7 @@ import {
   getAccountPagesAction,
   type AccountPage
 } from "@/lib/actions/account-pages/account-pages-actions"
+import { getAccountPagePath } from "@/lib/utils/account-page-path"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 export default function AccountPageBuilderPage({ params }: { params: Promise<{ siteId: string }> }) {
@@ -182,7 +183,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   }
 
   const viewPageHref = site && currentPageData
-    ? `${getSiteUrl(site)}/${currentPageData.slug}`
+    ? `${getSiteUrl(site)}${getAccountPagePath(currentPageData.slug)}`
     : null
 
   return (

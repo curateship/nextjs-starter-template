@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, desc } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { pages, siteAccountPages, sites } from '@/lib/db/schema'
+import { pages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
 
 export async function POST(request: NextRequest) {
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for reserved slugs
-    const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+    const reservedSlugs = ['account', 'api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
     if (reservedSlugs.includes(slug.toLowerCase())) {
       return NextResponse.json(
         { data: null, error: 'This slug is reserved and cannot be used.' },
@@ -83,18 +83,6 @@ export async function POST(request: NextRequest) {
     if (existingPage) {
       return NextResponse.json(
         { data: null, error: `This slug is already used by another page titled "${existingPage.title}". Please choose a different slug.` },
-        { status: 400 }
-      )
-    }
-
-    const existingAccountPage = await db.query.siteAccountPages.findFirst({
-      where: and(eq(siteAccountPages.siteId, pageData.site_id), eq(siteAccountPages.slug, slug)),
-      columns: { title: true },
-    })
-
-    if (existingAccountPage) {
-      return NextResponse.json(
-        { data: null, error: `This slug is already used by an account page titled "${existingAccountPage.title}". Please choose a different slug.` },
         { status: 400 }
       )
     }
@@ -134,7 +122,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         data: null,
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+        error: 'Server error'
       },
       { status: 500 }
     )

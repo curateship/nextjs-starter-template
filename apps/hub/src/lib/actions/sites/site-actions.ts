@@ -8,7 +8,7 @@ import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { sanitizeFooterSettings, sanitizeNavigationSettings } from '@/lib/utils/site-structure'
-import { getPublicAuthPagePath } from '@/lib/actions/account-pages/account-pages-frontend-actions'
+import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions'
 
 export interface Site {
   id: string

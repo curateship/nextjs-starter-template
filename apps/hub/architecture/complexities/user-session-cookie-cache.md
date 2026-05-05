@@ -24,9 +24,9 @@ Relevant file:
 
 - `src/app/admin-login/page.tsx`
 
-### 2. Builder-created auth pages are the frontend/user entry point
+### 2. Public auth-block pages are the frontend/user entry point
 
-We use the shared `AuthBlock` inside account-pages-builder pages as the frontend auth surface.
+We use the shared `AuthBlock` inside public Pages builder pages as the frontend auth surface.
 
 - it uses the same Better Auth backend as `/admin-login`
 - it supports `?tab=login` and `?tab=register`
@@ -38,7 +38,7 @@ Relevant file:
 
 Important consequence:
 
-- `/admin-login` and builder-created auth pages are not separate auth systems
+- `/admin-login` and public auth-block pages are not separate auth systems
 - they are separate entry points with different redirect behavior
 
 ### 3. Local subdomain auth needs trusted local origins
@@ -205,7 +205,7 @@ If this area needs work again, inspect these first:
 ## Practical Rules Going Forward
 
 - Treat `/admin-login` as admin/platform auth unless intentionally redesigning that flow.
-- Treat published account-page-builder pages with an `auth` block as the frontend/site-user auth surface.
+- Treat public Pages builder pages with an `auth` block as the frontend/site-user auth surface.
 - If auth UI needs immediate signed-in nav state, prefer the server-read cookie path over a client `useSession()` fetch.
 - Do not rely on a long cookie cache without a live invalidation/version strategy if bans and admin edits must stay effective quickly.
 - Do not treat a missing cookie-cache payload as logged out until checking whether a valid session token can resolve through Better Auth.

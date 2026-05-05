@@ -208,6 +208,41 @@ function buildPublicPageBlocks(
   return blocks
 }
 
+function pageHasAuthBlock(contentBlocks: unknown) {
+  if (!contentBlocks || typeof contentBlocks !== 'object') return false
+
+  return Object.values(contentBlocks).some((block: any) => block?.type === 'auth')
+}
+
+function getPublicPagePath(page: { slug: string; isHomepage?: boolean | null }) {
+  return page.isHomepage ? '/' : `/${page.slug}`
+}
+
+export async function getPublicAuthPagePath(
+  siteId: string
+): Promise<{ path: string | null; error: string | null }> {
+  try {
+    const publishedPages = await db
+      .select({
+        slug: pages.slug,
+        isHomepage: pages.isHomepage,
+        contentBlocks: pages.contentBlocks,
+        displayOrder: pages.displayOrder,
+        createdAt: pages.createdAt,
+      })
+      .from(pages)
+      .where(and(eq(pages.siteId, siteId), eq(pages.isPublished, true)))
+      .orderBy(asc(pages.displayOrder), asc(pages.createdAt))
+
+    const authPage = publishedPages.find((page) => pageHasAuthBlock(page.contentBlocks))
+
+    return { path: authPage ? getPublicPagePath(authPage) : null, error: null }
+  } catch (error: any) {
+    console.error('Exception in getPublicAuthPagePath:', error)
+    return { path: null, error: 'Failed to resolve auth page' }
+  }
+}
+
 /**
  * Helper to pre-fetch listing data for listing-views blocks
  */

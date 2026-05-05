@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { isSupportedAccountPageBlockType } from '@/lib/constants/account-page-block-types'
-import { touchSiteMembershipActivity } from '@/lib/site-memberships/site-membership-runtime'
+import { getActiveSiteMembership, touchSiteMembershipActivity } from '@/lib/site-memberships/site-membership-runtime'
 import { getAccountPagePath } from '@/lib/utils/account-page-path'
 
 // Types for blocks
@@ -70,12 +70,6 @@ function buildAccountPageBlocks(
   return blocks
 }
 
-function pageHasAuthBlock(contentBlocks: unknown) {
-  if (!contentBlocks || typeof contentBlocks !== 'object') return false
-
-  return Object.values(contentBlocks).some((block: any) => block?.type === 'auth')
-}
-
 function buildAccountPageResponse(site: any, page: AccountPageRecord): SiteWithAccountPageBlocks {
   return {
     id: site.id,
@@ -109,14 +103,6 @@ async function getPublishedAccountPages(siteId: string) {
     .orderBy(desc(siteAccountPages.isDefault), asc(siteAccountPages.displayOrder), asc(siteAccountPages.createdAt))
 }
 
-function pickPreferredAccountPagePath(
-  pages: AccountPageRecord[],
-  matcher: (page: AccountPageRecord) => boolean
-) {
-  const match = pages.find(matcher)
-  return match ? getAccountPagePath(match.slug) : null
-}
-
 /**
  * Get account page by slug for frontend rendering
  */
@@ -133,6 +119,16 @@ export async function getAccountPageBySlug(
 
     if (!site) {
       return { data: null, error: 'Site not found', isAuthPage: false }
+    }
+
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required', isAuthPage: false }
+    }
+
+    const membership = await getActiveSiteMembership(siteId, user.id)
+    if (!membership) {
+      return { data: null, error: 'Membership required', isAuthPage: false }
     }
 
     const [page] = await db
@@ -159,25 +155,56 @@ export async function getAccountPageBySlug(
       return { data: null, error: 'Page not found', isAuthPage: false }
     }
 
-    const isAuthPage = pageHasAuthBlock(page.contentBlocks)
-
-    if (!isAuthPage) {
-      const user = await getAuthenticatedUser()
-      if (!user) {
-        return { data: null, error: 'Authentication required', isAuthPage: false }
-      }
-
-      await touchSiteMembershipActivity(siteId, user.id)
-    }
+    await touchSiteMembershipActivity(siteId, user.id)
 
     return {
       data: buildAccountPageResponse(site, page),
       error: null,
-      isAuthPage,
+      isAuthPage: false,
     }
   } catch (error: any) {
     console.error('Exception in getAccountPageBySlug:', error)
-    return { data: null, error: error.message || 'Failed to fetch account page', isAuthPage: false }
+    return { data: null, error: 'Failed to fetch account page', isAuthPage: false }
+  }
+}
+
+export async function getDefaultAccountPage(
+  siteId: string
+): Promise<{ data: SiteWithAccountPageBlocks | null; error: string | null }> {
+  try {
+    const [site] = await db
+      .select()
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
+
+    if (!site) {
+      return { data: null, error: 'Site not found' }
+    }
+
+    const user = await getAuthenticatedUser()
+    if (!user) {
+      return { data: null, error: 'Authentication required' }
+    }
+
+    const membership = await getActiveSiteMembership(siteId, user.id)
+    if (!membership) {
+      return { data: null, error: 'Membership required' }
+    }
+
+    const pages = await getPublishedAccountPages(siteId) as AccountPageRecord[]
+    const page = pages[0]
+
+    if (!page) {
+      return { data: null, error: 'Page not found' }
+    }
+
+    await touchSiteMembershipActivity(siteId, user.id)
+
+    return { data: buildAccountPageResponse(site, page), error: null }
+  } catch (error: any) {
+    console.error('Exception in getDefaultAccountPage:', error)
+    return { data: null, error: 'Failed to fetch default account page' }
   }
 }
 
@@ -185,31 +212,14 @@ export async function getDefaultAccountPagePath(
   siteId: string
 ): Promise<{ path: string | null; error: string | null }> {
   try {
-    const pages = await getPublishedAccountPages(siteId)
-    const path =
-      pickPreferredAccountPagePath(pages as AccountPageRecord[], (page) => page.isDefault && !pageHasAuthBlock(page.contentBlocks)) ||
-      pickPreferredAccountPagePath(pages as AccountPageRecord[], (page) => !pageHasAuthBlock(page.contentBlocks))
+    const pages = await getPublishedAccountPages(siteId) as AccountPageRecord[]
+    const page = pages[0]
+    const path = page ? getAccountPagePath(page.slug) : null
 
     return { path, error: null }
   } catch (error: any) {
     console.error('Exception in getDefaultAccountPagePath:', error)
-    return { path: null, error: error.message || 'Failed to resolve default account page' }
-  }
-}
-
-export async function getPublicAuthPagePath(
-  siteId: string
-): Promise<{ path: string | null; error: string | null }> {
-  try {
-    const pages = await getPublishedAccountPages(siteId)
-    const path =
-      pickPreferredAccountPagePath(pages as AccountPageRecord[], (page) => page.isDefault && pageHasAuthBlock(page.contentBlocks)) ||
-      pickPreferredAccountPagePath(pages as AccountPageRecord[], (page) => pageHasAuthBlock(page.contentBlocks))
-
-    return { path, error: null }
-  } catch (error: any) {
-    console.error('Exception in getPublicAuthPagePath:', error)
-    return { path: null, error: error.message || 'Failed to resolve auth page' }
+    return { path: null, error: 'Failed to resolve default account page' }
   }
 }
 
@@ -238,6 +248,6 @@ export async function getCurrentUserSiteId(): Promise<{ siteId: string | null; e
     return { siteId: site.id, error: null }
   } catch (error: any) {
     console.error('Exception in getCurrentUserSiteId:', error)
-    return { siteId: null, error: error.message || 'Failed to get user site' }
+    return { siteId: null, error: 'Failed to get user site' }
   }
 }

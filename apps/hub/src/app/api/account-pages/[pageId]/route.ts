@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { pages, siteAccountPages, sites } from '@/lib/db/schema'
+import { siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/auth/server'
 
 export async function GET(
@@ -61,7 +61,7 @@ export async function GET(
     return NextResponse.json(
       {
         data: null,
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+        error: 'Server error'
       },
       { status: 500 }
     )
@@ -158,18 +158,6 @@ export async function PUT(
         )
       }
 
-      const conflictingPage = await db.query.pages.findFirst({
-        where: and(eq(pages.siteId, page.siteId), eq(pages.slug, slug)),
-        columns: { title: true },
-      })
-
-      if (conflictingPage) {
-        return NextResponse.json(
-          { data: null, error: `This slug is already used by a page-builder page titled "${conflictingPage.title}". Please choose a different slug.` },
-          { status: 400 }
-        )
-      }
-
       updates.slug = slug
     }
 
@@ -206,7 +194,7 @@ export async function PUT(
     return NextResponse.json(
       {
         data: null,
-        error: `Server error: ${error instanceof Error ? error.message : String(error)}`
+        error: 'Server error'
       },
       { status: 500 }
     )

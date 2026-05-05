@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react"
 import Link from "next/link"
+import { getAccountPagePath } from "@/lib/utils/account-page-path"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
@@ -537,7 +538,7 @@ export default function AccountPagesPage({ params }: PageProps) {
                         <div>
                           <h4 className="font-medium hover:underline">{page.title}</h4>
                           <p className="text-sm text-muted-foreground">
-                            /{page.slug}
+                            {getAccountPagePath(page.slug)}
                           </p>
                         </div>
                       </Link>
@@ -568,7 +569,7 @@ export default function AccountPagesPage({ params }: PageProps) {
                         className="h-8 w-8 p-0"
                         asChild
                       >
-                        <a href={site ? `${getSiteUrl(site)}/${page.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                        <a href={site ? `${getSiteUrl(site)}${getAccountPagePath(page.slug)}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
                           <Eye className="h-4 w-4" />
                           <span className="sr-only">Preview</span>
                         </a>

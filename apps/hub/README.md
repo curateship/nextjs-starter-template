@@ -39,9 +39,9 @@ Read these files in this order before changing HUB code:
 - Site rendering is block-driven with separate admin builder and frontend renderer layers.
 - Site navigation, footer, and breadcrumbs are shared site structure stored in top-level `site.settings`.
 - Page and account-page builders edit page content blocks only. Navigation, footer, and breadcrumbs are edited from the admin Structure screens, not as page blocks.
-- Frontend page-builder pages own the normal public slug space. If a public page slug does not match, the frontend catch-all can render a published account-page-builder page at that same slug.
-- User-page-builder auth pages are defined by an `auth` block and resolve through normal frontend slugs.
-- Published account pages without an `auth` block are treated as authenticated pages. Platform admin auth is handled separately at `/admin-login`.
+- Frontend page-builder pages own the normal public root slug space.
+- Account-page-builder pages require an existing active site membership and resolve only under `/account/*`.
+- Site-facing auth is provided by the public Pages builder `auth` block. Platform admin auth is handled separately at `/admin-login`.
 - `NEXT_PUBLIC_APP_DOMAIN` is the platform base domain. It is not a site's custom domain.
 - Directory detail pages can load `content_blocks`, but large directory list/search/admin paths should only read lean top-level columns.
 

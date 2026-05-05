@@ -110,10 +110,25 @@ export function AuthBlock({
   const [resetConfirmPassword, setResetConfirmPassword] = useState("")
 
   const getSafeRedirectPath = (value?: string | null) => {
-    if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')) {
-      return value
+    if (typeof value !== 'string') {
+      return '/'
     }
-    return '/'
+
+    const redirectPath = value.trim()
+    if (!redirectPath.startsWith('/') || redirectPath.startsWith('//') || redirectPath.includes('\\')) {
+      return '/'
+    }
+
+    try {
+      const url = new URL(redirectPath, 'https://local.invalid')
+      if (url.origin !== 'https://local.invalid') {
+        return '/'
+      }
+
+      return `${url.pathname}${url.search}${url.hash}`
+    } catch {
+      return '/'
+    }
   }
 
   const verificationRedirectPath = getSafeRedirectPath(
@@ -130,18 +145,6 @@ export function AuthBlock({
     }
 
     return null
-  }
-
-  const getAuthErrorMessage = (error: AuthClientError, fallback: string) => {
-    if (typeof error?.error?.message === 'string' && error.error.message.length > 0) {
-      return error.error.message
-    }
-
-    if (typeof error?.message === 'string' && error.message.length > 0) {
-      return error.message
-    }
-
-    return fallback
   }
 
   const showVerificationState = (email: string, message?: string) => {
@@ -263,7 +266,7 @@ export function AuthBlock({
       })
 
       if (signUpResult.error) {
-        setRegisterError(getAuthErrorMessage(signUpResult.error as AuthClientError, "Failed to create account"))
+        setRegisterError("Failed to create account")
       } else if (emailVerificationEnabled || !signUpResult.data?.token) {
         if (signUpResult.data?.token) {
           await authClient.signOut()
@@ -295,9 +298,7 @@ export function AuthBlock({
       })
 
       if (resendResult.error) {
-        setVerificationError(
-          getAuthErrorMessage(resendResult.error as AuthClientError, "Failed to resend verification email")
-        )
+        setVerificationError("Failed to resend verification email")
       } else {
         setVerificationMessage(`We sent a new verification link to ${verificationPendingEmail}.`)
       }
@@ -357,7 +358,7 @@ export function AuthBlock({
       })
 
       if (error) {
-        setResetError(error.message || "Failed to reset password")
+        setResetError("Failed to reset password")
       } else {
         setResetSuccess(true)
       }
