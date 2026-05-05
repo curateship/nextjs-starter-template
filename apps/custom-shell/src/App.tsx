@@ -25,6 +25,8 @@ import {
   type ShellItem,
 } from "@/lib/custom-shell"
 
+const SHELL_CONFIG_STORAGE_KEY = "custom-shell:config:v1"
+
 function getCurrentHashPath() {
   if (typeof window === "undefined") {
     return "/"
@@ -111,9 +113,45 @@ function getStickyHeaderNavLinks(
   return []
 }
 
+function getInitialShellConfig() {
+  const fallback = createDefaultShellConfig()
+
+  if (typeof window === "undefined") {
+    return fallback
+  }
+
+  try {
+    const storedConfig = window.localStorage.getItem(SHELL_CONFIG_STORAGE_KEY)
+    if (!storedConfig) {
+      return fallback
+    }
+
+    const parsedConfig = JSON.parse(storedConfig) as ShellConfig
+    if (!parsedConfig || !Array.isArray(parsedConfig.sections)) {
+      return fallback
+    }
+
+    return parsedConfig
+  } catch (error) {
+    console.error("Failed to load custom shell config:", error)
+    return fallback
+  }
+}
+
 export function App() {
-  const [config, setConfig] = React.useState(() => createDefaultShellConfig())
+  const [config, setConfig] = React.useState(getInitialShellConfig)
   const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
+
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        SHELL_CONFIG_STORAGE_KEY,
+        JSON.stringify(config)
+      )
+    } catch (error) {
+      console.error("Failed to save custom shell config:", error)
+    }
+  }, [config])
 
   React.useEffect(() => {
     const handleHashChange = () => {
@@ -224,7 +262,11 @@ export function App() {
               ) : null}
 
               {isSettingsRoute ? (
-                <SettingsPage activeTab={getSettingsTabFromPath(currentPath)} />
+                <SettingsPage
+                  activeTab={getSettingsTabFromPath(currentPath)}
+                  config={config}
+                  onConfigChange={setConfig}
+                />
               ) : null}
 
               {!isPostsRoute &&

@@ -68,6 +68,7 @@ function mapSectionEntries(
         id: child.id,
         label: child.label,
         href: child.href,
+        icon: child.icon ? renderShellIcon(child.icon) : undefined,
         active: currentPath === child.href,
       })),
     })

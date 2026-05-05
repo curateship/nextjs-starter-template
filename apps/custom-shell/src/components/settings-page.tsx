@@ -1,5 +1,3 @@
-import * as React from "react"
-
 import {
   Card,
   CardContent,
@@ -16,10 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { SidebarSettings } from "@/components/sidebar-settings"
 import { cn } from "@/lib/utils"
+import type { ShellConfig } from "@/lib/custom-shell"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
+  { id: "sidebar", label: "Sidebar" },
   { id: "style", label: "Style" },
   { id: "payments", label: "Payments" },
   { id: "email", label: "Email" },
@@ -35,7 +36,15 @@ export function getSettingsTabFromPath(path: string): SettingsTabId {
     : "general"
 }
 
-export function SettingsPage({ activeTab }: { activeTab: SettingsTabId }) {
+export function SettingsPage({
+  activeTab,
+  config,
+  onConfigChange,
+}: {
+  activeTab: SettingsTabId
+  config: ShellConfig
+  onConfigChange: (config: ShellConfig) => void
+}) {
   return (
     <div className="w-full pb-8">
       <div className="mb-6 space-y-1">
@@ -65,6 +74,12 @@ export function SettingsPage({ activeTab }: { activeTab: SettingsTabId }) {
 
         <div className="min-w-0 flex-1">
           {activeTab === "general" ? <GeneralSettings /> : null}
+          {activeTab === "sidebar" ? (
+            <SidebarSettings
+              config={config}
+              onConfigChange={onConfigChange}
+            />
+          ) : null}
           {activeTab === "style" ? <StyleSettings /> : null}
           {activeTab === "payments" ? <PlaceholderSettings title="Payments" /> : null}
           {activeTab === "email" ? <PlaceholderSettings title="Email" /> : null}
