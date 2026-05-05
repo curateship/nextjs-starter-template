@@ -52,6 +52,7 @@ export interface SiteSettings extends SiteSeoSettings {
   welcome_email_enabled?: boolean
   tracking_scripts?: string
   custom_analytics_enabled?: boolean
+  google_maps_embed_api_key?: string
   [key: string]: any  // Allow other dynamic settings
 }
 

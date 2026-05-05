@@ -2,6 +2,7 @@ import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { DirectoryCoreBlock } from "./core/DirectoryCoreBlock"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
+import { DirectoryGoogleMapBlock } from "./google-map/DirectoryGoogleMapBlock"
 import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
 import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -13,6 +14,7 @@ import {
   normalizeDirectoryCoreContent,
   type DirectoryCoreCategoryContext,
 } from "@/lib/actions/directories/directory-core"
+import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { cn } from "@/lib/utils/tailwind"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
@@ -59,7 +61,12 @@ export function DirectoryBlockRenderer({
   // Sort directory blocks by display_order
   const sortedBlocks = [...directoryBlocks]
     .sort((a, b) => a.display_order - b.display_order)
-    .filter((block) => block.type === DIRECTORY_CORE_BLOCK_TYPE || block.type === 'directory-custom' || block.type === 'directory-rich-text')
+    .filter((block) =>
+      block.type === DIRECTORY_CORE_BLOCK_TYPE ||
+      block.type === 'directory-custom' ||
+      block.type === 'directory-rich-text' ||
+      block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE
+    )
     .map((block) => (
       block.type === DIRECTORY_CORE_BLOCK_TYPE
         ? {
@@ -73,6 +80,9 @@ export function DirectoryBlockRenderer({
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
   const publicSite = toPublicSiteClientProps(site)
+  const googleMapsEmbedApiKey = typeof site.settings?.google_maps_embed_api_key === 'string'
+    ? site.settings.google_maps_embed_api_key
+    : ''
   const mainBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main')
   const sidebarBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar')
   const outerContainerStyle = siteWidth === 'custom'
@@ -154,6 +164,22 @@ export function DirectoryBlockRenderer({
           blockId={block.id}
           blockType={block.type}
         />
+      )
+    }
+
+    if (block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE) {
+      return (
+        <div
+          key={`directory-google-map-${block.id}`}
+          data-block-id={block.id}
+          data-block-type={block.type}
+        >
+          <DirectoryGoogleMapBlock
+            content={block.content}
+            isPreview={isPreview}
+            apiKey={googleMapsEmbedApiKey}
+          />
+        </div>
       )
     }
 

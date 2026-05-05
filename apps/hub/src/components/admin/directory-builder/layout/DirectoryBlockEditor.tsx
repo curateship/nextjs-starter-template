@@ -2,8 +2,10 @@
 
 import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
+import { DirectoryGoogleMapBlock } from "@/components/admin/directory-builder/blocks/google-map/DirectoryGoogleMapBlock"
 import { DirectoryRichTextEditorBlock } from "@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
+import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryBlock {
@@ -73,6 +75,15 @@ export function DirectoryBlockEditor({
         onContentChange={onContentChange}
         siteId={siteId}
         blockId={block.id}
+      />
+    )
+  }
+
+  if (block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE) {
+    return (
+      <DirectoryGoogleMapBlock
+        content={content}
+        onContentChange={onContentChange}
       />
     )
   }
