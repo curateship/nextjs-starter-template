@@ -381,6 +381,9 @@ export const auth = betterAuth({
   },
   user: {
     modelName: 'users',
+    changeEmail: {
+      enabled: true,
+    },
     additionalFields: {
       role: {
         type: 'string',

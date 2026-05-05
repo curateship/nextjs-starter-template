@@ -46,5 +46,5 @@ export async function renderAccountPage(slugSegments?: string[]) {
     notFound()
   }
 
-  return <BlockRenderer site={result.data} />
+  return <BlockRenderer site={result.data} accountContext />
 }

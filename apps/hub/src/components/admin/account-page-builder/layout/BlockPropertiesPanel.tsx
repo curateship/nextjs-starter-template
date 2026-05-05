@@ -18,6 +18,8 @@ interface BlockPropertiesPanelProps {
     }
   }
   blocksLoading?: boolean
+  selectedBlock?: PageBlock | null
+  onSelectBlock?: (block: PageBlock) => void
   onSelectSiteChrome?: (type: 'navigation' | 'footer') => void
 }
 
@@ -25,6 +27,8 @@ export function BlockPropertiesPanel({
   currentPage,
   site,
   blocksLoading = false,
+  selectedBlock,
+  onSelectBlock,
   onSelectSiteChrome
 }: BlockPropertiesPanelProps) {
   return (
@@ -37,7 +41,11 @@ export function BlockPropertiesPanel({
               site={site}
               className="min-h-full"
               blocksLoading={blocksLoading}
+              allBlocks={currentPage.blocks}
+              selectedBlock={selectedBlock}
+              onSelectBlock={onSelectBlock}
               onSelectSiteChrome={onSelectSiteChrome}
+              renderAccountBlocks
             />
           ) : (
             <div className="text-center text-muted-foreground h-full flex items-center justify-center">

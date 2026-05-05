@@ -14,9 +14,18 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AccountPageSettingsModal } from "@/components/admin/account-page-builder/layout/AccountPageSettingsModal"
 import { BlockPropertiesPanel } from "@/components/admin/account-page-builder/layout/BlockPropertiesPanel"
+import { AccountPageBlockEditorDialog } from "@/components/admin/account-page-builder/layout/AccountPageBlockEditorDialog"
+import { CreateAccountPageModal } from "@/components/admin/account-page-builder/layout/CreateAccountPageModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { ACCOUNT_PAGE_BLOCK_TYPES } from "@/components/admin/account-page-builder/config/account-page-block-types"
+import { Dialog } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   getAccountPagesAction,
   type AccountPage
@@ -37,6 +46,9 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   const [selectedPage, setSelectedPage] = useState(pageFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(true)
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [createPageOpen, setCreatePageOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
@@ -132,6 +144,11 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     )
   }
 
+  useEffect(() => {
+    if (!builderState.selectedBlock) return
+    setDraftContent(builderState.selectedBlock.content)
+  }, [builderState.selectedBlock])
+
   const handlePageUpdated = (updatedPage: AccountPage) => {
     setPages(prev => prev.map(p => p.id === updatedPage.id ? updatedPage : p))
 
@@ -150,9 +167,43 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     }
   }
 
+  const handlePageCreated = (page: AccountPage) => {
+    setPages(prev => [...prev, page])
+    setLocalBlocks(prev => ({ ...prev, [page.slug]: [] }))
+    setSelectedPage(page.slug)
+    setCreatePageOpen(false)
+    router.replace(`/admin/account-pages/builder/${siteId}?page=${encodeURIComponent(page.slug)}`)
+  }
+
   const handleSelectSiteChrome = (type: 'navigation' | 'footer') => {
     const returnTo = encodeURIComponent(`/admin/account-pages/builder/${siteId}?page=${selectedPage}`)
     router.push(`/admin/sites/${siteId}/structure/${type}?returnTo=${returnTo}`)
+  }
+
+  const handleDraftChange = (field: string, value: any) => {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCloseBlockEditor = () => {
+    if (!builderState.selectedBlock) return
+
+    setDraftContent(builderState.selectedBlock.content)
+    builderState.setSelectedBlock(null)
+  }
+
+  const handleSaveBlockEditor = async () => {
+    if (!builderState.selectedBlock) return
+
+    setIsSavingBlock(true)
+    const saved = await builderState.saveSelectedBlockContent(draftContent)
+    setIsSavingBlock(false)
+
+    if (saved) {
+      builderState.setSelectedBlock(null)
+    }
   }
 
   // Only show error state for critical failures
@@ -194,9 +245,9 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
           <StickybarTopRightActions
             saveMessage={builderState.saveMessage}
             isSaving={builderState.isSaving}
-            onSave={builderState.handleSaveAllBlocks}
+            onSave={currentPageData ? builderState.handleSaveAllBlocks : undefined}
             blockListOpen={blockListOpen}
-            onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            onToggleBlockList={currentPageData ? () => setBlockListOpen(!blockListOpen) : undefined}
             settingsDisabled={!currentPageData}
             renderSettingsModal={(show, setShow) => (
               <AccountPageSettingsModal
@@ -210,6 +261,44 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
           />
         )}
       />
+      {!currentPageData ? (
+        <div className="flex flex-1 items-center justify-center overflow-hidden p-6">
+          <div className="max-w-md text-center">
+            {pagesLoading ? (
+              <>
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                <p className="mt-4 text-sm text-muted-foreground">Loading account pages...</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold">Create an account page first</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Blocks need a real account page before they can be saved or rendered on the frontend.
+                </p>
+                <Button className="mt-5" onClick={() => setCreatePageOpen(true)}>
+                  Create Account Page
+                </Button>
+              </>
+            )}
+          </div>
+
+          <Dialog open={!pagesLoading && createPageOpen} onOpenChange={setCreatePageOpen}>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Account Page</AdminModalTitle>
+                <AdminModalDescription>
+                  Add an account page, then add the Edit Profile block to it.
+                </AdminModalDescription>
+              </AdminModalHeader>
+              <CreateAccountPageModal
+                siteId={siteId}
+                onSuccess={handlePageCreated}
+                onCancel={() => setCreatePageOpen(false)}
+              />
+            </AdminModalContent>
+          </Dialog>
+        </div>
+      ) : (
       <div className="flex-1 flex overflow-hidden">
         <BlockPropertiesPanel
           currentPage={currentPage}
@@ -220,7 +309,22 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
             settings: site.settings
           } : undefined}
           blocksLoading={blocksLoading}
+          selectedBlock={builderState.selectedBlock}
+          onSelectBlock={builderState.setSelectedBlock}
           onSelectSiteChrome={handleSelectSiteChrome}
+        />
+
+        <AccountPageBlockEditorDialog
+          selectedBlock={builderState.selectedBlock}
+          draftContent={draftContent}
+          isSaving={isSavingBlock}
+          onOpenChange={(open) => {
+            if (!open) {
+              handleCloseBlockEditor()
+            }
+          }}
+          onContentChange={handleDraftChange}
+          onSave={handleSaveBlockEditor}
         />
 
         {blockListOpen && (
@@ -248,6 +352,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
           entityName="account page"
         />
       </div>
+      )}
     </div>
   )
 }

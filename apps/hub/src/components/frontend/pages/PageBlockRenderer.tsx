@@ -7,6 +7,7 @@ import { ListingViewsBlock } from "@/components/frontend/pages/listing-view/Page
 import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlock"
 import dynamic from "next/dynamic"
 const AuthBlock = dynamic(() => import("@/components/frontend/pages/auth/AuthBlock").then(m => ({ default: m.AuthBlock })))
+const AccountEditProfileBlock = dynamic(() => import("@/components/frontend/account/edit-profile/AccountEditProfileBlock").then(m => ({ default: m.AccountEditProfileBlock })))
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -19,6 +20,7 @@ interface BlockRendererProps {
   site: SiteWithBlocks
   isPreview?: boolean
   hideSiteChrome?: boolean
+  accountContext?: boolean
   renderRichTextBody?: (block: SiteWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: SiteWithBlocks["blocks"][number]) => ReactNode
 }
@@ -27,6 +29,7 @@ export function BlockRenderer({
   site,
   isPreview = false,
   hideSiteChrome = false,
+  accountContext = false,
   renderRichTextBody,
   renderBlockOverlay,
 }: BlockRendererProps) {
@@ -188,6 +191,21 @@ export function BlockRenderer({
                 content={block.content}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
+              />
+            </div>
+          )
+        }
+
+        if (block.type === 'account-edit-profile') {
+          if (!accountContext) return null
+
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <AccountEditProfileBlock
+                content={block.content}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+                isPreview={isPreview}
               />
             </div>
           )

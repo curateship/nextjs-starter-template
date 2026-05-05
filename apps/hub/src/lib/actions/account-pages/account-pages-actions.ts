@@ -42,6 +42,22 @@ export interface UpdateAccountPageData {
   is_published?: boolean
 }
 
+function toAccountPage(row: any): AccountPage {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    title: row.title,
+    slug: row.slug,
+    meta_description: row.metaDescription ?? null,
+    content_blocks: row.contentBlocks ?? {},
+    display_order: row.displayOrder,
+    is_default: row.isDefault,
+    is_published: row.isPublished,
+    created_at: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? ''),
+    updated_at: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt ?? ''),
+  }
+}
+
 /**
  * Get all account pages for a site
  */
@@ -79,7 +95,7 @@ export async function getAccountPagesAction(siteId: string, options?: { page?: n
       db.select().from(siteAccountPages).where(eq(siteAccountPages.siteId, siteId)).orderBy(desc(siteAccountPages.displayOrder)).limit(pageSize).offset(from),
     ])
 
-    return { data: (result as unknown as AccountPage[]) || [], total: countResult[0]?.count ?? 0, error: null }
+    return { data: result.map(toAccountPage), total: countResult[0]?.count ?? 0, error: null }
   } catch (error: any) {
     console.error('Exception in getAccountPagesAction:', error)
     return { data: null, total: 0, error: 'Failed to fetch account pages' }
@@ -146,7 +162,7 @@ export async function getAccountPageAction(pageId: string): Promise<{ data: Acco
       return { data: null, error: 'Access denied' }
     }
 
-    return { data: page as unknown as AccountPage, error: null }
+    return { data: toAccountPage(page), error: null }
   } catch (error: any) {
     console.error('Exception in getAccountPageAction:', error)
     return { data: null, error: 'Failed to fetch account page' }
@@ -239,7 +255,7 @@ export async function createAccountPageAction(
     // Revalidate cache
     revalidateTag(`account-pages-${siteId}`)
 
-    return { data: newPage as unknown as AccountPage, error: null }
+    return { data: toAccountPage(newPage), error: null }
   } catch (error: any) {
     console.error('Exception in createAccountPageAction:', error)
     return { data: null, error: 'Failed to create account page' }
@@ -328,7 +344,7 @@ export async function updateAccountPageAction(
     revalidateTag(`account-page-${pageId}`)
     revalidateTag(`account-pages-${updatedPage.siteId}`)
 
-    return { data: updatedPage as unknown as AccountPage, error: null }
+    return { data: toAccountPage(updatedPage), error: null }
   } catch (error: any) {
     console.error('Exception in updateAccountPageAction:', error)
     return { data: null, error: 'Failed to update account page' }
@@ -497,7 +513,7 @@ export async function updateAccountPageBlocksAction(
     revalidateTag(`account-page-${pageId}`)
     revalidateTag(`account-pages-${updatedPage.siteId}`)
 
-    return { data: updatedPage as unknown as AccountPage, error: null }
+    return { data: toAccountPage(updatedPage), error: null }
   } catch (error: any) {
     console.error('Exception in updateAccountPageBlocksAction:', error)
     return { data: null, error: 'Failed to update account page blocks' }
@@ -666,7 +682,7 @@ export async function duplicateAccountPageAction(
     // Revalidate cache
     revalidateTag(`account-pages-${originalPage.siteId}`)
 
-    return { data: newPage as unknown as AccountPage, error: null }
+    return { data: toAccountPage(newPage), error: null }
   } catch (error: any) {
     console.error('Exception in duplicateAccountPageAction:', error)
     return { data: null, error: 'Failed to duplicate account page' }

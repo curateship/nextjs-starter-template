@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { User, Lock, Mail, AlertTriangle, ImageIcon, X } from "lucide-react"
-import { updateProfile, updatePassword, getCurrentUser } from "@/lib/actions/auth/auth-actions"
+import { updateProfile, updatePassword, getCurrentUser, requestEmailChange } from "@/lib/actions/auth/auth-actions"
 
 export default function SettingsPage() {
   const [user, setUser] = useState<{ id: string; email: string; name?: string | null; displayName?: string | null; image?: string | null } | null>(null)
@@ -48,7 +48,6 @@ export default function SettingsPage() {
     try {
       const formData = new FormData()
       formData.set('display_name', displayName)
-      formData.set('email', email)
       if (avatarUrl !== initialAvatarUrl) {
         formData.set('image', avatarUrl)
       }
@@ -57,8 +56,28 @@ export default function SettingsPage() {
       if (result.error) {
         setMessage({ type: 'error', text: result.error })
       } else {
+        const emailChanged = user && email.trim().toLowerCase() !== user.email.toLowerCase()
+        if (emailChanged) {
+          const emailFormData = new FormData()
+          emailFormData.set('new_email', email)
+          emailFormData.set('callback_url', '/admin/users/settings')
+
+          const emailResult = await requestEmailChange(emailFormData)
+          if (emailResult.error) {
+            setMessage({ type: 'error', text: emailResult.error })
+            return
+          }
+
+          setEmail(user.email)
+        }
+
         setInitialAvatarUrl(avatarUrl)
-        setMessage({ type: 'success', text: 'Profile updated successfully!' })
+        setMessage({
+          type: 'success',
+          text: emailChanged
+            ? 'Profile updated. Check your new email address for a verification link.'
+            : 'Profile updated successfully!'
+        })
       }
     } catch {
       setMessage({ type: 'error', text: 'Failed to update profile' })

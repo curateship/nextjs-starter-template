@@ -31,6 +31,7 @@ interface PagePreviewProps {
   onSelectBlock?: (block: PageBlock) => void
   onSelectSiteChrome?: (type: "navigation" | "footer") => void
   onUpdateRichTextBody?: (blockId: string, htmlContent: string) => void
+  renderAccountBlocks?: boolean
 }
 
 export function PagePreview({
@@ -43,6 +44,7 @@ export function PagePreview({
   onSelectBlock,
   onSelectSiteChrome,
   onUpdateRichTextBody,
+  renderAccountBlocks = false,
 }: PagePreviewProps) {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const previewSite = createPreviewSite(blocks, site)
@@ -127,6 +129,7 @@ export function PagePreview({
         site={previewSite}
         isPreview
         hideSiteChrome
+        accountContext={renderAccountBlocks}
         renderRichTextBody={canInlineEdit ? (block) => {
           const content = normalizePageRichTextContent(block.content)
           const editorContent = {
