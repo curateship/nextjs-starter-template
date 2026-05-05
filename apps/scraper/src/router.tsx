@@ -48,6 +48,18 @@ const schedulesRoute = createRoute({
   component: OverviewPage,
 })
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/settings",
+  component: () => null,
+})
+
+const settingsTabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/settings/$settingsTab",
+  component: () => null,
+})
+
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   googleMapsOverviewRoute,
@@ -55,6 +67,8 @@ const routeTree = rootRoute.addChildren([
   newRunRoute,
   runDetailRoute,
   schedulesRoute,
+  settingsRoute,
+  settingsTabRoute,
 ])
 
 export const router = createRouter({ routeTree })

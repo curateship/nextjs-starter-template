@@ -1,69 +1,115 @@
 import * as React from "react"
-import { GlobeIcon } from "lucide-react"
-import { Link } from "@tanstack/react-router"
 import { useLocation } from "@tanstack/react-router"
 import { useNavigate } from "@tanstack/react-router"
-import { SidebarCollapsible } from "@/components/sidebar-group-collapsible"
+import {
+  SidebarCollapsible,
+  type SidebarGroupEntry,
+} from "@/components/sidebar-group-collapsible"
+import { UserDropdown } from "@/components/user-dropdown"
+import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { config } from "@/lib/config"
+import {
+  isShellItem,
+  renderShellIcon,
+  type ShellConfig,
+  type ShellSection,
+} from "@/lib/custom-shell"
 
-function BrandLink() {
+type ScraperSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  config: ShellConfig
+}
+
+function isActivePath(href: string, currentPath: string) {
   return (
-    <div className="relative flex min-h-8 items-center py-2">
-      <Link
-        to="/"
-        className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
-      >
-        <span className="text-xs font-semibold">S</span>
-      </Link>
-      <div className="absolute inset-y-0 left-10 right-0 flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
-        <Link to="/" className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-          <span className="truncate font-medium">{config.appName}</span>
-          <span className="truncate text-xs text-muted-foreground">Admin</span>
-        </Link>
-      </div>
-    </div>
+    href === currentPath ||
+    (href !== "/" && currentPath.startsWith(`${href}/`))
   )
 }
 
-export function ScraperSidebar() {
+function mapSectionEntries(
+  section: ShellSection,
+  currentPath: string
+): SidebarGroupEntry[] {
+  const entries: SidebarGroupEntry[] = []
+
+  section.entries.forEach((entry) => {
+    if (!isShellItem(entry)) {
+      entries.push({
+        type: "divider",
+        id: entry.id,
+        label: entry.label,
+      })
+      return
+    }
+
+    if (!entry.visible) {
+      return
+    }
+
+    entries.push({
+      type: "item",
+      id: entry.id,
+      label: entry.label,
+      href: entry.href,
+      icon: renderShellIcon(entry.icon),
+      active:
+        isActivePath(entry.href, currentPath) ||
+        Boolean(
+          entry.children?.some((child) => isActivePath(child.href, currentPath))
+        ),
+      children: entry.children?.map((child) => ({
+        id: child.id,
+        label: child.label,
+        href: child.href,
+        icon: child.icon ? renderShellIcon(child.icon) : undefined,
+        active: isActivePath(child.href, currentPath),
+      })),
+    })
+  })
+
+  return entries
+}
+
+export function ScraperSidebar({ config, ...props }: ScraperSidebarProps) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <BrandLink />
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <WorkspaceSwitcher
+          name={config.workspaceName}
+          logo={renderShellIcon("workflow")}
+          plan={config.workspacePlan}
+        />
       </SidebarHeader>
       <SidebarContent>
-        <SidebarCollapsible
-          title="Scrapers"
-          onNavigate={(href) => {
-            void navigate({ to: href })
-          }}
-          entries={[
-            {
-              type: "item",
-              id: "google-maps",
-              label: "Google Maps",
-              href: "/google-maps",
-              icon: <GlobeIcon className="size-4" />,
-              active: pathname === "/google-maps" || pathname.startsWith("/google-maps/"),
-            },
-          ]}
-        />
+        {config.sections.map((section) => (
+          <SidebarCollapsible
+            key={section.id}
+            title={section.title}
+            onNavigate={(href) => {
+              void navigate({ to: href })
+            }}
+            entries={mapSectionEntries(section, pathname)}
+          />
+        ))}
       </SidebarContent>
+      <SidebarFooter>
+        <UserDropdown
+          user={{
+            name: "Admin",
+            email: "local@scraper",
+            avatar: "",
+          }}
+        />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

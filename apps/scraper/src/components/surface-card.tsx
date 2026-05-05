@@ -1,4 +1,11 @@
 import type { ReactNode } from "react"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export function SurfaceCard({
   title,
@@ -12,17 +19,17 @@ export function SurfaceCard({
   children: ReactNode
 }) {
   return (
-    <section className="rounded-3xl border border-border/70 bg-card/95 shadow-sm">
-      <header className="flex flex-col gap-3 border-b border-border/70 px-5 py-4 md:flex-row md:items-start md:justify-between">
+    <Card className="shadow-sm">
+      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">{title}</h2>
+          <CardTitle>{title}</CardTitle>
           {description ? (
-            <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
+            <CardDescription className="max-w-2xl">{description}</CardDescription>
           ) : null}
         </div>
         {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
-      </header>
-      <div className="p-5">{children}</div>
-    </section>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
   )
 }

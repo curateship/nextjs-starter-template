@@ -82,14 +82,13 @@ export function SidebarCollapsible({
   onNavigate,
 }: SidebarGroupProps) {
   const { state, setOpenMobile } = useSidebar()
+  const handleNavClick = React.useCallback(() => {
+    setOpenMobile(false)
+  }, [setOpenMobile])
 
   if (!entries.length) {
     return null
   }
-
-  const handleNavClick = React.useCallback(() => {
-    setOpenMobile(false)
-  }, [setOpenMobile])
 
   return (
     <SidebarGroup>
@@ -126,12 +125,15 @@ export function SidebarCollapsible({
               className="group/collapsible"
             >
               <SidebarMenuItem>
-                <div className="flex w-full items-center">
+                <div
+                  data-active={entry.active}
+                  className="flex w-full items-center rounded-md transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                >
                   <SidebarMenuButton
                     asChild
                     tooltip={entry.label}
-                    isActive={entry.active || hasActiveChild}
-                    className="flex-1"
+                    isActive={entry.active}
+                    className="flex-1 hover:bg-transparent active:bg-transparent data-active:bg-transparent data-open:hover:bg-transparent"
                   >
                     <a {...getNavLinkProps(entry.href, handleNavClick, onNavigate)}>
                       {entry.icon}
@@ -142,7 +144,7 @@ export function SidebarCollapsible({
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        className="rounded-md p-2 transition-colors hover:bg-muted"
+                        className="rounded-md p-2 transition-colors hover:bg-transparent"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <ChevronRight className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
