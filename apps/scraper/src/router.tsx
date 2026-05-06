@@ -1,7 +1,5 @@
 import { Outlet, createRootRoute, createRoute, createRouter } from "@tanstack/react-router"
 import { AppFrame } from "@/components/app-frame"
-import { OverviewPage } from "@/pages/google-maps/overview-page"
-import { RunDetailPage } from "@/pages/google-maps/run-detail-page"
 import { Dashboard } from "@/pages/layout/dashboard"
 
 const rootRoute = createRootRoute({
@@ -18,36 +16,6 @@ const overviewRoute = createRoute({
   component: Dashboard,
 })
 
-const googleMapsOverviewRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/google-maps",
-  component: OverviewPage,
-})
-
-const runsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/google-maps/runs",
-  component: OverviewPage,
-})
-
-const newRunRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/google-maps/runs/new",
-  component: OverviewPage,
-})
-
-const runDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/google-maps/runs/$runId",
-  component: RunDetailPage,
-})
-
-const schedulesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/google-maps/schedules",
-  component: OverviewPage,
-})
-
 const settingsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/settings",
@@ -62,11 +30,6 @@ const settingsTabRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   overviewRoute,
-  googleMapsOverviewRoute,
-  runsRoute,
-  newRunRoute,
-  runDetailRoute,
-  schedulesRoute,
   settingsRoute,
   settingsTabRoute,
 ])

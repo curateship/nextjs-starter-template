@@ -60,6 +60,7 @@ class SecurityGuardsTest(unittest.TestCase):
                 "SCRAPER_API_ENV": "development",
                 "SCRAPER_DATABASE_URL": "sqlite+pysqlite:///:memory:",
                 "SCRAPER_APP_ORIGIN": "http://127.0.0.1:3003",
+                "SCRAPER_ADMIN_TOKEN": "",
             },
             clear=True,
         ):

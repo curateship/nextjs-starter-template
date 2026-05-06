@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import Base, get_engine, get_session_factory
-from app.routes import runs, schedules
+from app.routes import modules
 from app.services.modules import seed_modules
 
 
@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=[settings.app_origin],
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "OPTIONS"],
         allow_headers=["Content-Type", "x-admin-token"],
     )
 
@@ -41,8 +41,7 @@ def create_app() -> FastAPI:
     def healthz():
         return {"status": "ok"}
 
-    app.include_router(runs.router)
-    app.include_router(schedules.router)
+    app.include_router(modules.router)
 
     return app
 

@@ -1,7 +1,6 @@
 import {
   AppWindowIcon,
   CalendarIcon,
-  GlobeIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
   PlayCircleIcon,
@@ -11,15 +10,12 @@ import {
 } from "lucide-react"
 
 import { config } from "@/lib/config"
+import { scraperModules } from "@/modules/registry"
 
 export const iconMeta = {
   layoutDashboard: {
     label: "Dashboard",
     icon: LayoutDashboardIcon,
-  },
-  globe: {
-    label: "Globe",
-    icon: GlobeIcon,
   },
   workflow: {
     label: "Workflow",
@@ -122,31 +118,21 @@ export function createScraperShellConfig(): ShellConfig {
     topNavigation: createDefaultTopNavigation(),
     sections: [
       {
-        id: "section-scrapers",
-        title: "Scrapers",
+        id: "section-modules",
+        title: "Modules",
+        entries: scraperModules.map((module) => ({
+          type: "item",
+          id: `item-module-${module.key}`,
+          label: module.name,
+          href: module.href,
+          icon: module.icon,
+          visible: true,
+        })),
+      },
+      {
+        id: "section-workspace",
+        title: "Workspace",
         entries: [
-          {
-            type: "item",
-            id: "item-google-maps",
-            label: "Google Maps",
-            href: "/google-maps",
-            icon: "globe",
-            visible: true,
-            children: [
-              {
-                id: "item-google-maps-runs",
-                label: "Runs",
-                href: "/google-maps/runs",
-                icon: "listChecks",
-              },
-              {
-                id: "item-google-maps-schedules",
-                label: "Schedules",
-                href: "/google-maps/schedules",
-                icon: "calendar",
-              },
-            ],
-          },
           {
             type: "item",
             id: "item-settings",

@@ -1,14 +1,12 @@
 # whateverscraper API
 
-FastAPI service and worker runtime for the internal Google Maps scraper tool.
+FastAPI service for the internal scraper modules workspace.
 
 ## Responsibilities
 
-- Accept fixed Google Maps runs and recurring schedules
-- Persist deduped places plus per-run snapshots
-- Claim queued runs from Postgres
-- Execute browser-isolated scraper attempts
-- Rotate proxy sessions through one configured provider
+- Serve health checks
+- Seed and expose registered scraper modules
+- Provide the backend foundation for future module-specific routes
 
 ## Local setup
 
@@ -17,7 +15,6 @@ FastAPI service and worker runtime for the internal Google Maps scraper tool.
 
 ```bash
 pip install -e .
-playwright install chromium
 ```
 
 3. Copy `.env.example` to `.env` and set real values.
@@ -26,10 +23,4 @@ playwright install chromium
 
 ```bash
 uvicorn app.main:app --reload --port 8001
-```
-
-5. Run the worker in another shell:
-
-```bash
-whateverscraper-worker
 ```

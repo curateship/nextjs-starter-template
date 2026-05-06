@@ -1,26 +1,38 @@
+from dataclasses import dataclass
+
 from sqlalchemy.orm import Session
 
 from app.models import ScraperModule
 
-MODULE_KEY_GOOGLE_MAPS_SEARCH = "google_maps_search"
 
-MODULE_REGISTRY = [
-    {
-        "key": MODULE_KEY_GOOGLE_MAPS_SEARCH,
-        "name": "Google Maps Search",
-        "description": "Search Google Maps by keyword and area and persist lead fields only.",
-    }
-]
+@dataclass(frozen=True)
+class ModuleDefinition:
+    key: str
+    name: str
+    description: str
+
+
+MODULE_REGISTRY: list[ModuleDefinition] = []
+
+
+def list_module_definitions() -> list[ModuleDefinition]:
+    return MODULE_REGISTRY.copy()
 
 
 def seed_modules(db: Session) -> None:
     for module in MODULE_REGISTRY:
-        existing = db.get(ScraperModule, module["key"])
+        existing = db.get(ScraperModule, module.key)
         if existing is None:
-            db.add(ScraperModule(**module))
+            db.add(
+                ScraperModule(
+                    key=module.key,
+                    name=module.name,
+                    description=module.description,
+                )
+            )
             continue
 
-        existing.name = module["name"]
-        existing.description = module["description"]
+        existing.name = module.name
+        existing.description = module.description
 
     db.commit()

@@ -17,7 +17,7 @@ import {
   type ShellItem,
 } from "@/lib/custom-shell"
 
-const SHELL_CONFIG_STORAGE_KEY = "scraper:shell-config:v1"
+const SHELL_CONFIG_STORAGE_KEY = "scraper:shell-config:v2"
 
 function getShellItems(config: ShellConfig) {
   return config.sections.flatMap((section) =>
@@ -81,7 +81,6 @@ export function AppFrame({ children }: { children: ReactNode }) {
   })
   const shellItems = getShellItems(shellConfig)
   const dashboardPaths = shellConfig.topNavigation.map((item) => item.href)
-  const isGoogleMapsOverviewRoute = pathname === "/google-maps"
   const isSettingsRoute =
     pathname === "/admin/settings" || pathname.startsWith("/admin/settings/")
   const activeSectionItem = findActiveSectionItem(shellItems, pathname)
@@ -145,13 +144,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
         <ScraperSidebar config={shellConfig} />
         <SidebarInset>
           <StickyHeader navLinks={navLinks} />
-          <div
-            className={
-              isGoogleMapsOverviewRoute
-                ? "flex w-full flex-1 flex-col"
-                : "mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6"
-            }
-          >
+          <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 p-4 md:p-6">
             {isSettingsRoute ? (
               <SettingsPage
                 activeTab={getSettingsTabFromPath(pathname)}
