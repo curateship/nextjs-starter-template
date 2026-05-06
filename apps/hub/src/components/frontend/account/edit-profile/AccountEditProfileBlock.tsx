@@ -223,7 +223,7 @@ export function AccountEditProfileBlock({
         setMessage({ type: "error", text: result.error })
       } else {
         setNewEmail("")
-        setMessage({ type: "success", text: result.message || "Check your new email address for a verification link." })
+        setMessage({ type: "success", text: result.message || "Check your current email address to confirm this change." })
       }
     } catch {
       setMessage({ type: "error", text: "Failed to request email change" })

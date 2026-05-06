@@ -219,7 +219,7 @@ export async function requestEmailChange(formData: FormData) {
 
     return {
       success: true,
-      message: 'Check your new email address for a verification link.',
+      message: 'Check your current email address to confirm this change.',
     }
   } catch (error: any) {
     return { error: error.message || 'Failed to request email change' }

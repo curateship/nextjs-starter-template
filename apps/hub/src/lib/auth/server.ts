@@ -7,6 +7,7 @@ import {
   getSystemEmailTemplate,
   renderSystemEmailContent,
   renderSystemEmailSubject,
+  type SystemEmailTemplateKey,
 } from '@/lib/email/system-email'
 import {
   SITE_REGISTRATION_CONTACT_SOURCE,
@@ -27,6 +28,8 @@ type VerificationEmailConfig = {
   fromName?: string | null
   providerType: 'resend'
 }
+
+type AuthEmailTemplateKey = Extract<SystemEmailTemplateKey, 'email_verification' | 'email_change_confirmation'>
 
 type ResolvedRequestSite = {
   id: string
@@ -234,29 +237,69 @@ async function getVerificationEmailConfig(request?: Request): Promise<Verificati
   }
 }
 
-async function sendAuthVerificationEmail(email: string, url: string, request?: Request) {
+async function sendAuthSystemEmail({
+  to,
+  request,
+  templateKey,
+  tokens,
+  configError,
+  deliveryError,
+}: {
+  to: string
+  request?: Request
+  templateKey: AuthEmailTemplateKey
+  tokens: Record<string, string>
+  configError: string
+  deliveryError: string
+}) {
   const config = await getVerificationEmailConfig(request)
 
   if (!config) {
-    throw new Error('Email verification requires a configured Resend sender')
+    throw new Error(configError)
   }
 
-  const template = await getSystemEmailTemplate('email_verification')
-  const tokens = await buildSystemEmailTokens({
-    verificationUrl: url,
-  })
+  const template = await getSystemEmailTemplate(templateKey)
+  const fromName = template.from_name || config.fromName
   const provider = getEmailProvider(config.apiKey, config.providerType)
   const result = await provider.send({
-    from: config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail,
-    to: email,
+    from: fromName ? `${fromName} <${config.fromEmail}>` : config.fromEmail,
+    to,
     subject: renderSystemEmailSubject(template.subject, tokens),
     html: renderSystemEmailContent(template, tokens),
     ...(template.reply_to ? { replyTo: template.reply_to } : {}),
   })
 
   if (!result.success) {
-    throw new Error(result.error || 'Failed to send verification email')
+    throw new Error(result.error || deliveryError)
   }
+}
+
+async function sendAuthVerificationEmail(email: string, url: string, request?: Request) {
+  await sendAuthSystemEmail({
+    to: email,
+    request,
+    templateKey: 'email_verification',
+    tokens: await buildSystemEmailTokens({
+      verificationUrl: url,
+    }),
+    configError: 'Email verification requires a configured Resend sender',
+    deliveryError: 'Failed to send verification email',
+  })
+}
+
+async function sendAuthChangeEmailConfirmation(email: string, newEmail: string, url: string, request?: Request) {
+  await sendAuthSystemEmail({
+    to: email,
+    request,
+    templateKey: 'email_change_confirmation',
+    tokens: await buildSystemEmailTokens({
+      confirmationUrl: url,
+      currentEmail: email,
+      newEmail,
+    }),
+    configError: 'Email change confirmation requires a configured Resend sender',
+    deliveryError: 'Failed to send email change confirmation',
+  })
 }
 
 type SessionCacheVersionInput = {
@@ -383,6 +426,9 @@ export const auth = betterAuth({
     modelName: 'users',
     changeEmail: {
       enabled: true,
+      async sendChangeEmailConfirmation({ user, newEmail, url }, request) {
+        await sendAuthChangeEmailConfirmation(user.email, newEmail, url, request)
+      },
     },
     additionalFields: {
       role: {

@@ -41,7 +41,7 @@ const PREVIEW_WIDTHS = {
 } as const
 
 function isGlobalTemplateKey(templateKey: string) {
-  return templateKey === "password_reset" || templateKey === "email_verification"
+  return templateKey === "password_reset" || templateKey === "email_verification" || templateKey === "email_change_confirmation"
 }
 
 export default function SystemEmailBuilderPage({ params }: PageProps) {

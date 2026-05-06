@@ -5,6 +5,7 @@ import { sites } from './sites'
 export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum', [
   'password_reset',
   'email_verification',
+  'email_change_confirmation',
   'lead_magnet_delivery',
   'paid_purchase_delivery',
   'welcome_email',

@@ -7,6 +7,7 @@ import { getSiteUrl } from '@/lib/utils/site-url-generator'
 export type SystemEmailTemplateKey =
   | 'password_reset'
   | 'email_verification'
+  | 'email_change_confirmation'
   | 'lead_magnet_delivery'
   | 'paid_purchase_delivery'
   | 'welcome_email'
@@ -52,13 +53,14 @@ const GLOBAL_SCOPE_KEY = 'global'
 export const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'password_reset',
   'email_verification',
+  'email_change_confirmation',
   'lead_magnet_delivery',
   'paid_purchase_delivery',
   'welcome_email',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
-  return templateKey === 'password_reset' || templateKey === 'email_verification'
+  return templateKey === 'password_reset' || templateKey === 'email_verification' || templateKey === 'email_change_confirmation'
 }
 
 function buildDefaultBlocks(htmlContent: string) {
@@ -98,6 +100,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       subject: 'Verify your email',
       bodyHtml: '<p>Verify your email to finish creating your account.</p><p><a href="{{verification_url}}">Verify your email</a></p><p>If you did not create this account, you can ignore this email.</p>',
       tokens: ['{{app_name}}', '{{verification_url}}'],
+    }
+  }
+
+  if (templateKey === 'email_change_confirmation') {
+    return {
+      name: 'Email Change Confirmation',
+      description: 'Sent to the current email address before a user changes their email.',
+      scopeLabel: 'App-wide',
+      subject: 'Confirm your email change',
+      bodyHtml: '<p>Confirm that you want to change your email from {{current_email}} to {{new_email}}.</p><p><a href="{{confirmation_url}}">Confirm email change</a></p><p>If you did not request this change, you can ignore this email.</p>',
+      tokens: ['{{app_name}}', '{{current_email}}', '{{new_email}}', '{{confirmation_url}}'],
     }
   }
 
@@ -212,15 +225,16 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, leadMagnet, paidPurchase, welcomeEmail] = await Promise.all([
+  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, paidPurchase, welcomeEmail] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
+    getSystemEmailTemplate('email_change_confirmation'),
     getSystemEmailTemplate('lead_magnet_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
     getSystemEmailTemplate('welcome_email', siteId),
   ])
 
-  return [passwordReset, emailVerification, leadMagnet, paidPurchase, welcomeEmail].map((template) => {
+  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, paidPurchase, welcomeEmail].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
@@ -302,6 +316,9 @@ export async function buildSystemEmailTokens(params: {
   siteId?: string | null
   resetUrl?: string | null
   verificationUrl?: string | null
+  confirmationUrl?: string | null
+  currentEmail?: string | null
+  newEmail?: string | null
   productId?: string | null
   productName?: string | null
   productSlug?: string | null
@@ -315,6 +332,9 @@ export async function buildSystemEmailTokens(params: {
     app_name: 'System Everything',
     reset_url: params.resetUrl || '',
     verification_url: params.verificationUrl || '',
+    confirmation_url: params.confirmationUrl || '',
+    current_email: params.currentEmail || '',
+    new_email: params.newEmail || '',
     site_name: '',
     site_url: '',
     product_name: params.productName || '',
