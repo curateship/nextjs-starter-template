@@ -70,6 +70,22 @@ class SecurityGuardsTest(unittest.TestCase):
 
             self.assertIn("SCRAPER_ADMIN_TOKEN", str(context.exception))
 
+    def test_get_settings_allows_localhost_and_loopback_origins_in_development(self):
+        with patch.dict(
+            os.environ,
+            {
+                "SCRAPER_API_ENV": "development",
+                "SCRAPER_DATABASE_URL": "sqlite+pysqlite:///:memory:",
+                "SCRAPER_APP_ORIGIN": "http://127.0.0.1:3003",
+                "SCRAPER_ADMIN_TOKEN": "test-token",
+            },
+            clear=True,
+        ):
+            get_settings.cache_clear()
+            settings = get_settings()
+            self.assertIn("http://127.0.0.1:3003", settings.app_origins)
+            self.assertIn("http://localhost:3003", settings.app_origins)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,19 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.db import get_db
+from app.models import ScraperModule
 from app.schemas import ModuleListOut, ModuleOut
-from app.services.modules import list_module_definitions
 
 router = APIRouter(prefix="/api/v1/modules", tags=["modules"])
 
 
 @router.get("", response_model=ModuleListOut)
-def list_modules() -> ModuleListOut:
-    modules = [
-        ModuleOut(
-            key=module.key,
-            name=module.name,
-            description=module.description,
-        )
-        for module in list_module_definitions()
-    ]
-    return ModuleListOut(modules=modules)
+def list_modules(db: Session = Depends(get_db)) -> ModuleListOut:
+    modules = db.execute(select(ScraperModule).order_by(ScraperModule.name.asc())).scalars().all()
+    return ModuleListOut(modules=[ModuleOut.model_validate(module) for module in modules])

@@ -1,4 +1,5 @@
 import type { IconKey } from "@/lib/custom-shell"
+import { pageMetadataModule } from "@/modules/page-metadata/manifest"
 
 export type ScraperModule = {
   key: string
@@ -8,4 +9,4 @@ export type ScraperModule = {
   icon: IconKey
 }
 
-export const scraperModules: ScraperModule[] = []
+export const scraperModules: ScraperModule[] = [pageMetadataModule]
