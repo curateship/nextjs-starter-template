@@ -67,7 +67,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
@@ -114,7 +114,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
   const infoIssues = filteredIssues.filter((i: any) => i.severity === 'info')
 
   return (
-    <div className="space-y-4">
+    <div>
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

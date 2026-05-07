@@ -6,6 +6,8 @@ Guidance for Codex working in this repository.
 
 Simplicity is mandatory. Always implement the simplest solution that works. If a simple feature needs more than 20 lines, stop and reconsider. Direct solutions beat clever architecture. Try removing code before adding code. Question every new dependency, hook, or context.
 
+Do not expand a small request into broad cleanup, scoring changes, helper abstractions, fallbacks, edge-case systems, or adjacent fixes unless explicitly asked. Make the narrowest change that satisfies the request, then stop. If a nearby issue seems important, mention it instead of patching it.
+
 ## Coding Standards
 
 - Do not layer shortcut props, one-off overrides, or patchwork fixes on top of a mismatched abstraction. If behavior represents a real product or domain variant, name it directly and wire it through the existing pattern.

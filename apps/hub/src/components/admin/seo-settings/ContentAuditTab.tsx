@@ -42,7 +42,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
   const filteredContent = auditData.filter((item) => {
     if (auditFilter !== 'all' && item.type !== auditFilter) return false
     if (issueFilter === 'missing_meta' && item.meta_description) return false
-    if (issueFilter === 'missing_image' && item.featured_image) return false
+    if (issueFilter === 'missing_image' && (item.type === 'page' || item.featured_image)) return false
     if (normalizedSearchQuery) {
       const searchText = [
         item.title,
@@ -58,7 +58,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
 
   const totalContent = auditData.length
   const missingMeta = auditData.filter((i) => !i.meta_description).length
-  const missingImage = auditData.filter((i) => !i.featured_image).length
+  const missingImage = auditData.filter((i) => i.type !== 'page' && !i.featured_image).length
   const badTitles = auditData.filter((i) => {
     const len = (i.title || '').length
     return len < 30 || len > 60
@@ -66,7 +66,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
@@ -94,7 +94,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -188,8 +188,13 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
                 {filteredContent.slice(0, 50).map((item) => {
                   const titleLen = (item.title || '').length
                   const titleOk = titleLen >= 30 && titleLen <= 60
+                  const titleLengthLabel = titleLen < 30
+                    ? `${titleLen} chars - needs ${30 - titleLen} more`
+                    : titleLen > 60
+                      ? `${titleLen} chars - ${titleLen - 60} over`
+                      : `${titleLen} chars`
                   const hasMeta = !!item.meta_description
-                  const hasImage = !!item.featured_image
+                  const hasImage = item.type === 'page' || !!item.featured_image
 
                   return (
                     <tr key={item.id} className="border-b last:border-0">
@@ -201,7 +206,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
                       </td>
                       <td className="py-2 pr-4">
                         <span className={titleOk ? 'text-green-600' : 'text-yellow-600'}>
-                          {titleLen} chars
+                          {titleLengthLabel}
                         </span>
                       </td>
                       <td className="py-2 pr-4">

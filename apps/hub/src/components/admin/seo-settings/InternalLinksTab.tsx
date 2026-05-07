@@ -66,7 +66,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div>
         <div className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
@@ -94,7 +94,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
