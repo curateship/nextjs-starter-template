@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertTriangle, CheckCircle, Eye, EyeOff, RefreshCw, Shield, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle, Copy, Eye, EyeOff, RefreshCw, Shield, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
@@ -35,6 +35,7 @@ interface IntegrationCardProps {
   integration: SiteIntegration | null
   formValues: Record<string, string>
   onFormChange: (type: string, key: string, value: string) => void
+  siteId: string
 }
 
 function IntegrationCard({
@@ -42,11 +43,28 @@ function IntegrationCard({
   integration,
   formValues,
   onFormChange,
+  siteId,
 }: IntegrationCardProps) {
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
+  const [webhookBaseUrl, setWebhookBaseUrl] = useState("")
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false)
 
   const isConfigured = integration !== null
   const stripeMode = (formValues.mode || integration?.config?.mode) === 'sandbox' ? 'Sandbox' : 'Live'
+  const savedWebhookSecret = typeof integration?.config?.webhook_secret === 'string'
+    ? integration.config.webhook_secret
+    : ''
+  const notionMarketplaceWebhookUrl = entry.type === 'notion_marketplace' && savedWebhookSecret && webhookBaseUrl
+    ? `${webhookBaseUrl}/api/webhooks/notion-marketplace?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(savedWebhookSecret)}`
+    : ''
+  const notionMarketplaceWebhookUrlPreview = notionMarketplaceWebhookUrl
+    ? `${webhookBaseUrl}/api/webhooks/notion-marketplace?siteId=${encodeURIComponent(siteId)}&secret=********`
+    : ''
+
+  useEffect(() => {
+    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    setWebhookBaseUrl(configuredUrl || window.location.origin)
+  }, [])
 
   const toggleReveal = (key: string) => {
     setRevealedFields((prev) => {
@@ -58,6 +76,13 @@ function IntegrationCard({
       }
       return next
     })
+  }
+
+  const handleCopyWebhookUrl = async () => {
+    if (!notionMarketplaceWebhookUrl) return
+    await navigator.clipboard.writeText(notionMarketplaceWebhookUrl)
+    setCopiedWebhookUrl(true)
+    setTimeout(() => setCopiedWebhookUrl(false), 2000)
   }
 
   return (
@@ -159,6 +184,29 @@ function IntegrationCard({
             )}
           </div>
         ))}
+
+        {entry.type === 'notion_marketplace' && (
+          <div className="space-y-2 border-t pt-4">
+            <Label htmlFor="notion-marketplace-webhook-url">Webhook URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="notion-marketplace-webhook-url"
+                value={notionMarketplaceWebhookUrlPreview || 'Save a webhook secret to generate the URL'}
+                readOnly
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCopyWebhookUrl}
+                disabled={!notionMarketplaceWebhookUrl}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                {copiedWebhookUrl ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -303,6 +351,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
           integration={getIntegration(entry.type)}
           formValues={allFormValues[entry.type] || {}}
           onFormChange={handleFormChange}
+          siteId={siteId}
         />
       ))}
     </div>

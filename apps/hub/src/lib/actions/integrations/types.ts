@@ -6,6 +6,7 @@ export type IntegrationType =
   | 'perplexity'
   | 'google_ai'
   | 'google_maps'
+  | 'notion_marketplace'
 
 /**
  * Map of config keys that contain sensitive values per integration type.
@@ -19,6 +20,7 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   perplexity: ['api_key'],
   google_ai: ['api_key'],
   google_maps: ['api_key'],
+  notion_marketplace: ['webhook_secret'],
 }
 
 export interface IntegrationFieldDefinition {
@@ -123,6 +125,15 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     category: 'integrations',
     fields: [
       { key: 'api_key', label: 'Maps Embed API Key', type: 'password', placeholder: 'AIza...', required: true },
+    ],
+  },
+  {
+    type: 'notion_marketplace',
+    label: 'Notion Marketplace',
+    description: 'Capture customer emails from Notion Marketplace template purchases',
+    category: 'integrations',
+    fields: [
+      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password', required: true },
     ],
   },
 ]
