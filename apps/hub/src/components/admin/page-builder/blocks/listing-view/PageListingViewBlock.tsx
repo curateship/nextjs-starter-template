@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/tailwind"
 
 type ListingContentType = 'products' | 'posts'
 type ListingStyle = 'default' | 'blog'
+type ImageFit = 'crop' | 'fit'
 
 const LISTING_STYLES: Record<ListingStyle, { label: string; description: string }> = {
   default: {
@@ -22,6 +23,17 @@ const LISTING_STYLES: Record<ListingStyle, { label: string; description: string 
   },
 }
 
+const IMAGE_FIT_OPTIONS: Record<ImageFit, { label: string; description: string }> = {
+  crop: {
+    label: 'Crop',
+    description: 'Fill the image frame',
+  },
+  fit: {
+    label: 'Fit',
+    description: 'Show the full image',
+  },
+}
+
 interface SharedListingViewsBlockProps {
   title?: string
   subtitle?: string
@@ -30,6 +42,7 @@ interface SharedListingViewsBlockProps {
   contentType?: ListingContentType
   categoryIds?: string[]
   listingStyle?: ListingStyle
+  imageFit?: ImageFit
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   columns?: number
@@ -54,6 +67,7 @@ interface SharedListingViewsBlockProps {
   onContentTypeChange: (value: ListingContentType) => void
   onCategoryIdsChange: (value: string[]) => void
   onListingStyleChange: (value: ListingStyle) => void
+  onImageFitChange: (value: ImageFit) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onColumnsChange: (value: number) => void
@@ -81,6 +95,7 @@ export function PageListingViewBlock({
   contentType = 'products',
   categoryIds = [],
   listingStyle = 'default',
+  imageFit = 'crop',
   displayMode = 'grid',
   itemsToShow = 6,
   columns = 3,
@@ -105,6 +120,7 @@ export function PageListingViewBlock({
   onContentTypeChange,
   onCategoryIdsChange,
   onListingStyleChange,
+  onImageFitChange,
   onDisplayModeChange,
   onItemsToShowChange,
   onColumnsChange,
@@ -312,6 +328,44 @@ export function PageListingViewBlock({
             </div>
           </div>
       </BlockEditorSection>
+            </div>
+          ),
+        },
+        {
+          value: "stylings",
+          label: "Stylings",
+          content: (
+            <div className="space-y-4">
+              <BlockEditorSection heading="Image Display">
+                <div className="grid grid-cols-2 gap-2 max-w-sm">
+                  {Object.entries(IMAGE_FIT_OPTIONS).map(([key, option]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => onImageFitChange(key as ImageFit)}
+                      className={cn(
+                        "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                        imageFit === key
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        imageFit === key
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/30"
+                      )}>
+                        {imageFit === key && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{option.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{option.description}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </BlockEditorSection>
             </div>
           ),
         },

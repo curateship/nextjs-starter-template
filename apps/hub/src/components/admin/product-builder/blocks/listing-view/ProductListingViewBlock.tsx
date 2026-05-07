@@ -4,13 +4,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { BlockTabs } from "@/components/ui/tabs"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
+import { Check } from "lucide-react"
+import { cn } from "@/lib/utils/tailwind"
+
+type ImageFit = 'crop' | 'fit'
+
+const IMAGE_FIT_OPTIONS: Record<ImageFit, { label: string; description: string }> = {
+  crop: {
+    label: 'Crop',
+    description: 'Fill the image frame',
+  },
+  fit: {
+    label: 'Fit',
+    description: 'Show the full image',
+  },
+}
 
 interface ProductListingViewBlockProps {
   header?: string
   subheader?: string
   headerAlign?: 'left' | 'center'
   contentType?: 'products'
+  imageFit?: ImageFit
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   columns?: number
@@ -27,6 +43,7 @@ interface ProductListingViewBlockProps {
   onSubheaderChange: (value: string) => void
   onHeaderAlignChange: (value: 'left' | 'center') => void
   onContentTypeChange: (value: 'products') => void
+  onImageFitChange: (value: ImageFit) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onColumnsChange: (value: number) => void
@@ -49,6 +66,7 @@ export function ProductListingViewBlock({
   subheader = 'Check out our products',
   headerAlign = 'left',
   contentType = 'products',
+  imageFit = 'crop',
   displayMode = 'grid',
   itemsToShow = 6,
   columns = 3,
@@ -65,6 +83,7 @@ export function ProductListingViewBlock({
   onSubheaderChange,
   onHeaderAlignChange,
   onContentTypeChange,
+  onImageFitChange,
   onDisplayModeChange,
   onItemsToShowChange,
   onColumnsChange,
@@ -290,10 +309,41 @@ export function ProductListingViewBlock({
           ),
         },
         {
-          value: "style",
-          label: "Style",
+          value: "stylings",
+          label: "Stylings",
           content: (
-            <BlockEditorEmptyState>Style options coming soon.</BlockEditorEmptyState>
+            <div className="space-y-4">
+              <BlockEditorSection heading="Image Display">
+                <div className="grid grid-cols-2 gap-2 max-w-sm">
+                  {Object.entries(IMAGE_FIT_OPTIONS).map(([key, option]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => onImageFitChange(key as ImageFit)}
+                      className={cn(
+                        "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                        imageFit === key
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                        imageFit === key
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/30"
+                      )}>
+                        {imageFit === key && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{option.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{option.description}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </BlockEditorSection>
+            </div>
           ),
         },
         {

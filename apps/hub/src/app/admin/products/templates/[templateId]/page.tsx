@@ -555,6 +555,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                       subheader={draftContent.subheader ?? "Check out our products"}
                       headerAlign={draftContent.headerAlign ?? "left"}
                       contentType={draftContent.contentType ?? "products"}
+                      imageFit={draftContent.imageFit ?? "crop"}
                       displayMode={draftContent.displayMode ?? "grid"}
                       itemsToShow={draftContent.itemsToShow ?? 6}
                       columns={draftContent.columns ?? 3}
@@ -571,6 +572,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                       onSubheaderChange={(value) => handleDraftChange("subheader", value)}
                       onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
                       onContentTypeChange={(value) => handleDraftChange("contentType", value)}
+                      onImageFitChange={(value) => handleDraftChange("imageFit", value)}
                       onDisplayModeChange={(value) => handleDraftChange("displayMode", value)}
                       onItemsToShowChange={(value) => handleDraftChange("itemsToShow", value)}
                       onColumnsChange={(value) => handleDraftChange("columns", value)}

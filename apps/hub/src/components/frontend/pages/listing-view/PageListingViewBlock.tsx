@@ -14,6 +14,7 @@ import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 
 type ListingContentType = 'products' | 'posts'
 type ListingStyle = 'default' | 'blog'
+type ImageFit = 'crop' | 'fit'
 
 function getInitials(name?: string | null) {
   if (!name) return '?'
@@ -36,6 +37,7 @@ interface ListingViewsBlockProps {
     contentType?: ListingContentType
     categoryIds?: string[]
     listingStyle?: ListingStyle
+    imageFit?: ImageFit
     displayMode?: 'grid' | 'list'
     itemsToShow?: number
     columns?: number
@@ -82,6 +84,7 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
     contentType = 'products',
     categoryIds: rawCategoryIds = [],
     listingStyle = 'default',
+    imageFit = 'crop',
     displayMode = 'grid',
     itemsToShow = 6,
     columns = 3,
@@ -167,6 +170,8 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
   const gridColumns = displayMode === 'grid' 
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 
     : 'grid-cols-1'
+  const imageFitClassName = imageFit === 'fit' ? 'object-contain' : 'object-cover'
+  const imageFrameClassName = imageFit === 'fit' ? 'bg-muted' : ''
 
   const formatDate = (value?: string | null) => {
     if (!value) return ''
@@ -207,14 +212,14 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         >
           <Card className="mx-0 grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden pt-0 transition-shadow group-hover:shadow-md">
             {showImage && (
-              <div className="aspect-video w-full">
+              <div className={`aspect-video w-full ${imageFrameClassName}`}>
                 {item.featured_image ? (
                   <Image
                     src={item.featured_image}
                     alt={item.title || `${contentType === 'posts' ? 'Post' : 'Product'} image`}
                     width={640}
                     height={360}
-                    className="h-full w-full object-cover object-center transition-opacity duration-200 group-hover:opacity-75"
+                    className={`h-full w-full ${imageFitClassName} object-center transition-opacity duration-200 group-hover:opacity-75`}
                     sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
                     priority={isLCP}
                   />
@@ -273,12 +278,12 @@ export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes,
         {showImage && (
           <div className={displayMode === 'list' ? 'w-48 shrink-0' : ''}>
             {item.featured_image ? (
-              <div className="relative rounded-md aspect-square overflow-hidden">
+              <div className={`relative rounded-md aspect-square overflow-hidden ${imageFrameClassName}`}>
                 <Image
                   src={item.featured_image}
                   alt={item.title || `${contentType === 'posts' ? 'Post' : 'Product'} image`}
                   fill
-                  className="object-cover"
+                  className={imageFitClassName}
                   sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
                   priority={isLCP}
                   loading={isLCP ? "eager" : (index < columns ? "eager" : "lazy")}

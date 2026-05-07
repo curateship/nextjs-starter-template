@@ -10,12 +10,15 @@ import { getListingViewsData, type ListingViewsData } from "@/lib/actions/pages/
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
+type ImageFit = 'crop' | 'fit'
+
 interface ProductListingViewBlockProps {
   content: {
     title?: string
     subtitle?: string
     headerAlign?: 'left' | 'center'
     contentType?: 'products'
+    imageFit?: ImageFit
     displayMode?: 'grid' | 'list'
     itemsToShow?: number
     columns?: number
@@ -55,6 +58,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
     subtitle = '',
     headerAlign = 'left',
     contentType = 'products',
+    imageFit = 'crop',
     displayMode = 'grid',
     itemsToShow = 6,
     columns = 3,
@@ -109,6 +113,8 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
   const gridColumns = displayMode === 'grid' 
     ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` 
     : 'grid-cols-1'
+  const imageFitClassName = imageFit === 'fit' ? 'object-contain' : 'object-cover'
+  const imageFrameClassName = imageFit === 'fit' ? 'bg-muted' : ''
 
   const renderProduct = (product: any) => {
     const productContent = (
@@ -116,12 +122,12 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
         {showImage && (
           <div className={displayMode === 'list' ? 'w-48 flex-shrink-0' : ''}>
             {product.featured_image ? (
-              <div className="relative rounded-md aspect-square overflow-hidden">
+              <div className={`relative rounded-md aspect-square overflow-hidden ${imageFrameClassName}`}>
                 <Image
                   src={product.featured_image}
                   alt={product.title || 'Product image'}
                   fill
-                  className="object-cover"
+                  className={imageFitClassName}
                   sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
                   onError={(e) => {
                     // Hide broken image via opacity (avoids forced reflow from style.display)

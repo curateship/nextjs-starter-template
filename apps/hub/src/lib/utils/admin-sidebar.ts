@@ -482,6 +482,12 @@ function isPathActive(pathname: string, href: string) {
   return pathname === cleanHref || (cleanHref !== "/" && pathname.startsWith(`${cleanHref}/`))
 }
 
+function getActiveChild(pathname: string, children: AdminSidebarChildItem[]) {
+  return children
+    .filter((childItem) => isChildActive(pathname, childItem))
+    .sort((a, b) => stripQuery(b.href).length - stripQuery(a.href).length)[0]
+}
+
 function isItemActive(pathname: string, entry: AdminSidebarItem) {
   const cleanHref = stripQuery(entry.href).trim()
   if (cleanHref && pathname === cleanHref) return true
@@ -504,14 +510,14 @@ export function getAdminSidebarStickyNavLinks(
       if (!entry.visible) return []
 
       const children = (entry.children ?? []).filter((childItem) => childItem.visible !== false)
-      const childMatch = children.find((childItem) => isChildActive(context.pathname, childItem))
+      const activeChild = getActiveChild(context.pathname, children)
       const parentMatches = isItemActive(context.pathname, entry)
-      if (!parentMatches && !childMatch) return []
+      if (!parentMatches && !activeChild) return []
 
       return [{
         entry,
-        activeHref: childMatch?.href ?? entry.href,
-        matchLength: stripQuery(childMatch?.href ?? entry.href).length,
+        activeChildId: activeChild?.id,
+        matchLength: stripQuery(activeChild?.href ?? entry.href).length,
       }]
     })
   )
@@ -524,15 +530,14 @@ export function getAdminSidebarStickyNavLinks(
     {
       label: active.entry.label,
       href: active.entry.href,
-      active: !visibleChildren.some((childItem) => isChildActive(context.pathname, childItem))
-        && isItemActive(context.pathname, active.entry),
+      active: !active.activeChildId && isItemActive(context.pathname, active.entry),
       iconName: active.entry.icon,
       external: isExternalAdminSidebarHref(active.entry.href),
     },
     ...visibleChildren.map((childItem) => ({
       label: childItem.label,
       href: childItem.href,
-      active: isChildActive(context.pathname, childItem),
+      active: childItem.id === active.activeChildId,
       iconName: childItem.icon,
       external: isExternalAdminSidebarHref(childItem.href),
     })),

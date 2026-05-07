@@ -154,6 +154,7 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Display products in different layout views',
     defaultContent: {
       displaySettings: {},
+      imageFit: 'crop',
       contentType: 'products',
       sortOptions: {}
     }

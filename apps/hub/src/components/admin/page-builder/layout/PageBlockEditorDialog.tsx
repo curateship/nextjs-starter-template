@@ -99,6 +99,7 @@ export function PageBlockEditorDialog({
                   onContentTypeChange={(value) => onContentChange("contentType", value)}
                   onCategoryIdsChange={(value) => onContentChange("categoryIds", value)}
                   onListingStyleChange={(value) => onContentChange("listingStyle", value)}
+                  onImageFitChange={(value) => onContentChange("imageFit", value)}
                   onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                   onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
                   onColumnsChange={(value) => onContentChange("columns", value)}
