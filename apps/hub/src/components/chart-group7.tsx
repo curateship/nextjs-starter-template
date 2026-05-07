@@ -29,10 +29,11 @@ interface DashboardChartPoint extends DashboardTotals {
 }
 
 interface ChartGroup7Props {
+  cardRange: DashboardRange
   chartData: DashboardChartPoint[]
+  chartRange: DashboardRange
   className?: string
   previousTotals: DashboardTotals
-  range: DashboardRange
   totals: DashboardTotals
 }
 
@@ -114,7 +115,14 @@ const fallbackPoint: DashboardChartPoint = {
   revenue: 0,
 }
 
-const ChartGroup7 = ({ chartData, className, previousTotals, range, totals }: ChartGroup7Props) => {
+const ChartGroup7 = ({
+  cardRange,
+  chartData,
+  chartRange,
+  className,
+  previousTotals,
+  totals,
+}: ChartGroup7Props) => {
   const [activeMetric, setActiveMetric] = useState<DashboardMetric>("visitors")
   const activeOption = metricOptions.find((option) => option.metric === activeMetric) ?? metricOptions[0]
   const displayData = chartData.length > 0 ? chartData : [fallbackPoint]
@@ -157,7 +165,7 @@ const ChartGroup7 = ({ chartData, className, previousTotals, range, totals }: Ch
                 <div className="text-2xl font-bold tracking-normal">
                   {formatMetricValue(stat.metric, stat.value)}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">{rangeLabels[range]} vs previous period</p>
+                <p className="mt-1 text-xs text-muted-foreground">{rangeLabels[cardRange]} vs previous period</p>
               </CardContent>
             </Card>
           )
@@ -168,7 +176,7 @@ const ChartGroup7 = ({ chartData, className, previousTotals, range, totals }: Ch
         <CardHeader className="gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
             <CardTitle>{activeOption.label}</CardTitle>
-            <CardDescription>{rangeDescriptions[range]}</CardDescription>
+            <CardDescription>{rangeDescriptions[chartRange]}</CardDescription>
           </div>
           <Tabs value={activeMetric} onValueChange={(value) => setActiveMetric(value as DashboardMetric)}>
             <TabsList className="h-9 max-w-full justify-start overflow-x-auto">

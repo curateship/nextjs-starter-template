@@ -694,6 +694,7 @@ export default function ContactsPage() {
       case "Email Form": return <Badge variant="outline" className="border-sky-200 text-sky-700">Email Form</Badge>
       case "lead_magnet": return <Badge variant="outline">Lead Magnet</Badge>
       case "paid_purchase": return <Badge variant="outline" className="border-green-200 text-green-700">Purchase</Badge>
+      case "Notion Marketplace": return <Badge variant="outline" className="border-neutral-300 bg-neutral-50 text-neutral-900">Notion Marketplace</Badge>
       case "import": return <Badge variant="outline" className="border-blue-200 text-blue-700">Import</Badge>
       case "manual": return <Badge variant="outline">Manual</Badge>
       case "ad": return <Badge variant="outline" className="border-purple-200 text-purple-700">Ad</Badge>

@@ -108,9 +108,14 @@ export const CONTACT_SOURCE_OPTIONS = [
   { value: 'Email Form', label: 'Email Form' },
   { value: 'lead_magnet', label: 'Lead Magnet' },
   { value: 'paid_purchase', label: 'Purchase' },
+  { value: 'notion_marketplace', label: 'Notion Marketplace' },
   { value: 'import', label: 'Import' },
   { value: 'manual', label: 'Manual' },
 ] as const
+
+export function getContactSourceLabel(source: string) {
+  return CONTACT_SOURCE_OPTIONS.find((option) => option.value === source)?.label || source
+}
 
 export const CONTACT_RELATIVE_DAY_OPTIONS: Array<{ value: ContactRelativeDays; label: string }> = [
   { value: 7, label: 'In the last 7 days' },
@@ -219,7 +224,7 @@ export function formatContactFilterRule(rule: ContactFilterRule): string {
 
   if (rule.type === 'source') {
     const values = rule.value
-      .map((value) => CONTACT_SOURCE_OPTIONS.find((option) => option.value === value)?.label || value)
+      .map(getContactSourceLabel)
       .join(', ')
     return values ? `Source: ${values}` : 'Source'
   }

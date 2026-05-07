@@ -9,6 +9,7 @@ import {
   CONTACT_RELATIVE_DAY_OPTIONS,
   CONTACT_SOURCE_OPTIONS,
   CONTACT_STATUS_OPTIONS,
+  getContactSourceLabel,
   type ContactDateFilterValue,
   type ContactFilterGroup,
   type ContactFilterRule,
@@ -41,6 +42,7 @@ const MAX_IMPORT_SIZE = 50000
 const VALID_SOURCES = CONTACT_SOURCE_OPTIONS.map((option) => option.value)
 const VALID_STATUS_VALUES = CONTACT_STATUS_OPTIONS.map((option) => option.value)
 const VALID_RELATIVE_DAYS = CONTACT_RELATIVE_DAY_OPTIONS.map((option) => option.value)
+const HIDDEN_SOURCE_TAGS = new Set(['notion marketplace'])
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -52,6 +54,8 @@ async function verifySiteOwnership(siteId: string, userId: string) {
 }
 
 function rowToContact(row: any): CrmContact {
+  const metadata = normalizeContactMetadata(row.metadata)
+
   return {
     id: row.id,
     site_id: row.siteId,
@@ -60,10 +64,29 @@ function rowToContact(row: any): CrmContact {
     engagement_score: row.engagementScore ?? 0,
     last_engaged_at: row.lastEngagedAt?.toISOString() ?? null,
     bounce_count: row.bounceCount ?? 0,
-    metadata: row.metadata ?? {},
+    metadata,
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
   }
+}
+
+function normalizeContactMetadata(value: unknown): CrmContact['metadata'] {
+  const metadata = value && typeof value === 'object' && !Array.isArray(value)
+    ? { ...(value as Record<string, any>) }
+    : {}
+
+  if (typeof metadata.source === 'string') {
+    metadata.source = getContactSourceLabel(metadata.source)
+
+    if (Array.isArray(metadata.tags)) {
+      metadata.tags = metadata.tags.filter((tag) => (
+        typeof tag === 'string'
+        && !HIDDEN_SOURCE_TAGS.has(tag.trim().toLowerCase())
+      ))
+    }
+  }
+
+  return metadata
 }
 
 function startOfDay(value: string): Date {

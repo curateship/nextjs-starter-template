@@ -115,7 +115,7 @@ async function handleMarketplacePayload(siteId: string, payload: NotionMarketpla
   }
 
   const templateName = safeString(payload.templateName)
-  const tags = ['Notion Marketplace', templateName, event === REFUND_EVENT ? 'Refunded' : '']
+  const tags = [templateName, event === REFUND_EVENT ? 'Refunded' : '']
     .filter(Boolean)
 
   const result = await upsertSystemNewsletterContact({

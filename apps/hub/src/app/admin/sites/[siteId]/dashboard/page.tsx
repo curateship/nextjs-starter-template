@@ -25,10 +25,11 @@ function normalizeDashboardRange(value?: string | string[]): DashboardRange {
   const range = Array.isArray(value) ? value[0] : value
   return range === 'today' ||
     range === 'yesterday' ||
+    range === '7d' ||
     range === '30d' ||
     range === '365d'
     ? range
-    : '7d'
+    : 'today'
 }
 
 const rangeOptions: Array<{ value: DashboardRange; label: string }> = [
@@ -81,9 +82,14 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
     redirect(`/admin/sites/${siteId}/dashboard?range=${selectedRange}`)
   }
 
-  const [site, dashboardMetrics] = await Promise.all([
+  const [site, cardMetrics, chartMetrics] = await Promise.all([
     getSiteForDashboard(siteId),
     getSiteDashboardMetrics(siteId, selectedRange).catch(() => ({
+      totals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
+      previousTotals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
+      chartData: [],
+    })),
+    getSiteDashboardMetrics(siteId, '30d').catch(() => ({
       totals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
       previousTotals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
       chartData: [],
@@ -159,10 +165,11 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
           />
 
           <ChartGroup7
-            chartData={dashboardMetrics.chartData}
-            previousTotals={dashboardMetrics.previousTotals}
-            range={selectedRange}
-            totals={dashboardMetrics.totals}
+            cardRange={selectedRange}
+            chartData={chartMetrics.chartData}
+            chartRange="30d"
+            previousTotals={cardMetrics.previousTotals}
+            totals={cardMetrics.totals}
           />
         </div>
       </AdminLayout>
