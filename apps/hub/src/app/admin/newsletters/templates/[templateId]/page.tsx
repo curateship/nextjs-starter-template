@@ -15,7 +15,6 @@ import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/lay
 import { getTemplateById, updateTemplate } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -57,8 +56,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
   const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   const blockEditor = useBlockEditor()
-  const newsletterSettingsHref = currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined
-  const newsletterNavLinks = getNewsletterAdminTopNavLinks("templates", newsletterSettingsHref)
   const selectedBlock = blockEditor.selectedBlock
 
   useEffect(() => {
@@ -153,7 +150,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <DashboardStickyHeader
-          navLinks={newsletterNavLinks}
           rightActions={(
             <StickybarTopRightActions
               rightActions={(
@@ -197,7 +193,7 @@ export default function TemplateEditorPage({ params }: PageProps) {
   if (error && !template) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={newsletterNavLinks} />
+        <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
@@ -211,7 +207,6 @@ export default function TemplateEditorPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
-        navLinks={newsletterNavLinks}
         rightActions={(
           <StickybarTopRightActions
             rightActions={(

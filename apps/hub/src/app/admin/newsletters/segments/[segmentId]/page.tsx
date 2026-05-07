@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -411,7 +410,6 @@ export default function SegmentDashboardPage() {
   }
 
   // Nav links — Segments tab active
-  const navLinks = getNewsletterAdminTopNavLinks("segments", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)
   const invalidDynamicConditions = editForm.segmentType === "dynamic" && !buildDynamicRuleFromForm(dynamicConditions)
 
   function addDynamicCondition(type: DynamicConditionForm["type"]) {
@@ -457,7 +455,7 @@ export default function SegmentDashboardPage() {
 
   return (
     <>
-      <StickyHeader navLinks={navLinks} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

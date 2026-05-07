@@ -5,7 +5,6 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { getMediaAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Grid, List, Image as ImageIcon, Trash2, Edit, VideoIcon, ArrowUp, ArrowDown, ChevronsUpDown, Upload } from "lucide-react"
@@ -35,8 +34,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-
-
 
 export default function ImagesPage() {
   const { currentSite, loading: siteLoading } = useSiteSwitcher()
@@ -399,7 +396,7 @@ export default function ImagesPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getMediaAdminTopNavLinks("library")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

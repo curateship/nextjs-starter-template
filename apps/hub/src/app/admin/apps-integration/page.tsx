@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
-import { getPlatformSettingsAdminTopNavLinks } from '@/components/admin/layout/stickybar/StickybarTopLeftNav'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -65,7 +64,7 @@ export default async function AppsIntegrationPage({
 
   return (
     <>
-      <StickyHeader navLinks={getPlatformSettingsAdminTopNavLinks("apps-integration")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

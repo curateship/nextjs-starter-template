@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { ChevronRight, type LucideIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -20,34 +21,83 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from "@/components/admin/layout/sidebar/Sidebar"
+import {
+  isExternalAdminSidebarHref,
+  sanitizeAdminSidebarHref,
+} from "@/lib/utils/admin-sidebar"
+
+type SidebarDropdownChild = {
+  id?: string
+  title: string
+  url: string
+  icon?: LucideIcon
+  activePaths?: string[]
+}
+
+type SidebarDropdownProject = {
+  id?: string
+  name: string
+  url: string
+  icon: LucideIcon
+  activePaths?: string[]
+  items?: SidebarDropdownChild[]
+}
+
+function stripQuery(url: string) {
+  return url.split("?")[0]
+}
 
 function isPathActive(pathname: string, url: string) {
-  return pathname === url || pathname.startsWith(`${url}/`)
+  const cleanUrl = stripQuery(url).trim()
+  if (!cleanUrl) return false
+
+  return pathname === cleanUrl || (cleanUrl !== "/" && pathname.startsWith(`${cleanUrl}/`))
 }
 
 function isExactPathActive(pathname: string, url: string) {
-  return pathname === url
+  const cleanUrl = stripQuery(url).trim()
+  return Boolean(cleanUrl) && pathname === cleanUrl
 }
 
-function getActiveChildUrl(pathname: string, items: { url: string }[] = []) {
+function hasActivePath(pathname: string, paths: string[] = []) {
+  return paths.some((path) => isPathActive(pathname, path))
+}
+
+function getActiveChildId(pathname: string, items: SidebarDropdownChild[] = []) {
   return items
-    .filter((item) => isPathActive(pathname, item.url))
+    .filter((item) => isPathActive(pathname, item.url) || hasActivePath(pathname, item.activePaths))
     .sort((a, b) => b.url.length - a.url.length)[0]?.url
 }
+
+const SidebarLink = React.forwardRef<HTMLAnchorElement, React.ComponentPropsWithoutRef<"a"> & {
+  href: string
+}>(function SidebarLink({
+  href,
+  children,
+  ...props
+}, ref) {
+  const safeHref = sanitizeAdminSidebarHref(href)
+
+  if (isExternalAdminSidebarHref(safeHref)) {
+    return (
+      <a ref={ref} href={safeHref} target="_blank" rel="noopener noreferrer" {...props}>
+        {children}
+      </a>
+    )
+  }
+
+  return (
+    <Link ref={ref} href={safeHref || "#"} {...props}>
+      {children}
+    </Link>
+  )
+})
 
 export function SidebarDropdown({
   projects,
   title,
 }: {
-  projects: {
-    name: string
-    url: string
-    icon: LucideIcon
-    items?: {
-      title: string
-      url: string
-    }[]
-  }[]
+  projects: SidebarDropdownProject[]
   title?: string
 }) {
   const pathname = usePathname()
@@ -63,16 +113,17 @@ export function SidebarDropdown({
       <SidebarMenu>
         {projects.map((item) => {
           const hasChildren = Boolean(item.items?.length)
-          const activeChildUrl = getActiveChildUrl(pathname, item.items)
+          const activeChildUrl = getActiveChildId(pathname, item.items)
           const hasActiveChild = Boolean(activeChildUrl)
-          const isActive = isExactPathActive(pathname, item.url)
+          const isActive = hasChildren
+            ? isExactPathActive(pathname, item.url) || hasActivePath(pathname, item.activePaths)
+            : isPathActive(pathname, item.url) || hasActivePath(pathname, item.activePaths)
           const isParentActive = isActive || hasActiveChild
 
           return (
             <Collapsible
-              key={item.name}
+              key={item.id || item.name}
               asChild
-              defaultOpen={isParentActive}
               className="group/collapsible"
             >
               <SidebarMenuItem>
@@ -86,10 +137,10 @@ export function SidebarDropdown({
                     isActive={isParentActive}
                     className="flex-1 hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent data-[state=open]:hover:bg-transparent"
                   >
-                    <Link href={item.url} onClick={handleNavClick}>
+                    <SidebarLink href={item.url} onClick={handleNavClick}>
                       <item.icon />
                       <span>{item.name}</span>
-                    </Link>
+                    </SidebarLink>
                   </SidebarMenuButton>
                   {state === "expanded" && hasChildren ? (
                     <CollapsibleTrigger asChild>
@@ -108,14 +159,15 @@ export function SidebarDropdown({
                   <CollapsibleContent>
                     <SidebarMenuSub>
                       {item.items?.map((subItem) => (
-                        <SidebarMenuSubItem key={subItem.title}>
+                        <SidebarMenuSubItem key={subItem.id || subItem.title}>
                           <SidebarMenuSubButton
                             asChild
                             isActive={subItem.url === activeChildUrl}
                           >
-                            <Link href={subItem.url} onClick={handleNavClick}>
+                            <SidebarLink href={subItem.url} onClick={handleNavClick}>
+                              {subItem.icon ? <subItem.icon /> : null}
                               <span>{subItem.title}</span>
-                            </Link>
+                            </SidebarLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       ))}

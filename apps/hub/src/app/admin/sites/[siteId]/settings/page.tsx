@@ -24,7 +24,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertTriangle, CheckCircle, Eye, EyeOff, RefreshCw, Shield, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
-import { SiteSettingsHeaderNav } from "@/components/admin/layout/settings/SiteSettingsHeaderNav"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
 import { checkDomainHealth, type DomainHealth } from '@/lib/actions/newsletters/deliverability-actions'
 import { SiteHealthTab } from '@/components/admin/seo-settings/SiteHealthTab'
@@ -400,7 +399,7 @@ const TABS = [
   { id: 'integrations', label: 'Integrations' },
   { id: 'cron-jobs', label: 'Cron Jobs' },
   { id: 'ai', label: 'AI Providers' },
-  { id: 'enabled-features', label: 'Enabled Features' },
+  { id: 'sidebar', label: 'Sidebar' },
   { id: 'dashboard-quick-links', label: 'Dashboard Quick Links' },
 ] as const
 
@@ -445,7 +444,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
   const [cronJobsLoading, setCronJobsLoading] = useState(true)
   const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
-  const isAdminSettingsTab = activeTab === 'enabled-features' || activeTab === 'dashboard-quick-links'
+  const isAdminSettingsTab = activeTab === 'sidebar' || activeTab === 'dashboard-quick-links'
   const isCronJobsTab = activeTab === 'cron-jobs'
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
@@ -568,7 +567,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
   return (
     <>
-      <StickyHeader navContent={<SiteSettingsHeaderNav siteId={siteId} activeSection="general" />} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
           <DashboardSubheader
@@ -725,10 +724,10 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                 <IntegrationTab siteId={siteId} category="ai" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
               )}
 
-              {activeTab === 'enabled-features' && (
+              {activeTab === 'sidebar' && (
                 <SiteAdminSettingsTab
                   siteId={siteId}
-                  mode="enabled-features"
+                  mode="sidebar"
                   onStatusChange={setAdminSettingsStatus}
                 />
               )}

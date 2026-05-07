@@ -5,7 +5,6 @@ import Link from "next/link"
 import { getAccountPagePath } from "@/lib/utils/account-page-path"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -80,7 +79,6 @@ export default function AccountPagesPage({ params }: PageProps) {
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
 
-
   // Load site and pages data
   useEffect(() => {
     async function loadData() {
@@ -117,7 +115,6 @@ export default function AccountPagesPage({ params }: PageProps) {
 
     loadData()
   }, [siteId, currentPage])
-
 
   const handleDeletePage = async (pageId: string) => {
     setPendingDeleteId(pageId)
@@ -339,7 +336,7 @@ export default function AccountPagesPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, "account-pages")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
         <DashboardSubheader

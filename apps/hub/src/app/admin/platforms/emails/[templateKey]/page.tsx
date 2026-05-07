@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { Monitor, Smartphone, Tablet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
-import { getPlatformEmailAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
@@ -63,7 +62,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const blockEditor = useBlockEditor()
   const requiresSiteContext = !isGlobalTemplateKey(templateKey)
   const selectedBlock = blockEditor.selectedBlock
-  const emailSettingsHref = currentSite?.id ? `/admin/sites/${currentSite.id}/settings?tab=email` : undefined
 
   useEffect(() => {
     if (requiresSiteContext && !currentSite?.id) {
@@ -167,7 +165,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates", emailSettingsHref)} />
+        <DashboardStickyHeader />
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 border-r bg-background overflow-hidden">
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
@@ -200,7 +198,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   if (error || !template) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={getPlatformEmailAdminTopNavLinks("templates", emailSettingsHref)} />
+        <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error || 'Template not found'}</p>
@@ -216,7 +214,6 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
-        navLinks={getPlatformEmailAdminTopNavLinks("templates", emailSettingsHref)}
         rightActions={(
           <StickybarTopRightActions
             rightActions={(

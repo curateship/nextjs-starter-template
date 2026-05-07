@@ -5,7 +5,6 @@ import { CheckCircle } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -167,7 +166,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
 
   return (
     <>
-      <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, "breadcrumbs")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
           <DashboardSubheader

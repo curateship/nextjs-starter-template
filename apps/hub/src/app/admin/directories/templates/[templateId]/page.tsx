@@ -22,7 +22,6 @@ import {
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Blocks, Check, Pencil, X } from "lucide-react"
 import {
   getDirectoryCustomBlockSelectionType,
@@ -63,8 +62,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
-
-  const directoryNavLinks = getDirectoryAdminTopNavLinks("templates")
 
   const loadTemplate = useCallback(async () => {
     setLoading(true)
@@ -326,7 +323,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   if (loading) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={directoryNavLinks} />
+        <DashboardStickyHeader />
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 border-r bg-background overflow-hidden">
             <div className="flex-1 overflow-y-auto bg-muted/30 p-8 h-full">
@@ -353,7 +350,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   if (error && !template) {
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        <DashboardStickyHeader navLinks={directoryNavLinks} />
+        <DashboardStickyHeader />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
@@ -369,7 +366,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
-        navLinks={directoryNavLinks}
         rightActions={(
           <StickybarTopRightActions
             rightActions={(

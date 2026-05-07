@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -477,7 +476,7 @@ export default function NewslettersPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("newsletters", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

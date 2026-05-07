@@ -8,7 +8,6 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { getPostAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -109,7 +108,6 @@ export default function PostsPage() {
 
     loadPosts()
   }, [currentSite?.id, currentPage])
-
 
   const handleDeletePost = async (postId: string) => {
     setPendingDeleteId(postId)
@@ -316,10 +314,9 @@ export default function PostsPage() {
     draft: posts.filter(p => !p.is_published).length
   }
 
-
   return (
     <>
-      <StickyHeader navLinks={getPostAdminTopNavLinks("posts")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

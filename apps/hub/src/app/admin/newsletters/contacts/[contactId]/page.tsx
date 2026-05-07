@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -268,11 +267,10 @@ export default function ContactDashboardPage() {
     : ""
 
   // Nav links (same as contacts list page)
-  const navLinks = getNewsletterAdminTopNavLinks("contacts", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)
 
   return (
     <>
-      <StickyHeader navLinks={navLinks} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

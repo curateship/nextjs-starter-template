@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
@@ -220,7 +219,7 @@ export default function TemplatesPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("templates", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

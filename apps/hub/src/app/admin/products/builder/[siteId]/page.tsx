@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
@@ -266,11 +265,9 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     ? `${getSiteUrl(site)}/products/${currentProductData.slug}`
     : null
 
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <StickyHeader
-        navLinks={getProductAdminTopNavLinks("products")}
         rightActions={(
           <StickybarTopRightActions
             saveMessage={builderState.saveMessage}

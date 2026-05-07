@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { usePageData } from "@/components/admin/page-builder/config/usePageData"
@@ -232,7 +231,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
         </div>
       )}
       <DashboardStickyHeader
-        navLinks={getPageAdminTopNavLinks(siteId, "pages")}
         rightActions={(
           <StickybarTopRightActions
             saveMessage={builderState.saveMessage}

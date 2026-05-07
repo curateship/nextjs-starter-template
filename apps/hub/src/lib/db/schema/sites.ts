@@ -2,6 +2,7 @@ import { pgTable, uuid, varchar, text, boolean, jsonb, timestamp, index, uniqueI
 import { sql } from 'drizzle-orm'
 import { relations } from 'drizzle-orm'
 import { authUsers } from './auth-users'
+import type { AdminSidebarSettings } from '@/lib/utils/admin-sidebar'
 
 // SEO-related fields stored in site settings JSONB
 export interface SiteSeoSettings {
@@ -39,6 +40,7 @@ export interface SiteSettings extends SiteSeoSettings {
   default_theme?: string
   navigation?: Record<string, any>
   footer?: Record<string, any>
+  admin_sidebar?: AdminSidebarSettings
   quick_links?: Array<{
     id: string
     label: string
@@ -46,8 +48,6 @@ export interface SiteSettings extends SiteSeoSettings {
     icon?: string
   }>
   breadcrumbs?: Record<string, boolean>
-  enabled_features?: Record<string, boolean>
-  feature_order?: string[]
   maintenance?: { enabled?: boolean }
   welcome_email_enabled?: boolean
   tracking_scripts?: string

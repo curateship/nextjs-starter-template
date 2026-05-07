@@ -9,7 +9,6 @@ import Link from "next/link"
 import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
@@ -306,11 +305,9 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     ? `${getSiteUrl(site)}/directories/${currentDirectoryData.slug}`
     : null
 
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
-        navLinks={getDirectoryAdminTopNavLinks("directory")}
         rightActions={(
           <StickybarTopRightActions
             preActions={siteError ? <span className="text-xs text-red-600">{siteError}</span> : null}

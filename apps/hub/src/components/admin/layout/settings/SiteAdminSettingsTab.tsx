@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FeatureTogglesCard } from '@/components/admin/layout/dashboard/FeatureTogglesCard'
+import { AdminSidebarSettingsCard } from '@/components/admin/layout/settings/AdminSidebarSettingsCard'
 import { QuickLinksSettingsCard } from '@/components/admin/layout/settings/QuickLinksSettingsCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { useSiteSwitcher } from '@/components/admin/layout/providers/site-switcher-provider'
@@ -10,11 +10,16 @@ import {
   updateSiteAction,
   type Site,
 } from '@/lib/actions/sites/site-actions'
+import {
+  resolveAdminSidebarSettings,
+  serializeAdminSidebarSettings,
+  type AdminSidebarSettings,
+} from '@/lib/utils/admin-sidebar'
 import { normalizeSiteQuickLinks, type SiteQuickLink } from '@/lib/utils/site-quick-links'
 
 interface SiteAdminSettingsTabProps {
   siteId: string
-  mode: 'enabled-features' | 'dashboard-quick-links'
+  mode: 'sidebar' | 'dashboard-quick-links'
   onStatusChange?: (status: { loading: boolean; saving: boolean; message: string | null }) => void
 }
 
@@ -33,11 +38,8 @@ export function SiteAdminSettingsTab({
   const [quickLinks, setQuickLinks] = useState<SiteQuickLink[]>(
     normalizeSiteQuickLinks(contextSite?.settings?.quick_links)
   )
-  const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>(
-    contextSite?.settings?.enabled_features || {}
-  )
-  const [featureOrder, setFeatureOrder] = useState<string[]>(
-    contextSite?.settings?.feature_order || []
+  const [adminSidebar, setAdminSidebar] = useState<AdminSidebarSettings>(
+    resolveAdminSidebarSettings(contextSite?.settings?.admin_sidebar, { siteId })
   )
   const [loading, setLoading] = useState(!contextSite)
   const [saving, setSaving] = useState(false)
@@ -52,8 +54,7 @@ export function SiteAdminSettingsTab({
     if (contextSite) {
       setSite(contextSite as Site)
       setQuickLinks(normalizeSiteQuickLinks(contextSite.settings?.quick_links))
-      setEnabledFeatures(contextSite.settings?.enabled_features || {})
-      setFeatureOrder(contextSite.settings?.feature_order || [])
+      setAdminSidebar(resolveAdminSidebarSettings(contextSite.settings?.admin_sidebar, { siteId }))
       setLoading(false)
       return
     }
@@ -76,8 +77,7 @@ export function SiteAdminSettingsTab({
 
         setSite(result.data)
         setQuickLinks(normalizeSiteQuickLinks(result.data.settings?.quick_links))
-        setEnabledFeatures(result.data.settings?.enabled_features || {})
-        setFeatureOrder(result.data.settings?.feature_order || [])
+        setAdminSidebar(resolveAdminSidebarSettings(result.data.settings?.admin_sidebar, { siteId }))
       } catch (loadError) {
         if (!cancelled) {
           console.error('Error loading site admin settings:', loadError)
@@ -106,13 +106,17 @@ export function SiteAdminSettingsTab({
       setSaveMessage(null)
 
       const normalizedQuickLinks = normalizeSiteQuickLinks(quickLinks)
+      const nextSettings = mode === 'sidebar'
+        ? {
+            ...site.settings,
+            admin_sidebar: serializeAdminSidebarSettings(adminSidebar),
+          }
+        : {
+            ...site.settings,
+            quick_links: normalizedQuickLinks,
+          }
       const { data, error: updateError } = await updateSiteAction(siteId, {
-        settings: {
-          ...site.settings,
-          quick_links: normalizedQuickLinks,
-          enabled_features: enabledFeatures,
-          feature_order: featureOrder,
-        },
+        settings: nextSettings,
       })
 
       if (updateError) {
@@ -122,7 +126,11 @@ export function SiteAdminSettingsTab({
 
       if (data) {
         setSite(data)
-        setQuickLinks(normalizedQuickLinks)
+        if (mode === 'sidebar') {
+          setAdminSidebar(resolveAdminSidebarSettings(data.settings?.admin_sidebar, { siteId }))
+        } else {
+          setQuickLinks(normalizedQuickLinks)
+        }
         if (currentSite?.id === siteId) {
           setCurrentSite({ ...currentSite, ...data })
         }
@@ -135,7 +143,7 @@ export function SiteAdminSettingsTab({
     } finally {
       setSaving(false)
     }
-  }, [currentSite, enabledFeatures, featureOrder, quickLinks, saving, setCurrentSite, site, siteId])
+  }, [adminSidebar, currentSite, mode, quickLinks, saving, setCurrentSite, site, siteId])
 
   if (loading) {
     return (
@@ -176,12 +184,11 @@ export function SiteAdminSettingsTab({
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
-      {mode === 'enabled-features' ? (
-        <FeatureTogglesCard
-          enabledFeatures={enabledFeatures}
-          onEnabledFeaturesChange={setEnabledFeatures}
-          featureOrder={featureOrder}
-          onFeatureOrderChange={setFeatureOrder}
+      {mode === 'sidebar' ? (
+        <AdminSidebarSettingsCard
+          config={adminSidebar}
+          siteId={siteId}
+          onConfigChange={setAdminSidebar}
         />
       ) : (
         <QuickLinksSettingsCard

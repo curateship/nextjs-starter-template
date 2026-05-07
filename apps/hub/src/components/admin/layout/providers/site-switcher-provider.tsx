@@ -1,7 +1,9 @@
 'use client'
 
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { getAllSitesAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
+import { getAdminSidebarSiteIdFromPathname } from '@/lib/utils/admin-sidebar'
 
 interface SiteSwitcherState {
   currentSite: SiteWithTheme | null
@@ -16,9 +18,16 @@ interface SiteSwitcherState {
 const SiteSwitcherContext = createContext<SiteSwitcherState | undefined>(undefined)
 const SITE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-function resolveCurrentSite(availableSites: SiteWithTheme[]) {
+function resolveCurrentSite(availableSites: SiteWithTheme[], preferredSiteId?: string | null) {
   if (!availableSites.length) {
     return null
+  }
+
+  if (preferredSiteId) {
+    const preferredSite = availableSites.find((site) => site.id === preferredSiteId)
+    if (preferredSite) {
+      return preferredSite
+    }
   }
 
   if (typeof window === 'undefined') {
@@ -55,6 +64,8 @@ export function SiteSwitcherProvider({
   initialSites,
   pageSize: initialPageSize,
 }: SiteSwitcherProviderProps) {
+  const pathname = usePathname()
+  const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(null)
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
   const [loading, setLoading] = useState(true)
@@ -62,10 +73,10 @@ export function SiteSwitcherProvider({
   const [pageSize] = useState(initialPageSize ?? 50)
 
   const syncResolvedSite = useCallback((availableSites: SiteWithTheme[]) => {
-    const nextSite = resolveCurrentSite(availableSites)
+    const nextSite = resolveCurrentSite(availableSites, routeSiteId)
     setCurrentSite(nextSite)
     persistResolvedSite(nextSite)
-  }, [])
+  }, [routeSiteId])
 
   useEffect(() => {
     if (initialSites === undefined) return

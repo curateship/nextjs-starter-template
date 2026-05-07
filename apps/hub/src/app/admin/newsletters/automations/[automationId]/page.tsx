@@ -3,7 +3,6 @@
 import { useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -179,8 +178,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const productTriggerOptions = purchaseProducts
   const productTriggerLabel = "Product"
   const centerAxisStyle = { transform: "translateX(1.5px)" }
-  const newsletterSettingsHref = siteId ? `/admin/sites/${siteId}/settings/newsletters` : undefined
-  const newsletterNavLinks = getNewsletterAdminTopNavLinks("automations", newsletterSettingsHref)
 
   const flash = (message: string) => {
     setSaveMessage(message)
@@ -574,7 +571,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <DashboardStickyHeader
-          navLinks={newsletterNavLinks}
           rightActions={(
             <StickybarTopRightActions
               rightActions={(
@@ -633,7 +629,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   if (!automation) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <DashboardStickyHeader navLinks={newsletterNavLinks} />
+        <DashboardStickyHeader />
         <AdminLayout>
           <div className="w-full p-8 text-center">
             <p className="mb-4 text-red-600">{error}</p>
@@ -647,7 +643,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <DashboardStickyHeader
-        navLinks={newsletterNavLinks}
         rightActions={(
           <StickybarTopRightActions
             saveMessage={saveMessage}

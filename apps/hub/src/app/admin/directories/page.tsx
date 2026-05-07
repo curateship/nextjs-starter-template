@@ -8,7 +8,6 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2, X } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
@@ -356,7 +355,7 @@ export default function DirectoriesPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getDirectoryAdminTopNavLinks("directory")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useAccountPageData } from "@/components/admin/account-page-builder/config/useAccountPageData"
@@ -240,7 +239,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <DashboardStickyHeader
-        navLinks={getPageAdminTopNavLinks(siteId, "account-pages")}
         rightActions={(
           <StickybarTopRightActions
             saveMessage={builderState.saveMessage}

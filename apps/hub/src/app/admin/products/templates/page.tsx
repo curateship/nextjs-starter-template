@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import {
   AdminModalBody,
   AdminModalContent,
@@ -216,7 +215,7 @@ export default function ProductTemplatesPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getProductAdminTopNavLinks("templates")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

@@ -2,9 +2,16 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils/tailwind"
 import { useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import {
+  getAdminSidebarSiteIdFromPathname,
+  getAdminSidebarStickyNavLinks,
+  sanitizeAdminSidebarHref,
+} from "@/lib/utils/admin-sidebar"
 import { PanelLeft, type LucideIcon } from "lucide-react"
 import { getQuickLinkIcon, getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 
@@ -31,18 +38,33 @@ interface HeaderNavItem {
 interface StickyHeaderProps {
   className?: string
   navLinks?: NavLink[]
-  navContent?: React.ReactNode
   rightActions?: React.ReactNode
 }
 
 export function StickyHeader({
   className,
   navLinks,
-  navContent,
   rightActions,
 }: StickyHeaderProps) {
   const { isMobile, toggleSidebar } = useSidebar()
+  const pathname = usePathname()
+  const { currentSite, sites } = useSiteSwitcher()
   const { setSlot } = useDashboardHeaderActionsSlot()
+  const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
+  const routeSite = routeSiteId
+    ? sites.find((site) => site.id === routeSiteId) ?? null
+    : null
+  const headerSite = routeSite ?? currentSite
+  const sidebarNavLinks = React.useMemo(
+    () => getAdminSidebarStickyNavLinks(headerSite?.settings?.admin_sidebar, {
+      siteId: headerSite?.id ?? routeSiteId,
+      pathname,
+    }),
+    [headerSite?.id, headerSite?.settings?.admin_sidebar, pathname, routeSiteId]
+  )
+  const resolvedNavLinks = sidebarNavLinks.length > 0
+    ? sidebarNavLinks
+    : navLinks
   const headerNavItems: HeaderNavItem[] = [
     ...(isMobile
       ? [
@@ -54,12 +76,11 @@ export function StickyHeader({
           },
         ]
       : []),
-    ...(navLinks?.map((link) => ({
+    ...(resolvedNavLinks?.map((link) => ({
       ...link,
       key: `${link.href}-${link.label}`,
     })) ?? []),
   ]
-  const showStandaloneSidebarToggle = isMobile && (Boolean(navContent) || !navLinks?.length)
   const actionsSlotRef = React.useCallback((node: HTMLDivElement | null) => {
     setSlot(node)
   }, [setSlot])
@@ -71,23 +92,10 @@ export function StickyHeader({
     )}>
       <div className="flex items-center justify-between flex-1 px-4 h-full">
         <div className="flex items-center gap-2">
-          {showStandaloneSidebarToggle ? (
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              aria-label="Toggle sidebar"
-              title="Toggle sidebar"
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
-            >
-              <PanelLeft className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
-
-          {navContent}
-
-          {!navContent && headerNavItems.length > 0 && (
+          {headerNavItems.length > 0 && (
             <div className="inline-flex h-8 items-center rounded-md gap-1">
               {headerNavItems.map((item) => {
+                const safeHref = item.href ? sanitizeAdminSidebarHref(item.href) : ""
                 const Icon =
                   item.icon ?? (
                     item.iconName
@@ -129,11 +137,11 @@ export function StickyHeader({
                   )
                 }
 
-                if (item.external && item.href) {
+                if (item.external && safeHref) {
                   return (
                     <a
                       key={item.key}
-                      href={item.href}
+                      href={safeHref}
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={!showItemLabel ? item.label : undefined}
@@ -150,10 +158,10 @@ export function StickyHeader({
                   )
                 }
 
-                return item.href ? (
+                return safeHref ? (
                   <Link
                     key={item.key}
-                    href={item.href}
+                    href={safeHref}
                     aria-label={!showItemLabel ? item.label : undefined}
                     title={!showItemLabel ? item.label : undefined}
                     className={itemClassName}

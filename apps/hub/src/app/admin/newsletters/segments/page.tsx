@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -440,7 +439,7 @@ export default function SegmentsPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("segments", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

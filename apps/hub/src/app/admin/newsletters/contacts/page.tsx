@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, useDeferredValue, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getNewsletterAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -167,7 +166,6 @@ export default function ContactsPage() {
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const deferredSearchQuery = useDeferredValue(searchQuery)
-
 
   // Add Contact state
   const [addModalOpen, setAddModalOpen] = useState(false)
@@ -878,7 +876,7 @@ export default function ContactsPage() {
 
   return (
     <>
-      <StickyHeader navLinks={getNewsletterAdminTopNavLinks("contacts", currentSite?.id ? `/admin/sites/${currentSite.id}/settings/newsletters` : undefined)} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

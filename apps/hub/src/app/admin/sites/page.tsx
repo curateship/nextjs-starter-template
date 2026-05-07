@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Eye, Settings, Trash2, Globe, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, CircleCheck, CircleX, FileEdit, Copy } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { getSitesAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { cn } from "@/lib/utils/tailwind"
 import { getAllSitesAction, deleteSiteAction, cloneSiteAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
@@ -173,7 +172,6 @@ export default function SitesPage() {
     }
   }
 
-
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSites = sites.filter(site => {
     const statusMatch = filter === 'all' || site.status === filter
@@ -242,7 +240,7 @@ export default function SitesPage() {
   
   return (
     <>
-      <StickyHeader navLinks={getSitesAdminTopNavLinks("sites")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader

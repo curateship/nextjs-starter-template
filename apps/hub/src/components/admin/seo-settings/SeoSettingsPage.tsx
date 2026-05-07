@@ -6,7 +6,6 @@ import { CheckCircle, Save } from 'lucide-react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
-import { SiteSettingsHeaderNav } from '@/components/admin/layout/settings/SiteSettingsHeaderNav'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/tailwind'
 import { SiteAuditOverviewTab } from './SiteAuditOverviewTab'
@@ -85,7 +84,7 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
 
   return (
     <>
-      <StickyHeader navContent={<SiteSettingsHeaderNav siteId={siteId} activeSection="seo" />} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
           <DashboardSubheader

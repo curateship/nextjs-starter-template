@@ -15,7 +15,6 @@ import {
 
 import { cn } from "@/lib/utils/tailwind"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
@@ -304,7 +303,7 @@ function OrdersContent() {
 
   return (
     <>
-      <StickyHeader navLinks={getProductAdminTopNavLinks("orders")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}

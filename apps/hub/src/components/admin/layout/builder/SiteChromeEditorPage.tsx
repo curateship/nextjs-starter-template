@@ -10,7 +10,6 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Navigation } from "@/components/admin/structure-builder/navigation/Navigation"
 import { Footer } from "@/components/admin/structure-builder/Footer"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -278,7 +277,7 @@ export function SiteChromeEditorPage({
 
   return (
     <>
-      <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, mode)} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
           <DashboardSubheader

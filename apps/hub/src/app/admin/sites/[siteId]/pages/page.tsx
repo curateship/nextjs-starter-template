@@ -4,7 +4,6 @@ import { useState, useEffect, use } from "react"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getPageAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { Card } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -345,7 +344,7 @@ export default function SitePagesPage({ params }: PageProps) {
 
   return (
     <>
-      <StickyHeader navLinks={getPageAdminTopNavLinks(siteId, "pages")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
         <DashboardSubheader

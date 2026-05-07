@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Monitor, Smartphone, Tablet } from "lucide-react"
-import { getDirectoryAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { Button } from "@/components/ui/button"
@@ -152,7 +151,6 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <StickyHeader
-          navLinks={getDirectoryAdminTopNavLinks("custom-blocks")}
           rightActions={(
             <StickybarTopRightActions
               rightActions={(
@@ -174,7 +172,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   if (error) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <StickyHeader navLinks={getDirectoryAdminTopNavLinks("custom-blocks")} />
+        <StickyHeader />
         <div className="flex flex-1 items-center justify-center">
           <div className="space-y-4 text-center">
             <p className="text-red-600">{error}</p>
@@ -190,7 +188,6 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <StickyHeader
-        navLinks={getDirectoryAdminTopNavLinks("custom-blocks")}
         rightActions={(
           <StickybarTopRightActions
             rightActions={(

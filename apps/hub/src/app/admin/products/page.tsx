@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { getProductAdminTopNavLinks } from "@/components/admin/layout/stickybar/StickybarTopLeftNav"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -74,7 +73,6 @@ export default function ProductsPage() {
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
 
-
   // Load products
   useEffect(() => {
     async function loadProducts() {
@@ -109,7 +107,6 @@ export default function ProductsPage() {
 
     loadProducts()
   }, [currentSite?.id, currentPage])
-
 
   const handleDeleteProduct = async (productId: string) => {
     setPendingDeleteId(productId)
@@ -355,10 +352,9 @@ export default function ProductsPage() {
     private: products.filter(p => isProductPrivate(p)).length
   }
 
-
   return (
     <>
-      <StickyHeader navLinks={getProductAdminTopNavLinks("products")} />
+      <StickyHeader />
       <AdminLayout>
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
