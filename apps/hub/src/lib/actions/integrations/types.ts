@@ -7,6 +7,7 @@ export type IntegrationType =
   | 'google_ai'
   | 'google_maps'
   | 'notion_marketplace'
+  | 'gumroad'
 
 /**
  * Map of config keys that contain sensitive values per integration type.
@@ -21,6 +22,7 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   google_ai: ['api_key'],
   google_maps: ['api_key'],
   notion_marketplace: ['webhook_secret'],
+  gumroad: ['webhook_secret'],
 }
 
 export interface IntegrationFieldDefinition {
@@ -131,6 +133,15 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     type: 'notion_marketplace',
     label: 'Notion Marketplace',
     description: 'Capture customer emails from Notion Marketplace template purchases',
+    category: 'integrations',
+    fields: [
+      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password', required: true },
+    ],
+  },
+  {
+    type: 'gumroad',
+    label: 'Gumroad',
+    description: 'Capture customer emails from Gumroad free product downloads',
     category: 'integrations',
     fields: [
       { key: 'webhook_secret', label: 'Webhook Secret', type: 'password', required: true },
