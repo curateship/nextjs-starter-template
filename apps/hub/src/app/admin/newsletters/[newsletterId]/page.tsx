@@ -399,7 +399,7 @@ export default function NewsletterBuilderPage({ params }: PageProps) {
         onOpenChange={setPublishModalOpen}
         newsletter={builder.newsletter}
         siteId={currentSite?.id || ''}
-        onSuccess={(updated) => {
+        onSuccess={() => {
           builder.reloadNewsletter()
           setPublishModalOpen(false)
         }}

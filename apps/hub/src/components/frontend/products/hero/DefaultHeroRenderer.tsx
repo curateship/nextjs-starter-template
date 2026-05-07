@@ -124,7 +124,7 @@ const HeroImage = ({
   );
 };
 
-export const DefaultHeroRenderer = ({ config, sharedContent, children }: HeroStyleRendererProps) => {
+export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps) => {
   const {
     heroImage,
     trustedByText,

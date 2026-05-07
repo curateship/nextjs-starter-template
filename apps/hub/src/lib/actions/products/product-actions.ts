@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { products, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'

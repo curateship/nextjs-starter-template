@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { boolean, index, jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core'
+import { boolean, index, jsonb, pgEnum, pgTable, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core'
 import { sites } from './sites'
 
 export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum', [

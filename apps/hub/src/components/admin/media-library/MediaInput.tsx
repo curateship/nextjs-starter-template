@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label"
 import { MediaPicker } from "./MediaPicker"
 import { ImageIcon, VideoIcon, X, Play } from "lucide-react"
 import Image from "next/image"
-import { toast } from "sonner"
 
 interface MediaInputProps {
   label: string
@@ -29,14 +28,12 @@ export function MediaInput({
   placeholder = "Enter media URL or select from library",
   description,
   siteId,
-  blockType,
-  usageContext,
   acceptVideo = true,
   hideUrlInput = false
 }: MediaInputProps) {
   const [showPicker, setShowPicker] = useState(false)
 
-  const handleSelectMedia = (mediaUrl: string, altText?: string) => {
+  const handleSelectMedia = (mediaUrl: string) => {
     onChange(mediaUrl)
   }
 
@@ -192,6 +189,3 @@ export function MediaInput({
     </div>
   )
 }
-
-// Legacy export for backward compatibility
-export const ImageInput = MediaInput

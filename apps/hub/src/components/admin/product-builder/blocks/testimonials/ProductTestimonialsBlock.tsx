@@ -165,7 +165,7 @@ function SortableTestimonialItem({
   )
 }
 
-export function ProductTestimonialsBlock({ content, onContentChange, siteId, blockId, onBack }: ProductTestimonialsBlockProps) {
+export function ProductTestimonialsBlock({ content, onContentChange, siteId, onBack }: ProductTestimonialsBlockProps) {
   const [avatarPickerIndex, setAvatarPickerIndex] = useState<number | null>(null)
 
   const testimonialStyle = content.testimonialStyle || 'default'

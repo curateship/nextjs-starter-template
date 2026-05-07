@@ -39,7 +39,6 @@ export function PostBlock({
   tags,
   publishDate,
   status,
-  featuredImage,
   featuredImagePreview,
   onTitleChange,
   onSummaryChange,

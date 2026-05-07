@@ -18,7 +18,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Check, GripVertical, Plus, Search, Settings2, Trash2 } from "lucide-react"
+import { Check, GripVertical, Plus, Search, Trash2 } from "lucide-react"
 import {
   AdminModalBody,
   AdminModalContent,
@@ -37,7 +37,6 @@ import {
   QUICK_LINK_ICON_OPTIONS,
   getQuickLinkIcon,
   getQuickLinkIconOrNull,
-  getQuickLinkIconLabel,
   type QuickLinkIconName,
   type SiteQuickLink,
 } from "@/lib/utils/site-quick-links"
@@ -76,7 +75,6 @@ function QuickLinkSettingsButton({
 
   const SelectedIcon = getQuickLinkIconOrNull(draftIcon)
   const DefaultIcon = getQuickLinkIcon()
-  const selectedLabel = getQuickLinkIconLabel(draftIcon)
   const normalizedQuery = query.trim().toLowerCase()
   const showDefaultOption =
     !normalizedQuery || "default link".includes(normalizedQuery)

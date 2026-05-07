@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { cronJobs, cronJobRuns } from '@/lib/db/schema'
-import { eq, and, lte } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 /**
  * GET /api/cron/runner

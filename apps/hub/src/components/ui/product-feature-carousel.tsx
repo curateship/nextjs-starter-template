@@ -4,7 +4,6 @@ import AutoScroll from "embla-carousel-auto-scroll";
 import {
   Globe,
   MessagesSquare,
-  MoveRight,
   PanelsTopLeft,
   PenTool,
   ScissorsLineDashed,
@@ -17,8 +16,6 @@ import {
   Lock,
 } from "lucide-react";
 
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { BlockContainer } from "@/components/frontend/layout/block-container";
 import {
   Carousel,

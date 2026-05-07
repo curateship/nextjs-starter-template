@@ -334,8 +334,6 @@ export default function SitesPage() {
               </div>
             ) : (
               sortedSites.map((site) => {
-                const initials = site.name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
-                
                 return (
                   <div key={site.id} className="p-6">
                     <div className="grid grid-cols-6 gap-4 items-center">

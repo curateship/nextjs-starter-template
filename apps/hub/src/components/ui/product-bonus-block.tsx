@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { BlockContainer } from "@/components/frontend/layout/block-container";
 
 const integrations = [

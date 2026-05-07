@@ -5,7 +5,7 @@ interface ProductGridBlockProps {
   className?: string;
 }
 
-const ProductGridBlock = ({ className = "white" }: ProductGridBlockProps) => (
+const ProductGridBlock = (_props: ProductGridBlockProps) => (
   <BlockContainer 
     id="product-grid"
     className="white"

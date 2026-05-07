@@ -98,7 +98,6 @@ export function ProductSettingsModal({
   open, 
   onOpenChange, 
   product, 
-  site,
   initialCategories,
   onSuccess 
 }: ProductSettingsModalProps) {

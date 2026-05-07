@@ -13,7 +13,6 @@ interface SiteThemeToggleProps {
 }
 
 export function SiteThemeToggle({
-  defaultTheme = 'system',
   variant = "icon",
   className,
   onToggle,

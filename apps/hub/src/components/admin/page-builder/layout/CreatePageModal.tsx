@@ -38,7 +38,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
-  const [checkingSlug, setCheckingSlug] = useState(false)
+  const [checkingSlug] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
 
   const handleTitleChange = (title: string) => {

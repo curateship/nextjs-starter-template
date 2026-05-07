@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, Mail, Filter, Zap, FileText, X } from "lucide-react"
+import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, X } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getSegmentsWithCounts,

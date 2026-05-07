@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { Plus, Trash2, GripVertical, ImageIcon, VideoIcon, Play } from "lucide-react"
+import { Plus, Trash2, GripVertical, ImageIcon, Play } from "lucide-react"
 import { useState } from "react"
 import {
   DndContext,
@@ -190,8 +190,6 @@ export function ProductFeaturesBlock({
   onSubheaderChange,
   onHeaderAlignChange,
   onFeaturesCollectionChange,
-  siteId,
-  blockId,
   onBack,
   visibility,
   onVisibilityChange,

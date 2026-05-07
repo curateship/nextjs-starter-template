@@ -61,7 +61,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
-  const [checkingSlug, setCheckingSlug] = useState(false)
+  const [checkingSlug] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<ProductTemplate[]>([])

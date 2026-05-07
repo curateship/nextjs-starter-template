@@ -6,7 +6,6 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -40,7 +39,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Mail, Users, Filter, Zap, FileText, Trash2, Plus, X, Search, Settings } from "lucide-react"
+import { Filter, Trash2, Plus, X, Search, Settings } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   LineChart,
@@ -186,7 +185,6 @@ function formatDynamicConditionLabel(condition: DynamicConditionForm) {
 export default function SegmentDashboardPage() {
   const params = useParams()
   const router = useRouter()
-  const { currentSite } = useSiteSwitcher()
   const segmentId = params.segmentId as string
 
   // Segment data

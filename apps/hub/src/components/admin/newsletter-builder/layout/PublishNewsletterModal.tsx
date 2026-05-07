@@ -16,7 +16,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import { updateNewsletter, sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
+import { sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
 import { getCronStatus } from "@/lib/actions/cron/cron-actions"

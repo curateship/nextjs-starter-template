@@ -22,10 +22,6 @@ const RENDERABLE_PAGE_BLOCK_TYPES = new Set([
   "embedded",
 ])
 
-function isRenderablePageBlockType(type: string) {
-  return RENDERABLE_PAGE_BLOCK_TYPES.has(type)
-}
-
 function getMutedShadeValue(value?: number) {
   if (typeof value !== "number" || Number.isNaN(value)) return 1
   return Math.min(10, Math.max(1, Math.round(value)))

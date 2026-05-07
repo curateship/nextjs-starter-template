@@ -32,7 +32,6 @@ export function DirectorySettingsModal({
   open, 
   onOpenChange, 
   directory, 
-  site,
   onSuccess 
 }: DirectorySettingsModalProps) {
   const [formData, setFormData] = useState({

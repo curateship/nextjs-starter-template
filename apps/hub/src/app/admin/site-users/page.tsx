@@ -260,10 +260,6 @@ export default function SiteUsersPage() {
     setCurrentPage(1)
   }, [])
 
-  function resetPagedView() {
-    setCurrentPage(1)
-  }
-
   function openFilterModal() {
     const clonedFilters = cloneSiteUserFilterGroup(filters)
     setPendingFilters(clonedFilters)

@@ -207,25 +207,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
   }
 
-  // Handle post title changes
-  const handlePostTitleChange = async (title: string) => {
-    if (!currentPostId || !title.trim()) return
-
-    try {
-      const { data: updatedPost, error } = await updatePostAction(currentPostId, { title })
-
-      if (error || !updatedPost) {
-        console.error('Error updating post title:', error)
-        return
-      }
-
-      // Update local posts state
-      setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
-    } catch (err) {
-      console.error('Error updating post title:', err)
-    }
-  }
-
   const handleDraftChange = (field: string, value: any) => {
     setDraftContent((current) => ({
       ...current,

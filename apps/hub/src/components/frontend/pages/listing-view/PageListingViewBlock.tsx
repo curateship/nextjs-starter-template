@@ -67,7 +67,7 @@ interface ListingViewsBlockProps {
 }
 
 
-export function ListingViewsBlock({ content, siteId, siteSubdomain, urlPrefixes, preloadedData, siteWidth = 'custom', customWidth }: ListingViewsBlockProps) {
+export function ListingViewsBlock({ content, siteId, urlPrefixes, preloadedData, siteWidth = 'custom', customWidth }: ListingViewsBlockProps) {
   const [data, setData] = useState<ListingViewsData | null>(preloadedData || null)
   const [loading, setLoading] = useState(!preloadedData)
   const searchParams = useSearchParams()

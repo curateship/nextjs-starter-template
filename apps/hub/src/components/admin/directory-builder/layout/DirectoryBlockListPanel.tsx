@@ -56,13 +56,6 @@ function getColumnTransferLaneId(column: DirectoryLayoutColumn) {
   return `directory-layout-column-transfer-${column}`
 }
 
-function orderDirectoryBlocks(blocks: DirectoryEditorBlock[]) {
-  return [
-    ...blocks.filter((block) => getDirectoryLayoutColumn(block) === "main"),
-    ...blocks.filter((block) => getDirectoryLayoutColumn(block) === "sidebar"),
-  ]
-}
-
 function SortableDirectoryBlockItem({
   block,
   selectedBlock,

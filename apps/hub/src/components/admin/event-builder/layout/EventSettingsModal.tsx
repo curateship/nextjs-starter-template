@@ -31,7 +31,6 @@ export function EventSettingsModal({
   open, 
   onOpenChange, 
   event, 
-  site,
   onSuccess 
 }: EventSettingsModalProps) {
   const [formData, setFormData] = useState({

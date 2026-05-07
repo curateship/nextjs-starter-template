@@ -22,7 +22,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import { Monitor, Tablet, Smartphone, ArrowLeft } from "lucide-react"
+import { Monitor, Tablet, Smartphone } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string; stepId: string }>

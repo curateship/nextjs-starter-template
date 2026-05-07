@@ -13,8 +13,6 @@ interface TrustedByAvatarsProps {
 
 export function TrustedByAvatars({
   avatars = [],
-  text = "",
-  count = "",
   badgeText = ""
 }: TrustedByAvatarsProps) {
   const validAvatars = avatars.filter(avatar =>

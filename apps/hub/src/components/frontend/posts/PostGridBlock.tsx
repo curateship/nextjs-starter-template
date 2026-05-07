@@ -1,7 +1,5 @@
 import { ArrowRight } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -20,7 +18,6 @@ interface PostGridBlockProps {
 }
 
 const PostGridBlock = ({
-  tagline = "Latest Updates",
   heading = "Article Posts",
   description = "Discover the latest trends, tips, and best practices in modern web development.",
   buttonText = "View all posts",

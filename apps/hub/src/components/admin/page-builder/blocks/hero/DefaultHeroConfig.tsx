@@ -53,13 +53,11 @@ function getSafeHexColor(value?: string) {
 function SortableAvatarItem({
   avatar,
   index,
-  updateAvatar,
   removeAvatar,
   onOpenImagePicker
 }: {
   avatar: { src: string; alt: string; fallback: string; id?: string }
   index: number
-  updateAvatar: (index: number, src: string) => void
   removeAvatar: (index: number) => void
   onOpenImagePicker: (index: number) => void
 }) {
@@ -230,7 +228,6 @@ export function TrustedByBadgeFields({
                     key={avatar.id || `avatar-${index}`}
                     avatar={avatar}
                     index={index}
-                    updateAvatar={updateAvatar}
                     removeAvatar={removeAvatar}
                     onOpenImagePicker={setShowPicker}
                   />

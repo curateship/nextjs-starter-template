@@ -23,7 +23,6 @@ export function UserBlock({
   name,
   email,
   role,
-  avatar,
   avatarPreview,
   onNameChange,
   onEmailChange,

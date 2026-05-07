@@ -112,27 +112,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     setBlockSaveError(null)
   }, [selectedBlock])
 
-  function updateBlockContent(field: string, value: any) {
-    if (!selectedBlock) return
-
-    setBlocks((prev) => {
-      const next = prev.map((block) => {
-        if (block.id !== selectedBlock.id) return block
-        const updated = {
-          ...block,
-          content: {
-            ...block.content,
-            [field]: value,
-          },
-        }
-        setSelectedBlock(updated)
-        return updated
-      })
-
-      return next
-    })
-  }
-
   function handleUpdateBlock(blockId: string, updates: Partial<DirectoryEditorBlock>) {
     const nextBlocks = blocks.map((block) => {
       if (block.id !== blockId) return block

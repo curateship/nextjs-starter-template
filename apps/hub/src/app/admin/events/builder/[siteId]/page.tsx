@@ -12,13 +12,6 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { EVENT_BLOCK_TYPES } from "@/components/admin/event-builder/config/event-block-types"
@@ -35,8 +28,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const searchParams = useSearchParams()
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [events, setEvents] = useState<Event[]>([])
-  const [eventsLoading, setEventsLoading] = useState(true)
-  const [eventsError, setEventsError] = useState<string | null>(null)
   const eventFromUrl = searchParams.get('event') || ''
   const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
@@ -62,19 +53,14 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   useEffect(() => {
     async function loadEvents() {
       try {
-        setEventsLoading(true)
-        setEventsError(null)
         const { data, error } = await getSiteEventsAction(siteId)
         if (error) {
-          setEventsError(error)
           return
         }
         setEvents(data || [])
 
       } catch (err) {
-        setEventsError('Failed to load events')
-      } finally {
-        setEventsLoading(false)
+        console.error('Failed to load events', err)
       }
     }
 
@@ -102,7 +88,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }, [eventFromUrl, events, router, selectedEvent, siteId])
 
   // Custom hooks for data and state management
-  const { site, blocks, blocksLoading, siteError, reloadBlocks } = useEventData(siteId)
+  const { site, blocks, blocksLoading, siteError } = useEventData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change
@@ -198,10 +184,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     } finally {
       setIsPublishing(false)
     }
-  }
-
-  const handleTitleChange = (title: string) => {
-    updateCurrentEvent({ title })
   }
 
   const handleDraftChange = (field: string, value: any) => {

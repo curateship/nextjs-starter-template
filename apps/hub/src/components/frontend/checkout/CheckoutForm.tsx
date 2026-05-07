@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Check } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { ArrowLeft } from 'lucide-react'
 import { PaymentElementWrapper } from './PaymentElementWrapper'
 import Image from 'next/image'
 
@@ -68,8 +66,6 @@ export function CheckoutForm({
   stripePublishableKey,
   checkoutOrigin,
 }: CheckoutFormProps) {
-  const router = useRouter()
-
   const tierOrderBumps = selectedTier.enableOrderBumps ? selectedTier.orderBumps || [] : []
 
   const [selectedBumps, setSelectedBumps] = useState<Set<string>>(
@@ -94,19 +90,6 @@ export function CheckoutForm({
 
   // Memoize the selected bumps array to prevent unnecessary re-renders
   const selectedBumpsArray = useMemo(() => Array.from(selectedBumps), [selectedBumps])
-
-  // Calculate total price
-  const getTotalPrice = () => {
-    // Parse the main tier price (remove $ and convert to number)
-    const mainPrice = parseFloat(selectedTier.price.replace(/[^0-9.-]+/g, ''))
-
-    // Add selected order bump prices
-    const bumpsTotal = tierOrderBumps
-      .filter((bump) => selectedBumps.has(bump.id))
-      .reduce((sum, bump) => sum + bump.price, 0)
-
-    return mainPrice + bumpsTotal
-  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -177,7 +160,7 @@ export function CheckoutForm({
                       <div className="flex items-start gap-4">
                         <Checkbox
                           checked={selectedBumps.has(bump.id)}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={() => {
                             toggleBump(bump.id)
                           }}
                           onClick={(e) => e.stopPropagation()}

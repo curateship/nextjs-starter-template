@@ -28,7 +28,6 @@ import {
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import {
   AdminModalContent,
-  AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
   AdminModalScrollBody,
@@ -49,8 +48,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const searchParams = useSearchParams()
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [products, setProducts] = useState<Product[]>([])
-  const [productsLoading, setProductsLoading] = useState(true)
-  const [productsError, setProductsError] = useState<string | null>(null)
   const productFromUrl = searchParams.get('product') || ''
   const [selectedProduct, setSelectedProduct] = useState(productFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
@@ -78,19 +75,14 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   useEffect(() => {
     async function loadProducts() {
       try {
-        setProductsLoading(true)
-        setProductsError(null)
         const { data, error } = await getSiteProductsAction(siteId)
         if (error) {
-          setProductsError(error)
           return
         }
         setProducts(data || [])
         
       } catch (err) {
-        setProductsError('Failed to load products')
-      } finally {
-        setProductsLoading(false)
+        console.error('Failed to load products', err)
       }
     }
     
@@ -118,7 +110,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   }, [productFromUrl, products, router, selectedProduct, siteId])
   
   // Custom hooks for data and state management
-  const { site, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useProductData(siteId)
+  const { site, blocks, blocksLoading, siteError } = useProductData(siteId)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change

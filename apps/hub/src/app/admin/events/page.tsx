@@ -16,13 +16,11 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogPortal,
 } from "@/components/ui/dialog"
 
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Copy, Trash2, Settings, Calendar, X, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, Calendar, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import dynamic from "next/dynamic"
 
@@ -37,7 +35,7 @@ const EventSettingsModal = dynamic(() =>
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSiteEventsWithCategoriesAction, deleteEventAction, deleteEventsAction, duplicateEventAction, getEventIdsAction } from "@/lib/actions/events/event-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
-import type { Event, UpdateEventData } from "@/lib/actions/events/event-actions"
+import type { Event } from "@/lib/actions/events/event-actions"
 
 export default function EventsPage() {
   const router = useRouter()
@@ -46,18 +44,14 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [deleteEventId, setDeleteEventId] = useState<string | null>(null)
-  const [duplicatingEventId, setDuplicatingEventId] = useState<string | null>(null)
-  const [settingsEventId, setSettingsEventId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
+  const [filterPrivacy] = useState<'all' | 'public' | 'private'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [duplicating, setDuplicating] = useState(false)
   const [eventCategories, setEventCategories] = useState<Record<string, CategoryInfo[]>>({})
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
@@ -150,7 +144,6 @@ export default function EventsPage() {
   // Handle duplicate
   const handleDuplicate = async (event: Event) => {
     try {
-      setDuplicating(true)
       const duplicateTitle = `${event.title} (Copy)`
       
       const { data, error: duplicateError } = await duplicateEventAction(event.id, duplicateTitle)
@@ -166,8 +159,6 @@ export default function EventsPage() {
       
     } catch (err) {
       setError('Failed to duplicate event')
-    } finally {
-      setDuplicating(false)
     }
   }
 
@@ -314,13 +305,6 @@ export default function EventsPage() {
     all: events.length,
     published: events.filter(e => e.is_published).length,
     draft: events.filter(e => !e.is_published).length
-  }
-
-  // Get counts for each privacy level
-  const privacyCounts = {
-    all: events.length,
-    public: events.filter(e => !isEventPrivate(e)).length,
-    private: events.filter(e => isEventPrivate(e)).length
   }
 
   if (!currentSite) {

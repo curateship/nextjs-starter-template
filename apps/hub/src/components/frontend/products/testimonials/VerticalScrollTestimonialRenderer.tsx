@@ -32,7 +32,7 @@ function fillColumns(items: TestimonialItem[]): TestimonialColumnItem[] {
     filled.push(...items)
   }
 
-  return filled.slice(0, 9).map((item, index) => ({
+  return filled.slice(0, 9).map((item) => ({
     text: item.content,
     image: item.avatar,
     name: item.name,

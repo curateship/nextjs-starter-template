@@ -1,5 +1,5 @@
 import { randomBytes, timingSafeEqual } from 'crypto'
-import { getSeoAccessSnapshot, type SeoAccessSnapshot } from '@/lib/actions/seo/access'
+import { getSeoAccessSnapshot } from '@/lib/actions/seo/access'
 
 const DEFAULT_LAUNCH_TTL_SECONDS = 60
 const SERVICE_TOKEN_HEADER = 'x-seo-service-token'

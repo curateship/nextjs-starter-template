@@ -236,7 +236,6 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     heroStyle = 'default',
     styleConfig,
     siteId,
-    siteWidth,
     customWidth,
     emailForm,
     visibility,

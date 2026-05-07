@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { sites, pages, posts, products, categories, directories, events } from '@/lib/db/schema'
-import { eq, and, sql, asc, desc } from 'drizzle-orm'
+import { eq, and, asc, desc } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import type { SiteSeoSettings } from '@/lib/db/schema/sites'
 import { revalidatePath, revalidateTag } from 'next/cache'

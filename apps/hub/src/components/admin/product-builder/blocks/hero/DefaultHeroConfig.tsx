@@ -1,6 +1,5 @@
 "use client"
 
-import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -34,13 +33,11 @@ import type { HeroStyleAdminProps } from "."
 function SortableAvatarItem({
   avatar,
   index,
-  updateAvatar,
   removeAvatar,
   onOpenImagePicker
 }: {
   avatar: { src: string; alt: string; fallback: string; id?: string }
   index: number
-  updateAvatar: (index: number, src: string) => void
   removeAvatar: (index: number) => void
   onOpenImagePicker: (index: number) => void
 }) {
@@ -102,7 +99,7 @@ function SortableAvatarItem({
   )
 }
 
-export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: HeroStyleAdminProps) {
+export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProps) {
   const [showPicker, setShowPicker] = useState<number | null>(null)
   const [showHeroImagePicker, setShowHeroImagePicker] = useState(false)
 
@@ -211,7 +208,6 @@ export function DefaultHeroConfig({ config, onConfigChange, siteId, blockId }: H
                     key={avatar.id || `avatar-${index}`}
                     avatar={avatar}
                     index={index}
-                    updateAvatar={updateAvatar}
                     removeAvatar={removeAvatar}
                     onOpenImagePicker={setShowPicker}
                   />

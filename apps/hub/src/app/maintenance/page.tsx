@@ -1,7 +1,6 @@
 'use client'
 
 import Image from "next/image"
-import Link from "next/link"
 
 export default function MaintenancePage() {
   return (
@@ -18,5 +17,4 @@ export default function MaintenancePage() {
     </div>
   )
 }
-
 

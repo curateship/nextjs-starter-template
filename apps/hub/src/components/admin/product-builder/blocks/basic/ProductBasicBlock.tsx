@@ -28,7 +28,6 @@ export function BasicBlock({
   richText,
   status,
   featured,
-  image,
   imagePreview,
   onTitleChange,
   onRichTextChange,

@@ -35,7 +35,6 @@ export function PostSettingsModal({
   open, 
   onOpenChange, 
   post, 
-  site,
   onSuccess
 }: PostSettingsModalProps) {
   const [formData, setFormData] = useState<UpdatePostData>({})

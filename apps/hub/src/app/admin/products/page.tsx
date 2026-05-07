@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
-  DialogPortal,
 } from "@/components/ui/dialog"
 import {
   AdminModalContent,
@@ -31,9 +30,8 @@ const ProductSettingsModal = dynamic(() =>
   import("@/components/admin/product-builder/layout/ProductSettingsModal").then(m => ({ default: m.ProductSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, Package, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
+import { Eye, Copy, Trash2, Settings, Package, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -54,7 +52,7 @@ export default function ProductsPage() {
   const [duplicatingProductId, setDuplicatingProductId] = useState<string | null>(null)
   const [settingsProductId, setSettingsProductId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [filterPrivacy, setFilterPrivacy] = useState<'all' | 'public' | 'private'>('all')
+  const [filterPrivacy] = useState<'all' | 'public' | 'private'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [productCategories, setProductCategories] = useState<Record<string, CategoryInfo[]>>({})
 
@@ -346,12 +344,6 @@ export default function ProductsPage() {
   }
 
   // Get counts for each privacy level
-  const privacyCounts = {
-    all: products.length,
-    public: products.filter(p => !isProductPrivate(p)).length,
-    private: products.filter(p => isProductPrivate(p)).length
-  }
-
   return (
     <>
       <StickyHeader />

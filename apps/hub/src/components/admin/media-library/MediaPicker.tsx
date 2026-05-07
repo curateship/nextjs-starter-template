@@ -11,12 +11,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { 
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -532,6 +526,3 @@ export function MediaPicker({
     </Dialog>
   )
 }
-
-// Legacy export for backward compatibility
-export const ImagePicker = MediaPicker

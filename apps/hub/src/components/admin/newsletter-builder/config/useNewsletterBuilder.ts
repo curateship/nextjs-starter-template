@@ -5,11 +5,6 @@ import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 
 export type { NewsletterBlock } from "./useBlockEditor"
 
-interface BlockSelection {
-  type: string
-  quantity: number
-}
-
 interface UseNewsletterBuilderParams {
   newsletterId: string
 }

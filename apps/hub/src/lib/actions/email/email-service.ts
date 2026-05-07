@@ -112,7 +112,6 @@ class EmailService {
         subject,
         productTitle,
         content,
-        productSlug,
         token,
         replyTo,
         rawHtml,

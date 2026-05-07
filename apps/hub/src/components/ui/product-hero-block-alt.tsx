@@ -1,19 +1,10 @@
 "use client";
 
 import {
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Plus,
-  RotateCw,
-  Share,
-  Search,
   MoveUpRight,
 } from "lucide-react";
 import React from "react";
 import Image from "next/image";
-
-import { cn } from "@/lib/utils/tailwind";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";

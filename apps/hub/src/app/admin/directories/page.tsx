@@ -4,8 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2, X } from "lucide-react"
+import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2 } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -15,7 +14,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogPortal, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   deleteDirectoryAction,
   deleteDirectoriesAction,

@@ -13,7 +13,7 @@ import { useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { BlockEditorSection } from "@/components/ui/tabs"
 
 interface ProductHotspotBlockProps {
   header?: string
@@ -67,8 +67,6 @@ export function ProductHotspotBlock({
   onShowTooltipsAlwaysChange,
   visibility,
   onVisibilityChange,
-  siteId,
-  blockId,
   onBack,
 }: ProductHotspotBlockProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)

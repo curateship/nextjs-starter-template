@@ -11,9 +11,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog"
 import {
   AdminModalContent,
@@ -108,7 +105,7 @@ export default function SitePagesPage({ params }: PageProps) {
     if (page?.slug === 'home') {
       try {
         setDeletePageId(pageId)
-        const { success, error: deleteError } = await deletePageAction(pageId)
+        const { error: deleteError } = await deletePageAction(pageId)
         
         if (deleteError) {
           setErrorMessage(deleteError)
