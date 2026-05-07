@@ -29,7 +29,7 @@ alembic upgrade head
 5. Run the API:
 
 ```bash
-uvicorn app.main:app --reload --port 8001
+python3 -m uvicorn app.main:app --reload --port 8001
 ```
 
 6. Run the worker in another shell:

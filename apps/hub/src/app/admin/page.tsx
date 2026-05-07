@@ -22,28 +22,44 @@ export default function AdminDashboard() {
 
   // Show skeleton state while redirecting
   return (
-    <div className="flex-1 p-6 space-y-6">
-      {/* Header skeleton */}
-      <div className="space-y-2">
-        <div className="h-8 w-48 bg-muted animate-pulse rounded" />
-        <div className="h-4 w-72 bg-muted animate-pulse rounded" />
+    <div className="px-5 pt-[15px]">
+      <div className="mb-6 mx-4 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex h-8 items-center gap-2">
+          <div className="h-4 w-10 bg-muted animate-pulse rounded" />
+          <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+          <div className="h-5 w-36 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="h-9 w-[332px] max-w-full bg-muted animate-pulse rounded-md" />
       </div>
-      {/* Stats grid skeleton */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="rounded-lg border p-6 space-y-3">
-            <div className="h-4 w-24 bg-muted animate-pulse rounded" />
-            <div className="h-7 w-16 bg-muted animate-pulse rounded" />
+
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="text-card-foreground rounded-md mb-7 mx-4 bg-card shadow ring-1 ring-foreground/5">
+            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 bg-muted animate-pulse rounded-full" />
+                <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+              </div>
+              <div className="h-4 w-14 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="p-6 pt-0">
+              <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+              <div className="mt-2 h-3 w-40 bg-muted animate-pulse rounded" />
+            </div>
           </div>
         ))}
       </div>
-      {/* Content skeleton */}
-      <div className="rounded-lg border p-6 space-y-4">
-        <div className="h-5 w-36 bg-muted animate-pulse rounded" />
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-4 bg-muted animate-pulse rounded" style={{ width: `${85 - i * 10}%` }} />
-          ))}
+
+      <div className="text-card-foreground rounded-md mb-7 mx-4 bg-card shadow ring-1 ring-foreground/5">
+        <div className="gap-4 space-y-0 p-6 sm:flex sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-9 w-[278px] max-w-full bg-muted animate-pulse rounded-md" />
+        </div>
+        <div className="p-6 pt-0">
+          <div className="h-[360px] w-full bg-muted animate-pulse rounded-md" />
         </div>
       </div>
     </div>
