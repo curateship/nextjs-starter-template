@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
-import { ArrowDown, ArrowUp, Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2 } from "lucide-react"
+import { Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2 } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Card } from "@/components/ui/card"
@@ -14,7 +14,22 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
+import {
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/layout/builder/AdminModalLayout"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListSkeleton,
+  AdminSortButton,
+  formatRelativeDate,
+  useAdminBulkSelection,
+} from "@/components/admin/layout/list"
 import {
   deleteDirectoryAction,
   deleteDirectoriesAction,
@@ -30,7 +45,6 @@ import {
 } from "@/lib/actions/directories/directory-list-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { cn } from "@/lib/utils/tailwind"
 
 const CreateDirectoryModal = dynamic(() =>
   import("@/components/admin/directory-builder/layout/CreateDirectoryModal").then((m) => ({ default: m.CreateDirectoryModal })),
@@ -67,19 +81,18 @@ export default function DirectoriesPage() {
   const [statusCounts, setStatusCounts] = useState({ all: 0, published: 0, draft: 0 })
   const [reloadToken, setReloadToken] = useState(0)
 
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [selectedDirectoryIds, setSelectedDirectoryIds] = useState<Set<string>>(new Set())
+  const directorySelection = useAdminBulkSelection()
+  const clearDirectorySelection = directorySelection.clearSelection
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
 
   useEffect(() => {
     setActiveCursor(null)
     setCursorHistory([])
-    setSelectedDirectoryIds(new Set())
-  }, [currentSite?.id, filterStatus, searchQuery, sortBy, sortDirection])
+    clearDirectorySelection()
+  }, [currentSite?.id, filterStatus, searchQuery, sortBy, sortDirection, clearDirectorySelection])
 
   useEffect(() => {
     let cancelled = false
@@ -155,7 +168,6 @@ export default function DirectoriesPage() {
         const { data, error: settingsError } = await getDirectoryByIdAction(settingsDirectoryId)
         if (settingsError || !data) {
           setErrorMessage(settingsError || 'Failed to load directory settings')
-          setErrorDialogOpen(true)
           setSettingsDirectoryId(null)
           return
         }
@@ -169,18 +181,6 @@ export default function DirectoriesPage() {
     void loadSettingsDirectory()
   }, [settingsDirectoryId])
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
-
   const getStatusBadge = (directory: DirectorySummary) => {
     if (directory.status === 'published') {
       return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
@@ -189,37 +189,14 @@ export default function DirectoriesPage() {
     return <Badge variant="secondary">Draft</Badge>
   }
 
-  const toggleSelectDirectory = (directoryId: string) => {
-    setSelectedDirectoryIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(directoryId)) {
-        next.delete(directoryId)
-      } else {
-        next.add(directoryId)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedDirectoryIds.size === directories.length) {
-      setSelectedDirectoryIds(new Set())
-      return
-    }
-
-    setSelectedDirectoryIds(new Set(directories.map((directory) => directory.id)))
-  }
-
   const handleDeleteDirectory = async (directoryId: string) => {
     setPendingDeleteId(directoryId)
-    setConfirmDialogOpen(true)
   }
 
   const confirmDeleteDirectory = async () => {
     if (!pendingDeleteId) return
 
     const directoryIdToDelete = pendingDeleteId
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
 
     try {
@@ -228,26 +205,19 @@ export default function DirectoriesPage() {
 
       if (deleteError || !success) {
         setErrorMessage(deleteError || 'Failed to delete directory')
-        setErrorDialogOpen(true)
         return
       }
 
-      setSelectedDirectoryIds((prev) => {
-        const next = new Set(prev)
-        next.delete(directoryIdToDelete)
-        return next
-      })
+      directorySelection.remove(directoryIdToDelete)
       setReloadToken((token) => token + 1)
     } catch {
       setErrorMessage('Failed to delete directory')
-      setErrorDialogOpen(true)
     } finally {
       setDeleteDirectoryId(null)
     }
   }
 
   const cancelDeleteDirectory = () => {
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
   }
 
@@ -256,20 +226,18 @@ export default function DirectoriesPage() {
     setMassDeleting(true)
 
     try {
-      const ids = Array.from(selectedDirectoryIds)
+      const ids = Array.from(directorySelection.selectedIds)
       const { success, error: deleteError } = await deleteDirectoriesAction(ids)
 
       if (deleteError || !success) {
         setErrorMessage(deleteError || 'Failed to delete directories')
-        setErrorDialogOpen(true)
         return
       }
 
-      setSelectedDirectoryIds(new Set())
+      directorySelection.clearSelection()
       setReloadToken((token) => token + 1)
     } catch {
       setErrorMessage('Failed to delete directories')
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -284,14 +252,12 @@ export default function DirectoriesPage() {
 
       if (duplicateError) {
         setErrorMessage(`Failed to duplicate directory: ${duplicateError}`)
-        setErrorDialogOpen(true)
         return
       }
 
       setReloadToken((token) => token + 1)
     } catch {
       setErrorMessage('Failed to duplicate directory')
-      setErrorDialogOpen(true)
     } finally {
       setDuplicatingDirectoryId(null)
     }
@@ -326,18 +292,12 @@ export default function DirectoriesPage() {
     setSortDirection('asc')
   }
 
-  const getSortIcon = (column: 'title' | 'modified') => {
-    if (sortBy !== column) return null
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const handleNextPage = () => {
     if (!nextCursor) return
 
     setCursorHistory((prev) => [...prev, activeCursor])
     setActiveCursor(nextCursor)
-    setSelectedDirectoryIds(new Set())
+    directorySelection.clearSelection()
   }
 
   const handlePreviousPage = () => {
@@ -347,10 +307,11 @@ export default function DirectoriesPage() {
       const nextHistory = [...prev]
       const previousCursor = nextHistory.pop() ?? null
       setActiveCursor(previousCursor)
-      setSelectedDirectoryIds(new Set())
+      directorySelection.clearSelection()
       return nextHistory
     })
   }
+  const directoryIds = directories.map((directory) => directory.id)
 
   return (
     <>
@@ -373,22 +334,18 @@ export default function DirectoriesPage() {
                 { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
               ],
             }}
-            preActions={(sortBy !== 'default' || selectedDirectoryIds.size > 0) ? (
+            preActions={(sortBy !== 'default' || directorySelection.selectedCount > 0) ? (
               <div className="flex items-center gap-2">
                 {sortBy !== 'default' && (
                   <Button variant="outline" size="sm" onClick={resetSort}>
                     Clear Sort
                   </Button>
                 )}
-                {selectedDirectoryIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? 'Deleting...' : `Delete (${selectedDirectoryIds.size})`}
-                  </Button>
-                )}
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={directorySelection.selectedCount}
+                />
               </div>
             ) : undefined}
             actions={
@@ -404,74 +361,26 @@ export default function DirectoriesPage() {
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={directories.length > 0 && selectedDirectoryIds.size === directories.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={directorySelection.isPageSelected(directoryIds)}
+                    onCheckedChange={() => directorySelection.togglePage(directoryIds)}
                     aria-label="Select all directories on this page"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('title')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Directory</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">
-                      {getSortIcon('title')}
-                    </span>
-                  </button>
+                  <AdminSortButton active={sortBy === 'title'} direction={sortDirection} onClick={() => toggleSort('title')}>
+                    Directory
+                  </AdminSortButton>
                 </div>
                 <div>Category</div>
                 <div>Status</div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">
-                    {getSortIcon('modified')}
-                  </span>
-                </button>
+                <AdminSortButton active={sortBy === 'modified'} direction={sortDirection} onClick={() => toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((item) => (
-                    <div key={item} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                            <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2" />
-                            <div>
-                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32" />
-                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24" />
-                            </div>
-                          </div>
-                        </div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
-                        <div><div className="h-6 bg-muted rounded-full animate-pulse w-20" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -489,13 +398,13 @@ export default function DirectoriesPage() {
                 </div>
               ) : (
                 directories.map((directory) => (
-                  <div key={directory.id} className={`p-6 transition-colors ${selectedDirectoryIds.has(directory.id) ? 'bg-accent/50' : ''}`}>
+                  <div key={directory.id} className={`p-6 transition-colors ${directorySelection.selectedIds.has(directory.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
                           <Checkbox
-                            checked={selectedDirectoryIds.has(directory.id)}
-                            onCheckedChange={() => toggleSelectDirectory(directory.id)}
+                            checked={directorySelection.selectedIds.has(directory.id)}
+                            onCheckedChange={() => directorySelection.toggleOne(directory.id)}
                             aria-label={`Select ${directory.title}`}
                           />
                           <Link
@@ -535,7 +444,7 @@ export default function DirectoriesPage() {
                         {getStatusBadge(directory)}
                       </div>
                       <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(directory.updated_at)}</span>
+                        <span className="text-sm text-muted-foreground">{formatRelativeDate(directory.updated_at)}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Button
@@ -599,13 +508,13 @@ export default function DirectoriesPage() {
           </Card>
 
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogContent size="admin">
-              <DialogHeader>
-                <DialogTitle>Create New Directory Item</DialogTitle>
-                <DialogDescription>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Directory Item</AdminModalTitle>
+                <AdminModalDescription>
                   Add a new item to your directory. You can customize the content after creation.
-                </DialogDescription>
-              </DialogHeader>
+                </AdminModalDescription>
+              </AdminModalHeader>
               <CreateDirectoryModal
                 onSuccess={(directory, continueToBuilder) => {
                   setShowCreateDialog(false)
@@ -616,7 +525,7 @@ export default function DirectoriesPage() {
                 }}
                 onCancel={() => setShowCreateDialog(false)}
               />
-            </DialogContent>
+            </AdminModalContent>
           </Dialog>
 
           <DirectorySettingsModal
@@ -632,50 +541,29 @@ export default function DirectoriesPage() {
             onSuccess={handleDirectoryUpdated}
           />
 
-          {confirmDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={cancelDeleteDirectory} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete Directory</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Are you sure you want to delete this directory? This action cannot be undone.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={cancelDeleteDirectory} variant="outline">Cancel</Button>
-                  <Button onClick={confirmDeleteDirectory} variant="destructive">Delete</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={pendingDeleteId !== null}
+            title="Delete Directory"
+            description="Are you sure you want to delete this directory? This action cannot be undone."
+            onCancel={cancelDeleteDirectory}
+            onConfirm={confirmDeleteDirectory}
+          />
 
-          {massDeleteConfirmOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete {selectedDirectoryIds.size} Director{selectedDirectoryIds.size !== 1 ? 'ies' : 'y'}</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Are you sure you want to delete {selectedDirectoryIds.size} director{selectedDirectoryIds.size !== 1 ? 'ies' : 'y'}? This action cannot be undone.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
-                  <Button onClick={confirmMassDelete} variant="destructive">Delete</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={massDeleteConfirmOpen}
+            title={`Delete ${directorySelection.selectedCount} Director${directorySelection.selectedCount !== 1 ? 'ies' : 'y'}`}
+            description={`Are you sure you want to delete ${directorySelection.selectedCount} director${directorySelection.selectedCount !== 1 ? 'ies' : 'y'}? This action cannot be undone.`}
+            onCancel={() => setMassDeleteConfirmOpen(false)}
+            onConfirm={confirmMassDelete}
+          />
 
-          {errorDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Error</h2>
-                <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-                <div className="flex justify-end">
-                  <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminErrorDialog
+            open={errorMessage !== null}
+            message={errorMessage ?? ""}
+            onOpenChange={(open) => {
+              if (!open) setErrorMessage(null)
+            }}
+          />
         </div>
       </AdminLayout>
     </>

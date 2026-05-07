@@ -7,15 +7,13 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SponsorFormModal } from "@/components/admin/sponsors/SponsorFormModal"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListSkeleton,
+  AdminSortButton,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -24,10 +22,7 @@ import { deleteSponsorAction, deleteSponsorsAction, getSiteSponsorsAction, type 
 import { cn } from "@/lib/utils/tailwind"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
 import {
-  ArrowDown,
-  ArrowUp,
   CheckCircle2,
-  ChevronsUpDown,
   CircleOff,
   ExternalLink,
   Handshake,
@@ -59,11 +54,10 @@ export default function SponsorsPage() {
   const [editingSponsor, setEditingSponsor] = useState<Sponsor | null>(null)
   const [deleteSponsor, setDeleteSponsor] = useState<Sponsor | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [selectedSponsorIds, setSelectedSponsorIds] = useState<Set<string>>(new Set())
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>("modified")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
+  const sponsorSelection = useAdminBulkSelection()
+  const sponsorSort = useAdminSort<SortColumn>("modified", "desc")
 
   useEffect(() => {
     let cancelled = false
@@ -113,17 +107,17 @@ export default function SponsorsPage() {
 
   const sortedSponsors = useMemo(() => {
     return [...filteredSponsors].sort((a, b) => {
-      if (!sortColumn) return 0
+      if (!sponsorSort.sortColumn) return 0
 
-      const dir = sortDirection === "asc" ? 1 : -1
-      if (sortColumn === "title") return a.title.localeCompare(b.title) * dir
-      if (sortColumn === "status") return (Number(a.is_active) - Number(b.is_active)) * dir
-      if (sortColumn === "url") return a.url.localeCompare(b.url) * dir
-      if (sortColumn === "modified") return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+      const dir = sponsorSort.sortDirection === "asc" ? 1 : -1
+      if (sponsorSort.sortColumn === "title") return a.title.localeCompare(b.title) * dir
+      if (sponsorSort.sortColumn === "status") return (Number(a.is_active) - Number(b.is_active)) * dir
+      if (sponsorSort.sortColumn === "url") return a.url.localeCompare(b.url) * dir
+      if (sponsorSort.sortColumn === "modified") return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
 
       return 0
     })
-  }, [filteredSponsors, sortColumn, sortDirection])
+  }, [filteredSponsors, sponsorSort.sortColumn, sponsorSort.sortDirection])
 
   const counts = {
     all: sponsors.length,
@@ -139,46 +133,6 @@ export default function SponsorsPage() {
     })
   }
 
-  const toggleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection("asc")
-    }
-  }
-
-  const getSortIcon = (column: SortColumn) => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
-  const toggleSelectSponsor = (sponsorId: string) => {
-    setSelectedSponsorIds((current) => {
-      const next = new Set(current)
-      if (next.has(sponsorId)) {
-        next.delete(sponsorId)
-      } else {
-        next.add(sponsorId)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedSponsorIds.size === filteredSponsors.length) {
-      setSelectedSponsorIds(new Set())
-    } else {
-      setSelectedSponsorIds(new Set(filteredSponsors.map((sponsor) => sponsor.id)))
-    }
-  }
-
   const handleConfirmDelete = async () => {
     if (!deleteSponsor) return
 
@@ -192,17 +146,14 @@ export default function SponsorsPage() {
     }
 
     setSponsors((current) => current.filter((sponsor) => sponsor.id !== deleteSponsor.id))
-    setSelectedSponsorIds((current) => {
-      const next = new Set(current)
-      next.delete(deleteSponsor.id)
-      return next
-    })
+    sponsorSelection.remove(deleteSponsor.id)
     setDeleteSponsor(null)
   }
 
   const handleConfirmMassDelete = async () => {
-    const ids = Array.from(selectedSponsorIds)
+    const ids = Array.from(sponsorSelection.selectedIds)
     if (ids.length === 0) return
+    const idsToDelete = new Set(ids)
 
     setMassDeleting(true)
     const result = await deleteSponsorsAction(ids)
@@ -213,8 +164,8 @@ export default function SponsorsPage() {
       return
     }
 
-    setSponsors((current) => current.filter((sponsor) => !selectedSponsorIds.has(sponsor.id)))
-    setSelectedSponsorIds(new Set())
+    setSponsors((current) => current.filter((sponsor) => !idsToDelete.has(sponsor.id)))
+    sponsorSelection.clearSelection()
     setMassDeleteConfirmOpen(false)
   }
 
@@ -243,7 +194,7 @@ export default function SponsorsPage() {
             value: filter,
             onValueChange: (value) => {
               setFilter(value as SponsorFilter)
-              setSelectedSponsorIds(new Set())
+              sponsorSelection.clearSelection()
             },
             items: [
               { value: "all", label: "All", icon: List, count: counts.all },
@@ -252,25 +203,11 @@ export default function SponsorsPage() {
             ],
           }}
           preActions={
-            selectedSponsorIds.size > 0 ? (
-              <Button
-                variant="destructive"
-                onClick={() => setMassDeleteConfirmOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
-                    <span className="hidden sm:inline">Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Delete ({selectedSponsorIds.size})</span>
-                  </>
-                )}
-              </Button>
-            ) : undefined
+            <AdminBulkDeleteButton
+              deleting={massDeleting}
+              onClick={() => setMassDeleteConfirmOpen(true)}
+              selectedCount={sponsorSelection.selectedCount}
+            />
           }
           actions={
             <Button onClick={openCreate} disabled={!currentSite?.id}>
@@ -285,86 +222,30 @@ export default function SponsorsPage() {
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
                   <Checkbox
-                    checked={filteredSponsors.length > 0 && selectedSponsorIds.size === filteredSponsors.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={sponsorSelection.isPageSelected(filteredSponsors.map((sponsor) => sponsor.id))}
+                    onCheckedChange={() => sponsorSelection.togglePage(filteredSponsors.map((sponsor) => sponsor.id))}
                     aria-label="Select all sponsors"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("title")}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-1.5 outline-none transition-colors",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <span>Sponsor</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("title")}</span>
-                  </button>
+                  <AdminSortButton active={sponsorSort.sortColumn === "title"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("title")}>
+                    Sponsor
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("status")}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-1.5 outline-none transition-colors",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("url")}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-1.5 outline-none transition-colors",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span>URL</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("url")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("modified")}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-1.5 outline-none transition-colors",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("modified")}</span>
-                </button>
+                <AdminSortButton active={sponsorSort.sortColumn === "status"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("status")}>
+                  Status
+                </AdminSortButton>
+                <AdminSortButton active={sponsorSort.sortColumn === "url"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("url")}>
+                  URL
+                </AdminSortButton>
+                <AdminSortButton active={sponsorSort.sortColumn === "modified"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("modified")}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((item) => (
-                    <div key={item} className="border-b border-muted/80 p-6">
-                      <div className="grid grid-cols-6 items-center gap-4">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4 pl-[3px]">
-                            <div className="h-4 w-4 animate-pulse rounded bg-muted" />
-                            <div className="ml-2 h-12 w-12 animate-pulse rounded bg-muted" />
-                            <div>
-                              <div className="mb-2 h-4 w-32 animate-pulse rounded bg-muted" />
-                              <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
-                        <div className="h-3 w-32 animate-pulse rounded bg-muted/60" />
-                        <div className="h-3 w-16 animate-pulse rounded bg-muted/60" />
-                        <div className="flex items-center space-x-2">
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton firstColumnClassName="pl-[3px]" />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-sm text-red-600">{error}</p>
@@ -385,13 +266,13 @@ export default function SponsorsPage() {
                   const sponsorHref = sanitizeUrl(sponsor.url, "#")
 
                   return (
-                  <div key={sponsor.id} className={cn("p-6 transition-colors", selectedSponsorIds.has(sponsor.id) && "bg-accent/50")}>
+                  <div key={sponsor.id} className={cn("p-6 transition-colors", sponsorSelection.selectedIds.has(sponsor.id) && "bg-accent/50")}>
                     <div className="grid grid-cols-6 items-center gap-4">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4 pl-[3px]">
                           <Checkbox
-                            checked={selectedSponsorIds.has(sponsor.id)}
-                            onCheckedChange={() => toggleSelectSponsor(sponsor.id)}
+                            checked={sponsorSelection.selectedIds.has(sponsor.id)}
+                            onCheckedChange={() => sponsorSelection.toggleOne(sponsor.id)}
                             aria-label={`Select ${sponsor.title}`}
                           />
                           <div className="flex items-center space-x-4">
@@ -467,53 +348,25 @@ export default function SponsorsPage() {
         />
       )}
 
-      <AlertDialog open={Boolean(deleteSponsor)} onOpenChange={(open) => !open && setDeleteSponsor(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Sponsor</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the sponsor from the library. Existing post embeds for this sponsor will render nothing.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
-              disabled={deleting}
-              onClick={(event) => {
-                event.preventDefault()
-                handleConfirmDelete()
-              }}
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AdminConfirmDialog
+        open={Boolean(deleteSponsor)}
+        title="Delete Sponsor"
+        description="This removes the sponsor from the library. Existing post embeds for this sponsor will render nothing."
+        disabled={deleting}
+        confirmLabel={deleting ? "Deleting..." : "Delete"}
+        onCancel={() => setDeleteSponsor(null)}
+        onConfirm={handleConfirmDelete}
+      />
 
-      <AlertDialog open={massDeleteConfirmOpen} onOpenChange={setMassDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedSponsorIds.size} Sponsor{selectedSponsorIds.size === 1 ? "" : "s"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the selected sponsors from the library. Existing post embeds for these sponsors will render nothing.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={massDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
-              disabled={massDeleting}
-              onClick={(event) => {
-                event.preventDefault()
-                handleConfirmMassDelete()
-              }}
-            >
-              {massDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AdminConfirmDialog
+        open={massDeleteConfirmOpen}
+        title={`Delete ${sponsorSelection.selectedCount} Sponsor${sponsorSelection.selectedCount === 1 ? "" : "s"}`}
+        description="This removes the selected sponsors from the library. Existing post embeds for these sponsors will render nothing."
+        disabled={massDeleting}
+        confirmLabel={massDeleting ? "Deleting..." : "Delete"}
+        onCancel={() => setMassDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmMassDelete}
+      />
     </>
   )
 }

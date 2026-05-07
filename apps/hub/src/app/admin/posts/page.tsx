@@ -10,15 +10,25 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import {
   AdminModalContent,
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatRelativeDate,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 
 import dynamic from "next/dynamic"
 
@@ -30,14 +40,14 @@ const PostSettingsModal = dynamic(() =>
   import("@/components/admin/post-builder/layout/PostSettingsModal").then(m => ({ default: m.PostSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, BookOpen, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import { Eye, Copy, Trash2, Settings, BookOpen, Plus, List, Globe, FileEdit } from "lucide-react"
 import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction, getPostIdsAction } from "@/lib/actions/posts/post-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { Post } from "@/lib/actions/posts/post-actions"
+
+type PostSortColumn = 'title' | 'category' | 'status' | 'modified'
 
 export default function PostsPage() {
   const router = useRouter()
@@ -52,19 +62,12 @@ export default function PostsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [postCategories, setPostCategories] = useState<Record<string, CategoryInfo[]>>({})
-
-  const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-
-  const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const postSelection = useAdminBulkSelection()
+  const postSort = useAdminSort<PostSortColumn>()
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
@@ -75,6 +78,8 @@ export default function PostsPage() {
       if (!currentSite?.id) {
         setLoading(true)
         setPosts([])
+        setPostCategories({})
+        setTotal(0)
         return
       }
 
@@ -102,11 +107,10 @@ export default function PostsPage() {
     }
 
     loadPosts()
-  }, [currentSite?.id, currentPage])
+  }, [currentSite?.id, currentPage, pageSize])
 
   const handleDeletePost = async (postId: string) => {
     setPendingDeleteId(postId)
-    setConfirmDialogOpen(true)
   }
 
   const confirmDeletePost = async () => {
@@ -115,7 +119,6 @@ export default function PostsPage() {
     const postIdToDelete = pendingDeleteId
 
     // Close dialog immediately and clear state
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
 
     try {
@@ -124,7 +127,6 @@ export default function PostsPage() {
 
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
 
@@ -133,37 +135,13 @@ export default function PostsPage() {
       }
     } catch (err) {
       setErrorMessage('Failed to delete post')
-      setErrorDialogOpen(true)
     } finally {
       setDeletePostId(null)
     }
   }
 
   const cancelDeletePost = () => {
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
-  }
-
-  const toggleSelectPost = (postId: string) => {
-    setSelectedPostIds(prev => {
-      const next = new Set(prev)
-      if (next.has(postId)) {
-        next.delete(postId)
-        setAllSelected(false)
-      } else {
-        next.add(postId)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedPostIds.size === filteredPosts.length) {
-      setSelectedPostIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedPostIds(new Set(filteredPosts.map(p => p.id)))
-    }
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -171,36 +149,27 @@ export default function PostsPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getPostIdsAction(currentSite.id)
     if (ids) {
-      setSelectedPostIds(new Set(ids))
-      setAllSelected(true)
+      postSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedPostIds(new Set())
-    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const ids = Array.from(selectedPostIds)
+      const ids = Array.from(postSelection.selectedIds)
+      const idsToDelete = new Set(ids)
       const { success, error: deleteError } = await deletePostsAction(ids)
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
-        setPosts(prev => prev.filter(p => !selectedPostIds.has(p.id)))
-        setSelectedPostIds(new Set())
-        setAllSelected(false)
+        setPosts(prev => prev.filter(p => !idsToDelete.has(p.id)))
+        postSelection.clearSelection()
       }
     } catch (err) {
       setErrorMessage('Failed to delete posts')
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -216,7 +185,6 @@ export default function PostsPage() {
       
       if (duplicateError) {
         setErrorMessage(`Failed to duplicate post: ${duplicateError}`)
-        setErrorDialogOpen(true)
         return
       }
       
@@ -225,7 +193,6 @@ export default function PostsPage() {
       }
     } catch (err) {
       setErrorMessage('Failed to duplicate post')
-      setErrorDialogOpen(true)
     } finally {
       setDuplicatingPostId(null)
     }
@@ -236,18 +203,6 @@ export default function PostsPage() {
       return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
     }
     return <Badge variant="secondary">Draft</Badge>
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
   }
 
   const handlePostUpdated = (updatedPost: Post) => {
@@ -268,39 +223,20 @@ export default function PostsPage() {
     return statusMatch && searchMatch
   })
 
-  const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'title' | 'category' | 'status' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedPosts = [...filteredPosts].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
-    if (sortColumn === 'category') {
+    if (!postSort.sortColumn) return 0
+    const dir = postSort.sortDirection === 'asc' ? 1 : -1
+    if (postSort.sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (postSort.sortColumn === 'category') {
       const aCat = postCategories[a.id]?.[0]?.title || '\uffff'
       const bCat = postCategories[b.id]?.[0]?.title || '\uffff'
       return aCat.localeCompare(bCat) * dir
     }
-    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (postSort.sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (postSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+  const filteredPostIds = filteredPosts.map((post) => post.id)
 
   // Get counts for each status
   const statusCounts = {
@@ -323,7 +259,7 @@ export default function PostsPage() {
             }}
             filterMenu={{
               value: filterStatus,
-              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPostIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); postSelection.clearSelection(); setCurrentPage(1) },
               items: [
                 { value: "all", label: "All", icon: List, count: statusCounts.all },
                 { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
@@ -331,25 +267,11 @@ export default function PostsPage() {
               ],
             }}
             preActions={
-              selectedPostIds.size > 0 ? (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedPostIds.size})</span>
-                    </>
-                  )}
-                </Button>
-              ) : undefined
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={postSelection.selectedCount}
+              />
             }
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
@@ -364,110 +286,41 @@ export default function PostsPage() {
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
                   <Checkbox
-                    checked={filteredPosts.length > 0 && selectedPostIds.size === filteredPosts.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={postSelection.isPageSelected(filteredPostIds)}
+                    onCheckedChange={() => postSelection.togglePage(filteredPostIds)}
                     aria-label="Select all posts"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('title')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Post</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
-                  </button>
+                  <AdminSortButton active={postSort.sortColumn === 'title'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('title')}>
+                    Post
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('category')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Category</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('category')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
+                <AdminSortButton active={postSort.sortColumn === 'category'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('category')}>
+                  Category
+                </AdminSortButton>
+                <AdminSortButton active={postSort.sortColumn === 'status'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('status')}>
+                  Status
+                </AdminSortButton>
+                <AdminSortButton active={postSort.sortColumn === 'modified'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredPosts.length > 0 && selectedPostIds.size === filteredPosts.length && total > filteredPosts.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredPosts.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={postSelection.allSelected}
+              onClearSelection={postSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={postSelection.selectedCount}
+              total={total}
+              visibleCount={filteredPosts.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {loading ? (
                 // Skeleton loading state for posts
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4 pl-[3px]">
-                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                            <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
-                            <div>
-                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
-                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="h-5 bg-muted rounded-full animate-pulse w-16"></div>
-                        </div>
-                        <div>
-                          <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
-                        </div>
-                        <div>
-                          <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton firstColumnClassName="pl-[3px]" />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -490,13 +343,13 @@ export default function PostsPage() {
                 </div>
               ) : (
                 sortedPosts.map((post) => (
-                  <div key={post.id} className={`p-6 transition-colors ${selectedPostIds.has(post.id) ? 'bg-accent/50' : ''}`}>
+                  <div key={post.id} className={`p-6 transition-colors ${postSelection.selectedIds.has(post.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4 pl-[3px]">
                           <Checkbox
-                            checked={selectedPostIds.has(post.id)}
-                            onCheckedChange={() => toggleSelectPost(post.id)}
+                            checked={postSelection.selectedIds.has(post.id)}
+                            onCheckedChange={() => postSelection.toggleOne(post.id)}
                             aria-label={`Select ${post.title}`}
                           />
                         <Link
@@ -539,7 +392,7 @@ export default function PostsPage() {
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">
-                          {formatDate(post.updated_at)}
+                          {formatRelativeDate(post.updated_at)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-1">
@@ -605,12 +458,7 @@ export default function PostsPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
-              </div>
-            )}
+            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
           </Card>
 
         {/* Create Post Dialog */}
@@ -644,89 +492,30 @@ export default function PostsPage() {
           onSuccess={handlePostUpdated}
         />
 
-        {/* Confirmation Dialog */}
-        {confirmDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={cancelDeletePost}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete Post</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete this post? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={cancelDeletePost}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmDeletePost}
-                  variant="destructive"
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={pendingDeleteId !== null}
+          title="Delete Post"
+          description="Are you sure you want to delete this post? This action cannot be undone."
+          onCancel={cancelDeletePost}
+          onConfirm={confirmDeletePost}
+        />
 
-        {/* Mass Delete Confirmation Dialog */}
-        {massDeleteConfirmOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setMassDeleteConfirmOpen(false)}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete {selectedPostIds.size} Post{selectedPostIds.size !== 1 ? 's' : ''}</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete {selectedPostIds.size} post{selectedPostIds.size !== 1 ? 's' : ''}? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={() => setMassDeleteConfirmOpen(false)}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmMassDelete}
-                  variant="destructive"
-                >
-                  Delete {selectedPostIds.size} Post{selectedPostIds.size !== 1 ? 's' : ''}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={massDeleteConfirmOpen}
+          title={`Delete ${postSelection.selectedCount} Post${postSelection.selectedCount !== 1 ? 's' : ''}`}
+          description={`Are you sure you want to delete ${postSelection.selectedCount} post${postSelection.selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
+          confirmLabel={`Delete ${postSelection.selectedCount} Post${postSelection.selectedCount !== 1 ? 's' : ''}`}
+          onCancel={() => setMassDeleteConfirmOpen(false)}
+          onConfirm={confirmMassDelete}
+        />
 
-        {/* Error Dialog */}
-        {errorDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setErrorDialogOpen(false)}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Error</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                {errorMessage}
-              </p>
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => setErrorDialogOpen(false)}
-                  variant="default"
-                >
-                  OK
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminErrorDialog
+          open={errorMessage !== null}
+          message={errorMessage ?? ""}
+          onOpenChange={(open) => {
+            if (!open) setErrorMessage(null)
+          }}
+        />
         </div>
       </AdminLayout>
     </>

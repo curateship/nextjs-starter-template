@@ -9,15 +9,25 @@ import { Card } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import {
   AdminModalContent,
   AdminModalDescription,
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatRelativeDate,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -30,16 +40,15 @@ const ProductSettingsModal = dynamic(() =>
   import("@/components/admin/product-builder/layout/ProductSettingsModal").then(m => ({ default: m.ProductSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, Package, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import { Eye, Copy, Trash2, Settings, Package, Plus, List, Globe, FileEdit } from "lucide-react"
 import { getSiteProductsWithCategoriesAction, deleteProductAction, deleteProductsAction, duplicateProductAction, getProductIdsAction } from "@/lib/actions/products/product-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import type { Product } from "@/lib/actions/products/product-actions"
 
 const EMPTY_PRODUCT_CATEGORIES: CategoryInfo[] = []
+type ProductSortColumn = 'title' | 'category' | 'status' | 'modified'
 
 export default function ProductsPage() {
   const router = useRouter()
@@ -55,18 +64,12 @@ export default function ProductsPage() {
   const [filterPrivacy] = useState<'all' | 'public' | 'private'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [productCategories, setProductCategories] = useState<Record<string, CategoryInfo[]>>({})
-
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const productSelection = useAdminBulkSelection()
+  const productSort = useAdminSort<ProductSortColumn>()
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
@@ -77,6 +80,8 @@ export default function ProductsPage() {
       if (!currentSite?.id) {
         setLoading(true)
         setProducts([])
+        setProductCategories({})
+        setTotal(0)
         return
       }
 
@@ -104,11 +109,10 @@ export default function ProductsPage() {
     }
 
     loadProducts()
-  }, [currentSite?.id, currentPage])
+  }, [currentSite?.id, currentPage, pageSize])
 
   const handleDeleteProduct = async (productId: string) => {
     setPendingDeleteId(productId)
-    setConfirmDialogOpen(true)
   }
 
   const confirmDeleteProduct = async () => {
@@ -117,7 +121,6 @@ export default function ProductsPage() {
     const productIdToDelete = pendingDeleteId
 
     // Close dialog immediately and clear state
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
 
     try {
@@ -126,7 +129,6 @@ export default function ProductsPage() {
 
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
 
@@ -135,37 +137,13 @@ export default function ProductsPage() {
       }
     } catch (err) {
       setErrorMessage('Failed to delete product')
-      setErrorDialogOpen(true)
     } finally {
       setDeleteProductId(null)
     }
   }
 
   const cancelDeleteProduct = () => {
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
-  }
-
-  const toggleSelectProduct = (productId: string) => {
-    setSelectedProductIds(prev => {
-      const next = new Set(prev)
-      if (next.has(productId)) {
-        next.delete(productId)
-        setAllSelected(false)
-      } else {
-        next.add(productId)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedProductIds.size === filteredProducts.length) {
-      setSelectedProductIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedProductIds(new Set(filteredProducts.map(p => p.id)))
-    }
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -173,36 +151,27 @@ export default function ProductsPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getProductIdsAction(currentSite.id)
     if (ids) {
-      setSelectedProductIds(new Set(ids))
-      setAllSelected(true)
+      productSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedProductIds(new Set())
-    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const ids = Array.from(selectedProductIds)
+      const ids = Array.from(productSelection.selectedIds)
+      const idsToDelete = new Set(ids)
       const { success, error: deleteError } = await deleteProductsAction(ids)
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
-        setProducts(prev => prev.filter(p => !selectedProductIds.has(p.id)))
-        setSelectedProductIds(new Set())
-        setAllSelected(false)
+        setProducts(prev => prev.filter(p => !idsToDelete.has(p.id)))
+        productSelection.clearSelection()
       }
     } catch (err) {
       setErrorMessage('Failed to delete products')
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -218,7 +187,6 @@ export default function ProductsPage() {
       
       if (duplicateError) {
         setErrorMessage(`Failed to duplicate product: ${duplicateError}`)
-        setErrorDialogOpen(true)
         return
       }
       
@@ -227,7 +195,6 @@ export default function ProductsPage() {
       }
     } catch (err) {
       setErrorMessage('Failed to duplicate product')
-      setErrorDialogOpen(true)
     } finally {
       setDuplicatingProductId(null)
     }
@@ -264,18 +231,6 @@ export default function ProductsPage() {
     return product.content_blocks?._settings?.is_private === true
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
-
   const handleProductUpdated = (updatedProduct: Product) => {
     setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p))
   }
@@ -299,31 +254,11 @@ export default function ProductsPage() {
     return statusMatch && privacyMatch && searchMatch
   })
 
-  const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'title' | 'category' | 'status' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
-    if (sortColumn === 'category') {
+    if (!productSort.sortColumn) return 0
+    const dir = productSort.sortDirection === 'asc' ? 1 : -1
+    if (productSort.sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (productSort.sortColumn === 'category') {
       const catA = productCategories[a.id]?.[0]?.title
       const catB = productCategories[b.id]?.[0]?.title
       if (!catA && !catB) return 0
@@ -331,10 +266,11 @@ export default function ProductsPage() {
       if (!catB) return -1
       return catA.localeCompare(catB) * dir
     }
-    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (productSort.sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (productSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+  const filteredProductIds = filteredProducts.map((product) => product.id)
 
   // Get counts for each status
   const statusCounts = {
@@ -359,7 +295,7 @@ export default function ProductsPage() {
             }}
             filterMenu={{
               value: filterStatus,
-              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedProductIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); productSelection.clearSelection(); setCurrentPage(1) },
               items: [
                 { value: "all", label: "All", icon: List, count: statusCounts.all },
                 { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
@@ -367,25 +303,11 @@ export default function ProductsPage() {
               ],
             }}
             preActions={
-              selectedProductIds.size > 0 ? (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedProductIds.size})</span>
-                    </>
-                  )}
-                </Button>
-              ) : undefined
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={productSelection.selectedCount}
+              />
             }
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
@@ -400,110 +322,41 @@ export default function ProductsPage() {
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredProducts.length > 0 && selectedProductIds.size === filteredProducts.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={productSelection.isPageSelected(filteredProductIds)}
+                    onCheckedChange={() => productSelection.togglePage(filteredProductIds)}
                     aria-label="Select all products"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('title')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Product</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
-                  </button>
+                  <AdminSortButton active={productSort.sortColumn === 'title'} direction={productSort.sortDirection} onClick={() => productSort.toggleSort('title')}>
+                    Product
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('category')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Category</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('category')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
+                <AdminSortButton active={productSort.sortColumn === 'category'} direction={productSort.sortDirection} onClick={() => productSort.toggleSort('category')}>
+                  Category
+                </AdminSortButton>
+                <AdminSortButton active={productSort.sortColumn === 'status'} direction={productSort.sortDirection} onClick={() => productSort.toggleSort('status')}>
+                  Status
+                </AdminSortButton>
+                <AdminSortButton active={productSort.sortColumn === 'modified'} direction={productSort.sortDirection} onClick={() => productSort.toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredProducts.length > 0 && selectedProductIds.size === filteredProducts.length && total > filteredProducts.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredProducts.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={productSelection.allSelected}
+              onClearSelection={productSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={productSelection.selectedCount}
+              total={total}
+              visibleCount={filteredProducts.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {loading ? (
                 // Skeleton loading state for products
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                            <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
-                            <div>
-                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
-                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="h-5 bg-muted rounded-full animate-pulse w-16"></div>
-                        </div>
-                        <div>
-                          <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
-                        </div>
-                        <div>
-                          <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -528,13 +381,13 @@ export default function ProductsPage() {
                 </div>
               ) : (
                 sortedProducts.map((product) => (
-                  <div key={product.id} className={`p-6 transition-colors ${selectedProductIds.has(product.id) ? 'bg-accent/50' : ''}`}>
+                  <div key={product.id} className={`p-6 transition-colors ${productSelection.selectedIds.has(product.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
                           <Checkbox
-                            checked={selectedProductIds.has(product.id)}
-                            onCheckedChange={() => toggleSelectProduct(product.id)}
+                            checked={productSelection.selectedIds.has(product.id)}
+                            onCheckedChange={() => productSelection.toggleOne(product.id)}
                             aria-label={`Select ${product.title}`}
                           />
                         <Link
@@ -577,7 +430,7 @@ export default function ProductsPage() {
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">
-                          {formatDate(product.updated_at)}
+                          {formatRelativeDate(product.updated_at)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-1">
@@ -630,12 +483,7 @@ export default function ProductsPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
-              </div>
-            )}
+            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
           </Card>
 
         {/* Create Product Dialog */}
@@ -671,89 +519,30 @@ export default function ProductsPage() {
           onSuccess={handleProductUpdated}
         />
 
-        {/* Confirmation Dialog */}
-        {confirmDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={cancelDeleteProduct}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete Product</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete this product? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={cancelDeleteProduct}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmDeleteProduct}
-                  variant="destructive"
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={pendingDeleteId !== null}
+          title="Delete Product"
+          description="Are you sure you want to delete this product? This action cannot be undone."
+          onCancel={cancelDeleteProduct}
+          onConfirm={confirmDeleteProduct}
+        />
 
-        {/* Mass Delete Confirmation Dialog */}
-        {massDeleteConfirmOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setMassDeleteConfirmOpen(false)}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete {selectedProductIds.size} Product{selectedProductIds.size !== 1 ? 's' : ''}</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete {selectedProductIds.size} product{selectedProductIds.size !== 1 ? 's' : ''}? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={() => setMassDeleteConfirmOpen(false)}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmMassDelete}
-                  variant="destructive"
-                >
-                  Delete {selectedProductIds.size} Product{selectedProductIds.size !== 1 ? 's' : ''}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={massDeleteConfirmOpen}
+          title={`Delete ${productSelection.selectedCount} Product${productSelection.selectedCount !== 1 ? 's' : ''}`}
+          description={`Are you sure you want to delete ${productSelection.selectedCount} product${productSelection.selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
+          confirmLabel={`Delete ${productSelection.selectedCount} Product${productSelection.selectedCount !== 1 ? 's' : ''}`}
+          onCancel={() => setMassDeleteConfirmOpen(false)}
+          onConfirm={confirmMassDelete}
+        />
 
-        {/* Error Dialog */}
-        {errorDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setErrorDialogOpen(false)}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Error</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                {errorMessage}
-              </p>
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => setErrorDialogOpen(false)}
-                  variant="default"
-                >
-                  OK
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminErrorDialog
+          open={errorMessage !== null}
+          message={errorMessage ?? ""}
+          onOpenChange={(open) => {
+            if (!open) setErrorMessage(null)
+          }}
+        />
         </div>
       </AdminLayout>
     </>

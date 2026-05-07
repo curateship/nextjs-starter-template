@@ -18,6 +18,18 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatRelativeDate,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 
 import { Checkbox } from "@/components/ui/checkbox"
 import dynamic from "next/dynamic"
@@ -30,9 +42,7 @@ const PageSettingsModal = dynamic(() =>
   import("@/components/admin/page-builder/layout/PageSettingsModal").then(m => ({ default: m.PageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, FileText, Home, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { Eye, Copy, Trash2, Settings, FileText, Home, Plus, List, Globe, FileEdit } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSitePagesAction, deletePageAction, deletePagesAction, duplicatePageAction, getPageIdsAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
@@ -42,6 +52,8 @@ interface PageProps {
     siteId: string
   }>
 }
+
+type PageSortColumn = 'title' | 'status' | 'modified'
 
 export default function SitePagesPage({ params }: PageProps) {
   const { siteId } = use(params)
@@ -56,17 +68,12 @@ export default function SitePagesPage({ params }: PageProps) {
   const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [sortColumn, setSortColumn] = useState<'title' | 'status' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const pageSelection = useAdminBulkSelection()
+  const pageSort = useAdminSort<PageSortColumn>()
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
@@ -109,11 +116,9 @@ export default function SitePagesPage({ params }: PageProps) {
         
         if (deleteError) {
           setErrorMessage(deleteError)
-          setErrorDialogOpen(true)
         }
       } catch (err) {
         setErrorMessage('Failed to delete page')
-        setErrorDialogOpen(true)
       } finally {
         setDeletePageId(null)
       }
@@ -122,7 +127,6 @@ export default function SitePagesPage({ params }: PageProps) {
     
     // For other pages, show confirmation first
     setPendingDeleteId(pageId)
-    setConfirmDialogOpen(true)
   }
 
   const confirmDeletePage = async () => {
@@ -131,7 +135,6 @@ export default function SitePagesPage({ params }: PageProps) {
     const pageIdToDelete = pendingDeleteId
 
     // Close dialog immediately and clear state
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
 
     try {
@@ -140,7 +143,6 @@ export default function SitePagesPage({ params }: PageProps) {
 
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
 
@@ -149,39 +151,13 @@ export default function SitePagesPage({ params }: PageProps) {
       }
     } catch (err) {
       setErrorMessage('Failed to delete page')
-      setErrorDialogOpen(true)
     } finally {
       setDeletePageId(null)
     }
   }
 
   const cancelDeletePage = () => {
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
-  }
-
-  const toggleSelectPage = (pageId: string) => {
-    setSelectedPageIds(prev => {
-      const next = new Set(prev)
-      if (next.has(pageId)) {
-        next.delete(pageId)
-        setAllSelected(false)
-      } else {
-        next.add(pageId)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    // Only select non-homepage pages
-    const selectablePages = filteredPages.filter(p => !p.is_homepage)
-    if (selectedPageIds.size === selectablePages.length) {
-      setSelectedPageIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedPageIds(new Set(selectablePages.map(p => p.id)))
-    }
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -189,36 +165,27 @@ export default function SitePagesPage({ params }: PageProps) {
     if (total === 0) return
     const { ids } = await getPageIdsAction(siteId)
     if (ids) {
-      setSelectedPageIds(new Set(ids))
-      setAllSelected(true)
+      pageSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedPageIds(new Set())
-    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const ids = Array.from(selectedPageIds)
+      const ids = Array.from(pageSelection.selectedIds)
+      const idsToDelete = new Set(ids)
       const { success, error: deleteError } = await deletePagesAction(ids)
       if (deleteError) {
         setErrorMessage(deleteError)
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
-        setPages(prev => prev.filter(p => !selectedPageIds.has(p.id)))
-        setSelectedPageIds(new Set())
-        setAllSelected(false)
+        setPages(prev => prev.filter(p => !idsToDelete.has(p.id)))
+        pageSelection.clearSelection()
       }
     } catch (err) {
       setErrorMessage('Failed to delete pages')
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -234,7 +201,6 @@ export default function SitePagesPage({ params }: PageProps) {
       
       if (duplicateError) {
         setErrorMessage(`Failed to duplicate page: ${duplicateError}`)
-        setErrorDialogOpen(true)
         return
       }
       
@@ -243,7 +209,6 @@ export default function SitePagesPage({ params }: PageProps) {
       }
     } catch (err) {
       setErrorMessage('Failed to duplicate page')
-      setErrorDialogOpen(true)
     } finally {
       setDuplicatingPageId(null)
     }
@@ -257,18 +222,6 @@ export default function SitePagesPage({ params }: PageProps) {
       return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
     }
     return <Badge variant="secondary">Draft</Badge>
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
   }
 
   const handlePageUpdated = (updatedPage: Page) => {
@@ -288,34 +241,15 @@ export default function SitePagesPage({ params }: PageProps) {
     return statusMatch && searchMatch
   })
 
-  const toggleSort = (column: 'title' | 'status' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'title' | 'status' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedPages = [...filteredPages].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
-    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (!pageSort.sortColumn) return 0
+    const dir = pageSort.sortDirection === 'asc' ? 1 : -1
+    if (pageSort.sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (pageSort.sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (pageSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+  const selectablePageIds = filteredPages.filter(p => !p.is_homepage).map(p => p.id)
 
   // Get counts for each status
   const statusCounts = {
@@ -353,7 +287,7 @@ export default function SitePagesPage({ params }: PageProps) {
           }}
           filterMenu={{
             value: filterStatus,
-            onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedPageIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+            onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); pageSelection.clearSelection(); setCurrentPage(1) },
             items: [
               { value: "all", label: "All", icon: List, count: statusCounts.all },
               { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
@@ -361,25 +295,11 @@ export default function SitePagesPage({ params }: PageProps) {
             ],
           }}
           preActions={
-            selectedPageIds.size > 0 ? (
-              <Button
-                variant="destructive"
-                onClick={() => setMassDeleteConfirmOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span className="hidden sm:inline">Deleting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Delete ({selectedPageIds.size})</span>
-                  </>
-                )}
-              </Button>
-            ) : undefined
+            <AdminBulkDeleteButton
+              deleting={massDeleting}
+              onClick={() => setMassDeleteConfirmOpen(true)}
+              selectedCount={pageSelection.selectedCount}
+            />
           }
           actions={
             <Button onClick={() => setShowCreateDialog(true)}>
@@ -395,98 +315,38 @@ export default function SitePagesPage({ params }: PageProps) {
             <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
               <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredPages.filter(p => !p.is_homepage).length > 0 && selectedPageIds.size === filteredPages.filter(p => !p.is_homepage).length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={pageSelection.isPageSelected(selectablePageIds)}
+                    onCheckedChange={() => pageSelection.togglePage(selectablePageIds)}
                     aria-label="Select all pages"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('title')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Page</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
-                  </button>
+                  <AdminSortButton active={pageSort.sortColumn === 'title'} direction={pageSort.sortDirection} onClick={() => pageSort.toggleSort('title')}>
+                    Page
+                  </AdminSortButton>
                 </div>
-              <button
-                type="button"
-                onClick={() => toggleSort('status')}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
-              >
-                <span>Status</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort('modified')}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
-              >
-                <span>Modified</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-              </button>
+              <AdminSortButton active={pageSort.sortColumn === 'status'} direction={pageSort.sortDirection} onClick={() => pageSort.toggleSort('status')}>
+                Status
+              </AdminSortButton>
+              <AdminSortButton active={pageSort.sortColumn === 'modified'} direction={pageSort.sortDirection} onClick={() => pageSort.toggleSort('modified')}>
+                Modified
+              </AdminSortButton>
               <div>Actions</div>
             </div>
           </div>
 
           {/* "Select all" banner — shown when all page items selected but more exist */}
-          {(() => {
-            const selectablePages = filteredPages.filter(p => !p.is_homepage)
-            return selectablePages.length > 0 && selectedPageIds.size === selectablePages.length && total > filteredPages.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{selectablePages.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )
-          })()}
+          <AdminSelectionBanner
+            allSelected={pageSelection.allSelected}
+            onClearSelection={pageSelection.clearSelection}
+            onSelectAll={handleSelectAll}
+            selectedCount={pageSelection.selectedCount}
+            total={total}
+            visibleCount={selectablePageIds.length}
+          />
 
           <div className="divide-y divide-muted/80">
             {loading ? (
               // Skeleton loading state for pages
-              <div className="space-y-0">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="p-6 border-b border-muted/80">
-                    <div className="grid grid-cols-5 gap-4 items-center">
-                      <div className="col-span-2">
-                        <div className="flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                          <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
-                          <div>
-                            <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="h-6 bg-muted rounded-full animate-pulse w-20"></div>
-                      </div>
-                      <div>
-                        <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <AdminListSkeleton columns={5} rowCount={4} />
             ) : error ? (
               <div className="p-8 text-center">
                 <p className="text-red-600 mb-4">{error}</p>
@@ -509,14 +369,14 @@ export default function SitePagesPage({ params }: PageProps) {
               </div>
             ) : (
               sortedPages.map((page) => (
-                <div key={page.id} className={`p-6 transition-colors ${selectedPageIds.has(page.id) ? 'bg-accent/50' : ''}`}>
+                <div key={page.id} className={`p-6 transition-colors ${pageSelection.selectedIds.has(page.id) ? 'bg-accent/50' : ''}`}>
                   <div className="grid grid-cols-5 gap-4 items-center">
                     <div className="col-span-2">
                       <div className="flex items-center space-x-4">
                         {!page.is_homepage ? (
                           <Checkbox
-                            checked={selectedPageIds.has(page.id)}
-                            onCheckedChange={() => toggleSelectPage(page.id)}
+                            checked={pageSelection.selectedIds.has(page.id)}
+                            onCheckedChange={() => pageSelection.toggleOne(page.id)}
                             aria-label={`Select ${page.title}`}
                           />
                         ) : (
@@ -547,7 +407,7 @@ export default function SitePagesPage({ params }: PageProps) {
                     </div>
                     <div>
                       <span className="text-sm text-muted-foreground">
-                        {formatDate(page.updated_at)}
+                        {formatRelativeDate(page.updated_at)}
                       </span>
                     </div>
                     <div className="flex items-center space-x-1">
@@ -602,12 +462,7 @@ export default function SitePagesPage({ params }: PageProps) {
               ))
             )}
           </div>
-          {!loading && total > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t">
-              <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-              <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
-            </div>
-          )}
+          {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
         </Card>
 
         {/* Create Page Dialog */}
@@ -639,74 +494,30 @@ export default function SitePagesPage({ params }: PageProps) {
           onSuccess={handlePageUpdated}
         />
 
-        {/* Confirmation Dialog */}
-        {confirmDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={cancelDeletePage}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete Page</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete this page? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button onClick={cancelDeletePage} variant="outline">Cancel</Button>
-                <Button onClick={confirmDeletePage} variant="destructive">Delete</Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={pendingDeleteId !== null}
+          title="Delete Page"
+          description="Are you sure you want to delete this page? This action cannot be undone."
+          onCancel={cancelDeletePage}
+          onConfirm={confirmDeletePage}
+        />
 
-        {/* Mass Delete Confirmation Dialog */}
-        {massDeleteConfirmOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setMassDeleteConfirmOpen(false)}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? 's' : ''}</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete {selectedPageIds.size} page{selectedPageIds.size !== 1 ? 's' : ''}? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={() => setMassDeleteConfirmOpen(false)}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmMassDelete}
-                  variant="destructive"
-                >
-                  Delete {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? 's' : ''}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={massDeleteConfirmOpen}
+          title={`Delete ${pageSelection.selectedCount} Page${pageSelection.selectedCount !== 1 ? 's' : ''}`}
+          description={`Are you sure you want to delete ${pageSelection.selectedCount} page${pageSelection.selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
+          confirmLabel={`Delete ${pageSelection.selectedCount} Page${pageSelection.selectedCount !== 1 ? 's' : ''}`}
+          onCancel={() => setMassDeleteConfirmOpen(false)}
+          onConfirm={confirmMassDelete}
+        />
 
-        {/* Error Dialog */}
-        {errorDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setErrorDialogOpen(false)}
-            />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Cannot Delete Page</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                {errorMessage}
-              </p>
-              <div className="flex justify-end">
-                <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminErrorDialog
+          open={errorMessage !== null}
+          message={errorMessage ?? ""}
+          onOpenChange={(open) => {
+            if (!open) setErrorMessage(null)
+          }}
+        />
       </div>
       </AdminLayout>
     </>

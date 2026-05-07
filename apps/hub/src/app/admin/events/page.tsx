@@ -10,17 +10,27 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
+import { Dialog } from "@/components/ui/dialog"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  AdminModalContent,
+  AdminModalDescription,
+  AdminModalHeader,
+  AdminModalTitle,
+} from "@/components/admin/layout/builder/AdminModalLayout"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, Copy, Trash2, Settings, Calendar, AlertCircle, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import { Eye, Copy, Trash2, Settings, Calendar, AlertCircle, Plus, List, Globe, FileEdit } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import dynamic from "next/dynamic"
 
@@ -32,10 +42,11 @@ const EventSettingsModal = dynamic(() =>
   import("@/components/admin/event-builder/layout/EventSettingsModal").then(m => ({ default: m.EventSettingsModal })),
   { ssr: false }
 )
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSiteEventsWithCategoriesAction, deleteEventAction, deleteEventsAction, duplicateEventAction, getEventIdsAction } from "@/lib/actions/events/event-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
+
+type EventSortColumn = 'title' | 'category' | 'status' | 'modified'
 
 export default function EventsPage() {
   const router = useRouter()
@@ -47,21 +58,16 @@ export default function EventsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
   const [filterPrivacy] = useState<'all' | 'public' | 'private'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [eventCategories, setEventCategories] = useState<Record<string, CategoryInfo[]>>({})
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
-  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [sortColumn, setSortColumn] = useState<'title' | 'category' | 'status' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const eventSelection = useAdminBulkSelection()
+  const eventSort = useAdminSort<EventSortColumn>()
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
@@ -72,6 +78,8 @@ export default function EventsPage() {
       if (!currentSite?.id) {
         setLoading(false)
         setEvents([])
+        setEventCategories({})
+        setTotal(0)
         return
       }
 
@@ -99,12 +107,11 @@ export default function EventsPage() {
     }
 
     loadEvents()
-  }, [currentSite?.id, currentPage])
+  }, [currentSite?.id, currentPage, pageSize])
 
   // Handle delete confirmation
   const handleDeleteClick = (eventId: string) => {
     setPendingDeleteId(eventId)
-    setConfirmDialogOpen(true)
   }
 
   const handleDeleteConfirm = async () => {
@@ -113,7 +120,6 @@ export default function EventsPage() {
     const eventIdToDelete = pendingDeleteId
 
     // Close dialog immediately and clear state
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
 
     try {
@@ -136,7 +142,6 @@ export default function EventsPage() {
   }
 
   const handleDeleteCancel = () => {
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
     setDeleting(false)
   }
@@ -173,63 +178,32 @@ export default function EventsPage() {
     setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e))
   }
 
-  const toggleSelectEvent = (eventId: string) => {
-    setSelectedEventIds(prev => {
-      const next = new Set(prev)
-      if (next.has(eventId)) {
-        next.delete(eventId)
-        setAllSelected(false)
-      } else {
-        next.add(eventId)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedEventIds.size === filteredEvents.length) {
-      setSelectedEventIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedEventIds(new Set(filteredEvents.map(e => e.id)))
-    }
-  }
-
   // Select all items across all pages (lightweight ID-only fetch)
   const handleSelectAll = async () => {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getEventIdsAction(currentSite.id)
     if (ids) {
-      setSelectedEventIds(new Set(ids))
-      setAllSelected(true)
+      eventSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedEventIds(new Set())
-    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const ids = Array.from(selectedEventIds)
+      const ids = Array.from(eventSelection.selectedIds)
+      const idsToDelete = new Set(ids)
       const { success, error: deleteError } = await deleteEventsAction(ids)
       if (deleteError) {
         setErrorMessage(deleteError || 'Failed to delete events')
-        setErrorDialogOpen(true)
         return
       }
       if (success) {
-        setEvents(prev => prev.filter(e => !selectedEventIds.has(e.id)))
-        setSelectedEventIds(new Set())
-        setAllSelected(false)
+        setEvents(prev => prev.filter(e => !idsToDelete.has(e.id)))
+        eventSelection.clearSelection()
       }
     } catch (err) {
       setErrorMessage('Failed to delete events')
-      setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
     }
@@ -266,39 +240,20 @@ export default function EventsPage() {
     return statusMatch && privacyMatch && searchMatch
   })
 
-  const toggleSort = (column: 'title' | 'category' | 'status' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'title' | 'category' | 'status' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedEvents = [...filteredEvents].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
-    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (sortColumn === 'category') {
+    if (!eventSort.sortColumn) return 0
+    const dir = eventSort.sortDirection === 'asc' ? 1 : -1
+    if (eventSort.sortColumn === 'title') return a.title.localeCompare(b.title) * dir
+    if (eventSort.sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (eventSort.sortColumn === 'category') {
       const aCat = eventCategories[a.id]?.[0]?.title || '\uffff'
       const bCat = eventCategories[b.id]?.[0]?.title || '\uffff'
       return aCat.localeCompare(bCat) * dir
     }
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (eventSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+  const filteredEventIds = filteredEvents.map((event) => event.id)
 
   // Get counts for each status
   const statusCounts = {
@@ -336,7 +291,7 @@ export default function EventsPage() {
             }}
             filterMenu={{
               value: filterStatus,
-              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedEventIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); eventSelection.clearSelection(); setCurrentPage(1) },
               items: [
                 { value: "all", label: "All", icon: List, count: statusCounts.all },
                 { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
@@ -344,25 +299,11 @@ export default function EventsPage() {
               ],
             }}
             preActions={
-              selectedEventIds.size > 0 ? (
-                <Button
-                  variant="destructive"
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedEventIds.size})</span>
-                    </>
-                  )}
-                </Button>
-              ) : undefined
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={eventSelection.selectedCount}
+              />
             }
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
@@ -378,98 +319,40 @@ export default function EventsPage() {
               <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredEvents.length > 0 && selectedEventIds.size === filteredEvents.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={eventSelection.isPageSelected(filteredEventIds)}
+                    onCheckedChange={() => eventSelection.togglePage(filteredEventIds)}
                     aria-label="Select all events"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('title')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Event</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
-                  </button>
+                  <AdminSortButton active={eventSort.sortColumn === 'title'} direction={eventSort.sortDirection} onClick={() => eventSort.toggleSort('title')}>
+                    Event
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('category')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Category</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('category')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
+                <AdminSortButton active={eventSort.sortColumn === 'category'} direction={eventSort.sortDirection} onClick={() => eventSort.toggleSort('category')}>
+                  Category
+                </AdminSortButton>
+                <AdminSortButton active={eventSort.sortColumn === 'status'} direction={eventSort.sortDirection} onClick={() => eventSort.toggleSort('status')}>
+                  Status
+                </AdminSortButton>
+                <AdminSortButton active={eventSort.sortColumn === 'modified'} direction={eventSort.sortDirection} onClick={() => eventSort.toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredEvents.length > 0 && selectedEventIds.size === filteredEvents.length && total > filteredEvents.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredEvents.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={eventSelection.allSelected}
+              onClearSelection={eventSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={eventSelection.selectedCount}
+              total={total}
+              visibleCount={filteredEvents.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                            <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2"></div>
-                            <div>
-                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-40"></div>
-                              <div className="h-3 bg-muted/60 rounded animate-pulse w-24"></div>
-                            </div>
-                          </div>
-                        </div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16"></div></div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16"></div></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div></div>
-                        <div><div className="h-8 w-8 bg-muted rounded animate-pulse"></div></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton rowCount={3} />
               ) : error ? (
                 <div className="p-6 text-center">
                   <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
@@ -496,13 +379,13 @@ export default function EventsPage() {
                 </div>
               ) : (
                 sortedEvents.map((event) => (
-                  <div key={event.id} className={`p-6 transition-colors ${selectedEventIds.has(event.id) ? 'bg-accent/50' : ''}`}>
+                  <div key={event.id} className={`p-6 transition-colors ${eventSelection.selectedIds.has(event.id) ? 'bg-accent/50' : ''}`}>
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
                           <Checkbox
-                            checked={selectedEventIds.has(event.id)}
-                            onCheckedChange={() => toggleSelectEvent(event.id)}
+                            checked={eventSelection.selectedIds.has(event.id)}
+                            onCheckedChange={() => eventSelection.toggleOne(event.id)}
                             aria-label={`Select ${event.title}`}
                           />
                         <Link
@@ -595,24 +478,19 @@ export default function EventsPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
-              </div>
-            )}
+            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
         </Card>
       </div>
 
       {/* Create Event Modal */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent size="admin">
-          <DialogHeader>
-            <DialogTitle>Create New Event Item</DialogTitle>
-            <DialogDescription>
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Create New Event Item</AdminModalTitle>
+            <AdminModalDescription>
               Add a new item to your events. You can customize the content after creation.
-            </DialogDescription>
-          </DialogHeader>
+            </AdminModalDescription>
+          </AdminModalHeader>
           <CreateEventModal
             onSuccess={(event, continueToBuilder) => {
               setEvents(prev => [...prev, event])
@@ -623,70 +501,27 @@ export default function EventsPage() {
             }}
             onCancel={() => setShowCreateDialog(false)}
           />
-        </DialogContent>
+        </AdminModalContent>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
-      {confirmDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={handleDeleteCancel}
-          />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-            <h2 className="text-lg font-semibold mb-2">Delete Event</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Are you sure you want to delete this event? This action cannot be undone.
-            </p>
-            <div className="flex justify-end space-x-2 mt-6">
-              <Button
-                variant="outline"
-                onClick={handleDeleteCancel}
-                disabled={deleting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDeleteConfirm}
-                disabled={deleting}
-              >
-                {deleting ? 'Deleting...' : 'Delete'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Delete Event"
+        description="Are you sure you want to delete this event? This action cannot be undone."
+        disabled={deleting}
+        confirmLabel={deleting ? "Deleting..." : "Delete"}
+        onCancel={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+      />
 
-      {/* Mass Delete Confirmation Dialog */}
-      {massDeleteConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="fixed inset-0 bg-black/50"
-            onClick={() => setMassDeleteConfirmOpen(false)}
-          />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-            <h2 className="text-lg font-semibold mb-2">Delete {selectedEventIds.size} Event{selectedEventIds.size !== 1 ? 's' : ''}</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Are you sure you want to delete {selectedEventIds.size} event{selectedEventIds.size !== 1 ? 's' : ''}? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                onClick={() => setMassDeleteConfirmOpen(false)}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmMassDelete}
-                variant="destructive"
-              >
-                Delete {selectedEventIds.size} Event{selectedEventIds.size !== 1 ? 's' : ''}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminConfirmDialog
+        open={massDeleteConfirmOpen}
+        title={`Delete ${eventSelection.selectedCount} Event${eventSelection.selectedCount !== 1 ? 's' : ''}`}
+        description={`Are you sure you want to delete ${eventSelection.selectedCount} event${eventSelection.selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel={`Delete ${eventSelection.selectedCount} Event${eventSelection.selectedCount !== 1 ? 's' : ''}`}
+        onCancel={() => setMassDeleteConfirmOpen(false)}
+        onConfirm={confirmMassDelete}
+      />
 
       {/* Settings Modal */}
       {selectedEvent && (
@@ -698,19 +533,13 @@ export default function EventsPage() {
           onSuccess={handleSettingsSuccess}
         />
       )}
-      {/* Error Dialog */}
-      {errorDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-            <h2 className="text-lg font-semibold mb-2">Error</h2>
-            <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-            <div className="flex justify-end">
-              <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminErrorDialog
+        open={errorMessage !== null}
+        message={errorMessage ?? ""}
+        onOpenChange={(open) => {
+          if (!open) setErrorMessage(null)
+        }}
+      />
     </AdminLayout>
     </>
   )
