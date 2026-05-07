@@ -268,6 +268,7 @@ const ChartGroup7 = ({
                 name={activeMetric}
                 stroke={`var(--color-${activeMetric})`}
                 strokeWidth={2}
+                isAnimationActive={false}
                 dot={{ fill: `var(--color-${activeMetric})` }}
                 activeDot={{ r: 6 }}
               >

@@ -162,7 +162,6 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-media-unused", "Unused", "/admin/media/unused", "imagePlus"),
           ]),
           item("item-site-users", "Site Users", resolvedSiteId ? "/admin/site-users" : "/admin/sites", "users"),
-          item("item-analytics", "Analytics", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/analytics`), "analytics"),
           item("item-site-settings", "Site Settings", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings`), "settings", [
             child("child-site-settings-general", "General Settings", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings`), "settings"),
             child("child-site-settings-seo", "SEO", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings/seo`), "search"),
@@ -212,7 +211,6 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   categories: "item-categories",
   media: "item-media",
   "site-users": "item-site-users",
-  analytics: "item-analytics",
   "site-settings": "item-site-settings",
   sites: "item-sites",
   "platform-users": "item-platform-users",
@@ -393,6 +391,15 @@ function hydrateHref(href: string, defaultHref?: string) {
   return sanitizeAdminSidebarHref(href) || sanitizeAdminSidebarHref(defaultHref ?? "")
 }
 
+function isRemovedAnalyticsEntry(entry: Pick<AdminSidebarItem, "id" | "href">) {
+  const id = entry.id.trim()
+  const cleanHref = entry.href.split(/[?#]/)[0]
+
+  return id === "item-analytics" ||
+    id === "analytics" ||
+    /^\/admin\/sites\/[0-9a-f-]{36}\/analytics(?:\/|$)/i.test(cleanHref)
+}
+
 export function resolveAdminSidebarSettings(
   value: unknown,
   context: { siteId?: string | null; pathname?: string | null } = {}
@@ -406,10 +413,10 @@ export function resolveAdminSidebarSettings(
     sections: settings.sections.map((section) => ({
       ...section,
       id: getAliasedDefaultId(section.id),
-      entries: section.entries.map((entry) => {
+      entries: section.entries.flatMap((entry) => {
         const defaultEntry = resolveDefault(metadata.items, entry.id)
 
-        return {
+        const resolvedEntry = {
           ...entry,
           id: getAliasedDefaultId(entry.id),
           href: hydrateHref(entry.href, defaultEntry?.href),
@@ -429,6 +436,8 @@ export function resolveAdminSidebarSettings(
             }
           }),
         }
+
+        return isRemovedAnalyticsEntry(resolvedEntry) ? [] : [resolvedEntry]
       }),
     })),
   }

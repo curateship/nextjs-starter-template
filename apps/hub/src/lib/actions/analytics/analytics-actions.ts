@@ -79,6 +79,10 @@ function getDateRange(period: string): DateRange {
       from.setDate(from.getDate() - 30)
       from.setHours(0, 0, 0, 0)
       break
+    case '365d':
+      from.setDate(from.getDate() - 365)
+      from.setHours(0, 0, 0, 0)
+      break
     case '7d':
     default:
       from.setDate(from.getDate() - 7)
@@ -192,46 +196,6 @@ async function getDashboardTotalsForRange(siteId: string, from: string, to: stri
   }
 }
 
-export async function getAnalyticsOverview(siteId: string, period: string) {
-  if (!await verifyAnalyticsAccess(siteId)) {
-    return { pageViews: 0, uniqueVisitors: 0 }
-  }
-
-  const { from, to } = getDateRange(period)
-
-  try {
-    const result = await db.execute(sql`
-      SELECT
-        (
-          SELECT COALESCE(SUM(page_views), 0)::int
-          FROM analytic_daily_visitors
-          WHERE site_id = ${siteId}::uuid
-            AND day >= ${from}::timestamptz::date
-            AND day <= ${to}::timestamptz::date
-        ) AS page_views,
-        (
-          SELECT COALESCE(SUM(unique_visitors), 0)::int
-          FROM analytic_daily_visitors
-          WHERE site_id = ${siteId}::uuid
-            AND day >= ${from}::timestamptz::date
-            AND day <= ${to}::timestamptz::date
-        ) AS unique_visitors
-    `)
-
-    if (!result.rows || result.rows.length === 0) {
-      return { pageViews: 0, uniqueVisitors: 0 }
-    }
-
-    const data = (result.rows[0] as any) || {}
-    return {
-      pageViews: Number(data.page_views ?? 0),
-      uniqueVisitors: Number(data.unique_visitors ?? 0),
-    } as { pageViews: number; uniqueVisitors: number }
-  } catch {
-    return { pageViews: 0, uniqueVisitors: 0 }
-  }
-}
-
 export async function getTopPages(siteId: string, period: string, limit = 10) {
   if (!await verifyAnalyticsAccess(siteId)) return []
 
@@ -268,13 +232,36 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
 
   try {
     const result = await db.execute(sql`
-      SELECT referrer_counts.domain, SUM(referrer_counts.visits::int)::int AS visits
-      FROM analytic_daily_visitors ads
-      CROSS JOIN LATERAL jsonb_each_text(COALESCE(ads.referrers, '{}'::jsonb)) AS referrer_counts(domain, visits)
-      WHERE ads.site_id = ${siteId}::uuid
-        AND ads.day >= ${from}::timestamptz::date
-        AND ads.day <= ${to}::timestamptz::date
-      GROUP BY referrer_counts.domain
+      WITH daily AS (
+        SELECT
+          page_views::int AS page_views,
+          COALESCE(referrers, '{}'::jsonb) AS referrers
+        FROM analytic_daily_visitors
+        WHERE site_id = ${siteId}::uuid
+          AND day >= ${from}::timestamptz::date
+          AND day <= ${to}::timestamptz::date
+      ),
+      external_referrers AS (
+        SELECT referrer_counts.domain, SUM(referrer_counts.visits::int)::int AS visits
+        FROM daily
+        CROSS JOIN LATERAL jsonb_each_text(daily.referrers) AS referrer_counts(domain, visits)
+        GROUP BY referrer_counts.domain
+      ),
+      direct_referrer AS (
+        SELECT
+          'Direct' AS domain,
+          GREATEST(
+            COALESCE(SUM(page_views), 0) - COALESCE((SELECT SUM(visits) FROM external_referrers), 0),
+            0
+          )::int AS visits
+        FROM daily
+      )
+      SELECT domain, visits
+      FROM (
+        SELECT domain, visits FROM external_referrers
+        UNION ALL
+        SELECT domain, visits FROM direct_referrer WHERE visits > 0
+      ) referrers
       ORDER BY visits DESC
       LIMIT ${safeLimit}
     `)
@@ -282,34 +269,6 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
     return (result.rows || []).map((row: any) => ({
       domain: String(row.domain),
       visits: Number(row.visits),
-    }))
-  } catch {
-    return []
-  }
-}
-
-export async function getTrafficOverTime(siteId: string, period: string) {
-  if (!await verifyAnalyticsAccess(siteId)) return []
-
-  const { from, to } = getDateRange(period)
-
-  try {
-    const result = await db.execute(sql`
-      SELECT
-        to_char(ads.day, 'Mon DD') AS date,
-        ads.page_views::int AS views,
-        ads.unique_visitors::int AS visitors
-      FROM analytic_daily_visitors ads
-      WHERE ads.site_id = ${siteId}::uuid
-        AND ads.day >= ${from}::timestamptz::date
-        AND ads.day <= ${to}::timestamptz::date
-      ORDER BY ads.day
-    `)
-
-    return (result.rows || []).map((row: any) => ({
-      date: String(row.date),
-      views: Number(row.views),
-      visitors: Number(row.visitors),
     }))
   } catch {
     return []
