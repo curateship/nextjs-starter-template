@@ -12,6 +12,13 @@ import {
   matchesAutomationTrigger,
   type AutomationTriggerType,
 } from '@/lib/actions/newsletters/automation-triggers'
+import {
+  emptyNewsletterStatusEventStats,
+  queryNewsletterStatusEvents,
+  type NewsletterStatusEvent,
+  type NewsletterStatusEventFilter,
+  type NewsletterStatusEventStats,
+} from '@/lib/actions/newsletters/status-events-query'
 
 export interface EmailAutomation {
   id: string
@@ -69,6 +76,10 @@ export interface AutomationJourneyIndicator {
   label: string
   next_due_at: string | null
 }
+
+export type AutomationStepStatusEvent = NewsletterStatusEvent
+export type AutomationStepStatusEventFilter = NewsletterStatusEventFilter
+export type AutomationStepStatusStats = NewsletterStatusEventStats
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -843,5 +854,48 @@ export async function getAutomationReport(automationId: string): Promise<{
   } catch (err) {
     console.error('getAutomationReport error:', err)
     return { data: null, error: 'Server error' }
+  }
+}
+
+export async function getAutomationStepStatusEvents(
+  automationId: string,
+  stepOrder: number,
+  options?: { page?: number; pageSize?: number; eventFilter?: AutomationStepStatusEventFilter },
+): Promise<{ data: AutomationStepStatusEvent[] | null; total: number; stats: AutomationStepStatusStats; error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(automationId)) return { data: null, total: 0, stats: emptyNewsletterStatusEventStats, error: 'Invalid ID' }
+
+    const normalizedStepOrder = Math.max(1, Math.floor(Number(stepOrder) || 0))
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, total: 0, stats: emptyNewsletterStatusEventStats, error: 'Not authenticated' }
+
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
+
+    if (!automation) return { data: null, total: 0, stats: emptyNewsletterStatusEventStats, error: 'Not found' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, total: 0, stats: emptyNewsletterStatusEventStats, error: 'Access denied' }
+
+    const result = await queryNewsletterStatusEvents({
+      eventFilter: options?.eventFilter,
+      page: options?.page,
+      pageSize: options?.pageSize,
+      siteId: automation.siteId,
+      sourceId: automationId,
+      sourceType: 'automation',
+      stepOrder: normalizedStepOrder,
+    })
+
+    return {
+      data: result.data,
+      total: result.total,
+      stats: result.stats,
+      error: null,
+    }
+  } catch (err) {
+    console.error('getAutomationStepStatusEvents error:', err)
+    return { data: null, total: 0, stats: emptyNewsletterStatusEventStats, error: 'Server error' }
   }
 }

@@ -5,6 +5,7 @@ import { ChevronDown } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -33,16 +34,27 @@ import {
   type NewsletterStatusEvent,
   type NewsletterStatusEventFilter,
 } from "@/lib/actions/newsletters/newsletter-actions"
+import { getAutomationStepStatusEvents } from "@/lib/actions/newsletters/automation-actions"
 import { cn } from "@/lib/utils/tailwind"
 
 type NewsletterStatusEventsModalProps = {
-  newsletterId: string | null
+  automationId?: string
+  newsletterId?: string | null
   onError: (message: string) => void
   onOpenChange: (open: boolean) => void
   open: boolean
+  showRateCards?: boolean
+  stepOrder?: number | null
+}
+
+type EventRates = {
+  openRate: number
+  clickRate: number
+  unsubscribeRate: number
 }
 
 const STATUS_EVENTS_PAGE_SIZE = 50
+const emptyRates: EventRates = { openRate: 0, clickRate: 0, unsubscribeRate: 0 }
 
 const statusEventFilterOptions: { value: NewsletterStatusEventFilter; label: string }[] = [
   { value: "all", label: "All events" },
@@ -87,21 +99,34 @@ function formatStatusEventDate(dateString: string) {
   })
 }
 
+function hasRates(result: unknown): result is { stats: EventRates } {
+  if (!result || typeof result !== "object" || !("stats" in result)) return false
+  const stats = (result as { stats?: Partial<EventRates> }).stats
+  return typeof stats?.openRate === "number"
+    && typeof stats.clickRate === "number"
+    && typeof stats.unsubscribeRate === "number"
+}
+
 export function NewsletterStatusEventsModal({
+  automationId,
   newsletterId,
   onError,
   onOpenChange,
   open,
+  showRateCards = false,
+  stepOrder,
 }: NewsletterStatusEventsModalProps) {
   const [events, setEvents] = useState<NewsletterStatusEvent[]>([])
+  const [rates, setRates] = useState(emptyRates)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [eventFilter, setEventFilter] = useState<NewsletterStatusEventFilter>("all")
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!open || !newsletterId) {
+    if (!open || (!newsletterId && (!automationId || !stepOrder))) {
       setEvents([])
+      setRates(emptyRates)
       setTotal(0)
       return
     }
@@ -109,18 +134,28 @@ export function NewsletterStatusEventsModal({
     let cancelled = false
     setLoading(true)
 
-    getNewsletterStatusEvents(newsletterId, {
-      page,
-      pageSize: STATUS_EVENTS_PAGE_SIZE,
-      eventFilter,
-    }).then((result) => {
+    const request = automationId && stepOrder
+      ? getAutomationStepStatusEvents(automationId, stepOrder, {
+          page,
+          pageSize: STATUS_EVENTS_PAGE_SIZE,
+          eventFilter,
+        })
+      : getNewsletterStatusEvents(newsletterId!, {
+          page,
+          pageSize: STATUS_EVENTS_PAGE_SIZE,
+          eventFilter,
+        })
+
+    request.then((result) => {
       if (cancelled) return
       if (result.error) {
         onError(result.error)
         setEvents([])
+        setRates(emptyRates)
         setTotal(0)
       } else {
         setEvents(result.data ?? [])
+        setRates(hasRates(result) ? result.stats : emptyRates)
         setTotal(result.total)
       }
       setLoading(false)
@@ -129,10 +164,11 @@ export function NewsletterStatusEventsModal({
     return () => {
       cancelled = true
     }
-  }, [eventFilter, newsletterId, onError, open, page])
+  }, [automationId, eventFilter, newsletterId, onError, open, page, stepOrder])
 
   function resetState() {
     setEvents([])
+    setRates(emptyRates)
     setTotal(0)
     setPage(1)
     setEventFilter("all")
@@ -179,9 +215,20 @@ export function NewsletterStatusEventsModal({
             </DropdownMenu>
           </div>
         </AdminModalHeader>
-        <AdminModalBody className="flex flex-1 flex-col pb-6">
-          <div className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="relative min-h-[420px] flex-1 overflow-hidden sm:min-h-[520px]">
+        <AdminModalBody className="flex flex-1 flex-col">
+          <div className={cn("min-h-0 flex-1", showRateCards ? "grid grid-cols-1 gap-8 sm:grid-cols-3" : "flex flex-col")}>
+            {showRateCards && [
+              ["Open percentage", rates.openRate],
+              ["Click percentage", rates.clickRate],
+              ["Unsub percentage", rates.unsubscribeRate],
+            ].map(([label, rate]) => (
+              <Card key={label} className="m-0 p-6">
+                <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                <p className="mt-2 text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
+              </Card>
+            ))}
+
+            <div className="relative col-span-full min-h-[420px] flex-1 overflow-hidden sm:min-h-[520px]">
               <ScrollArea className="h-full w-full">
                 <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
                   <TableHeader className="sticky top-0 z-20 bg-background">
@@ -238,7 +285,7 @@ export function NewsletterStatusEventsModal({
               </ScrollArea>
             </div>
 
-            <div className="flex items-center justify-between gap-4 pt-4">
+            <div className="col-span-full flex items-center justify-between gap-4 pt-4">
               <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
               <Pagination
                 currentPage={page}

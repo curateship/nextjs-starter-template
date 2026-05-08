@@ -10,6 +10,11 @@ import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
+import {
+  queryNewsletterStatusEvents,
+  type NewsletterStatusEvent as StatusEvent,
+  type NewsletterStatusEventFilter as StatusEventFilter,
+} from '@/lib/actions/newsletters/status-events-query'
 import { randomUUID } from 'crypto'
 
 export interface Newsletter {
@@ -36,20 +41,11 @@ export interface Newsletter {
   updated_at: string
 }
 
-export interface NewsletterStatusEvent {
-  id: string
-  email: string
-  event: string
-  created_at: string
-}
-
-export type NewsletterStatusEventFilter =
-  | 'all'
-  | 'bounced'
-  | 'unsubscribed'
-  | 'opened'
-  | 'clicked'
-  | 'duplicates'
+export type {
+  NewsletterStatusEvent,
+  NewsletterStatusEventFilter,
+  NewsletterStatusEventStats,
+} from '@/lib/actions/newsletters/status-events-query'
 
 interface NewsletterBlock {
   id: string
@@ -427,8 +423,8 @@ export async function getNewsletterById(
 
 export async function getNewsletterStatusEvents(
   newsletterId: string,
-  options?: { page?: number; pageSize?: number; eventFilter?: NewsletterStatusEventFilter },
-): Promise<{ data: NewsletterStatusEvent[] | null; total: number; error: string | null }> {
+  options?: { page?: number; pageSize?: number; eventFilter?: StatusEventFilter },
+): Promise<{ data: StatusEvent[] | null; total: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, total: 0, error: 'Invalid newsletter ID' }
 
@@ -444,108 +440,18 @@ export async function getNewsletterStatusEvents(
     if (!newsletter) return { data: null, total: 0, error: 'Newsletter not found' }
     if (!await verifySiteOwnership(newsletter.siteId, user.id)) return { data: null, total: 0, error: 'Access denied' }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(50, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
-    const allowedFilters = new Set<NewsletterStatusEventFilter>(['all', 'bounced', 'unsubscribed', 'opened', 'clicked', 'duplicates'])
-    const eventFilter = allowedFilters.has(options?.eventFilter ?? 'all') ? options?.eventFilter ?? 'all' : 'all'
-    const filterCondition =
-      eventFilter === 'all'
-        ? sql``
-        : eventFilter === 'duplicates'
-          ? sql`and e.is_duplicate_send = true`
-          : sql`and e.event_type = ${eventFilter}`
-
-    const eventRowsCte = sql`
-      with scoped_events as (
-        select *
-        from newsletter_events
-        where site_id = ${newsletter.siteId}
-          and source_type = 'broadcast'
-          and source_id = ${newsletterId}
-      ),
-      sent_ranked as (
-        select
-          id,
-          contact_id,
-          provider_message_id,
-          created_at,
-          row_number() over (
-            partition by contact_id, provider_message_id
-            order by created_at asc, id asc
-          ) as message_row_number
-        from scoped_events
-        where event_type = 'sent'
-          and contact_id is not null
-          and provider_message_id is not null
-      ),
-      canonical_sent_messages as (
-        select
-          id,
-          contact_id,
-          row_number() over (
-            partition by contact_id
-            order by created_at asc, id asc
-          ) as contact_message_number
-        from sent_ranked
-        where message_row_number = 1
-      ),
-      event_rows as (
-        select
-          e.*,
-          (
-            e.event_type = 'sent'
-            and (
-              coalesce(sr.message_row_number, 1) > 1
-              or coalesce(csm.contact_message_number, 1) > 1
-            )
-          ) as is_duplicate_send
-        from scoped_events e
-        left join sent_ranked sr on sr.id = e.id
-        left join canonical_sent_messages csm on csm.id = e.id
-      )
-    `
-
-    const baseEvents = sql`
-      from event_rows e
-      left join newsletter_contacts c on c.id = e.contact_id
-      where true
-        ${filterCondition}
-    `
-
-    const [rows, countResult] = await Promise.all([
-      db.execute<{
-        id: string
-        email: string | null
-        event: string
-        created_at: Date
-      }>(sql`
-        ${eventRowsCte}
-        select
-          e.id::text,
-          c.email,
-          case when e.is_duplicate_send then 'duplicate' else e.event_type end as event,
-          e.created_at
-        ${baseEvents}
-        order by e.created_at desc
-        limit ${pageSize}
-        offset ${offset}
-      `),
-      db.execute<{ count: number }>(sql`
-        ${eventRowsCte}
-        select count(*)::int as count
-        ${baseEvents}
-      `),
-    ])
+    const result = await queryNewsletterStatusEvents({
+      eventFilter: options?.eventFilter,
+      page: options?.page,
+      pageSize: options?.pageSize,
+      siteId: newsletter.siteId,
+      sourceId: newsletterId,
+      sourceType: 'broadcast',
+    })
 
     return {
-      data: rows.rows.map((row) => ({
-        id: row.id,
-        email: row.email || 'Unknown contact',
-        event: row.event,
-        created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-      })),
-      total: countResult.rows[0]?.count ?? 0,
+      data: result.data,
+      total: result.total,
       error: null,
     }
   } catch (err) {

@@ -45,6 +45,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateAutomationEmailModal } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import type { CreateAutomationEmailInput } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import { AutomationEmailSettingsModal } from "@/components/admin/newsletter-builder/automation/AutomationEmailSettingsModal"
+import { NewsletterStatusEventsModal } from "@/components/admin/newsletter-builder/layout/NewsletterStatusEventsModal"
 import {
   getAutomationById,
   updateAutomation,
@@ -68,7 +69,7 @@ import {
   type AutomationTriggerType,
 } from "@/lib/actions/newsletters/automation-triggers"
 import { cn } from "@/lib/utils/tailwind"
-import { CheckCircle2, Clock, Mail, PencilLine, Plus, Trash2, Zap } from "lucide-react"
+import { BarChart3, CheckCircle2, Clock, Mail, PencilLine, Plus, Trash2, Zap } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
@@ -116,6 +117,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
   const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
   const [editingEmailSettings, setEditingEmailSettings] = useState<AutomationStep | null>(null)
+  const [statusEventsStep, setStatusEventsStep] = useState<AutomationStep | null>(null)
   const siteId = automation?.site_id ?? null
   const endRulesProductAnchor = useComboboxAnchor()
 
@@ -1009,6 +1011,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           <Button
                             variant="ghost"
                             size="sm"
+                            aria-label="View email events"
+                            className="h-8 w-8 p-0"
+                            onClick={event => {
+                              event.stopPropagation()
+                              setStatusEventsStep(node)
+                            }}
+                          >
+                            <BarChart3 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             aria-label="Edit email"
                             className="h-8 w-8 p-0"
                             onClick={event => {
@@ -1084,6 +1098,17 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           onSuccess={step => {
             setNodes(prev => prev.map(node => node.id === step.id ? step : node))
             flash("Saved")
+          }}
+        />
+
+        <NewsletterStatusEventsModal
+          open={statusEventsStep !== null}
+          automationId={automationId}
+          stepOrder={statusEventsStep?.step_order ?? null}
+          showRateCards
+          onError={setError}
+          onOpenChange={open => {
+            if (!open) setStatusEventsStep(null)
           }}
         />
 
