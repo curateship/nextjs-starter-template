@@ -29,6 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CreateAutomationEmailModal } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
+import type { CreateAutomationEmailInput } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import {
   getAutomationById,
   updateAutomation,
@@ -90,6 +93,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDate, setDelayDate] = useState("")
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
+  const [emailCreateOpen, setEmailCreateOpen] = useState(false)
+  const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
   const siteId = automation?.site_id ?? null
 
   useEffect(() => {
@@ -202,25 +207,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setPendingInsertIndex(afterIndex)
 
     if (nodeType === "email") {
-      if (!automation) return
-
-      const tempOrder = 99999 + Math.floor(Math.random() * 1000)
-      const { data, error: createError } = await createStep({
-        automationId: automation.id,
-        stepOrder: tempOrder,
-        nodeType: "email",
-        subject: "New Email",
-      })
-
-      if (createError || !data) {
-        setError(createError || "Failed to create node")
-        return
-      }
-
-      const sorted = [...nodes].sort((a, b) => a.step_order - b.step_order)
-      const newOrder = [...sorted.slice(0, afterIndex), data, ...sorted.slice(afterIndex)]
-      await reorderSteps(automation.id, newOrder.map(node => node.id))
-      router.push(`/admin/newsletters/automations/${automationId}/email/${data.id}`)
+      setEmailCreateActiveTab("general")
+      setEmailCreateOpen(true)
       return
     }
 
@@ -245,6 +233,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       content: nodeData.content || undefined,
       nodeConfig: nodeData.node_config || {},
       delayMinutes: nodeData.delay_minutes || 0,
+      contentBlocks: nodeData.content_blocks || {},
     })
 
     if (createError || !data) {
@@ -258,6 +247,20 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     await reorderSteps(automation.id, newOrder.map(node => node.id))
 
     return data
+  }
+
+  const createEmailNode = async (input: CreateAutomationEmailInput) => {
+    const data = await createAndInsertNode("email", {
+      subject: input.subject,
+      node_config: input.node_config,
+      content_blocks: input.content_blocks,
+    })
+
+    if (!data) return false
+
+    setEmailCreateOpen(false)
+    router.push(`/admin/newsletters/automations/${automationId}/email/${data.id}`)
+    return true
   }
 
   const openDelayEditor = (node: AutomationStep) => {
@@ -839,6 +842,33 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             </div>
           </div>
         </div>
+
+        <Dialog
+          open={emailCreateOpen}
+          onOpenChange={open => {
+            setEmailCreateOpen(open)
+            if (open) setEmailCreateActiveTab("general")
+          }}
+        >
+          <AdminModalContent>
+            <Tabs value={emailCreateActiveTab} onValueChange={setEmailCreateActiveTab} className="flex min-h-0 flex-1 flex-col">
+              <AdminModalHeader>
+                <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
+                  <AdminModalTitle className="shrink-0">Create Email</AdminModalTitle>
+                  <TabsList className="h-9 shrink-0">
+                    <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+                    <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                  </TabsList>
+                </div>
+              </AdminModalHeader>
+              <CreateAutomationEmailModal
+                siteId={siteId || ""}
+                onCreate={createEmailNode}
+                onCancel={() => setEmailCreateOpen(false)}
+              />
+            </Tabs>
+          </AdminModalContent>
+        </Dialog>
 
         <Dialog
           open={triggerEditorOpen}

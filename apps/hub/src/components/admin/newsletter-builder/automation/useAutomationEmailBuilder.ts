@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { getStepById, updateStep, getAutomationById } from "@/lib/actions/newsletters/automation-actions"
-import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "./useBlockEditor"
+import { useBlockEditor, parseBlocksFromJson, blocksToJson } from "../config/useBlockEditor"
 import type { AutomationStep, EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 
 interface UseAutomationEmailBuilderParams {
@@ -93,6 +93,10 @@ export function useAutomationEmailBuilder({ stepId, automationId }: UseAutomatio
     handleDeleteBlock: blockEditor.handleDeleteBlock,
     handleReorderBlocks: blockEditor.handleReorderBlocks,
     handleAddBlocks: blockEditor.handleAddBlocks,
+    applyStepUpdate: (updatedStep: AutomationStep) => {
+      setStep(updatedStep)
+      setSubject(updatedStep.subject || "")
+    },
     handleSave,
     saveSelectedBlockContent: async (content: Record<string, any>, nextSubject = subject) => {
       if (!step) return false

@@ -5,6 +5,83 @@ import { eq, and } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
+import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
+
+const NON_DRIP_BATCH_SIZE = 50
+const ENROLLMENT_SCAN_LIMIT = 500
+
+type AutomationStepRow = typeof emailAutomationSteps.$inferSelect
+type EmailConfig = Awaited<ReturnType<typeof getEmailConfig>>
+
+type DripState = {
+  stepId: string
+  nodeConfig: Record<string, any>
+  dripConfig: Record<string, any>
+  limit: number
+  sent: number
+  reachedLimit: boolean
+}
+
+function getNodeConfig(step: { nodeConfig: unknown }) {
+  if (!step.nodeConfig || typeof step.nodeConfig !== 'object' || Array.isArray(step.nodeConfig)) return {}
+  return step.nodeConfig as Record<string, any>
+}
+
+function getDripConfig(nodeConfig: Record<string, any>) {
+  const dripConfig = nodeConfig.drip_config
+  if (!dripConfig || typeof dripConfig !== 'object' || Array.isArray(dripConfig)) return null
+  return dripConfig as Record<string, any>
+}
+
+function getRandomBetween(minValue: unknown, maxValue: unknown, fallbackMin: number, fallbackMax: number) {
+  const min = Math.max(1, Math.floor(Number(minValue) || fallbackMin))
+  const max = Math.max(min, Math.floor(Number(maxValue) || fallbackMax))
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+function isFutureDate(value: unknown, now: Date) {
+  if (typeof value !== 'string') return false
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) && timestamp > now.getTime()
+}
+
+function getNextBatchAt(dripConfig: Record<string, any>) {
+  const intervalMinutes = getRandomBetween(
+    dripConfig.interval_min_minutes,
+    dripConfig.interval_max_minutes,
+    30,
+    60,
+  )
+  return new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString()
+}
+
+async function saveDripState(state: DripState, now: Date) {
+  if (state.sent === 0) return
+
+  const nextDripConfig: Record<string, any> = {
+    ...state.dripConfig,
+    last_batch_at: now.toISOString(),
+    batches_sent: (Number(state.dripConfig.batches_sent) || 0) + 1,
+    paused_reason: null,
+  }
+
+  if (state.reachedLimit) {
+    nextDripConfig.next_batch_at = getNextBatchAt(state.dripConfig)
+  } else {
+    delete nextDripConfig.next_batch_at
+  }
+
+  await db
+    .update(emailAutomationSteps)
+    .set({
+      nodeConfig: {
+        ...state.nodeConfig,
+        drip_config: nextDripConfig,
+      },
+      updatedAt: now,
+    })
+    .where(eq(emailAutomationSteps.id, state.stepId))
+}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -16,7 +93,7 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
-    // Get active enrollments with their automation's site_id and status — batch of 50
+    // Scan active enrollments; non-drip sends are still capped below.
     const enrollments = await db
       .select({
         id: emailAutomationEnrollments.id,
@@ -34,27 +111,36 @@ export async function GET(request: NextRequest) {
         eq(emailAutomationEnrollments.status, 'active'),
         eq(emailAutomations.status, 'active'),
       ))
-      .limit(50)
+      .limit(ENROLLMENT_SCAN_LIMIT)
 
     if (!enrollments.length) {
       return NextResponse.json({ message: 'No active enrollments', processed: 0 })
     }
 
     let processed = 0
+    let nonDripSent = 0
+    const stepCache = new Map<string, AutomationStepRow | null>()
+    const emailConfigCache = new Map<string, EmailConfig>()
+    const dripStates = new Map<string, DripState>()
 
     for (const enrollment of enrollments) {
       try {
         const siteId = enrollment.automationSiteId
         const nextStepOrder = (enrollment.currentStepOrder ?? 0) + 1
+        const stepCacheKey = `${enrollment.automationId}:${nextStepOrder}`
 
-        // Get next step
-        const [step] = await db
-          .select()
-          .from(emailAutomationSteps)
-          .where(and(
-            eq(emailAutomationSteps.automationId, enrollment.automationId),
-            eq(emailAutomationSteps.stepOrder, nextStepOrder),
-          ))
+        let step = stepCache.get(stepCacheKey)
+        if (!stepCache.has(stepCacheKey)) {
+          const [loadedStep] = await db
+            .select()
+            .from(emailAutomationSteps)
+            .where(and(
+              eq(emailAutomationSteps.automationId, enrollment.automationId),
+              eq(emailAutomationSteps.stepOrder, nextStepOrder),
+            ))
+          step = loadedStep ?? null
+          stepCache.set(stepCacheKey, step)
+        }
 
         if (!step) {
           // No more steps — mark completed
@@ -66,15 +152,54 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        if (!step.subject?.trim()) {
-          // Skip steps with no subject — can't send without one
-          continue
-        }
-
         // Check if delay has passed
         const referenceTime = enrollment.lastStepSentAt || enrollment.enrolledAt
         const dueAt = new Date(new Date(referenceTime).getTime() + step.delayMinutes * 60 * 1000)
         if (now < dueAt) continue
+
+        if (step.nodeType === 'delay') {
+          await db
+            .update(emailAutomationEnrollments)
+            .set({
+              currentStepOrder: nextStepOrder,
+              lastStepSentAt: now,
+            })
+            .where(eq(emailAutomationEnrollments.id, enrollment.id))
+          processed++
+          continue
+        }
+
+        if (!step.subject?.trim()) {
+          // Skip email steps with no subject — can't send without one
+          continue
+        }
+
+        const nodeConfig = getNodeConfig(step)
+        const dripConfig = getDripConfig(nodeConfig)
+        const isDrip = dripConfig?.enabled === true
+        let dripState: DripState | null = null
+
+        if (isDrip && dripConfig) {
+          if (isFutureDate(dripConfig.next_batch_at, now)) continue
+          if (!isWithinNewsletterSendWindow(dripConfig, now)) continue
+
+          dripState = dripStates.get(step.id) || {
+            stepId: step.id,
+            nodeConfig,
+            dripConfig,
+            limit: getRandomBetween(dripConfig.batch_size_min, dripConfig.batch_size_max, 400, 500),
+            sent: 0,
+            reachedLimit: false,
+          }
+          dripStates.set(step.id, dripState)
+
+          if (dripState.sent >= dripState.limit) {
+            dripState.reachedLimit = true
+            continue
+          }
+        } else if (nonDripSent >= NON_DRIP_BATCH_SIZE) {
+          continue
+        }
 
         // Get contact
         const [contact] = await db
@@ -90,8 +215,11 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Get email config
-        const config = await getEmailConfig(siteId)
+        let config = emailConfigCache.get(siteId)
+        if (!emailConfigCache.has(siteId)) {
+          config = await getEmailConfig(siteId)
+          emailConfigCache.set(siteId, config)
+        }
         if (!config?.apiKey || !config?.fromEmail) continue
 
         const provider = getEmailProvider(config.apiKey, config.providerType)
@@ -149,11 +277,22 @@ export async function GET(request: NextRequest) {
             metadata: { step_order: nextStepOrder },
           })
 
+          if (dripState) {
+            dripState.sent++
+            if (dripState.sent >= dripState.limit) dripState.reachedLimit = true
+          } else {
+            nonDripSent++
+          }
+
           processed++
         }
       } catch {
         // Skip failed enrollment, will retry next cron tick
       }
+    }
+
+    for (const state of dripStates.values()) {
+      await saveDripState(state, now)
     }
 
     return NextResponse.json({ message: `Processed ${processed} steps`, processed })

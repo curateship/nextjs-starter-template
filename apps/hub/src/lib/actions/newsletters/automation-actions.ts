@@ -80,6 +80,18 @@ async function generateAutomationEmailHtml(
   return generateEmailHtml(blocks, 600, { sponsorsById })
 }
 
+function getSortedAutomationBlocks(contentBlocks: Record<string, any>) {
+  return Object.values(contentBlocks || {})
+    .filter((block: any) => block?.id && block?.type)
+    .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+    .map((block: any) => ({
+      id: block.id,
+      type: block.type,
+      title: block.title,
+      content: block.content || {},
+    }))
+}
+
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
     .select({ id: sites.id })
@@ -405,6 +417,7 @@ export async function createStep(input: {
   delayMinutes?: number
   subject?: string
   content?: string
+  contentBlocks?: Record<string, any>
 }): Promise<{ data: AutomationStep | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(input.automationId)) return { data: null, error: 'Invalid ID' }
@@ -420,6 +433,12 @@ export async function createStep(input: {
     if (!automation) return { data: null, error: 'Automation not found' }
     if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
 
+    const contentBlocks = input.contentBlocks || {}
+    const sortedBlocks = getSortedAutomationBlocks(contentBlocks)
+    const content = input.nodeType === 'email' && sortedBlocks.length > 0
+      ? await generateAutomationEmailHtml(automation.siteId, sortedBlocks)
+      : (input.content || '')
+
     const [data] = await db
       .insert(emailAutomationSteps)
       .values({
@@ -429,7 +448,8 @@ export async function createStep(input: {
         nodeConfig: input.nodeConfig || {},
         delayMinutes: input.delayMinutes || 0,
         subject: input.subject || null,
-        content: input.content || '',
+        content,
+        contentBlocks,
       })
       .returning()
 
@@ -537,9 +557,7 @@ export async function updateStep(
     if (updates.content_blocks !== undefined) {
       fields.contentBlocks = updates.content_blocks
       // Regenerate email HTML from blocks
-      const blockEntries = Object.values(updates.content_blocks).filter((b: any) => b.id && b.type)
-      const sortedBlocks = (blockEntries as { id: string; type: string; title: string; content: Record<string, any> }[])
-        .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+      const sortedBlocks = getSortedAutomationBlocks(updates.content_blocks)
       if (sortedBlocks.length > 0) {
         fields.content = await generateAutomationEmailHtml(automation.siteId, sortedBlocks)
       }

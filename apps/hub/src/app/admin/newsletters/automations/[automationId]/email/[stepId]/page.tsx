@@ -4,8 +4,9 @@ import { use } from "react"
 import { useRouter } from "next/navigation"
 
 import { NewsletterEditorShell } from "@/components/admin/newsletter-builder/layout/NewsletterEditorShell"
-import { useAutomationEmailBuilder } from "@/components/admin/newsletter-builder/config/useAutomationEmailBuilder"
+import { useAutomationEmailBuilder } from "@/components/admin/newsletter-builder/automation/useAutomationEmailBuilder"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { AutomationEmailSettingsModal } from "@/components/admin/newsletter-builder/automation/AutomationEmailSettingsModal"
 
 interface PageProps {
   params: Promise<{ automationId: string; stepId: string }>
@@ -40,6 +41,15 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
       saveMessage={builder.saveMessage}
       isSaving={builder.isSaving}
       onSave={builder.handleSave}
+      settingsDisabled={!builder.step}
+      renderSettingsModal={(show, setShow) => (
+        <AutomationEmailSettingsModal
+          open={show}
+          onOpenChange={setShow}
+          step={builder.step}
+          onSuccess={builder.applyStepUpdate}
+        />
+      )}
     />
   )
 }
