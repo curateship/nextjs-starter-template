@@ -17,6 +17,10 @@ Before planning or coding in `apps/hub/`:
 
 ## Non-Negotiable Rules
 
+- For HUB builder/admin UI requests, make the smallest visible change that satisfies the request. Do not create broad systems for simple chips, badges, warnings, counts, buttons, or modal fields.
+- If a HUB change starts needing a new helper, server action, hook, polling loop, schema change, or shared abstraction, first try the direct local implementation. If it still seems necessary, keep the returned data display-ready and the UI dumb.
+- If a simple HUB request is growing past roughly 40 lines, stop and explain the tradeoff before continuing. Do not silently keep building.
+- Do not add future-proofing states or adjacent behavior unless the user asked for them or the current UI cannot work without them.
 - Treat current runtime code and `src/lib/db/schema/**` as source of truth.
 - Treat `apps/hub/migrations/**` as historical reference only, not runtime authority.
 - Auth is Better Auth. Do not import Supabase-era assumptions into current code.

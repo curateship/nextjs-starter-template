@@ -8,6 +8,15 @@ Simplicity is mandatory. Always implement the simplest solution that works. If a
 
 Do not expand a small request into broad cleanup, scoring changes, helper abstractions, fallbacks, edge-case systems, or adjacent fixes unless explicitly asked. Make the narrowest change that satisfies the request, then stop. If a nearby issue seems important, mention it instead of patching it.
 
+## Small Request Discipline
+
+- If the user asks for a small visible change, implement the smallest visible change only.
+- Do not turn a UI chip, warning, badge, button, or modal tweak into a generic subsystem, reporting layer, health framework, or reusable abstraction unless the user explicitly asks for that.
+- Before adding a new action, hook, context, polling loop, schema field, helper module, or cross-cutting abstraction, ask: "Can this be done directly in the existing file with less code?" If yes, do that.
+- If the simplest correct implementation appears to need more than about 40 lines, pause and explain why before coding more.
+- Prefer returning display-ready data for tiny UI features instead of exposing broad intermediate state that forces the UI to duplicate business logic.
+- Fix only the requested behavior. Do not add adjacent states, edge-case handling, dashboards, status systems, or future-proofing unless they are required for the exact request.
+
 ## Coding Standards
 
 - Do not layer shortcut props, one-off overrides, or patchwork fixes on top of a mismatched abstraction. If behavior represents a real product or domain variant, name it directly and wire it through the existing pattern.

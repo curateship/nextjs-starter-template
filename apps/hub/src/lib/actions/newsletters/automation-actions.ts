@@ -250,6 +250,53 @@ export async function getAutomationById(automationId: string): Promise<{ data: E
   }
 }
 
+export async function getAutomationJourneyIndicators(automationId: string): Promise<{
+  data: Record<number, string> | null
+  error: string | null
+}> {
+  try {
+    if (!UUID_REGEX.test(automationId)) return { data: null, error: 'Invalid ID' }
+    const user = await getAuthenticatedUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const [automation] = await db
+      .select({ siteId: emailAutomations.siteId })
+      .from(emailAutomations)
+      .where(eq(emailAutomations.id, automationId))
+      .limit(1)
+
+    if (!automation) return { data: null, error: 'Not found' }
+    if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
+
+    const rows = await db.execute<{ step_order: number; count: number }>(sql`
+      select s.step_order, count(*)::int as count
+      from email_automation_steps s
+      join email_automation_enrollments e
+        on e.automation_id = s.automation_id
+        and coalesce(e.current_step_order, 0) + 1 = s.step_order
+      where s.automation_id = ${automationId}
+        and s.node_type = 'delay'
+        and e.status = 'active'
+        and now() < coalesce(e.last_step_sent_at, e.enrolled_at) + (s.delay_minutes * interval '1 minute')
+      group by s.step_order
+      order by s.step_order
+    `)
+
+    const indicators = Object.fromEntries(rows.rows.map(row => {
+      const count = Number(row.count)
+      return [row.step_order, `${count.toLocaleString()} Contact${count === 1 ? '' : 's'} Waiting`]
+    }))
+
+    return {
+      data: indicators,
+      error: null,
+    }
+  } catch (err) {
+    console.error('getAutomationJourneyIndicators error:', err)
+    return { data: null, error: 'Server error' }
+  }
+}
+
 export async function createAutomation(input: {
   siteId: string
   name: string
@@ -337,6 +384,23 @@ export async function updateAutomation(
     if (!data) {
       return { data: null, error: 'Failed to update' }
     }
+
+    const segmentId = data.status === 'active' && data.triggerType === 'segment_added'
+      ? (data.triggerConfig as Record<string, any> | null)?.segment_id
+      : null
+    if (typeof segmentId === 'string' && UUID_REGEX.test(segmentId)) {
+      await db.execute(sql`
+        insert into email_automation_enrollments (automation_id, contact_id, status, current_step_order, metadata)
+        select ${automationId}, nsc.contact_id, 'active', 0, jsonb_build_object('source', 'segment_added', 'segment_id', ${segmentId})
+        from newsletter_segment_contacts nsc
+        join newsletter_contacts nc on nc.id = nsc.contact_id
+        where nsc.segment_id = ${segmentId}
+          and nc.site_id = ${automation.siteId}
+          and nc.status = 'active'
+        on conflict do nothing
+      `)
+    }
+
     return { data: rowToAutomation(data), error: null }
   } catch (err) {
     console.error('updateAutomation error:', err)

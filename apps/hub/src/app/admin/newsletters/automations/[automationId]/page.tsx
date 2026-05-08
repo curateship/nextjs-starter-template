@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, use } from "react"
+import { useCallback, useEffect, useState, use } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
@@ -39,6 +39,7 @@ import {
   updateStep,
   deleteStep,
   reorderSteps,
+  getAutomationJourneyIndicators,
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation, AutomationStep } from "@/lib/actions/newsletters/automation-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
@@ -67,6 +68,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const [automation, setAutomation] = useState<EmailAutomation | null>(null)
   const [nodes, setNodes] = useState<AutomationStep[]>([])
+  const [journeyIndicators, setJourneyIndicators] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,6 +99,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
   const siteId = automation?.site_id ?? null
 
+  const loadJourneyIndicators = useCallback(async () => {
+    const { data } = await getAutomationJourneyIndicators(automationId)
+    if (!data) return
+    setJourneyIndicators(data)
+  }, [automationId])
+
   useEffect(() => {
     let cancelled = false
 
@@ -125,6 +133,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       cancelled = true
     }
   }, [automationId])
+
+  useEffect(() => {
+    void loadJourneyIndicators()
+    const interval = window.setInterval(loadJourneyIndicators, 30000)
+    return () => window.clearInterval(interval)
+  }, [loadJourneyIndicators])
 
   useEffect(() => {
     if (!siteId) {
@@ -198,6 +212,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     if (error) setError(error)
     if (data) setAutomation(data)
+    if (data?.status === "active") void loadJourneyIndicators()
 
     setSaving(false)
   }
@@ -243,10 +258,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     const sorted = [...nodes].sort((a, b) => a.step_order - b.step_order)
     const newOrder = [...sorted.slice(0, pendingInsertIndex), data, ...sorted.slice(pendingInsertIndex)]
-    setNodes(newOrder)
-    await reorderSteps(automation.id, newOrder.map(node => node.id))
+    const nextNodes = newOrder.map((node, index) => ({ ...node, step_order: index + 1 }))
+    setNodes(nextNodes)
+    await reorderSteps(automation.id, nextNodes.map(node => node.id))
+    void loadJourneyIndicators()
 
-    return data
+    return nextNodes[pendingInsertIndex] || data
   }
 
   const createEmailNode = async (input: CreateAutomationEmailInput) => {
@@ -313,6 +330,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       if (error) setError(error)
       if (data) {
         setNodes(prev => prev.map(node => node.id === data.id ? data : node))
+        void loadJourneyIndicators()
         flash("Saved")
       }
     }
@@ -326,6 +344,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (!success) return
 
     setNodes(prev => prev.filter(node => node.id !== nodeId))
+    void loadJourneyIndicators()
     if (editingDelay?.id === nodeId) setEditingDelay(null)
   }
 
@@ -371,6 +390,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const nextPersistedNodes = getAutomationTriggerNodes(data.trigger_type, data.trigger_config)
     setAutomation(data)
     setTriggerNodes(nextPersistedNodes)
+    if (data.status === "active") void loadJourneyIndicators()
     return nextPersistedNodes
   }
 
@@ -760,7 +780,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <div key={node.id} className="w-full">
                   {node.node_type === "delay" ? (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50"
+                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50"
                       onClick={() => openDelayEditor(node)}
                     >
                       <div className="flex items-center justify-between">
@@ -777,6 +797,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             <p className="text-sm font-medium">{formatDelay(node)}</p>
                           </div>
                         </div>
+                        {journeyIndicators[node.step_order] && (
+                          <Badge className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-800 shadow-none hover:bg-yellow-50">
+                            {journeyIndicators[node.step_order]}
+                          </Badge>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
