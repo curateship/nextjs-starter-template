@@ -39,6 +39,7 @@ All app source code, configs, and `.env` files live in `apps/hub/`.
 - The platform base URL is the Coolify sslip.io URL (e.g., `a5nnhgrzwx83prpn63pagwix.5.78.189.158.sslip.io`)
 - Sites without a custom domain are accessed at `{subdomain}.{sslip.io-base-url}`
 - Sites with a custom domain are accessed directly at that domain (e.g., `https://systemeverything.com`)
+- Saving a custom domain stores the non-`www` domain as canonical and updates the single Coolify Hub app with HTTPS FQDNs, including `www` for root domains
 - `systemeverything.com` is NOT the platform — it is just one site's custom domain
 - Site resolution happens via `getSiteFromHeaders()` which reads the `Host` header and resolves the site from the database
 
@@ -53,6 +54,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 **Environment Variables:**
 - `NEXT_PUBLIC_APP_DOMAIN` — the platform base domain (sslip.io URL in production)
 - `NEXT_PUBLIC_APP_URL` — the primary site URL (used for auth, meta tags, etc.)
+- `COOLIFY_BASE_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_HUB_APP_UUID` — server-only settings used to wire verified custom domains into Coolify
 - These are NOT the same thing
 
 **Runtime files to inspect for tenant changes:**

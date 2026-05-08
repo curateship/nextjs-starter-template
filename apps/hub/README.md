@@ -43,6 +43,7 @@ Read these files in this order before changing HUB code:
 - Account-page-builder pages require an existing active site membership and resolve only under `/account/*`.
 - Site-facing auth is provided by the public Pages builder `auth` block. Platform admin auth is handled separately at `/admin-login`.
 - `NEXT_PUBLIC_APP_DOMAIN` is the platform base domain. It is not a site's custom domain.
+- Saving a custom domain verifies the TXT ownership record, stores the non-`www` domain as canonical, and wires root domains plus `www` into the single Coolify Hub app.
 - Directory detail pages can load `content_blocks`, but large directory list/search/admin paths should only read lean top-level columns.
 
 ## Task Preflight

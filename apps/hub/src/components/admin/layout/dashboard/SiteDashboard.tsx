@@ -261,10 +261,10 @@ export function SiteDashboard({
               id="customDomain"
               value={customDomain}
               onChange={(e) => onCustomDomainChange(e.target.value)}
-              placeholder="example.com or localhost:3000"
+              placeholder="example.com"
             />
             <div className="text-xs text-muted-foreground">
-              <p>Enter a custom domain to serve this site from (e.g., localhost:3000 for local development)</p>
+              <p>Enter the main domain. Hub also wires the www version when available.</p>
               {customDomain && (
                 <p className="text-blue-600 mt-1">
                   Site will be accessible at: <strong>{customDomain}</strong>

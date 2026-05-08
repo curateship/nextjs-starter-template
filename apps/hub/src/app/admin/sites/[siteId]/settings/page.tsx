@@ -606,6 +606,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
         if (data) {
           setSite(prev => prev ? { ...prev, ...data } : null)
+          setCustomDomain(data.custom_domain || "")
           if (currentSite?.id === siteId) {
             setCurrentSite({ ...currentSite, ...data })
           }

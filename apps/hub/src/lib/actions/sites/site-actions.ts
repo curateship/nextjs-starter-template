@@ -2,7 +2,7 @@
 
 import { createHmac } from 'node:crypto'
 import { resolveTxt } from 'node:dns/promises'
-import { eq, and, ne, desc, asc } from 'drizzle-orm'
+import { eq, and, ne, desc, asc, inArray } from 'drizzle-orm'
 import { revalidateTag, revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
@@ -75,8 +75,92 @@ function sanitizeCustomDomain(input?: string | null): string | null {
   d = d.replace(/^https?:\/\//, '')
   d = d.replace(/^\/+/, '')
   d = d.split('/')[0].split('?')[0].split('#')[0]
+  d = d.replace(/^www\./, '')
   if (!d) return null
   return d
+}
+
+function getCustomDomainAliases(domain: string) {
+  const aliases = [domain]
+  if (domain.split('.').length === 2) aliases.push(`www.${domain}`)
+  return aliases
+}
+
+function getCustomDomainCoolifyFqdns(domain: string) {
+  return getCustomDomainAliases(domain).map((alias) => `https://${alias}`)
+}
+
+function getCoolifyApiBaseUrl() {
+  const baseUrl = process.env.COOLIFY_BASE_URL?.trim().replace(/\/+$/, '')
+  if (!baseUrl) return null
+  if (baseUrl.endsWith('/api')) return `${baseUrl}/v1`
+  return baseUrl.endsWith('/api/v1') ? baseUrl : `${baseUrl}/api/v1`
+}
+
+function parseCoolifyDomains(value: unknown) {
+  if (typeof value !== 'string') return []
+  return value.split(',').map((domain) => domain.trim()).filter(Boolean)
+}
+
+async function getCoolifyJson(url: string, token: string) {
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Coolify returned ${response.status}`)
+  }
+
+  return response.json() as Promise<{ fqdn?: string | null; data?: { fqdn?: string | null } }>
+}
+
+async function wireCustomDomainInCoolify(domain: string): Promise<string | null> {
+  const baseUrl = getCoolifyApiBaseUrl()
+  const token = process.env.COOLIFY_API_TOKEN?.trim()
+  const appUuid = process.env.COOLIFY_HUB_APP_UUID?.trim()
+
+  if (!baseUrl || !token || !appUuid) {
+    return 'Coolify domain wiring is not configured'
+  }
+
+  try {
+    new URL(baseUrl)
+  } catch {
+    return 'Coolify domain wiring is misconfigured'
+  }
+
+  try {
+    const appUrl = `${baseUrl}/applications/${encodeURIComponent(appUuid)}`
+    const app = await getCoolifyJson(appUrl, token)
+    const currentFqdn = app.data?.fqdn ?? app.fqdn
+    if (typeof currentFqdn !== 'string') {
+      return 'Failed to read current Coolify domains'
+    }
+
+    const currentDomains = parseCoolifyDomains(currentFqdn)
+    const nextDomains = Array.from(new Set([...currentDomains, ...getCustomDomainCoolifyFqdns(domain)]))
+
+    if (nextDomains.length === currentDomains.length) return null
+
+    const response = await fetch(appUrl, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ domains: nextDomains.join(',') }),
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      return `Coolify rejected the custom domain update (${response.status})`
+    }
+  } catch {
+    return 'Failed to wire custom domain in Coolify'
+  }
+
+  return null
 }
 
 function getCustomDomainVerificationSecret() {
@@ -130,8 +214,8 @@ async function prepareCustomDomain(
 
   const existing = await db.query.sites.findFirst({
     where: currentSiteId
-      ? and(eq(sites.customDomain, domain), ne(sites.id, currentSiteId))
-      : eq(sites.customDomain, domain),
+      ? and(inArray(sites.customDomain, getCustomDomainAliases(domain)), ne(sites.id, currentSiteId))
+      : inArray(sites.customDomain, getCustomDomainAliases(domain)),
     columns: { id: true },
   })
   if (existing) {
@@ -150,6 +234,9 @@ async function prepareCustomDomain(
       error: `Add TXT record ${getCustomDomainVerificationRecord(domain)} with value ${verificationValue} before using this domain`,
     }
   }
+
+  const coolifyError = await wireCustomDomainInCoolify(domain)
+  if (coolifyError) return { domain: null, error: coolifyError }
 
   return { domain, error: null }
 }
@@ -381,7 +468,7 @@ export async function updateSiteAction(
 
     const ownedSite = await db.query.sites.findFirst({
       where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
-      columns: { id: true },
+      columns: { id: true, customDomain: true },
     })
     if (!ownedSite) return { data: null, error: 'Site not found or access denied' }
 
@@ -419,9 +506,12 @@ export async function updateSiteAction(
     }
 
     if (updates.hasOwnProperty('custom_domain')) {
-      const customDomain = await prepareCustomDomain(updates.custom_domain as any, user.id, siteId)
-      if (customDomain.error) return { data: null, error: customDomain.error }
-      finalUpdates.customDomain = customDomain.domain
+      const requestedDomain = sanitizeCustomDomain(updates.custom_domain)
+      if (requestedDomain !== (ownedSite.customDomain || null)) {
+        const customDomain = await prepareCustomDomain(updates.custom_domain, user.id, siteId)
+        if (customDomain.error) return { data: null, error: customDomain.error }
+        finalUpdates.customDomain = customDomain.domain
+      }
     }
 
     finalUpdates.updatedAt = new Date()
