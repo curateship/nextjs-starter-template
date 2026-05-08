@@ -74,6 +74,11 @@ export function useAdminBulkSelection() {
     setAllSelected(ids.length > 0)
   }, [])
 
+  const selectOnly = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids))
+    setAllSelected(false)
+  }, [])
+
   const remove = useCallback((id: string) => {
     setSelectedIds((current) => {
       const next = new Set(current)
@@ -95,6 +100,7 @@ export function useAdminBulkSelection() {
     toggleOne,
     togglePage,
     selectAll,
+    selectOnly,
     remove,
     isPageSelected,
   }

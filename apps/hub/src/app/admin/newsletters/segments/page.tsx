@@ -13,6 +13,16 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
 } from "@/components/ui/dialog"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,7 +47,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Trash2, Settings, Users, ArrowUp, ArrowDown, ChevronsUpDown, X } from "lucide-react"
+import { Trash2, Settings, Users, X } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getSegmentsWithCounts,
@@ -49,7 +59,6 @@ import {
   getSegmentsBySite,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   formatSegmentDynamicRule,
@@ -70,6 +79,8 @@ type DynamicConditionForm =
   | { id: string; type: "tag_match"; operator: SegmentTagRuleOperator; tags: string[] }
   | { id: string; type: "status_match"; operator: SegmentDynamicRuleOperator; status: SegmentContactStatus }
   | { id: string; type: "segment_exclusion"; segmentId: string }
+
+type SegmentSortColumn = 'name' | 'contacts' | 'modified'
 
 function makeConditionId() {
   return `condition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -194,9 +205,7 @@ export default function SegmentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
+  const segmentSelection = useAdminBulkSelection()
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({})
@@ -205,8 +214,7 @@ export default function SegmentsPage() {
   const [total, setTotal] = useState(0)
 
   // Sort state
-  const [sortColumn, setSortColumn] = useState<'name' | 'contacts' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const segmentSort = useAdminSort<SegmentSortColumn>()
 
   // Create/Edit modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -330,38 +338,15 @@ export default function SegmentsPage() {
 
   async function handleMassDelete() {
     setMassDeleting(true)
-    const { error: deleteError } = await deleteSegments(Array.from(selectedIds))
+    const { error: deleteError } = await deleteSegments(Array.from(segmentSelection.selectedIds))
     if (deleteError) {
       setError(deleteError)
     } else {
-      setSelectedIds(new Set())
-      setAllSelected(false)
+      segmentSelection.clearSelection()
     }
     setMassDeleting(false)
     setMassDeleteConfirmOpen(false)
     loadSegments()
-  }
-
-  function toggleSelect(id: string) {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-        setAllSelected(false)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === filteredSegments.length) {
-      setSelectedIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedIds(new Set(filteredSegments.map(s => s.id)))
-    }
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -369,35 +354,8 @@ export default function SegmentsPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getSegmentIdsAction(currentSite.id)
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      segmentSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
-  }
-
-  const toggleSort = (column: 'name' | 'contacts' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'name' | 'contacts' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
@@ -407,17 +365,18 @@ export default function SegmentsPage() {
   })
 
   const sortedSegments = [...filteredSegments].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (sortColumn === 'contacts') {
+    if (!segmentSort.sortColumn) return 0
+    const dir = segmentSort.sortDirection === 'asc' ? 1 : -1
+    if (segmentSort.sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (segmentSort.sortColumn === 'contacts') {
       const aCount = contactCounts[a.id] ?? 0
       const bCount = contactCounts[b.id] ?? 0
       return (aCount - bCount) * dir
     }
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (segmentSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+  const filteredSegmentIds = filteredSegments.map((segment) => segment.id)
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -491,25 +450,11 @@ export default function SegmentsPage() {
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={segmentSelection.selectedCount}
+                />
                 <Button onClick={openCreateModal}>Create Segment</Button>
               </div>
             }
@@ -521,86 +466,38 @@ export default function SegmentsPage() {
               <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredSegments.length > 0 && selectedIds.size === filteredSegments.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={segmentSelection.isPageSelected(filteredSegmentIds)}
+                    onCheckedChange={() => segmentSelection.togglePage(filteredSegmentIds)}
                     aria-label="Select all segments"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('name')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Name</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
-                  </button>
+                  <AdminSortButton active={segmentSort.sortColumn === 'name'} direction={segmentSort.sortDirection} onClick={() => segmentSort.toggleSort('name')}>
+                    Name
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('contacts')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Contacts</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('contacts')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
+                <AdminSortButton active={segmentSort.sortColumn === 'contacts'} direction={segmentSort.sortDirection} onClick={() => segmentSort.toggleSort('contacts')}>
+                  Contacts
+                </AdminSortButton>
+                <AdminSortButton active={segmentSort.sortColumn === 'modified'} direction={segmentSort.sortDirection} onClick={() => segmentSort.toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredSegments.length > 0 && selectedIds.size === filteredSegments.length && total > filteredSegments.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredSegments.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={segmentSelection.allSelected}
+              onClearSelection={segmentSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={segmentSelection.selectedCount}
+              total={total}
+              visibleCount={filteredSegments.length}
+            />
 
             {/* Table Body */}
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-5 gap-4 items-center">
-                        <div className="col-span-2 flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                          <div>
-                            <div className="h-4 bg-muted rounded animate-pulse mb-2 w-40" />
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-24" />
-                          </div>
-                        </div>
-                        <div><div className="h-4 bg-muted/60 rounded animate-pulse w-12" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-20" /></div>
-                        <div className="flex gap-1">
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={5} showThumbnail={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -618,12 +515,12 @@ export default function SegmentsPage() {
                 </div>
               ) : (
                 sortedSegments.map((segment) => (
-                  <div key={segment.id} className={`p-6 transition-colors ${selectedIds.has(segment.id) ? "bg-accent/50" : ""}`}>
+                  <div key={segment.id} className={`p-6 transition-colors ${segmentSelection.selectedIds.has(segment.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
-                          checked={selectedIds.has(segment.id)}
-                          onCheckedChange={() => toggleSelect(segment.id)}
+                          checked={segmentSelection.selectedIds.has(segment.id)}
+                          onCheckedChange={() => segmentSelection.toggleOne(segment.id)}
                           aria-label={`Select ${segment.name}`}
                         />
                         <Link
@@ -669,7 +566,7 @@ export default function SegmentsPage() {
                           size="sm"
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
                           onClick={() => {
-                            setSelectedIds(new Set([segment.id]))
+                            segmentSelection.selectOnly([segment.id])
                             setMassDeleteConfirmOpen(true)
                           }}
                           title="Delete Segment"
@@ -683,20 +580,16 @@ export default function SegmentsPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo
-                  currentPage={currentPage}
-                  pageSize={pageSize}
-                  total={total}
-                />
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
-                  showFirstLast={false}
-                />
-              </div>
+            {!loading && (
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={(page) => {
+                  setCurrentPage(page)
+                  segmentSelection.clearSelection()
+                }}
+              />
             )}
           </Card>
         </div>
@@ -1036,24 +929,15 @@ export default function SegmentsPage() {
         </AdminModalContent>
       </Dialog>
 
-      {/* Mass Delete Confirmation */}
-      {massDeleteConfirmOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-60">
-            <h2 className="text-lg font-semibold mb-2">Delete Segments</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Are you sure you want to delete {selectedIds.size} segment{selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
-              <Button onClick={handleMassDelete} variant="destructive" disabled={massDeleting}>
-                {massDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminConfirmDialog
+        open={massDeleteConfirmOpen}
+        title="Delete Segments"
+        description={`Are you sure you want to delete ${segmentSelection.selectedCount} segment${segmentSelection.selectedCount !== 1 ? "s" : ""}? This cannot be undone.`}
+        confirmLabel={massDeleting ? "Deleting..." : "Delete"}
+        disabled={massDeleting}
+        onCancel={() => setMassDeleteConfirmOpen(false)}
+        onConfirm={handleMassDelete}
+      />
     </>
   )
 }

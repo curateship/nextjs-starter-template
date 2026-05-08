@@ -19,6 +19,18 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatRelativeDate,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
+import {
   AdminModalBody,
   AdminModalContent,
   AdminModalHeader,
@@ -39,13 +51,15 @@ import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewslet
 import type { NewsletterStatusEvent, NewsletterStatusEventFilter } from "@/lib/actions/newsletters/newsletter-actions"
 import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, ArrowUp, ArrowDown, ChevronsUpDown, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
+import { Mail, Trash2, Settings, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
+type NewsletterSortColumn = 'name' | 'opens' | 'clicks' | 'modified'
 
 function getDripStatusLabel(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
@@ -184,21 +198,17 @@ export default function NewslettersPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const newsletterSelection = useAdminBulkSelection()
+  const newsletterSort = useAdminSort<NewsletterSortColumn>()
 
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  const [sortColumn, setSortColumn] = useState<'name' | 'opens' | 'clicks' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === 'sending')
 
   const loadNewsletters = useCallback(async (showSkeleton = true) => {
@@ -274,14 +284,14 @@ export default function NewslettersPage() {
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id)
-    setConfirmDialogOpen(true)
   }
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
-    setConfirmDialogOpen(false)
+    const newsletterId = pendingDeleteId
+    setPendingDeleteId(null)
 
-    const { success, error } = await deleteNewsletters([pendingDeleteId])
+    const { success, error } = await deleteNewsletters([newsletterId])
     if (error) {
       setErrorMessage(error)
       setErrorDialogOpen(true)
@@ -289,34 +299,10 @@ export default function NewslettersPage() {
     if (success) {
       loadNewsletters()
     }
-    setPendingDeleteId(null)
   }
 
   const cancelDelete = () => {
-    setConfirmDialogOpen(false)
     setPendingDeleteId(null)
-  }
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-        setAllSelected(false)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredNewsletters.length) {
-      setSelectedIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedIds(new Set(filteredNewsletters.map(n => n.id)))
-    }
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -324,30 +310,22 @@ export default function NewslettersPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getNewsletterIdsAction(currentSite.id)
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      newsletterSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const { success, error } = await deleteNewsletters(Array.from(selectedIds))
+      const { success, error } = await deleteNewsletters(Array.from(newsletterSelection.selectedIds))
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
         return
       }
       if (success) {
-        setSelectedIds(new Set())
-        setAllSelected(false)
+        newsletterSelection.clearSelection()
         loadNewsletters()
       }
     } catch {
@@ -368,18 +346,6 @@ export default function NewslettersPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 1) return '1 day ago'
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
-
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredNewsletters = newsletters.filter((n) => {
     let statusMatch = true
@@ -392,43 +358,24 @@ export default function NewslettersPage() {
     return statusMatch && searchMatch
   })
 
-  const toggleSort = (column: 'name' | 'opens' | 'clicks' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'name' | 'opens' | 'clicks' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedNewsletters = [...filteredNewsletters].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'name') return a.subject.localeCompare(b.subject) * dir
-    if (sortColumn === 'opens') {
+    if (!newsletterSort.sortColumn) return 0
+    const dir = newsletterSort.sortDirection === 'asc' ? 1 : -1
+    if (newsletterSort.sortColumn === 'name') return a.subject.localeCompare(b.subject) * dir
+    if (newsletterSort.sortColumn === 'opens') {
       const aRate = a.total_sent > 0 ? a.total_opened / a.total_sent : -1
       const bRate = b.total_sent > 0 ? b.total_opened / b.total_sent : -1
       return (aRate - bRate) * dir
     }
-    if (sortColumn === 'clicks') {
+    if (newsletterSort.sortColumn === 'clicks') {
       const aRate = a.total_sent > 0 ? a.total_clicked / a.total_sent : -1
       const bRate = b.total_sent > 0 ? b.total_clicked / b.total_sent : -1
       return (aRate - bRate) * dir
     }
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (newsletterSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
+  const filteredNewsletterIds = filteredNewsletters.map((newsletter) => newsletter.id)
 
   const statusCounts = {
     all: newsletters.length,
@@ -444,8 +391,7 @@ export default function NewslettersPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value as 'all' | 'draft' | 'sent')
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    newsletterSelection.clearSelection()
     setCurrentPage(1)
   }
 
@@ -511,25 +457,11 @@ export default function NewslettersPage() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {selectedIds.size > 0 ? (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                ) : null}
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={newsletterSelection.selectedCount}
+                />
               </>
             }
             actions={
@@ -548,95 +480,41 @@ export default function NewslettersPage() {
               <div className="grid grid-cols-9 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-4 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={newsletterSelection.isPageSelected(filteredNewsletterIds)}
+                    onCheckedChange={() => newsletterSelection.togglePage(filteredNewsletterIds)}
                     aria-label="Select all newsletters"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('name')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Newsletter</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
-                  </button>
+                  <AdminSortButton active={newsletterSort.sortColumn === 'name'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('name')}>
+                    Newsletter
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('opens')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Opens</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('opens')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('clicks')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Clicks</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('clicks')}</span>
-                </button>
+                <AdminSortButton active={newsletterSort.sortColumn === 'opens'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('opens')}>
+                  Opens
+                </AdminSortButton>
+                <AdminSortButton active={newsletterSort.sortColumn === 'clicks'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('clicks')}>
+                  Clicks
+                </AdminSortButton>
                 <div>Unsubscribes</div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
+                <AdminSortButton active={newsletterSort.sortColumn === 'modified'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredNewsletters.length > 0 && selectedIds.size === filteredNewsletters.length && total > filteredNewsletters.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredNewsletters.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={newsletterSelection.allSelected}
+              onClearSelection={newsletterSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={newsletterSelection.selectedCount}
+              total={total}
+              visibleCount={filteredNewsletters.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-6">
-                      <div className="grid grid-cols-9 gap-4 items-center">
-                        <div className="col-span-4 flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                          <div className="w-12 h-12 bg-muted rounded animate-pulse ml-2" />
-                          <div className="h-4 w-56 max-w-full rounded bg-muted animate-pulse" />
-                        </div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-10" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
-                        <div />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={9} firstColumnSpan={4} rowCount={3} />
               ) : filteredNewsletters.length === 0 ? (
                 <div className="p-8 text-center">
                   <Mail className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -651,13 +529,13 @@ export default function NewslettersPage() {
                 </div>
               ) : (
                 sortedNewsletters.map((newsletter) => (
-                  <div key={newsletter.id} className={`p-6 transition-colors ${selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
+                  <div key={newsletter.id} className={`p-6 transition-colors ${newsletterSelection.selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-9 gap-4 items-center">
                       <div className="col-span-4">
                         <div className="flex items-center space-x-4">
                           <Checkbox
-                            checked={selectedIds.has(newsletter.id)}
-                            onCheckedChange={() => toggleSelect(newsletter.id)}
+                            checked={newsletterSelection.selectedIds.has(newsletter.id)}
+                            onCheckedChange={() => newsletterSelection.toggleOne(newsletter.id)}
                             aria-label={`Select ${newsletter.subject}`}
                           />
                           <div className="w-12 h-12 bg-muted rounded flex items-center justify-center ml-2">
@@ -746,7 +624,7 @@ export default function NewslettersPage() {
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">
-                          {formatDate(newsletter.updated_at)}
+                          {formatRelativeDate(newsletter.updated_at)}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -784,12 +662,7 @@ export default function NewslettersPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
-              </div>
-            )}
+            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
           </Card>
 
           {/* Create Newsletter Dialog */}
@@ -934,55 +807,29 @@ export default function NewslettersPage() {
             </AdminModalContent>
           </Dialog>
 
-          {/* Confirmation Dialog */}
-          {confirmDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={cancelDelete} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete Newsletter</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Are you sure you want to delete this newsletter? This action cannot be undone.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={cancelDelete} variant="outline">Cancel</Button>
-                  <Button onClick={confirmDelete} variant="destructive">Delete</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={pendingDeleteId !== null}
+            title="Delete Newsletter"
+            description="Are you sure you want to delete this newsletter? This action cannot be undone."
+            onCancel={cancelDelete}
+            onConfirm={confirmDelete}
+          />
 
-          {/* Mass Delete Confirmation */}
-          {massDeleteConfirmOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete {selectedIds.size} Newsletter{selectedIds.size !== 1 ? "s" : ""}</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Are you sure you want to delete {selectedIds.size} newsletter{selectedIds.size !== 1 ? "s" : ""}? This action cannot be undone.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
-                  <Button onClick={confirmMassDelete} variant="destructive">
-                    Delete {selectedIds.size} Newsletter{selectedIds.size !== 1 ? "s" : ""}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={massDeleteConfirmOpen}
+            title={`Delete ${newsletterSelection.selectedCount} Newsletter${newsletterSelection.selectedCount !== 1 ? "s" : ""}`}
+            description={`Are you sure you want to delete ${newsletterSelection.selectedCount} newsletter${newsletterSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
+            confirmLabel={`Delete ${newsletterSelection.selectedCount} Newsletter${newsletterSelection.selectedCount !== 1 ? "s" : ""}`}
+            disabled={massDeleting}
+            onCancel={() => setMassDeleteConfirmOpen(false)}
+            onConfirm={confirmMassDelete}
+          />
 
-          {/* Error Dialog */}
-          {errorDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Error</h2>
-                <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-                <div className="flex justify-end">
-                  <Button onClick={() => setErrorDialogOpen(false)}>OK</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminErrorDialog
+            open={errorDialogOpen}
+            message={errorMessage}
+            onOpenChange={setErrorDialogOpen}
+          />
         </div>
       </AdminLayout>
 

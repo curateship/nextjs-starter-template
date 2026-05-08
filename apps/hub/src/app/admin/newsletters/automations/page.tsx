@@ -12,10 +12,20 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-
 import {
   Dialog,
 } from "@/components/ui/dialog"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import {
   AdminModalBody,
   AdminModalContent,
@@ -24,7 +34,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import { Trash2, Settings, Zap, Mail, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Play, Pause, FileEdit, ChevronDown } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, Plus, List, Play, Pause, FileEdit, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getAutomationsBySite,
@@ -33,10 +43,11 @@ import {
   getAutomationIdsAction,
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { AUTOMATION_TRIGGER_SHORT_LABELS, getAutomationTriggerNodes } from "@/lib/actions/newsletters/automation-triggers"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+
+type AutomationSortColumn = 'name' | 'trigger' | 'status' | 'steps' | 'enrolled'
 
 export default function EmailAutomationsPage() {
   const router = useRouter()
@@ -45,12 +56,8 @@ export default function EmailAutomationsPage() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
@@ -60,8 +67,8 @@ export default function EmailAutomationsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  const [sortColumn, setSortColumn] = useState<'name' | 'trigger' | 'status' | 'steps' | 'enrolled' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const automationSelection = useAdminBulkSelection()
+  const automationSort = useAdminSort<AutomationSortColumn>()
 
   const loadAutomations = useCallback(async () => {
     if (!currentSite?.id) { setLoading(true); setAutomations([]); return }
@@ -75,24 +82,15 @@ export default function EmailAutomationsPage() {
 
   useEffect(() => { loadAutomations() }, [loadAutomations])
 
-  const handleDelete = (id: string) => { setPendingDeleteId(id); setConfirmDialogOpen(true) }
+  const handleDelete = (id: string) => { setPendingDeleteId(id) }
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
-    setConfirmDialogOpen(false)
-    const { success, error } = await deleteAutomations([pendingDeleteId])
+    const automationId = pendingDeleteId
+    setPendingDeleteId(null)
+    const { success, error } = await deleteAutomations([automationId])
     if (error) { setErrorMessage(error); setErrorDialogOpen(true) }
     if (success) loadAutomations()
-    setPendingDeleteId(null)
-  }
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) { next.delete(id); setAllSelected(false) } else { next.add(id) }; return next })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filtered.length) { setSelectedIds(new Set()); setAllSelected(false) }
-    else setSelectedIds(new Set(filtered.map(a => a.id)))
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -100,23 +98,16 @@ export default function EmailAutomationsPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getAutomationIdsAction(currentSite.id)
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      automationSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
   }
 
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
-    const { success, error } = await deleteAutomations(Array.from(selectedIds))
+    const { success, error } = await deleteAutomations(Array.from(automationSelection.selectedIds))
     if (error) { setErrorMessage(error); setErrorDialogOpen(true) }
-    if (success) { setSelectedIds(new Set()); setAllSelected(false); loadAutomations() }
+    if (success) { automationSelection.clearSelection(); loadAutomations() }
     setMassDeleting(false)
   }
 
@@ -151,36 +142,17 @@ export default function EmailAutomationsPage() {
     return statusMatch && searchMatch
   })
 
-  const toggleSort = (column: 'name' | 'trigger' | 'status' | 'steps' | 'enrolled') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'name' | 'trigger' | 'status' | 'steps' | 'enrolled') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedAutomations = [...filtered].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (sortColumn === 'trigger') return getTriggerBadgeLabel(a).localeCompare(getTriggerBadgeLabel(b)) * dir
-    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
-    if (sortColumn === 'steps') return ((a.steps_count ?? 0) - (b.steps_count ?? 0)) * dir
-    if (sortColumn === 'enrolled') return ((a.enrollments_count ?? 0) - (b.enrollments_count ?? 0)) * dir
+    if (!automationSort.sortColumn) return 0
+    const dir = automationSort.sortDirection === 'asc' ? 1 : -1
+    if (automationSort.sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (automationSort.sortColumn === 'trigger') return getTriggerBadgeLabel(a).localeCompare(getTriggerBadgeLabel(b)) * dir
+    if (automationSort.sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (automationSort.sortColumn === 'steps') return ((a.steps_count ?? 0) - (b.steps_count ?? 0)) * dir
+    if (automationSort.sortColumn === 'enrolled') return ((a.enrollments_count ?? 0) - (b.enrollments_count ?? 0)) * dir
     return 0
   })
+  const filteredAutomationIds = filtered.map((automation) => automation.id)
 
   const statusCounts = {
     all: automations.length,
@@ -198,8 +170,7 @@ export default function EmailAutomationsPage() {
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value)
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    automationSelection.clearSelection()
     setCurrentPage(1)
   }
 
@@ -259,12 +230,11 @@ export default function EmailAutomationsPage() {
             }
             actions={
               <>
-                {selectedIds.size > 0 && (
-                  <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                  </Button>
-                )}
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={automationSelection.selectedCount}
+                />
                 <Button onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Automation</span>
@@ -277,95 +247,40 @@ export default function EmailAutomationsPage() {
             <div className="px-6 py-4 border-b bg-muted/30">
               <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox checked={filtered.length > 0 && selectedIds.size === filtered.length} onCheckedChange={toggleSelectAll} />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('name')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Automation</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
-                  </button>
+                  <Checkbox checked={automationSelection.isPageSelected(filteredAutomationIds)} onCheckedChange={() => automationSelection.togglePage(filteredAutomationIds)} />
+                  <AdminSortButton active={automationSort.sortColumn === 'name'} direction={automationSort.sortDirection} onClick={() => automationSort.toggleSort('name')}>
+                    Automation
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('trigger')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Trigger</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('trigger')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('steps')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Steps</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('steps')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('enrolled')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Enrolled</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('enrolled')}</span>
-                </button>
+                <AdminSortButton active={automationSort.sortColumn === 'trigger'} direction={automationSort.sortDirection} onClick={() => automationSort.toggleSort('trigger')}>
+                  Trigger
+                </AdminSortButton>
+                <AdminSortButton active={automationSort.sortColumn === 'status'} direction={automationSort.sortDirection} onClick={() => automationSort.toggleSort('status')}>
+                  Status
+                </AdminSortButton>
+                <AdminSortButton active={automationSort.sortColumn === 'steps'} direction={automationSort.sortDirection} onClick={() => automationSort.toggleSort('steps')}>
+                  Steps
+                </AdminSortButton>
+                <AdminSortButton active={automationSort.sortColumn === 'enrolled'} direction={automationSort.sortDirection} onClick={() => automationSort.toggleSort('enrolled')}>
+                  Enrolled
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filtered.length > 0 && selectedIds.size === filtered.length && total > filtered.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filtered.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={automationSelection.allSelected}
+              onClearSelection={automationSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={automationSelection.selectedCount}
+              total={total}
+              visibleCount={filtered.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                [1, 2, 3].map(i => (
-                  <div key={i} className="p-6"><div className="grid grid-cols-7 gap-4 items-center">
-                    <div className="col-span-2 flex items-center space-x-4">
-                      <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                      <div className="w-10 h-10 bg-muted rounded animate-pulse" />
-                      <div className="h-4 bg-muted rounded animate-pulse w-32" />
-                    </div>
-                    {[1,2,3,4,5].map(j => <div key={j}><div className="h-4 bg-muted rounded animate-pulse w-12" /></div>)}
-                  </div></div>
-                ))
+                <AdminListSkeleton columns={7} rowCount={3} />
               ) : filtered.length === 0 ? (
                 <div className="p-8 text-center">
                   <Zap className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -373,10 +288,10 @@ export default function EmailAutomationsPage() {
                   <Button onClick={() => setCreateOpen(true)} variant="outline">Create Your First Automation</Button>
                 </div>
               ) : sortedAutomations.map(automation => (
-                <div key={automation.id} className={`p-6 transition-colors ${selectedIds.has(automation.id) ? "bg-accent/50" : ""}`}>
+                <div key={automation.id} className={`p-6 transition-colors ${automationSelection.selectedIds.has(automation.id) ? "bg-accent/50" : ""}`}>
                   <div className="grid grid-cols-7 gap-4 items-center">
                     <div className="col-span-2 flex items-center space-x-4">
-                      <Checkbox checked={selectedIds.has(automation.id)} onCheckedChange={() => toggleSelect(automation.id)} />
+                      <Checkbox checked={automationSelection.selectedIds.has(automation.id)} onCheckedChange={() => automationSelection.toggleOne(automation.id)} />
                       <div className="w-10 h-10 bg-muted rounded flex items-center justify-center ml-2">
                         <Mail className="h-5 w-5 text-muted-foreground" />
                       </div>
@@ -405,12 +320,7 @@ export default function EmailAutomationsPage() {
                 </div>
               ))}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
-              </div>
-            )}
+            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
           </Card>
 
           {/* Create Dialog */}
@@ -440,43 +350,27 @@ export default function EmailAutomationsPage() {
             </AdminModalContent>
           </Dialog>
 
-          {/* Delete Confirmations */}
-          {confirmDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => { setConfirmDialogOpen(false); setPendingDeleteId(null) }} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete Automation</h2>
-                <p className="text-sm text-muted-foreground mb-4">This will delete the automation and all its steps and enrollments. This cannot be undone.</p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => { setConfirmDialogOpen(false); setPendingDeleteId(null) }} variant="outline">Cancel</Button>
-                  <Button onClick={confirmDelete} variant="destructive">Delete</Button>
-                </div>
-              </div>
-            </div>
-          )}
-          {massDeleteConfirmOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete {selectedIds.size} Automation{selectedIds.size !== 1 ? "s" : ""}</h2>
-                <p className="text-sm text-muted-foreground mb-4">This cannot be undone.</p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
-                  <Button onClick={confirmMassDelete} variant="destructive">Delete {selectedIds.size}</Button>
-                </div>
-              </div>
-            </div>
-          )}
-          {errorDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Error</h2>
-                <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-                <div className="flex justify-end"><Button onClick={() => setErrorDialogOpen(false)}>OK</Button></div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={pendingDeleteId !== null}
+            title="Delete Automation"
+            description="This will delete the automation and all its steps and enrollments. This cannot be undone."
+            onCancel={() => setPendingDeleteId(null)}
+            onConfirm={confirmDelete}
+          />
+          <AdminConfirmDialog
+            open={massDeleteConfirmOpen}
+            title={`Delete ${automationSelection.selectedCount} Automation${automationSelection.selectedCount !== 1 ? "s" : ""}`}
+            description="This cannot be undone."
+            confirmLabel={`Delete ${automationSelection.selectedCount}`}
+            disabled={massDeleting}
+            onCancel={() => setMassDeleteConfirmOpen(false)}
+            onConfirm={confirmMassDelete}
+          />
+          <AdminErrorDialog
+            open={errorDialogOpen}
+            message={errorMessage}
+            onOpenChange={setErrorDialogOpen}
+          />
         </div>
       </AdminLayout>
     </>

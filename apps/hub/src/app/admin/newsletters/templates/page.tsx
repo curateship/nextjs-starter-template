@@ -12,6 +12,16 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
 } from "@/components/ui/dialog"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -22,7 +32,7 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import { Trash2, Settings, FileText, ArrowUp, ArrowDown, ChevronsUpDown, Star } from "lucide-react"
+import { Trash2, Settings, FileText, Star } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getTemplatesBySite,
@@ -32,8 +42,9 @@ import {
   setDefaultTemplate,
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+
+type TemplateSortColumn = 'name' | 'blocks' | 'modified'
 
 export default function TemplatesPage() {
   const { currentSite } = useSiteSwitcher()
@@ -42,17 +53,14 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
+  const templateSelection = useAdminBulkSelection()
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 50
   const [total, setTotal] = useState(0)
 
-  const [sortColumn, setSortColumn] = useState<'name' | 'blocks' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const templateSort = useAdminSort<TemplateSortColumn>()
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
@@ -112,38 +120,15 @@ export default function TemplatesPage() {
 
   async function handleMassDelete() {
     setMassDeleting(true)
-    const { error: deleteError } = await deleteTemplates(Array.from(selectedIds))
+    const { error: deleteError } = await deleteTemplates(Array.from(templateSelection.selectedIds))
     if (deleteError) {
       setError(deleteError)
     } else {
-      setSelectedIds(new Set())
-      setAllSelected(false)
+      templateSelection.clearSelection()
     }
     setMassDeleting(false)
     setMassDeleteConfirmOpen(false)
     loadTemplates()
-  }
-
-  function toggleSelect(id: string) {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-        setAllSelected(false)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  function toggleSelectAll() {
-    if (selectedIds.size === filteredDeletableTemplates.length) {
-      setSelectedIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedIds(new Set(filteredDeletableTemplates.map(t => t.id)))
-    }
   }
 
   // Select all items across all pages (lightweight ID-only fetch)
@@ -151,35 +136,8 @@ export default function TemplatesPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getTemplateIdsAction(currentSite.id)
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      templateSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
-  }
-
-  const toggleSort = (column: 'name' | 'blocks' | 'modified') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'name' | 'blocks' | 'modified') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
   }
 
   const getBlockCount = (template: NewsletterTemplate) => {
@@ -193,13 +151,16 @@ export default function TemplatesPage() {
     return template.name.toLowerCase().includes(normalizedSearchQuery)
   })
   const filteredDeletableTemplates = filteredTemplates.filter((template) => !template.is_default)
+  const filteredDeletableTemplateIds = filteredDeletableTemplates.map((template) => template.id)
+  const filteredDeletableTemplatesSelected = filteredDeletableTemplateIds.length > 0
+    && filteredDeletableTemplateIds.every((templateId) => templateSelection.selectedIds.has(templateId))
 
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (sortColumn === 'blocks') return (getBlockCount(a) - getBlockCount(b)) * dir
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (!templateSort.sortColumn) return 0
+    const dir = templateSort.sortDirection === 'asc' ? 1 : -1
+    if (templateSort.sortColumn === 'name') return a.name.localeCompare(b.name) * dir
+    if (templateSort.sortColumn === 'blocks') return (getBlockCount(a) - getBlockCount(b)) * dir
+    if (templateSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
 
@@ -231,32 +192,17 @@ export default function TemplatesPage() {
               value: searchQuery,
               onValueChange: (value) => {
                 setSearchQuery(value)
-                setSelectedIds(new Set())
-                setAllSelected(false)
+                templateSelection.clearSelection()
               },
               placeholder: "Search templates",
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
-                    {massDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={templateSelection.selectedCount}
+                />
                 <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }}>
                   Create Template
                 </Button>
@@ -269,82 +215,45 @@ export default function TemplatesPage() {
               <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={filteredDeletableTemplates.length > 0 && filteredDeletableTemplates.every((template) => selectedIds.has(template.id))}
-                    onCheckedChange={toggleSelectAll}
+                    checked={filteredDeletableTemplatesSelected}
+                    onCheckedChange={() => {
+                      if (filteredDeletableTemplatesSelected) {
+                        templateSelection.clearSelection()
+                      } else {
+                        templateSelection.selectOnly(filteredDeletableTemplateIds)
+                      }
+                    }}
                     aria-label="Select all templates"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('name')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Name</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
-                  </button>
+                  <AdminSortButton active={templateSort.sortColumn === 'name'} direction={templateSort.sortDirection} onClick={() => templateSort.toggleSort('name')}>
+                    Name
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('blocks')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Blocks</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('blocks')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
+                <AdminSortButton active={templateSort.sortColumn === 'blocks'} direction={templateSort.sortDirection} onClick={() => templateSort.toggleSort('blocks')}>
+                  Blocks
+                </AdminSortButton>
+                <AdminSortButton active={templateSort.sortColumn === 'modified'} direction={templateSort.sortDirection} onClick={() => templateSort.toggleSort('modified')}>
+                  Modified
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {!normalizedSearchQuery && templates.length > 0 && selectedIds.size === templates.length && total > templates.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{templates.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
+            {!normalizedSearchQuery && (
+              <AdminSelectionBanner
+                allSelected={templateSelection.allSelected}
+                onClearSelection={templateSelection.clearSelection}
+                onSelectAll={handleSelectAll}
+                selectedCount={templateSelection.selectedCount}
+                total={total}
+                visibleCount={templates.length}
+              />
             )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-5 gap-4 items-center">
-                        <div className="col-span-2 flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                          <div className="h-4 bg-muted rounded animate-pulse w-40" />
-                        </div>
-                        <div><div className="h-4 bg-muted/60 rounded animate-pulse w-12" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-20" /></div>
-                        <div className="flex gap-1">
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={5} showThumbnail={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -362,13 +271,13 @@ export default function TemplatesPage() {
                 </div>
               ) : (
                 sortedTemplates.map((template) => (
-                  <div key={template.id} className={`p-6 transition-colors ${selectedIds.has(template.id) ? "bg-accent/50" : ""}`}>
+                  <div key={template.id} className={`p-6 transition-colors ${templateSelection.selectedIds.has(template.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         {/* Default templates can't be selected for deletion */}
                         <Checkbox
-                          checked={selectedIds.has(template.id)}
-                          onCheckedChange={() => toggleSelect(template.id)}
+                          checked={templateSelection.selectedIds.has(template.id)}
+                          onCheckedChange={() => templateSelection.toggleOne(template.id)}
                           aria-label={`Select ${template.name}`}
                           disabled={template.is_default}
                         />
@@ -415,7 +324,7 @@ export default function TemplatesPage() {
                             size="sm"
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
                             onClick={() => {
-                              setSelectedIds(new Set([template.id]))
+                              templateSelection.selectOnly([template.id])
                               setMassDeleteConfirmOpen(true)
                             }}
                             title="Delete Template"
@@ -430,16 +339,16 @@ export default function TemplatesPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
-                  showFirstLast={false}
-                />
-              </div>
+            {!loading && (
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={(page) => {
+                  setCurrentPage(page)
+                  templateSelection.clearSelection()
+                }}
+              />
             )}
           </Card>
         </div>
@@ -484,24 +393,15 @@ export default function TemplatesPage() {
         </AdminModalContent>
       </Dialog>
 
-      {/* Mass Delete Confirmation */}
-      {massDeleteConfirmOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-          <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-[60]">
-            <h2 className="text-lg font-semibold mb-2">Delete Templates</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Are you sure you want to delete {selectedIds.size} template{selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
-              <Button onClick={handleMassDelete} variant="destructive" disabled={massDeleting}>
-                {massDeleting ? "Deleting..." : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminConfirmDialog
+        open={massDeleteConfirmOpen}
+        title="Delete Templates"
+        description={`Are you sure you want to delete ${templateSelection.selectedCount} template${templateSelection.selectedCount !== 1 ? "s" : ""}? This cannot be undone.`}
+        confirmLabel={massDeleting ? "Deleting..." : "Delete"}
+        disabled={massDeleting}
+        onCancel={() => setMassDeleteConfirmOpen(false)}
+        onConfirm={handleMassDelete}
+      />
     </>
   )
 }

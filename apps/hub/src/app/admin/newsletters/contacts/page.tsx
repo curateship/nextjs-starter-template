@@ -12,6 +12,17 @@ import {
   Dialog,
 } from "@/components/ui/dialog"
 import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminErrorDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  useAdminBulkSelection,
+  useAdminSort,
+} from "@/components/admin/layout/list"
+import {
   AdminModalBody,
   AdminModalContent,
   AdminModalDescription,
@@ -37,7 +48,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
-import { Trash2, Settings, Users, Upload, X, ArrowUp, ArrowDown, ChevronsUpDown, Plus, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, Plus, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
 import Link from "next/link"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils/tailwind"
@@ -50,7 +61,6 @@ import {
   getContactIdsAction,
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -145,6 +155,8 @@ function buildNormalizedFilterGroup(
   })
 }
 
+type ContactSortColumn = 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged'
+
 export default function ContactsPage() {
   const { currentSite, loading: siteLoading, pageSize: contextPageSize } = useSiteSwitcher()
   const [contacts, setContacts] = useState<CrmContact[]>([])
@@ -152,17 +164,14 @@ export default function ContactsPage() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
+  const contactSelection = useAdminBulkSelection()
+  const clearContactSelection = contactSelection.clearSelection
+  const contactSort = useAdminSort<ContactSortColumn>()
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
-  const [sortColumn, setSortColumn] = useState<'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
   const deferredSearchQuery = useDeferredValue(searchQuery)
@@ -207,9 +216,8 @@ export default function ContactsPage() {
   }, [currentSite?.id])
 
   useEffect(() => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
-  }, [currentSite?.id, siteLoading])
+    clearContactSelection()
+  }, [clearContactSelection, currentSite?.id, siteLoading])
 
   useEffect(() => {
     if (!filterModalOpen || !currentSite?.id) {
@@ -291,71 +299,30 @@ export default function ContactsPage() {
     loadContacts()
   }, [loadContacts])
 
-  const toggleSort = (column: 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged') => {
-    if (sortColumn === column) {
-      if (sortDirection === 'desc') {
-        setSortColumn(null)
-        setSortDirection('asc')
-      } else {
-        setSortDirection('desc')
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
-
-  const getSortIcon = (column: 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged') => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedContacts = [...contacts].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'contact') return a.email.localeCompare(b.email) * dir
-    if (sortColumn === 'status') return a.status.localeCompare(b.status) * dir
-    if (sortColumn === 'source') {
+    if (!contactSort.sortColumn) return 0
+    const dir = contactSort.sortDirection === 'asc' ? 1 : -1
+    if (contactSort.sortColumn === 'contact') return a.email.localeCompare(b.email) * dir
+    if (contactSort.sortColumn === 'status') return a.status.localeCompare(b.status) * dir
+    if (contactSort.sortColumn === 'source') {
       const aSource = a.metadata?.source || 'manual'
       const bSource = b.metadata?.source || 'manual'
       return aSource.localeCompare(bSource) * dir
     }
-    if (sortColumn === 'tags') {
+    if (contactSort.sortColumn === 'tags') {
       const aTag = a.metadata?.tags?.[0] || '\uffff'
       const bTag = b.metadata?.tags?.[0] || '\uffff'
       return aTag.localeCompare(bTag) * dir
     }
-    if (sortColumn === 'added') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
-    if (sortColumn === 'engaged') {
+    if (contactSort.sortColumn === 'added') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (contactSort.sortColumn === 'engaged') {
       const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
       const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
       return (aTime - bTime) * dir
     }
     return 0
   })
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-        setAllSelected(false)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === contacts.length) {
-      setSelectedIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedIds(new Set(contacts.map(c => c.id)))
-    }
-  }
+  const contactIds = contacts.map((contact) => contact.id)
 
   // Select all items across all pages (lightweight ID-only fetch)
   const handleSelectAll = async () => {
@@ -365,27 +332,20 @@ export default function ContactsPage() {
       searchQuery: deferredSearchQuery,
     })
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      contactSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
   }
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id)
-    setConfirmDialogOpen(true)
   }
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
-    setConfirmDialogOpen(false)
+    const contactId = pendingDeleteId
+    setPendingDeleteId(null)
     try {
-      const { success, error } = await deleteContacts([pendingDeleteId])
+      const { success, error } = await deleteContacts([contactId])
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
@@ -406,7 +366,7 @@ export default function ContactsPage() {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
     try {
-      const ids = Array.from(selectedIds)
+      const ids = Array.from(contactSelection.selectedIds)
       const { success, error } = await deleteContacts(ids)
       if (error) {
         setErrorMessage(error)
@@ -414,8 +374,7 @@ export default function ContactsPage() {
         return
       }
       if (success) {
-        setSelectedIds(new Set())
-        setAllSelected(false)
+        contactSelection.clearSelection()
         loadContacts()
       }
     } catch {
@@ -427,19 +386,18 @@ export default function ContactsPage() {
   }
 
   const handleAddToSegment = async () => {
-    if (!selectedSegmentId || !selectedIds.size) return
+    if (!selectedSegmentId || !contactSelection.selectedCount) return
     setAddingToSegment(true)
     try {
       const segName = segments.find(s => s.id === selectedSegmentId)?.name || "segment"
-      const { added, error } = await addContactsToSegment(Array.from(selectedIds), selectedSegmentId)
+      const { added, error } = await addContactsToSegment(Array.from(contactSelection.selectedIds), selectedSegmentId)
       if (error) {
         setErrorMessage(error)
         setErrorDialogOpen(true)
       } else {
         setSuccessMessage(`${added} contact${added !== 1 ? "s" : ""} added to ${segName}`)
         setTimeout(() => setSuccessMessage(null), 5000)
-        setSelectedIds(new Set())
-        setAllSelected(false)
+        contactSelection.clearSelection()
         setSelectedSegmentId("")
         loadContacts()
       }
@@ -726,8 +684,7 @@ export default function ContactsPage() {
   const hasSearchQuery = deferredSearchQuery.trim().length > 0
   function resetSelectionForFilteredView() {
     setCurrentPage(1)
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    contactSelection.clearSelection()
   }
 
   function openFilterModal() {
@@ -891,12 +848,11 @@ export default function ContactsPage() {
               onValueChange: (value) => {
                 setSearchQuery(value)
                 setCurrentPage(1)
-                setSelectedIds(new Set())
-                setAllSelected(false)
+                contactSelection.clearSelection()
               },
               placeholder: "Search contacts",
             }}
-            preActions={selectedIds.size > 0 ? (
+            preActions={contactSelection.selectedCount > 0 ? (
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {segments.length > 0 && (
                   <div className="flex items-center gap-1.5">
@@ -921,23 +877,11 @@ export default function ContactsPage() {
                     </Button>
                   </div>
                 )}
-                <Button
-                  variant="destructive"
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
                   onClick={() => setMassDeleteConfirmOpen(true)}
-                  disabled={massDeleting}
-                >
-                  {massDeleting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                      <span className="hidden sm:inline">Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                    </>
-                  )}
-                </Button>
+                  selectedCount={contactSelection.selectedCount}
+                />
               </div>
             ) : null}
             actions={
@@ -1000,121 +944,46 @@ export default function ContactsPage() {
               <div className="grid grid-cols-8 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
-                    checked={contacts.length > 0 && selectedIds.size === contacts.length}
-                    onCheckedChange={toggleSelectAll}
+                    checked={contactSelection.isPageSelected(contactIds)}
+                    onCheckedChange={() => contactSelection.togglePage(contactIds)}
                     aria-label="Select all contacts"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('contact')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Contact</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('contact')}</span>
-                  </button>
+                  <AdminSortButton active={contactSort.sortColumn === 'contact'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('contact')}>
+                    Contact
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('source')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Source</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('source')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('tags')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Tags</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('tags')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('added')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Added</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('added')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('engaged')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Last Engaged</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('engaged')}</span>
-                </button>
+                <AdminSortButton active={contactSort.sortColumn === 'source'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('source')}>
+                  Source
+                </AdminSortButton>
+                <AdminSortButton active={contactSort.sortColumn === 'status'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('status')}>
+                  Status
+                </AdminSortButton>
+                <AdminSortButton active={contactSort.sortColumn === 'tags'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('tags')}>
+                  Tags
+                </AdminSortButton>
+                <AdminSortButton active={contactSort.sortColumn === 'added'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('added')}>
+                  Added
+                </AdminSortButton>
+                <AdminSortButton active={contactSort.sortColumn === 'engaged'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('engaged')}>
+                  Last Engaged
+                </AdminSortButton>
                 <div>Actions</div>
               </div>
             </div>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {contacts.length > 0 && selectedIds.size === contacts.length && total > contacts.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{contacts.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            <AdminSelectionBanner
+              allSelected={contactSelection.allSelected}
+              onClearSelection={contactSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={contactSelection.selectedCount}
+              total={total}
+              visibleCount={contacts.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-8 gap-4 items-center">
-                        <div className="col-span-2 flex items-center space-x-4">
-                          <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                          <div>
-                            <div className="h-4 bg-muted rounded animate-pulse mb-2 w-40" />
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-24" />
-                          </div>
-                        </div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-20" /></div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
-                        <div><div className="h-5 bg-muted rounded-full animate-pulse w-16" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-20" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-16" /></div>
-                        <div><div className="h-8 w-8 bg-muted rounded animate-pulse" /></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={8} showThumbnail={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -1139,12 +1008,12 @@ export default function ContactsPage() {
                 </div>
               ) : (
                 sortedContacts.map((contact) => (
-                  <div key={contact.id} className={`p-6 transition-colors ${selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}>
+                  <div key={contact.id} className={`p-6 transition-colors ${contactSelection.selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}>
                     <div className="grid grid-cols-8 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
-                          checked={selectedIds.has(contact.id)}
-                          onCheckedChange={() => toggleSelect(contact.id)}
+                          checked={contactSelection.selectedIds.has(contact.id)}
+                          onCheckedChange={() => contactSelection.toggleOne(contact.id)}
                           aria-label={`Select ${contact.email}`}
                         />
                         <Link
@@ -1208,20 +1077,16 @@ export default function ContactsPage() {
                 ))
               )}
             </div>
-            {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo
-                  currentPage={currentPage}
-                  pageSize={pageSize}
-                  total={total}
-                />
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
-                  showFirstLast={false}
-                />
-              </div>
+            {!loading && (
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={(page) => {
+                  setCurrentPage(page)
+                  contactSelection.clearSelection()
+                }}
+              />
             )}
           </Card>
 
@@ -1532,14 +1397,15 @@ export default function ContactsPage() {
           </Dialog>
 
           {/* Import Modal */}
-          {importModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={closeImportModal} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-8 w-full max-w-2xl z-50 max-h-[80vh] overflow-y-auto">
-                <button onClick={closeImportModal} className="absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100">
-                  <X className="h-4 w-4" />
-                </button>
-
+          <Dialog open={importModalOpen} onOpenChange={(open) => { if (!open) closeImportModal() }}>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>{importResult ? "Import Complete" : "Import Contacts"}</AdminModalTitle>
+                <AdminModalDescription>
+                  Map CSV columns to contact fields before importing.
+                </AdminModalDescription>
+              </AdminModalHeader>
+              <AdminModalBody className="pb-6">
                 {importResult ? (
                   <div className="text-center space-y-4">
                     <div className="p-4 bg-green-50 text-green-800 rounded-lg">
@@ -1644,9 +1510,9 @@ export default function ContactsPage() {
                     </div>
                   </>
                 )}
-              </div>
-            </div>
-          )}
+              </AdminModalBody>
+            </AdminModalContent>
+          </Dialog>
 
           {/* Add Contact Modal */}
           <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
@@ -1785,53 +1651,29 @@ export default function ContactsPage() {
             </AdminModalContent>
           </Dialog>
 
-          {/* Single Delete Confirmation */}
-          {confirmDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => { setConfirmDialogOpen(false); setPendingDeleteId(null) }} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete Contact</h2>
-                <p className="text-sm text-muted-foreground mb-4">Are you sure? This action cannot be undone.</p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => { setConfirmDialogOpen(false); setPendingDeleteId(null) }} variant="outline">Cancel</Button>
-                  <Button onClick={confirmDelete} variant="destructive">Delete</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={pendingDeleteId !== null}
+            title="Delete Contact"
+            description="Are you sure? This action cannot be undone."
+            onCancel={() => setPendingDeleteId(null)}
+            onConfirm={confirmDelete}
+          />
 
-          {/* Mass Delete Confirmation */}
-          {massDeleteConfirmOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Delete {selectedIds.size} Contact{selectedIds.size !== 1 ? "s" : ""}</h2>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Are you sure you want to delete {selectedIds.size} contact{selectedIds.size !== 1 ? "s" : ""}? This action cannot be undone.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
-                  <Button onClick={confirmMassDelete} variant="destructive">
-                    Delete {selectedIds.size} Contact{selectedIds.size !== 1 ? "s" : ""}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminConfirmDialog
+            open={massDeleteConfirmOpen}
+            title={`Delete ${contactSelection.selectedCount} Contact${contactSelection.selectedCount !== 1 ? "s" : ""}`}
+            description={`Are you sure you want to delete ${contactSelection.selectedCount} contact${contactSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
+            confirmLabel={`Delete ${contactSelection.selectedCount} Contact${contactSelection.selectedCount !== 1 ? "s" : ""}`}
+            disabled={massDeleting}
+            onCancel={() => setMassDeleteConfirmOpen(false)}
+            onConfirm={confirmMassDelete}
+          />
 
-          {/* Error Dialog */}
-          {errorDialogOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
-              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-                <h2 className="text-lg font-semibold mb-2">Error</h2>
-                <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-                <div className="flex justify-end">
-                  <Button onClick={() => setErrorDialogOpen(false)}>OK</Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AdminErrorDialog
+            open={errorDialogOpen}
+            message={errorMessage}
+            onOpenChange={setErrorDialogOpen}
+          />
         </div>
       </AdminLayout>
     </>

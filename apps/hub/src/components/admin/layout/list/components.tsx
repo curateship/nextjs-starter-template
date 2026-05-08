@@ -117,38 +117,51 @@ export function AdminSelectionBanner({
 export function AdminListSkeleton({
   columns = 6,
   firstColumnClassName,
+  firstColumnSpan = 2,
   rowCount = 5,
+  showThumbnail = true,
 }: {
-  columns?: 5 | 6
+  columns?: 5 | 6 | 7 | 8 | 9
   firstColumnClassName?: string
+  firstColumnSpan?: 1 | 2 | 3 | 4
   rowCount?: number
+  showThumbnail?: boolean
 }) {
+  const gridClassName = {
+    5: "grid-cols-5",
+    6: "grid-cols-6",
+    7: "grid-cols-7",
+    8: "grid-cols-8",
+    9: "grid-cols-9",
+  }[columns]
+  const firstColumnSpanClassName = {
+    1: "col-span-1",
+    2: "col-span-2",
+    3: "col-span-3",
+    4: "col-span-4",
+  }[firstColumnSpan]
+  const middleColumnCount = Math.max(0, columns - firstColumnSpan - 1)
+
   return (
     <div className="space-y-0">
       {Array.from({ length: rowCount }, (_, index) => (
         <div key={index} className="border-b border-muted/80 p-6">
-          <div className={cn("grid items-center gap-4", columns === 5 ? "grid-cols-5" : "grid-cols-6")}>
-            <div className="col-span-2">
+          <div className={cn("grid items-center gap-4", gridClassName)}>
+            <div className={firstColumnSpanClassName}>
               <div className={cn("flex items-center space-x-4", firstColumnClassName)}>
                 <div className="h-4 w-4 animate-pulse rounded bg-muted" />
-                <div className="ml-2 h-12 w-12 animate-pulse rounded bg-muted" />
+                {showThumbnail && <div className="ml-2 h-12 w-12 animate-pulse rounded bg-muted" />}
                 <div>
                   <div className="mb-2 h-4 w-32 animate-pulse rounded bg-muted" />
                   <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
                 </div>
               </div>
             </div>
-            {columns === 6 && (
-              <div>
-                <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+            {Array.from({ length: middleColumnCount }, (_, columnIndex) => (
+              <div key={columnIndex}>
+                <div className={cn("animate-pulse rounded bg-muted/60", columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-3 w-16")} />
               </div>
-            )}
-            <div>
-              <div className="h-6 w-20 animate-pulse rounded-full bg-muted" />
-            </div>
-            <div>
-              <div className="h-3 w-16 animate-pulse rounded bg-muted/60" />
-            </div>
+            ))}
             <div>
               <div className="flex items-center space-x-2">
                 <div className="h-8 w-8 animate-pulse rounded bg-muted" />
