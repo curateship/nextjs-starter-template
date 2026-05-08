@@ -23,7 +23,7 @@ import { getCronStatus } from "@/lib/actions/cron/cron-actions"
 import type { Newsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Users, TestTube, Send, Radio, AlertTriangle, CheckCircle2 } from "lucide-react"
-import { formatNewsletterSendWindows, getNewsletterSendWindows } from "@/lib/newsletters/send-windows"
+import { formatNewsletterSendWindows, getNewsletterSendWindows } from "@/lib/actions/newsletters/send-windows"
 
 interface PublishNewsletterModalProps {
   open: boolean

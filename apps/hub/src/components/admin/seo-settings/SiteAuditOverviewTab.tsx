@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getSiteAuditData, getSiteForAudit } from '@/lib/actions/site-audit/site-audit-actions'
+import { getSiteAuditData, getSiteForAudit } from '@/lib/actions/seo/site-audit/site-audit-actions'
 import { calculateAuditScore } from '@/lib/utils/site-audit-scoring'
 
 interface SiteAuditOverviewTabProps {

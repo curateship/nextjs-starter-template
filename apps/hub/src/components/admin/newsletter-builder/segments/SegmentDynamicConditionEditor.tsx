@@ -29,7 +29,7 @@ import {
   type SegmentDynamicRuleOperator,
   type SegmentOpenCountRuleOperator,
   type SegmentTagRuleOperator,
-} from "@/lib/newsletters/segment-rules"
+} from "@/lib/actions/newsletters/segment-rules"
 
 export type DynamicConditionForm =
   | { id: string; type: "last_engaged_within_days"; operator: SegmentDynamicRuleOperator; days: string }

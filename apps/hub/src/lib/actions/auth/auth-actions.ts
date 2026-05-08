@@ -1,7 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
-import { auth } from '@/lib/auth/server'
+import { auth } from '@/lib/actions/auth/server'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { media } from '@/lib/db/schema'

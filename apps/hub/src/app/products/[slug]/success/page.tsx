@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { getProductBySlugDirect } from '@/lib/actions/products/product-frontend-actions'
 import { verifyCheckoutSession, verifyPaymentIntent } from '@/lib/actions/stripe/checkout-actions'
 import { SuccessContent } from '@/components/frontend/checkout/SuccessContent'
-import { recordPaidPurchase } from '@/lib/checkout/paid-purchase-recording'
+import { recordPaidPurchase } from '@/lib/actions/products/paid-purchase-recording'
 
 interface SuccessPageProps {
   params: Promise<{ slug: string }>

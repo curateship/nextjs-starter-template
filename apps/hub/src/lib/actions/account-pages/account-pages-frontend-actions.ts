@@ -4,8 +4,8 @@ import { and, asc, desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { isSupportedAccountPageBlockType } from '@/lib/constants/account-page-block-types'
-import { getActiveSiteMembership, touchSiteMembershipActivity } from '@/lib/site-memberships/site-membership-runtime'
+import { isSupportedAccountPageBlockType } from '@/lib/utils/account-page-block-types'
+import { getActiveSiteMembership, touchSiteMembershipActivity } from '@/lib/utils/site-membership-runtime'
 import { getAccountPagePath } from '@/lib/utils/account-page-path'
 
 // Types for blocks

@@ -23,7 +23,7 @@ import {
   updateSegment,
   type Segment,
 } from "@/lib/actions/newsletters/segment-actions"
-import type { SegmentType } from "@/lib/newsletters/segment-rules"
+import type { SegmentType } from "@/lib/actions/newsletters/segment-rules"
 import {
   buildDynamicRuleFromForm,
   mapDynamicRuleToForm,

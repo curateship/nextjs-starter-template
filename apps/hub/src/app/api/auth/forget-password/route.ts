@@ -7,7 +7,7 @@ import {
   getSystemEmailTemplate,
   renderSystemEmailContent,
   renderSystemEmailSubject,
-} from '@/lib/email/system-email'
+} from '@/lib/actions/email/system-email'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
 const DEFAULT_REDIRECT_PATH = '/admin-login'

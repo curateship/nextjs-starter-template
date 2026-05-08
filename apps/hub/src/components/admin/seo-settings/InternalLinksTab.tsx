@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getInternalLinkAnalysis, getSiteForAudit } from '@/lib/actions/site-audit/site-audit-actions'
+import { getInternalLinkAnalysis, getSiteForAudit } from '@/lib/actions/seo/site-audit/site-audit-actions'
 
 interface InternalLinksTabProps {
   siteId: string

@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import { siteIntegrations } from '@/lib/db/schema'
-import { upsertSystemNewsletterContact } from '@/lib/newsletters/system-contact-sync'
+import { upsertSystemNewsletterContact } from '@/lib/actions/newsletters/system-contact-sync'
 import { safeDecrypt } from '@/lib/utils/encryption'
 
 export const runtime = 'nodejs'

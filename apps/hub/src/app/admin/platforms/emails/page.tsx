@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-actions"
-import type { SystemEmailListItem } from "@/lib/email/system-email"
+import type { SystemEmailListItem } from "@/lib/actions/email/system-email"
 
 interface DashboardData {
   templates: SystemEmailListItem[]

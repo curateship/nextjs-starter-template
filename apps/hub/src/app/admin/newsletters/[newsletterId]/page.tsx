@@ -11,7 +11,7 @@ import { PublishNewsletterModal } from "@/components/admin/newsletter-builder/la
 import { useNewsletterBuilder } from "@/components/admin/newsletter-builder/config/useNewsletterBuilder"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { pauseNewsletter, resumeNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
-import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/newsletters/send-windows"
+import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 
 interface PageProps {
   params: Promise<{ newsletterId: string }>

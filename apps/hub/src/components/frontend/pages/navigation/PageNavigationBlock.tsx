@@ -20,7 +20,7 @@ import {
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site-quick-links'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
-import { authClient } from '@/lib/auth/client'
+import { authClient } from '@/lib/actions/auth/client'
 import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useSiteAuthUser } from '@/components/frontend/layout/site-auth-provider'

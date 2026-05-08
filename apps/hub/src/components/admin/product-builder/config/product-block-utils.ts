@@ -1,5 +1,5 @@
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
-import { normalizeProductLeadMagnetContent } from "@/lib/products/lead-magnet"
+import { normalizeProductLeadMagnetContent } from "@/lib/actions/products/lead-magnet"
 import { getBlockName, PRODUCT_BLOCK_TYPES } from "./product-block-types"
 
 export interface ProductBuilderBlock {

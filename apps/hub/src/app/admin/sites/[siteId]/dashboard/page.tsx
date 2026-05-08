@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
-import { ChartGroup7 } from '@/components/chart-group7'
+import { ChartGroup7 } from '@/components/admin/layout/dashboard/analytics/chart-group7'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   getSiteDashboardMetrics,

@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useTheme } from "next-themes"
-import { authClient } from "@/lib/auth/client"
+import { authClient } from "@/lib/actions/auth/client"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 

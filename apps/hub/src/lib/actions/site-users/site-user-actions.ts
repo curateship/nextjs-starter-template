@@ -2,11 +2,11 @@
 
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm'
 
-import { auth } from '@/lib/auth/server'
+import { auth } from '@/lib/actions/auth/server'
 import { db } from '@/lib/db'
 import { authUsers, siteMemberships, sites } from '@/lib/db/schema'
 import { requireAdmin } from '@/lib/db/helpers'
-import { upsertSiteMembership } from '@/lib/site-memberships/site-membership-runtime'
+import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import {
   SITE_USER_RELATIVE_DAY_OPTIONS,
   SITE_USER_ROLE_OPTIONS,

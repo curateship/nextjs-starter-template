@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
-import { normalizeProductLeadMagnetContent, renderProductLeadMagnetTokens } from "@/lib/products/lead-magnet"
+import { normalizeProductLeadMagnetContent, renderProductLeadMagnetTokens } from "@/lib/actions/products/lead-magnet"
 import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 
 interface ProductLeadMagnetBlockProps {

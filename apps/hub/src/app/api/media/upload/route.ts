@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth/server'
+import { auth } from '@/lib/actions/auth/server'
 import { uploadMediaAction } from '@/lib/actions/media/media-actions'
 
 export async function POST(request: NextRequest) {

@@ -1,7 +1,7 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getAccountPageBySlug, getDefaultAccountPage } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
-import { auth } from "@/lib/auth/server"
+import { auth } from "@/lib/actions/auth/server"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"

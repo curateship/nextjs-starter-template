@@ -4,7 +4,7 @@ import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
 import { siteIntegrations } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getProductIdFromPurchaseMetadata, recordPaidPurchase } from '@/lib/checkout/paid-purchase-recording'
+import { getProductIdFromPurchaseMetadata, recordPaidPurchase } from '@/lib/actions/products/paid-purchase-recording'
 
 /**
  * Stripe Webhook Handler

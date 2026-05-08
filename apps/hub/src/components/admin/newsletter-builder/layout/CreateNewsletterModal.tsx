@@ -28,7 +28,7 @@ import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-acti
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ChevronDown, Users } from "lucide-react"
-import { DEFAULT_NEWSLETTER_SEND_WINDOWS, formatNewsletterSendWindows } from "@/lib/newsletters/send-windows"
+import { DEFAULT_NEWSLETTER_SEND_WINDOWS, formatNewsletterSendWindows } from "@/lib/actions/newsletters/send-windows"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void

@@ -38,7 +38,7 @@ const NewsletterSettingsModal = dynamic(() =>
 )
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
 import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
-import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/newsletters/send-windows"
+import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"

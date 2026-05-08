@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { auth } from '@/lib/auth/server'
+import { auth } from '@/lib/actions/auth/server'
 import { db } from '@/lib/db'
 import { seoLaunchCodes } from '@/lib/db/schema'
 import { createSeoLaunchCode, createSeoLaunchExpiresAt, createSeoLaunchSnapshot, getSeoApiUrl } from '@/lib/actions/seo/sso'

@@ -5,7 +5,7 @@ import type { CoreStyleRendererProps } from "./index"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import { splitSponsorEmbeds } from "@/lib/utils/sponsor-embeds"
 import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
-import { SponsorCard } from "@/components/shared/SponsorCard"
+import { SponsorCard } from "@/components/admin/sponsors/SponsorCard"
 
 function getInitials(name: string) {
   return name

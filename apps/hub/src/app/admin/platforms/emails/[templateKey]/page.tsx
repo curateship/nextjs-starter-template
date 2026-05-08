@@ -27,7 +27,7 @@ import {
   getSystemEmailEditorAction,
   saveSystemEmailTemplateAction,
 } from "@/lib/actions/email/system-email-actions"
-import type { SystemEmailEditorData } from "@/lib/email/system-email"
+import type { SystemEmailEditorData } from "@/lib/actions/email/system-email"
 
 interface PageProps {
   params: Promise<{ templateKey: string }>

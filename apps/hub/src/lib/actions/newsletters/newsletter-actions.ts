@@ -9,7 +9,7 @@ import { getEmailProvider } from '@/lib/actions/email/provider'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
-import { isWithinNewsletterSendWindow } from '@/lib/newsletters/send-windows'
+import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
 import { randomUUID } from 'crypto'
 
 export interface Newsletter {

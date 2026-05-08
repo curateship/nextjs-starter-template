@@ -9,7 +9,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
-import { auth } from '@/lib/auth/server'
+import { auth } from '@/lib/actions/auth/server'
 import { generateSlug } from '@/lib/utils/slug'
 
 /** Reserved slugs that cannot be used for any content type */

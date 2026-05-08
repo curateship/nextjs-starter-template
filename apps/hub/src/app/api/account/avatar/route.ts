@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
-import { auth } from '@/lib/auth/server'
+import { auth } from '@/lib/actions/auth/server'
 import { db } from '@/lib/db'
 import { media } from '@/lib/db/schema'
 import { deleteFromR2, uploadToR2 } from '@/lib/utils/r2'

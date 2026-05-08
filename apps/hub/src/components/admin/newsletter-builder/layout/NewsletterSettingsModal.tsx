@@ -33,7 +33,7 @@ import {
   DEFAULT_NEWSLETTER_SEND_WINDOWS,
   formatNewsletterSendWindows,
   getNewsletterSendWindows,
-} from "@/lib/newsletters/send-windows"
+} from "@/lib/actions/newsletters/send-windows"
 
 interface NewsletterSettingsModalProps {
   open: boolean

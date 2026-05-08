@@ -5,7 +5,7 @@ import { eq, and, lte, inArray, or, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider, type EmailProvider } from '@/lib/actions/email/provider'
-import { isWithinNewsletterSendWindow } from '@/lib/newsletters/send-windows'
+import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
 import { randomUUID } from 'crypto'
 
 const BATCH_SIZE = 50

@@ -14,7 +14,7 @@ import {
 import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { normalizeProductLeadMagnetContent, renderProductLeadMagnetTokens } from "@/lib/products/lead-magnet"
+import { normalizeProductLeadMagnetContent, renderProductLeadMagnetTokens } from "@/lib/actions/products/lead-magnet"
 import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 import { cn } from "@/lib/utils/tailwind"
 

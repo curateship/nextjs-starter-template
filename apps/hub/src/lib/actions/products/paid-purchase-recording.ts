@@ -9,7 +9,7 @@ import {
   getSystemEmailTemplate,
   renderSystemEmailContent,
   renderSystemEmailSubject,
-} from '@/lib/email/system-email'
+} from '@/lib/actions/email/system-email'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 
 function generateAccessToken() {

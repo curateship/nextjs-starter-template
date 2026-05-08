@@ -53,7 +53,7 @@ import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import {
   formatSegmentDynamicRule,
   type SegmentType,
-} from "@/lib/newsletters/segment-rules"
+} from "@/lib/actions/newsletters/segment-rules"
 import {
   buildDynamicRuleFromForm,
   mapDynamicRuleToForm,

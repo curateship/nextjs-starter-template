@@ -13,7 +13,7 @@ import {
   isGlobalSystemEmailTemplate,
   isSystemEmailTemplateKey,
   type SystemEmailTemplateKey,
-} from '@/lib/email/system-email'
+} from '@/lib/actions/email/system-email'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

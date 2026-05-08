@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getSiteAuditData, getSiteForAudit } from '@/lib/actions/site-audit/site-audit-actions'
+import { getSiteAuditData, getSiteForAudit } from '@/lib/actions/seo/site-audit/site-audit-actions'
 
 interface ContentAuditTabProps {
   siteId: string

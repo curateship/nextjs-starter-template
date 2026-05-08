@@ -10,12 +10,12 @@ import {
   getSystemEmailTemplate,
   renderSystemEmailContent,
   renderSystemEmailSubject,
-} from '@/lib/email/system-email'
+} from '@/lib/actions/email/system-email'
 import {
   EMAIL_FORM_CONTACT_SOURCE,
   EMAIL_FORM_CONTACT_TAG,
   upsertSystemNewsletterContact,
-} from '@/lib/newsletters/system-contact-sync'
+} from '@/lib/actions/newsletters/system-contact-sync'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
 const RATE_LIMIT_WINDOW_MS = 60_000

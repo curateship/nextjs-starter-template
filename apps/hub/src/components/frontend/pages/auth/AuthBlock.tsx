@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
-import { authClient } from "@/lib/auth/client"
+import { authClient } from "@/lib/actions/auth/client"
 import { Button } from "@/components/ui/button"
 import {
   Card,

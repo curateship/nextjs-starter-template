@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import { auth } from "@/lib/auth/server"
+import { auth } from "@/lib/actions/auth/server"
 import { AuthBlock } from "@/components/frontend/pages/auth/AuthBlock"
 
 async function hasSession() {

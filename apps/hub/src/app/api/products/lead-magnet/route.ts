@@ -12,12 +12,12 @@ import {
   getSystemEmailTemplate,
   renderSystemEmailContent,
   renderSystemEmailSubject,
-} from '@/lib/email/system-email'
-import { upsertSystemNewsletterContact } from '@/lib/newsletters/system-contact-sync'
+} from '@/lib/actions/email/system-email'
+import { upsertSystemNewsletterContact } from '@/lib/actions/newsletters/system-contact-sync'
 import {
   normalizeProductLeadMagnetContent,
   renderProductLeadMagnetTokens,
-} from '@/lib/products/lead-magnet'
+} from '@/lib/actions/products/lead-magnet'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'

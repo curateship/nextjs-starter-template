@@ -1,6 +1,6 @@
 import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
-import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/products/lead-magnet"
+import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/actions/products/lead-magnet"
 
 export type { BlockTypeDefinition }
 

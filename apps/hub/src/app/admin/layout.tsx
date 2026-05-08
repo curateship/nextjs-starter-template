@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth/server"
+import { auth } from "@/lib/actions/auth/server"
 import { headers } from "next/headers"
 import { AdminClientShell } from "./admin-client-shell"
 import { getCachedAdminSettings } from "@/lib/actions/admin-settings/admin-settings-actions"

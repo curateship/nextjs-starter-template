@@ -8,13 +8,13 @@ import {
   renderSystemEmailContent,
   renderSystemEmailSubject,
   type SystemEmailTemplateKey,
-} from '@/lib/email/system-email'
+} from '@/lib/actions/email/system-email'
 import {
   SITE_REGISTRATION_CONTACT_SOURCE,
   SITE_REGISTRATION_CONTACT_TAG,
   upsertSystemNewsletterContact,
-} from '@/lib/newsletters/system-contact-sync'
-import { upsertSiteMembership } from '@/lib/site-memberships/site-membership-runtime'
+} from '@/lib/actions/newsletters/system-contact-sync'
+import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 

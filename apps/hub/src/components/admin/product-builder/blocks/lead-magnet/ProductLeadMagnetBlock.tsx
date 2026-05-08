@@ -6,7 +6,7 @@ import { VisibilitySettings } from "@/components/admin/product-builder/blocks/sh
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
-import { normalizeProductLeadMagnetContent } from "@/lib/products/lead-magnet"
+import { normalizeProductLeadMagnetContent } from "@/lib/actions/products/lead-magnet"
 
 interface ProductLeadMagnetBlockProps {
   content: Record<string, any>

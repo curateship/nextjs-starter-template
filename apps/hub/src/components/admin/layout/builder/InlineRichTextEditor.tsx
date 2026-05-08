@@ -38,7 +38,7 @@ import {
 import { cn } from "@/lib/utils/tailwind"
 import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
 import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
-import { SponsorCard } from "@/components/shared/SponsorCard"
+import { SponsorCard } from "@/components/admin/sponsors/SponsorCard"
 
 type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page" | "product"
 type ProseEditorVariant = Exclude<InlineRichTextEditorVariant, "newsletter">

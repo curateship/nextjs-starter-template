@@ -11,7 +11,7 @@ import {
   type SegmentDynamicCondition,
   type SegmentDynamicRule,
   type SegmentType,
-} from '@/lib/newsletters/segment-rules'
+} from '@/lib/actions/newsletters/segment-rules'
 
 export interface Segment {
   id: string

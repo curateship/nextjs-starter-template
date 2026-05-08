@@ -5,7 +5,7 @@ import { getSiteFromHeaders } from "@/lib/utils/site-resolver";
 import { HeaderScripts } from "@/components/admin/layout/dashboard/analytics/header-scripts";
 import { AnalyticsTracker } from "@/components/admin/layout/dashboard/analytics/tracker";
 import { toCdnUrl } from "@/lib/utils/cdn";
-import { auth, getSessionCookieCacheVersion } from "@/lib/auth/server";
+import { auth, getSessionCookieCacheVersion } from "@/lib/actions/auth/server";
 import type { Session as BetterAuthSession, User as BetterAuthUser } from "better-auth";
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import { SiteAuthProvider, type SiteAuthUser } from "@/components/frontend/layout/site-auth-provider";
