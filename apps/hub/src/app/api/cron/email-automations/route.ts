@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, productOrders } from '@/lib/db/schema'
+import { eq, and, inArray, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
@@ -165,6 +165,103 @@ export async function GET(request: NextRequest) {
               lastStepSentAt: now,
             })
             .where(eq(emailAutomationEnrollments.id, enrollment.id))
+          processed++
+          continue
+        }
+
+        if (step.nodeType === 'end_rules') {
+          const [contact] = await db
+            .select({ id: newsletterContacts.id, email: newsletterContacts.email, status: newsletterContacts.status })
+            .from(newsletterContacts)
+            .where(eq(newsletterContacts.id, enrollment.contactId))
+
+          if (!contact || contact.status !== 'active') {
+            await db
+              .update(emailAutomationEnrollments)
+              .set({ status: 'cancelled' })
+              .where(eq(emailAutomationEnrollments.id, enrollment.id))
+            continue
+          }
+
+          const nodeConfig = getNodeConfig(step)
+          const productIds = Array.isArray(nodeConfig.product_ids)
+            ? nodeConfig.product_ids.filter((id): id is string => typeof id === 'string')
+            : typeof nodeConfig.product_id === 'string'
+              ? [nodeConfig.product_id]
+              : []
+          if (!productIds.length) continue
+
+          const [purchase] = await db
+            .select({ id: productOrders.id })
+            .from(productOrders)
+            .where(and(
+              eq(productOrders.siteId, siteId),
+              inArray(productOrders.productId, productIds),
+              eq(productOrders.customerEmail, contact.email.toLowerCase()),
+              eq(productOrders.orderType, 'paid_purchase'),
+              eq(productOrders.paymentStatus, 'succeeded'),
+            ))
+            .limit(1)
+
+          if (purchase) {
+            await db
+              .update(emailAutomationEnrollments)
+              .set({
+                status: 'goal_met',
+                currentStepOrder: nextStepOrder,
+                goalMetAt: now,
+                lastStepSentAt: now,
+              })
+              .where(eq(emailAutomationEnrollments.id, enrollment.id))
+            processed++
+            continue
+          }
+
+          const openedRows = await db.execute<{ count: number }>(sql`
+            select count(distinct coalesce(provider_message_id, id::text))::int as count
+            from newsletter_events
+            where site_id = ${siteId}
+              and contact_id = ${contact.id}
+              and source_type = 'automation'
+              and source_id = ${enrollment.automationId}
+              and event_type = 'opened'
+          `)
+          const openedCount = Number(openedRows.rows[0]?.count ?? 0)
+          const minimumOpens = Math.max(1, Math.floor(Number(nodeConfig.minimum_opens) || 1))
+
+          if (openedCount >= minimumOpens) {
+            await db
+              .update(emailAutomationEnrollments)
+              .set({
+                currentStepOrder: nextStepOrder,
+                lastStepSentAt: now,
+              })
+              .where(eq(emailAutomationEnrollments.id, enrollment.id))
+          } else {
+            await db
+              .update(newsletterContacts)
+              .set({ status: 'unsubscribed', updatedAt: now })
+              .where(eq(newsletterContacts.id, contact.id))
+
+            await db.insert(newsletterEvents).values({
+              siteId,
+              contactId: contact.id,
+              eventType: 'unsubscribed',
+              sourceType: 'automation',
+              sourceId: enrollment.automationId,
+              metadata: { step_order: nextStepOrder, reason: 'end_rules' },
+            })
+
+            await db
+              .update(emailAutomationEnrollments)
+              .set({
+                status: 'cancelled',
+                currentStepOrder: nextStepOrder,
+                lastStepSentAt: now,
+              })
+              .where(eq(emailAutomationEnrollments.id, enrollment.id))
+          }
+
           processed++
           continue
         }

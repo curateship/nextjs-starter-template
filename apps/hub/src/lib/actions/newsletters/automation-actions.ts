@@ -34,13 +34,12 @@ export interface AutomationStep {
   id: string
   automation_id: string
   step_order: number
-  node_type: 'email' | 'delay'
+  node_type: 'email' | 'delay' | 'end_rules'
   node_config: {
-    delay_type?: 'amount_of_time' | 'day_of_week' | 'time_of_day' | 'specific_date'
+    delay_type?: 'amount_of_time' | 'day_of_week' | 'specific_date'
     delay_value?: number
     delay_unit?: 'minutes' | 'hours' | 'days'
     day?: number       // 0-6 for day_of_week
-    time?: string      // HH:MM for time_of_day
     date?: string      // YYYY-MM-DD for specific_date
     [key: string]: any
   }
@@ -476,7 +475,7 @@ export async function findActiveAutomations(
 export async function createStep(input: {
   automationId: string
   stepOrder: number
-  nodeType: 'email' | 'delay'
+  nodeType: 'email' | 'delay' | 'end_rules'
   nodeConfig?: Record<string, any>
   delayMinutes?: number
   subject?: string
@@ -542,6 +541,13 @@ export async function reorderSteps(automationId: string, stepIds: string[]): Pro
 
     if (!automation) return { success: false, error: 'Not found' }
     if (!await verifySiteOwnership(automation.siteId, user.id)) return { success: false, error: 'Access denied' }
+
+    for (let i = 0; i < stepIds.length; i++) {
+      await db
+        .update(emailAutomationSteps)
+        .set({ stepOrder: 1000000 + i })
+        .where(eq(emailAutomationSteps.id, stepIds[i]))
+    }
 
     for (let i = 0; i < stepIds.length; i++) {
       await db

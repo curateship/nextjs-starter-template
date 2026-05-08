@@ -29,6 +29,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateAutomationEmailModal } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import type { CreateAutomationEmailInput } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
@@ -54,7 +66,7 @@ import {
   type AutomationTriggerType,
 } from "@/lib/actions/newsletters/automation-triggers"
 import { cn } from "@/lib/utils/tailwind"
-import { Clock, Layers, Mail, Plus, Trash2, Zap } from "lucide-react"
+import { CheckCircle2, Clock, Layers, Mail, Plus, Trash2, Zap } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
@@ -91,13 +103,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayValue, setDelayValue] = useState("1")
   const [delayUnit, setDelayUnit] = useState("days")
   const [delayDay, setDelayDay] = useState("1")
-  const [delayTime, setDelayTime] = useState("09:00")
   const [delayDate, setDelayDate] = useState("")
+  const [editingEndRules, setEditingEndRules] = useState<AutomationStep | null>(null)
+  const [endRulesProductIds, setEndRulesProductIds] = useState<string[]>([])
+  const [endRulesMinimumOpens, setEndRulesMinimumOpens] = useState("1")
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
   const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
   const siteId = automation?.site_id ?? null
+  const endRulesProductAnchor = useComboboxAnchor()
 
   const loadJourneyIndicators = useCallback(async () => {
     const { data } = await getAutomationJourneyIndicators(automationId)
@@ -196,6 +211,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const purchaseProducts = products.filter(product => Boolean(product.content_blocks?.["product-checkout"]))
   const productTriggerOptions = purchaseProducts
   const productTriggerLabel = "Product"
+  const endRulesProductItems = products.map(product => ({ value: product.id, label: product.title }))
   const centerAxisStyle = { transform: "translateX(1.5px)" }
 
   const flash = (message: string) => {
@@ -217,7 +233,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSaving(false)
   }
 
-  const handleAddNode = async (nodeType: "email" | "delay", afterIndex: number) => {
+  const handleAddNode = async (nodeType: "email" | "delay" | "end_rules", afterIndex: number) => {
     setAddAfterIndex(null)
     setPendingInsertIndex(afterIndex)
 
@@ -227,16 +243,22 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       return
     }
 
+    if (nodeType === "end_rules") {
+      setEditingEndRules({ id: "__new__" } as AutomationStep)
+      setEndRulesProductIds([])
+      setEndRulesMinimumOpens("1")
+      return
+    }
+
     setEditingDelay({ id: "__new__" } as AutomationStep)
     setDelayType("amount_of_time")
     setDelayValue("1")
     setDelayUnit("days")
     setDelayDay("1")
-    setDelayTime("09:00")
     setDelayDate("")
   }
 
-  const createAndInsertNode = async (nodeType: "email" | "delay", nodeData: Partial<AutomationStep>) => {
+  const createAndInsertNode = async (nodeType: "email" | "delay" | "end_rules", nodeData: Partial<AutomationStep>) => {
     if (!automation) return null
 
     const tempOrder = 99999 + Math.floor(Math.random() * 1000)
@@ -287,7 +309,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setDelayValue(String(config.delay_value || 1))
     setDelayUnit(config.delay_unit || "days")
     setDelayDay(String(config.day ?? 1))
-    setDelayTime(config.time || "09:00")
     setDelayDate(config.date || "")
   }
 
@@ -307,9 +328,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     } else if (delayType === "day_of_week") {
       config.day = parseInt(delayDay)
       minutes = 1440
-    } else if (delayType === "time_of_day") {
-      config.time = delayTime
-      minutes = 60
     } else if (delayType === "specific_date") {
       config.date = delayDate
       minutes = 1440
@@ -339,6 +357,47 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSavingNode(false)
   }
 
+  const openEndRulesEditor = (node: AutomationStep) => {
+    setEditingEndRules(node)
+    setEndRulesProductIds(
+      Array.isArray(node.node_config?.product_ids)
+        ? node.node_config.product_ids.filter((id): id is string => typeof id === "string")
+        : typeof node.node_config?.product_id === "string"
+          ? [node.node_config.product_id]
+          : []
+    )
+    setEndRulesMinimumOpens(String(node.node_config?.minimum_opens || 1))
+  }
+
+  const saveEndRulesNode = async () => {
+    if (!editingEndRules) return
+    if (!endRulesProductIds.length) {
+      setError("Choose a product before saving end rules.")
+      return
+    }
+
+    setSavingNode(true)
+    const node_config = {
+      product_ids: endRulesProductIds,
+      minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1),
+    }
+
+    if (editingEndRules.id === "__new__") {
+      const data = await createAndInsertNode("end_rules", { node_config })
+      if (data) flash("Added")
+    } else {
+      const { data, error } = await updateStep(editingEndRules.id, { node_config })
+      if (error) setError(error)
+      if (data) {
+        setNodes(prev => prev.map(node => node.id === data.id ? data : node))
+        flash("Saved")
+      }
+    }
+
+    setEditingEndRules(null)
+    setSavingNode(false)
+  }
+
   const handleDeleteNode = async (nodeId: string) => {
     const { success } = await deleteStep(nodeId)
     if (!success) return
@@ -346,6 +405,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setNodes(prev => prev.filter(node => node.id !== nodeId))
     void loadJourneyIndicators()
     if (editingDelay?.id === nodeId) setEditingDelay(null)
+    if (editingEndRules?.id === nodeId) setEditingEndRules(null)
   }
 
   const openTriggerEditor = (index: number) => {
@@ -478,7 +538,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       return `Wait until ${days[config.day as number] || "Monday"}`
     }
 
-    if (type === "time_of_day") return `Wait until ${config.time || "09:00"}`
     if (type === "specific_date") return `Wait until ${config.date || "date"}`
     return "Wait"
   }
@@ -486,6 +545,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const getBlockCount = (node: AutomationStep) => {
     const blocks = node.content_blocks || {}
     return Object.keys(blocks).length
+  }
+
+  const getEndRulesProductLabel = (node: AutomationStep) => {
+    const ids = Array.isArray(node.node_config?.product_ids)
+      ? node.node_config.product_ids.filter((id): id is string => typeof id === "string")
+      : typeof node.node_config?.product_id === "string"
+        ? [node.node_config.product_id]
+        : []
+    const names = ids.map(id => products.find(product => product.id === id)?.title).filter(Boolean)
+    return names.length ? names.join(", ") : "Choose products"
   }
 
   const getTriggerDetails = (triggerNode: AutomationTriggerNode) => {
@@ -553,12 +622,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const AddNodeButton = ({ afterIndex }: { afterIndex: number }) => (
     <div className="my-6 flex justify-center">
       {addAfterIndex === afterIndex ? (
-        <div className="flex gap-2" style={centerAxisStyle}>
+        <div className="flex flex-wrap justify-center gap-2" style={centerAxisStyle}>
           <Button size="sm" variant="outline" onClick={() => handleAddNode("delay", afterIndex)}>
             <Clock className="mr-1 h-3 w-3" /> Time Delay
           </Button>
           <Button size="sm" variant="outline" onClick={() => handleAddNode("email", afterIndex)}>
             <Mail className="mr-1 h-3 w-3" /> Email
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => handleAddNode("end_rules", afterIndex)}>
+            <CheckCircle2 className="mr-1 h-3 w-3" /> End Rules
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setAddAfterIndex(null)}>✕</Button>
         </div>
@@ -815,6 +887,43 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         </Button>
                       </div>
                     </Card>
+                  ) : node.node_type === "end_rules" ? (
+                    <Card
+                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50"
+                      onClick={() => openEndRulesEditor(node)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50">
+                                <CheckCircle2 className="h-4 w-4 text-green-700" />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">End Rules</TooltipContent>
+                          </Tooltip>
+                          <div>
+                            <p className="text-sm font-medium">End Rules</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {getEndRulesProductLabel(node)}
+                              {" · "}
+                              Unsubscribe if opened fewer than {Math.max(1, Number(node.node_config?.minimum_opens) || 1)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          onClick={event => {
+                            event.stopPropagation()
+                            handleDeleteNode(node.id)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </Card>
                   ) : (
                     <Card
                       className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50"
@@ -1020,6 +1129,78 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           </AdminModalContent>
         </Dialog>
 
+        <Dialog open={editingEndRules !== null} onOpenChange={open => { if (!open) setEditingEndRules(null) }}>
+          <AdminModalContent>
+            <AdminModalHeader>
+              <AdminModalTitle>End Rules</AdminModalTitle>
+              <AdminModalDescription>
+                Decide what happens when a contact reaches this point.
+              </AdminModalDescription>
+            </AdminModalHeader>
+            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_[data-slot=input-group]]:mt-2">
+              <div>
+                <Label>Product bought</Label>
+                <Combobox
+                  multiple
+                  autoHighlight
+                  items={endRulesProductItems}
+                  value={endRulesProductIds}
+                  onValueChange={setEndRulesProductIds}
+                >
+                  <ComboboxChips ref={endRulesProductAnchor} className="w-full">
+                    <ComboboxValue>
+                      {values => (
+                        <>
+                          {values.map(productId => (
+                            <ComboboxChip key={productId} value={productId}>
+                              {products.find(product => product.id === productId)?.title || productId}
+                            </ComboboxChip>
+                          ))}
+                          <ComboboxChipsInput placeholder={values.length ? "" : "Search products"} />
+                        </>
+                      )}
+                    </ComboboxValue>
+                  </ComboboxChips>
+                  <ComboboxContent anchor={endRulesProductAnchor}>
+                    <ComboboxEmpty>{loadingProducts ? "Loading products..." : "No products found."}</ComboboxEmpty>
+                    <ComboboxList>
+                      {item => {
+                        const value = typeof item === "string" ? item : item.value
+                        const label = typeof item === "string" ? item : item.label
+                        return (
+                          <ComboboxItem key={value} value={value}>
+                            {label}
+                          </ComboboxItem>
+                        )
+                      }}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
+              </div>
+
+              <div>
+                <Label>Unsubscribe if opened fewer than</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={endRulesMinimumOpens}
+                  onChange={event => setEndRulesMinimumOpens(event.target.value)}
+                />
+              </div>
+
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                Bought product: remove. Opened this many or more: continue. Opened fewer: unsubscribe.
+              </div>
+            </AdminModalBody>
+            <AdminModalFooter className="sm:justify-end">
+              <Button variant="outline" onClick={() => setEditingEndRules(null)}>Cancel</Button>
+              <Button onClick={saveEndRulesNode} disabled={savingNode || !endRulesProductIds.length}>
+                {savingNode ? "Saving..." : "Save"}
+              </Button>
+            </AdminModalFooter>
+          </AdminModalContent>
+        </Dialog>
+
         <Dialog open={editingDelay !== null} onOpenChange={open => { if (!open) setEditingDelay(null) }}>
           <AdminModalContent>
             <AdminModalHeader>
@@ -1036,7 +1217,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   <SelectContent>
                     <SelectItem value="amount_of_time">A certain amount of time</SelectItem>
                     <SelectItem value="day_of_week">A certain day of the week</SelectItem>
-                    <SelectItem value="time_of_day">A certain time of day</SelectItem>
                     <SelectItem value="specific_date">A specific day of the year</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1077,13 +1257,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       <SelectItem value="6">Saturday</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-              )}
-
-              {delayType === "time_of_day" && (
-                <div>
-                  <Label>Time</Label>
-                  <Input type="time" value={delayTime} onChange={event => setDelayTime(event.target.value)} />
                 </div>
               )}
 
