@@ -97,7 +97,7 @@ export function DirectoryBlockRenderer({
 
   const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
   const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
-  const containerClassName = cn(siteWidth === 'custom' ? "mx-auto px-6" : "px-6", "mt-6")
+  const containerClassName = cn(siteWidth === 'custom' ? "mx-auto px-6" : "px-6", "mt-3")
 
   function renderDirectoryBlock(block: DirectoryWithBlocks["blocks"][number]) {
     if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {

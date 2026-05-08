@@ -85,7 +85,7 @@ export function PostBlockRenderer({
   const outerContainerStyle = siteWidth === 'custom'
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
-  const containerClassName = siteWidth === 'custom' ? "mx-auto px-6 mt-10" : "px-6 mt-8"
+  const containerClassName = siteWidth === 'custom' ? "mx-auto px-6 mt-2" : "px-6"
   const core = {
     title: post.title,
     excerpt: post.excerpt,
