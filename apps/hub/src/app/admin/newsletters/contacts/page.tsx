@@ -42,9 +42,9 @@ import {
   formatContactFilterRule,
   type ContactFilterGroup,
 } from "@/lib/actions/newsletters/contact-filters"
-import { ContactFilterModal } from "@/components/admin/newsletters/contacts/ContactFilterModal"
-import { ContactFormModal } from "@/components/admin/newsletters/contacts/ContactFormModal"
-import { ContactImportModal } from "@/components/admin/newsletters/contacts/ContactImportModal"
+import { ContactFilterModal } from "@/components/admin/newsletter-builder/contacts/ContactFilterModal"
+import { ContactFormModal } from "@/components/admin/newsletter-builder/contacts/ContactFormModal"
+import { ContactImportModal } from "@/components/admin/newsletter-builder/contacts/ContactImportModal"
 
 type ContactSortColumn = 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged'
 

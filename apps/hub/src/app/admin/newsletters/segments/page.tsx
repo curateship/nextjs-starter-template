@@ -28,7 +28,7 @@ import {
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/newsletters/segment-rules"
-import { SegmentFormModal } from "@/components/admin/newsletters/segments/SegmentFormModal"
+import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
 
 type SegmentSortColumn = 'name' | 'contacts' | 'modified'
 

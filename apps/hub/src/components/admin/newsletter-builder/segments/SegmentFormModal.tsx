@@ -29,7 +29,7 @@ import {
   mapDynamicRuleToForm,
   SegmentDynamicConditionEditor,
   type DynamicConditionForm,
-} from "@/components/admin/newsletters/segments/SegmentDynamicConditionEditor"
+} from "@/components/admin/newsletter-builder/segments/SegmentDynamicConditionEditor"
 
 type SegmentFormModalProps = {
   onError: (message: string) => void

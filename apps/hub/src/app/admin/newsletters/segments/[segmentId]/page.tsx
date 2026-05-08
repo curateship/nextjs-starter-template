@@ -59,7 +59,7 @@ import {
   mapDynamicRuleToForm,
   SegmentDynamicConditionEditor,
   type DynamicConditionForm,
-} from "@/components/admin/newsletters/segments/SegmentDynamicConditionEditor"
+} from "@/components/admin/newsletter-builder/segments/SegmentDynamicConditionEditor"
 
 export default function SegmentDashboardPage() {
   const params = useParams()

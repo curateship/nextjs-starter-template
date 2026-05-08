@@ -46,7 +46,7 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { NewsletterStatusEventsModal } from "@/components/admin/newsletters/NewsletterStatusEventsModal"
+import { NewsletterStatusEventsModal } from "@/components/admin/newsletter-builder/layout/NewsletterStatusEventsModal"
 
 type NewsletterSortColumn = 'name' | 'opens' | 'clicks' | 'modified'
 
