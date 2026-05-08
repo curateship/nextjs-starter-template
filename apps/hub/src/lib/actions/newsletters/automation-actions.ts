@@ -65,6 +65,11 @@ export interface AutomationEnrollment {
   metadata: Record<string, any>
 }
 
+export interface AutomationJourneyIndicator {
+  label: string
+  next_due_at: string | null
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function generateAutomationEmailHtml(
@@ -250,7 +255,7 @@ export async function getAutomationById(automationId: string): Promise<{ data: E
 }
 
 export async function getAutomationJourneyIndicators(automationId: string): Promise<{
-  data: Record<number, string> | null
+  data: Record<number, AutomationJourneyIndicator> | null
   error: string | null
 }> {
   try {
@@ -267,8 +272,11 @@ export async function getAutomationJourneyIndicators(automationId: string): Prom
     if (!automation) return { data: null, error: 'Not found' }
     if (!await verifySiteOwnership(automation.siteId, user.id)) return { data: null, error: 'Access denied' }
 
-    const rows = await db.execute<{ step_order: number; count: number }>(sql`
-      select s.step_order, count(*)::int as count
+    const rows = await db.execute<{ step_order: number; count: number; next_due_at: Date | string | null }>(sql`
+      select
+        s.step_order,
+        count(*)::int as count,
+        min(coalesce(e.last_step_sent_at, e.enrolled_at) + (s.delay_minutes * interval '1 minute')) as next_due_at
       from email_automation_steps s
       join email_automation_enrollments e
         on e.automation_id = s.automation_id
@@ -283,7 +291,10 @@ export async function getAutomationJourneyIndicators(automationId: string): Prom
 
     const indicators = Object.fromEntries(rows.rows.map(row => {
       const count = Number(row.count)
-      return [row.step_order, `${count.toLocaleString()} Contact${count === 1 ? '' : 's'} Waiting`]
+      return [row.step_order, {
+        label: `${count.toLocaleString()} Contact${count === 1 ? '' : 's'} Waiting`,
+        next_due_at: row.next_due_at ? new Date(row.next_due_at).toISOString() : null,
+      }]
     }))
 
     return {

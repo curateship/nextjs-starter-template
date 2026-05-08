@@ -44,6 +44,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateAutomationEmailModal } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import type { CreateAutomationEmailInput } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
+import { AutomationEmailSettingsModal } from "@/components/admin/newsletter-builder/automation/AutomationEmailSettingsModal"
 import {
   getAutomationById,
   updateAutomation,
@@ -52,8 +53,9 @@ import {
   deleteStep,
   reorderSteps,
   getAutomationJourneyIndicators,
+  getAutomationReport,
 } from "@/lib/actions/newsletters/automation-actions"
-import type { EmailAutomation, AutomationStep } from "@/lib/actions/newsletters/automation-actions"
+import type { EmailAutomation, AutomationJourneyIndicator, AutomationStep } from "@/lib/actions/newsletters/automation-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
@@ -66,13 +68,14 @@ import {
   type AutomationTriggerType,
 } from "@/lib/actions/newsletters/automation-triggers"
 import { cn } from "@/lib/utils/tailwind"
-import { CheckCircle2, Clock, Layers, Mail, Plus, Trash2, Zap } from "lucide-react"
+import { CheckCircle2, Clock, Mail, PencilLine, Plus, Trash2, Zap } from "lucide-react"
 
 interface PageProps {
   params: Promise<{ automationId: string }>
 }
 
 const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
+type EmailStepStats = { sent: number; opened: number; clicked: number }
 
 export default function AutomationBuilderPage({ params }: PageProps) {
   const { automationId } = use(params)
@@ -80,7 +83,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const [automation, setAutomation] = useState<EmailAutomation | null>(null)
   const [nodes, setNodes] = useState<AutomationStep[]>([])
-  const [journeyIndicators, setJourneyIndicators] = useState<Record<number, string>>({})
+  const [journeyIndicators, setJourneyIndicators] = useState<Record<number, AutomationJourneyIndicator>>({})
+  const [emailStepStats, setEmailStepStats] = useState<Record<number, EmailStepStats>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -111,6 +115,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
   const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
+  const [editingEmailSettings, setEditingEmailSettings] = useState<AutomationStep | null>(null)
   const siteId = automation?.site_id ?? null
   const endRulesProductAnchor = useComboboxAnchor()
 
@@ -118,6 +123,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const { data } = await getAutomationJourneyIndicators(automationId)
     if (!data) return
     setJourneyIndicators(data)
+  }, [automationId])
+
+  const loadEmailStepStats = useCallback(async () => {
+    const { data } = await getAutomationReport(automationId)
+    if (!data) return
+    setEmailStepStats(Object.fromEntries(data.stepStats.map(step => [
+      step.step_order,
+      { sent: step.sent, opened: step.opened, clicked: step.clicked },
+    ])))
   }, [automationId])
 
   useEffect(() => {
@@ -151,9 +165,13 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   useEffect(() => {
     void loadJourneyIndicators()
-    const interval = window.setInterval(loadJourneyIndicators, 30000)
+    void loadEmailStepStats()
+    const interval = window.setInterval(() => {
+      void loadJourneyIndicators()
+      void loadEmailStepStats()
+    }, 30000)
     return () => window.clearInterval(interval)
-  }, [loadJourneyIndicators])
+  }, [loadJourneyIndicators, loadEmailStepStats])
 
   useEffect(() => {
     if (!siteId) {
@@ -542,9 +560,27 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return "Wait"
   }
 
-  const getBlockCount = (node: AutomationStep) => {
-    const blocks = node.content_blocks || {}
-    return Object.keys(blocks).length
+  const formatNextTriggerTime = (value?: string | null) => {
+    if (!value) return null
+    const date = new Date(value)
+    if (!Number.isFinite(date.getTime())) return null
+    return `Next trigger: ${date.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })}`
+  }
+
+  const delayChipClass = "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50"
+  const emailChipClass = "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50"
+
+  const getEmailStatusLabel = (node: AutomationStep) => {
+    if (!node.subject?.trim()) return "Needs subject"
+    if (automation?.status === "active" && node.node_config?.drip_config?.enabled === true) return "Drip sending"
+    if (automation?.status === "active") return "Sending"
+    if (automation?.status === "paused") return "Paused"
+    return "Draft"
   }
 
   const getEndRulesProductLabel = (node: AutomationStep) => {
@@ -859,21 +895,30 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <div className="flex items-center gap-3">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-50">
-                                <Clock className="h-4 w-4 text-yellow-600" />
+                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-yellow-50">
+                                <Clock className="h-5 w-5 text-yellow-600" />
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top">Time Delay</TooltipContent>
                           </Tooltip>
                           <div>
                             <p className="text-sm font-medium">{formatDelay(node)}</p>
+                            {(formatNextTriggerTime(journeyIndicators[node.step_order]?.next_due_at) || journeyIndicators[node.step_order]) && (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {formatNextTriggerTime(journeyIndicators[node.step_order]?.next_due_at) && (
+                                  <Badge variant="outline" className={delayChipClass}>
+                                    {formatNextTriggerTime(journeyIndicators[node.step_order]?.next_due_at)}
+                                  </Badge>
+                                )}
+                                {journeyIndicators[node.step_order] && (
+                                  <Badge variant="outline" className={delayChipClass}>
+                                    {journeyIndicators[node.step_order].label}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        {journeyIndicators[node.step_order] && (
-                          <Badge className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-yellow-200 bg-yellow-50 px-2.5 py-1 text-xs font-medium text-yellow-800 shadow-none hover:bg-yellow-50">
-                            {journeyIndicators[node.step_order]}
-                          </Badge>
-                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -896,19 +941,22 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <div className="flex items-center gap-3">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50">
-                                <CheckCircle2 className="h-4 w-4 text-green-700" />
+                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-green-50">
+                                <CheckCircle2 className="h-5 w-5 text-green-700" />
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top">End Rules</TooltipContent>
                           </Tooltip>
                           <div>
                             <p className="text-sm font-medium">End Rules</p>
-                            <p className="mt-0.5 text-xs text-muted-foreground">
-                              {getEndRulesProductLabel(node)}
-                              {" · "}
-                              Unsubscribe if opened fewer than {Math.max(1, Number(node.node_config?.minimum_opens) || 1)}
-                            </p>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Badge variant="outline" className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50">
+                                Bought: {getEndRulesProductLabel(node)}
+                              </Badge>
+                              <Badge variant="outline" className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50">
+                                Opened fewer than {Math.max(1, Number(node.node_config?.minimum_opens) || 1)}: unsubscribe
+                              </Badge>
+                            </div>
                           </div>
                         </div>
                         <Button
@@ -927,39 +975,62 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   ) : (
                     <Card
                       className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50"
-                      onClick={() => router.push(`/admin/newsletters/automations/${automationId}/email/${node.id}`)}
+                      onClick={() => setEditingEmailSettings(node)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
-                                <Mail className="h-4 w-4 text-blue-600" />
+                              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                                <Mail className="h-5 w-5 text-blue-600" />
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top">Send Email</TooltipContent>
                           </Tooltip>
                           <div>
                             <p className="text-sm font-medium">{node.subject || "No subject"}</p>
-                            {getBlockCount(node) > 0 && (
-                              <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                <Layers className="h-3 w-3" />
-                                {getBlockCount(node)} block{getBlockCount(node) !== 1 ? "s" : ""}
-                              </p>
-                            )}
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Badge variant="outline" className={emailChipClass}>
+                                {getEmailStatusLabel(node)}
+                              </Badge>
+                              {[
+                                ["sent", emailStepStats[node.step_order]?.sent ?? 0],
+                                ["opened", emailStepStats[node.step_order]?.opened ?? 0],
+                                ["clicked", emailStepStats[node.step_order]?.clicked ?? 0],
+                              ].map(([label, count]) => (
+                                <Badge key={label} variant="outline" className={emailChipClass}>
+                                  {Number(count).toLocaleString()} {label}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={event => {
-                            event.stopPropagation()
-                            handleDeleteNode(node.id)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Edit email"
+                            className="h-8 w-8 p-0"
+                            onClick={event => {
+                              event.stopPropagation()
+                              router.push(`/admin/newsletters/automations/${automationId}/email/${node.id}`)
+                            }}
+                          >
+                            <PencilLine className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Delete email"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                            onClick={event => {
+                              event.stopPropagation()
+                              handleDeleteNode(node.id)
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </Card>
                   )}
@@ -1003,6 +1074,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             </Tabs>
           </AdminModalContent>
         </Dialog>
+
+        <AutomationEmailSettingsModal
+          open={editingEmailSettings !== null}
+          onOpenChange={open => {
+            if (!open) setEditingEmailSettings(null)
+          }}
+          step={editingEmailSettings}
+          onSuccess={step => {
+            setNodes(prev => prev.map(node => node.id === step.id ? step : node))
+            flash("Saved")
+          }}
+        />
 
         <Dialog
           open={triggerEditorOpen}

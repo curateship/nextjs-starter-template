@@ -35,7 +35,6 @@ export function AutomationEmailSettingsModal({
   const [subject, setSubject] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const drip = useDripSettings(false, false)
   const loadDripConfig = drip.loadFromConfig
 
@@ -46,7 +45,6 @@ export function AutomationEmailSettingsModal({
     setSubject(step.subject || "")
     loadDripConfig(step.node_config?.drip_config)
     setError(null)
-    setSuccessMsg(null)
   }, [step, open, loadDripConfig])
 
   const handleSave = async () => {
@@ -82,8 +80,7 @@ export function AutomationEmailSettingsModal({
 
     if (data) {
       onSuccess(data)
-      setSuccessMsg("Saved!")
-      setTimeout(() => setSuccessMsg(null), 3000)
+      onOpenChange(false)
     }
   }
 
@@ -109,12 +106,6 @@ export function AutomationEmailSettingsModal({
                 <p className="text-sm text-red-800">{error}</p>
               </div>
             )}
-            {successMsg && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                <p className="text-sm text-green-800">{successMsg}</p>
-              </div>
-            )}
-
             <TabsContent value="general" className="mt-0 min-h-[320px] space-y-6">
               <div>
                 <Label htmlFor="automation-email-settings-subject">Subject Line *</Label>
