@@ -29,12 +29,9 @@ import {
   AdminModalHeader,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import {
-  getNewsletterStatusEvents,
-  type NewsletterStatusEvent,
-  type NewsletterStatusEventFilter,
-} from "@/lib/actions/newsletters/newsletter-actions"
+import { getNewsletterStatusEvents } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAutomationStepStatusEvents } from "@/lib/actions/newsletters/automation-actions"
+import type { NewsletterStatusEvent, NewsletterStatusEventFilter } from "@/lib/actions/newsletters/status-events-query"
 import { cn } from "@/lib/utils/tailwind"
 
 type NewsletterStatusEventsModalProps = {

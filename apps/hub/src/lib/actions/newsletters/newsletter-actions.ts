@@ -10,11 +10,7 @@ import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
-import {
-  queryNewsletterStatusEvents,
-  type NewsletterStatusEvent as StatusEvent,
-  type NewsletterStatusEventFilter as StatusEventFilter,
-} from '@/lib/actions/newsletters/status-events-query'
+import { queryNewsletterStatusEvents, type NewsletterStatusEvent, type NewsletterStatusEventFilter } from '@/lib/actions/newsletters/status-events-query'
 import { randomUUID } from 'crypto'
 
 export interface Newsletter {
@@ -40,12 +36,6 @@ export interface Newsletter {
   created_at: string
   updated_at: string
 }
-
-export type {
-  NewsletterStatusEvent,
-  NewsletterStatusEventFilter,
-  NewsletterStatusEventStats,
-} from '@/lib/actions/newsletters/status-events-query'
 
 interface NewsletterBlock {
   id: string
@@ -423,8 +413,8 @@ export async function getNewsletterById(
 
 export async function getNewsletterStatusEvents(
   newsletterId: string,
-  options?: { page?: number; pageSize?: number; eventFilter?: StatusEventFilter },
-): Promise<{ data: StatusEvent[] | null; total: number; error: string | null }> {
+  options?: { page?: number; pageSize?: number; eventFilter?: NewsletterStatusEventFilter },
+): Promise<{ data: NewsletterStatusEvent[] | null; total: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(newsletterId)) return { data: null, total: 0, error: 'Invalid newsletter ID' }
 

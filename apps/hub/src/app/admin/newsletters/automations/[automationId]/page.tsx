@@ -579,6 +579,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const getEmailStatusLabel = (node: AutomationStep) => {
     if (!node.subject?.trim()) return "Needs subject"
+    if (automation?.status === "active" && (emailStepStats[node.step_order]?.sent ?? 0) <= 0) return "Waiting for trigger"
     if (automation?.status === "active" && node.node_config?.drip_config?.enabled === true) return "Drip sending"
     if (automation?.status === "active") return "Sending"
     if (automation?.status === "paused") return "Paused"
@@ -995,7 +996,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                               <Badge variant="outline" className={emailChipClass}>
                                 {getEmailStatusLabel(node)}
                               </Badge>
-                              {[
+                              {(emailStepStats[node.step_order]?.sent ?? 0) > 0 && [
                                 ["sent", emailStepStats[node.step_order]?.sent ?? 0],
                                 ["opened", emailStepStats[node.step_order]?.opened ?? 0],
                                 ["clicked", emailStepStats[node.step_order]?.clicked ?? 0],

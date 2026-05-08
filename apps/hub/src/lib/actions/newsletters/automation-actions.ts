@@ -77,9 +77,9 @@ export interface AutomationJourneyIndicator {
   next_due_at: string | null
 }
 
-export type AutomationStepStatusEvent = NewsletterStatusEvent
-export type AutomationStepStatusEventFilter = NewsletterStatusEventFilter
-export type AutomationStepStatusStats = NewsletterStatusEventStats
+type AutomationStepStatusEvent = NewsletterStatusEvent
+type AutomationStepStatusEventFilter = NewsletterStatusEventFilter
+type AutomationStepStatusStats = NewsletterStatusEventStats
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
