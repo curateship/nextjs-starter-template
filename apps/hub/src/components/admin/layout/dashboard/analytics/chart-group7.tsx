@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { DollarSign, Eye, ShoppingCart, TrendingDown, TrendingUp, Users } from "lucide-react"
+import Link from "next/link"
 import { CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,10 +42,11 @@ const metricOptions: Array<{
   metric: DashboardMetric
   label: string
   icon: typeof Eye
+  href?: string
 }> = [
   { metric: "visitors", label: "Visitors", icon: Eye },
-  { metric: "contacts", label: "Contacts", icon: Users },
-  { metric: "orders", label: "Orders", icon: ShoppingCart },
+  { metric: "contacts", label: "Contacts", icon: Users, href: "/admin/newsletters/contacts" },
+  { metric: "orders", label: "Orders", icon: ShoppingCart, href: "/admin/products" },
   { metric: "revenue", label: "Revenue", icon: DollarSign },
 ]
 
@@ -141,9 +143,8 @@ const ChartGroup7 = ({
       <div className="grid sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon
-
-          return (
-            <Card key={stat.metric}>
+          const card = (
+            <Card className={stat.href ? "transition-colors hover:bg-accent/40" : undefined}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4 text-muted-foreground" />
@@ -168,6 +169,18 @@ const ChartGroup7 = ({
                 <p className="mt-1 text-xs text-muted-foreground">{rangeLabels[cardRange]} vs previous period</p>
               </CardContent>
             </Card>
+          )
+
+          return stat.href ? (
+            <Link
+              key={stat.metric}
+              href={stat.href}
+              className="block rounded-md no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {card}
+            </Link>
+          ) : (
+            <div key={stat.metric}>{card}</div>
           )
         })}
       </div>

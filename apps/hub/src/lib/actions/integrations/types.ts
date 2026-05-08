@@ -123,10 +123,10 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
   {
     type: 'google_maps',
     label: 'Google Maps',
-    description: 'Maps Embed API key for directory Google Map blocks',
+    description: 'Google Maps and Places API key for directory map and opening hours blocks',
     category: 'integrations',
     fields: [
-      { key: 'api_key', label: 'Maps Embed API Key', type: 'password', placeholder: 'AIza...', required: true },
+      { key: 'api_key', label: 'Google Maps API Key', type: 'password', placeholder: 'AIza...', required: true },
     ],
   },
   {

@@ -3,9 +3,11 @@
 import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/core/DirectoryCoreBlock"
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
 import { DirectoryGoogleMapBlock } from "@/components/admin/directory-builder/blocks/google-map/DirectoryGoogleMapBlock"
+import { DirectoryOpeningHoursBlock } from "@/components/admin/directory-builder/blocks/opening-hours/DirectoryOpeningHoursBlock"
 import { DirectoryRichTextEditorBlock } from "@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
+import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 
 interface DirectoryBlock {
@@ -82,6 +84,15 @@ export function DirectoryBlockEditor({
   if (block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE) {
     return (
       <DirectoryGoogleMapBlock
+        content={content}
+        onContentChange={onContentChange}
+      />
+    )
+  }
+
+  if (block.type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE) {
+    return (
+      <DirectoryOpeningHoursBlock
         content={content}
         onContentChange={onContentChange}
       />

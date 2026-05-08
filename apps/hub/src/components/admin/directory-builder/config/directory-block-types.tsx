@@ -1,7 +1,8 @@
-import { BadgeInfo, FileText, MapPinned } from "lucide-react"
+import { BadgeInfo, Clock3, FileText, MapPinned } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE, DIRECTORY_GOOGLE_MAP_DEFAULT_HEIGHT } from "@/lib/actions/directories/directory-google-map"
+import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 
 export type { BlockTypeDefinition }
 
@@ -42,6 +43,18 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
       locationQuery: '',
       caption: '',
       height: DIRECTORY_GOOGLE_MAP_DEFAULT_HEIGHT,
+      layoutColumn: 'sidebar',
+      visibility: {},
+    },
+  },
+  {
+    type: DIRECTORY_OPENING_HOURS_BLOCK_TYPE,
+    name: 'Opening Hours',
+    icon: Clock3,
+    description: 'Show live business hours from a Google Place ID',
+    defaultContent: {
+      title: 'Business Hours',
+      placeId: '',
       layoutColumn: 'sidebar',
       visibility: {},
     },

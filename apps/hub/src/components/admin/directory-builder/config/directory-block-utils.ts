@@ -5,6 +5,7 @@ import {
   normalizeDirectoryCoreContent,
 } from '@/lib/actions/directories/directory-core'
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from '@/lib/actions/directories/directory-google-map'
+import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from '@/lib/actions/directories/directory-opening-hours'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { getBlockName } from './directory-block-types'
 
@@ -19,7 +20,8 @@ function isSupportedDirectoryBlockType(type: string) {
   return type === DIRECTORY_CORE_BLOCK_TYPE ||
     type === 'directory-custom' ||
     type === 'directory-rich-text' ||
-    type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE
+    type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE ||
+    type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE
 }
 
 export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {

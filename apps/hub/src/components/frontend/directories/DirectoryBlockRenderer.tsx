@@ -3,6 +3,7 @@ import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadc
 import { DirectoryCoreBlock } from "./core/DirectoryCoreBlock"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import { DirectoryGoogleMapBlock } from "./google-map/DirectoryGoogleMapBlock"
+import { DirectoryOpeningHoursBlock } from "./opening-hours/DirectoryOpeningHoursBlock"
 import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
 import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -15,6 +16,7 @@ import {
   type DirectoryCoreCategoryContext,
 } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
+import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 import { cn } from "@/lib/utils/tailwind"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
@@ -67,7 +69,8 @@ export function DirectoryBlockRenderer({
       block.type === DIRECTORY_CORE_BLOCK_TYPE ||
       block.type === 'directory-custom' ||
       block.type === 'directory-rich-text' ||
-      block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE
+      block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE ||
+      block.type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE
     )
     .map((block) => (
       block.type === DIRECTORY_CORE_BLOCK_TYPE
@@ -177,6 +180,22 @@ export function DirectoryBlockRenderer({
             content={block.content}
             isPreview={isPreview}
             apiKey={googleMapsEmbedApiKey}
+          />
+        </div>
+      )
+    }
+
+    if (block.type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE) {
+      return (
+        <div
+          key={`directory-opening-hours-${block.id}`}
+          data-block-id={block.id}
+          data-block-type={block.type}
+        >
+          <DirectoryOpeningHoursBlock
+            content={block.content}
+            isPreview={isPreview}
+            siteId={isPreview ? site.id : undefined}
           />
         </div>
       )
