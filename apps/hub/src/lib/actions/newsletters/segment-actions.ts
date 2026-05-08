@@ -83,6 +83,13 @@ function validateSegmentInput(
   }
 }
 
+function dynamicRuleExcludesSegment(dynamicRule: unknown, segmentId: string) {
+  const normalizedRule = normalizeSegmentDynamicRule(dynamicRule)
+  return normalizedRule?.conditions.some((condition) => (
+    condition.type === 'segment_exclusion' && condition.segment_id === segmentId
+  )) ?? false
+}
+
 async function enrollSegmentAutomationContacts(
   executor: any,
   siteId: string,
@@ -160,6 +167,15 @@ function buildDynamicSegmentCondition(condition: SegmentDynamicCondition) {
       : ne(newsletterContacts.status, condition.status)
   }
 
+  if (condition.type === 'segment_exclusion') {
+    return sql`not exists (
+      select 1
+      from ${newsletterSegmentContacts}
+      where ${newsletterSegmentContacts.segmentId} = ${condition.segment_id}
+        and ${newsletterSegmentContacts.contactId} = ${newsletterContacts.id}
+    )`
+  }
+
   const tagArray = sql`CASE WHEN jsonb_typeof(${newsletterContacts.metadata}->'tags') = 'array' THEN ${newsletterContacts.metadata}->'tags' ELSE '[]'::jsonb END`
   const tags = condition.tags.map((tag) => tag.toLowerCase())
 
@@ -180,10 +196,10 @@ async function syncDynamicSegmentMembership(
   segment: { id: string; siteId: string; segmentType: string; dynamicRule: unknown },
   options?: { contactIds?: string[] }
 ) {
-  if (segment.segmentType !== 'dynamic') return
+  if (segment.segmentType !== 'dynamic') return []
 
   const dynamicRule = normalizeSegmentDynamicRule(segment.dynamicRule)
-  if (!dynamicRule) return
+  if (!dynamicRule) return []
 
   const normalizedContactIds = options?.contactIds?.filter((id) => UUID_REGEX.test(id)) ?? []
   const useScopedContacts = normalizedContactIds.length > 0
@@ -211,6 +227,7 @@ async function syncDynamicSegmentMembership(
 
   const toAdd: string[] = Array.from(matchingIds).filter((id) => !existingIds.has(id))
   const toRemove: string[] = Array.from(existingIds).filter((id) => !matchingIds.has(id))
+  const changedContactIds = new Set<string>()
 
   if (toAdd.length) {
     const inserted = await executor
@@ -219,6 +236,7 @@ async function syncDynamicSegmentMembership(
       .onConflictDoNothing()
       .returning({ contactId: newsletterSegmentContacts.contactId })
 
+    for (const row of inserted) changedContactIds.add(row.contactId)
     await enrollSegmentAutomationContacts(executor, segment.siteId, segment.id, inserted.map((row: { contactId: string }) => row.contactId))
   }
 
@@ -229,6 +247,47 @@ async function syncDynamicSegmentMembership(
         eq(newsletterSegmentContacts.segmentId, segment.id),
         inArray(newsletterSegmentContacts.contactId, toRemove),
       ))
+    for (const id of toRemove) changedContactIds.add(id)
+  }
+
+  return Array.from(changedContactIds)
+}
+
+async function syncDependentDynamicSegments(
+  executor: any,
+  siteId: string,
+  segmentId: string,
+  contactIds?: string[],
+  visitedSegmentIds = new Set<string>()
+) {
+  if (visitedSegmentIds.has(segmentId)) return
+  visitedSegmentIds.add(segmentId)
+
+  const segments = await executor
+    .select({
+      id: newsletterSegments.id,
+      siteId: newsletterSegments.siteId,
+      segmentType: newsletterSegments.segmentType,
+      dynamicRule: newsletterSegments.dynamicRule,
+    })
+    .from(newsletterSegments)
+    .where(and(
+      eq(newsletterSegments.siteId, siteId),
+      eq(newsletterSegments.segmentType, 'dynamic'),
+    ))
+
+  for (const dependentSegment of segments) {
+    if (visitedSegmentIds.has(dependentSegment.id)) continue
+    if (!dynamicRuleExcludesSegment(dependentSegment.dynamicRule, segmentId)) continue
+
+    const changedContactIds = await syncDynamicSegmentMembership(
+      executor,
+      dependentSegment,
+      contactIds?.length ? { contactIds } : undefined,
+    )
+    if (changedContactIds.length) {
+      await syncDependentDynamicSegments(executor, siteId, dependentSegment.id, changedContactIds, visitedSegmentIds)
+    }
   }
 }
 
@@ -263,7 +322,10 @@ export async function syncDynamicSegmentsForContacts(contactIds: string[]): Prom
       ))
 
     for (const segment of segments) {
-      await syncDynamicSegmentMembership(db, segment, { contactIds: scopedIds })
+      const changedContactIds = await syncDynamicSegmentMembership(db, segment, { contactIds: scopedIds })
+      if (changedContactIds.length) {
+        await syncDependentDynamicSegments(db, siteId, segment.id, changedContactIds)
+      }
     }
   }
 }
@@ -280,7 +342,10 @@ export async function syncAllDynamicSegments(): Promise<void> {
     .where(eq(newsletterSegments.segmentType, 'dynamic'))
 
   for (const segment of segments) {
-    await syncDynamicSegmentMembership(db, segment)
+    const changedContactIds = await syncDynamicSegmentMembership(db, segment)
+    if (changedContactIds.length) {
+      await syncDependentDynamicSegments(db, segment.siteId, segment.id, changedContactIds)
+    }
   }
 }
 
@@ -443,7 +508,10 @@ export async function createSegment(input: {
       if (!created) return null
 
       if (validated.segmentType === 'dynamic') {
-        await syncDynamicSegmentMembership(tx, created)
+        const changedContactIds = await syncDynamicSegmentMembership(tx, created)
+        if (changedContactIds.length) {
+          await syncDependentDynamicSegments(tx, created.siteId, created.id, changedContactIds)
+        }
       }
 
       return created
@@ -497,6 +565,9 @@ export async function updateSegment(
       dynamicRule: ruleSource,
     })
     if (validated.error) return { data: null, error: validated.error }
+    if (nextSegmentType === 'dynamic' && validated.dynamicRule && dynamicRuleExcludesSegment(validated.dynamicRule, segmentId)) {
+      return { data: null, error: 'A segment cannot exclude itself' }
+    }
 
     const allowedFields: Record<string, any> = { updatedAt: new Date() }
     if (updates.name !== undefined) allowedFields.name = updates.name.trim()
@@ -516,7 +587,10 @@ export async function updateSegment(
       if (!updated) return null
 
       if (nextSegmentType === 'dynamic') {
-        await syncDynamicSegmentMembership(tx, updated)
+        const changedContactIds = await syncDynamicSegmentMembership(tx, updated)
+        if (changedContactIds.length) {
+          await syncDependentDynamicSegments(tx, updated.siteId, updated.id, changedContactIds)
+        }
       }
 
       return updated
@@ -560,7 +634,32 @@ export async function deleteSegments(ids: string[]): Promise<{ success: boolean;
       return { success: false, error: 'Access denied' }
     }
 
-    await db.delete(newsletterSegments).where(inArray(newsletterSegments.id, ids))
+    await db.transaction(async (tx) => {
+      const memberships = await tx
+        .select({
+          segmentId: newsletterSegmentContacts.segmentId,
+          contactId: newsletterSegmentContacts.contactId,
+        })
+        .from(newsletterSegmentContacts)
+        .where(inArray(newsletterSegmentContacts.segmentId, ids))
+
+      await tx.delete(newsletterSegments).where(inArray(newsletterSegments.id, ids))
+
+      const siteIdBySegmentId = new Map(segments.map((segment) => [segment.id, segment.siteId]))
+      const contactIdsBySegmentId = new Map<string, string[]>()
+      for (const membership of memberships) {
+        const existing = contactIdsBySegmentId.get(membership.segmentId) || []
+        existing.push(membership.contactId)
+        contactIdsBySegmentId.set(membership.segmentId, existing)
+      }
+
+      for (const [deletedSegmentId, changedContactIds] of contactIdsBySegmentId.entries()) {
+        const siteId = siteIdBySegmentId.get(deletedSegmentId)
+        if (siteId) {
+          await syncDependentDynamicSegments(tx, siteId, deletedSegmentId, changedContactIds)
+        }
+      }
+    })
 
     return { success: true, error: null }
   } catch (err) {
@@ -671,6 +770,9 @@ export async function addContactsToSegment(
       .returning({ contactId: newsletterSegmentContacts.contactId })
 
     await enrollSegmentAutomationContacts(db, segment.siteId, segmentId, result.map((entry) => entry.contactId))
+    if (result.length) {
+      await syncDependentDynamicSegments(db, segment.siteId, segmentId, result.map((entry) => entry.contactId))
+    }
 
     return { added: result.length, error: null }
   } catch (err) {
@@ -712,7 +814,11 @@ export async function removeContactsFromSegment(
         eq(newsletterSegmentContacts.segmentId, segmentId),
         inArray(newsletterSegmentContacts.contactId, contactIds)
       ))
-      .returning({ id: newsletterSegmentContacts.id })
+      .returning({ contactId: newsletterSegmentContacts.contactId })
+
+    if (result.length) {
+      await syncDependentDynamicSegments(db, segment.siteId, segmentId, result.map((entry) => entry.contactId))
+    }
 
     return { removed: result.length, error: null }
   } catch (err) {

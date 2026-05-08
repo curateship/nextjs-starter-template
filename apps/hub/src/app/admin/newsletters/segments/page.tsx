@@ -46,6 +46,7 @@ import {
   deleteSegments,
   getSegmentIdsAction,
   getAvailableSegmentTags,
+  getSegmentsBySite,
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -68,6 +69,7 @@ type DynamicConditionForm =
   | { id: string; type: "email_open_count"; operator: SegmentOpenCountRuleOperator; times: string }
   | { id: string; type: "tag_match"; operator: SegmentTagRuleOperator; tags: string[] }
   | { id: string; type: "status_match"; operator: SegmentDynamicRuleOperator; status: SegmentContactStatus }
+  | { id: string; type: "segment_exclusion"; segmentId: string }
 
 function makeConditionId() {
   return `condition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -101,6 +103,14 @@ function mapDynamicRuleToForm(rule: SegmentDynamicRule | null | undefined): Dyna
         type: "status_match",
         operator: condition.operator,
         status: condition.status,
+      }
+    }
+
+    if (condition.type === "segment_exclusion") {
+      return {
+        id: makeConditionId(),
+        type: "segment_exclusion",
+        segmentId: condition.segment_id,
       }
     }
 
@@ -149,6 +159,15 @@ function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): SegmentDy
       continue
     }
 
+    if (condition.type === "segment_exclusion") {
+      if (!condition.segmentId) return null
+      normalizedConditions.push({
+        type: "segment_exclusion",
+        segment_id: condition.segmentId,
+      })
+      continue
+    }
+
     const tags = [...new Set(condition.tags.map((tag) => tag.trim()).filter(Boolean))]
     if (!tags.length) return null
     normalizedConditions.push({
@@ -165,6 +184,7 @@ function formatDynamicConditionLabel(condition: DynamicConditionForm) {
   if (condition.type === "last_engaged_within_days") return "Last engaged"
   if (condition.type === "email_open_count") return "Email opens"
   if (condition.type === "status_match") return "Status"
+  if (condition.type === "segment_exclusion") return "Segment exclusion"
   return "Tags"
 }
 
@@ -196,6 +216,7 @@ export default function SegmentsPage() {
   const [formSegmentType, setFormSegmentType] = useState<SegmentType>("static")
   const [formDynamicConditions, setFormDynamicConditions] = useState<DynamicConditionForm[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
+  const [segmentOptions, setSegmentOptions] = useState<Segment[]>([])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -206,6 +227,15 @@ export default function SegmentsPage() {
 
     getAvailableSegmentTags(currentSite.id).then(({ data }) => setAvailableTags(data || []))
   }, [currentSite?.id])
+
+  useEffect(() => {
+    if (!currentSite?.id) {
+      setSegmentOptions([])
+      return
+    }
+
+    getSegmentsBySite(currentSite.id, { pageSize: 100 }).then(({ data }) => setSegmentOptions(data || []))
+  }, [currentSite?.id, modalOpen])
 
   const loadSegments = useCallback(async () => {
     if (!currentSite?.id) {
@@ -395,6 +425,7 @@ export default function SegmentsPage() {
   }
 
   const invalidDynamicConditions = formSegmentType === "dynamic" && !buildDynamicRuleFromForm(formDynamicConditions)
+  const segmentExclusionOptions = segmentOptions.filter((segment) => segment.id !== editingSegment?.id)
 
   function addDynamicCondition(type: DynamicConditionForm["type"]) {
     if (type === "last_engaged_within_days") {
@@ -409,6 +440,11 @@ export default function SegmentsPage() {
 
     if (type === "status_match") {
       setFormDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, operator: "is", status: "active" }])
+      return
+    }
+
+    if (type === "segment_exclusion") {
+      setFormDynamicConditions((prev) => [...prev, { id: makeConditionId(), type, segmentId: "" }])
       return
     }
 
@@ -862,6 +898,36 @@ export default function SegmentsPage() {
                           </div>
                         )}
 
+                        {condition.type === "segment_exclusion" && (
+                          <div className="space-y-2">
+                            <Select
+                              value={condition.segmentId}
+                              onValueChange={(value) => updateDynamicCondition(condition.id, (current) => (
+                                current.type === "segment_exclusion" ? { ...current, segmentId: value } : current
+                              ))}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Choose segment" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {segmentExclusionOptions.map((segment) => (
+                                  <SelectItem key={segment.id} value={segment.id}>
+                                    {segment.name}
+                                  </SelectItem>
+                                ))}
+                                {condition.segmentId && !segmentExclusionOptions.some((segment) => segment.id === condition.segmentId) && (
+                                  <SelectItem value={condition.segmentId}>
+                                    Missing segment
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Contacts already in this segment will be excluded.
+                            </p>
+                          </div>
+                        )}
+
                         {condition.type === "tag_match" && (
                           <div className="space-y-3">
                             <Select
@@ -935,6 +1001,12 @@ export default function SegmentsPage() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => addDynamicCondition("status_match")}>
                           Status
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={!segmentExclusionOptions.length}
+                          onSelect={() => addDynamicCondition("segment_exclusion")}
+                        >
+                          Exclude segment
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => addDynamicCondition("tag_match")}>
                           Tags

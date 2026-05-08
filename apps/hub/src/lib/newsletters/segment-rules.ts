@@ -7,6 +7,8 @@ export type SegmentOpenCountRuleOperator = 'has_opened' | 'hasnt_opened'
 export const SEGMENT_CONTACT_STATUSES = ['active', 'unsubscribed', 'bounced', 'complained'] as const
 export type SegmentContactStatus = typeof SEGMENT_CONTACT_STATUSES[number]
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export interface LastEngagedWithinDaysRule {
   type: 'last_engaged_within_days'
   operator: SegmentDynamicRuleOperator
@@ -31,7 +33,17 @@ export interface StatusMatchRule {
   status: SegmentContactStatus
 }
 
-export type SegmentDynamicCondition = LastEngagedWithinDaysRule | TagMatchRule | EmailOpenCountRule | StatusMatchRule
+export interface SegmentExclusionRule {
+  type: 'segment_exclusion'
+  segment_id: string
+}
+
+export type SegmentDynamicCondition =
+  | LastEngagedWithinDaysRule
+  | TagMatchRule
+  | EmailOpenCountRule
+  | StatusMatchRule
+  | SegmentExclusionRule
 
 export interface SegmentDynamicRule {
   conditions: SegmentDynamicCondition[]
@@ -119,6 +131,22 @@ function normalizeStatusMatchRule(value: unknown): StatusMatchRule | null {
   }
 }
 
+function normalizeSegmentExclusionRule(value: unknown): SegmentExclusionRule | null {
+  if (!value || typeof value !== 'object') return null
+
+  const type = (value as { type?: unknown }).type
+  const segmentId = (value as { segment_id?: unknown; segmentId?: unknown }).segment_id
+    ?? (value as { segmentId?: unknown }).segmentId
+
+  if (type !== 'segment_exclusion') return null
+  if (typeof segmentId !== 'string' || !UUID_REGEX.test(segmentId.trim())) return null
+
+  return {
+    type: 'segment_exclusion',
+    segment_id: segmentId.trim(),
+  }
+}
+
 function normalizeSegmentDynamicCondition(value: unknown): SegmentDynamicCondition | null {
   if (!value || typeof value !== 'object') return null
 
@@ -134,6 +162,9 @@ function normalizeSegmentDynamicCondition(value: unknown): SegmentDynamicConditi
   }
   if (type === 'status_match') {
     return normalizeStatusMatchRule(value)
+  }
+  if (type === 'segment_exclusion') {
+    return normalizeSegmentExclusionRule(value)
   }
 
   return null
@@ -177,6 +208,10 @@ export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition
 
   if (condition.type === 'status_match') {
     return `Status ${condition.operator === 'is' ? 'is' : "isn't"} ${formatStatusLabel(condition.status)}`
+  }
+
+  if (condition.type === 'segment_exclusion') {
+    return 'Excludes selected segment'
   }
 
   return `Tags ${condition.operator === 'includes' ? 'includes' : 'excludes'} ${condition.tags.join(', ')}`
