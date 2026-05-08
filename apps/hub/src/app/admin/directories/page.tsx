@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog } from "@/components/ui/dialog"
 import {
+  AdminModalBody,
   AdminModalContent,
   AdminModalDescription,
   AdminModalHeader,
@@ -515,16 +516,18 @@ export default function DirectoriesPage() {
                   Add a new item to your directory. You can customize the content after creation.
                 </AdminModalDescription>
               </AdminModalHeader>
-              <CreateDirectoryModal
-                onSuccess={(directory, continueToBuilder) => {
-                  setShowCreateDialog(false)
-                  setReloadToken((token) => token + 1)
-                  if (continueToBuilder && currentSite?.id) {
-                    router.push(`/admin/directories/builder/${currentSite.id}?directory=${directory.slug}`)
-                  }
-                }}
-                onCancel={() => setShowCreateDialog(false)}
-              />
+              <AdminModalBody className="pb-6">
+                <CreateDirectoryModal
+                  onSuccess={(directory, continueToBuilder) => {
+                    setShowCreateDialog(false)
+                    setReloadToken((token) => token + 1)
+                    if (continueToBuilder && currentSite?.id) {
+                      router.push(`/admin/directories/builder/${currentSite.id}?directory=${directory.slug}`)
+                    }
+                  }}
+                  onCancel={() => setShowCreateDialog(false)}
+                />
+              </AdminModalBody>
             </AdminModalContent>
           </Dialog>
 
