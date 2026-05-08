@@ -9,9 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
-} from "@/components/ui/dialog"
-import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminErrorDialog,
@@ -23,41 +20,17 @@ import {
   useAdminSort,
 } from "@/components/admin/layout/list"
 import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar as CalendarPicker } from "@/components/ui/calendar"
-import { Trash2, Settings, Users, Upload, X, Plus, SlidersHorizontal, ArrowLeft, CalendarIcon } from "lucide-react"
+import { Trash2, Settings, Users, Upload, X, Plus, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { format } from "date-fns"
-import { cn } from "@/lib/utils/tailwind"
 import {
   getContactsWithStats,
   deleteContacts,
-  bulkImportContacts,
-  createOrUpsertContact,
-  updateContact,
   getContactIdsAction,
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
@@ -65,95 +38,13 @@ import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newslette
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
-  cloneContactFilterGroup,
-  type ContactDataField,
-  type ContactDataFieldOperator,
-  CONTACT_DATA_FIELD_OPERATOR_OPTIONS,
-  CONTACT_DATA_FIELD_OPTIONS,
-  CONTACT_EMAIL_OPEN_OPERATOR_OPTIONS,
-  CONTACT_FILTER_TYPE_OPTIONS,
-  CONTACT_RELATIVE_DAY_OPTIONS,
-  CONTACT_SOURCE_OPTIONS,
-  CONTACT_STATUS_OPTIONS,
-  createContactFilterRule,
   emptyContactFilterGroup,
   formatContactFilterRule,
-  getContactFilterTypeLabel,
-  pruneContactFilterGroup,
-  type ContactEmailOpenOperator,
   type ContactFilterGroup,
-  type ContactFilterRule,
-  type ContactFilterType,
 } from "@/lib/actions/newsletters/contact-filters"
-
-function makeFilterRuleId() {
-  return `filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function toCalendarDate(value: string | null) {
-  if (!value) return undefined
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return undefined
-  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-}
-
-function fromCalendarDate(value: Date | undefined) {
-  return value
-    ? new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0)).toISOString()
-    : null
-}
-
-function formatDatePickerLabel(value: string | null, placeholder: string) {
-  const date = toCalendarDate(value)
-  return date ? format(date, "MMM d, yyyy") : placeholder
-}
-
-function normalizeDataFieldInputValue(value: string) {
-  return value.trim()
-}
-
-function buildPendingDataFieldInputs(group: ContactFilterGroup) {
-  return group.rules.reduce<Record<string, string>>((acc, rule) => {
-    if (rule.type === "dataField") {
-      acc[rule.id] = rule.value
-    }
-    return acc
-  }, {})
-}
-
-function isDateRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'lastEngaged' | 'dateAdded' }> {
-  return rule.type === "lastEngaged" || rule.type === "dateAdded"
-}
-
-function isValueRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'status' | 'source' }> {
-  return rule.type === "status" || rule.type === "source"
-}
-
-function isEmailOpenRule(rule: ContactFilterRule): rule is Extract<ContactFilterRule, { type: 'emailOpens' }> {
-  return rule.type === "emailOpens"
-}
-
-function shouldShowDataFieldValueInput(
-  operator: ContactDataFieldOperator
-) {
-  return operator !== "isEmpty" && operator !== "isNotEmpty"
-}
-
-function buildNormalizedFilterGroup(
-  group: ContactFilterGroup,
-  dataFieldInputs: Record<string, string>
-) {
-  return pruneContactFilterGroup({
-    ...cloneContactFilterGroup(group),
-    rules: group.rules.map((rule) => {
-      if (rule.type !== "dataField") return rule
-      return {
-        ...rule,
-        value: normalizeDataFieldInputValue(dataFieldInputs[rule.id] ?? rule.value),
-      }
-    }),
-  })
-}
+import { ContactFilterModal } from "@/components/admin/newsletters/contacts/ContactFilterModal"
+import { ContactFormModal } from "@/components/admin/newsletters/contacts/ContactFormModal"
+import { ContactImportModal } from "@/components/admin/newsletters/contacts/ContactImportModal"
 
 type ContactSortColumn = 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged'
 
@@ -176,15 +67,8 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
-  // Add Contact state
   const [addModalOpen, setAddModalOpen] = useState(false)
-  const [addForm, setAddForm] = useState({ email: "", first_name: "", last_name: "", tags: "" })
-  const [adding, setAdding] = useState(false)
-
-  // Edit Contact state
   const [editContact, setEditContact] = useState<CrmContact | null>(null)
-  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", tags: "", status: "active" as string })
-  const [saving, setSaving] = useState(false)
 
   // Segment state
   const [segments, setSegments] = useState<Segment[]>([])
@@ -192,21 +76,12 @@ export default function ContactsPage() {
   const [addingToSegment, setAddingToSegment] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  // CSV Import state — columnMap maps CSV header name → our field (or "skip")
   const [importModalOpen, setImportModalOpen] = useState(false)
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
-  const [csvRows, setCsvRows] = useState<string[][]>([])
-  const [columnMap, setColumnMap] = useState<Record<string, string>>({})
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const contactLoadRequestIdRef = useRef(0)
 
   // Filter state
   const [filters, setFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
-  const [pendingFilters, setPendingFilters] = useState<ContactFilterGroup>(emptyContactFilterGroup)
-  const [pendingDataFieldInputs, setPendingDataFieldInputs] = useState<Record<string, string>>({})
-  const [pendingFilteredTotal, setPendingFilteredTotal] = useState(0)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
 
   useEffect(() => {
@@ -218,37 +93,6 @@ export default function ContactsPage() {
   useEffect(() => {
     clearContactSelection()
   }, [clearContactSelection, currentSite?.id, siteLoading])
-
-  useEffect(() => {
-    if (!filterModalOpen || !currentSite?.id) {
-      setPendingFilteredTotal(0)
-      return
-    }
-
-    const previewFilters = buildNormalizedFilterGroup(pendingFilters, pendingDataFieldInputs)
-    if (!previewFilters.rules.length) {
-      setPendingFilteredTotal(0)
-      return
-    }
-
-    let cancelled = false
-    const timeoutId = window.setTimeout(async () => {
-      const result = await getContactsWithStats(currentSite.id, {
-        filterGroup: previewFilters,
-        searchQuery: deferredSearchQuery,
-        page: 1,
-        pageSize,
-      })
-
-      if (cancelled) return
-      setPendingFilteredTotal(result.error ? 0 : result.total)
-    }, 200)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timeoutId)
-    }
-  }, [currentSite?.id, filterModalOpen, pageSize, pendingFilters, pendingDataFieldInputs, deferredSearchQuery])
 
   const loadContacts = useCallback(async () => {
     const requestId = ++contactLoadRequestIdRef.current
@@ -409,231 +253,22 @@ export default function ContactsPage() {
     }
   }
 
-  // CSV Import
-  const OUR_FIELDS = [
-    { value: "email", label: "Email" },
-    { value: "first_name", label: "First Name" },
-    { value: "last_name", label: "Last Name" },
-    { value: "tags", label: "Tags" },
-    { value: "created_at", label: "Created At" },
-    { value: "last_engaged_at", label: "Last Engaged" },
-  ]
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = event.target?.result as string
-      const { headers, rows } = parseCSVRaw(text)
-      setCsvHeaders(headers)
-      setCsvRows(rows)
-      // Auto-detect: for each CSV header, guess our field
-      const autoMap: Record<string, string> = {}
-      const used = new Set<string>()
-      for (const h of headers) {
-        const lower = h.toLowerCase().trim()
-        let match = ""
-        if (!used.has("email") && (lower === "email" || lower === "email address" || lower === "email_address" || lower === "customer email")) { match = "email" }
-        else if (!used.has("first_name") && (lower === "first_name" || lower === "first name" || lower === "firstname" || lower === "first")) { match = "first_name" }
-        else if (!used.has("last_name") && (lower === "last_name" || lower === "last name" || lower === "lastname" || lower === "last")) { match = "last_name" }
-        else if (!used.has("tags") && (lower === "tags" || lower === "tag")) { match = "tags" }
-        else if (!used.has("created_at") && (lower === "created_at" || lower === "created at" || lower === "date added" || lower === "created" || lower === "date")) { match = "created_at" }
-        else if (!used.has("last_engaged_at") && (lower === "last_engaged_at" || lower === "last engaged" || lower === "last engaged at" || lower === "last active" || lower === "last_active" || lower === "last open" || lower === "last_open")) { match = "last_engaged_at" }
-        autoMap[h] = match
-        if (match) used.add(match)
-      }
-      setColumnMap(autoMap)
-      setImportResult(null)
-      setImportModalOpen(true)
-    }
-    reader.readAsText(file)
-    e.target.value = ""
+  const showError = (message: string) => {
+    setErrorMessage(message)
+    setErrorDialogOpen(true)
   }
 
-  function parseCSVRaw(text: string): { headers: string[]; rows: string[][] } {
-    const lines = text.split(/\r?\n/).filter(l => l.trim())
-    if (lines.length < 2) return { headers: [], rows: [] }
-
-    const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ""))
-    const rows: string[][] = []
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i]).map(c => c.trim().replace(/^"|"$/g, ""))
-      if (cols.some(c => c)) rows.push(cols)
-    }
-    return { headers, rows }
+  const handleContactCreated = (contact: CrmContact) => {
+    setContacts((prev) => [contact, ...prev])
+    setTotal((prev) => prev + 1)
   }
 
-  function parseCSVLine(line: string): string[] {
-    const result: string[] = []
-    let current = ""
-    let inQuotes = false
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      if (char === '"') {
-        inQuotes = !inQuotes
-      } else if (char === "," && !inQuotes) {
-        result.push(current)
-        current = ""
-      } else {
-        current += char
-      }
-    }
-    result.push(current)
-    return result
-  }
-
-  function getMappedContacts(): { email: string; first_name?: string; last_name?: string; tags?: string[]; created_at?: string; last_engaged_at?: string }[] {
-    // Build reverse map: our field → CSV column index
-    const fieldToIdx: Record<string, number> = {}
-    for (const [csvHeader, ourField] of Object.entries(columnMap)) {
-      if (ourField) {
-        const idx = csvHeaders.indexOf(csvHeader)
-        if (idx >= 0) fieldToIdx[ourField] = idx
-      }
-    }
-
-    if (fieldToIdx.email === undefined) return []
-
-    const results: { email: string; first_name?: string; last_name?: string; tags?: string[]; created_at?: string; last_engaged_at?: string }[] = []
-    for (const cols of csvRows) {
-      const email = cols[fieldToIdx.email]
-      if (!email) continue
-      results.push({
-        email,
-        first_name: fieldToIdx.first_name !== undefined ? cols[fieldToIdx.first_name] || undefined : undefined,
-        last_name: fieldToIdx.last_name !== undefined ? cols[fieldToIdx.last_name] || undefined : undefined,
-        tags: fieldToIdx.tags !== undefined && cols[fieldToIdx.tags] ? cols[fieldToIdx.tags].split(";").map(t => t.trim()).filter(Boolean) : undefined,
-        created_at: fieldToIdx.created_at !== undefined ? cols[fieldToIdx.created_at] || undefined : undefined,
-        last_engaged_at: fieldToIdx.last_engaged_at !== undefined ? cols[fieldToIdx.last_engaged_at] || undefined : undefined,
-      })
-    }
-    return results
-  }
-
-  const hasEmailMapped = Object.values(columnMap).includes("email")
-
-  const handleImport = async () => {
-    if (!currentSite?.id) return
-    const contacts = getMappedContacts()
-    if (!contacts.length) return
-    setImporting(true)
-    try {
-      // Send in chunks of 2000 to avoid server action body size limits
-      const chunkSize = 2000
-      let totalImported = 0
-      let totalSkipped = 0
-
-      for (let i = 0; i < contacts.length; i += chunkSize) {
-        const chunk = contacts.slice(i, i + chunkSize)
-        const result = await bulkImportContacts({
-          siteId: currentSite.id,
-          contacts: chunk,
-        })
-        if (result.error) {
-          setErrorMessage(result.error)
-          setErrorDialogOpen(true)
-          setImporting(false)
-          return
-        }
-        totalImported += result.imported
-        totalSkipped += result.skipped
-      }
-
-      setImportResult({ imported: totalImported, skipped: totalSkipped })
-      setImporting(false)
-      loadContacts()
-    } catch {
-      setErrorMessage("Import failed")
-      setErrorDialogOpen(true)
-      setImporting(false)
-    }
-  }
-
-  const closeImportModal = () => {
-    setImportModalOpen(false)
-    setCsvHeaders([])
-    setCsvRows([])
-    setColumnMap({})
-    setImportResult(null)
-  }
-
-  const handleAddContact = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!currentSite?.id || !addForm.email) return
-    setAdding(true)
-    try {
-      const tags = addForm.tags ? addForm.tags.split(",").map(t => t.trim()).filter(Boolean) : []
-      const { data, error } = await createOrUpsertContact({
-        siteId: currentSite.id,
-        email: addForm.email,
-        firstName: addForm.first_name || undefined,
-        lastName: addForm.last_name || undefined,
-        source: "manual",
-        tags,
-      })
-      if (error) {
-        setErrorMessage(error)
-        setErrorDialogOpen(true)
-        setAdding(false)
-        return
-      }
-      if (data) {
-        setContacts(prev => [data, ...prev])
-        setTotal(prev => prev + 1)
-      }
-      setAddModalOpen(false)
-      setAddForm({ email: "", first_name: "", last_name: "", tags: "" })
-    } catch {
-      setErrorMessage("Failed to add contact")
-      setErrorDialogOpen(true)
-    } finally {
-      setAdding(false)
-    }
+  const handleContactUpdated = (contact: CrmContact) => {
+    setContacts((prev) => prev.map((item) => (item.id === contact.id ? contact : item)))
   }
 
   const openEditModal = (contact: CrmContact) => {
     setEditContact(contact)
-    setEditForm({
-      first_name: contact.metadata?.first_name || "",
-      last_name: contact.metadata?.last_name || "",
-      tags: contact.metadata?.tags?.join(", ") || "",
-      status: contact.status,
-    })
-  }
-
-  const handleEditContact = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editContact) return
-    setSaving(true)
-    try {
-      const tags = editForm.tags ? editForm.tags.split(",").map(t => t.trim()).filter(Boolean) : []
-      const { data, error } = await updateContact(editContact.id, {
-        metadata: {
-          first_name: editForm.first_name || undefined,
-          last_name: editForm.last_name || undefined,
-          tags,
-        },
-        status: editForm.status as CrmContact["status"],
-      })
-      if (error) {
-        setErrorMessage(error)
-        setErrorDialogOpen(true)
-        setSaving(false)
-        return
-      }
-      if (data) {
-        setContacts(prev => prev.map(c => c.id === data.id ? data : c))
-      }
-      setEditContact(null)
-    } catch {
-      setErrorMessage("Failed to update contact")
-      setErrorDialogOpen(true)
-    } finally {
-      setSaving(false)
-    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -688,42 +323,12 @@ export default function ContactsPage() {
   }
 
   function openFilterModal() {
-    const clonedFilters = cloneContactFilterGroup(filters)
-    setPendingFilters(clonedFilters)
-    setPendingDataFieldInputs(buildPendingDataFieldInputs(clonedFilters))
-    setPendingFilteredTotal(clonedFilters.rules.length ? total : 0)
     setFilterModalOpen(true)
   }
 
-  function addPendingFilter(type: ContactFilterType) {
-    const rule = createContactFilterRule(makeFilterRuleId(), type)
-    setPendingFilters((prev) => ({
-      ...prev,
-      rules: [...prev.rules, rule],
-    }))
-    if (type === "dataField") {
-      setPendingDataFieldInputs((prev) => ({ ...prev, [rule.id]: "" }))
-    }
-  }
-
-  function updatePendingRule(ruleId: string, updater: (rule: ContactFilterRule) => ContactFilterRule) {
-    setPendingFilters((prev) => ({
-      ...prev,
-      rules: prev.rules.map((rule) => (rule.id === ruleId ? updater(rule) : rule)),
-    }))
-  }
-
-  function removePendingRule(ruleId: string) {
-    setPendingFilters((prev) => ({
-      ...prev,
-      rules: prev.rules.filter((rule) => rule.id !== ruleId),
-    }))
-    setPendingDataFieldInputs((prev) => {
-      if (!(ruleId in prev)) return prev
-      const next = { ...prev }
-      delete next[ruleId]
-      return next
-    })
+  function handleApplyFilters(nextFilters: ContactFilterGroup) {
+    setFilters(nextFilters)
+    resetSelectionForFilteredView()
   }
 
   function removeAppliedRule(ruleId: string) {
@@ -734,101 +339,8 @@ export default function ContactsPage() {
     resetSelectionForFilteredView()
   }
 
-  function togglePendingValue(ruleId: string, value: string) {
-    updatePendingRule(ruleId, (rule) => {
-      if (!isValueRule(rule)) return rule
-      return {
-        ...rule,
-        value: rule.value.includes(value)
-          ? rule.value.filter((item) => item !== value)
-          : [...rule.value, value],
-      }
-    })
-  }
-
-  function updatePendingDataFieldOperator(
-    ruleId: string,
-    operator: ContactDataFieldOperator
-  ) {
-    updatePendingRule(ruleId, (rule) => {
-      if (rule.type !== "dataField") return rule
-      return { ...rule, operator }
-    })
-  }
-
-  function updatePendingDataFieldField(ruleId: string, field: ContactDataField) {
-    updatePendingRule(ruleId, (rule) => {
-      if (rule.type !== "dataField") return rule
-      return { ...rule, field }
-    })
-  }
-
-  function updatePendingDataFieldValues(ruleId: string, inputValue: string) {
-    setPendingDataFieldInputs((prev) => ({ ...prev, [ruleId]: inputValue }))
-  }
-
-  function updatePendingDateOperator(ruleId: string, operator: "is" | "isnt") {
-    updatePendingRule(ruleId, (rule) => {
-      if (!isDateRule(rule)) return rule
-      return { ...rule, operator }
-    })
-  }
-
-  function updatePendingDateValue(ruleId: string, nextValue: string) {
-    updatePendingRule(ruleId, (rule) => {
-      if (!isDateRule(rule)) return rule
-      if (nextValue === "custom") {
-        return {
-          ...rule,
-          value: { mode: "range", from: null, to: null },
-        }
-      }
-
-      const days = Number(nextValue) as 7 | 30 | 60 | 90
-      return {
-        ...rule,
-        value: { mode: "relative", days },
-      }
-    })
-  }
-
-  function updatePendingDateRange(ruleId: string, boundary: "from" | "to", selectedDate: Date | undefined) {
-    updatePendingRule(ruleId, (rule) => {
-      if (!isDateRule(rule)) return rule
-      const currentRange = rule.value.mode === "range" ? rule.value : { mode: "range" as const, from: null, to: null }
-      return {
-        ...rule,
-        value: {
-          ...currentRange,
-          [boundary]: fromCalendarDate(selectedDate),
-        },
-      }
-    })
-  }
-
-  function updatePendingEmailOpenOperator(ruleId: string, operator: ContactEmailOpenOperator) {
-    updatePendingRule(ruleId, (rule) => {
-      if (!isEmailOpenRule(rule)) return rule
-      return { ...rule, operator }
-    })
-  }
-
-  function updatePendingEmailOpenTimes(ruleId: string, times: string) {
-    updatePendingRule(ruleId, (rule) => {
-      if (!isEmailOpenRule(rule)) return rule
-      return { ...rule, times }
-    })
-  }
-
   function clearAllFilters() {
     setFilters(emptyContactFilterGroup())
-    resetSelectionForFilteredView()
-  }
-
-  function applyFilters() {
-    const nextFilters = buildNormalizedFilterGroup(pendingFilters, pendingDataFieldInputs)
-    setFilters(nextFilters)
-    setFilterModalOpen(false)
     resetSelectionForFilteredView()
   }
 
@@ -908,15 +420,6 @@ export default function ContactsPage() {
                 <Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Contact</span></Button>
               </div>
             }
-          />
-
-          {/* Hidden file input for CSV */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFileSelect}
-            className="hidden"
           />
 
           <Card className="shadow-sm">
@@ -1090,566 +593,36 @@ export default function ContactsPage() {
             )}
           </Card>
 
-          {/* Filter Modal */}
-          <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Filter Contacts</AdminModalTitle>
-                <AdminModalDescription>
-                  Build rules to narrow the contacts shown in this dashboard.
-                </AdminModalDescription>
-              </AdminModalHeader>
-              <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
-                <div className="flex items-center gap-3 text-sm font-medium">
-                  <span>Matching</span>
-                  <Tabs
-                    value={pendingFilters.match}
-                    onValueChange={(match) => {
-                      if (match === "all" || match === "any") {
-                        setPendingFilters((prev) => ({ ...prev, match }))
-                      }
-                    }}
-                  >
-                    <TabsList className="h-11 rounded-lg bg-muted/70 p-1">
-                      <TabsTrigger value="all" className="rounded-md px-4 py-2">
-                        all
-                      </TabsTrigger>
-                      <TabsTrigger value="any" className="rounded-md px-4 py-2">
-                        any
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <span>of these:</span>
-                </div>
+          <ContactFilterModal
+            open={filterModalOpen}
+            filters={filters}
+            onApply={handleApplyFilters}
+            onOpenChange={setFilterModalOpen}
+            pageSize={pageSize}
+            searchQuery={deferredSearchQuery}
+            siteId={currentSite?.id}
+            total={total}
+          />
 
-                {pendingFilters.rules.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                    No filters added yet.
-                  </div>
-                ) : (
-                  pendingFilters.rules.map((rule) => (
-                    <div key={rule.id} className="rounded-2xl bg-muted/65 p-4 space-y-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-medium">{getContactFilterTypeLabel(rule.type)}</h3>
-                        </div>
-                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removePendingRule(rule.id)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
+          <ContactImportModal
+            open={importModalOpen}
+            fileInputRef={fileInputRef}
+            onError={showError}
+            onImported={loadContacts}
+            onOpenChange={setImportModalOpen}
+            siteId={currentSite?.id}
+          />
 
-                      {rule.type === "status" && (
-                        <div className="flex flex-wrap gap-3">
-                          {CONTACT_STATUS_OPTIONS.map((option) => {
-                            const isActive = rule.value.includes(option.value)
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => togglePendingValue(rule.id, option.value)}
-                                className={cn(
-                                  "rounded-full border px-5 py-3 text-sm transition-colors",
-                                  isActive
-                                    ? "border-foreground text-foreground shadow-sm"
-                                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                                )}
-                              >
-                                {option.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-
-                      {rule.type === "source" && (
-                        <div className="flex flex-wrap gap-3">
-                          {CONTACT_SOURCE_OPTIONS.map((option) => {
-                            const isActive = rule.value.includes(option.value)
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => togglePendingValue(rule.id, option.value)}
-                                className={cn(
-                                  "rounded-full border px-5 py-3 text-sm transition-colors",
-                                  isActive
-                                    ? "border-foreground text-foreground shadow-sm"
-                                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                                )}
-                              >
-                                {option.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-
-                      {rule.type === "dataField" && (
-                        <div className="space-y-3">
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <Select value={rule.field} onValueChange={(value: ContactDataField) => updatePendingDataFieldField(rule.id, value)}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {CONTACT_DATA_FIELD_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Select
-                              value={rule.operator}
-                              onValueChange={(value: ContactDataFieldOperator) =>
-                                updatePendingDataFieldOperator(rule.id, value)
-                              }
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {CONTACT_DATA_FIELD_OPERATOR_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {shouldShowDataFieldValueInput(rule.operator) && (
-                            <Input
-                              value={pendingDataFieldInputs[rule.id] ?? rule.value}
-                              onChange={(event) => updatePendingDataFieldValues(rule.id, event.target.value)}
-                              placeholder="Type any value"
-                            />
-                          )}
-                        </div>
-                      )}
-
-                      {rule.type === "emailOpens" && (
-                        <div className="space-y-2">
-                          <div className="grid gap-3 sm:grid-cols-[170px,1fr]">
-                            <Select
-                              value={rule.operator}
-                              onValueChange={(value: ContactEmailOpenOperator) => updatePendingEmailOpenOperator(rule.id, value)}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {CONTACT_EMAIL_OPEN_OPERATOR_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={rule.times}
-                              onChange={(event) => updatePendingEmailOpenTimes(rule.id, event.target.value)}
-                              placeholder="Emails"
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Checks every contact against the latest emails sent from this site.
-                          </p>
-                        </div>
-                      )}
-
-                      {isDateRule(rule) && (
-                        <div className="space-y-3">
-                          <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
-                            <Select value={rule.operator} onValueChange={(value: "is" | "isnt") => updatePendingDateOperator(rule.id, value)}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="is">Is</SelectItem>
-                                <SelectItem value="isnt">Isn&apos;t</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Select
-                              value={rule.value.mode === "relative" ? String(rule.value.days) : "custom"}
-                              onValueChange={(value) => updatePendingDateValue(rule.id, value)}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {CONTACT_RELATIVE_DAY_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={String(option.value)}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                                <SelectItem value="custom">Custom range</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {rule.value.mode === "range" && (
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">Start date</Label>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      id={`${rule.id}-from`}
-                                      type="button"
-                                      variant="outline"
-                                      className={cn(
-                                        "w-full justify-between font-normal",
-                                        !rule.value.from && "text-muted-foreground"
-                                      )}
-                                    >
-                                      {formatDatePickerLabel(rule.value.from, "Pick a start date")}
-                                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <CalendarPicker
-                                      mode="single"
-                                      selected={toCalendarDate(rule.value.from)}
-                                      onSelect={(date) => updatePendingDateRange(rule.id, "from", date)}
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">End date</Label>
-                                <Popover>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      id={`${rule.id}-to`}
-                                      type="button"
-                                      variant="outline"
-                                      className={cn(
-                                        "w-full justify-between font-normal",
-                                        !rule.value.to && "text-muted-foreground"
-                                      )}
-                                    >
-                                      {formatDatePickerLabel(rule.value.to, "Pick an end date")}
-                                      <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0" align="start">
-                                    <CalendarPicker
-                                      mode="single"
-                                      selected={toCalendarDate(rule.value.to)}
-                                      onSelect={(date) => updatePendingDateRange(rule.id, "to", date)}
-                                      initialFocus
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-
-                <div className="flex justify-end">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button type="button" variant="outline">
-                        Add filter
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {CONTACT_FILTER_TYPE_OPTIONS.map((option) => (
-                        <DropdownMenuItem key={option.value} onSelect={() => addPendingFilter(option.value)}>
-                          {option.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-              </AdminModalBody>
-
-              <AdminModalFooter>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingFilters(emptyContactFilterGroup())
-                    setPendingDataFieldInputs({})
-                    setPendingFilteredTotal(0)
-                  }}
-                  className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Clear all ({pendingFilteredTotal})
-                </button>
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => setFilterModalOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="button" onClick={applyFilters}>
-                    Apply Filters
-                  </Button>
-                </div>
-              </AdminModalFooter>
-            </AdminModalContent>
-          </Dialog>
-
-          {/* Import Modal */}
-          <Dialog open={importModalOpen} onOpenChange={(open) => { if (!open) closeImportModal() }}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>{importResult ? "Import Complete" : "Import Contacts"}</AdminModalTitle>
-                <AdminModalDescription>
-                  Map CSV columns to contact fields before importing.
-                </AdminModalDescription>
-              </AdminModalHeader>
-              <AdminModalBody className="pb-6">
-                {importResult ? (
-                  <div className="text-center space-y-4">
-                    <div className="p-4 bg-green-50 text-green-800 rounded-lg">
-                      <p className="font-medium">Import complete</p>
-                      <p className="text-sm">{importResult.imported} contacts imported, {importResult.skipped} skipped</p>
-                    </div>
-                    <Button onClick={closeImportModal}>Done</Button>
-                  </div>
-                ) : csvHeaders.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center">No valid rows found in CSV.</p>
-                ) : (
-                  <>
-                    <div className="text-center mb-6">
-                      <h2 className="text-xl font-semibold">
-                        We found {csvRows.length.toLocaleString()} rows of contacts!
-                      </h2>
-                      <p className="text-muted-foreground text-sm mt-1">Map your CSV columns to contact fields</p>
-                    </div>
-
-                    {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_32px_1fr] gap-2 mb-3 px-1">
-                      <p className="text-sm font-medium text-muted-foreground">CSV data sample</p>
-                      <div />
-                      <p className="text-sm font-medium text-muted-foreground">Contact field</p>
-                    </div>
-
-                    {/* Column mapping rows */}
-                    <div className="space-y-3">
-                      {csvHeaders.map((header) => {
-                        // Get first non-empty sample value for this column
-                        const colIdx = csvHeaders.indexOf(header)
-                        const sample = csvRows.find(r => r[colIdx]?.trim())?.[colIdx] || ""
-
-                        return (
-                          <div key={header}>
-                            <p className="text-xs font-medium text-muted-foreground mb-1.5">{header}</p>
-                            <div className="grid grid-cols-[1fr_32px_1fr] gap-2 items-center">
-                              <div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
-                                <span className="text-sm truncate">{sample || "—"}</span>
-                              </div>
-                              <div className="flex justify-center">
-                                <span className="text-muted-foreground">→</span>
-                              </div>
-                              <select
-                                value={columnMap[header] || ""}
-                                onChange={(e) => {
-                                  const newVal = e.target.value
-                                  setColumnMap(prev => {
-                                    const next = { ...prev }
-                                    // If another header had this field, clear it
-                                    if (newVal) {
-                                      for (const key of Object.keys(next)) {
-                                        if (next[key] === newVal && key !== header) next[key] = ""
-                                      }
-                                    }
-                                    next[header] = newVal
-                                    return next
-                                  })
-                                }}
-                                className="h-10 rounded-md border border-input bg-background px-3 text-sm w-full"
-                              >
-                                <option value="">Skip</option>
-                                {OUR_FIELDS.map(f => (
-                                  <option key={f.value} value={f.value}>{f.label}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* Helper text */}
-                    <div className="grid grid-cols-[1fr_32px_1fr] gap-2 mt-3 px-1">
-                      <p className="text-xs text-muted-foreground">Check that your CSV data on the left</p>
-                      <div />
-                      <p className="text-xs text-muted-foreground">Matches the contact field on the right</p>
-                    </div>
-
-                    {!hasEmailMapped && (
-                      <p className="text-sm text-red-600 mt-4 text-center">Please map at least one column to Email</p>
-                    )}
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between mt-6 pt-4">
-                      <Button variant="ghost" onClick={closeImportModal}>
-                        ← Back
-                      </Button>
-                      <Button
-                        onClick={handleImport}
-                        disabled={importing || !hasEmailMapped}
-                      >
-                        {importing ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                            Importing...
-                          </>
-                        ) : (
-                          "Continue"
-                        )}
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </AdminModalBody>
-            </AdminModalContent>
-          </Dialog>
-
-          {/* Add Contact Modal */}
-          <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Add Contact</AdminModalTitle>
-                <AdminModalDescription>
-                  Add a single contact to this site and optionally tag them.
-                </AdminModalDescription>
-              </AdminModalHeader>
-
-              <form onSubmit={handleAddContact} className="flex min-h-0 flex-1 flex-col">
-                <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
-                  <div>
-                    <Label htmlFor="add-email">Email *</Label>
-                    <Input
-                      id="add-email"
-                      type="email"
-                      required
-                      placeholder="email@example.com"
-                      value={addForm.email}
-                      onChange={(e) => setAddForm(prev => ({ ...prev, email: e.target.value }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="add-first">First Name</Label>
-                      <Input
-                        id="add-first"
-                        placeholder="Jane"
-                        value={addForm.first_name}
-                        onChange={(e) => setAddForm(prev => ({ ...prev, first_name: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="add-last">Last Name</Label>
-                      <Input
-                        id="add-last"
-                        placeholder="Doe"
-                        value={addForm.last_name}
-                        onChange={(e) => setAddForm(prev => ({ ...prev, last_name: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="add-tags">Tags</Label>
-                    <Input
-                      id="add-tags"
-                      placeholder="austin, fitness (comma-separated)"
-                      value={addForm.tags}
-                      onChange={(e) => setAddForm(prev => ({ ...prev, tags: e.target.value }))}
-                    />
-                  </div>
-                </AdminModalBody>
-                <AdminModalFooter className="sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => setAddModalOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={adding || !addForm.email}>
-                    {adding ? "Adding..." : "Add Contact"}
-                  </Button>
-                </AdminModalFooter>
-              </form>
-            </AdminModalContent>
-          </Dialog>
-
-          {/* Edit Contact Modal */}
-          <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) setEditContact(null) }}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Edit Contact</AdminModalTitle>
-                <AdminModalDescription>
-                  Update this contact&apos;s details, tags, and subscription status.
-                </AdminModalDescription>
-                {editContact && (
-                  <p className="text-sm text-muted-foreground">{editContact.email}</p>
-                )}
-              </AdminModalHeader>
-
-              <form onSubmit={handleEditContact} className="flex min-h-0 flex-1 flex-col">
-                <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <Label htmlFor="edit-first">First Name</Label>
-                      <Input
-                        id="edit-first"
-                        value={editForm.first_name}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-last">Last Name</Label>
-                      <Input
-                        id="edit-last"
-                        value={editForm.last_name}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-tags">Tags</Label>
-                    <Input
-                      id="edit-tags"
-                      placeholder="austin, fitness (comma-separated)"
-                      value={editForm.tags}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label>Status</Label>
-                    <Select
-                      value={editForm.status}
-                      onValueChange={(value) => setEditForm(prev => ({ ...prev, status: value }))}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                        <SelectItem value="bounced">Bounced</SelectItem>
-                        <SelectItem value="complained">Complained</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </AdminModalBody>
-                <AdminModalFooter className="sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => setEditContact(null)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Saving..." : "Save"}
-                  </Button>
-                </AdminModalFooter>
-              </form>
-            </AdminModalContent>
-          </Dialog>
+          <ContactFormModal
+            addOpen={addModalOpen}
+            editContact={editContact}
+            onAddOpenChange={setAddModalOpen}
+            onCreated={handleContactCreated}
+            onEditClose={() => setEditContact(null)}
+            onError={showError}
+            onUpdated={handleContactUpdated}
+            siteId={currentSite?.id}
+          />
 
           <AdminConfirmDialog
             open={pendingDeleteId !== null}
