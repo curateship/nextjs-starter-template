@@ -43,7 +43,7 @@ const BackgroundPattern = ({
       <svg
         className={cn(
           "pointer-events-none absolute inset-0 h-full w-full",
-          "[mask-image:radial-gradient(60vw_circle_at_center,white,transparent)]"
+          "mask-[radial-gradient(60vw_circle_at_center,white,transparent)]"
         )}
         style={{ opacity: patternOpacity }}
       >
@@ -70,7 +70,7 @@ const BackgroundPattern = ({
   return (
     <DotPattern
       className={cn(
-        "[mask-image:radial-gradient(60vw_circle_at_center,white,transparent)]"
+        "mask-[radial-gradient(60vw_circle_at_center,white,transparent)]"
       )}
       {...patternSize}
       style={{
@@ -105,7 +105,7 @@ const GradientOverlays = ({ backgroundColor }: { backgroundColor: string }) => (
 
 // Social proof section component
 const SocialProof = ({ trustedByText, trustedByAvatars, alignment }: { trustedByText?: string; trustedByAvatars?: Array<{ src: string; alt: string; fallback: string }>; alignment?: string }) => (
-  <div className={cn("mt-8 flex", alignment === 'left' ? 'justify-start [&>*]:mx-0 [&>*]:mr-auto' : alignment === 'right' ? 'justify-end [&>*]:mx-0 [&>*]:ml-auto' : 'justify-center')}>
+  <div className={cn("mt-8 flex", alignment === 'left' ? 'justify-start *:mx-0 *:mr-auto' : alignment === 'right' ? 'justify-end *:mx-0 *:ml-auto' : 'justify-center')}>
     <TrustedByAvatars badgeText={trustedByText} avatars={trustedByAvatars} />
   </div>
 );

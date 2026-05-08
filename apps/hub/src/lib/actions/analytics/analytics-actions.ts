@@ -27,6 +27,15 @@ function clampLimit(limit: number) {
   return Math.min(100, Math.max(1, Math.floor(limit || 10)))
 }
 
+function normalizeAnalyticsHost(host: string) {
+  return host
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    ?.split(':')[0]
+    ?.replace(/^www\./i, '')
+    .toLowerCase() || 'localhost'
+}
+
 interface DateRange {
   from: string  // ISO date string
   to: string    // ISO date string
@@ -229,6 +238,7 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
 
   const { from, to } = getDateRange(period)
   const safeLimit = clampLimit(limit)
+  const appDomain = normalizeAnalyticsHost(process.env.NEXT_PUBLIC_APP_DOMAIN || 'localhost')
 
   try {
     const result = await db.execute(sql`
@@ -247,11 +257,40 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
         CROSS JOIN LATERAL jsonb_each_text(daily.referrers) AS referrer_counts(domain, visits)
         GROUP BY referrer_counts.domain
       ),
+      email_referrer AS (
+        SELECT 'Email' AS domain, COUNT(*)::int AS visits
+        FROM newsletter_events ne
+        JOIN sites site_domains ON site_domains.id = ne.site_id
+        CROSS JOIN LATERAL (
+          SELECT lower(regexp_replace(
+            split_part(split_part(regexp_replace(COALESCE(ne.metadata->>'link_url', ''), '^https?://', '', 'i'), '/', 1), ':', 1),
+            '^www\\.',
+            '',
+            'i'
+          )) AS host
+        ) clicked_link
+        WHERE ne.site_id = ${siteId}::uuid
+          AND ne.event_type = 'clicked'
+          AND ne.created_at >= ${from}::timestamptz
+          AND ne.created_at <= ${to}::timestamptz
+          AND clicked_link.host <> ''
+          AND clicked_link.host IN (
+            lower(regexp_replace(
+              split_part(split_part(regexp_replace(COALESCE(site_domains.custom_domain, ''), '^https?://', '', 'i'), '/', 1), ':', 1),
+              '^www\\.',
+              '',
+              'i'
+            )),
+            lower(site_domains.subdomain || '.' || ${appDomain})
+          )
+      ),
       direct_referrer AS (
         SELECT
           'Direct' AS domain,
           GREATEST(
-            COALESCE(SUM(page_views), 0) - COALESCE((SELECT SUM(visits) FROM external_referrers), 0),
+            COALESCE(SUM(page_views), 0)
+              - COALESCE((SELECT SUM(visits) FROM external_referrers), 0)
+              - COALESCE((SELECT visits FROM email_referrer), 0),
             0
           )::int AS visits
         FROM daily
@@ -259,6 +298,8 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
       SELECT domain, visits
       FROM (
         SELECT domain, visits FROM external_referrers
+        UNION ALL
+        SELECT domain, visits FROM email_referrer WHERE visits > 0
         UNION ALL
         SELECT domain, visits FROM direct_referrer WHERE visits > 0
       ) referrers
