@@ -14,8 +14,6 @@ VALID_SETTINGS = {
     "appName": "custom-shell",
     "workspaceName": "custom-shell",
     "workspacePlan": "Internal",
-    "themePreset": "graphite",
-    "fontPreset": "urbanist",
     "topNavigation": [
         {
             "id": "top-nav-dashboard",

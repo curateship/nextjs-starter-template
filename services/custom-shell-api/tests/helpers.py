@@ -3,7 +3,8 @@ import unittest
 from unittest.mock import patch
 
 from app.config import get_settings
-from app.db import Base, get_engine, get_session_factory
+from app.db import get_engine, get_session_factory
+from app.models import CustomShellSettings
 
 
 class DatabaseTestCase(unittest.TestCase):
@@ -19,11 +20,11 @@ class DatabaseTestCase(unittest.TestCase):
         )
         self.env_patch.start()
         reset_settings()
-        Base.metadata.drop_all(bind=get_engine())
-        Base.metadata.create_all(bind=get_engine())
+        CustomShellSettings.metadata.create_all(bind=get_engine())
+        clear_settings()
 
     def tearDown(self):
-        Base.metadata.drop_all(bind=get_engine())
+        clear_settings()
         reset_settings()
         self.env_patch.stop()
 
@@ -32,3 +33,12 @@ def reset_settings() -> None:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_session_factory.cache_clear()
+
+
+def clear_settings() -> None:
+    db = get_session_factory()()
+    try:
+        db.query(CustomShellSettings).delete()
+        db.commit()
+    finally:
+        db.close()

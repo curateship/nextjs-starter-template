@@ -32,10 +32,6 @@ IconKey = Literal[
     "sparkles",
 ]
 
-ThemePresetKey = Literal["graphite", "verdant", "ember", "cobalt"]
-FontPresetKey = Literal["urbanist", "editorial", "industrial", "operator"]
-
-
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -84,8 +80,6 @@ class ShellConfigIn(StrictModel):
     appName: str
     workspaceName: str
     workspacePlan: str
-    themePreset: ThemePresetKey
-    fontPreset: FontPresetKey
     topNavigation: list[ShellTopNavigationItem]
     sections: list[ShellSection]
 
