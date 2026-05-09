@@ -132,9 +132,6 @@ export const iconMeta = {
 
 export type IconKey = keyof typeof iconMeta
 
-export type ThemePresetKey = "graphite" | "verdant" | "ember" | "cobalt"
-export type FontPresetKey = "urbanist" | "editorial" | "industrial" | "operator"
-
 export type ShellChildItem = {
   id: string
   label: string
@@ -178,65 +175,9 @@ export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
-  themePreset: ThemePresetKey
-  fontPreset: FontPresetKey
   topNavigation: ShellTopNavigationItem[]
   sections: ShellSection[]
 }
-
-export const themePresets = [
-  {
-    id: "graphite",
-    label: "Graphite",
-    description: "Neutral grayscale shell with high contrast and minimal decoration.",
-  },
-  {
-    id: "verdant",
-    label: "Verdant",
-    description: "Soft green product shell with calmer surfaces and muted highlights.",
-  },
-  {
-    id: "ember",
-    label: "Ember",
-    description: "Warm editorial palette with amber accents and softer borders.",
-  },
-  {
-    id: "cobalt",
-    label: "Cobalt",
-    description: "Sharper blue interface with a stronger admin-tool feel.",
-  },
-] as const satisfies ReadonlyArray<{
-  id: ThemePresetKey
-  label: string
-  description: string
-}>
-
-export const fontPresets = [
-  {
-    id: "urbanist",
-    label: "Urbanist",
-    description: "Modern product UI with Geist for headings and body copy.",
-  },
-  {
-    id: "editorial",
-    label: "Editorial",
-    description: "Serif-forward headings with a cleaner sans-serif body.",
-  },
-  {
-    id: "industrial",
-    label: "Industrial",
-    description: "Compressed display headings with a utilitarian admin feel.",
-  },
-  {
-    id: "operator",
-    label: "Operator",
-    description: "Monospaced shell preset for control-room and internal tools.",
-  },
-] as const satisfies ReadonlyArray<{
-  id: FontPresetKey
-  label: string
-  description: string
-}>
 
 export function createDefaultTopNavigation(): ShellTopNavigationItem[] {
   return [
@@ -255,52 +196,12 @@ export function createDefaultShellConfig(): ShellConfig {
     appName: "custom-shell",
     workspaceName: "custom-shell",
     workspacePlan: "Internal",
-    themePreset: "graphite",
-    fontPreset: "urbanist",
     topNavigation: createDefaultTopNavigation(),
     sections: [
       {
         id: "section-starter",
-        title: "Starter Navigation",
+        title: "Navigation",
         entries: [
-          {
-            type: "item",
-            id: "item-dashboard",
-            label: "Posts",
-            href: "/admin/posts",
-            icon: "layoutDashboard",
-            visible: true,
-          },
-          {
-            type: "item",
-            id: "item-library",
-            label: "Media Library",
-            href: "/admin/media",
-            icon: "library",
-            visible: true,
-            children: [
-              {
-                id: "item-library-images",
-                label: "Images",
-                href: "/admin/media/images",
-                icon: "image",
-              },
-              {
-                id: "item-library-folders",
-                label: "Folders",
-                href: "/admin/media/folders",
-                icon: "folderOpen",
-              },
-            ],
-          },
-          {
-            type: "item",
-            id: "item-navbar-demo",
-            label: "Navbar Demo",
-            href: "/demo/navbar-09",
-            icon: "panelsTopLeft",
-            visible: true,
-          },
           {
             type: "item",
             id: "item-settings",
