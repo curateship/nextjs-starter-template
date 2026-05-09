@@ -1,0 +1,34 @@
+import os
+import unittest
+from unittest.mock import patch
+
+from app.config import get_settings
+from app.db import Base, get_engine, get_session_factory
+
+
+class DatabaseTestCase(unittest.TestCase):
+    def setUp(self):
+        self.env_patch = patch.dict(
+            os.environ,
+            {
+                "CUSTOM_SHELL_API_ENV": "development",
+                "CUSTOM_SHELL_DATABASE_URL": "postgresql+psycopg://postgres:localdev@localhost:54320/postgres",
+                "CUSTOM_SHELL_APP_ORIGINS": "http://127.0.0.1:3002,http://localhost:3002",
+            },
+            clear=True,
+        )
+        self.env_patch.start()
+        reset_settings()
+        Base.metadata.drop_all(bind=get_engine())
+        Base.metadata.create_all(bind=get_engine())
+
+    def tearDown(self):
+        Base.metadata.drop_all(bind=get_engine())
+        reset_settings()
+        self.env_patch.stop()
+
+
+def reset_settings() -> None:
+    get_settings.cache_clear()
+    get_engine.cache_clear()
+    get_session_factory.cache_clear()

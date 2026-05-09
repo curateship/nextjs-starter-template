@@ -4,7 +4,9 @@
   "workspaces": ["apps/*", "packages/*", "services/*"],
   "scripts": {
     "dev": "turbo dev",
-    "dev:custom-shell": "npm run dev --workspace=custom-shell",
+    "dev:custom-shell": "npm run dev:custom-shell-api & sleep 1 && npm run dev:custom-shell-ui",
+    "dev:custom-shell-ui": "npm run dev --workspace=custom-shell",
+    "dev:custom-shell-api": "cd services/custom-shell-api && python3 -m uvicorn app.main:app --reload --port 8002",
     "dev:hub": "npm run dev --workspace=@repo/hub",
     "dev:scraper": "npm run dev --workspace=@repo/scraper",
     "dev:scraper-api": "cd services/scraper-api && python3 -m uvicorn app.main:app --reload --port 8001",

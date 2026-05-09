@@ -5,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -18,6 +19,7 @@ import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/custom-shell"
+import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 
 const settingsTabs = [
   { id: "general", label: "General Settings" },
@@ -30,6 +32,7 @@ const settingsTabs = [
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
+type SaveStatus = "idle" | "saving" | "saved"
 
 function getSettingsTabHref(tabId: SettingsTabId) {
   return tabId === "general"
@@ -47,20 +50,59 @@ export function getSettingsTabFromPath(path: string): SettingsTabId {
 export function SettingsPage({
   activeTab,
   config,
+  settingsError,
+  saveStatus,
   onConfigChange,
+  onSaveConfig,
 }: {
   activeTab: SettingsTabId
   config: ShellConfig
+  settingsError: string | null
+  saveStatus: SaveStatus
   onConfigChange: (config: ShellConfig) => void
+  onSaveConfig: () => void
 }) {
   return (
     <div className="w-full pb-8">
-      <div className="mb-6 space-y-1">
-        <h1 className="font-heading text-xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Configure the shell defaults for this workspace.
-        </p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="font-heading text-xl font-semibold">Settings</h1>
+          <p className="text-sm text-muted-foreground">
+            Configure the shell defaults for this workspace.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {saveStatus === "saved" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <CheckIcon className="h-4 w-4" />
+              Saved
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            onClick={onSaveConfig}
+            disabled={saveStatus === "saving"}
+          >
+            {saveStatus === "saving" ? (
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+            ) : (
+              <SaveIcon className="h-4 w-4" />
+            )}
+            {saveStatus === "saving" ? "Saving" : "Save"}
+          </Button>
+        </div>
       </div>
+
+      {settingsError ? (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{settingsError}</span>
+        </div>
+      ) : null}
 
       <div className="flex flex-col items-start gap-6 lg:flex-row">
         <nav className="flex w-full shrink-0 flex-col lg:w-48">

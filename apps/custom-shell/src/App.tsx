@@ -19,14 +19,18 @@ import {
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
   createDefaultShellConfig,
-  createDefaultTopNavigation,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
   type ShellItem,
 } from "@/lib/custom-shell"
+import {
+  getShellSettingsErrorMessage,
+  loadShellSettings,
+  saveShellSettings,
+} from "@/lib/shell-settings-api"
 
-const SHELL_CONFIG_STORAGE_KEY = "custom-shell:config:v1"
+type SaveStatus = "idle" | "saving" | "saved"
 
 function getCurrentHashPath() {
   if (typeof window === "undefined") {
@@ -118,52 +122,32 @@ function getStickyHeaderNavLinks(
   return []
 }
 
-function getInitialShellConfig() {
-  const fallback = createDefaultShellConfig()
-
-  if (typeof window === "undefined") {
-    return fallback
-  }
-
-  try {
-    const storedConfig = window.localStorage.getItem(SHELL_CONFIG_STORAGE_KEY)
-    if (!storedConfig) {
-      return fallback
-    }
-
-    const parsedConfig = JSON.parse(storedConfig) as Partial<ShellConfig>
-    if (!parsedConfig || !Array.isArray(parsedConfig.sections)) {
-      return fallback
-    }
-
-    return {
-      ...fallback,
-      ...parsedConfig,
-      topNavigation: Array.isArray(parsedConfig.topNavigation)
-        ? parsedConfig.topNavigation
-        : createDefaultTopNavigation(),
-      sections: parsedConfig.sections,
-    }
-  } catch (error) {
-    console.error("Failed to load custom shell config:", error)
-    return fallback
-  }
-}
-
 export function App() {
-  const [config, setConfig] = React.useState(getInitialShellConfig)
+  const [config, setConfig] = React.useState(createDefaultShellConfig)
   const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
+  const [settingsError, setSettingsError] = React.useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
 
   React.useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        SHELL_CONFIG_STORAGE_KEY,
-        JSON.stringify(config)
-      )
-    } catch (error) {
-      console.error("Failed to save custom shell config:", error)
+    let active = true
+
+    loadShellSettings()
+      .then(({ settings }) => {
+        if (!active) return
+        setSettingsError(null)
+        if (settings) {
+          setConfig(settings)
+        }
+      })
+      .catch((error) => {
+        if (!active) return
+        setSettingsError(getShellSettingsErrorMessage(error))
+      })
+
+    return () => {
+      active = false
     }
-  }, [config])
+  }, [])
 
   React.useEffect(() => {
     const handleHashChange = () => {
@@ -173,6 +157,25 @@ export function App() {
     window.addEventListener("hashchange", handleHashChange)
     return () => window.removeEventListener("hashchange", handleHashChange)
   }, [])
+
+  const handleConfigChange = React.useCallback((nextConfig: ShellConfig) => {
+    setConfig(nextConfig)
+    setSettingsError(null)
+    setSaveStatus("idle")
+  }, [])
+
+  const handleSaveConfig = React.useCallback(async () => {
+    setSettingsError(null)
+    setSaveStatus("saving")
+
+    try {
+      await saveShellSettings(config)
+      setSaveStatus("saved")
+    } catch (error) {
+      setSettingsError(getShellSettingsErrorMessage(error))
+      setSaveStatus("idle")
+    }
+  }, [config])
 
   const navLinks = getStickyHeaderNavLinks(config, currentPath)
   const dashboardPaths = getDashboardPaths(config)
@@ -281,7 +284,10 @@ export function App() {
                 <SettingsPage
                   activeTab={getSettingsTabFromPath(currentPath)}
                   config={config}
-                  onConfigChange={setConfig}
+                  settingsError={settingsError}
+                  saveStatus={saveStatus}
+                  onConfigChange={handleConfigChange}
+                  onSaveConfig={handleSaveConfig}
                 />
               ) : null}
 
