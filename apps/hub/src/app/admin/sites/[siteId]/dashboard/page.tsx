@@ -1,11 +1,9 @@
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowUpRight, Settings, Edit3, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
-import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
 import { ChartGroup7 } from '@/components/admin/layout/dashboard/analytics/chart-group7'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -52,7 +50,7 @@ function DashboardRangeTabs({ siteId, value }: { siteId: string; value: Dashboar
     <Tabs value={value} className="w-full sm:w-auto">
       <TabsList className="h-9 max-w-full justify-start overflow-x-auto">
         {rangeOptions.map((option) => (
-          <TabsTrigger key={option.value} value={option.value} asChild className="h-7 px-2.5 text-xs">
+          <TabsTrigger key={option.value} value={option.value} asChild className="h-7 px-2.5 text-sm">
             <Link href={`/admin/sites/${siteId}/dashboard?range=${option.value}`} scroll={false}>
               {option.label}
             </Link>
@@ -61,20 +59,6 @@ function DashboardRangeTabs({ siteId, value }: { siteId: string; value: Dashboar
       </TabsList>
     </Tabs>
   )
-}
-
-function getSiteStatusBadge(status?: string) {
-  switch (status) {
-    case 'active':
-      return { label: 'Active', className: 'bg-green-500 hover:bg-green-600 text-white' }
-    case 'inactive':
-      return { label: 'Inactive', className: 'bg-red-500 hover:bg-red-600 text-white' }
-    case 'suspended':
-      return { label: 'Suspended', className: 'bg-gray-500 hover:bg-gray-600 text-white' }
-    case 'draft':
-    default:
-      return { label: 'Draft', className: 'bg-yellow-500 hover:bg-yellow-600 text-white' }
-  }
 }
 
 export default async function SiteDashboard({ params, searchParams }: PageProps) {
@@ -104,14 +88,10 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
     getTopPages(siteId, selectedRange).catch(() => []),
     getTopReferrers(siteId, selectedRange).catch(() => []),
   ])
-  const siteName = site?.name || `Site ${siteId}`
   const siteUrl = site ? getSiteUrl(site) : null
   const siteSettings = (site?.settings ?? {}) as {
-    maintenance?: { enabled?: boolean }
     quick_links?: unknown
   }
-  const siteStatusBadge = getSiteStatusBadge(site?.status)
-  const isMaintenanceMode = siteSettings.maintenance?.enabled === true
   const quickLinks = normalizeSiteQuickLinks(siteSettings.quick_links).flatMap((link) => {
     const href = resolveSiteQuickLinkHref(link, siteId)
     if (!href) return []
@@ -155,23 +135,9 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
       />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader
-            items={[
-              { label: "Sites", href: "/admin/sites" },
-              {
-                label: (
-                  <span className="inline-flex items-center gap-2">
-                    <span>{siteName}</span>
-                    <Badge className={siteStatusBadge.className}>{siteStatusBadge.label}</Badge>
-                    {isMaintenanceMode && (
-                      <Badge className="bg-amber-500 hover:bg-amber-600 text-white">Maintenance</Badge>
-                    )}
-                  </span>
-                ),
-              },
-            ]}
-            rightContent={<DashboardRangeTabs siteId={siteId} value={selectedRange} />}
-          />
+          <div className="mb-7 flex max-w-full overflow-x-auto">
+            <DashboardRangeTabs siteId={siteId} value={selectedRange} />
+          </div>
 
           <div className="grid">
             <ChartGroup7

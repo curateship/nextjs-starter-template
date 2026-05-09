@@ -1,21 +1,13 @@
 "use client"
 
 import { createPortal } from "react-dom"
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
 import { StickybarTopRightActions, type StickybarFilterMenuConfig, type StickybarSearchConfig, useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DashboardSubheaderProps {
-  /** Breadcrumb trail — last item is rendered as the current page (no link) */
+  /** Deprecated breadcrumb trail kept for existing call sites. */
   items: Array<{ label: React.ReactNode; href?: string }>
-  /** Filter dropdown rendered between breadcrumbs and actions */
+  /** Filter dropdown rendered in the sticky header actions */
   filterMenu?: StickybarFilterMenuConfig
   /** Search input rendered before other dashboard controls */
   search?: StickybarSearchConfig
@@ -23,16 +15,15 @@ interface DashboardSubheaderProps {
   preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
-  /** Optional content aligned to the far right of the breadcrumb row */
+  /** Optional content rendered below the StickyHeader */
   rightContent?: React.ReactNode
   className?: string
 }
 
 /**
- * Full-width breadcrumb row that sits below the StickyHeader.
  * Dashboard controls are rendered into the StickyHeader top-right slot.
  */
-export function DashboardSubheader({ items, filterMenu, search, preActions, actions, rightContent, className }: DashboardSubheaderProps) {
+export function DashboardSubheader({ filterMenu, search, preActions, actions, rightContent, className }: DashboardSubheaderProps) {
   const { slot } = useDashboardHeaderActionsSlot()
   const topRightActions = (search || filterMenu || preActions || actions) ? (
     <StickybarTopRightActions
@@ -48,33 +39,11 @@ export function DashboardSubheader({ items, filterMenu, search, preActions, acti
     <>
       {slot && topRightActions ? createPortal(topRightActions, slot) : null}
 
-      <div className={cn("my-3 flex flex-col sm:flex-row sm:items-center sm:justify-between", className)}>
-        {/* Left side: breadcrumbs */}
-        <Breadcrumb className="min-w-0">
-          <BreadcrumbList className="rounded-md text-sm">
-            {items.map((item, index) => {
-              const isLast = index === items.length - 1
-              return (
-                <span key={index} className="contents">
-                  {index > 0 && <BreadcrumbSeparator />}
-                  <BreadcrumbItem>
-                    {isLast ? (
-                      <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                    ) : (
-                      <BreadcrumbLink href={item.href || "#"}>{item.label}</BreadcrumbLink>
-                    )}
-                  </BreadcrumbItem>
-                </span>
-              )
-            })}
-          </BreadcrumbList>
-        </Breadcrumb>
-        {rightContent ? (
-          <div className="flex max-w-full shrink-0 overflow-x-auto">
-            {rightContent}
-          </div>
-        ) : null}
-      </div>
+      {rightContent ? (
+        <div className={cn("flex max-w-full overflow-x-auto", className)}>
+          {rightContent}
+        </div>
+      ) : null}
     </>
   )
 }

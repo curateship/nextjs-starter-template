@@ -16,7 +16,7 @@ export function AdminLayout({
   children,
   noPadding = false,
 }: AdminLayoutProps) {
-  return <div className={noPadding ? "" : "px-7"}>{children}</div>
+  return <div className={noPadding ? "" : "px-7 py-7"}>{children}</div>
 }
 
 // Re-export admin components
