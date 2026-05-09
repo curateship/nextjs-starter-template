@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   AdminModalBody,
   AdminModalContent,
+  AdminModalFooter,
   AdminModalHeader,
   AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
@@ -242,7 +243,7 @@ export function NewsletterStatusEventsModal({
             className={cn(
               "min-h-0 flex-1",
               showRateCards
-                ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-8 sm:grid-cols-3"
+                ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-8 sm:grid-cols-3"
                 : "flex flex-col"
             )}
           >
@@ -322,14 +323,14 @@ export function NewsletterStatusEventsModal({
               </ScrollArea>
             </div>
 
-            {total > 0 && (
-              <div className="col-span-full flex items-center justify-between gap-4 pt-4">
-                <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
-                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} showFirstLast={false} />
-              </div>
-            )}
           </div>
         </AdminModalBody>
+        {total > 0 && (
+          <AdminModalFooter className="flex-col gap-3 sm:flex-row sm:justify-between">
+            <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} showFirstLast={false} />
+          </AdminModalFooter>
+        )}
       </AdminModalContent>
     </Dialog>
   )
