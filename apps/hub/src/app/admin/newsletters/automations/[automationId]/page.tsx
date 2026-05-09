@@ -834,7 +834,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         }
                       }}
                       className={cn(
-                        "w-full cursor-pointer border-l-4 border-l-black! p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        "w-full cursor-pointer border-l-4 border-l-black! p-4 text-left transition-colors hover:bg-[#fcfcfc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                         isSelected && !isPlaceholder ? "ring-1 ring-blue-500/15" : "",
                         isSelected && isPlaceholder ? "ring-1 ring-border" : ""
                       )}
@@ -891,7 +891,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <div key={node.id} className="w-full">
                   {node.node_type === "delay" ? (
                     <Card
-                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50"
+                      className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
                       onClick={() => openDelayEditor(node)}
                     >
                       <div className="flex items-center justify-between">
@@ -937,7 +937,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     </Card>
                   ) : node.node_type === "end_rules" ? (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50"
+                      className="w-full cursor-pointer border-l-4 border-l-green-500 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
                       onClick={() => openEndRulesEditor(node)}
                     >
                       <div className="flex items-center justify-between">
@@ -977,7 +977,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     </Card>
                   ) : (
                     <Card
-                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50"
+                      className="w-full cursor-pointer border-l-4 border-l-blue-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
                       onClick={() => setEditingEmailSettings(node)}
                     >
                       <div className="flex items-center justify-between">

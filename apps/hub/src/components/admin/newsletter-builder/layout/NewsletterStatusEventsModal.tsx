@@ -213,7 +213,10 @@ export function NewsletterStatusEventsModal({
           </div>
         </AdminModalHeader>
         <AdminModalBody className="flex flex-1 flex-col">
-          <div className={cn("min-h-0 flex-1", showRateCards ? "grid grid-cols-1 gap-8 sm:grid-cols-3" : "flex flex-col")}>
+          <div className={cn(
+            "min-h-0 flex-1",
+            showRateCards ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-8 sm:grid-cols-3" : "flex flex-col"
+          )}>
             {showRateCards && [
               ["Open percentage", rates.openRate],
               ["Click percentage", rates.clickRate],
@@ -225,7 +228,10 @@ export function NewsletterStatusEventsModal({
               </Card>
             ))}
 
-            <div className="relative col-span-full min-h-[420px] flex-1 overflow-hidden sm:min-h-[520px]">
+            <div className={cn(
+              "relative col-span-full flex-1 overflow-hidden",
+              showRateCards ? "min-h-0" : "min-h-[420px] sm:min-h-[520px]"
+            )}>
               <ScrollArea className="h-full w-full">
                 <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
                   <TableHeader className="sticky top-0 z-20 bg-background">
@@ -282,15 +288,17 @@ export function NewsletterStatusEventsModal({
               </ScrollArea>
             </div>
 
-            <div className="col-span-full flex items-center justify-between gap-4 pt-4">
-              <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
-              <Pagination
-                currentPage={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                showFirstLast={false}
-              />
-            </div>
+            {total > 0 && (
+              <div className="col-span-full flex items-center justify-between gap-4 pt-4">
+                <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  showFirstLast={false}
+                />
+              </div>
+            )}
           </div>
         </AdminModalBody>
       </AdminModalContent>
