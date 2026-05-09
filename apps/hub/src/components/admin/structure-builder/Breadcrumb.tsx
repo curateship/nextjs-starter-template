@@ -10,38 +10,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import {
-  getSiteByIdAction,
-  updateSiteAction,
-  type Site,
-} from "@/lib/actions/sites/site-actions"
+import { getSiteByIdAction, updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 
 const BREADCRUMB_OPTIONS = [
   {
     key: "posts",
     label: "Posts",
-    description: "Show the primary category path on post pages.",
+    description: "Show the primary category path on post pages."
   },
   {
     key: "products",
     label: "Products",
-    description: "Show the primary category path on product pages.",
+    description: "Show the primary category path on product pages."
   },
   {
     key: "directories",
     label: "Directory",
-    description: "Show the primary category path on directory item pages.",
+    description: "Show the primary category path on directory item pages."
   },
   {
     key: "events",
     label: "Events",
-    description: "Show the primary category path on event pages.",
+    description: "Show the primary category path on event pages."
   },
   {
     key: "categories",
     label: "Categories",
-    description: "Show the parent category path on category pages.",
-  },
+    description: "Show the parent category path on category pages."
+  }
 ] as const
 
 type BreadcrumbKey = (typeof BREADCRUMB_OPTIONS)[number]["key"]
@@ -68,9 +64,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
   )
 
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbSettings>(
-    getBreadcrumbSettings(contextSite?.settings)
-  )
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbSettings>(getBreadcrumbSettings(contextSite?.settings))
   const [loading, setLoading] = useState(!contextSite)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -129,17 +123,19 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
       setError(null)
       setSaveMessage("")
 
-      const currentBreadcrumbs = { ...((site.settings?.breadcrumbs as Record<string, boolean> | undefined) || {}) }
+      const currentBreadcrumbs = {
+        ...((site.settings?.breadcrumbs as Record<string, boolean> | undefined) || {})
+      }
       const nextSettings = {
         ...site.settings,
         breadcrumbs: {
           ...currentBreadcrumbs,
-          ...breadcrumbs,
-        },
+          ...breadcrumbs
+        }
       }
 
       const { data, error: updateError } = await updateSiteAction(siteId, {
-        settings: nextSettings,
+        settings: nextSettings
       })
 
       if (updateError) {
@@ -171,9 +167,12 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
         <div className="w-full pb-8">
           <DashboardSubheader
             items={[
-              { label: site?.name || "Site", href: `/admin/sites/${siteId}/dashboard` },
+              {
+                label: site?.name || "Site",
+                href: `/admin/sites/${siteId}/dashboard`
+              },
               { label: "Structure", href: `/admin/sites/${siteId}/pages` },
-              { label: "Breadcrumbs" },
+              { label: "Breadcrumbs" }
             ]}
             actions={
               <div className="flex items-center gap-2">
@@ -183,9 +182,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
                     <span className="text-sm font-medium text-green-700">{saveMessage}</span>
                   </div>
                 )}
-                <Button onClick={saving ? undefined : handleSave}>
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
+                <Button onClick={saving ? undefined : handleSave}>{saving ? "Saving..." : "Save Changes"}</Button>
               </div>
             }
           />
@@ -198,7 +195,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
 
           {loading ? (
             <Card>
-              <CardContent className="space-y-4 p-6">
+              <CardContent className="space-y-4">
                 {BREADCRUMB_OPTIONS.map((option) => (
                   <div key={option.key} className="flex items-center justify-between gap-4">
                     <div className="space-y-2">
@@ -212,7 +209,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
             </Card>
           ) : !site ? (
             <Card>
-              <CardContent className="p-6">
+              <CardContent>
                 <p className="text-sm text-muted-foreground">Unable to load structure settings for this site.</p>
               </CardContent>
             </Card>
@@ -220,9 +217,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
             <Card>
               <CardHeader>
                 <CardTitle>Breadcrumbs</CardTitle>
-                <CardDescription>
-                  Choose where frontend breadcrumb paths appear.
-                </CardDescription>
+                <CardDescription>Choose where frontend breadcrumb paths appear.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {BREADCRUMB_OPTIONS.map((option) => (
@@ -239,7 +234,7 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
                       onCheckedChange={(checked) => {
                         setBreadcrumbs((current) => ({
                           ...current,
-                          [option.key]: checked,
+                          [option.key]: checked
                         }))
                       }}
                     />

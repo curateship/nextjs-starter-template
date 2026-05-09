@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useEffect, useCallback, useRef, use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -8,26 +8,27 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
 import { updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { getSiteIntegrations, createOrUpdateIntegration } from "@/lib/actions/integrations/integration-actions"
+import type { SiteIntegration } from "@/lib/actions/integrations/integration-actions"
 import {
-  getSiteIntegrations,
-  createOrUpdateIntegration,
-} from '@/lib/actions/integrations/integration-actions'
-import type { SiteIntegration } from '@/lib/actions/integrations/integration-actions'
-import { INTEGRATION_REGISTRY, type IntegrationCategory, type IntegrationRegistryEntry } from '@/lib/actions/integrations/types'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+  INTEGRATION_REGISTRY,
+  type IntegrationCategory,
+  type IntegrationRegistryEntry
+} from "@/lib/actions/integrations/types"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, CheckCircle, Copy, Eye, EyeOff, RefreshCw, Shield, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
-import { checkDomainHealth, type DomainHealth } from '@/lib/actions/newsletters/deliverability-actions'
-import { SiteHealthTab } from '@/components/admin/seo-settings/SiteHealthTab'
+import { checkDomainHealth, type DomainHealth } from "@/lib/actions/newsletters/deliverability-actions"
+import { SiteHealthTab } from "@/components/admin/seo-settings/SiteHealthTab"
 
 // --- IntegrationCard ---
 
@@ -39,50 +40,43 @@ interface IntegrationCardProps {
   siteId: string
 }
 
-function IntegrationCard({
-  entry,
-  integration,
-  formValues,
-  onFormChange,
-  siteId,
-}: IntegrationCardProps) {
+function IntegrationCard({ entry, integration, formValues, onFormChange, siteId }: IntegrationCardProps) {
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
   const [webhookBaseUrl, setWebhookBaseUrl] = useState("")
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false)
   const [copiedSetupCommand, setCopiedSetupCommand] = useState(false)
 
   const isConfigured = integration !== null
-  const stripeMode = (formValues.mode || integration?.config?.mode) === 'sandbox' ? 'Sandbox' : 'Live'
-  const savedWebhookSecret = typeof integration?.config?.webhook_secret === 'string'
-    ? integration.config.webhook_secret
-    : ''
-  const webhookSlug = entry.type === 'notion_marketplace'
-    ? 'notion-marketplace'
-    : entry.type === 'gumroad'
-      ? 'gumroad'
-      : ''
-  const webhookQuery = entry.type === 'gumroad' ? '&resource=sale' : ''
-  const webhookUrl = webhookSlug && savedWebhookSecret && webhookBaseUrl
-    ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(savedWebhookSecret)}${webhookQuery}`
-    : ''
+  const stripeMode = (formValues.mode || integration?.config?.mode) === "sandbox" ? "Sandbox" : "Live"
+  const savedWebhookSecret =
+    typeof integration?.config?.webhook_secret === "string" ? integration.config.webhook_secret : ""
+  const webhookSlug =
+    entry.type === "notion_marketplace" ? "notion-marketplace" : entry.type === "gumroad" ? "gumroad" : ""
+  const webhookQuery = entry.type === "gumroad" ? "&resource=sale" : ""
+  const webhookUrl =
+    webhookSlug && savedWebhookSecret && webhookBaseUrl
+      ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(savedWebhookSecret)}${webhookQuery}`
+      : ""
   const webhookUrlPreview = webhookUrl
     ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=********${webhookQuery}`
-    : ''
-  const gumroadSetupCommand = entry.type === 'gumroad' && webhookUrl
-    ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
+    : ""
+  const gumroadSetupCommand =
+    entry.type === "gumroad" && webhookUrl
+      ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
   -H "Authorization: Bearer YOUR_GUMROAD_ACCESS_TOKEN" \\
   -d "resource_name=sale" \\
   --data-urlencode "post_url=${webhookUrl}"`
-    : ''
-  const gumroadSetupCommandPreview = entry.type === 'gumroad' && webhookUrlPreview
-    ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
+      : ""
+  const gumroadSetupCommandPreview =
+    entry.type === "gumroad" && webhookUrlPreview
+      ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
   -H "Authorization: Bearer YOUR_GUMROAD_ACCESS_TOKEN" \\
   -d "resource_name=sale" \\
   --data-urlencode "post_url=${webhookUrlPreview}"`
-    : ''
+      : ""
 
   useEffect(() => {
-    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '')
+    const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
     setWebhookBaseUrl(configuredUrl || window.location.origin)
   }, [])
 
@@ -124,12 +118,10 @@ function IntegrationCard({
                   Not configured
                 </span>
               )}
-              {entry.type === 'stripe' && isConfigured && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  stripeMode === 'Sandbox'
-                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
-                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                }`}>
+              {entry.type === "stripe" && isConfigured && (
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${stripeMode === "Sandbox" ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400" : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"}`}
+                >
                   Using {stripeMode}
                 </span>
               )}
@@ -139,13 +131,13 @@ function IntegrationCard({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0 space-y-4">
+      <CardContent className="space-y-4">
         {entry.fields.map((field) => (
           <div key={field.key} className="space-y-2">
-            {entry.type === 'stripe' && field.key === 'secret_key' && (
+            {entry.type === "stripe" && field.key === "secret_key" && (
               <h3 className="pt-4 text-base font-semibold">Live Credentials</h3>
             )}
-            {entry.type === 'stripe' && field.key === 'sandbox_secret_key' && (
+            {entry.type === "stripe" && field.key === "sandbox_secret_key" && (
               <h3 className="pt-4 text-base font-semibold">Sandbox Credentials</h3>
             )}
             <Label htmlFor={`${entry.type}-${field.key}`}>
@@ -153,20 +145,20 @@ function IntegrationCard({
               {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <div className="relative">
-              {entry.type === 'stripe' && field.key === 'mode' ? (
+              {entry.type === "stripe" && field.key === "mode" ? (
                 <div className="flex h-10 items-center gap-2">
                   <Checkbox
                     id={`${entry.type}-${field.key}`}
-                    checked={(formValues[field.key] || field.options?.[0]?.value || '') === 'sandbox'}
-                    onCheckedChange={(checked) => onFormChange(entry.type, field.key, checked ? 'sandbox' : 'live')}
+                    checked={(formValues[field.key] || field.options?.[0]?.value || "") === "sandbox"}
+                    onCheckedChange={(checked) => onFormChange(entry.type, field.key, checked ? "sandbox" : "live")}
                   />
                   <Label htmlFor={`${entry.type}-${field.key}`} className="cursor-pointer font-normal">
                     Use sandbox keys
                   </Label>
                 </div>
-              ) : field.type === 'select' ? (
+              ) : field.type === "select" ? (
                 <Select
-                  value={formValues[field.key] || field.options?.[0]?.value || ''}
+                  value={formValues[field.key] || field.options?.[0]?.value || ""}
                   onValueChange={(value) => onFormChange(entry.type, field.key, value)}
                 >
                   <SelectTrigger id={`${entry.type}-${field.key}`} className="w-full">
@@ -183,28 +175,24 @@ function IntegrationCard({
               ) : (
                 <Input
                   id={`${entry.type}-${field.key}`}
-                  type={field.type === 'password' && !revealedFields.has(field.key) ? 'password' : field.type}
+                  type={field.type === "password" && !revealedFields.has(field.key) ? "password" : field.type}
                   placeholder={field.placeholder}
-                  value={formValues[field.key] || ''}
+                  value={formValues[field.key] || ""}
                   onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
-                  className={field.type === 'password' ? 'pr-10' : ''}
+                  className={field.type === "password" ? "pr-10" : ""}
                 />
               )}
-              {field.type === 'password' && (
+              {field.type === "password" && (
                 <button
                   type="button"
                   onClick={() => toggleReveal(field.key)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {revealedFields.has(field.key) ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {revealedFields.has(field.key) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               )}
             </div>
-            {entry.type === 'stripe' && field.key === 'mode' && (
+            {entry.type === "stripe" && field.key === "mode" && (
               <p className="text-sm text-muted-foreground">
                 Unchecked uses live keys for checkout payments and webhooks.
               </p>
@@ -212,33 +200,28 @@ function IntegrationCard({
           </div>
         ))}
 
-        {(entry.type === 'notion_marketplace' || entry.type === 'gumroad') && (
+        {(entry.type === "notion_marketplace" || entry.type === "gumroad") && (
           <div className="space-y-2 border-t pt-4">
             <Label htmlFor={`${entry.type}-webhook-url`}>Webhook URL</Label>
             <div className="flex gap-2">
               <Input
                 id={`${entry.type}-webhook-url`}
-                value={webhookUrlPreview || 'Save a webhook secret to generate the URL'}
+                value={webhookUrlPreview || "Save a webhook secret to generate the URL"}
                 readOnly
                 className="font-mono text-xs"
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCopyWebhookUrl}
-                disabled={!webhookUrl}
-              >
+              <Button type="button" variant="outline" onClick={handleCopyWebhookUrl} disabled={!webhookUrl}>
                 <Copy className="mr-2 h-4 w-4" />
-                {copiedWebhookUrl ? 'Copied' : 'Copy'}
+                {copiedWebhookUrl ? "Copied" : "Copy"}
               </Button>
             </div>
 
-            {entry.type === 'gumroad' && (
+            {entry.type === "gumroad" && (
               <div className="space-y-2 pt-2">
                 <Label htmlFor="gumroad-sale-command">Sale subscription command</Label>
                 <Textarea
                   id="gumroad-sale-command"
-                  value={gumroadSetupCommandPreview || 'Save a webhook secret to generate the command'}
+                  value={gumroadSetupCommandPreview || "Save a webhook secret to generate the command"}
                   readOnly
                   className="min-h-28 font-mono text-xs"
                 />
@@ -249,7 +232,7 @@ function IntegrationCard({
                   disabled={!gumroadSetupCommand}
                 >
                   <Copy className="mr-2 h-4 w-4" />
-                  {copiedSetupCommand ? 'Copied' : 'Copy command'}
+                  {copiedSetupCommand ? "Copied" : "Copy command"}
                 </Button>
               </div>
             )}
@@ -286,16 +269,16 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       // Initialize form values from loaded integrations
       const values: Record<string, Record<string, string>> = {}
       for (const entry of INTEGRATION_REGISTRY.filter((e) => e.category === category)) {
-        const integration = data.find((i) => i.integrationType ===entry.type)
+        const integration = data.find((i) => i.integrationType === entry.type)
         values[entry.type] = {}
         for (const field of entry.fields) {
-          values[entry.type][field.key] = integration?.config?.[field.key] || field.options?.[0]?.value || ''
+          values[entry.type][field.key] = integration?.config?.[field.key] || field.options?.[0]?.value || ""
         }
       }
       setAllFormValues(values)
     } catch (err) {
-      console.error('Error loading integrations:', err)
-      onError?.('Failed to load integrations')
+      console.error("Error loading integrations:", err)
+      onError?.("Failed to load integrations")
     } finally {
       setLoading(false)
     }
@@ -319,7 +302,9 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       for (const entry of entries) {
         const formValues = currentValues[entry.type] || {}
         const existingIntegration = integrations.find((integration) => integration.integrationType === entry.type)
-        const config: Record<string, any> = { ...(existingIntegration?.config || {}) }
+        const config: Record<string, any> = {
+          ...(existingIntegration?.config || {})
+        }
         let hasValues = !!existingIntegration
         for (const field of entry.fields) {
           if (formValues[field.key]) {
@@ -334,9 +319,9 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
       }
       await loadIntegrations()
       if (saved > 0) {
-        onSuccess?.('Integration settings saved')
-      } else if (category !== 'email') {
-        onSuccess?.('No changes to save')
+        onSuccess?.("Integration settings saved")
+      } else if (category !== "email") {
+        onSuccess?.("No changes to save")
       }
     }
 
@@ -346,40 +331,41 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
   const handleFormChange = useCallback((type: string, key: string, value: string) => {
     setAllFormValues((prev) => ({
       ...prev,
-      [type]: { ...prev[type], [key]: value },
+      [type]: { ...prev[type], [key]: value }
     }))
   }, [])
 
   const getIntegration = (type: string): SiteIntegration | null => {
-    return integrations.find((i) => i.integrationType ===type) ?? null
+    return integrations.find((i) => i.integrationType === type) ?? null
   }
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="grid">
         {entries.map((entry) => (
           <Card key={entry.type}>
             <CardHeader>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <div className="h-5 bg-muted rounded animate-pulse w-24" />
-                  {entry.type === 'stripe' && (
-                    <div className="h-5 bg-muted rounded-full animate-pulse w-20" />
-                  )}
+                  {entry.type === "stripe" && <div className="h-5 bg-muted rounded-full animate-pulse w-20" />}
                 </div>
                 <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
               </div>
             </CardHeader>
-            <CardContent className="pt-0 space-y-4">
+            <CardContent className="space-y-4">
               {entry.fields.map((field) => (
                 <div key={field.key} className="space-y-2">
-                  {entry.type === 'stripe' && (field.key === 'secret_key' || field.key === 'sandbox_secret_key') && (
+                  {entry.type === "stripe" && (field.key === "secret_key" || field.key === "sandbox_secret_key") && (
                     <div className="h-5 bg-muted rounded animate-pulse w-36" />
                   )}
                   <div className="h-4 bg-muted rounded animate-pulse w-44" />
-                  <div className={field.key === 'mode'
-                    ? "h-5 bg-muted rounded animate-pulse w-36"
-                    : "h-10 bg-muted rounded animate-pulse w-full"}
+                  <div
+                    className={
+                      field.key === "mode"
+                        ? "h-5 bg-muted rounded animate-pulse w-36"
+                        : "h-10 bg-muted rounded animate-pulse w-full"
+                    }
                   />
                 </div>
               ))}
@@ -391,7 +377,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
   }
 
   return (
-    <div className="space-y-3">
+    <div className="grid">
       {entries.map((entry) => (
         <IntegrationCard
           key={entry.type}
@@ -408,15 +394,15 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
 
 // --- EmailDomainHealthCard ---
 
-function dnsStatusIcon(status: DomainHealth['spf']) {
-  if (status === 'pass') return <CheckCircle className="h-4 w-4 text-green-600" />
-  if (status === 'fail') return <XCircle className="h-4 w-4 text-red-600" />
+function dnsStatusIcon(status: DomainHealth["spf"]) {
+  if (status === "pass") return <CheckCircle className="h-4 w-4 text-green-600" />
+  if (status === "fail") return <XCircle className="h-4 w-4 text-red-600" />
   return <AlertTriangle className="h-4 w-4 text-yellow-600" />
 }
 
-function dnsStatusBadge(status: DomainHealth['spf']) {
-  if (status === 'pass') return <Badge className="bg-green-100 text-green-800">Pass</Badge>
-  if (status === 'fail') return <Badge variant="destructive">Fail</Badge>
+function dnsStatusBadge(status: DomainHealth["spf"]) {
+  if (status === "pass") return <Badge className="bg-green-100 text-green-800">Pass</Badge>
+  if (status === "fail") return <Badge variant="destructive">Fail</Badge>
   return <Badge className="bg-yellow-100 text-yellow-800">Missing</Badge>
 }
 
@@ -444,15 +430,17 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
               <Shield className="h-4 w-4" />
               Domain Health
             </CardTitle>
-            <CardDescription className="mt-1">SPF, DKIM, and DMARC status for your Resend sender domain.</CardDescription>
+            <CardDescription className="mt-1">
+              SPF, DKIM, and DMARC status for your Resend sender domain.
+            </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={loadDomainHealth} disabled={loading}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent>
         {loading ? (
           <div className="h-12 animate-pulse rounded-md bg-muted" />
         ) : domainHealth ? (
@@ -461,7 +449,7 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
               Sending domain: <span className="font-medium text-foreground">{domainHealth.domain}</span>
             </p>
             <div className="grid gap-3 md:grid-cols-3">
-              {(['spf', 'dkim', 'dmarc'] as const).map((record) => (
+              {(["spf", "dkim", "dmarc"] as const).map((record) => (
                 <div key={record} className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-2">
                     {dnsStatusIcon(domainHealth[record])}
@@ -473,7 +461,9 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
             </div>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Configure a from email in Resend settings to check domain health.</p>
+          <p className="text-sm text-muted-foreground">
+            Configure a from email in Resend settings to check domain health.
+          </p>
         )}
       </CardContent>
     </Card>
@@ -489,18 +479,18 @@ interface SiteEditPageProps {
 }
 
 const TABS = [
-  { id: 'general', label: 'General Settings' },
-  { id: 'style', label: 'Style' },
-  { id: 'payments', label: 'Payments' },
-  { id: 'email', label: 'Email' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'cron-jobs', label: 'Cron Jobs' },
-  { id: 'ai', label: 'AI Providers' },
-  { id: 'sidebar', label: 'Sidebar' },
-  { id: 'dashboard-quick-links', label: 'Dashboard Quick Links' },
+  { id: "general", label: "General Settings" },
+  { id: "style", label: "Style" },
+  { id: "payments", label: "Payments" },
+  { id: "email", label: "Email" },
+  { id: "integrations", label: "Integrations" },
+  { id: "cron-jobs", label: "Cron Jobs" },
+  { id: "ai", label: "AI Providers" },
+  { id: "sidebar", label: "Sidebar" },
+  { id: "dashboard-quick-links", label: "Dashboard Quick Links" }
 ] as const
 
-type TabId = (typeof TABS)[number]['id']
+type TabId = (typeof TABS)[number]["id"]
 
 function isTabId(value: string | null): value is TabId {
   return TABS.some((tab) => tab.id === value)
@@ -512,8 +502,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const { siteId } = use(params)
   const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
   const [activeTab, setActiveTab] = useState<TabId>(() => {
-    const requestedTab = searchParams.get('tab')
-    return isTabId(requestedTab) ? requestedTab : 'general'
+    const requestedTab = searchParams.get("tab")
+    return isTabId(requestedTab) ? requestedTab : "general"
   })
   const contextSite = sites.find((site) => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null)
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
@@ -522,27 +512,39 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [customDomain, setCustomDomain] = useState(contextSite?.custom_domain || "")
   const [status, setStatus] = useState<string>(contextSite?.status || "draft")
   const [fontFamily, setFontFamily] = useState(contextSite?.settings?.font_family || "playfair-display")
-  const [secondaryFontFamily, setSecondaryFontFamily] = useState(contextSite?.settings?.secondary_font_family || "inter")
+  const [secondaryFontFamily, setSecondaryFontFamily] = useState(
+    contextSite?.settings?.secondary_font_family || "inter"
+  )
   const [favicon, setFavicon] = useState(contextSite?.settings?.favicon || "")
   const [trackingScripts, setTrackingScripts] = useState(contextSite?.settings?.tracking_scripts || "")
-  const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(!!contextSite?.settings?.custom_analytics_enabled)
-  const [siteWidth, setSiteWidth] = useState<'full' | 'custom'>(contextSite?.settings?.site_width || 'custom')
+  const [customAnalyticsEnabled, setCustomAnalyticsEnabled] = useState(
+    !!contextSite?.settings?.custom_analytics_enabled
+  )
+  const [siteWidth, setSiteWidth] = useState<"full" | "custom">(contextSite?.settings?.site_width || "custom")
   const [customWidth, setCustomWidth] = useState<number | undefined>(contextSite?.settings?.custom_width)
-  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>(contextSite?.settings?.default_theme || 'system')
+  const [defaultTheme, setDefaultTheme] = useState<"system" | "light" | "dark">(
+    contextSite?.settings?.default_theme || "system"
+  )
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
-  const [welcomeEmailEnabled, setWelcomeEmailEnabled] = useState<boolean>(contextSite?.settings?.welcome_email_enabled !== false)
+  const [welcomeEmailEnabled, setWelcomeEmailEnabled] = useState<boolean>(
+    contextSite?.settings?.welcome_email_enabled !== false
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
-  const [adminSettingsStatus, setAdminSettingsStatus] = useState({ loading: true, saving: false, message: null as string | null })
+  const [adminSettingsStatus, setAdminSettingsStatus] = useState({
+    loading: true,
+    saving: false,
+    message: null as string | null
+  })
 
   const [integrationSaveTrigger, setIntegrationSaveTrigger] = useState(0)
   const [domainHealthRefreshSignal, setDomainHealthRefreshSignal] = useState(0)
   const [cronJobsLoading, setCronJobsLoading] = useState(true)
   const [cronJobsRefreshSignal, setCronJobsRefreshSignal] = useState(0)
-  const isAdminSettingsTab = activeTab === 'sidebar' || activeTab === 'dashboard-quick-links'
-  const isCronJobsTab = activeTab === 'cron-jobs'
+  const isAdminSettingsTab = activeTab === "sidebar" || activeTab === "dashboard-quick-links"
+  const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
 
@@ -555,10 +557,13 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     setError(message)
   }, [])
 
-  const handleEmailIntegrationSuccess = useCallback((message: string) => {
-    showSuccess(message)
-    setDomainHealthRefreshSignal((current) => current + 1)
-  }, [showSuccess])
+  const handleEmailIntegrationSuccess = useCallback(
+    (message: string) => {
+      showSuccess(message)
+      setDomainHealthRefreshSignal((current) => current + 1)
+    },
+    [showSuccess]
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -571,9 +576,9 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       setError(null)
       setSaveMessage(null)
 
-      if (activeTab === 'general' || activeTab === 'style') {
+      if (activeTab === "general" || activeTab === "style") {
         if (!siteName.trim()) {
-          setError('Site name is required')
+          setError("Site name is required")
           return
         }
 
@@ -581,7 +586,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           name: siteName.trim(),
           subdomain: subdomain.trim(),
           custom_domain: customDomain.trim() || null,
-          status: status as 'active' | 'inactive' | 'draft',
+          status: status as "active" | "inactive" | "draft",
           settings: {
             ...site?.settings,
             site_title: site?.settings?.site_title || siteName.trim(),
@@ -590,12 +595,12 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             maintenance: { enabled: maintenanceEnabled },
             font_family: fontFamily,
             secondary_font_family: secondaryFontFamily,
-            favicon: favicon === '' ? '' : favicon || undefined,
+            favicon: favicon === "" ? "" : favicon || undefined,
             tracking_scripts: trackingScripts,
             custom_analytics_enabled: customAnalyticsEnabled,
             site_width: siteWidth,
             custom_width: customWidth,
-            default_theme: defaultTheme,
+            default_theme: defaultTheme
           }
         })
 
@@ -605,19 +610,19 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         }
 
         if (data) {
-          setSite(prev => prev ? { ...prev, ...data } : null)
+          setSite((prev) => (prev ? { ...prev, ...data } : null))
           setCustomDomain(data.custom_domain || "")
           if (currentSite?.id === siteId) {
             setCurrentSite({ ...currentSite, ...data })
           }
-          showSuccess('Settings saved successfully')
+          showSuccess("Settings saved successfully")
         }
-      } else if (activeTab === 'email') {
+      } else if (activeTab === "email") {
         const { data, error } = await updateSiteAction(siteId, {
           settings: {
             ...site?.settings,
-            welcome_email_enabled: welcomeEmailEnabled,
-          },
+            welcome_email_enabled: welcomeEmailEnabled
+          }
         })
 
         if (error) {
@@ -626,11 +631,11 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         }
 
         if (data) {
-          setSite(prev => prev ? { ...prev, ...data } : null)
+          setSite((prev) => (prev ? { ...prev, ...data } : null))
           if (currentSite?.id === siteId) {
             setCurrentSite({ ...currentSite, ...data })
           }
-          showSuccess('Email settings saved')
+          showSuccess("Email settings saved")
         }
 
         setIntegrationSaveTrigger((prev) => prev + 1)
@@ -638,8 +643,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
         setIntegrationSaveTrigger((prev) => prev + 1)
       }
     } catch (err) {
-      console.error('Error saving:', err)
-      setError('Failed to save. Please try again.')
+      console.error("Error saving:", err)
+      setError("Failed to save. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -652,7 +657,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           <div className="p-8 text-center">
             <p className="text-red-600 mb-4">{error}</p>
             <button
-              onClick={() => router.push('/admin/sites')}
+              onClick={() => router.push("/admin/sites")}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Back to Sites
@@ -667,11 +672,14 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     <>
       <StickyHeader />
       <AdminLayout>
-        <div className="w-full pb-8">
+        <div className="w-full">
           <DashboardSubheader
             items={[
-              { label: siteName || "Site", href: `/admin/sites/${siteId}/dashboard` },
-              { label: activeTabConfig.label },
+              {
+                label: siteName || "Site",
+                href: `/admin/sites/${siteId}/dashboard`
+              },
+              { label: activeTabConfig.label }
             ]}
             actions={
               <div className="flex items-center gap-2">
@@ -688,19 +696,25 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     disabled={cronJobsLoading}
                     onClick={() => setCronJobsRefreshSignal((current) => current + 1)}
                   >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${cronJobsLoading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`mr-2 h-4 w-4 ${cronJobsLoading ? "animate-spin" : ""}`} />
                     Refresh
                   </Button>
                 ) : (
                   <Button
-                    type={isAdminSettingsTab ? 'submit' : 'button'}
-                    form={isAdminSettingsTab ? 'site-admin-settings-form' : undefined}
-                    disabled={isAdminSettingsTab ? adminSettingsStatus.loading || adminSettingsStatus.saving : isSubmitting}
+                    type={isAdminSettingsTab ? "submit" : "button"}
+                    form={isAdminSettingsTab ? "site-admin-settings-form" : undefined}
+                    disabled={
+                      isAdminSettingsTab ? adminSettingsStatus.loading || adminSettingsStatus.saving : isSubmitting
+                    }
                     onClick={isAdminSettingsTab || isSubmitting ? undefined : handleSaveClick}
                   >
                     {isAdminSettingsTab
-                      ? adminSettingsStatus.saving ? "Saving..." : "Save Changes"
-                      : isSubmitting ? "Saving..." : "Save Changes"}
+                      ? adminSettingsStatus.saving
+                        ? "Saving..."
+                        : "Save Changes"
+                      : isSubmitting
+                        ? "Saving..."
+                        : "Save Changes"}
                   </Button>
                 )}
               </div>
@@ -722,9 +736,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
                     "text-left px-4 py-2.5 text-sm font-medium rounded-md transition-colors",
-                    activeTab === tab.id
-                      ? "bg-muted text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                    activeTab === tab.id ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {tab.label}
@@ -734,7 +746,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
             {/* Tab content */}
             <div className="flex-1 min-w-0">
-              {activeTab === 'general' && (
+              {activeTab === "general" && (
                 <form onSubmit={handleSubmit}>
                   <SiteDashboard
                     siteName={siteName}
@@ -757,8 +769,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                 </form>
               )}
 
-              {activeTab === 'style' && (
-                <div className="space-y-6">
+              {activeTab === "style" && (
+                <div>
                   <StylingSettingsCard
                     fontFamily={fontFamily}
                     secondaryFontFamily={secondaryFontFamily}
@@ -776,12 +788,18 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                 </div>
               )}
 
-              {activeTab === 'payments' && (
-                <IntegrationTab siteId={siteId} category="payments" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
+              {activeTab === "payments" && (
+                <IntegrationTab
+                  siteId={siteId}
+                  category="payments"
+                  saveTrigger={integrationSaveTrigger}
+                  onSuccess={showSuccess}
+                  onError={showError}
+                />
               )}
 
-              {activeTab === 'email' && (
-                <div className="space-y-3">
+              {activeTab === "email" && (
+                <div className="grid">
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Welcome Email</CardTitle>
@@ -789,7 +807,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                         Send the Welcome Email template when someone subscribes through a page email form.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-0">
+                    <CardContent>
                       <div className="flex h-10 items-center gap-2">
                         <Checkbox
                           id="welcome-email-enabled"
@@ -802,42 +820,52 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                       </div>
                     </CardContent>
                   </Card>
-                  <IntegrationTab siteId={siteId} category="email" saveTrigger={integrationSaveTrigger} onSuccess={handleEmailIntegrationSuccess} onError={showError} />
+                  <IntegrationTab
+                    siteId={siteId}
+                    category="email"
+                    saveTrigger={integrationSaveTrigger}
+                    onSuccess={handleEmailIntegrationSuccess}
+                    onError={showError}
+                  />
                   <EmailDomainHealthCard siteId={siteId} refreshSignal={domainHealthRefreshSignal} />
                 </div>
               )}
 
-              {activeTab === 'integrations' && (
-                <IntegrationTab siteId={siteId} category="integrations" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
-              )}
-
-              {activeTab === 'cron-jobs' && (
-                <SiteHealthTab
-                  refreshSignal={cronJobsRefreshSignal}
-                  onLoadingChange={setCronJobsLoading}
-                />
-              )}
-
-              {activeTab === 'ai' && (
-                <IntegrationTab siteId={siteId} category="ai" saveTrigger={integrationSaveTrigger} onSuccess={showSuccess} onError={showError} />
-              )}
-
-              {activeTab === 'sidebar' && (
-                <SiteAdminSettingsTab
+              {activeTab === "integrations" && (
+                <IntegrationTab
                   siteId={siteId}
-                  mode="sidebar"
-                  onStatusChange={setAdminSettingsStatus}
+                  category="integrations"
+                  saveTrigger={integrationSaveTrigger}
+                  onSuccess={showSuccess}
+                  onError={showError}
                 />
               )}
 
-              {activeTab === 'dashboard-quick-links' && (
+              {activeTab === "cron-jobs" && (
+                <SiteHealthTab refreshSignal={cronJobsRefreshSignal} onLoadingChange={setCronJobsLoading} />
+              )}
+
+              {activeTab === "ai" && (
+                <IntegrationTab
+                  siteId={siteId}
+                  category="ai"
+                  saveTrigger={integrationSaveTrigger}
+                  onSuccess={showSuccess}
+                  onError={showError}
+                />
+              )}
+
+              {activeTab === "sidebar" && (
+                <SiteAdminSettingsTab siteId={siteId} mode="sidebar" onStatusChange={setAdminSettingsStatus} />
+              )}
+
+              {activeTab === "dashboard-quick-links" && (
                 <SiteAdminSettingsTab
                   siteId={siteId}
                   mode="dashboard-quick-links"
                   onStatusChange={setAdminSettingsStatus}
                 />
               )}
-
             </div>
           </div>
         </div>

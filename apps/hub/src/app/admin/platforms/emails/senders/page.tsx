@@ -8,7 +8,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { getSiteIntegration, type SiteIntegration } from "@/lib/actions/integrations/integration-actions"
 
 interface SenderRow {
@@ -25,13 +25,15 @@ function buildSenderRows(integration: SiteIntegration | null): SenderRow[] {
     return []
   }
 
-  return [{
-    name: integration?.config?.from_name?.trim() || "Unnamed Sender",
-    email: fromEmail,
-    provider: "Resend",
-    status: "Connected",
-    updatedAt: integration?.updatedAt?.toISOString?.() ?? null,
-  }]
+  return [
+    {
+      name: integration?.config?.from_name?.trim() || "Unnamed Sender",
+      email: fromEmail,
+      provider: "Resend",
+      status: "Connected",
+      updatedAt: integration?.updatedAt?.toISOString?.() ?? null
+    }
+  ]
 }
 
 export default function PlatformSenderEmailsPage() {
@@ -68,12 +70,7 @@ export default function PlatformSenderEmailsPage() {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSenders = normalizedSearchQuery
     ? senders.filter((sender) => {
-        const searchText = [
-          sender.name,
-          sender.email,
-          sender.provider,
-          sender.status,
-        ].join(" ").toLowerCase()
+        const searchText = [sender.name, sender.email, sender.provider, sender.status].join(" ").toLowerCase()
 
         return searchText.includes(normalizedSearchQuery)
       })
@@ -97,25 +94,19 @@ export default function PlatformSenderEmailsPage() {
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search email accounts",
+              placeholder: "Search email accounts"
             }}
           />
 
-          {message && (
-            <div className="mb-6 rounded-md border px-4 py-3 text-sm">
-              {message}
-            </div>
-          )}
+          {message && <div className="mb-6 rounded-md border px-4 py-3 text-sm">{message}</div>}
 
-          <Card className="shadow-sm">
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-6">Sender</div>
-                <div className="col-span-2">Provider</div>
-                <div className="col-span-2">Status</div>
-                <div className="col-span-2" />
-              </div>
-            </div>
+          <Card>
+            <CardTableHeader className="grid-cols-12">
+              <div className="col-span-6">Sender</div>
+              <div className="col-span-2">Provider</div>
+              <div className="col-span-2">Status</div>
+              <div className="col-span-2" />
+            </CardTableHeader>
 
             <div className="divide-y">
               {loading && (
@@ -135,34 +126,33 @@ export default function PlatformSenderEmailsPage() {
                 </div>
               )}
 
-              {!loading && filteredSenders.map((sender) => (
-                <div key={sender.email} className="px-6 py-4">
-                  <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-6 min-w-0">
-                      <Link
-                        href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}
-                        className="block hover:underline"
-                      >
-                        <p className="font-medium">{sender.name}</p>
-                        <p className="text-sm text-muted-foreground">{sender.email}</p>
-                      </Link>
-                    </div>
-                    <div className="col-span-2 text-sm">{sender.provider}</div>
-                    <div className="col-span-2">
-                      <Badge variant={sender.status === "Connected" ? "default" : "secondary"}>
-                        {sender.status}
-                      </Badge>
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}>
-                          View Health
+              {!loading &&
+                filteredSenders.map((sender) => (
+                  <div key={sender.email} className="px-6 py-4">
+                    <div className="grid grid-cols-12 gap-4 items-center">
+                      <div className="col-span-6 min-w-0">
+                        <Link
+                          href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}
+                          className="block hover:underline"
+                        >
+                          <p className="font-medium">{sender.name}</p>
+                          <p className="text-sm text-muted-foreground">{sender.email}</p>
                         </Link>
-                      </Button>
+                      </div>
+                      <div className="col-span-2 text-sm">{sender.provider}</div>
+                      <div className="col-span-2">
+                        <Badge variant={sender.status === "Connected" ? "default" : "secondary"}>{sender.status}</Badge>
+                      </div>
+                      <div className="col-span-2 flex justify-end">
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}>
+                            View Health
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </Card>
         </div>

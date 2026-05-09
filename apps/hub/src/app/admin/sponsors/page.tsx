@@ -12,25 +12,21 @@ import {
   AdminListSkeleton,
   AdminSortButton,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { deleteSponsorAction, deleteSponsorsAction, getSiteSponsorsAction, type Sponsor } from "@/lib/actions/sponsors/sponsor-actions"
+import {
+  deleteSponsorAction,
+  deleteSponsorsAction,
+  getSiteSponsorsAction,
+  type Sponsor
+} from "@/lib/actions/sponsors/sponsor-actions"
 import { cn } from "@/lib/utils/tailwind"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
-import {
-  CheckCircle2,
-  CircleOff,
-  ExternalLink,
-  Handshake,
-  List,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { CheckCircle2, CircleOff, ExternalLink, Handshake, List, Pencil, Plus, Trash2 } from "lucide-react"
 
 type SponsorFilter = "all" | "active" | "inactive"
 type SortColumn = "title" | "status" | "url" | "modified"
@@ -39,7 +35,7 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
+    year: "numeric"
   }).format(new Date(value))
 }
 
@@ -113,7 +109,8 @@ export default function SponsorsPage() {
       if (sponsorSort.sortColumn === "title") return a.title.localeCompare(b.title) * dir
       if (sponsorSort.sortColumn === "status") return (Number(a.is_active) - Number(b.is_active)) * dir
       if (sponsorSort.sortColumn === "url") return a.url.localeCompare(b.url) * dir
-      if (sponsorSort.sortColumn === "modified") return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+      if (sponsorSort.sortColumn === "modified")
+        return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
 
       return 0
     })
@@ -122,13 +119,13 @@ export default function SponsorsPage() {
   const counts = {
     all: sponsors.length,
     active: sponsors.filter((sponsor) => sponsor.is_active).length,
-    inactive: sponsors.filter((sponsor) => !sponsor.is_active).length,
+    inactive: sponsors.filter((sponsor) => !sponsor.is_active).length
   }
 
   const handleSaved = (savedSponsor: Sponsor) => {
     setSponsors((current) => {
       const exists = current.some((sponsor) => sponsor.id === savedSponsor.id)
-      if (exists) return current.map((sponsor) => sponsor.id === savedSponsor.id ? savedSponsor : sponsor)
+      if (exists) return current.map((sponsor) => (sponsor.id === savedSponsor.id ? savedSponsor : sponsor))
       return [savedSponsor, ...current]
     })
   }
@@ -188,7 +185,7 @@ export default function SponsorsPage() {
           search={{
             value: searchQuery,
             onValueChange: setSearchQuery,
-            placeholder: "Search sponsors",
+            placeholder: "Search sponsors"
           }}
           filterMenu={{
             value: filter,
@@ -198,9 +195,19 @@ export default function SponsorsPage() {
             },
             items: [
               { value: "all", label: "All", icon: List, count: counts.all },
-              { value: "active", label: "Active", icon: CheckCircle2, count: counts.active },
-              { value: "inactive", label: "Inactive", icon: CircleOff, count: counts.inactive },
-            ],
+              {
+                value: "active",
+                label: "Active",
+                icon: CheckCircle2,
+                count: counts.active
+              },
+              {
+                value: "inactive",
+                label: "Inactive",
+                icon: CircleOff,
+                count: counts.inactive
+              }
+            ]
           }}
           preActions={
             <AdminBulkDeleteButton
@@ -217,56 +224,76 @@ export default function SponsorsPage() {
           }
         />
 
-        <Card className="shadow-sm">
-            <div className="border-b bg-muted/30 px-6 py-4">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
-                  <Checkbox
-                    checked={sponsorSelection.isPageSelected(filteredSponsors.map((sponsor) => sponsor.id))}
-                    onCheckedChange={() => sponsorSelection.togglePage(filteredSponsors.map((sponsor) => sponsor.id))}
-                    aria-label="Select all sponsors"
-                  />
-                  <AdminSortButton active={sponsorSort.sortColumn === "title"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("title")}>
-                    Sponsor
-                  </AdminSortButton>
-                </div>
-                <AdminSortButton active={sponsorSort.sortColumn === "status"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("status")}>
-                  Status
-                </AdminSortButton>
-                <AdminSortButton active={sponsorSort.sortColumn === "url"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("url")}>
-                  URL
-                </AdminSortButton>
-                <AdminSortButton active={sponsorSort.sortColumn === "modified"} direction={sponsorSort.sortDirection} onClick={() => sponsorSort.toggleSort("modified")}>
-                  Modified
-                </AdminSortButton>
-                <div>Actions</div>
-              </div>
+        <Card>
+          <CardTableHeader className="grid-cols-6">
+            <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
+              <Checkbox
+                checked={sponsorSelection.isPageSelected(filteredSponsors.map((sponsor) => sponsor.id))}
+                onCheckedChange={() => sponsorSelection.togglePage(filteredSponsors.map((sponsor) => sponsor.id))}
+                aria-label="Select all sponsors"
+              />
+              <AdminSortButton
+                active={sponsorSort.sortColumn === "title"}
+                direction={sponsorSort.sortDirection}
+                onClick={() => sponsorSort.toggleSort("title")}
+              >
+                Sponsor
+              </AdminSortButton>
             </div>
+            <AdminSortButton
+              active={sponsorSort.sortColumn === "status"}
+              direction={sponsorSort.sortDirection}
+              onClick={() => sponsorSort.toggleSort("status")}
+            >
+              Status
+            </AdminSortButton>
+            <AdminSortButton
+              active={sponsorSort.sortColumn === "url"}
+              direction={sponsorSort.sortDirection}
+              onClick={() => sponsorSort.toggleSort("url")}
+            >
+              URL
+            </AdminSortButton>
+            <AdminSortButton
+              active={sponsorSort.sortColumn === "modified"}
+              direction={sponsorSort.sortDirection}
+              onClick={() => sponsorSort.toggleSort("modified")}
+            >
+              Modified
+            </AdminSortButton>
+            <div>Actions</div>
+          </CardTableHeader>
 
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton firstColumnClassName="pl-[3px]" />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              ) : filteredSponsors.length === 0 ? (
-                <div className="p-10 text-center">
-                  <Handshake className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
-                  </p>
-                  <Button onClick={openCreate} variant="outline" className="mt-4" disabled={!currentSite?.id}>
-                    Create Sponsor
-                  </Button>
-                </div>
-              ) : (
-                sortedSponsors.map((sponsor) => {
-                  const imageSrc = sanitizeUrl(sponsor.image_url, "")
-                  const sponsorHref = sanitizeUrl(sponsor.url, "#")
+          <div className="divide-y divide-muted/80">
+            {loading ? (
+              <AdminListSkeleton firstColumnClassName="pl-[3px]" />
+            ) : error ? (
+              <div className="p-8 text-center">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            ) : filteredSponsors.length === 0 ? (
+              <div className="p-10 text-center">
+                <Handshake className="mx-auto h-12 w-12 text-muted-foreground" />
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
+                </p>
+                <Button onClick={openCreate} variant="outline" className="mt-4" disabled={!currentSite?.id}>
+                  Create Sponsor
+                </Button>
+              </div>
+            ) : (
+              sortedSponsors.map((sponsor) => {
+                const imageSrc = sanitizeUrl(sponsor.image_url, "")
+                const sponsorHref = sanitizeUrl(sponsor.url, "#")
 
-                  return (
-                  <div key={sponsor.id} className={cn("p-6 transition-colors", sponsorSelection.selectedIds.has(sponsor.id) && "bg-accent/50")}>
+                return (
+                  <div
+                    key={sponsor.id}
+                    className={cn(
+                      "p-6 transition-colors",
+                      sponsorSelection.selectedIds.has(sponsor.id) && "bg-accent/50"
+                    )}
+                  >
                     <div className="grid grid-cols-6 items-center gap-4">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4 pl-[3px]">
@@ -293,7 +320,11 @@ export default function SponsorsPage() {
                         </div>
                       </div>
                       <div>
-                        <Badge className={cn(sponsor.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground")}>
+                        <Badge
+                          className={cn(
+                            sponsor.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
+                          )}
+                        >
                           {sponsor.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </div>
@@ -313,7 +344,13 @@ export default function SponsorsPage() {
                       </div>
                       <div>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(sponsor)} title="Edit sponsor">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => openEdit(sponsor)}
+                            title="Edit sponsor"
+                          >
                             <Pencil className="h-4 w-4" />
                             <span className="sr-only">Edit sponsor</span>
                           </Button>
@@ -331,10 +368,10 @@ export default function SponsorsPage() {
                       </div>
                     </div>
                   </div>
-                  )
-                })
-              )}
-            </div>
+                )
+              })
+            )}
+          </div>
         </Card>
       </AdminLayout>
 

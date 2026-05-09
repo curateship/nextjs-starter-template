@@ -8,14 +8,14 @@ import {
   PointerSensor,
   type DragEndEvent,
   useSensor,
-  useSensors,
+  useSensors
 } from "@dnd-kit/core"
 import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
-  useSortable,
+  useSortable
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Check, GripVertical, Plus, Search, Trash2 } from "lucide-react"
@@ -25,7 +25,7 @@ import {
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -38,7 +38,7 @@ import {
   getQuickLinkIcon,
   getQuickLinkIconOrNull,
   type QuickLinkIconName,
-  type SiteQuickLink,
+  type SiteQuickLink
 } from "@/lib/utils/site-quick-links"
 
 interface QuickLinksSettingsCardProps {
@@ -52,14 +52,13 @@ interface SortableQuickLinkItemProps {
   onDelete: (id: string) => void
 }
 
-const ACTION_BUTTON_CLASS =
-  "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
+const ACTION_BUTTON_CLASS = "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
 function QuickLinkSettingsButton({
   label,
   value,
   href,
-  onSave,
+  onSave
 }: {
   label: string
   value?: QuickLinkIconName
@@ -76,18 +75,13 @@ function QuickLinkSettingsButton({
   const SelectedIcon = getQuickLinkIconOrNull(draftIcon)
   const DefaultIcon = getQuickLinkIcon()
   const normalizedQuery = query.trim().toLowerCase()
-  const showDefaultOption =
-    !normalizedQuery || "default link".includes(normalizedQuery)
+  const showDefaultOption = !normalizedQuery || "default link".includes(normalizedQuery)
 
   const filteredOptions = useMemo(() => {
     if (!normalizedQuery) return QUICK_LINK_ICON_OPTIONS
 
     return QUICK_LINK_ICON_OPTIONS.filter((option) => {
-      const haystack = [
-        option.label,
-        option.value,
-        ...(option.keywords || []),
-      ].join(" ").toLowerCase()
+      const haystack = [option.label, option.value, ...(option.keywords || [])].join(" ").toLowerCase()
 
       return haystack.includes(normalizedQuery)
     })
@@ -139,9 +133,7 @@ function QuickLinkSettingsButton({
                   variant="outline"
                   className={cn(
                     "h-9 shrink-0",
-                    SelectedIcon
-                      ? "w-9 p-0"
-                      : "bg-muted px-2 text-muted-foreground hover:bg-muted/80"
+                    SelectedIcon ? "w-9 p-0" : "bg-muted px-2 text-muted-foreground hover:bg-muted/80"
                   )}
                   onClick={() => setIconPickerOpen(true)}
                 >
@@ -150,9 +142,7 @@ function QuickLinkSettingsButton({
                       <SelectedIcon className="h-4 w-4 shrink-0" />
                     </span>
                   ) : (
-                    <span className="text-center text-[10px] leading-tight font-medium">
-                      Choose Icon
-                    </span>
+                    <span className="text-center text-[10px] leading-tight font-medium">Choose Icon</span>
                   )}
                 </Button>
               </div>
@@ -183,11 +173,7 @@ function QuickLinkSettingsButton({
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDraftIcon(undefined)}
-            >
+            <Button type="button" variant="outline" onClick={() => setDraftIcon(undefined)}>
               Remove Icon
             </Button>
             <Button
@@ -196,7 +182,7 @@ function QuickLinkSettingsButton({
                 onSave({
                   label: draftLabel,
                   href: draftHref.trim(),
-                  icon: draftIcon,
+                  icon: draftIcon
                 })
                 setOpen(false)
               }}
@@ -216,15 +202,10 @@ function QuickLinkSettingsButton({
             <AdminModalContent className="max-w-xl">
               <AdminModalHeader className="pb-2">
                 <AdminModalTitle>Choose Icon</AdminModalTitle>
-                <AdminModalDescription>
-                  Pick an icon for this quick link.
-                </AdminModalDescription>
+                <AdminModalDescription>Pick an icon for this quick link.</AdminModalDescription>
               </AdminModalHeader>
 
-              <AdminModalBody
-                className="space-y-3 pb-6"
-                onWheelCapture={(event) => event.stopPropagation()}
-              >
+              <AdminModalBody className="space-y-3 pb-6" onWheelCapture={(event) => event.stopPropagation()}>
                 <div className="relative">
                   <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -237,9 +218,7 @@ function QuickLinkSettingsButton({
 
                 <ScrollArea className="h-[320px] pr-2 overscroll-contain">
                   {filteredOptions.length === 0 && !showDefaultOption ? (
-                    <div className="py-10 text-center text-sm text-muted-foreground">
-                      No icons match that search.
-                    </div>
+                    <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
                   ) : (
                     <div className="grid grid-cols-6 gap-2">
                       {showDefaultOption && (
@@ -252,9 +231,7 @@ function QuickLinkSettingsButton({
                           }}
                           className={cn(
                             "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                            !draftIcon
-                              ? "bg-primary/5"
-                              : "hover:bg-muted/50"
+                            !draftIcon ? "bg-primary/5" : "hover:bg-muted/50"
                           )}
                           aria-label="Use default icon"
                         >
@@ -264,9 +241,7 @@ function QuickLinkSettingsButton({
                             </span>
                           )}
                           <DefaultIcon className="h-5 w-5" />
-                          <span className="line-clamp-2 text-[11px] leading-tight">
-                            Default
-                          </span>
+                          <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
                         </button>
                       )}
                       {filteredOptions.map((option) => {
@@ -284,9 +259,7 @@ function QuickLinkSettingsButton({
                             }}
                             className={cn(
                               "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                              isSelected
-                                ? "bg-primary/5"
-                                : "hover:bg-muted/50"
+                              isSelected ? "bg-primary/5" : "hover:bg-muted/50"
                             )}
                             aria-label={`Choose ${option.label} icon`}
                           >
@@ -296,9 +269,7 @@ function QuickLinkSettingsButton({
                               </span>
                             )}
                             <Icon className="h-5 w-5" />
-                            <span className="line-clamp-2 text-[11px] leading-tight">
-                              {option.label}
-                            </span>
+                            <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
                           </button>
                         )
                       })}
@@ -328,19 +299,12 @@ function QuickLinkSettingsButton({
 }
 
 function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: link.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : 1
   }
 
   return (
@@ -380,13 +344,12 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
   )
 }
 
-export function QuickLinksSettingsCard({
-  quickLinks,
-  onQuickLinksChange,
-}: QuickLinksSettingsCardProps) {
+export function QuickLinksSettingsCard({ quickLinks, onQuickLinksChange }: QuickLinksSettingsCardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
   )
 
   const handleAddLink = () => {
@@ -395,15 +358,13 @@ export function QuickLinksSettingsCard({
       {
         id: crypto.randomUUID(),
         label: "",
-        href: "",
-      },
+        href: ""
+      }
     ])
   }
 
   const handleUpdateLink = (id: string, patch: Partial<SiteQuickLink>) => {
-    onQuickLinksChange(
-      quickLinks.map((link) => (link.id === id ? { ...link, ...patch } : link))
-    )
+    onQuickLinksChange(quickLinks.map((link) => (link.id === id ? { ...link, ...patch } : link)))
   }
 
   const handleDeleteLink = (id: string) => {
@@ -424,13 +385,13 @@ export function QuickLinksSettingsCard({
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="space-y-1">
           <CardTitle className="text-base">Dashboard Quick Links</CardTitle>
           <CardDescription>
-            These links show as tab-style pills in this site&apos;s dashboard header. Use{" "}<code>/settings</code>{" "}for
-            internal links or{" "}<code>https://example.com</code>{" "}for external links.
+            These links show as tab-style pills in this site&apos;s dashboard header. Use <code>/settings</code> for
+            internal links or <code>https://example.com</code> for external links.
           </CardDescription>
         </div>
       </CardHeader>
@@ -446,7 +407,7 @@ export function QuickLinksSettingsCard({
               className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
               aria-label="Add quick link"
             >
-                <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             </button>
           </div>
         ) : (
@@ -467,7 +428,7 @@ export function QuickLinksSettingsCard({
                   className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
                   aria-label="Add quick link"
                 >
-                    <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" />
                 </button>
               </div>
             </SortableContext>

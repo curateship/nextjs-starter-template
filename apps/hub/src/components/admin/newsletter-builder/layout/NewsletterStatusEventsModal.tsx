@@ -10,24 +10,13 @@ import { Dialog } from "@/components/ui/dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   AdminModalBody,
   AdminModalContent,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { getNewsletterStatusEvents } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAutomationStepStatusEvents } from "@/lib/actions/newsletters/automation-actions"
@@ -51,15 +40,22 @@ type EventRates = {
 }
 
 const STATUS_EVENTS_PAGE_SIZE = 50
-const emptyRates: EventRates = { openRate: 0, clickRate: 0, unsubscribeRate: 0 }
+const emptyRates: EventRates = {
+  openRate: 0,
+  clickRate: 0,
+  unsubscribeRate: 0
+}
 
-const statusEventFilterOptions: { value: NewsletterStatusEventFilter; label: string }[] = [
+const statusEventFilterOptions: {
+  value: NewsletterStatusEventFilter
+  label: string
+}[] = [
   { value: "all", label: "All events" },
   { value: "bounced", label: "Bounced" },
   { value: "unsubscribed", label: "Unsubscribes" },
   { value: "opened", label: "Opened" },
   { value: "clicked", label: "Clicks" },
-  { value: "duplicates", label: "Duplicates" },
+  { value: "duplicates", label: "Duplicates" }
 ]
 
 function getStatusEventLabel(event: string) {
@@ -71,7 +67,7 @@ function getStatusEventLabel(event: string) {
     clicked: "Clicked",
     sent: "Sent",
     delivered: "Delivered",
-    complained: "Complained",
+    complained: "Complained"
   }
 
   return labels[event] ?? event.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
@@ -79,11 +75,36 @@ function getStatusEventLabel(event: string) {
 
 function getStatusEventBadge(event: NewsletterStatusEvent["event"]) {
   const label = getStatusEventLabel(event)
-  if (event === "duplicate") return <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">{label}</Badge>
-  if (event === "bounced") return <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">{label}</Badge>
-  if (event === "unsubscribed") return <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">{label}</Badge>
-  if (event === "opened") return <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">{label}</Badge>
-  if (event === "clicked") return <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">{label}</Badge>
+  if (event === "duplicate")
+    return (
+      <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
+        {label}
+      </Badge>
+    )
+  if (event === "bounced")
+    return (
+      <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+        {label}
+      </Badge>
+    )
+  if (event === "unsubscribed")
+    return (
+      <Badge variant="outline" className="border-yellow-200 bg-yellow-50 text-yellow-800">
+        {label}
+      </Badge>
+    )
+  if (event === "opened")
+    return (
+      <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+        {label}
+      </Badge>
+    )
+  if (event === "clicked")
+    return (
+      <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
+        {label}
+      </Badge>
+    )
   return <Badge variant="secondary">{label}</Badge>
 }
 
@@ -92,16 +113,18 @@ function formatStatusEventDate(dateString: string) {
     month: "short",
     day: "numeric",
     hour: "numeric",
-    minute: "2-digit",
+    minute: "2-digit"
   })
 }
 
 function hasRates(result: unknown): result is { stats: EventRates } {
   if (!result || typeof result !== "object" || !("stats" in result)) return false
   const stats = (result as { stats?: Partial<EventRates> }).stats
-  return typeof stats?.openRate === "number"
-    && typeof stats.clickRate === "number"
-    && typeof stats.unsubscribeRate === "number"
+  return (
+    typeof stats?.openRate === "number" &&
+    typeof stats.clickRate === "number" &&
+    typeof stats.unsubscribeRate === "number"
+  )
 }
 
 export function NewsletterStatusEventsModal({
@@ -111,7 +134,7 @@ export function NewsletterStatusEventsModal({
   onOpenChange,
   open,
   showRateCards = false,
-  stepOrder,
+  stepOrder
 }: NewsletterStatusEventsModalProps) {
   const [events, setEvents] = useState<NewsletterStatusEvent[]>([])
   const [rates, setRates] = useState(emptyRates)
@@ -131,17 +154,18 @@ export function NewsletterStatusEventsModal({
     let cancelled = false
     setLoading(true)
 
-    const request = automationId && stepOrder
-      ? getAutomationStepStatusEvents(automationId, stepOrder, {
-          page,
-          pageSize: STATUS_EVENTS_PAGE_SIZE,
-          eventFilter,
-        })
-      : getNewsletterStatusEvents(newsletterId!, {
-          page,
-          pageSize: STATUS_EVENTS_PAGE_SIZE,
-          eventFilter,
-        })
+    const request =
+      automationId && stepOrder
+        ? getAutomationStepStatusEvents(automationId, stepOrder, {
+            page,
+            pageSize: STATUS_EVENTS_PAGE_SIZE,
+            eventFilter
+          })
+        : getNewsletterStatusEvents(newsletterId!, {
+            page,
+            pageSize: STATUS_EVENTS_PAGE_SIZE,
+            eventFilter
+          })
 
     request.then((result) => {
       if (cancelled) return
@@ -182,7 +206,8 @@ export function NewsletterStatusEventsModal({
     setPage(1)
   }
 
-  const activeFilter = statusEventFilterOptions.find((option) => option.value === eventFilter) ?? statusEventFilterOptions[0]
+  const activeFilter =
+    statusEventFilterOptions.find((option) => option.value === eventFilter) ?? statusEventFilterOptions[0]
   const totalPages = Math.max(1, Math.ceil(total / STATUS_EVENTS_PAGE_SIZE))
 
   return (
@@ -213,25 +238,32 @@ export function NewsletterStatusEventsModal({
           </div>
         </AdminModalHeader>
         <AdminModalBody className="flex flex-1 flex-col">
-          <div className={cn(
-            "min-h-0 flex-1",
-            showRateCards ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-8 sm:grid-cols-3" : "flex flex-col"
-          )}>
-            {showRateCards && [
-              ["Open percentage", rates.openRate],
-              ["Click percentage", rates.clickRate],
-              ["Unsub percentage", rates.unsubscribeRate],
-            ].map(([label, rate]) => (
-              <Card key={label} className="m-0 p-6">
-                <p className="text-xs font-medium text-muted-foreground">{label}</p>
-                <p className="mt-2 text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
-              </Card>
-            ))}
+          <div
+            className={cn(
+              "min-h-0 flex-1",
+              showRateCards
+                ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto] gap-8 sm:grid-cols-3"
+                : "flex flex-col"
+            )}
+          >
+            {showRateCards &&
+              [
+                ["Open percentage", rates.openRate],
+                ["Click percentage", rates.clickRate],
+                ["Unsub percentage", rates.unsubscribeRate]
+              ].map(([label, rate]) => (
+                <Card key={label}>
+                  <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
+                </Card>
+              ))}
 
-            <div className={cn(
-              "relative col-span-full flex-1 overflow-hidden",
-              showRateCards ? "min-h-0" : "min-h-[420px] sm:min-h-[520px]"
-            )}>
+            <div
+              className={cn(
+                "relative col-span-full flex-1 overflow-hidden",
+                showRateCards ? "min-h-0" : "min-h-[420px] sm:min-h-[520px]"
+              )}
+            >
               <ScrollArea className="h-full w-full">
                 <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
                   <TableHeader className="sticky top-0 z-20 bg-background">
@@ -268,19 +300,21 @@ export function NewsletterStatusEventsModal({
                           No events found.
                         </TableCell>
                       </TableRow>
-                    ) : events.map((event) => (
-                      <TableRow key={event.id} className="border-0 hover:bg-muted/50">
-                        <TableCell className="min-w-0 px-3 py-2 text-xs first:pl-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5">
-                          <div className="truncate">{event.email}</div>
-                        </TableCell>
-                        <TableCell className="px-3 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
-                          {getStatusEventBadge(event.event)}
-                        </TableCell>
-                        <TableCell className="px-3 py-2 text-xs text-muted-foreground sm:px-4 sm:py-3 sm:text-sm sm:last:pr-5">
-                          {formatStatusEventDate(event.created_at)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    ) : (
+                      events.map((event) => (
+                        <TableRow key={event.id} className="border-0 hover:bg-muted/50">
+                          <TableCell className="min-w-0 px-3 py-2 text-xs first:pl-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5">
+                            <div className="truncate">{event.email}</div>
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
+                            {getStatusEventBadge(event.event)}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-xs text-muted-foreground sm:px-4 sm:py-3 sm:text-sm sm:last:pr-5">
+                            {formatStatusEventDate(event.created_at)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </table>
                 <ScrollBar orientation="vertical" />
@@ -291,12 +325,7 @@ export function NewsletterStatusEventsModal({
             {total > 0 && (
               <div className="col-span-full flex items-center justify-between gap-4 pt-4">
                 <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
-                <Pagination
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  showFirstLast={false}
-                />
+                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} showFirstLast={false} />
               </div>
             )}
           </div>

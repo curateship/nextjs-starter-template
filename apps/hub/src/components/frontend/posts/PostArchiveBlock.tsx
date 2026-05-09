@@ -1,10 +1,10 @@
-"use client";
+"use client"
 
-import { ArrowRight } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { BlockContainer } from "@/components/frontend/layout/block-container";
+import { ArrowRight } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
 
 const DUMMY_POSTS = [
   {
@@ -61,7 +61,7 @@ const DUMMY_POSTS = [
     image: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop",
     readTime: "7 min read"
   }
-];
+]
 
 export const PostArchiveBlock = () => {
   return (
@@ -75,20 +75,34 @@ export const PostArchiveBlock = () => {
       >
         {/* Filters */}
         <div className="flex flex-wrap gap-4 justify-center mb-8">
-          <Button variant="outline" size="sm">All Posts</Button>
-          <Button variant="ghost" size="sm">Tutorial</Button>
-          <Button variant="ghost" size="sm">Accessibility</Button>
-          <Button variant="ghost" size="sm">Design</Button>
-          <Button variant="ghost" size="sm">Development</Button>
-          <Button variant="ghost" size="sm">Performance</Button>
-          <Button variant="ghost" size="sm">SEO</Button>
+          <Button variant="outline" size="sm">
+            All Posts
+          </Button>
+          <Button variant="ghost" size="sm">
+            Tutorial
+          </Button>
+          <Button variant="ghost" size="sm">
+            Accessibility
+          </Button>
+          <Button variant="ghost" size="sm">
+            Design
+          </Button>
+          <Button variant="ghost" size="sm">
+            Development
+          </Button>
+          <Button variant="ghost" size="sm">
+            Performance
+          </Button>
+          <Button variant="ghost" size="sm">
+            SEO
+          </Button>
         </div>
 
         {/* Posts Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
           {DUMMY_POSTS.map((post) => (
             <a key={post.id} href="http://localhost:3000/themes/marketplace/posts" className="block">
-              <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0 hover:shadow-lg transition-shadow">
+              <Card className="grid grid-rows-[auto_auto_1fr_auto]">
                 <div className="aspect-video overflow-hidden rounded-t-lg">
                   <img
                     src={post.image}
@@ -101,32 +115,26 @@ export const PostArchiveBlock = () => {
                     <Badge variant="secondary" className="text-xs">
                       {post.category}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {post.readTime}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{post.readTime}</span>
                   </div>
-                  <h3 className="text-lg font-semibold hover:underline md:text-xl">
-                    {post.title}
-                  </h3>
+                  <h3 className="text-lg font-semibold hover:underline md:text-xl">{post.title}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {new Date(post.date).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
+                    {new Date(post.date).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric"
                     })}
                   </p>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    {post.description}
-                  </p>
+                  <p className="text-muted-foreground">{post.description}</p>
                 </CardContent>
-                              <CardFooter>
-                <div className="flex items-center text-foreground">
-                  Read more
-                  <ArrowRight className="ml-2 size-4" />
-                </div>
-              </CardFooter>
+                <CardFooter>
+                  <div className="flex items-center text-foreground">
+                    Read more
+                    <ArrowRight className="ml-2 size-4" />
+                  </div>
+                </CardFooter>
               </Card>
             </a>
           ))}
@@ -140,5 +148,5 @@ export const PostArchiveBlock = () => {
         </div>
       </BlockContainer>
     </div>
-  );
-}; 
+  )
+}

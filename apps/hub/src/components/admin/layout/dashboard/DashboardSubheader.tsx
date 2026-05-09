@@ -48,7 +48,7 @@ export function DashboardSubheader({ items, filterMenu, search, preActions, acti
     <>
       {slot && topRightActions ? createPortal(topRightActions, slot) : null}
 
-      <div className={cn("mb-6 mx-4 mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between", className)}>
+      <div className={cn("mb-3 flex flex-col gap-13 sm:flex-row sm:items-center sm:justify-between", className)}>
         {/* Left side: breadcrumbs */}
         <Breadcrumb className="min-w-0">
           <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">

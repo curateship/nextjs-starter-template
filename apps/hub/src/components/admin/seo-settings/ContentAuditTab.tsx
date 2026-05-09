@@ -1,13 +1,13 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, AlertTriangle, CheckCircle2, ClipboardCheck } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getSiteAuditData, getSiteForAudit } from '@/lib/actions/seo/site-audit/site-audit-actions'
+import { useCallback, useEffect, useState } from "react"
+import { AlertCircle, AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getSiteAuditData, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
 
 interface ContentAuditTabProps {
   siteId: string
@@ -17,19 +17,16 @@ interface ContentAuditTabProps {
 export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
   const [loading, setLoading] = useState(true)
   const [auditData, setAuditData] = useState<any[]>([])
-  const [auditFilter, setAuditFilter] = useState('all')
-  const [issueFilter, setIssueFilter] = useState('all')
+  const [auditFilter, setAuditFilter] = useState("all")
+  const [issueFilter, setIssueFilter] = useState("all")
 
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [siteData, contentData] = await Promise.all([
-        getSiteForAudit(siteId),
-        getSiteAuditData(siteId),
-      ])
+      const [siteData, contentData] = await Promise.all([getSiteForAudit(siteId), getSiteAuditData(siteId)])
       if (siteData) setAuditData(contentData)
     } catch (err) {
-      console.error('Error loading audit data:', err)
+      console.error("Error loading audit data:", err)
     }
     setLoading(false)
   }, [siteId])
@@ -40,16 +37,14 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredContent = auditData.filter((item) => {
-    if (auditFilter !== 'all' && item.type !== auditFilter) return false
-    if (issueFilter === 'missing_meta' && item.meta_description) return false
-    if (issueFilter === 'missing_image' && (item.type === 'page' || item.featured_image)) return false
+    if (auditFilter !== "all" && item.type !== auditFilter) return false
+    if (issueFilter === "missing_meta" && item.meta_description) return false
+    if (issueFilter === "missing_image" && (item.type === "page" || item.featured_image)) return false
     if (normalizedSearchQuery) {
-      const searchText = [
-        item.title,
-        item.slug,
-        item.type,
-        item.meta_description,
-      ].filter(Boolean).join(' ').toLowerCase()
+      const searchText = [item.title, item.slug, item.type, item.meta_description]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
 
       if (!searchText.includes(normalizedSearchQuery)) return false
     }
@@ -58,9 +53,9 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
 
   const totalContent = auditData.length
   const missingMeta = auditData.filter((i) => !i.meta_description).length
-  const missingImage = auditData.filter((i) => i.type !== 'page' && !i.featured_image).length
+  const missingImage = auditData.filter((i) => i.type !== "page" && !i.featured_image).length
   const badTitles = auditData.filter((i) => {
-    const len = (i.title || '').length
+    const len = (i.title || "").length
     return len < 30 || len > 60
   }).length
 
@@ -70,7 +65,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
         <div className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <Skeleton className="h-4 w-24" />
               </CardHeader>
               <CardContent>
@@ -97,7 +92,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
     <div>
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Total Content</CardTitle>
           </CardHeader>
           <CardContent>
@@ -105,7 +100,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Missing Meta Desc</CardTitle>
             <AlertCircle className="h-4 w-4 text-red-500" />
           </CardHeader>
@@ -114,7 +109,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Missing Image</CardTitle>
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
@@ -123,7 +118,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Bad Title Length</CardTitle>
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
           </CardHeader>
@@ -181,20 +176,23 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
                 {filteredContent.length === 0 && (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-muted-foreground">
-                      {normalizedSearchQuery ? 'No content matches the current search.' : 'No content matches the current filters.'}
+                      {normalizedSearchQuery
+                        ? "No content matches the current search."
+                        : "No content matches the current filters."}
                     </td>
                   </tr>
                 )}
                 {filteredContent.slice(0, 50).map((item) => {
-                  const titleLen = (item.title || '').length
+                  const titleLen = (item.title || "").length
                   const titleOk = titleLen >= 30 && titleLen <= 60
-                  const titleLengthLabel = titleLen < 30
-                    ? `${titleLen} chars - needs ${30 - titleLen} more`
-                    : titleLen > 60
-                      ? `${titleLen} chars - ${titleLen - 60} over`
-                      : `${titleLen} chars`
+                  const titleLengthLabel =
+                    titleLen < 30
+                      ? `${titleLen} chars - needs ${30 - titleLen} more`
+                      : titleLen > 60
+                        ? `${titleLen} chars - ${titleLen - 60} over`
+                        : `${titleLen} chars`
                   const hasMeta = !!item.meta_description
-                  const hasImage = item.type === 'page' || !!item.featured_image
+                  const hasImage = item.type === "page" || !!item.featured_image
 
                   return (
                     <tr key={item.id} className="border-b last:border-0">
@@ -202,12 +200,12 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
                         <span className="font-medium">{item.title}</span>
                       </td>
                       <td className="py-2 pr-4">
-                        <Badge variant="outline" className="text-xs capitalize">{item.type}</Badge>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {item.type}
+                        </Badge>
                       </td>
                       <td className="py-2 pr-4">
-                        <span className={titleOk ? 'text-green-600' : 'text-yellow-600'}>
-                          {titleLengthLabel}
-                        </span>
+                        <span className={titleOk ? "text-green-600" : "text-yellow-600"}>{titleLengthLabel}</span>
                       </td>
                       <td className="py-2 pr-4">
                         {hasMeta ? (
@@ -230,9 +228,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
             </table>
           </div>
           {filteredContent.length > 50 && (
-            <p className="pt-2 text-xs text-muted-foreground">
-              Showing 50 of {filteredContent.length} items
-            </p>
+            <p className="pt-2 text-xs text-muted-foreground">Showing 50 of {filteredContent.length} items</p>
           )}
         </CardContent>
       </Card>

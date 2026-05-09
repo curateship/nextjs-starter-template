@@ -6,15 +6,10 @@ import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
@@ -26,7 +21,7 @@ import {
   getDirectoryTemplateIdsAction,
   getDirectoryTemplatesBySite,
   setDefaultDirectoryTemplate,
-  type DirectoryTemplate,
+  type DirectoryTemplate
 } from "@/lib/actions/directories/directory-template-actions"
 import { parseDirectoryBlocksFromJson } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { ArrowDown, ArrowUp, ChevronsUpDown, FileText, Settings, Star, Trash2 } from "lucide-react"
@@ -46,8 +41,8 @@ export default function DirectoryTemplatesPage() {
   const [total, setTotal] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
 
-  const [sortColumn, setSortColumn] = useState<'name' | 'blocks' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortColumn, setSortColumn] = useState<"name" | "blocks" | "modified" | null>(null)
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
 
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
@@ -63,7 +58,14 @@ export default function DirectoryTemplatesPage() {
     try {
       setLoading(true)
       setError(null)
-      const { data, total: totalCount, error: loadError } = await getDirectoryTemplatesBySite(currentSite.id, { page: currentPage, pageSize })
+      const {
+        data,
+        total: totalCount,
+        error: loadError
+      } = await getDirectoryTemplatesBySite(currentSite.id, {
+        page: currentPage,
+        pageSize
+      })
       if (loadError) {
         setError(loadError)
         setLoading(false)
@@ -88,7 +90,7 @@ export default function DirectoryTemplatesPage() {
 
     const { data, error: createError } = await createDirectoryTemplate({
       siteId: currentSite.id,
-      name: formName.trim(),
+      name: formName.trim()
     })
 
     if (createError) {
@@ -120,7 +122,7 @@ export default function DirectoryTemplatesPage() {
   }
 
   function toggleSelect(id: string) {
-    setSelectedIds(prev => {
+    setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
         next.delete(id)
@@ -137,7 +139,7 @@ export default function DirectoryTemplatesPage() {
       setSelectedIds(new Set())
       setAllSelected(false)
     } else {
-      setSelectedIds(new Set(deletableTemplates.map(template => template.id)))
+      setSelectedIds(new Set(deletableTemplates.map((template) => template.id)))
     }
   }
 
@@ -155,23 +157,23 @@ export default function DirectoryTemplatesPage() {
     setAllSelected(false)
   }
 
-  function toggleSort(column: 'name' | 'blocks' | 'modified') {
+  function toggleSort(column: "name" | "blocks" | "modified") {
     if (sortColumn === column) {
-      if (sortDirection === 'desc') {
+      if (sortDirection === "desc") {
         setSortColumn(null)
-        setSortDirection('asc')
+        setSortDirection("asc")
       } else {
-        setSortDirection('desc')
+        setSortDirection("desc")
       }
     } else {
       setSortColumn(column)
-      setSortDirection('asc')
+      setSortDirection("asc")
     }
   }
 
-  function getSortIcon(column: 'name' | 'blocks' | 'modified') {
+  function getSortIcon(column: "name" | "blocks" | "modified") {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
   }
 
@@ -186,16 +188,20 @@ export default function DirectoryTemplatesPage() {
 
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (sortColumn === 'blocks') return (getBlockCount(a) - getBlockCount(b)) * dir
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    const dir = sortDirection === "asc" ? 1 : -1
+    if (sortColumn === "name") return a.name.localeCompare(b.name) * dir
+    if (sortColumn === "blocks") return (getBlockCount(a) - getBlockCount(b)) * dir
+    if (sortColumn === "modified") return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
 
   function formatDate(dateString: string) {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    })
   }
 
   const deletableTemplates = filteredTemplates.filter((template) => !template.is_default)
@@ -221,10 +227,7 @@ export default function DirectoryTemplatesPage() {
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
-            items={[
-              { label: "Directory", href: "/admin/directories" },
-              { label: "Templates" },
-            ]}
+            items={[{ label: "Directory", href: "/admin/directories" }, { label: "Templates" }]}
             search={{
               value: searchQuery,
               onValueChange: (value) => {
@@ -232,16 +235,12 @@ export default function DirectoryTemplatesPage() {
                 setSelectedIds(new Set())
                 setAllSelected(false)
               },
-              placeholder: "Search templates",
+              placeholder: "Search templates"
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
+                  <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
                     {massDeleting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
@@ -255,72 +254,94 @@ export default function DirectoryTemplatesPage() {
                     )}
                   </Button>
                 )}
-                <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }}>
+                <Button
+                  onClick={() => {
+                    setFormName("")
+                    setCreateModalOpen(true)
+                  }}
+                >
                   Create Template
                 </Button>
               </div>
             }
           />
 
-          <Card className="shadow-sm">
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={deletableTemplates.length > 0 && deletableTemplates.every((template) => selectedIds.has(template.id))}
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all templates"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('name')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Name</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('name')}</span>
-                  </button>
-                </div>
+          <Card>
+            <CardTableHeader className="grid-cols-5">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={
+                    deletableTemplates.length > 0 &&
+                    deletableTemplates.every((template) => selectedIds.has(template.id))
+                  }
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all templates"
+                />
                 <button
                   type="button"
-                  onClick={() => toggleSort('blocks')}
+                  onClick={() => toggleSort("name")}
                   className={cn(
                     "flex items-center gap-1.5",
                     "text-[0.8125rem] text-muted-foreground hover:text-foreground",
                     "cursor-pointer outline-none transition-colors"
                   )}
                 >
-                  <span>Blocks</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('blocks')}</span>
+                  <span>Name</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
-                <div>Actions</div>
               </div>
-            </div>
-
-            {deletableTemplates.length > 0 && selectedIds.size === deletableTemplates.length && selectableTotal > deletableTemplates.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {selectableTotal} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{deletableTemplates.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {selectableTotal}</button></span>
+              <button
+                type="button"
+                onClick={() => toggleSort("blocks")}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
                 )}
-              </div>
-            )}
+              >
+                <span>Blocks</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("blocks")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("modified")}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Modified</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("modified")}</span>
+              </button>
+              <div>Actions</div>
+            </CardTableHeader>
+
+            {deletableTemplates.length > 0 &&
+              selectedIds.size === deletableTemplates.length &&
+              selectableTotal > deletableTemplates.length && (
+                <CardSection className="bg-accent/50 border-b text-sm text-center">
+                  {allSelected ? (
+                    <span>
+                      All {selectableTotal} items selected.{" "}
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="underline hover:text-foreground text-muted-foreground"
+                      >
+                        Clear selection
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      {deletableTemplates.length} items on this page are selected.{" "}
+                      <button type="button" onClick={handleSelectAll} className="underline font-medium">
+                        Select all {selectableTotal}
+                      </button>
+                    </span>
+                  )}
+                </CardSection>
+              )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (
@@ -332,8 +353,12 @@ export default function DirectoryTemplatesPage() {
                           <div className="w-4 h-4 bg-muted rounded animate-pulse" />
                           <div className="h-4 bg-muted rounded animate-pulse w-40" />
                         </div>
-                        <div><div className="h-4 bg-muted/60 rounded animate-pulse w-12" /></div>
-                        <div><div className="h-3 bg-muted/60 rounded animate-pulse w-20" /></div>
+                        <div>
+                          <div className="h-4 bg-muted/60 rounded animate-pulse w-12" />
+                        </div>
+                        <div>
+                          <div className="h-3 bg-muted/60 rounded animate-pulse w-20" />
+                        </div>
                         <div className="flex gap-1">
                           <div className="h-8 w-8 bg-muted rounded animate-pulse" />
                           <div className="h-8 w-8 bg-muted rounded animate-pulse" />
@@ -345,21 +370,34 @@ export default function DirectoryTemplatesPage() {
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadTemplates()} variant="outline" size="sm">Try Again</Button>
+                  <Button onClick={() => loadTemplates()} variant="outline" size="sm">
+                    Try Again
+                  </Button>
                 </div>
               ) : filteredTemplates.length === 0 ? (
                 <div className="p-8 text-center">
                   <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
-                    {normalizedSearchQuery ? "No templates match your search." : "No templates yet. Create one to save reusable block layouts."}
+                    {normalizedSearchQuery
+                      ? "No templates match your search."
+                      : "No templates yet. Create one to save reusable block layouts."}
                   </p>
-                  <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }} variant="outline">
+                  <Button
+                    onClick={() => {
+                      setFormName("")
+                      setCreateModalOpen(true)
+                    }}
+                    variant="outline"
+                  >
                     Create Template
                   </Button>
                 </div>
               ) : (
                 sortedTemplates.map((template) => (
-                  <div key={template.id} className={`p-6 transition-colors ${selectedIds.has(template.id) ? "bg-accent/50" : ""}`}>
+                  <div
+                    key={template.id}
+                    className={`p-6 transition-colors ${selectedIds.has(template.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
@@ -431,7 +469,11 @@ export default function DirectoryTemplatesPage() {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={(page) => { setCurrentPage(page); setSelectedIds(new Set()); setAllSelected(false) }}
+                  onPageChange={(page) => {
+                    setCurrentPage(page)
+                    setSelectedIds(new Set())
+                    setAllSelected(false)
+                  }}
                   showFirstLast={false}
                 />
               </div>
@@ -441,7 +483,7 @@ export default function DirectoryTemplatesPage() {
       </AdminLayout>
 
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="w-[480px] max-w-[95vw] p-10" style={{ width: '480px', maxWidth: '95vw' }}>
+        <DialogContent className="w-[480px] max-w-[95vw] p-10" style={{ width: "480px", maxWidth: "95vw" }}>
           <DialogHeader className="mb-6">
             <DialogTitle>Create Template</DialogTitle>
           </DialogHeader>
@@ -454,7 +496,7 @@ export default function DirectoryTemplatesPage() {
                 onChange={(event) => setFormName(event.target.value)}
                 placeholder="e.g. Featured Listing Layout"
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  if (event.key === "Enter") {
                     event.preventDefault()
                     handleCreate()
                   }
@@ -479,10 +521,13 @@ export default function DirectoryTemplatesPage() {
           <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-60">
             <h2 className="text-lg font-semibold mb-2">Delete Templates</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Are you sure you want to delete {selectedIds.size} template{selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.
+              Are you sure you want to delete {selectedIds.size} template
+              {selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.
             </p>
             <div className="flex justify-end gap-2">
-              <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">Cancel</Button>
+              <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">
+                Cancel
+              </Button>
               <Button onClick={handleMassDelete} variant="destructive" disabled={massDeleting}>
                 {massDeleting ? "Deleting..." : "Delete"}
               </Button>

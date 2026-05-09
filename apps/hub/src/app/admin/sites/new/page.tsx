@@ -25,13 +25,13 @@ export default function NewSitePage() {
   const [fontFamily, setFontFamily] = useState("playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
   const [favicon, setFavicon] = useState("")
-  const [defaultTheme, setDefaultTheme] = useState<'system' | 'light' | 'dark'>('system')
+  const [defaultTheme, setDefaultTheme] = useState<"system" | "light" | "dark">("system")
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
   const [templates, setTemplates] = useState<Site[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const hasTemplate = selectedTemplateId && selectedTemplateId !== 'none'
+  const hasTemplate = selectedTemplateId && selectedTemplateId !== "none"
 
   useEffect(() => {
     getTemplateSitesAction().then(({ data }) => {
@@ -46,12 +46,12 @@ export default function NewSitePage() {
 
   const handleSaveClick = async () => {
     if (!siteName.trim()) {
-      setError('Site name is required')
+      setError("Site name is required")
       return
     }
 
     if (!subdomain.trim()) {
-      setError('Subdomain is required')
+      setError("Subdomain is required")
       return
     }
 
@@ -63,7 +63,7 @@ export default function NewSitePage() {
         name: siteName.trim(),
         subdomain: subdomain.trim(),
         custom_domain: customDomain.trim() || undefined,
-        status: status as 'active' | 'inactive' | 'draft',
+        status: status as "active" | "inactive" | "draft",
         font_family: fontFamily,
         secondary_font_family: secondaryFontFamily,
         favicon: favicon || undefined,
@@ -90,13 +90,13 @@ export default function NewSitePage() {
           }
         }
 
-        localStorage.setItem('selectedSiteId', data.id)
+        localStorage.setItem("selectedSiteId", data.id)
         await refreshSites()
         router.push(`/admin/pages/${data.id}`)
       }
     } catch (err) {
-      console.error('Error creating site:', err)
-      setError('Failed to create site. Please try again.')
+      console.error("Error creating site:", err)
+      setError("Failed to create site. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -104,88 +104,82 @@ export default function NewSitePage() {
 
   return (
     <>
-    <StickyHeader />
-    <AdminLayout>
-      <div className="w-full pb-8">
-        <DashboardSubheader
-          items={[
-            { label: "Sites", href: "/admin/sites" },
-            { label: "New" },
-          ]}
-          actions={
-            <Button
-              onClick={isSubmitting ? undefined : handleSaveClick}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Creating..." : "Create Site"}
-            </Button>
-          }
-        />
-
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <SiteDashboard
-            siteName={siteName}
-            subdomain={subdomain}
-            customDomain={customDomain}
-            status={status}
-            onSiteNameChange={setSiteName}
-            onSubdomainChange={setSubdomain}
-            onCustomDomainChange={setCustomDomain}
-            onStatusChange={setStatus}
+      <StickyHeader />
+      <AdminLayout>
+        <div className="w-full pb-8">
+          <DashboardSubheader
+            items={[{ label: "Sites", href: "/admin/sites" }, { label: "New" }]}
+            actions={
+              <Button onClick={isSubmitting ? undefined : handleSaveClick} disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Site"}
+              </Button>
+            }
           />
 
-          {/* Template Picker */}
-          {templates.length > 0 && (
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Palette className="h-5 w-5" />
-                  Start from Template
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="No template (blank site)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No template (blank site)</SelectItem>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Apply a saved template to copy its pages, navigation, footer, and styling.
-                </p>
-              </CardContent>
-            </Card>
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
           )}
 
-          {/* Styling Settings - only show when no template selected */}
-          {!hasTemplate && (
-            <StylingSettingsCard
-              fontFamily={fontFamily}
-              secondaryFontFamily={secondaryFontFamily}
-              favicon={favicon}
-              defaultTheme={defaultTheme}
-              onFontFamilyChange={setFontFamily}
-              onSecondaryFontFamilyChange={setSecondaryFontFamily}
-              onFaviconChange={setFavicon}
-              onDefaultThemeChange={setDefaultTheme}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <SiteDashboard
+              siteName={siteName}
+              subdomain={subdomain}
+              customDomain={customDomain}
+              status={status}
+              onSiteNameChange={setSiteName}
+              onSubdomainChange={setSubdomain}
+              onCustomDomainChange={setCustomDomain}
+              onStatusChange={setStatus}
             />
-          )}
-        </form>
-      </div>
-    </AdminLayout>
+
+            {/* Template Picker */}
+            {templates.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Palette className="h-5 w-5" />
+                    Start from Template
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="No template (blank site)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No template (blank site)</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Apply a saved template to copy its pages, navigation, footer, and styling.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Styling Settings - only show when no template selected */}
+            {!hasTemplate && (
+              <StylingSettingsCard
+                fontFamily={fontFamily}
+                secondaryFontFamily={secondaryFontFamily}
+                favicon={favicon}
+                defaultTheme={defaultTheme}
+                onFontFamilyChange={setFontFamily}
+                onSecondaryFontFamilyChange={setSecondaryFontFamily}
+                onFaviconChange={setFavicon}
+                onDefaultThemeChange={setDefaultTheme}
+              />
+            )}
+          </form>
+        </div>
+      </AdminLayout>
     </>
   )
 }

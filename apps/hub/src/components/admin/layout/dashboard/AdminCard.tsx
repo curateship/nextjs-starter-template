@@ -1,25 +1,17 @@
 "use client"
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { cn } from "@/lib/utils/tailwind"
 
 interface AdminCardProps {
   children: React.ReactNode
-  className?: string
   title?: string
   description?: string
   footer?: React.ReactNode
 }
 
-export function AdminCard({
-  children,
-  className,
-  title,
-  description,
-  footer,
-}: AdminCardProps) {
+export function AdminCard({ children, title, description, footer }: AdminCardProps) {
   return (
-    <Card className={cn("shadow-sm", className)}>
+    <Card>
       {(title || description) && (
         <CardHeader>
           {title && <CardTitle>{title}</CardTitle>}
@@ -30,4 +22,4 @@ export function AdminCard({
       {footer && <CardFooter>{footer}</CardFooter>}
     </Card>
   )
-} 
+}

@@ -5,13 +5,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog } from "@/components/ui/dialog"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import {
@@ -20,7 +14,7 @@ import {
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   DndContext,
@@ -29,14 +23,14 @@ import {
   PointerSensor,
   type DragEndEvent,
   useSensor,
-  useSensors,
+  useSensors
 } from "@dnd-kit/core"
 import {
   SortableContext,
   arrayMove,
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
-  useSortable,
+  useSortable
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
@@ -52,7 +46,7 @@ import {
   Plus,
   Trash2,
   Twitter,
-  Youtube,
+  Youtube
 } from "lucide-react"
 
 interface FooterLink {
@@ -76,8 +70,7 @@ interface FooterProps {
   onBack?: () => void
 }
 
-const ACTION_BUTTON_CLASS =
-  "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
+const ACTION_BUTTON_CLASS = "h-9 w-9 shrink-0 rounded-md p-0 text-foreground hover:bg-muted/50"
 
 function MediumIcon({ className }: { className?: string }) {
   return (
@@ -122,7 +115,7 @@ const SOCIAL_PLATFORM_OPTIONS = [
   { value: "tiktok", label: "TikTok", Icon: Music2 },
   { value: "github", label: "GitHub", Icon: Github },
   { value: "medium", label: "Medium", Icon: MediumIcon },
-  { value: "substack", label: "Substack", Icon: SubstackIcon },
+  { value: "substack", label: "Substack", Icon: SubstackIcon }
 ] as const
 
 function createFooterItemId(prefix: "link" | "social") {
@@ -148,7 +141,7 @@ function getSocialPlatformMeta(platform?: string): {
 
   return {
     label: platform.charAt(0).toUpperCase() + platform.slice(1),
-    Icon: Globe,
+    Icon: Globe
   }
 }
 
@@ -167,26 +160,19 @@ function SortableFooterLinkItem({
   link,
   index,
   onEdit,
-  onDelete,
+  onDelete
 }: {
   link: FooterLink
   index: number
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: link.id! })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id! })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : 1
   }
 
   return (
@@ -234,7 +220,7 @@ function StaticFooterLinkItem({
   link,
   index,
   onEdit,
-  onDelete,
+  onDelete
 }: {
   link: FooterLink
   index: number
@@ -276,26 +262,19 @@ function SortableSocialLinkItem({
   socialLink,
   index,
   onEdit,
-  onDelete,
+  onDelete
 }: {
   socialLink: SocialLink
   index: number
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: socialLink.id! })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: socialLink.id! })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.5 : 1
   }
 
   return (
@@ -343,7 +322,7 @@ function StaticSocialLinkItem({
   socialLink,
   index,
   onEdit,
-  onDelete,
+  onDelete
 }: {
   socialLink: SocialLink
   index: number
@@ -387,7 +366,7 @@ export function Footer({
   onContentPersist,
   siteFavicon,
   siteName = "Your Site",
-  onBack,
+  onBack
 }: FooterProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
@@ -396,41 +375,34 @@ export function Footer({
   const [creatingSocialLink, setCreatingSocialLink] = useState(false)
   const [linkDraft, setLinkDraft] = useState<Pick<FooterLink, "text" | "url">>({
     text: "",
-    url: "",
+    url: ""
   })
   const [socialLinkDraft, setSocialLinkDraft] = useState<SocialLink>({
     platform: SOCIAL_PLATFORM_OPTIONS[0].value,
-    url: "",
+    url: ""
   })
   const [modalSaving, setModalSaving] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 8 }
     }),
     useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
+      coordinateGetter: sortableKeyboardCoordinates
     })
   )
 
   const logo = content.logo || ""
   const logoUrl = content.logoUrl || ""
-  const links = useMemo<FooterLink[]>(
-    () => (Array.isArray(content.links) ? content.links : []),
-    [content.links]
-  )
+  const links = useMemo<FooterLink[]>(() => (Array.isArray(content.links) ? content.links : []), [content.links])
   const socialLinks = useMemo<SocialLink[]>(
     () => (Array.isArray(content.socialLinks) ? content.socialLinks : []),
     [content.socialLinks]
   )
   const defaultCopyrightText = `© {year} ${siteName}. All rights reserved.`
-  const copyrightText =
-    typeof content.copyright === "string"
-      ? content.copyright
-      : defaultCopyrightText
+  const copyrightText = typeof content.copyright === "string" ? content.copyright : defaultCopyrightText
   const sortableLinksReady = sortableReady && links.every((link) => !!link.id)
-  const sortableSocialLinksReady =
-    sortableReady && socialLinks.every((socialLink) => !!socialLink.id)
+  const sortableSocialLinksReady = sortableReady && socialLinks.every((socialLink) => !!socialLink.id)
 
   useEffect(() => {
     setSortableReady(true)
@@ -443,7 +415,7 @@ export function Footer({
       "links",
       links.map((link) => ({
         ...link,
-        id: link.id || createFooterItemId("link"),
+        id: link.id || createFooterItemId("link")
       }))
     )
   }, [links, onContentChange])
@@ -455,7 +427,7 @@ export function Footer({
       "socialLinks",
       socialLinks.map((socialLink) => ({
         ...socialLink,
-        id: socialLink.id || createFooterItemId("social"),
+        id: socialLink.id || createFooterItemId("social")
       }))
     )
   }, [socialLinks, onContentChange])
@@ -466,8 +438,8 @@ export function Footer({
       {
         text: "",
         url: "",
-        id: createFooterItemId("link"),
-      },
+        id: createFooterItemId("link")
+      }
     ])
   }
 
@@ -477,13 +449,16 @@ export function Footer({
 
     setLinkDraft({
       text: link.text,
-      url: link.url,
+      url: link.url
     })
     setEditingLinkIndex(index)
   }
 
   const removeLink = (index: number) => {
-    onContentChange("links", links.filter((_, itemIndex) => itemIndex !== index))
+    onContentChange(
+      "links",
+      links.filter((_, itemIndex) => itemIndex !== index)
+    )
   }
 
   const saveLinkEditor = () => {
@@ -494,7 +469,7 @@ export function Footer({
     nextLinks[editingLinkIndex] = {
       ...nextLinks[editingLinkIndex],
       text: linkDraft.text,
-      url: linkDraft.url.trim(),
+      url: linkDraft.url.trim()
     }
 
     const nextContent = { ...content, links: nextLinks }
@@ -534,7 +509,7 @@ export function Footer({
   const addSocialLink = () => {
     setSocialLinkDraft({
       platform: SOCIAL_PLATFORM_OPTIONS[0].value,
-      url: "",
+      url: ""
     })
     setCreatingSocialLink(true)
   }
@@ -546,7 +521,7 @@ export function Footer({
     setCreatingSocialLink(false)
     setSocialLinkDraft({
       ...socialLink,
-      platform: socialLink.platform || SOCIAL_PLATFORM_OPTIONS[0].value,
+      platform: socialLink.platform || SOCIAL_PLATFORM_OPTIONS[0].value
     })
     setEditingSocialLinkIndex(index)
   }
@@ -566,8 +541,8 @@ export function Footer({
           {
             ...socialLinkDraft,
             url: socialLinkDraft.url.trim(),
-            id: createFooterItemId("social"),
-          },
+            id: createFooterItemId("social")
+          }
         ]
       : (() => {
           if (editingSocialLinkIndex === null) return socialLinks
@@ -576,7 +551,7 @@ export function Footer({
           nextItems[editingSocialLinkIndex] = {
             ...(socialLinks[editingSocialLinkIndex] || {}),
             ...socialLinkDraft,
-            url: socialLinkDraft.url.trim(),
+            url: socialLinkDraft.url.trim()
           }
           return nextItems
         })()
@@ -636,7 +611,7 @@ export function Footer({
         )}
 
         <div className="space-y-6">
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <h2 className="text-base font-semibold leading-none tracking-tight">Settings</h2>
             </CardHeader>
@@ -724,7 +699,7 @@ export function Footer({
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <h2 className="text-base font-semibold leading-none tracking-tight">Footer Links</h2>
             </CardHeader>
@@ -744,15 +719,8 @@ export function Footer({
                   </button>
                 </div>
               ) : sortableLinksReady ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleLinkDragEnd}
-                >
-                  <SortableContext
-                    items={links.map((link) => link.id!)}
-                    strategy={horizontalListSortingStrategy}
-                  >
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLinkDragEnd}>
+                  <SortableContext items={links.map((link) => link.id!)} strategy={horizontalListSortingStrategy}>
                     <div className="flex flex-wrap items-center gap-2">
                       {links.map((link, index) => (
                         <SortableFooterLinkItem
@@ -798,7 +766,7 @@ export function Footer({
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <h2 className="text-base font-semibold leading-none tracking-tight">Social Links</h2>
             </CardHeader>
@@ -818,11 +786,7 @@ export function Footer({
                   </button>
                 </div>
               ) : sortableSocialLinksReady ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleSocialLinkDragEnd}
-                >
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSocialLinkDragEnd}>
                   <SortableContext
                     items={socialLinks.map((socialLink) => socialLink.id!)}
                     strategy={horizontalListSortingStrategy}
@@ -885,9 +849,7 @@ export function Footer({
         <AdminModalContent>
           <AdminModalHeader>
             <AdminModalTitle>Footer Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the label and destination URL for this footer link.
-            </AdminModalDescription>
+            <AdminModalDescription>Update the label and destination URL for this footer link.</AdminModalDescription>
           </AdminModalHeader>
 
           <AdminModalBody className="space-y-6 pb-6">
@@ -897,7 +859,10 @@ export function Footer({
                 <Input
                   value={linkDraft.text}
                   onChange={(event) =>
-                    setLinkDraft((prev) => ({ ...prev, text: event.target.value }))
+                    setLinkDraft((prev) => ({
+                      ...prev,
+                      text: event.target.value
+                    }))
                   }
                   placeholder="Label"
                   aria-label="Footer link name"
@@ -909,7 +874,10 @@ export function Footer({
                 <Input
                   value={linkDraft.url}
                   onChange={(event) =>
-                    setLinkDraft((prev) => ({ ...prev, url: event.target.value }))
+                    setLinkDraft((prev) => ({
+                      ...prev,
+                      url: event.target.value
+                    }))
                   }
                   placeholder="/about or https://example.com"
                   aria-label="Footer link URL"
@@ -941,9 +909,7 @@ export function Footer({
         <AdminModalContent>
           <AdminModalHeader>
             <AdminModalTitle>Social Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the platform and destination URL for this social link.
-            </AdminModalDescription>
+            <AdminModalDescription>Update the platform and destination URL for this social link.</AdminModalDescription>
           </AdminModalHeader>
 
           <AdminModalBody className="space-y-6 pb-6">
@@ -952,9 +918,7 @@ export function Footer({
                 <p className="text-sm font-medium">Platform</p>
                 <Select
                   value={socialLinkDraft.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
-                  onValueChange={(value) =>
-                    setSocialLinkDraft((prev) => ({ ...prev, platform: value }))
-                  }
+                  onValueChange={(value) => setSocialLinkDraft((prev) => ({ ...prev, platform: value }))}
                 >
                   <SelectTrigger size="button" className="w-full">
                     <SelectValue />
@@ -974,7 +938,10 @@ export function Footer({
                 <Input
                   value={socialLinkDraft.url}
                   onChange={(event) =>
-                    setSocialLinkDraft((prev) => ({ ...prev, url: event.target.value }))
+                    setSocialLinkDraft((prev) => ({
+                      ...prev,
+                      url: event.target.value
+                    }))
                   }
                   placeholder="https://twitter.com/example"
                   aria-label="Social link URL"
@@ -984,11 +951,7 @@ export function Footer({
           </AdminModalBody>
 
           <AdminModalFooter className="sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setEditingSocialLinkIndex(null)}
-            >
+            <Button type="button" variant="outline" onClick={() => setEditingSocialLinkIndex(null)}>
               Cancel
             </Button>
             <Button type="button" disabled={modalSaving} onClick={saveSocialLinkEditor}>

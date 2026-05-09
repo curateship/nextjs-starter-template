@@ -6,16 +6,14 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   AdminModalBody,
@@ -23,18 +21,10 @@ import {
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { Filter, Trash2, Plus, X, Search, Settings } from "lucide-react"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
   getSegmentById,
   getSegmentStats,
@@ -47,18 +37,15 @@ import {
   removeContactsFromSegment,
   addContactsToSegment,
   getAvailableSegmentTags,
-  getSegmentsBySite,
+  getSegmentsBySite
 } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
-import {
-  formatSegmentDynamicRule,
-  type SegmentType,
-} from "@/lib/actions/newsletters/segment-rules"
+import { formatSegmentDynamicRule, type SegmentType } from "@/lib/actions/newsletters/segment-rules"
 import {
   buildDynamicRuleFromForm,
   mapDynamicRuleToForm,
   SegmentDynamicConditionEditor,
-  type DynamicConditionForm,
+  type DynamicConditionForm
 } from "@/components/admin/newsletter-builder/segments/SegmentDynamicConditionEditor"
 
 export default function SegmentDashboardPage() {
@@ -68,11 +55,40 @@ export default function SegmentDashboardPage() {
 
   // Segment data
   const [segment, setSegment] = useState<Segment | null>(null)
-  const [stats, setStats] = useState<{ totalContacts: number; totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number; unsubscribeRate: number; avgEngagementScore: number } | null>(null)
-  const [contacts, setContacts] = useState<{ id: string; email: string; status: string; engagementScore: number; metadata: any; createdAt: string }[]>([])
+  const [stats, setStats] = useState<{
+    totalContacts: number
+    totalSent: number
+    totalOpened: number
+    totalClicked: number
+    openRate: number
+    clickRate: number
+    unsubscribeRate: number
+    avgEngagementScore: number
+  } | null>(null)
+  const [contacts, setContacts] = useState<
+    {
+      id: string
+      email: string
+      status: string
+      engagementScore: number
+      metadata: any
+      createdAt: string
+    }[]
+  >([])
   const [contactsTotal, setContactsTotal] = useState(0)
   const [contactsPage, setContactsPage] = useState(1)
-  const [newsletters, setNewsletters] = useState<{ id: string; name: string; subject: string; status: string; sentAt: string | null; totalSent: number; totalOpened: number; totalClicked: number }[]>([])
+  const [newsletters, setNewsletters] = useState<
+    {
+      id: string
+      name: string
+      subject: string
+      status: string
+      sentAt: string | null
+      totalSent: number
+      totalOpened: number
+      totalClicked: number
+    }[]
+  >([])
   const [engagement, setEngagement] = useState<{ month: string; opens: number; clicks: number }[]>([])
 
   // UI state
@@ -81,7 +97,11 @@ export default function SegmentDashboardPage() {
   const [loadingMore, setLoadingMore] = useState(false)
 
   // Edit form state
-  const [editForm, setEditForm] = useState({ name: "", description: "", segmentType: "static" as SegmentType })
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    segmentType: "static" as SegmentType
+  })
   const [dynamicConditions, setDynamicConditions] = useState<DynamicConditionForm[]>([])
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const [segmentOptions, setSegmentOptions] = useState<Segment[]>([])
@@ -103,13 +123,12 @@ export default function SegmentDashboardPage() {
       return
     }
 
-    Promise.all([
-      getAvailableSegmentTags(segment.site_id),
-      getSegmentsBySite(segment.site_id, { pageSize: 100 }),
-    ]).then(([tagsRes, segmentsRes]) => {
-      setAvailableTags(tagsRes.data || [])
-      setSegmentOptions(segmentsRes.data || [])
-    })
+    Promise.all([getAvailableSegmentTags(segment.site_id), getSegmentsBySite(segment.site_id, { pageSize: 100 })]).then(
+      ([tagsRes, segmentsRes]) => {
+        setAvailableTags(tagsRes.data || [])
+        setSegmentOptions(segmentsRes.data || [])
+      }
+    )
   }, [segment?.site_id])
 
   // Debounced search for contacts to add
@@ -140,7 +159,7 @@ export default function SegmentDashboardPage() {
         getSegmentStats(segmentId),
         getSegmentContacts(segmentId, 1, 20),
         getSegmentNewsletters(segmentId),
-        getSegmentEngagementOverTime(segmentId),
+        getSegmentEngagementOverTime(segmentId)
       ])
 
       if (segmentRes.error || !segmentRes.data) {
@@ -160,7 +179,7 @@ export default function SegmentDashboardPage() {
       setEditForm({
         name: segmentRes.data.name,
         description: segmentRes.data.description,
-        segmentType: segmentRes.data.segment_type,
+        segmentType: segmentRes.data.segment_type
       })
       setDynamicConditions(mapDynamicRuleToForm(segmentRes.data.dynamic_rule))
     } catch {
@@ -180,7 +199,7 @@ export default function SegmentDashboardPage() {
     const nextPage = contactsPage + 1
     const res = await getSegmentContacts(segmentId, nextPage, 20)
     if (res.data) {
-      setContacts(prev => [...prev, ...res.data!])
+      setContacts((prev) => [...prev, ...res.data!])
       setContactsPage(nextPage)
     }
     setLoadingMore(false)
@@ -190,7 +209,7 @@ export default function SegmentDashboardPage() {
   async function refreshContactsAndStats() {
     const [statsRes, contactsRes] = await Promise.all([
       getSegmentStats(segmentId),
-      getSegmentContacts(segmentId, 1, 20),
+      getSegmentContacts(segmentId, 1, 20)
     ])
     setStats(statsRes.data)
     setContacts(contactsRes.data || [])
@@ -213,7 +232,7 @@ export default function SegmentDashboardPage() {
       name: editForm.name,
       description: editForm.description,
       segmentType: editForm.segmentType,
-      dynamicRule: editForm.segmentType === "dynamic" ? dynamicRule : null,
+      dynamicRule: editForm.segmentType === "dynamic" ? dynamicRule : null
     })
 
     if (data) {
@@ -221,7 +240,7 @@ export default function SegmentDashboardPage() {
       setEditForm({
         name: data.name,
         description: data.description,
-        segmentType: data.segment_type,
+        segmentType: data.segment_type
       })
       setDynamicConditions(mapDynamicRuleToForm(data.dynamic_rule))
       setSettingsOpen(false)
@@ -264,7 +283,7 @@ export default function SegmentDashboardPage() {
       return
     }
     // Clear the added contact from results, refresh data
-    setSearchResults(prev => prev.filter(c => c.id !== contactId))
+    setSearchResults((prev) => prev.filter((c) => c.id !== contactId))
     setSearchQuery("")
     setAddingContact(null)
     await refreshContactsAndStats()
@@ -273,7 +292,11 @@ export default function SegmentDashboardPage() {
   // Helper: format date
   function formatDate(dateStr: string | null): string {
     if (!dateStr) return "—"
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    })
   }
 
   // Helper: get contact display name from metadata
@@ -286,11 +309,16 @@ export default function SegmentDashboardPage() {
   // Helper: status badge for contacts
   function getStatusBadge(status: string) {
     switch (status) {
-      case "active": return <Badge className="bg-green-100 text-green-800">Active</Badge>
-      case "unsubscribed": return <Badge variant="secondary">Unsubscribed</Badge>
-      case "bounced": return <Badge variant="destructive">Bounced</Badge>
-      case "complained": return <Badge variant="destructive">Complained</Badge>
-      default: return <Badge variant="secondary">{status}</Badge>
+      case "active":
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      case "unsubscribed":
+        return <Badge variant="secondary">Unsubscribed</Badge>
+      case "bounced":
+        return <Badge variant="destructive">Bounced</Badge>
+      case "complained":
+        return <Badge variant="destructive">Complained</Badge>
+      default:
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 
@@ -307,25 +335,21 @@ export default function SegmentDashboardPage() {
             items={[
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Segments", href: "/admin/newsletters/segments" },
-              { label: loading ? <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" /> : segment?.name || "Segment" },
+              {
+                label: loading ? (
+                  <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />
+                ) : (
+                  segment?.name || "Segment"
+                )
+              }
             ]}
             actions={
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSettingsOpen(true)}
-                  disabled={loading}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)} disabled={loading}>
                   <Settings className="h-4 w-4 mr-1" />
                   Settings
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleting || loading}
-                >
+                <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || loading}>
                   <Trash2 className="h-4 w-4 mr-1" />
                   {deleting ? "Deleting..." : "Delete"}
                 </Button>
@@ -336,7 +360,7 @@ export default function SegmentDashboardPage() {
           {/* Loading skeleton */}
           {loading && (
             <>
-              <Card className="p-6">
+              <Card>
                 <div className="flex items-center gap-4">
                   <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                   <div className="space-y-2">
@@ -346,8 +370,8 @@ export default function SegmentDashboardPage() {
                 </div>
               </Card>
               <div className="grid grid-cols-2 md:grid-cols-4">
-                {[1, 2, 3, 4].map(i => (
-                  <Card key={i} className="p-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <Card key={i}>
                     <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
                     <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                   </Card>
@@ -358,7 +382,7 @@ export default function SegmentDashboardPage() {
 
           {/* Error state */}
           {error && !loading && (
-            <Card className="p-8 text-center">
+            <Card className="text-center">
               <p className="text-red-600 mb-4">{error}</p>
               <Link href="/admin/newsletters/segments">
                 <Button variant="outline">Back to Segments</Button>
@@ -370,7 +394,7 @@ export default function SegmentDashboardPage() {
           {!loading && segment && (
             <>
               {/* Segment Header */}
-              <Card className="p-6">
+              <Card>
                 <div className="flex items-center gap-4">
                   {/* Icon circle */}
                   <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
@@ -384,7 +408,8 @@ export default function SegmentDashboardPage() {
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground truncate">
-                      {stats?.totalContacts ?? 0} contacts{segment.description ? ` · ${segment.description}` : ""}
+                      {stats?.totalContacts ?? 0} contacts
+                      {segment.description ? ` · ${segment.description}` : ""}
                     </p>
                     {segment.segment_type === "dynamic" && segment.dynamic_rule && (
                       <p className="text-xs text-muted-foreground mt-1">
@@ -398,19 +423,19 @@ export default function SegmentDashboardPage() {
 
               {/* Stat cards */}
               <div className="grid grid-cols-2 md:grid-cols-4">
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Open Rate</p>
                   <p className="text-2xl font-semibold">{stats?.openRate ?? 0}%</p>
                 </Card>
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Click Rate</p>
                   <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
                 </Card>
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Avg Engagement</p>
                   <p className="text-2xl font-semibold">{stats?.avgEngagementScore ?? 0}</p>
                 </Card>
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Unsubscribe Rate</p>
                   <p className="text-2xl font-semibold">{stats?.unsubscribeRate ?? 0}%</p>
                 </Card>
@@ -419,30 +444,40 @@ export default function SegmentDashboardPage() {
               {/* Two-column layout: Newsletters + Sidebar */}
               <div className="grid grid-cols-1 lg:grid-cols-3">
                 {/* Newsletters — left 2/3 */}
-                <Card className="lg:col-span-2 p-0">
-                  <div className="px-6 py-4 border-b">
+                <Card className="lg:col-span-2">
+                  <CardSection className="border-b">
                     <h2 className="font-semibold text-sm">Newsletters</h2>
-                  </div>
+                  </CardSection>
                   <div className="divide-y">
                     {newsletters.length === 0 ? (
-                      <div className="p-6 text-center text-muted-foreground text-sm">
+                      <CardSection className="text-center text-muted-foreground text-sm">
                         No newsletters sent to this segment yet.
-                      </div>
+                      </CardSection>
                     ) : (
-                      newsletters.map(nl => (
-                        <div key={nl.id} className="px-6 py-3">
+                      newsletters.map((nl) => (
+                        <CardSection key={nl.id}>
                           <p className="text-sm font-medium truncate">{nl.subject || nl.name}</p>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <Badge variant="outline" className="text-xs">{nl.status}</Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {nl.status}
+                            </Badge>
                             {nl.sentAt && <span>{formatDate(nl.sentAt)}</span>}
                             <span>·</span>
                             <span>{nl.totalSent} sent</span>
                             <span>·</span>
-                            <span>{nl.totalOpened} opened ({nl.totalSent > 0 ? Math.round((nl.totalOpened / nl.totalSent) * 100) : 0}%)</span>
+                            <span>
+                              {nl.totalOpened} opened (
+                              {nl.totalSent > 0 ? Math.round((nl.totalOpened / nl.totalSent) * 100) : 0}
+                              %)
+                            </span>
                             <span>·</span>
-                            <span>{nl.totalClicked} clicked ({nl.totalSent > 0 ? Math.round((nl.totalClicked / nl.totalSent) * 100) : 0}%)</span>
+                            <span>
+                              {nl.totalClicked} clicked (
+                              {nl.totalSent > 0 ? Math.round((nl.totalClicked / nl.totalSent) * 100) : 0}
+                              %)
+                            </span>
                           </div>
-                        </div>
+                        </CardSection>
                       ))
                     )}
                   </div>
@@ -451,13 +486,16 @@ export default function SegmentDashboardPage() {
                 {/* Right sidebar */}
                 <div>
                   {/* Contacts list */}
-                  <Card className="p-0">
-                    <div className="px-6 py-4 border-b flex items-center justify-between">
+                  <Card>
+                    <CardSection className="border-b flex items-center justify-between">
                       <h2 className="font-semibold text-sm">Contacts ({contactsTotal})</h2>
                       {segment.segment_type === "static" ? (
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                            <button
+                              type="button"
+                              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                            >
                               <Plus className="h-3.5 w-3.5" />
                               Add
                             </button>
@@ -467,24 +505,24 @@ export default function SegmentDashboardPage() {
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
                                 value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
+                                onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search by email..."
                                 className="pl-9 h-8 text-sm"
                                 autoFocus
                               />
                             </div>
                             <div className="mt-2">
-                              {searching && (
-                                <p className="text-xs text-muted-foreground py-2">Searching...</p>
-                              )}
+                              {searching && <p className="text-xs text-muted-foreground py-2">Searching...</p>}
                               {searchResults.length > 0 && (
                                 <div className="divide-y max-h-48 overflow-y-auto">
-                                  {searchResults.map(result => (
+                                  {searchResults.map((result) => (
                                     <div key={result.id} className="py-2 flex items-center gap-2">
                                       <div className="flex-1 min-w-0">
                                         <p className="text-sm truncate">{result.email}</p>
                                         {getContactName(result.metadata) && (
-                                          <p className="text-xs text-muted-foreground truncate">{getContactName(result.metadata)}</p>
+                                          <p className="text-xs text-muted-foreground truncate">
+                                            {getContactName(result.metadata)}
+                                          </p>
                                         )}
                                       </div>
                                       <Button
@@ -510,25 +548,29 @@ export default function SegmentDashboardPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground">Updates automatically</span>
                       )}
-                    </div>
+                    </CardSection>
                     <div className="divide-y">
                       {contacts.length === 0 ? (
-                        <div className="p-6 text-center text-muted-foreground text-sm">
+                        <CardSection className="text-center text-muted-foreground text-sm">
                           No contacts in this segment yet.
-                        </div>
+                        </CardSection>
                       ) : (
-                        contacts.map(contact => (
-                          <div key={contact.id} className="px-6 py-3 flex items-center gap-3">
+                        contacts.map((contact) => (
+                          <CardSection key={contact.id} className="flex items-center gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{contact.email}</p>
                               {getContactName(contact.metadata) && (
-                                <p className="text-xs text-muted-foreground truncate">{getContactName(contact.metadata)}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {getContactName(contact.metadata)}
+                                </p>
                               )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {getStatusBadge(contact.status)}
                               {contact.engagementScore > 0 && (
-                                <Badge variant="outline" className="text-xs">Score: {contact.engagementScore}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  Score: {contact.engagementScore}
+                                </Badge>
                               )}
                               {segment.segment_type === "static" && (
                                 <Button
@@ -542,13 +584,13 @@ export default function SegmentDashboardPage() {
                                 </Button>
                               )}
                             </div>
-                          </div>
+                          </CardSection>
                         ))
                       )}
                     </div>
                     {/* Load more button */}
                     {contacts.length < contactsTotal && (
-                      <div className="px-6 py-4 border-t">
+                      <CardSection className="border-t">
                         <Button
                           variant="outline"
                           size="sm"
@@ -558,7 +600,7 @@ export default function SegmentDashboardPage() {
                         >
                           {loadingMore ? "Loading..." : `Load more (${contactsTotal - contacts.length} remaining)`}
                         </Button>
-                      </div>
+                      </CardSection>
                     )}
                   </Card>
                 </div>
@@ -566,11 +608,11 @@ export default function SegmentDashboardPage() {
 
               {/* Engagement Over Time chart — only if 3+ data points */}
               {engagement.length >= 3 && (
-                <Card className="p-0">
-                  <div className="px-6 py-4 border-b">
+                <Card>
+                  <CardSection className="border-b">
                     <h2 className="font-semibold text-sm">Engagement Over Time</h2>
-                  </div>
-                  <div className="px-6 py-4">
+                  </CardSection>
+                  <CardSection>
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={engagement}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -581,7 +623,7 @@ export default function SegmentDashboardPage() {
                         <Line type="monotone" dataKey="clicks" stroke="#22c55e" name="Clicks" />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
+                  </CardSection>
                 </Card>
               )}
             </>
@@ -594,9 +636,7 @@ export default function SegmentDashboardPage() {
         <AdminModalContent>
           <AdminModalHeader>
             <AdminModalTitle>Segment Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the segment name, description, and membership rules.
-            </AdminModalDescription>
+            <AdminModalDescription>Update the segment name, description, and membership rules.</AdminModalDescription>
           </AdminModalHeader>
           <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
             <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
@@ -605,7 +645,7 @@ export default function SegmentDashboardPage() {
                 <Input
                   id="segment-name"
                   value={editForm.name}
-                  onChange={e => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Segment name"
                 />
               </div>
@@ -614,7 +654,12 @@ export default function SegmentDashboardPage() {
                 <Textarea
                   id="segment-description"
                   value={editForm.description}
-                  onChange={e => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      description: e.target.value
+                    }))
+                  }
                   placeholder="Segment description"
                   className="resize-none"
                   rows={3}
@@ -628,18 +673,16 @@ export default function SegmentDashboardPage() {
                       checked={editForm.segmentType === "static"}
                       onCheckedChange={(checked) => {
                         if (checked !== true) return
-                        setEditForm(prev => ({
+                        setEditForm((prev) => ({
                           ...prev,
-                          segmentType: "static",
+                          segmentType: "static"
                         }))
                         setDynamicConditions([])
                       }}
                     />
                     <div className="space-y-1 pt-0.5">
                       <span className="block text-sm font-medium leading-none">Static</span>
-                      <p className="text-xs text-muted-foreground">
-                        Manual segment membership.
-                      </p>
+                      <p className="text-xs text-muted-foreground">Manual segment membership.</p>
                     </div>
                   </label>
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -648,17 +691,15 @@ export default function SegmentDashboardPage() {
                       checked={editForm.segmentType === "dynamic"}
                       onCheckedChange={(checked) => {
                         if (checked !== true) return
-                        setEditForm(prev => ({
+                        setEditForm((prev) => ({
                           ...prev,
-                          segmentType: "dynamic",
+                          segmentType: "dynamic"
                         }))
                       }}
                     />
                     <div className="space-y-1 pt-0.5">
                       <span className="block text-sm font-medium leading-none">Dynamic</span>
-                      <p className="text-xs text-muted-foreground">
-                        Membership updates from conditions.
-                      </p>
+                      <p className="text-xs text-muted-foreground">Membership updates from conditions.</p>
                     </div>
                   </label>
                 </div>

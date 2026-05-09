@@ -1,13 +1,13 @@
 "use client"
 
-import { useEditor, EditorContent } from '@tiptap/react'
-import { mergeAttributes } from '@tiptap/core'
-import { NodeSelection } from '@tiptap/pm/state'
-import StarterKit from '@tiptap/starter-kit'
-import Link from '@tiptap/extension-link'
-import TextAlign from '@tiptap/extension-text-align'
-import Placeholder from '@tiptap/extension-placeholder'
-import Image from '@tiptap/extension-image'
+import { useEditor, EditorContent } from "@tiptap/react"
+import { mergeAttributes } from "@tiptap/core"
+import { NodeSelection } from "@tiptap/pm/state"
+import StarterKit from "@tiptap/starter-kit"
+import Link from "@tiptap/extension-link"
+import TextAlign from "@tiptap/extension-text-align"
+import Placeholder from "@tiptap/extension-placeholder"
+import Image from "@tiptap/extension-image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -17,32 +17,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import DOMPurify from "dompurify"
 import {
-  Bold, 
-  Italic, 
-  List, 
-  ListOrdered, 
-  Link as LinkIcon, 
-  AlignLeft, 
-  AlignCenter, 
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Link as LinkIcon,
+  AlignLeft,
+  AlignCenter,
   AlignRight,
   ImageIcon,
   Trash2,
   Eye,
   EyeOff
 } from "lucide-react"
-import { useState, useCallback, useEffect, useId, useRef, type CSSProperties, type MouseEvent } from 'react'
+import { useState, useCallback, useEffect, useId, useRef, type CSSProperties, type MouseEvent } from "react"
 import { cn } from "@/lib/utils/tailwind"
 
 export interface RichTextEditorProps {
   content: {
     title?: string
     subtitle?: string
-    headerAlign?: 'left' | 'center'
+    headerAlign?: "left" | "center"
     content: string
     hideHeader?: boolean
     hideEditorHeader?: boolean
   }
-  onContentChange: (content: { title?: string; subtitle?: string; headerAlign?: 'left' | 'center'; content: string }) => void
+  onContentChange: (content: {
+    title?: string
+    subtitle?: string
+    headerAlign?: "left" | "center"
+    content: string
+  }) => void
   compact?: boolean
   inline?: boolean
   placeholder?: string
@@ -74,7 +79,7 @@ function getLinkedImageAttributes(element: HTMLElement) {
     height: normalizeLinkedImageAttribute(imageElement.getAttribute("height")),
     href: normalizeLinkedImageAttribute(linkElement?.getAttribute("href") ?? null),
     target: normalizeLinkedImageAttribute(linkElement?.getAttribute("target") ?? null),
-    rel: normalizeLinkedImageAttribute(linkElement?.getAttribute("rel") ?? null),
+    rel: normalizeLinkedImageAttribute(linkElement?.getAttribute("rel") ?? null)
   }
 }
 
@@ -83,14 +88,14 @@ const LinkedImage = Image.extend({
     return {
       ...this.parent?.(),
       href: {
-        default: null,
+        default: null
       },
       target: {
-        default: "_blank",
+        default: "_blank"
       },
       rel: {
-        default: "noopener noreferrer nofollow",
-      },
+        default: "noopener noreferrer nofollow"
+      }
     }
   },
 
@@ -100,12 +105,12 @@ const LinkedImage = Image.extend({
     return [
       {
         tag: `a[href] ${imageSelector}`,
-        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
+        getAttrs: (element) => getLinkedImageAttributes(element as HTMLElement)
       },
       {
         tag: imageSelector,
-        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
-      },
+        getAttrs: (element) => getLinkedImageAttributes(element as HTMLElement)
+      }
     ]
   },
 
@@ -119,14 +124,10 @@ const LinkedImage = Image.extend({
 
     return [
       "a",
-      mergeAttributes(
-        { href },
-        target ? { target } : {},
-        rel ? { rel } : {},
-      ),
-      ["img", mergedImageAttributes],
+      mergeAttributes({ href }, target ? { target } : {}, rel ? { rel } : {}),
+      ["img", mergedImageAttributes]
     ]
-  },
+  }
 })
 
 export function RichTextEditor({
@@ -139,38 +140,43 @@ export function RichTextEditor({
   toolbarContent,
   contentClassName,
   contentStyle,
-  mediaPickerSiteId,
+  mediaPickerSiteId
 }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
-  const [linkUrl, setLinkUrl] = useState('')
-  const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(null)
+  const [linkUrl, setLinkUrl] = useState("")
+  const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(
+    null
+  )
   const pendingContentRef = useRef<string | null>(null)
-  const pendingLinkTargetRef = useRef<{ range: { from: number; to: number }; isImage: boolean } | null>(null)
+  const pendingLinkTargetRef = useRef<{
+    range: { from: number; to: number }
+    isImage: boolean
+  } | null>(null)
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   const linkInputId = useId()
-  
+
   const editor = useEditor({
     extensions: [
       StarterKit,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-blue-600 underline',
-        },
+          class: "text-blue-600 underline"
+        }
       }),
       TextAlign.configure({
-        types: ['heading', 'paragraph'],
+        types: ["heading", "paragraph"]
       }),
       Placeholder.configure({
-        placeholder: placeholder || 'Start writing...',
+        placeholder: placeholder || "Start writing..."
       }),
       LinkedImage.configure({
         HTMLAttributes: {
-          class: 'max-w-full h-auto rounded-lg',
-        },
-      }),
+          class: "max-w-full h-auto rounded-lg"
+        }
+      })
     ],
     content: content.content,
     immediatelyRender: false,
@@ -183,15 +189,17 @@ export function RichTextEditor({
             return false
           }
 
-          const imageElement = target.closest('img')
-          const linkElement = target.closest('a[href]')
+          const imageElement = target.closest("img")
+          const linkElement = target.closest("a[href]")
 
           if (!(imageElement instanceof HTMLImageElement) || !linkElement || !view.dom.contains(imageElement)) {
             return false
           }
 
           event.preventDefault()
-          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, view.posAtDOM(imageElement, 0))))
+          view.dispatch(
+            view.state.tr.setSelection(NodeSelection.create(view.state.doc, view.posAtDOM(imageElement, 0)))
+          )
           view.focus()
           return true
         },
@@ -202,8 +210,8 @@ export function RichTextEditor({
             return false
           }
 
-          const imageElement = target.closest('img')
-          const linkElement = target.closest('a[href]')
+          const imageElement = target.closest("img")
+          const linkElement = target.closest("a[href]")
 
           if (!(imageElement instanceof HTMLImageElement) || !linkElement) {
             return false
@@ -211,20 +219,20 @@ export function RichTextEditor({
 
           event.preventDefault()
           return true
-        },
+        }
       },
       transformPastedText(text) {
         // Convert single newlines to double so Tiptap creates
         // separate <p> tags instead of <br> within one <p>
-        return text.replace(/(?<!\n)\n(?!\n)/g, '\n\n')
+        return text.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
       },
       transformPastedHTML(html) {
         // Convert <br> sequences and <div>s into paragraph breaks
         return html
-          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '</p><p>')
-          .replace(/<div>/gi, '<p>')
-          .replace(/<\/div>/gi, '</p>')
-      },
+          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
+          .replace(/<div>/gi, "<p>")
+          .replace(/<\/div>/gi, "</p>")
+      }
     },
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
@@ -233,7 +241,7 @@ export function RichTextEditor({
         ...content,
         content: html
       })
-    },
+    }
   })
 
   // Update editor content when content prop changes
@@ -270,7 +278,7 @@ export function RichTextEditor({
     })
   }
 
-  const handleHeaderAlignChange = (value: 'left' | 'center') => {
+  const handleHeaderAlignChange = (value: "left" | "center") => {
     onContentChange({
       ...content,
       headerAlign: value
@@ -291,13 +299,12 @@ export function RichTextEditor({
 
     const selection = editor.state.selection
     const { from, to } = selection
-    const imageSelection =
-      selection instanceof NodeSelection && selection.node.type.name === 'image' ? selection : null
+    const imageSelection = selection instanceof NodeSelection && selection.node.type.name === "image" ? selection : null
     pendingLinkTargetRef.current = {
       range: { from, to },
-      isImage: Boolean(imageSelection),
+      isImage: Boolean(imageSelection)
     }
-    setLinkUrl(imageSelection ? imageSelection.node.attrs.href || '' : editor.getAttributes('link').href || '')
+    setLinkUrl(imageSelection ? imageSelection.node.attrs.href || "" : editor.getAttributes("link").href || "")
     setIsLinkDialogOpen(true)
   }, [editor])
 
@@ -314,14 +321,14 @@ export function RichTextEditor({
         .chain()
         .focus()
         .setNodeSelection(range.from)
-        .updateAttributes('image', {
+        .updateAttributes("image", {
           href: nextUrl || null,
-          target: nextUrl ? '_blank' : null,
-          rel: nextUrl ? 'noopener noreferrer nofollow' : null,
+          target: nextUrl ? "_blank" : null,
+          rel: nextUrl ? "noopener noreferrer nofollow" : null
         })
         .run()
     } else {
-      const chain = editor.chain().focus().setTextSelection(range).extendMarkRange('link')
+      const chain = editor.chain().focus().setTextSelection(range).extendMarkRange("link")
 
       if (!nextUrl) {
         chain.unsetLink().run()
@@ -346,28 +353,35 @@ export function RichTextEditor({
         .chain()
         .focus()
         .setNodeSelection(range.from)
-        .updateAttributes('image', {
+        .updateAttributes("image", {
           href: null,
           target: null,
-          rel: null,
+          rel: null
         })
         .run()
     } else {
-      editor.chain().focus().setTextSelection(range).extendMarkRange('link').unsetLink().run()
+      editor.chain().focus().setTextSelection(range).extendMarkRange("link").unsetLink().run()
     }
 
     pendingLinkTargetRef.current = null
-    setLinkUrl('')
+    setLinkUrl("")
     setIsLinkDialogOpen(false)
   }, [editor])
 
-  const handleImageSelect = useCallback((imageUrl: string, altText?: string) => {
-    if (!imageUrl) {
-      return
-    }
+  const handleImageSelect = useCallback(
+    (imageUrl: string, altText?: string) => {
+      if (!imageUrl) {
+        return
+      }
 
-    editor?.chain().focus().setImage({ src: imageUrl, alt: altText || '' }).run()
-  }, [editor])
+      editor
+        ?.chain()
+        .focus()
+        .setImage({ src: imageUrl, alt: altText || "" })
+        .run()
+    },
+    [editor]
+  )
 
   const updateSelectedImageButtonPosition = useCallback(() => {
     if (!editor || !editorSurfaceRef.current) {
@@ -376,7 +390,7 @@ export function RichTextEditor({
     }
 
     const { selection } = editor.state
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') {
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
       setSelectedImageButtonPosition(null)
       return
     }
@@ -396,11 +410,8 @@ export function RichTextEditor({
       top: Math.max(padding, imageRect.top - surfaceRect.top + padding),
       left: Math.max(
         padding,
-        Math.min(
-          surfaceRect.width - buttonSize - padding,
-          imageRect.right - surfaceRect.left - buttonSize - padding
-        )
-      ),
+        Math.min(surfaceRect.width - buttonSize - padding, imageRect.right - surfaceRect.left - buttonSize - padding)
+      )
     })
   }, [editor])
 
@@ -410,7 +421,7 @@ export function RichTextEditor({
     }
 
     const { selection } = editor.state
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== 'image') {
+    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
       return
     }
 
@@ -418,20 +429,23 @@ export function RichTextEditor({
     setSelectedImageButtonPosition(null)
   }, [editor])
 
-  const handleEditorContainerMouseDown = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    const target = event.target
+  const handleEditorContainerMouseDown = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      const target = event.target
 
-    if (!(target instanceof HTMLElement)) {
-      return
-    }
+      if (!(target instanceof HTMLElement)) {
+        return
+      }
 
-    if (target.closest('.ProseMirror')) {
-      return
-    }
+      if (target.closest(".ProseMirror")) {
+        return
+      }
 
-    event.preventDefault()
-    editor?.commands.focus('end')
-  }, [editor])
+      event.preventDefault()
+      editor?.commands.focus("end")
+    },
+    [editor]
+  )
 
   useEffect(() => {
     if (!editor) {
@@ -443,16 +457,16 @@ export function RichTextEditor({
     }
 
     syncSelectedImageButton()
-    editor.on('selectionUpdate', syncSelectedImageButton)
-    editor.on('transaction', syncSelectedImageButton)
-    editor.on('focus', syncSelectedImageButton)
-    editor.on('blur', syncSelectedImageButton)
+    editor.on("selectionUpdate", syncSelectedImageButton)
+    editor.on("transaction", syncSelectedImageButton)
+    editor.on("focus", syncSelectedImageButton)
+    editor.on("blur", syncSelectedImageButton)
 
     return () => {
-      editor.off('selectionUpdate', syncSelectedImageButton)
-      editor.off('transaction', syncSelectedImageButton)
-      editor.off('focus', syncSelectedImageButton)
-      editor.off('blur', syncSelectedImageButton)
+      editor.off("selectionUpdate", syncSelectedImageButton)
+      editor.off("transaction", syncSelectedImageButton)
+      editor.off("focus", syncSelectedImageButton)
+      editor.off("blur", syncSelectedImageButton)
     }
   }, [editor, updateSelectedImageButtonPosition])
 
@@ -465,12 +479,12 @@ export function RichTextEditor({
       updateSelectedImageButtonPosition()
     }
 
-    window.addEventListener('resize', syncSelectedImageButton)
-    window.addEventListener('scroll', syncSelectedImageButton, true)
+    window.addEventListener("resize", syncSelectedImageButton)
+    window.addEventListener("scroll", syncSelectedImageButton, true)
 
     return () => {
-      window.removeEventListener('resize', syncSelectedImageButton)
-      window.removeEventListener('scroll', syncSelectedImageButton, true)
+      window.removeEventListener("resize", syncSelectedImageButton)
+      window.removeEventListener("scroll", syncSelectedImageButton, true)
     }
   }, [selectedImageButtonPosition, updateSelectedImageButtonPosition])
 
@@ -480,7 +494,7 @@ export function RichTextEditor({
         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
       </div>
     ) : (
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Rich Text Content</CardTitle>
         </CardHeader>
@@ -495,7 +509,7 @@ export function RichTextEditor({
 
   const isImageLinkActive =
     editor.state.selection instanceof NodeSelection &&
-    editor.state.selection.node.type.name === 'image' &&
+    editor.state.selection.node.type.name === "image" &&
     Boolean(editor.state.selection.node.attrs.href)
 
   const toolbarButtons = (
@@ -504,7 +518,7 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive('bold') && "bg-primary/20")}
+        className={cn("h-8 w-8 p-0", editor.isActive("bold") && "bg-primary/20")}
         onClick={() => editor.chain().focus().toggleBold().run()}
         title="Bold"
       >
@@ -513,7 +527,7 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive('italic') && "bg-primary/20")}
+        className={cn("h-8 w-8 p-0", editor.isActive("italic") && "bg-primary/20")}
         onClick={() => editor.chain().focus().toggleItalic().run()}
         title="Italic"
       >
@@ -526,7 +540,7 @@ export function RichTextEditor({
           key={level}
           variant="ghost"
           size="sm"
-          className={cn("h-8 px-2 text-xs font-semibold", editor.isActive('heading', { level }) && "bg-primary/20")}
+          className={cn("h-8 px-2 text-xs font-semibold", editor.isActive("heading", { level }) && "bg-primary/20")}
           onClick={() => editor.chain().focus().toggleHeading({ level }).run()}
           title={`Heading ${level}`}
         >
@@ -538,7 +552,7 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive('bulletList') && "bg-primary/20")}
+        className={cn("h-8 w-8 p-0", editor.isActive("bulletList") && "bg-primary/20")}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         title="Bullet List"
       >
@@ -547,7 +561,7 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive('orderedList') && "bg-primary/20")}
+        className={cn("h-8 w-8 p-0", editor.isActive("orderedList") && "bg-primary/20")}
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
         title="Numbered List"
       >
@@ -558,7 +572,7 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", (editor.isActive('link') || isImageLinkActive) && "bg-primary/20")}
+        className={cn("h-8 w-8 p-0", (editor.isActive("link") || isImageLinkActive) && "bg-primary/20")}
         onClick={addLink}
         title="Add Link"
       >
@@ -582,8 +596,8 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: 'left' }) && "bg-primary/20")}
-        onClick={() => editor.chain().focus().setTextAlign('left').run()}
+        className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: "left" }) && "bg-primary/20")}
+        onClick={() => editor.chain().focus().setTextAlign("left").run()}
         title="Align Left"
       >
         <AlignLeft className="w-4 h-4" />
@@ -591,8 +605,8 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: 'center' }) && "bg-primary/20")}
-        onClick={() => editor.chain().focus().setTextAlign('center').run()}
+        className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: "center" }) && "bg-primary/20")}
+        onClick={() => editor.chain().focus().setTextAlign("center").run()}
         title="Align Center"
       >
         <AlignCenter className="w-4 h-4" />
@@ -600,8 +614,8 @@ export function RichTextEditor({
       <Button
         variant="ghost"
         size="sm"
-        className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: 'right' }) && "bg-primary/20")}
-        onClick={() => editor.chain().focus().setTextAlign('right').run()}
+        className={cn("h-8 w-8 p-0", editor.isActive({ textAlign: "right" }) && "bg-primary/20")}
+        onClick={() => editor.chain().focus().setTextAlign("right").run()}
         title="Align Right"
       >
         <AlignRight className="w-4 h-4" />
@@ -615,7 +629,7 @@ export function RichTextEditor({
 
       {/* Header Settings Card - Only show if hideHeader is not true */}
       {!content.hideHeader && (
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Section Header</CardTitle>
           </CardHeader>
@@ -624,7 +638,7 @@ export function RichTextEditor({
               <Label htmlFor="title">Section Title</Label>
               <Input
                 id="title"
-                value={content.title || ''}
+                value={content.title || ""}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder="Enter section title..."
                 className="mt-1"
@@ -634,7 +648,7 @@ export function RichTextEditor({
               <Label htmlFor="subtitle">Section Subtitle</Label>
               <Input
                 id="subtitle"
-                value={content.subtitle || ''}
+                value={content.subtitle || ""}
                 onChange={(e) => handleSubtitleChange(e.target.value)}
                 placeholder="Enter section subtitle..."
                 className="mt-1"
@@ -642,7 +656,7 @@ export function RichTextEditor({
             </div>
             <div>
               <Label htmlFor="headerAlign">Header Alignment</Label>
-              <Select value={content.headerAlign || 'left'} onValueChange={handleHeaderAlignChange}>
+              <Select value={content.headerAlign || "left"} onValueChange={handleHeaderAlignChange}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select alignment" />
                 </SelectTrigger>
@@ -662,21 +676,13 @@ export function RichTextEditor({
           {/* Toolbar */}
           <div className="flex flex-wrap gap-1 p-2 bg-muted/20">
             {toolbarButtons}
-            {toolbarContent && (
-              <div className="flex items-center gap-1">
-                {toolbarContent}
-              </div>
-            )}
+            {toolbarContent && <div className="flex items-center gap-1">{toolbarContent}</div>}
           </div>
           {/* Editor */}
-          <div
-            ref={editorSurfaceRef}
-            className="relative cursor-text"
-            onMouseDown={handleEditorContainerMouseDown}
-          >
+          <div ref={editorSurfaceRef} className="relative cursor-text" onMouseDown={handleEditorContainerMouseDown}>
             <EditorContent
               editor={editor}
-              className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:my-1.5!'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
+              className={`${contentClassName || "prose prose-sm max-w-none [&_p]:my-1.5!"} ${compact ? "min-h-[80px]" : "min-h-[200px]"} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none [&_.ProseMirror]:p-3`}
             />
             {selectedImageButtonPosition && (
               <Button
@@ -702,17 +708,12 @@ export function RichTextEditor({
           </div>
         </div>
       ) : (
-        <Card className="shadow-sm">
+        <Card>
           {!content.hideEditorHeader && (
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Rich Text Content</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPreview(!showPreview)}
-                  className="text-xs"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setShowPreview(!showPreview)} className="text-xs">
                   {showPreview ? (
                     <>
                       <EyeOff className="w-4 h-4 mr-1" />
@@ -732,24 +733,22 @@ export function RichTextEditor({
             {!showPreview ? (
               <>
                 {/* Toolbar */}
-                <div className={`flex flex-wrap gap-1 p-2 bg-muted/20 ${content.hideEditorHeader ? '' : 'border rounded-md'}`}>
+                <div
+                  className={`flex flex-wrap gap-1 p-2 bg-muted/20 ${content.hideEditorHeader ? "" : "border rounded-md"}`}
+                >
                   {toolbarButtons}
-                  {toolbarContent && (
-                    <div className="flex items-center gap-1">
-                      {toolbarContent}
-                    </div>
-                  )}
+                  {toolbarContent && <div className="flex items-center gap-1">{toolbarContent}</div>}
                 </div>
 
                 {/* Editor */}
                 <div
                   ref={editorSurfaceRef}
-                  className={`relative cursor-text ${content.hideEditorHeader ? '' : 'border rounded-md'}`}
+                  className={`relative cursor-text ${content.hideEditorHeader ? "" : "border rounded-md"}`}
                   onMouseDown={handleEditorContainerMouseDown}
                 >
                   <EditorContent
                     editor={editor}
-                    className={`${contentClassName || 'prose prose-sm max-w-none [&_p]:my-1.5!'} ${compact ? 'min-h-[80px]' : 'min-h-[200px]'} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? '' : 'p-4'}`}
+                    className={`${contentClassName || "prose prose-sm max-w-none [&_p]:my-1.5!"} ${compact ? "min-h-[80px]" : "min-h-[200px]"} [&_.ProseMirror]:border-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:shadow-none ${content.hideEditorHeader ? "" : "p-4"}`}
                     style={contentStyle}
                   />
                   {selectedImageButtonPosition && (
@@ -778,14 +777,18 @@ export function RichTextEditor({
             ) : (
               /* Preview Mode */
               <div className="border rounded-md p-4 bg-muted/5">
-                <div className={`min-h-[200px] ${content.headerAlign === 'center' ? 'text-center' : 'text-left'}`}>
+                <div className={`min-h-[200px] ${content.headerAlign === "center" ? "text-center" : "text-left"}`}>
                   {content.title && (
-                    <h2 className={`text-3xl font-bold md:text-5xl mb-4 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
+                    <h2
+                      className={`text-3xl font-bold md:text-5xl mb-4 max-w-3xl ${content.headerAlign === "center" ? "mx-auto" : ""}`}
+                    >
                       {content.title}
                     </h2>
                   )}
                   {content.subtitle && (
-                    <p className={`text-lg text-muted-foreground mb-6 max-w-3xl ${content.headerAlign === 'center' ? 'mx-auto' : ''}`}>
+                    <p
+                      className={`text-lg text-muted-foreground mb-6 max-w-3xl ${content.headerAlign === "center" ? "mx-auto" : ""}`}
+                    >
                       {content.subtitle}
                     </p>
                   )}
@@ -794,8 +797,26 @@ export function RichTextEditor({
                     style={contentStyle}
                     dangerouslySetInnerHTML={{
                       __html: DOMPurify.sanitize(content.content, {
-                        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'a', 'blockquote', 'img'],
-                        ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'class'],
+                        ALLOWED_TAGS: [
+                          "p",
+                          "br",
+                          "strong",
+                          "em",
+                          "u",
+                          "h1",
+                          "h2",
+                          "h3",
+                          "h4",
+                          "h5",
+                          "h6",
+                          "ul",
+                          "ol",
+                          "li",
+                          "a",
+                          "blockquote",
+                          "img"
+                        ],
+                        ALLOWED_ATTR: ["href", "target", "rel", "src", "alt", "class"],
                         ALLOW_DATA_ATTR: false
                       })
                     }}
@@ -805,9 +826,7 @@ export function RichTextEditor({
             )}
 
             {showPreview && (
-              <div className="text-xs text-muted-foreground">
-                This is how your content will appear on the frontend.
-              </div>
+              <div className="text-xs text-muted-foreground">This is how your content will appear on the frontend.</div>
             )}
           </CardContent>
         </Card>

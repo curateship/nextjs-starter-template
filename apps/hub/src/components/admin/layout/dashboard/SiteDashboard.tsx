@@ -46,7 +46,7 @@ export function SiteDashboard({
   onCustomDomainChange,
   onTrackingScriptsChange,
   onCustomAnalyticsEnabledChange,
-  onMaintenanceChange,
+  onMaintenanceChange
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<{
@@ -55,15 +55,14 @@ export function SiteDashboard({
     suggestion?: string
   }>({ checking: false, available: null })
 
-
   // Generate subdomain from site name
   const generateSubdomain = (name: string) => {
     return name
       .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
   }
 
   // Initialize subdomain manually edited state based on whether subdomain differs from auto-generated
@@ -101,7 +100,6 @@ export function SiteDashboard({
     }
   }, [subdomain, isEditMode])
 
-
   const checkSubdomainAvailability = async (subdomainToCheck: string) => {
     if (!subdomainToCheck) {
       setSubdomainStatus({ checking: false, available: null })
@@ -111,24 +109,23 @@ export function SiteDashboard({
     try {
       setSubdomainStatus({ checking: true, available: null })
       const { available, suggestion } = await checkSubdomainAvailabilityAction(subdomainToCheck)
-      setSubdomainStatus({ 
-        checking: false, 
-        available, 
-        suggestion: available ? undefined : suggestion 
+      setSubdomainStatus({
+        checking: false,
+        available,
+        suggestion: available ? undefined : suggestion
       })
     } catch (err) {
-      console.error('Error checking subdomain:', err)
+      console.error("Error checking subdomain:", err)
       setSubdomainStatus({ checking: false, available: null })
     }
   }
 
-
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="grid">
         {[...Array(4)].map((_, i) => (
-          <Card key={i} className="shadow-sm">
-            <CardContent className="p-6 space-y-6">
+          <Card key={i}>
+            <CardContent className="space-y-6">
               {[...Array(3)].map((_, j) => (
                 <div key={j} className="space-y-2">
                   <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
@@ -143,77 +140,28 @@ export function SiteDashboard({
   }
 
   return (
-    <div className="space-y-6">
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle>Site Information</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Site Name */}
-        <div className="space-y-2">
-          <Label htmlFor="siteName">Site Name *</Label>
-          <div className="relative">
-            <Input
-              id="siteName"
-              value={siteName}
-              onChange={(e) => handleSiteNameChange(e.target.value)}
-              placeholder="Enter site name (e.g., mysite)"
-              required
-              className={
-                subdomainStatus.available === false 
-                  ? "pr-10 border-red-300 focus:border-red-500" 
-                  : subdomainStatus.available === true 
-                  ? "pr-10 border-green-300 focus:border-green-500"
-                  : ""
-              }
-            />
-            {subdomainStatus.checking && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-              </div>
-            )}
-            {!subdomainStatus.checking && subdomainStatus.available === true && (
-              <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
-            )}
-            {!subdomainStatus.checking && subdomainStatus.available === false && (
-              <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            This will be the name of your site
-          </p>
-        </div>
-
-        {/* Maintenance Mode */}
-        {onMaintenanceChange && (
+    <div className="grid">
+      <Card>
+        <CardHeader>
+          <CardTitle>Site Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Site Name */}
           <div className="space-y-2">
-            <Label htmlFor="maintenance">Maintenance Mode</Label>
-            <div className="flex items-center justify-between border rounded-md p-3">
-              <div>
-                <p className="text-sm font-medium">Enable maintenance mode</p>
-                <p className="text-xs text-muted-foreground">Redirects visitors to the maintenance page. Admin routes unaffected.</p>
-              </div>
-              <Switch id="maintenance" checked={!!maintenanceEnabled} onCheckedChange={onMaintenanceChange} />
-            </div>
-          </div>
-        )}
-
-        {/* Site Subdomain */}
-        {onSubdomainChange && (
-          <div className="space-y-2">
-            <Label htmlFor="subdomain">Site URL</Label>
+            <Label htmlFor="siteName">Site Name *</Label>
             <div className="relative">
               <Input
-                id="subdomain"
-                value={subdomain}
-                onChange={(e) => handleSubdomainChange(e.target.value)}
-                placeholder="site-url"
+                id="siteName"
+                value={siteName}
+                onChange={(e) => handleSiteNameChange(e.target.value)}
+                placeholder="Enter site name (e.g., mysite)"
+                required
                 className={
-                  subdomainStatus.available === false 
-                    ? "pr-10 border-red-300 focus:border-red-500" 
-                    : subdomainStatus.available === true 
-                    ? "pr-10 border-green-300 focus:border-green-500"
-                    : ""
+                  subdomainStatus.available === false
+                    ? "pr-10 border-red-300 focus:border-red-500"
+                    : subdomainStatus.available === true
+                      ? "pr-10 border-green-300 focus:border-green-500"
+                      : ""
                 }
               />
               {subdomainStatus.checking && (
@@ -228,85 +176,127 @@ export function SiteDashboard({
                 <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
               )}
             </div>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>
-                {subdomainManuallyEdited
-                  ? "Custom subdomain."
-                  : "Auto-generated from site name. You can edit this to customize the URL."}
-              </p>
-              <p>
-                Your site will be available at: <strong>{subdomain || 'your-site'}.domain.com</strong>
-              </p>
-              {subdomainStatus.available === false && subdomainStatus.suggestion && (
-                <p className="text-amber-600">
-                  Subdomain not available. Suggested: <strong>{subdomainStatus.suggestion}.domain.com</strong>
-                </p>
-              )}
-              {subdomainStatus.available === true && (
-                <p className="text-green-600">
-                  Subdomain is available!
-                </p>
-              )}
-            </div>
+            <p className="text-xs text-muted-foreground">This will be the name of your site</p>
           </div>
-        )}
 
-        {/* Custom Domain */}
-        {onCustomDomainChange && (
+          {/* Maintenance Mode */}
+          {onMaintenanceChange && (
+            <div className="space-y-2">
+              <Label htmlFor="maintenance">Maintenance Mode</Label>
+              <div className="flex items-center justify-between border rounded-md p-3">
+                <div>
+                  <p className="text-sm font-medium">Enable maintenance mode</p>
+                  <p className="text-xs text-muted-foreground">
+                    Redirects visitors to the maintenance page. Admin routes unaffected.
+                  </p>
+                </div>
+                <Switch id="maintenance" checked={!!maintenanceEnabled} onCheckedChange={onMaintenanceChange} />
+              </div>
+            </div>
+          )}
+
+          {/* Site Subdomain */}
+          {onSubdomainChange && (
+            <div className="space-y-2">
+              <Label htmlFor="subdomain">Site URL</Label>
+              <div className="relative">
+                <Input
+                  id="subdomain"
+                  value={subdomain}
+                  onChange={(e) => handleSubdomainChange(e.target.value)}
+                  placeholder="site-url"
+                  className={
+                    subdomainStatus.available === false
+                      ? "pr-10 border-red-300 focus:border-red-500"
+                      : subdomainStatus.available === true
+                        ? "pr-10 border-green-300 focus:border-green-500"
+                        : ""
+                  }
+                />
+                {subdomainStatus.checking && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                  </div>
+                )}
+                {!subdomainStatus.checking && subdomainStatus.available === true && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                )}
+                {!subdomainStatus.checking && subdomainStatus.available === false && (
+                  <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                )}
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>
+                  {subdomainManuallyEdited
+                    ? "Custom subdomain."
+                    : "Auto-generated from site name. You can edit this to customize the URL."}
+                </p>
+                <p>
+                  Your site will be available at: <strong>{subdomain || "your-site"}.domain.com</strong>
+                </p>
+                {subdomainStatus.available === false && subdomainStatus.suggestion && (
+                  <p className="text-amber-600">
+                    Subdomain not available. Suggested: <strong>{subdomainStatus.suggestion}.domain.com</strong>
+                  </p>
+                )}
+                {subdomainStatus.available === true && <p className="text-green-600">Subdomain is available!</p>}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Domain */}
+          {onCustomDomainChange && (
+            <div className="space-y-2">
+              <label htmlFor="customDomain" className="text-sm font-medium text-gray-700">
+                Custom Domain
+              </label>
+              <Input
+                id="customDomain"
+                value={customDomain}
+                onChange={(e) => onCustomDomainChange(e.target.value)}
+                placeholder="example.com"
+              />
+              <div className="text-xs text-muted-foreground">
+                <p>Enter the main domain. Hub also wires the www version when available.</p>
+                {customDomain && (
+                  <p className="text-blue-600 mt-1">
+                    Site will be accessible at: <strong>{customDomain}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Status */}
           <div className="space-y-2">
-            <label htmlFor="customDomain" className="text-sm font-medium text-gray-700">
-              Custom Domain
-            </label>
-            <Input
-              id="customDomain"
-              value={customDomain}
-              onChange={(e) => onCustomDomainChange(e.target.value)}
-              placeholder="example.com"
-            />
-            <div className="text-xs text-muted-foreground">
-              <p>Enter the main domain. Hub also wires the www version when available.</p>
-              {customDomain && (
-                <p className="text-blue-600 mt-1">
-                  Site will be accessible at: <strong>{customDomain}</strong>
-                </p>
-              )}
-            </div>
+            <Label htmlFor="status">Site Status</Label>
+            <Select value={status} onValueChange={onStatusChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
+        </CardContent>
+      </Card>
 
+      {/* Tracking Settings Card */}
+      {onTrackingScriptsChange && (
+        <TrackingSettingsCard
+          trackingScripts={trackingScripts}
+          customAnalyticsEnabled={customAnalyticsEnabled}
+          onTrackingScriptsChange={onTrackingScriptsChange}
+          onCustomAnalyticsEnabledChange={onCustomAnalyticsEnabledChange}
+        />
+      )}
 
-        {/* Status */}
-        <div className="space-y-2">
-          <Label htmlFor="status">Site Status</Label>
-          <Select value={status} onValueChange={onStatusChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-      </CardContent>
-    </Card>
-
-    {/* Tracking Settings Card */}
-    {onTrackingScriptsChange && (
-      <TrackingSettingsCard
-        trackingScripts={trackingScripts}
-        customAnalyticsEnabled={customAnalyticsEnabled}
-        onTrackingScriptsChange={onTrackingScriptsChange}
-        onCustomAnalyticsEnabledChange={onCustomAnalyticsEnabledChange}
-      />
-    )}
-
-    {/* Cache Settings Card - Only show in edit mode */}
-    {isEditMode && <CacheSettingsCard />}
-
-  </div>
+      {/* Cache Settings Card - Only show in edit mode */}
+      {isEditMode && <CacheSettingsCard />}
+    </div>
   )
 }
 

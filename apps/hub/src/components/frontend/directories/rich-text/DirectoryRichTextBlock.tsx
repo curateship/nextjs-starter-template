@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { Card, CardContent } from "@/components/ui/card"
 import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 
 interface DirectoryRichTextBlockProps {
@@ -9,13 +10,8 @@ interface DirectoryRichTextBlockProps {
   children?: ReactNode
 }
 
-export function DirectoryRichTextBlock({
-  content,
-  children,
-}: DirectoryRichTextBlockProps) {
-  const visibility = content?.visibility && typeof content.visibility === "object"
-    ? content.visibility
-    : {}
+export function DirectoryRichTextBlock({ content, children }: DirectoryRichTextBlockProps) {
+  const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
 
   if (visibility.hideBlock === true || visibility.body === false) {
     return null
@@ -35,10 +31,10 @@ export function DirectoryRichTextBlock({
   }
 
   return (
-    <div className="rounded-2xl border bg-card p-6 shadow-sm">
-      <div className="prose prose-neutral dark:prose-invert max-w-none [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl">
+    <Card>
+      <CardContent className="prose prose-neutral dark:prose-invert max-w-none [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl">
         {richTextBody}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

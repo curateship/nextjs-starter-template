@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -17,20 +17,16 @@ import {
   AdminSelectionBanner,
   AdminSortButton,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
 import { Trash2, Settings, Users } from "lucide-react"
-import {
-  getSegmentsWithCounts,
-  deleteSegments,
-  getSegmentIdsAction,
-} from "@/lib/actions/newsletters/segment-actions"
+import { getSegmentsWithCounts, deleteSegments, getSegmentIdsAction } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
 import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
 
-type SegmentSortColumn = 'name' | 'contacts' | 'modified'
+type SegmentSortColumn = "name" | "contacts" | "modified"
 
 export default function SegmentsPage() {
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -63,7 +59,15 @@ export default function SegmentsPage() {
     try {
       setLoading(true)
       setError(null)
-      const { data, total: totalCount, counts, error: loadError } = await getSegmentsWithCounts(currentSite.id, { page: currentPage, pageSize })
+      const {
+        data,
+        total: totalCount,
+        counts,
+        error: loadError
+      } = await getSegmentsWithCounts(currentSite.id, {
+        page: currentPage,
+        pageSize
+      })
       if (loadError) {
         setError(loadError)
         setLoading(false)
@@ -118,26 +122,33 @@ export default function SegmentsPage() {
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSegments = segments.filter((segment) => {
     if (!normalizedSearchQuery) return true
-    return `${segment.name} ${segment.description ?? ""} ${segment.segment_type}`.toLowerCase().includes(normalizedSearchQuery)
+    return `${segment.name} ${segment.description ?? ""} ${segment.segment_type}`
+      .toLowerCase()
+      .includes(normalizedSearchQuery)
   })
 
   const sortedSegments = [...filteredSegments].sort((a, b) => {
     if (!segmentSort.sortColumn) return 0
-    const dir = segmentSort.sortDirection === 'asc' ? 1 : -1
-    if (segmentSort.sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (segmentSort.sortColumn === 'contacts') {
+    const dir = segmentSort.sortDirection === "asc" ? 1 : -1
+    if (segmentSort.sortColumn === "name") return a.name.localeCompare(b.name) * dir
+    if (segmentSort.sortColumn === "contacts") {
       const aCount = contactCounts[a.id] ?? 0
       const bCount = contactCounts[b.id] ?? 0
       return (aCount - bCount) * dir
     }
-    if (segmentSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (segmentSort.sortColumn === "modified")
+      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
   const filteredSegmentIds = filteredSegments.map((segment) => segment.id)
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    })
   }
 
   return (
@@ -147,14 +158,11 @@ export default function SegmentsPage() {
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
-            items={[
-              { label: "Newsletters", href: "/admin/newsletters" },
-              { label: "Segments" },
-            ]}
+            items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Segments" }]}
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search segments",
+              placeholder: "Search segments"
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
@@ -168,29 +176,39 @@ export default function SegmentsPage() {
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {/* Table Header */}
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={segmentSelection.isPageSelected(filteredSegmentIds)}
-                    onCheckedChange={() => segmentSelection.togglePage(filteredSegmentIds)}
-                    aria-label="Select all segments"
-                  />
-                  <AdminSortButton active={segmentSort.sortColumn === 'name'} direction={segmentSort.sortDirection} onClick={() => segmentSort.toggleSort('name')}>
-                    Name
-                  </AdminSortButton>
-                </div>
-                <AdminSortButton active={segmentSort.sortColumn === 'contacts'} direction={segmentSort.sortDirection} onClick={() => segmentSort.toggleSort('contacts')}>
-                  Contacts
+            <CardTableHeader className="grid-cols-5">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={segmentSelection.isPageSelected(filteredSegmentIds)}
+                  onCheckedChange={() => segmentSelection.togglePage(filteredSegmentIds)}
+                  aria-label="Select all segments"
+                />
+                <AdminSortButton
+                  active={segmentSort.sortColumn === "name"}
+                  direction={segmentSort.sortDirection}
+                  onClick={() => segmentSort.toggleSort("name")}
+                >
+                  Name
                 </AdminSortButton>
-                <AdminSortButton active={segmentSort.sortColumn === 'modified'} direction={segmentSort.sortDirection} onClick={() => segmentSort.toggleSort('modified')}>
-                  Modified
-                </AdminSortButton>
-                <div>Actions</div>
               </div>
-            </div>
+              <AdminSortButton
+                active={segmentSort.sortColumn === "contacts"}
+                direction={segmentSort.sortDirection}
+                onClick={() => segmentSort.toggleSort("contacts")}
+              >
+                Contacts
+              </AdminSortButton>
+              <AdminSortButton
+                active={segmentSort.sortColumn === "modified"}
+                direction={segmentSort.sortDirection}
+                onClick={() => segmentSort.toggleSort("modified")}
+              >
+                Modified
+              </AdminSortButton>
+              <div>Actions</div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
             <AdminSelectionBanner
@@ -209,7 +227,9 @@ export default function SegmentsPage() {
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadSegments()} variant="outline" size="sm">Try Again</Button>
+                  <Button onClick={() => loadSegments()} variant="outline" size="sm">
+                    Try Again
+                  </Button>
                 </div>
               ) : filteredSegments.length === 0 ? (
                 <div className="p-8 text-center">
@@ -223,7 +243,10 @@ export default function SegmentsPage() {
                 </div>
               ) : (
                 sortedSegments.map((segment) => (
-                  <div key={segment.id} className={`p-6 transition-colors ${segmentSelection.selectedIds.has(segment.id) ? "bg-accent/50" : ""}`}>
+                  <div
+                    key={segment.id}
+                    className={`p-6 transition-colors ${segmentSelection.selectedIds.has(segment.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
@@ -245,15 +268,15 @@ export default function SegmentsPage() {
                             <p className="text-xs text-muted-foreground">{segment.description}</p>
                           )}
                           {segment.segment_type === "dynamic" && segment.dynamic_rule && (
-                            <p className="text-xs text-muted-foreground">{formatSegmentDynamicRule(segment.dynamic_rule)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatSegmentDynamicRule(segment.dynamic_rule)}
+                            </p>
                           )}
                         </Link>
                       </div>
                       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                         <Users className="h-3.5 w-3.5" />
-                        {contactCounts[segment.id] !== undefined
-                          ? contactCounts[segment.id].toLocaleString()
-                          : "—"}
+                        {contactCounts[segment.id] !== undefined ? contactCounts[segment.id].toLocaleString() : "—"}
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">{formatDate(segment.updated_at)}</span>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useDeferredValue, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -17,22 +17,12 @@ import {
   AdminSelectionBanner,
   AdminSortButton,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Settings, Users, Upload, X, Plus, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import {
-  getContactsWithStats,
-  deleteContacts,
-  getContactIdsAction,
-} from "@/lib/actions/newsletters/contact-actions"
+import { getContactsWithStats, deleteContacts, getContactIdsAction } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
@@ -40,13 +30,13 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import {
   emptyContactFilterGroup,
   formatContactFilterRule,
-  type ContactFilterGroup,
+  type ContactFilterGroup
 } from "@/lib/actions/newsletters/contact-filters"
 import { ContactFilterModal } from "@/components/admin/newsletter-builder/contacts/ContactFilterModal"
 import { ContactFormModal } from "@/components/admin/newsletter-builder/contacts/ContactFormModal"
 import { ContactImportModal } from "@/components/admin/newsletter-builder/contacts/ContactImportModal"
 
-type ContactSortColumn = 'contact' | 'source' | 'status' | 'tags' | 'added' | 'engaged'
+type ContactSortColumn = "contact" | "source" | "status" | "tags" | "added" | "engaged"
 
 export default function ContactsPage() {
   const { currentSite, loading: siteLoading, pageSize: contextPageSize } = useSiteSwitcher()
@@ -113,7 +103,7 @@ export default function ContactsPage() {
         filterGroup: filters.rules.length ? filters : undefined,
         searchQuery: deferredSearchQuery,
         page: currentPage,
-        pageSize,
+        pageSize
       })
 
       if (requestId !== contactLoadRequestIdRef.current) {
@@ -145,21 +135,22 @@ export default function ContactsPage() {
 
   const sortedContacts = [...contacts].sort((a, b) => {
     if (!contactSort.sortColumn) return 0
-    const dir = contactSort.sortDirection === 'asc' ? 1 : -1
-    if (contactSort.sortColumn === 'contact') return a.email.localeCompare(b.email) * dir
-    if (contactSort.sortColumn === 'status') return a.status.localeCompare(b.status) * dir
-    if (contactSort.sortColumn === 'source') {
-      const aSource = a.metadata?.source || 'manual'
-      const bSource = b.metadata?.source || 'manual'
+    const dir = contactSort.sortDirection === "asc" ? 1 : -1
+    if (contactSort.sortColumn === "contact") return a.email.localeCompare(b.email) * dir
+    if (contactSort.sortColumn === "status") return a.status.localeCompare(b.status) * dir
+    if (contactSort.sortColumn === "source") {
+      const aSource = a.metadata?.source || "manual"
+      const bSource = b.metadata?.source || "manual"
       return aSource.localeCompare(bSource) * dir
     }
-    if (contactSort.sortColumn === 'tags') {
-      const aTag = a.metadata?.tags?.[0] || '\uffff'
-      const bTag = b.metadata?.tags?.[0] || '\uffff'
+    if (contactSort.sortColumn === "tags") {
+      const aTag = a.metadata?.tags?.[0] || "\uffff"
+      const bTag = b.metadata?.tags?.[0] || "\uffff"
       return aTag.localeCompare(bTag) * dir
     }
-    if (contactSort.sortColumn === 'added') return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
-    if (contactSort.sortColumn === 'engaged') {
+    if (contactSort.sortColumn === "added")
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (contactSort.sortColumn === "engaged") {
       const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
       const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
       return (aTime - bTime) * dir
@@ -173,7 +164,7 @@ export default function ContactsPage() {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getContactIdsAction(currentSite.id, {
       filterGroup: filters.rules.length ? filters : undefined,
-      searchQuery: deferredSearchQuery,
+      searchQuery: deferredSearchQuery
     })
     if (ids) {
       contactSelection.selectAll(ids)
@@ -233,7 +224,7 @@ export default function ContactsPage() {
     if (!selectedSegmentId || !contactSelection.selectedCount) return
     setAddingToSegment(true)
     try {
-      const segName = segments.find(s => s.id === selectedSegmentId)?.name || "segment"
+      const segName = segments.find((s) => s.id === selectedSegmentId)?.name || "segment"
       const { added, error } = await addContactsToSegment(Array.from(contactSelection.selectedIds), selectedSegmentId)
       if (error) {
         setErrorMessage(error)
@@ -273,31 +264,73 @@ export default function ContactsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "active": return <Badge className="bg-green-100 text-green-800">Active</Badge>
-      case "unsubscribed": return <Badge variant="secondary">Unsubscribed</Badge>
-      case "bounced": return <Badge variant="destructive">Bounced</Badge>
-      case "complained": return <Badge variant="destructive">Complained</Badge>
-      default: return <Badge variant="secondary">{status}</Badge>
+      case "active":
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      case "unsubscribed":
+        return <Badge variant="secondary">Unsubscribed</Badge>
+      case "bounced":
+        return <Badge variant="destructive">Bounced</Badge>
+      case "complained":
+        return <Badge variant="destructive">Complained</Badge>
+      default:
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 
   const getSourceBadge = (source: string) => {
     switch (source) {
-      case "site_registration": return <Badge variant="outline" className="border-amber-200 text-amber-700">Site Registration</Badge>
-      case "Email Form": return <Badge variant="outline" className="border-sky-200 text-sky-700">Email Form</Badge>
-      case "lead_magnet": return <Badge variant="outline">Lead Magnet</Badge>
-      case "paid_purchase": return <Badge variant="outline" className="border-green-200 text-green-700">Purchase</Badge>
-      case "Notion Marketplace": return <Badge variant="outline" className="border-neutral-300 bg-neutral-50 text-neutral-900">Notion Marketplace</Badge>
-      case "import": return <Badge variant="outline" className="border-blue-200 text-blue-700">Import</Badge>
-      case "manual": return <Badge variant="outline">Manual</Badge>
-      case "ad": return <Badge variant="outline" className="border-purple-200 text-purple-700">Ad</Badge>
-      default: return <Badge variant="outline">{source}</Badge>
+      case "site_registration":
+        return (
+          <Badge variant="outline" className="border-amber-200 text-amber-700">
+            Site Registration
+          </Badge>
+        )
+      case "Email Form":
+        return (
+          <Badge variant="outline" className="border-sky-200 text-sky-700">
+            Email Form
+          </Badge>
+        )
+      case "lead_magnet":
+        return <Badge variant="outline">Lead Magnet</Badge>
+      case "paid_purchase":
+        return (
+          <Badge variant="outline" className="border-green-200 text-green-700">
+            Purchase
+          </Badge>
+        )
+      case "Notion Marketplace":
+        return (
+          <Badge variant="outline" className="border-neutral-300 bg-neutral-50 text-neutral-900">
+            Notion Marketplace
+          </Badge>
+        )
+      case "import":
+        return (
+          <Badge variant="outline" className="border-blue-200 text-blue-700">
+            Import
+          </Badge>
+        )
+      case "manual":
+        return <Badge variant="outline">Manual</Badge>
+      case "ad":
+        return (
+          <Badge variant="outline" className="border-purple-200 text-purple-700">
+            Ad
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{source}</Badge>
     }
   }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    })
   }
 
   /* Format a date as relative time (e.g. "3d ago", "2h ago") */
@@ -334,7 +367,7 @@ export default function ContactsPage() {
   function removeAppliedRule(ruleId: string) {
     setFilters((prev) => ({
       ...prev,
-      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+      rules: prev.rules.filter((rule) => rule.id !== ruleId)
     }))
     resetSelectionForFilteredView()
   }
@@ -351,10 +384,7 @@ export default function ContactsPage() {
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
-            items={[
-              { label: "Newsletters", href: "/admin/newsletters" },
-              { label: "Contacts" },
-            ]}
+            items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Contacts" }]}
             search={{
               value: searchQuery,
               onValueChange: (value) => {
@@ -362,40 +392,44 @@ export default function ContactsPage() {
                 setCurrentPage(1)
                 contactSelection.clearSelection()
               },
-              placeholder: "Search contacts",
+              placeholder: "Search contacts"
             }}
-            preActions={contactSelection.selectedCount > 0 ? (
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                {segments.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                      <SelectTrigger size="button" className="w-[180px] text-sm">
-                        <SelectValue placeholder="Select segment..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {segments.map(seg => (
-                          <SelectItem key={seg.id} value={seg.id}>{seg.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant={selectedSegmentId ? "default" : "outline"}
-                      className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
-                      onClick={handleAddToSegment}
-                      disabled={!selectedSegmentId || addingToSegment}
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                      {addingToSegment ? "Adding..." : "Add to Segment"}
-                    </Button>
-                  </div>
-                )}
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={contactSelection.selectedCount}
-                />
-              </div>
-            ) : null}
+            preActions={
+              contactSelection.selectedCount > 0 ? (
+                <div className="flex items-center gap-1.5 sm:gap-3">
+                  {segments.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                        <SelectTrigger size="button" className="w-[180px] text-sm">
+                          <SelectValue placeholder="Select segment..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {segments.map((seg) => (
+                            <SelectItem key={seg.id} value={seg.id}>
+                              {seg.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant={selectedSegmentId ? "default" : "outline"}
+                        className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                        onClick={handleAddToSegment}
+                        disabled={!selectedSegmentId || addingToSegment}
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        {addingToSegment ? "Adding..." : "Add to Segment"}
+                      </Button>
+                    </div>
+                  )}
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={contactSelection.selectedCount}
+                  />
+                </div>
+              ) : null
+            }
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {successMessage && (
@@ -403,11 +437,7 @@ export default function ContactsPage() {
                     <p className="text-green-800 text-sm">{successMessage}</p>
                   </div>
                 )}
-                <Button
-                  variant="outline"
-                  className="relative"
-                  onClick={openFilterModal}
-                >
+                <Button variant="outline" className="relative" onClick={openFilterModal}>
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Filter</span>
                   {activeFilterCount > 0 && (
@@ -416,63 +446,99 @@ export default function ContactsPage() {
                     </span>
                   )}
                 </Button>
-                <Button onClick={() => fileInputRef.current?.click()}><Upload className="h-4 w-4" /><span className="hidden sm:inline">Import CSV</span></Button>
-                <Button onClick={() => setAddModalOpen(true)}><Plus className="h-4 w-4" /><span className="hidden sm:inline">Add Contact</span></Button>
+                <Button onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">Import CSV</span>
+                </Button>
+                <Button onClick={() => setAddModalOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Add Contact</span>
+                </Button>
               </div>
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {/* Active filter chips */}
             {activeFilterCount > 0 && (
-              <div className="flex flex-wrap items-center gap-2 px-6 py-4 border-b">
+              <CardSection className="flex flex-wrap items-center gap-2 border-b">
                 <Badge variant="outline" className="font-medium">
                   Matching {filters.match === "all" ? "all" : "any"}
                 </Badge>
                 {filters.rules.map((rule) => (
                   <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
                     {formatContactFilterRule(rule)}
-                    <button type="button" onClick={() => removeAppliedRule(rule.id)} className="ml-1 hover:bg-muted rounded-full p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => removeAppliedRule(rule.id)}
+                      className="ml-1 hover:bg-muted rounded-full p-0.5"
+                    >
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
                 ))}
-                <button type="button" onClick={clearAllFilters} className="text-sm text-muted-foreground hover:text-foreground underline">
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="text-sm text-muted-foreground hover:text-foreground underline"
+                >
                   Clear all ({total})
                 </button>
-              </div>
+              </CardSection>
             )}
             {/* Table Header */}
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-8 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={contactSelection.isPageSelected(contactIds)}
-                    onCheckedChange={() => contactSelection.togglePage(contactIds)}
-                    aria-label="Select all contacts"
-                  />
-                  <AdminSortButton active={contactSort.sortColumn === 'contact'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('contact')}>
-                    Contact
-                  </AdminSortButton>
-                </div>
-                <AdminSortButton active={contactSort.sortColumn === 'source'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('source')}>
-                  Source
+            <CardTableHeader className="grid-cols-8">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={contactSelection.isPageSelected(contactIds)}
+                  onCheckedChange={() => contactSelection.togglePage(contactIds)}
+                  aria-label="Select all contacts"
+                />
+                <AdminSortButton
+                  active={contactSort.sortColumn === "contact"}
+                  direction={contactSort.sortDirection}
+                  onClick={() => contactSort.toggleSort("contact")}
+                >
+                  Contact
                 </AdminSortButton>
-                <AdminSortButton active={contactSort.sortColumn === 'status'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('status')}>
-                  Status
-                </AdminSortButton>
-                <AdminSortButton active={contactSort.sortColumn === 'tags'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('tags')}>
-                  Tags
-                </AdminSortButton>
-                <AdminSortButton active={contactSort.sortColumn === 'added'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('added')}>
-                  Added
-                </AdminSortButton>
-                <AdminSortButton active={contactSort.sortColumn === 'engaged'} direction={contactSort.sortDirection} onClick={() => contactSort.toggleSort('engaged')}>
-                  Last Engaged
-                </AdminSortButton>
-                <div>Actions</div>
               </div>
-            </div>
+              <AdminSortButton
+                active={contactSort.sortColumn === "source"}
+                direction={contactSort.sortDirection}
+                onClick={() => contactSort.toggleSort("source")}
+              >
+                Source
+              </AdminSortButton>
+              <AdminSortButton
+                active={contactSort.sortColumn === "status"}
+                direction={contactSort.sortDirection}
+                onClick={() => contactSort.toggleSort("status")}
+              >
+                Status
+              </AdminSortButton>
+              <AdminSortButton
+                active={contactSort.sortColumn === "tags"}
+                direction={contactSort.sortDirection}
+                onClick={() => contactSort.toggleSort("tags")}
+              >
+                Tags
+              </AdminSortButton>
+              <AdminSortButton
+                active={contactSort.sortColumn === "added"}
+                direction={contactSort.sortDirection}
+                onClick={() => contactSort.toggleSort("added")}
+              >
+                Added
+              </AdminSortButton>
+              <AdminSortButton
+                active={contactSort.sortColumn === "engaged"}
+                direction={contactSort.sortDirection}
+                onClick={() => contactSort.toggleSort("engaged")}
+              >
+                Last Engaged
+              </AdminSortButton>
+              <div>Actions</div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
             <AdminSelectionBanner
@@ -490,7 +556,9 @@ export default function ContactsPage() {
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadContacts()} variant="outline" size="sm">Try Again</Button>
+                  <Button onClick={() => loadContacts()} variant="outline" size="sm">
+                    Try Again
+                  </Button>
                 </div>
               ) : contacts.length === 0 ? (
                 <div className="p-8 text-center">
@@ -511,7 +579,10 @@ export default function ContactsPage() {
                 </div>
               ) : (
                 sortedContacts.map((contact) => (
-                  <div key={contact.id} className={`p-6 transition-colors ${contactSelection.selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}>
+                  <div
+                    key={contact.id}
+                    className={`p-6 transition-colors ${contactSelection.selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-8 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         <Checkbox
@@ -538,7 +609,9 @@ export default function ContactsPage() {
                       <div className="flex flex-wrap gap-1">
                         {contact.metadata?.tags?.length ? (
                           contact.metadata.tags.slice(0, 3).map((tag: string) => (
-                            <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
                           ))
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
@@ -551,7 +624,9 @@ export default function ContactsPage() {
                         <span className="text-sm text-muted-foreground">{formatDate(contact.created_at)}</span>
                       </div>
                       <div>
-                        <span className="text-sm text-muted-foreground">{formatRelativeTime(contact.last_engaged_at)}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatRelativeTime(contact.last_engaged_at)}
+                        </span>
                       </div>
                       <div>
                         <Button
@@ -642,11 +717,7 @@ export default function ContactsPage() {
             onConfirm={confirmMassDelete}
           />
 
-          <AdminErrorDialog
-            open={errorDialogOpen}
-            message={errorMessage}
-            onOpenChange={setErrorDialogOpen}
-          />
+          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
     </>

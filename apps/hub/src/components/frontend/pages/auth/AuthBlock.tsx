@@ -4,19 +4,13 @@ import { useState, useEffect } from "react"
 import { usePathname, useSearchParams } from "next/navigation"
 import { authClient } from "@/lib/actions/auth/client"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface AuthBlockProps {
-  defaultTab?: 'login' | 'register'
+  defaultTab?: "login" | "register"
   showLoginTab?: boolean
   showRegisterTab?: boolean
   loginRedirectPath?: string
@@ -43,41 +37,41 @@ type AuthClientError = {
 } | null
 
 export function AuthBlock({
-  defaultTab = 'login',
+  defaultTab = "login",
   showLoginTab = true,
   showRegisterTab = true,
-  loginRedirectPath = '/',
-  registerRedirectPath = '/',
+  loginRedirectPath = "/",
+  registerRedirectPath = "/",
   emailVerificationEnabled = true,
-  loginButtonText = 'Sign In',
-  registerButtonText = 'Create Account',
-  resetButtonText = 'Send Reset Link',
-  loginTitle = 'Welcome back',
-  loginDescription = 'Login to your account',
-  registerTitle = 'Create an account',
-  registerDescription = 'Enter your details to get started',
-  resetTitle = 'Reset your password',
-  resetDescription = 'Enter your email to receive a reset link'
+  loginButtonText = "Sign In",
+  registerButtonText = "Create Account",
+  resetButtonText = "Send Reset Link",
+  loginTitle = "Welcome back",
+  loginDescription = "Login to your account",
+  registerTitle = "Create an account",
+  registerDescription = "Enter your details to get started",
+  resetTitle = "Reset your password",
+  resetDescription = "Enter your email to receive a reset link"
 }: AuthBlockProps) {
-  const [view, setView] = useState<'auth' | 'reset'>('auth')
+  const [view, setView] = useState<"auth" | "reset">("auth")
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const resetToken = searchParams.get('token') || ''
+  const resetToken = searchParams.get("token") || ""
 
-  const tabParam = searchParams.get('tab')
-  const initialTab = (tabParam === 'register' || tabParam === 'login') ? tabParam : defaultTab
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>(initialTab)
+  const tabParam = searchParams.get("tab")
+  const initialTab = tabParam === "register" || tabParam === "login" ? tabParam : defaultTab
+  const [activeTab, setActiveTab] = useState<"login" | "register">(initialTab)
 
   useEffect(() => {
-    const tabParam = searchParams.get('tab')
-    if (tabParam === 'register' || tabParam === 'login') {
+    const tabParam = searchParams.get("tab")
+    if (tabParam === "register" || tabParam === "login") {
       setActiveTab(tabParam)
     }
   }, [searchParams])
 
   useEffect(() => {
     if (resetToken) {
-      setView('reset')
+      setView("reset")
       setResetSuccess(false)
       setResetError(null)
     }
@@ -110,37 +104,35 @@ export function AuthBlock({
   const [resetConfirmPassword, setResetConfirmPassword] = useState("")
 
   const getSafeRedirectPath = (value?: string | null) => {
-    if (typeof value !== 'string') {
-      return '/'
+    if (typeof value !== "string") {
+      return "/"
     }
 
     const redirectPath = value.trim()
-    if (!redirectPath.startsWith('/') || redirectPath.startsWith('//') || redirectPath.includes('\\')) {
-      return '/'
+    if (!redirectPath.startsWith("/") || redirectPath.startsWith("//") || redirectPath.includes("\\")) {
+      return "/"
     }
 
     try {
-      const url = new URL(redirectPath, 'https://local.invalid')
-      if (url.origin !== 'https://local.invalid') {
-        return '/'
+      const url = new URL(redirectPath, "https://local.invalid")
+      if (url.origin !== "https://local.invalid") {
+        return "/"
       }
 
       return `${url.pathname}${url.search}${url.hash}`
     } catch {
-      return '/'
+      return "/"
     }
   }
 
-  const verificationRedirectPath = getSafeRedirectPath(
-    searchParams.get('redirect') || registerRedirectPath || pathname
-  )
+  const verificationRedirectPath = getSafeRedirectPath(searchParams.get("redirect") || registerRedirectPath || pathname)
 
   const getAuthErrorCode = (error: AuthClientError) => {
-    if (typeof error?.error?.code === 'string') {
+    if (typeof error?.error?.code === "string") {
       return error.error.code
     }
 
-    if (typeof error?.code === 'string') {
+    if (typeof error?.code === "string") {
       return error.code
     }
 
@@ -152,11 +144,12 @@ export function AuthBlock({
     setVerificationPendingEmail(normalizedEmail)
     setVerificationError(null)
     setVerificationMessage(
-      message || `If the details are valid, check ${normalizedEmail} for a verification link. You can resend it below if needed.`
+      message ||
+        `If the details are valid, check ${normalizedEmail} for a verification link. You can resend it below if needed.`
     )
     setLoginError(null)
     setRegisterError(null)
-    setActiveTab('login')
+    setActiveTab("login")
   }
 
   const clearVerificationState = () => {
@@ -166,7 +159,7 @@ export function AuthBlock({
   }
 
   useEffect(() => {
-    if (!verificationPendingEmail || view !== 'auth') {
+    if (!verificationPendingEmail || view !== "auth") {
       return
     }
 
@@ -183,7 +176,7 @@ export function AuthBlock({
     }
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         void syncVerifiedSession()
       }
     }
@@ -194,14 +187,14 @@ export function AuthBlock({
       void syncVerifiedSession()
     }, 5000)
 
-    window.addEventListener('focus', syncVerifiedSession)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener("focus", syncVerifiedSession)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
 
     return () => {
       cancelled = true
       window.clearInterval(intervalId)
-      window.removeEventListener('focus', syncVerifiedSession)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener("focus", syncVerifiedSession)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
   }, [verificationPendingEmail, verificationRedirectPath, view])
 
@@ -214,11 +207,11 @@ export function AuthBlock({
       const { error } = await authClient.signIn.email({
         email: loginEmail,
         password: loginPassword,
-        callbackURL: verificationRedirectPath,
+        callbackURL: verificationRedirectPath
       })
 
       if (error) {
-        if (getAuthErrorCode(error as AuthClientError) === 'EMAIL_NOT_VERIFIED') {
+        if (getAuthErrorCode(error as AuthClientError) === "EMAIL_NOT_VERIFIED") {
           const normalizedEmail = loginEmail.trim().toLowerCase()
           showVerificationState(
             normalizedEmail,
@@ -229,7 +222,7 @@ export function AuthBlock({
 
         setLoginError("Invalid email or password")
       } else {
-        const rawRedirect = searchParams.get('redirect') || loginRedirectPath
+        const rawRedirect = searchParams.get("redirect") || loginRedirectPath
         const redirectTo = getSafeRedirectPath(rawRedirect)
         window.location.href = redirectTo
       }
@@ -262,7 +255,7 @@ export function AuthBlock({
         email: registerEmail,
         password: registerPassword,
         name: registerName,
-        callbackURL: verificationRedirectPath,
+        callbackURL: verificationRedirectPath
       })
 
       if (signUpResult.error) {
@@ -294,7 +287,7 @@ export function AuthBlock({
     try {
       const resendResult = await authClient.sendVerificationEmail({
         email: verificationPendingEmail,
-        callbackURL: verificationRedirectPath,
+        callbackURL: verificationRedirectPath
       })
 
       if (resendResult.error) {
@@ -316,10 +309,10 @@ export function AuthBlock({
 
     try {
       const redirectTo = getSafeRedirectPath(pathname)
-      const response = await fetch('/api/auth/forget-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail, redirectTo }),
+      const response = await fetch("/api/auth/forget-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail, redirectTo })
       })
 
       const data = await response.json().catch(() => null)
@@ -354,7 +347,7 @@ export function AuthBlock({
     try {
       const { error } = await authClient.resetPassword({
         newPassword: resetPassword,
-        token: resetToken,
+        token: resetToken
       })
 
       if (error) {
@@ -369,7 +362,7 @@ export function AuthBlock({
     }
   }
 
-  if (verificationPendingEmail && view === 'auth') {
+  if (verificationPendingEmail && view === "auth") {
     return (
       <div className="flex min-h-[400px] items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -378,16 +371,8 @@ export function AuthBlock({
             <CardDescription>{verificationMessage}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {verificationError && (
-              <div className="text-sm text-red-500 text-center">
-                {verificationError}
-              </div>
-            )}
-            <Button
-              className="w-full"
-              onClick={handleResendVerificationEmail}
-              disabled={verificationLoading}
-            >
+            {verificationError && <div className="text-sm text-red-500 text-center">{verificationError}</div>}
+            <Button className="w-full" onClick={handleResendVerificationEmail} disabled={verificationLoading}>
               {verificationLoading ? "Sending..." : "Resend verification email"}
             </Button>
             <Button
@@ -395,10 +380,10 @@ export function AuthBlock({
               className="w-full"
               onClick={() => {
                 clearVerificationState()
-                setActiveTab(showLoginTab ? 'login' : 'register')
+                setActiveTab(showLoginTab ? "login" : "register")
               }}
             >
-              {showLoginTab ? 'Back to Login' : 'Use a different email'}
+              {showLoginTab ? "Back to Login" : "Use a different email"}
             </Button>
           </CardContent>
         </Card>
@@ -406,7 +391,7 @@ export function AuthBlock({
     )
   }
 
-  if (view === 'reset') {
+  if (view === "reset") {
     if (resetToken) {
       if (resetSuccess) {
         return (
@@ -441,11 +426,7 @@ export function AuthBlock({
             <CardContent>
               <form onSubmit={handlePasswordReset}>
                 <div className="grid gap-6">
-                  {resetError && (
-                    <div className="text-sm text-red-500 text-center">
-                      {resetError}
-                    </div>
-                  )}
+                  {resetError && <div className="text-sm text-red-500 text-center">{resetError}</div>}
                   <div className="grid gap-3">
                     <Label htmlFor="new-password">New Password</Label>
                     <Input
@@ -496,7 +477,7 @@ export function AuthBlock({
                 variant="outline"
                 className="w-full"
                 onClick={() => {
-                  setView('auth')
+                  setView("auth")
                   setResetSuccess(false)
                   setResetEmail("")
                 }}
@@ -519,11 +500,7 @@ export function AuthBlock({
           <CardContent>
             <form onSubmit={handleResetLinkRequest}>
               <div className="grid gap-6">
-                {resetError && (
-                  <div className="text-sm text-red-500 text-center">
-                    {resetError}
-                  </div>
-                )}
+                {resetError && <div className="text-sm text-red-500 text-center">{resetError}</div>}
                 <div className="grid gap-3">
                   <Label htmlFor="reset-email">Email</Label>
                   <Input
@@ -539,12 +516,7 @@ export function AuthBlock({
                 <Button type="submit" className="w-full" disabled={resetLoading}>
                   {resetLoading ? "Sending..." : resetButtonText}
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => setView('auth')}
-                >
+                <Button type="button" variant="ghost" className="w-full" onClick={() => setView("auth")}>
                   ← Back to Login
                 </Button>
               </div>
@@ -558,9 +530,9 @@ export function AuthBlock({
   return (
     <div className="flex min-h-[400px] items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'register')}>
-          {(showLoginTab && showRegisterTab) && (
-            <CardHeader className="pb-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "register")}>
+          {showLoginTab && showRegisterTab && (
+            <CardHeader>
               <TabsList className="grid w-full grid-cols-2">
                 {showLoginTab && <TabsTrigger value="login">Login</TabsTrigger>}
                 {showRegisterTab && <TabsTrigger value="register">Register</TabsTrigger>}
@@ -577,11 +549,7 @@ export function AuthBlock({
               <CardContent>
                 <form onSubmit={handleLogin}>
                   <div className="grid gap-6">
-                    {loginError && (
-                      <div className="text-sm text-red-500 text-center">
-                        {loginError}
-                      </div>
-                    )}
+                    {loginError && <div className="text-sm text-red-500 text-center">{loginError}</div>}
                     <div className="grid gap-3">
                       <Label htmlFor="login-email">Email</Label>
                       <Input
@@ -611,7 +579,7 @@ export function AuthBlock({
                     <div className="text-center">
                       <button
                         type="button"
-                        onClick={() => setView('reset')}
+                        onClick={() => setView("reset")}
                         className="text-sm underline-offset-4 hover:underline text-muted-foreground"
                       >
                         Forgot password?
@@ -632,11 +600,7 @@ export function AuthBlock({
               <CardContent>
                 <form onSubmit={handleRegister}>
                   <div className="grid gap-6">
-                    {registerError && (
-                      <div className="text-sm text-red-500 text-center">
-                        {registerError}
-                      </div>
-                    )}
+                    {registerError && <div className="text-sm text-red-500 text-center">{registerError}</div>}
                     <div className="grid gap-3">
                       <Label htmlFor="register-name">Name</Label>
                       <Input

@@ -6,7 +6,7 @@ import { ExternalLink, Loader2 } from "lucide-react"
 import {
   getMyClaimedDirectoriesAction,
   updateMyClaimedDirectoryAction,
-  type ClaimedDirectoryEditorItem,
+  type ClaimedDirectoryEditorItem
 } from "@/lib/actions/directories/directory-claim-actions"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { Button } from "@/components/ui/button"
@@ -33,10 +33,12 @@ interface AccountClaimedListingsBlockProps {
 
 function linksToText(links: any[], kind: "social" | "menu") {
   if (!Array.isArray(links)) return ""
-  return links.map((link) => {
-    if (kind === "social") return [link.platform, link.url].filter(Boolean).join(" | ")
-    return [link.type, link.label, link.value].filter((value) => value !== undefined && value !== null).join(" | ")
-  }).join("\n")
+  return links
+    .map((link) => {
+      if (kind === "social") return [link.platform, link.url].filter(Boolean).join(" | ")
+      return [link.type, link.label, link.value].filter((value) => value !== undefined && value !== null).join(" | ")
+    })
+    .join("\n")
 }
 
 function parseSocialLinks(value: string) {
@@ -66,7 +68,7 @@ export function AccountClaimedListingsBlock({
   content,
   siteWidth,
   customWidth,
-  isPreview = false,
+  isPreview = false
 }: AccountClaimedListingsBlockProps) {
   const visibility = content?.visibility || {}
   const [items, setItems] = useState<ClaimedDirectoryEditorItem[]>([])
@@ -76,10 +78,7 @@ export function AccountClaimedListingsBlock({
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  const selectedItem = useMemo(
-    () => items.find((item) => item.id === selectedId) || null,
-    [items, selectedId]
-  )
+  const selectedItem = useMemo(() => items.find((item) => item.id === selectedId) || null, [items, selectedId])
 
   const [title, setTitle] = useState("")
   const [featuredImage, setFeaturedImage] = useState("")
@@ -148,7 +147,7 @@ export function AccountClaimedListingsBlock({
         socialLinks: parseSocialLinks(socialLinks),
         menuLinks: parseMenuLinks(menuLinks),
         googleMap: selectedItem.google_map ? { locationQuery: mapLocation, caption: mapCaption } : null,
-        openingHours: selectedItem.opening_hours ? { title: hoursTitle, placeId: hoursPlaceId } : null,
+        openingHours: selectedItem.opening_hours ? { title: hoursTitle, placeId: hoursPlaceId } : null
       })
 
       if (result.error) {
@@ -156,20 +155,38 @@ export function AccountClaimedListingsBlock({
         return
       }
 
-      setItems((current) => current.map((item) => item.id === selectedItem.id ? {
-        ...item,
-        title,
-        featured_image: featuredImage,
-        meta_description: metaDescription,
-        core: {
-          ...item.core,
-          introText,
-          socialLinks: parseSocialLinks(socialLinks),
-          menuLinks: parseMenuLinks(menuLinks),
-        },
-        google_map: item.google_map ? { ...item.google_map, locationQuery: mapLocation, caption: mapCaption } : null,
-        opening_hours: item.opening_hours ? { ...item.opening_hours, title: hoursTitle, placeId: hoursPlaceId } : null,
-      } : item))
+      setItems((current) =>
+        current.map((item) =>
+          item.id === selectedItem.id
+            ? {
+                ...item,
+                title,
+                featured_image: featuredImage,
+                meta_description: metaDescription,
+                core: {
+                  ...item.core,
+                  introText,
+                  socialLinks: parseSocialLinks(socialLinks),
+                  menuLinks: parseMenuLinks(menuLinks)
+                },
+                google_map: item.google_map
+                  ? {
+                      ...item.google_map,
+                      locationQuery: mapLocation,
+                      caption: mapCaption
+                    }
+                  : null,
+                opening_hours: item.opening_hours
+                  ? {
+                      ...item.opening_hours,
+                      title: hoursTitle,
+                      placeId: hoursPlaceId
+                    }
+                  : null
+              }
+            : item
+        )
+      )
       setMessage("Listing saved.")
     })
   }
@@ -179,15 +196,21 @@ export function AccountClaimedListingsBlock({
       header={{
         title: visibility.title === false ? "" : content?.title || "Claimed Listings",
         subtitle: visibility.description === false ? "" : content?.description || "",
-        align: "left",
+        align: "left"
       }}
       siteWidth={siteWidth}
       customWidth={customWidth}
     >
       {loading ? (
-        <Card><CardContent className="p-6 text-sm text-muted-foreground">Loading listings...</CardContent></Card>
+        <Card>
+          <CardContent className="text-sm text-muted-foreground">Loading listings...</CardContent>
+        </Card>
       ) : items.length === 0 ? (
-        <Card><CardContent className="p-6 text-sm text-muted-foreground">{content?.emptyText || "No approved listing claims yet."}</CardContent></Card>
+        <Card>
+          <CardContent className="text-sm text-muted-foreground">
+            {content?.emptyText || "No approved listing claims yet."}
+          </CardContent>
+        </Card>
       ) : (
         <form className="space-y-6" onSubmit={handleSave}>
           {visibility.listingSelector !== false ? (
@@ -199,7 +222,9 @@ export function AccountClaimedListingsBlock({
                 </SelectTrigger>
                 <SelectContent>
                   {items.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.title}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -219,7 +244,11 @@ export function AccountClaimedListingsBlock({
                 {visibility.image !== false ? (
                   <div className="space-y-2">
                     <Label htmlFor="claimed-image">Featured Image URL</Label>
-                    <Input id="claimed-image" value={featuredImage} onChange={(event) => setFeaturedImage(event.target.value)} />
+                    <Input
+                      id="claimed-image"
+                      value={featuredImage}
+                      onChange={(event) => setFeaturedImage(event.target.value)}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -227,13 +256,23 @@ export function AccountClaimedListingsBlock({
               {visibility.metaDescription !== false ? (
                 <div className="space-y-2">
                   <Label htmlFor="claimed-meta">Meta Description</Label>
-                  <Textarea id="claimed-meta" value={metaDescription} onChange={(event) => setMetaDescription(event.target.value)} rows={3} />
+                  <Textarea
+                    id="claimed-meta"
+                    value={metaDescription}
+                    onChange={(event) => setMetaDescription(event.target.value)}
+                    rows={3}
+                  />
                 </div>
               ) : null}
 
               <div className="space-y-2">
                 <Label htmlFor="claimed-intro">Intro Text</Label>
-                <Textarea id="claimed-intro" value={introText} onChange={(event) => setIntroText(event.target.value)} rows={4} />
+                <Textarea
+                  id="claimed-intro"
+                  value={introText}
+                  onChange={(event) => setIntroText(event.target.value)}
+                  rows={4}
+                />
               </div>
             </CardContent>
           </Card>
@@ -246,17 +285,30 @@ export function AccountClaimedListingsBlock({
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="claimed-social">Social Links</Label>
-                  <Textarea id="claimed-social" value={socialLinks} onChange={(event) => setSocialLinks(event.target.value)} rows={5} placeholder="instagram | https://instagram.com/example" />
+                  <Textarea
+                    id="claimed-social"
+                    value={socialLinks}
+                    onChange={(event) => setSocialLinks(event.target.value)}
+                    rows={5}
+                    placeholder="instagram | https://instagram.com/example"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="claimed-menu">Menu Links</Label>
-                  <Textarea id="claimed-menu" value={menuLinks} onChange={(event) => setMenuLinks(event.target.value)} rows={5} placeholder="website | Website | example.com" />
+                  <Textarea
+                    id="claimed-menu"
+                    value={menuLinks}
+                    onChange={(event) => setMenuLinks(event.target.value)}
+                    rows={5}
+                    placeholder="website | Website | example.com"
+                  />
                 </div>
               </CardContent>
             </Card>
           ) : null}
 
-          {(selectedItem?.google_map && visibility.map !== false) || (selectedItem?.opening_hours && visibility.hours !== false) ? (
+          {(selectedItem?.google_map && visibility.map !== false) ||
+          (selectedItem?.opening_hours && visibility.hours !== false) ? (
             <Card>
               <CardHeader>
                 <CardTitle>Location</CardTitle>
@@ -266,11 +318,19 @@ export function AccountClaimedListingsBlock({
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="claimed-map-location">Map Location</Label>
-                      <Input id="claimed-map-location" value={mapLocation} onChange={(event) => setMapLocation(event.target.value)} />
+                      <Input
+                        id="claimed-map-location"
+                        value={mapLocation}
+                        onChange={(event) => setMapLocation(event.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="claimed-map-caption">Map Caption</Label>
-                      <Input id="claimed-map-caption" value={mapCaption} onChange={(event) => setMapCaption(event.target.value)} />
+                      <Input
+                        id="claimed-map-caption"
+                        value={mapCaption}
+                        onChange={(event) => setMapCaption(event.target.value)}
+                      />
                     </div>
                   </>
                 ) : null}
@@ -279,11 +339,19 @@ export function AccountClaimedListingsBlock({
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="claimed-hours-title">Hours Title</Label>
-                      <Input id="claimed-hours-title" value={hoursTitle} onChange={(event) => setHoursTitle(event.target.value)} />
+                      <Input
+                        id="claimed-hours-title"
+                        value={hoursTitle}
+                        onChange={(event) => setHoursTitle(event.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="claimed-hours-place">Google Place ID</Label>
-                      <Input id="claimed-hours-place" value={hoursPlaceId} onChange={(event) => setHoursPlaceId(event.target.value)} />
+                      <Input
+                        id="claimed-hours-place"
+                        value={hoursPlaceId}
+                        onChange={(event) => setHoursPlaceId(event.target.value)}
+                      />
                     </div>
                   </>
                 ) : null}
@@ -302,7 +370,9 @@ export function AccountClaimedListingsBlock({
                   <ExternalLink className="ml-2 h-4 w-4" />
                 </a>
               </Button>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
             <Button type="submit" disabled={isPending || isPreview}>
               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {content?.saveButtonText || "Save Listing"}

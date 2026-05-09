@@ -30,7 +30,7 @@ interface AccountEditProfileBlockProps {
     passwordButtonText?: string
     visibility?: Record<string, boolean>
   }
-  siteWidth?: 'full' | 'custom'
+  siteWidth?: "full" | "custom"
   customWidth?: number
   isPreview?: boolean
 }
@@ -50,18 +50,20 @@ type Message = {
 
 function getInitials(value?: string | null) {
   const label = value?.trim() || "User"
-  return label
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "U"
+  return (
+    label
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U"
+  )
 }
 
 export function AccountEditProfileBlock({
   content,
   siteWidth,
   customWidth,
-  isPreview = false,
+  isPreview = false
 }: AccountEditProfileBlockProps) {
   const pathname = usePathname()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -92,7 +94,7 @@ export function AccountEditProfileBlock({
         email: "member@example.com",
         name: "Member Name",
         displayName: "Member Name",
-        image: null,
+        image: null
       })
       setDisplayName("Member Name")
       setAvatarUrl("")
@@ -135,7 +137,7 @@ export function AccountEditProfileBlock({
       if (result.error) {
         setMessage({ type: "error", text: result.error })
       } else {
-        setUser((current) => current ? { ...current, name: displayName, displayName, image: avatarUrl } : current)
+        setUser((current) => (current ? { ...current, name: displayName, displayName, image: avatarUrl } : current))
         setMessage({ type: "success", text: "Profile updated successfully." })
       }
     } catch {
@@ -159,17 +161,20 @@ export function AccountEditProfileBlock({
 
       const response = await fetch("/api/account/avatar", {
         method: "POST",
-        body: formData,
+        body: formData
       })
       const result = await response.json().catch(() => null)
 
       if (!response.ok || !result?.data?.public_url) {
-        setMessage({ type: "error", text: result?.error || "Failed to upload avatar" })
+        setMessage({
+          type: "error",
+          text: result?.error || "Failed to upload avatar"
+        })
         return
       }
 
       setAvatarUrl(result.data.public_url)
-      setUser((current) => current ? { ...current, image: result.data.public_url } : current)
+      setUser((current) => (current ? { ...current, image: result.data.public_url } : current))
       setMessage({ type: "success", text: "Avatar updated successfully." })
     } catch {
       setMessage({ type: "error", text: "Failed to upload avatar" })
@@ -197,7 +202,7 @@ export function AccountEditProfileBlock({
         setMessage({ type: "error", text: result.error })
       } else {
         setAvatarUrl("")
-        setUser((current) => current ? { ...current, image: null } : current)
+        setUser((current) => (current ? { ...current, image: null } : current))
         setMessage({ type: "success", text: "Avatar removed successfully." })
       }
     } catch {
@@ -223,7 +228,10 @@ export function AccountEditProfileBlock({
         setMessage({ type: "error", text: result.error })
       } else {
         setNewEmail("")
-        setMessage({ type: "success", text: result.message || "Check your current email address to confirm this change." })
+        setMessage({
+          type: "success",
+          text: result.message || "Check your current email address to confirm this change."
+        })
       }
     } catch {
       setMessage({ type: "error", text: "Failed to request email change" })
@@ -269,9 +277,9 @@ export function AccountEditProfileBlock({
   return (
     <BlockContainer
       header={{
-        title: isVisible("title") ? content?.title ?? "Edit Profile" : "",
-        subtitle: isVisible("description") ? content?.description ?? "Manage your account details and security." : "",
-        align: "left",
+        title: isVisible("title") ? (content?.title ?? "Edit Profile") : "",
+        subtitle: isVisible("description") ? (content?.description ?? "Manage your account details and security.") : "",
+        align: "left"
       }}
       siteWidth={siteWidth}
       customWidth={customWidth}
@@ -288,7 +296,7 @@ export function AccountEditProfileBlock({
         )}
 
         {loading ? (
-          <Card className="mx-0 mb-0">
+          <Card>
             <CardContent className="flex h-40 items-center justify-center">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
             </CardContent>
@@ -296,7 +304,7 @@ export function AccountEditProfileBlock({
         ) : (
           <>
             {showProfile && (
-              <Card className="mx-0 mb-0">
+              <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <User className="h-5 w-5 text-primary" />
@@ -372,7 +380,7 @@ export function AccountEditProfileBlock({
             )}
 
             {showEmail && (
-              <Card className="mx-0 mb-0">
+              <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <Mail className="h-5 w-5 text-primary" />
@@ -409,7 +417,7 @@ export function AccountEditProfileBlock({
             )}
 
             {showPassword && (
-              <Card className="mx-0 mb-0">
+              <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <Lock className="h-5 w-5 text-primary" />
@@ -420,7 +428,9 @@ export function AccountEditProfileBlock({
                   <form onSubmit={handlePasswordUpdate} className="space-y-5">
                     <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
-                        <Label htmlFor="account-current-password">{content?.currentPasswordLabel || "Current Password"}</Label>
+                        <Label htmlFor="account-current-password">
+                          {content?.currentPasswordLabel || "Current Password"}
+                        </Label>
                         <Input
                           id="account-current-password"
                           type="password"
@@ -442,7 +452,9 @@ export function AccountEditProfileBlock({
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="account-confirm-password">{content?.confirmPasswordLabel || "Confirm New Password"}</Label>
+                        <Label htmlFor="account-confirm-password">
+                          {content?.confirmPasswordLabel || "Confirm New Password"}
+                        </Label>
                         <Input
                           id="account-confirm-password"
                           type="password"
@@ -454,11 +466,15 @@ export function AccountEditProfileBlock({
                     </div>
 
                     <p className="text-sm text-muted-foreground">
-                      Password must be at least 12 characters with uppercase, lowercase, numbers, and special characters.
+                      Password must be at least 12 characters with uppercase, lowercase, numbers, and special
+                      characters.
                     </p>
 
                     <div className="flex justify-end">
-                      <Button type="submit" disabled={isPreview || savingPassword || !currentPassword || !newPassword || !confirmPassword}>
+                      <Button
+                        type="submit"
+                        disabled={isPreview || savingPassword || !currentPassword || !newPassword || !confirmPassword}
+                      >
                         <Lock className="mr-2 h-4 w-4" />
                         {savingPassword ? "Updating..." : content?.passwordButtonText || "Update Password"}
                       </Button>

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -16,13 +16,22 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils/tailwind"
 import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/media/media-actions"
 import type { MediaData } from "@/lib/actions/media/media-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { ArrowDown, ArrowUp, ChevronsUpDown, ImageOff, Image as ImageIcon, RefreshCw, Trash2, VideoIcon } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
+  ImageOff,
+  Image as ImageIcon,
+  RefreshCw,
+  Trash2,
+  VideoIcon
+} from "lucide-react"
 import { toast } from "sonner"
 
 type SortColumn = "name" | "type" | "size" | "added"
@@ -199,22 +208,15 @@ export default function UnusedMediaPage() {
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
-            items={[
-              { label: "Media", href: "/admin/media" },
-              { label: "Unused" },
-            ]}
+            items={[{ label: "Media", href: "/admin/media" }, { label: "Unused" }]}
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search unused media",
+              placeholder: "Search unused media"
             }}
             preActions={
               selectedIds.size > 0 ? (
-                <Button
-                  variant="destructive"
-                  onClick={() => setDeleteConfirmOpen(true)}
-                  disabled={isDeleting}
-                >
+                <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={isDeleting}>
                   <Trash2 className="h-4 w-4" />
                   <span className="hidden sm:inline">{isDeleting ? "Deleting..." : `Delete ${selectedIds.size}`}</span>
                 </Button>
@@ -228,51 +230,49 @@ export default function UnusedMediaPage() {
             }
           />
 
-          <Card className="shadow-sm">
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={allFilteredSelected}
-                    onCheckedChange={handleToggleSelectAll}
-                    aria-label="Select all unused media"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("name")}
-                    className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
-                  >
-                    <span>File</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
-                  </button>
-                </div>
+          <Card>
+            <CardTableHeader className="grid-cols-6">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  onCheckedChange={handleToggleSelectAll}
+                  aria-label="Select all unused media"
+                />
                 <button
                   type="button"
-                  onClick={() => toggleSort("type")}
+                  onClick={() => toggleSort("name")}
                   className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
                 >
-                  <span>Type</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("type")}</span>
+                  <span>File</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("size")}
-                  className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
-                >
-                  <span>Size</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("size")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("added")}
-                  className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
-                >
-                  <span>Added</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
-                </button>
-                <div>Actions</div>
               </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => toggleSort("type")}
+                className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+              >
+                <span>Type</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("type")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("size")}
+                className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+              >
+                <span>Size</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("size")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("added")}
+                className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+              >
+                <span>Added</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
+              </button>
+              <div>Actions</div>
+            </CardTableHeader>
 
             <div className="divide-y divide-muted/80">
               {isScanning ? (
@@ -299,7 +299,9 @@ export default function UnusedMediaPage() {
               ) : mediaItems === null ? (
                 <div className="p-8 text-center">
                   <ImageOff className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="mb-4 text-muted-foreground">Run a scan to find media that is not referenced by this site.</p>
+                  <p className="mb-4 text-muted-foreground">
+                    Run a scan to find media that is not referenced by this site.
+                  </p>
                   <Button onClick={handleScan} disabled={siteLoading || !currentSiteId}>
                     <RefreshCw className="h-4 w-4" />
                     Scan
@@ -312,7 +314,9 @@ export default function UnusedMediaPage() {
                     {mediaItems.length === 0 ? "No unused media found." : "No unused media matches your search."}
                   </p>
                   {scannedAt ? (
-                    <p className="mt-2 text-xs text-muted-foreground">Last scanned {new Date(scannedAt).toLocaleString()}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Last scanned {new Date(scannedAt).toLocaleString()}
+                    </p>
                   ) : null}
                 </div>
               ) : (

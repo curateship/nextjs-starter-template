@@ -5,13 +5,11 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
@@ -20,7 +18,7 @@ import {
   AdminSelectionBanner,
   AdminSortButton,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,7 +28,7 @@ import {
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import { Trash2, Settings, FileText, Star } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -39,12 +37,12 @@ import {
   createTemplate,
   deleteTemplates,
   getTemplateIdsAction,
-  setDefaultTemplate,
+  setDefaultTemplate
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
-type TemplateSortColumn = 'name' | 'blocks' | 'modified'
+type TemplateSortColumn = "name" | "blocks" | "modified"
 
 export default function TemplatesPage() {
   const { currentSite } = useSiteSwitcher()
@@ -80,7 +78,14 @@ export default function TemplatesPage() {
     try {
       setLoading(true)
       setError(null)
-      const { data, total: totalCount, error: loadError } = await getTemplatesBySite(currentSite.id, { page: currentPage, pageSize })
+      const {
+        data,
+        total: totalCount,
+        error: loadError
+      } = await getTemplatesBySite(currentSite.id, {
+        page: currentPage,
+        pageSize
+      })
       if (loadError) {
         setError(loadError)
         setLoading(false)
@@ -101,7 +106,7 @@ export default function TemplatesPage() {
 
     const { data, error: createError } = await createTemplate({
       siteId: currentSite.id,
-      name: formName.trim(),
+      name: formName.trim()
     })
 
     if (createError) {
@@ -141,7 +146,7 @@ export default function TemplatesPage() {
   }
 
   const getBlockCount = (template: NewsletterTemplate) => {
-    if (!template.content_blocks || typeof template.content_blocks !== 'object') return 0
+    if (!template.content_blocks || typeof template.content_blocks !== "object") return 0
     return Object.keys(template.content_blocks).length
   }
 
@@ -152,15 +157,17 @@ export default function TemplatesPage() {
   })
   const filteredDeletableTemplates = filteredTemplates.filter((template) => !template.is_default)
   const filteredDeletableTemplateIds = filteredDeletableTemplates.map((template) => template.id)
-  const filteredDeletableTemplatesSelected = filteredDeletableTemplateIds.length > 0
-    && filteredDeletableTemplateIds.every((templateId) => templateSelection.selectedIds.has(templateId))
+  const filteredDeletableTemplatesSelected =
+    filteredDeletableTemplateIds.length > 0 &&
+    filteredDeletableTemplateIds.every((templateId) => templateSelection.selectedIds.has(templateId))
 
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (!templateSort.sortColumn) return 0
-    const dir = templateSort.sortDirection === 'asc' ? 1 : -1
-    if (templateSort.sortColumn === 'name') return a.name.localeCompare(b.name) * dir
-    if (templateSort.sortColumn === 'blocks') return (getBlockCount(a) - getBlockCount(b)) * dir
-    if (templateSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    const dir = templateSort.sortDirection === "asc" ? 1 : -1
+    if (templateSort.sortColumn === "name") return a.name.localeCompare(b.name) * dir
+    if (templateSort.sortColumn === "blocks") return (getBlockCount(a) - getBlockCount(b)) * dir
+    if (templateSort.sortColumn === "modified")
+      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
 
@@ -174,7 +181,11 @@ export default function TemplatesPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    })
   }
 
   return (
@@ -184,17 +195,14 @@ export default function TemplatesPage() {
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
-            items={[
-              { label: "Newsletters", href: "/admin/newsletters" },
-              { label: "Templates" },
-            ]}
+            items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Templates" }]}
             search={{
               value: searchQuery,
               onValueChange: (value) => {
                 setSearchQuery(value)
                 templateSelection.clearSelection()
               },
-              placeholder: "Search templates",
+              placeholder: "Search templates"
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
@@ -203,41 +211,56 @@ export default function TemplatesPage() {
                   onClick={() => setMassDeleteConfirmOpen(true)}
                   selectedCount={templateSelection.selectedCount}
                 />
-                <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }}>
+                <Button
+                  onClick={() => {
+                    setFormName("")
+                    setCreateModalOpen(true)
+                  }}
+                >
                   Create Template
                 </Button>
               </div>
             }
           />
 
-          <Card className="shadow-sm">
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={filteredDeletableTemplatesSelected}
-                    onCheckedChange={() => {
-                      if (filteredDeletableTemplatesSelected) {
-                        templateSelection.clearSelection()
-                      } else {
-                        templateSelection.selectOnly(filteredDeletableTemplateIds)
-                      }
-                    }}
-                    aria-label="Select all templates"
-                  />
-                  <AdminSortButton active={templateSort.sortColumn === 'name'} direction={templateSort.sortDirection} onClick={() => templateSort.toggleSort('name')}>
-                    Name
-                  </AdminSortButton>
-                </div>
-                <AdminSortButton active={templateSort.sortColumn === 'blocks'} direction={templateSort.sortDirection} onClick={() => templateSort.toggleSort('blocks')}>
-                  Blocks
+          <Card>
+            <CardTableHeader className="grid-cols-5">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={filteredDeletableTemplatesSelected}
+                  onCheckedChange={() => {
+                    if (filteredDeletableTemplatesSelected) {
+                      templateSelection.clearSelection()
+                    } else {
+                      templateSelection.selectOnly(filteredDeletableTemplateIds)
+                    }
+                  }}
+                  aria-label="Select all templates"
+                />
+                <AdminSortButton
+                  active={templateSort.sortColumn === "name"}
+                  direction={templateSort.sortDirection}
+                  onClick={() => templateSort.toggleSort("name")}
+                >
+                  Name
                 </AdminSortButton>
-                <AdminSortButton active={templateSort.sortColumn === 'modified'} direction={templateSort.sortDirection} onClick={() => templateSort.toggleSort('modified')}>
-                  Modified
-                </AdminSortButton>
-                <div>Actions</div>
               </div>
-            </div>
+              <AdminSortButton
+                active={templateSort.sortColumn === "blocks"}
+                direction={templateSort.sortDirection}
+                onClick={() => templateSort.toggleSort("blocks")}
+              >
+                Blocks
+              </AdminSortButton>
+              <AdminSortButton
+                active={templateSort.sortColumn === "modified"}
+                direction={templateSort.sortDirection}
+                onClick={() => templateSort.toggleSort("modified")}
+              >
+                Modified
+              </AdminSortButton>
+              <div>Actions</div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
             {!normalizedSearchQuery && (
@@ -257,7 +280,9 @@ export default function TemplatesPage() {
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadTemplates()} variant="outline" size="sm">Try Again</Button>
+                  <Button onClick={() => loadTemplates()} variant="outline" size="sm">
+                    Try Again
+                  </Button>
                 </div>
               ) : filteredTemplates.length === 0 ? (
                 <div className="p-8 text-center">
@@ -265,13 +290,22 @@ export default function TemplatesPage() {
                   <p className="text-muted-foreground mb-4">
                     No templates yet. Create one to save reusable block layouts.
                   </p>
-                  <Button onClick={() => { setFormName(""); setCreateModalOpen(true) }} variant="outline">
+                  <Button
+                    onClick={() => {
+                      setFormName("")
+                      setCreateModalOpen(true)
+                    }}
+                    variant="outline"
+                  >
                     Create Template
                   </Button>
                 </div>
               ) : (
                 sortedTemplates.map((template) => (
-                  <div key={template.id} className={`p-6 transition-colors ${templateSelection.selectedIds.has(template.id) ? "bg-accent/50" : ""}`}>
+                  <div
+                    key={template.id}
+                    className={`p-6 transition-colors ${templateSelection.selectedIds.has(template.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-5 gap-4 items-center">
                       <div className="col-span-2 flex items-center space-x-4">
                         {/* Default templates can't be selected for deletion */}

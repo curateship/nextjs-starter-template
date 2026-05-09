@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -12,23 +12,26 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
-import { getCategoriesWithCountsAction, deleteCategoriesAction, getCategoryIdsAction, type Category } from "@/lib/actions/categories/category-actions"
+import {
+  getCategoriesWithCountsAction,
+  deleteCategoriesAction,
+  getCategoryIdsAction,
+  type Category
+} from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Tag, ArrowUp, ArrowDown, ChevronsUpDown, Plus, List, Globe, FileEdit } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 
-const CreateCategoryModal = dynamic(() =>
-  import("@/components/admin/category-builder/layout/CreateCategoryModal")
-    .then(m => ({ default: m.CreateCategoryModal })),
+const CreateCategoryModal = dynamic(
+  () =>
+    import("@/components/admin/category-builder/layout/CreateCategoryModal").then((m) => ({
+      default: m.CreateCategoryModal
+    })),
   { ssr: false }
 )
 
-export default function CategoriesPage({
-  params
-}: {
-  params: Promise<{ siteId: string }>
-}) {
+export default function CategoriesPage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
   const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -37,18 +40,18 @@ export default function CategoriesPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [filterLevel, setFilterLevel] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
+  const [filterLevel, setFilterLevel] = useState<string>("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set())
   // Tracks if user selected all items across all pages
   const [allSelected, setAllSelected] = useState(false)
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-  const [sortColumn, setSortColumn] = useState<'title' | 'parent' | 'status' | 'assigned' | 'modified' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [errorMessage, setErrorMessage] = useState("")
+  const [sortColumn, setSortColumn] = useState<"title" | "parent" | "status" | "assigned" | "modified" | null>(null)
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
@@ -72,7 +75,15 @@ export default function CategoriesPage({
         setLoading(true)
         setError(null)
 
-        const { data: categoriesData, total: categoriesTotal, counts, error: categoriesError } = await getCategoriesWithCountsAction(siteId, { page: currentPage, pageSize })
+        const {
+          data: categoriesData,
+          total: categoriesTotal,
+          counts,
+          error: categoriesError
+        } = await getCategoriesWithCountsAction(siteId, {
+          page: currentPage,
+          pageSize
+        })
 
         if (categoriesError) {
           setError(categoriesError)
@@ -83,7 +94,7 @@ export default function CategoriesPage({
         setTotal(categoriesTotal)
         setAssignmentCounts(counts)
       } catch (err) {
-        setError('Failed to load categories')
+        setError("Failed to load categories")
       } finally {
         setLoading(false)
       }
@@ -93,7 +104,7 @@ export default function CategoriesPage({
   }, [siteId, currentPage])
 
   const handleCategoryCreated = (newCategory: Category, continueToBuilder?: boolean) => {
-    setCategories(prev => [...prev, newCategory])
+    setCategories((prev) => [...prev, newCategory])
     setShowCreateModal(false)
     if (continueToBuilder) {
       router.push(`/admin/categories/builder/${siteId}?category=${newCategory.slug}`)
@@ -101,11 +112,11 @@ export default function CategoriesPage({
   }
 
   const handleCategoryDeleted = (categoryId: string) => {
-    setCategories(prev => prev.filter(c => c.id !== categoryId))
+    setCategories((prev) => prev.filter((c) => c.id !== categoryId))
   }
 
   const toggleSelectCategory = (categoryId: string) => {
-    setSelectedCategoryIds(prev => {
+    setSelectedCategoryIds((prev) => {
       const next = new Set(prev)
       if (next.has(categoryId)) {
         next.delete(categoryId)
@@ -122,7 +133,7 @@ export default function CategoriesPage({
       setSelectedCategoryIds(new Set())
       setAllSelected(false)
     } else {
-      setSelectedCategoryIds(new Set(filteredCategories.map(c => c.id)))
+      setSelectedCategoryIds(new Set(filteredCategories.map((c) => c.id)))
     }
   }
 
@@ -157,19 +168,19 @@ export default function CategoriesPage({
         // Remove selected categories and their descendants from state
         const removedIds = new Set(ids)
         const removeDescendants = (parentIds: string[]) => {
-          const children = categories.filter(c => c.parent_id && parentIds.includes(c.parent_id))
-          children.forEach(c => removedIds.add(c.id))
+          const children = categories.filter((c) => c.parent_id && parentIds.includes(c.parent_id))
+          children.forEach((c) => removedIds.add(c.id))
           if (children.length > 0) {
-            removeDescendants(children.map(c => c.id))
+            removeDescendants(children.map((c) => c.id))
           }
         }
         removeDescendants(ids)
-        setCategories(prev => prev.filter(c => !removedIds.has(c.id)))
+        setCategories((prev) => prev.filter((c) => !removedIds.has(c.id)))
         setSelectedCategoryIds(new Set())
         setAllSelected(false)
       }
     } catch (err) {
-      setErrorMessage('Failed to delete categories')
+      setErrorMessage("Failed to delete categories")
       setErrorDialogOpen(true)
     } finally {
       setMassDeleting(false)
@@ -182,7 +193,7 @@ export default function CategoriesPage({
     let current = category
     while (current.parent_id) {
       depth++
-      const parent = categories.find(c => c.id === current.parent_id)
+      const parent = categories.find((c) => c.id === current.parent_id)
       if (!parent) break
       current = parent
     }
@@ -194,61 +205,62 @@ export default function CategoriesPage({
 
   // Filter categories
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-  const filteredCategories = categories.filter(category => {
+  const filteredCategories = categories.filter((category) => {
     let statusMatch = true
-    if (filterStatus === 'published') statusMatch = category.is_published
-    if (filterStatus === 'draft') statusMatch = !category.is_published
+    if (filterStatus === "published") statusMatch = category.is_published
+    if (filterStatus === "draft") statusMatch = !category.is_published
 
-    const levelMatch = filterLevel === 'all' || getDepth(category) === Number(filterLevel)
-    const parentTitle = categories.find(c => c.id === category.parent_id)?.title ?? ""
-    const searchText = `${category.title} ${category.slug} ${category.meta_description ?? ""} ${parentTitle}`.toLowerCase()
+    const levelMatch = filterLevel === "all" || getDepth(category) === Number(filterLevel)
+    const parentTitle = categories.find((c) => c.id === category.parent_id)?.title ?? ""
+    const searchText =
+      `${category.title} ${category.slug} ${category.meta_description ?? ""} ${parentTitle}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
 
     return statusMatch && levelMatch && searchMatch
   })
 
-  const toggleSort = (column: 'title' | 'parent' | 'status' | 'assigned' | 'modified') => {
+  const toggleSort = (column: "title" | "parent" | "status" | "assigned" | "modified") => {
     if (sortColumn === column) {
-      if (sortDirection === 'desc') {
+      if (sortDirection === "desc") {
         setSortColumn(null)
-        setSortDirection('asc')
+        setSortDirection("asc")
       } else {
-        setSortDirection('desc')
+        setSortDirection("desc")
       }
     } else {
       setSortColumn(column)
-      setSortDirection('asc')
+      setSortDirection("asc")
     }
   }
 
-  const getSortIcon = (column: 'title' | 'parent' | 'status' | 'assigned' | 'modified') => {
+  const getSortIcon = (column: "title" | "parent" | "status" | "assigned" | "modified") => {
     if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === 'asc') return <ArrowUp className="h-3 w-3" />
+    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
     return <ArrowDown className="h-3 w-3" />
   }
 
   const sortedCategories = [...filteredCategories].sort((a, b) => {
     if (!sortColumn) return 0
-    const dir = sortDirection === 'asc' ? 1 : -1
-    if (sortColumn === 'title') return a.title.localeCompare(b.title) * dir
-    if (sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (sortColumn === 'parent') {
-      const aParent = categories.find(c => c.id === a.parent_id)?.title || '\uffff'
-      const bParent = categories.find(c => c.id === b.parent_id)?.title || '\uffff'
+    const dir = sortDirection === "asc" ? 1 : -1
+    if (sortColumn === "title") return a.title.localeCompare(b.title) * dir
+    if (sortColumn === "status") return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (sortColumn === "parent") {
+      const aParent = categories.find((c) => c.id === a.parent_id)?.title || "\uffff"
+      const bParent = categories.find((c) => c.id === b.parent_id)?.title || "\uffff"
       return aParent.localeCompare(bParent) * dir
     }
-    if (sortColumn === 'assigned') {
+    if (sortColumn === "assigned") {
       return ((assignmentCounts[a.id] || 0) - (assignmentCounts[b.id] || 0)) * dir
     }
-    if (sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (sortColumn === "modified") return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
 
   // Get counts
   const statusCounts = {
     all: categories.length,
-    published: categories.filter(c => c.is_published).length,
-    draft: categories.filter(c => !c.is_published).length
+    published: categories.filter((c) => c.is_published).length,
+    draft: categories.filter((c) => !c.is_published).length
   }
 
   return (
@@ -262,25 +274,41 @@ export default function CategoriesPage({
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search categories",
+              placeholder: "Search categories"
             }}
             filterMenu={{
               value: filterStatus,
-              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); setSelectedCategoryIds(new Set()); setAllSelected(false); setCurrentPage(1) },
+              onValueChange: (value) => {
+                setFilterStatus(value as "all" | "published" | "draft")
+                setSelectedCategoryIds(new Set())
+                setAllSelected(false)
+                setCurrentPage(1)
+              },
               items: [
-                { value: "all", label: "All", icon: List, count: statusCounts.all },
-                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
-                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
-              ],
+                {
+                  value: "all",
+                  label: "All",
+                  icon: List,
+                  count: statusCounts.all
+                },
+                {
+                  value: "published",
+                  label: "Published",
+                  icon: Globe,
+                  count: statusCounts.published
+                },
+                {
+                  value: "draft",
+                  label: "Draft",
+                  icon: FileEdit,
+                  count: statusCounts.draft
+                }
+              ]
             }}
             preActions={
               <>
                 {selectedCategoryIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
+                  <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
                     {massDeleting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -300,9 +328,9 @@ export default function CategoriesPage({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All levels</SelectItem>
-                    {depthLevels.map(level => (
+                    {depthLevels.map((level) => (
                       <SelectItem key={level} value={String(level)}>
-                        {level === 0 ? 'Top-level' : `Level ${level + 1}`}
+                        {level === 0 ? "Top-level" : `Level ${level + 1}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -317,91 +345,105 @@ export default function CategoriesPage({
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {/* Table Header */}
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-7 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
-                  <Checkbox
-                    checked={filteredCategories.length > 0 && selectedCategoryIds.size === filteredCategories.length}
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all categories"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort('title')}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Category</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('title')}</span>
-                  </button>
-                </div>
+            <CardTableHeader className="grid-cols-7">
+              <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
+                <Checkbox
+                  checked={filteredCategories.length > 0 && selectedCategoryIds.size === filteredCategories.length}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all categories"
+                />
                 <button
                   type="button"
-                  onClick={() => toggleSort('parent')}
+                  onClick={() => toggleSort("title")}
                   className={cn(
                     "flex items-center gap-1.5",
                     "text-[0.8125rem] text-muted-foreground hover:text-foreground",
                     "cursor-pointer outline-none transition-colors"
                   )}
                 >
-                  <span>Parent</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('parent')}</span>
+                  <span>Category</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("title")}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('status')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('status')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('assigned')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Assigned</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('assigned')}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort('modified')}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
-                >
-                  <span>Modified</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon('modified')}</span>
-                </button>
-                <div>Actions</div>
               </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => toggleSort("parent")}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Parent</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("parent")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("status")}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Status</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("assigned")}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Assigned</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("assigned")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("modified")}
+                className={cn(
+                  "flex items-center gap-1.5",
+                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                  "cursor-pointer outline-none transition-colors"
+                )}
+              >
+                <span>Modified</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("modified")}</span>
+              </button>
+              <div>Actions</div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredCategories.length > 0 && selectedCategoryIds.size === filteredCategories.length && total > filteredCategories.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredCategories.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            {filteredCategories.length > 0 &&
+              selectedCategoryIds.size === filteredCategories.length &&
+              total > filteredCategories.length && (
+                <CardSection className="bg-accent/50 border-b text-sm text-center">
+                  {allSelected ? (
+                    <span>
+                      All {total} items selected.{" "}
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="underline hover:text-foreground text-muted-foreground"
+                      >
+                        Clear selection
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      {filteredCategories.length} items on this page are selected.{" "}
+                      <button type="button" onClick={handleSelectAll} className="underline font-medium">
+                        Select all {total}
+                      </button>
+                    </span>
+                  )}
+                </CardSection>
+              )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (
@@ -450,8 +492,8 @@ export default function CategoriesPage({
                   <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">No categories found</p>
                   <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                    Create your first category to start organizing content.
-                    You can create nested hierarchies like Country &gt; City.
+                    Create your first category to start organizing content. You can create nested hierarchies like
+                    Country &gt; City.
                   </p>
                   <Button onClick={() => setShowCreateModal(true)} variant="outline">
                     Create First Category
@@ -465,9 +507,7 @@ export default function CategoriesPage({
                   siteId={siteId}
                   onCategoryDeleted={handleCategoryDeleted}
                   onCategoryUpdated={(updated) => {
-                    setCategories(prev =>
-                      prev.map(c => (c.id === updated.id ? updated : c))
-                    )
+                    setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
                   }}
                   selectedIds={selectedCategoryIds}
                   onToggleSelect={toggleSelectCategory}
@@ -477,64 +517,68 @@ export default function CategoriesPage({
             {!loading && total > 0 && (
               <div className="flex items-center justify-between px-6 py-4 border-t">
                 <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={setCurrentPage} showFirstLast={false} />
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(total / pageSize)}
+                  onPageChange={setCurrentPage}
+                  showFirstLast={false}
+                />
               </div>
             )}
           </Card>
 
-        {/* Create Modal */}
-        {showCreateModal && (
-          <CreateCategoryModal
-            siteId={siteId}
-            existingCategories={categories}
-            onClose={() => setShowCreateModal(false)}
-            onCreated={handleCategoryCreated}
-          />
-        )}
-
-        {/* Mass Delete Confirmation Dialog */}
-        {massDeleteConfirmOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="fixed inset-0 bg-black/50"
-              onClick={() => setMassDeleteConfirmOpen(false)}
+          {/* Create Modal */}
+          {showCreateModal && (
+            <CreateCategoryModal
+              siteId={siteId}
+              existingCategories={categories}
+              onClose={() => setShowCreateModal(false)}
+              onCreated={handleCategoryCreated}
             />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete {selectedCategoryIds.size} Categor{selectedCategoryIds.size !== 1 ? 'ies' : 'y'}</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete {selectedCategoryIds.size} categor{selectedCategoryIds.size !== 1 ? 'ies' : 'y'}? Child categories will also be deleted. This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={() => setMassDeleteConfirmOpen(false)}
-                  variant="outline"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={confirmMassDelete}
-                  variant="destructive"
-                >
-                  Delete {selectedCategoryIds.size} Categor{selectedCategoryIds.size !== 1 ? 'ies' : 'y'}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Error Dialog */}
-        {errorDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Error</h2>
-              <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
-              <div className="flex justify-end">
-                <Button onClick={() => setErrorDialogOpen(false)} variant="default">OK</Button>
+          {/* Mass Delete Confirmation Dialog */}
+          {massDeleteConfirmOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="fixed inset-0 bg-black/50" onClick={() => setMassDeleteConfirmOpen(false)} />
+              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+                <h2 className="text-lg font-semibold mb-2">
+                  Delete {selectedCategoryIds.size} Categor
+                  {selectedCategoryIds.size !== 1 ? "ies" : "y"}
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Are you sure you want to delete {selectedCategoryIds.size} categor
+                  {selectedCategoryIds.size !== 1 ? "ies" : "y"}? Child categories will also be deleted. This action
+                  cannot be undone.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <Button onClick={() => setMassDeleteConfirmOpen(false)} variant="outline">
+                    Cancel
+                  </Button>
+                  <Button onClick={confirmMassDelete} variant="destructive">
+                    Delete {selectedCategoryIds.size} Categor
+                    {selectedCategoryIds.size !== 1 ? "ies" : "y"}
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Error Dialog */}
+          {errorDialogOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="fixed inset-0 bg-black/50" onClick={() => setErrorDialogOpen(false)} />
+              <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
+                <h2 className="text-lg font-semibold mb-2">Error</h2>
+                <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
+                <div className="flex justify-end">
+                  <Button onClick={() => setErrorDialogOpen(false)} variant="default">
+                    OK
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </AdminLayout>
     </>

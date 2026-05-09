@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -15,7 +16,7 @@ export default function AdminDashboard() {
         router.replace(`/admin/sites/${currentSite.id}/dashboard`)
       } else {
         // No sites available, redirect to create new site
-        router.replace('/admin/sites/new')
+        router.replace("/admin/sites/new")
       }
     }
   }, [currentSite, loading, router])
@@ -32,35 +33,37 @@ export default function AdminDashboard() {
         <div className="h-9 w-[332px] max-w-full bg-muted animate-pulse rounded-md" />
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="text-card-foreground rounded-md mb-7 mx-4 bg-card shadow ring-1 ring-foreground/5">
-            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 bg-muted animate-pulse rounded-full" />
-                <div className="h-4 w-20 bg-muted animate-pulse rounded" />
-              </div>
-              <div className="h-4 w-14 bg-muted animate-pulse rounded" />
-            </div>
-            <div className="p-6 pt-0">
-              <div className="h-8 w-24 bg-muted animate-pulse rounded" />
-              <div className="mt-2 h-3 w-40 bg-muted animate-pulse rounded" />
-            </div>
-          </div>
-        ))}
-      </div>
+      <div className="grid">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 bg-muted animate-pulse rounded-full" />
+                  <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="h-4 w-14 bg-muted animate-pulse rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+                <div className="mt-2 h-3 w-40 bg-muted animate-pulse rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
-      <div className="text-card-foreground rounded-md mb-7 mx-4 bg-card shadow ring-1 ring-foreground/5">
-        <div className="gap-4 space-y-0 p-6 sm:flex sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
-            <div className="h-4 w-48 bg-muted animate-pulse rounded" />
-          </div>
-          <div className="h-9 w-[278px] max-w-full bg-muted animate-pulse rounded-md" />
-        </div>
-        <div className="p-6 pt-0">
-          <div className="h-[360px] w-full bg-muted animate-pulse rounded-md" />
-        </div>
+        <Card>
+          <CardHeader className="gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+              <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+            </div>
+            <div className="h-9 w-[278px] max-w-full bg-muted animate-pulse rounded-md" />
+          </CardHeader>
+          <CardContent>
+            <div className="h-[360px] w-full bg-muted animate-pulse rounded-md" />
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

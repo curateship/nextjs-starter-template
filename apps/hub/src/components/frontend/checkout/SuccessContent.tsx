@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { CheckCircle2, AlertCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Link from 'next/link'
-import { sanitizeRichHtml } from '@/lib/utils/html-sanitizer'
+import { CheckCircle2, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
 interface Product {
   id: string
@@ -39,16 +39,15 @@ export function SuccessContent({
   showDownloads,
   downloadContent,
   sessionData,
-  sessionError,
+  sessionError
 }: SuccessContentProps) {
-
   // Parse order bumps from metadata
   let orderBumps: Array<{ id: string; title: string; priceId: string }> = []
   if (sessionData?.metadata?.orderBumps) {
     try {
       orderBumps = JSON.parse(sessionData.metadata.orderBumps)
     } catch (e) {
-      console.error('Failed to parse order bumps:', e)
+      console.error("Failed to parse order bumps:", e)
     }
   }
 
@@ -62,15 +61,13 @@ export function SuccessContent({
           </div>
         </div>
         <h1 className="text-4xl font-bold mb-2">Payment Successful!</h1>
-        <p className="text-lg text-muted-foreground">
-          Thank you for your purchase!
-        </p>
+        <p className="text-lg text-muted-foreground">Thank you for your purchase!</p>
       </div>
 
       {/* Session Error */}
       {sessionError && (
         <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
               <div>
@@ -119,16 +116,13 @@ export function SuccessContent({
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total Paid:</span>
                   <span>
-                    ${(sessionData.amountTotal / 100).toFixed(2)}{' '}
-                    {sessionData.currency?.toUpperCase()}
+                    ${(sessionData.amountTotal / 100).toFixed(2)} {sessionData.currency?.toUpperCase()}
                   </span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Payment Status:</span>
-                <span className="font-medium capitalize text-green-600">
-                  {sessionData.paymentStatus}
-                </span>
+                <span className="font-medium capitalize text-green-600">{sessionData.paymentStatus}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Order ID:</span>
@@ -149,7 +143,9 @@ export function SuccessContent({
             {/* Rich text content */}
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(downloadContent) }}
+              dangerouslySetInnerHTML={{
+                __html: sanitizeRichHtml(downloadContent)
+              }}
             />
           </CardContent>
         </Card>
@@ -178,14 +174,10 @@ export function SuccessContent({
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <Button asChild variant="outline" size="lg">
-          <Link href={`/products/${product.slug}`}>
-            View Product Page
-          </Link>
+          <Link href={`/products/${product.slug}`}>View Product Page</Link>
         </Button>
         <Button asChild size="lg">
-          <Link href="/">
-            Return to Home
-          </Link>
+          <Link href="/">Return to Home</Link>
         </Button>
       </div>
     </div>

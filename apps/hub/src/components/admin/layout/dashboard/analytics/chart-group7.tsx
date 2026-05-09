@@ -6,12 +6,7 @@ import Link from "next/link"
 import { CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type DashboardMetric = "visitors" | "contacts" | "orders" | "revenue"
@@ -45,16 +40,26 @@ const metricOptions: Array<{
   href?: string
 }> = [
   { metric: "visitors", label: "Visitors", icon: Eye },
-  { metric: "contacts", label: "Contacts", icon: Users, href: "/admin/newsletters/contacts" },
-  { metric: "orders", label: "Orders", icon: ShoppingCart, href: "/admin/products" },
-  { metric: "revenue", label: "Revenue", icon: DollarSign },
+  {
+    metric: "contacts",
+    label: "Contacts",
+    icon: Users,
+    href: "/admin/newsletters/contacts"
+  },
+  {
+    metric: "orders",
+    label: "Orders",
+    icon: ShoppingCart,
+    href: "/admin/products"
+  },
+  { metric: "revenue", label: "Revenue", icon: DollarSign }
 ]
 
 const chartConfig = {
   visitors: { label: "Visitors", color: "var(--chart-1)" },
   contacts: { label: "Contacts", color: "var(--chart-2)" },
   orders: { label: "Orders", color: "var(--chart-3)" },
-  revenue: { label: "Revenue", color: "var(--chart-4)" },
+  revenue: { label: "Revenue", color: "var(--chart-4)" }
 } satisfies ChartConfig
 
 const rangeLabels: Record<DashboardRange, string> = {
@@ -62,7 +67,7 @@ const rangeLabels: Record<DashboardRange, string> = {
   yesterday: "Yesterday",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
-  "365d": "Last 365 days",
+  "365d": "Last 365 days"
 }
 
 const rangeDescriptions: Record<DashboardRange, string> = {
@@ -70,14 +75,14 @@ const rangeDescriptions: Record<DashboardRange, string> = {
   yesterday: "One-day totals for yesterday",
   "7d": "Daily totals for the last 7 days",
   "30d": "Daily totals for the last 30 days",
-  "365d": "Monthly totals for the last 365 days",
+  "365d": "Monthly totals for the last 365 days"
 }
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
+  maximumFractionDigits: 2
 })
 
 const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
@@ -85,12 +90,12 @@ const compactCurrencyFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD",
   notation: "compact",
   minimumFractionDigits: 0,
-  maximumFractionDigits: 1,
+  maximumFractionDigits: 1
 })
 
 const compactNumberFormatter = new Intl.NumberFormat("en-US", {
   notation: "compact",
-  maximumFractionDigits: 1,
+  maximumFractionDigits: 1
 })
 
 function formatMetricValue(metric: DashboardMetric, value: number) {
@@ -114,17 +119,10 @@ const fallbackPoint: DashboardChartPoint = {
   visitors: 0,
   contacts: 0,
   orders: 0,
-  revenue: 0,
+  revenue: 0
 }
 
-const ChartGroup7 = ({
-  cardRange,
-  chartData,
-  chartRange,
-  className,
-  previousTotals,
-  totals,
-}: ChartGroup7Props) => {
+const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTotals, totals }: ChartGroup7Props) => {
   const [activeMetric, setActiveMetric] = useState<DashboardMetric>("visitors")
   const activeOption = metricOptions.find((option) => option.metric === activeMetric) ?? metricOptions[0]
   const displayData = chartData.length > 0 ? chartData : [fallbackPoint]
@@ -133,19 +131,19 @@ const ChartGroup7 = ({
       metricOptions.map((option) => ({
         ...option,
         value: totals[option.metric],
-        change: getPercentChange(totals[option.metric], previousTotals[option.metric]),
+        change: getPercentChange(totals[option.metric], previousTotals[option.metric])
       })),
     [previousTotals, totals]
   )
 
   return (
-    <section className={className}>
+    <section className={className ? `grid ${className}` : "grid"}>
       <div className="grid sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon
           const card = (
             <Card className={stat.href ? "transition-colors hover:bg-accent/40" : undefined}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4 text-muted-foreground" />
                   <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
@@ -163,9 +161,7 @@ const ChartGroup7 = ({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold tracking-normal">
-                  {formatMetricValue(stat.metric, stat.value)}
-                </div>
+                <div className="text-2xl font-bold tracking-normal">{formatMetricValue(stat.metric, stat.value)}</div>
                 <p className="mt-1 text-xs text-muted-foreground">{rangeLabels[cardRange]} vs previous period</p>
               </CardContent>
             </Card>
@@ -203,19 +199,9 @@ const ChartGroup7 = ({
         </CardHeader>
         <CardContent>
           <ChartContainer config={chartConfig} className="h-[360px] w-full">
-            <LineChart
-              accessibilityLayer
-              data={displayData}
-              margin={{ top: 44, right: 16, left: 0, bottom: 16 }}
-            >
+            <LineChart accessibilityLayer data={displayData} margin={{ top: 44, right: 16, left: 0, bottom: 16 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="label"
-                axisLine={false}
-                tickLine={false}
-                tickMargin={8}
-                fontSize={12}
-              />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={8} fontSize={12} />
               <YAxis
                 axisLine={false}
                 tickLine={false}
@@ -234,10 +220,7 @@ const ChartGroup7 = ({
                         return (
                           <div className="grid min-w-40 gap-1.5">
                             <div className="flex items-center gap-2">
-                              <div
-                                className="h-2.5 w-1 shrink-0 rounded-sm"
-                                style={{ backgroundColor: item.color }}
-                              />
+                              <div className="h-2.5 w-1 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
                               <div className="flex flex-1 items-center justify-between gap-4 leading-none">
                                 <span className="text-muted-foreground">Visitors</span>
                                 <span className="font-mono font-medium tabular-nums text-foreground">
@@ -257,10 +240,7 @@ const ChartGroup7 = ({
 
                       return (
                         <div className="flex min-w-36 items-center gap-2">
-                          <div
-                            className="h-2.5 w-1 shrink-0 rounded-sm"
-                            style={{ backgroundColor: item.color }}
-                          />
+                          <div className="h-2.5 w-1 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
                           <div className="flex flex-1 items-center justify-between gap-4 leading-none">
                             <span className="text-muted-foreground">
                               {chartConfig[name as DashboardMetric]?.label ?? activeOption.label}

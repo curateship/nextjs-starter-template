@@ -12,24 +12,16 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import {
   AdminModalBody,
   AdminModalContent,
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Combobox,
   ComboboxChip,
@@ -40,7 +32,7 @@ import {
   ComboboxItem,
   ComboboxList,
   ComboboxValue,
-  useComboboxAnchor,
+  useComboboxAnchor
 } from "@/components/ui/combobox"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateAutomationEmailModal } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
@@ -55,9 +47,13 @@ import {
   deleteStep,
   reorderSteps,
   getAutomationJourneyIndicators,
-  getAutomationReport,
+  getAutomationReport
 } from "@/lib/actions/newsletters/automation-actions"
-import type { EmailAutomation, AutomationJourneyIndicator, AutomationStep } from "@/lib/actions/newsletters/automation-actions"
+import type {
+  EmailAutomation,
+  AutomationJourneyIndicator,
+  AutomationStep
+} from "@/lib/actions/newsletters/automation-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
@@ -67,7 +63,7 @@ import {
   isAutomationTriggerConfigured,
   serializeAutomationTriggerNodes,
   type AutomationTriggerNode,
-  type AutomationTriggerType,
+  type AutomationTriggerType
 } from "@/lib/actions/newsletters/automation-triggers"
 import { cn } from "@/lib/utils/tailwind"
 import { BarChart3, CheckCircle2, Clock, Mail, PencilLine, Plus, Trash2, Zap } from "lucide-react"
@@ -132,10 +128,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const loadEmailStepStats = useCallback(async () => {
     const { data } = await getAutomationReport(automationId)
     if (!data) return
-    setEmailStepStats(Object.fromEntries(data.stepStats.map(step => [
-      step.step_order,
-      { sent: step.sent, opened: step.opened, clicked: step.clicked },
-    ])))
+    setEmailStepStats(
+      Object.fromEntries(
+        data.stepStats.map((step) => [step.step_order, { sent: step.sent, opened: step.opened, clicked: step.clicked }])
+      )
+    )
   }, [automationId])
 
   useEffect(() => {
@@ -189,7 +186,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     async function loadSegments() {
       setLoadingSegments(true)
-      const { data } = await getSegmentsBySite(currentSiteId, { page: 1, pageSize: 100 })
+      const { data } = await getSegmentsBySite(currentSiteId, {
+        page: 1,
+        pageSize: 100
+      })
       if (cancelled) return
       setSegments(data || [])
       setLoadingSegments(false)
@@ -214,7 +214,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     async function loadProducts() {
       setLoadingProducts(true)
-      const { data } = await getSiteProductsAction(currentSiteId, { page: 1, pageSize: 100 })
+      const { data } = await getSiteProductsAction(currentSiteId, {
+        page: 1,
+        pageSize: 100
+      })
       if (cancelled) return
       setProducts(data || [])
       setLoadingProducts(false)
@@ -227,13 +230,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     }
   }, [siteId])
 
-  const configuredTriggerNodes = triggerNodes.filter(node => isAutomationTriggerConfigured(node.type, node.config))
+  const configuredTriggerNodes = triggerNodes.filter((node) => isAutomationTriggerConfigured(node.type, node.config))
   const triggerConfigured = configuredTriggerNodes.length > 0
   const displayedTriggerNodes: AutomationTriggerNode[] = triggerNodes.length ? triggerNodes : [EMPTY_TRIGGER_NODE]
-  const purchaseProducts = products.filter(product => Boolean(product.content_blocks?.["product-checkout"]))
+  const purchaseProducts = products.filter((product) => Boolean(product.content_blocks?.["product-checkout"]))
   const productTriggerOptions = purchaseProducts
   const productTriggerLabel = "Product"
-  const endRulesProductItems = products.map(product => ({ value: product.id, label: product.title }))
+  const endRulesProductItems = products.map((product) => ({
+    value: product.id,
+    label: product.title
+  }))
   const centerAxisStyle = { transform: "translateX(1.5px)" }
 
   const flash = (message: string) => {
@@ -246,7 +252,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     setSaving(true)
     const newStatus = automation.status === "active" ? "paused" : "active"
-    const { data, error } = await updateAutomation(automation.id, { status: newStatus })
+    const { data, error } = await updateAutomation(automation.id, {
+      status: newStatus
+    })
 
     if (error) setError(error)
     if (data) setAutomation(data)
@@ -292,7 +300,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       content: nodeData.content || undefined,
       nodeConfig: nodeData.node_config || {},
       delayMinutes: nodeData.delay_minutes || 0,
-      contentBlocks: nodeData.content_blocks || {},
+      contentBlocks: nodeData.content_blocks || {}
     })
 
     if (createError || !data) {
@@ -302,9 +310,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     const sorted = [...nodes].sort((a, b) => a.step_order - b.step_order)
     const newOrder = [...sorted.slice(0, pendingInsertIndex), data, ...sorted.slice(pendingInsertIndex)]
-    const nextNodes = newOrder.map((node, index) => ({ ...node, step_order: index + 1 }))
+    const nextNodes = newOrder.map((node, index) => ({
+      ...node,
+      step_order: index + 1
+    }))
     setNodes(nextNodes)
-    await reorderSteps(automation.id, nextNodes.map(node => node.id))
+    await reorderSteps(
+      automation.id,
+      nextNodes.map((node) => node.id)
+    )
     void loadJourneyIndicators()
 
     return nextNodes[pendingInsertIndex] || data
@@ -314,7 +328,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const data = await createAndInsertNode("email", {
       subject: input.subject,
       node_config: input.node_config,
-      content_blocks: input.content_blocks,
+      content_blocks: input.content_blocks
     })
 
     if (!data) return false
@@ -358,18 +372,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (editingDelay.id === "__new__") {
       const data = await createAndInsertNode("delay", {
         node_config: config,
-        delay_minutes: minutes,
+        delay_minutes: minutes
       })
       if (data) flash("Added")
     } else {
       const { data, error } = await updateStep(editingDelay.id, {
         node_config: config,
-        delay_minutes: minutes,
+        delay_minutes: minutes
       })
 
       if (error) setError(error)
       if (data) {
-        setNodes(prev => prev.map(node => node.id === data.id ? data : node))
+        setNodes((prev) => prev.map((node) => (node.id === data.id ? data : node)))
         void loadJourneyIndicators()
         flash("Saved")
       }
@@ -401,17 +415,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSavingNode(true)
     const node_config = {
       product_ids: endRulesProductIds,
-      minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1),
+      minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1)
     }
 
     if (editingEndRules.id === "__new__") {
       const data = await createAndInsertNode("end_rules", { node_config })
       if (data) flash("Added")
     } else {
-      const { data, error } = await updateStep(editingEndRules.id, { node_config })
+      const { data, error } = await updateStep(editingEndRules.id, {
+        node_config
+      })
       if (error) setError(error)
       if (data) {
-        setNodes(prev => prev.map(node => node.id === data.id ? data : node))
+        setNodes((prev) => prev.map((node) => (node.id === data.id ? data : node)))
         flash("Saved")
       }
     }
@@ -424,7 +440,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const { success } = await deleteStep(nodeId)
     if (!success) return
 
-    setNodes(prev => prev.filter(node => node.id !== nodeId))
+    setNodes((prev) => prev.filter((node) => node.id !== nodeId))
     void loadJourneyIndicators()
     if (editingDelay?.id === nodeId) setEditingDelay(null)
     if (editingEndRules?.id === nodeId) setEditingEndRules(null)
@@ -466,7 +482,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const { data, error } = await updateAutomation(automation.id, {
       ...(serializedTriggers.triggerType === "none" && automation.status === "active" ? { status: "draft" } : {}),
       trigger_type: serializedTriggers.triggerType,
-      trigger_config: serializedTriggers.triggerConfig,
+      trigger_config: serializedTriggers.triggerConfig
     })
 
     if (error) {
@@ -498,7 +514,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const nextTriggerNodes = [...triggerNodes]
     const nextTriggerNode: AutomationTriggerNode = {
       type: draftTriggerType,
-      config: buildTriggerConfig(draftTriggerType),
+      config: buildTriggerConfig(draftTriggerType)
     }
 
     if (draftTriggerType === "none") {
@@ -541,11 +557,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     const persistedTriggerNodes = await persistTriggerNodes(nextTriggerNodes)
     if (persistedTriggerNodes) {
-      setSelectedTriggerIndex(
-        persistedTriggerNodes.length
-          ? Math.min(index, persistedTriggerNodes.length - 1)
-          : 0
-      )
+      setSelectedTriggerIndex(persistedTriggerNodes.length ? Math.min(index, persistedTriggerNodes.length - 1) : 0)
       setEditingTriggerIndex(null)
       setTriggerEditorOpen(false)
       flash("Trigger removed")
@@ -579,16 +591,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       month: "short",
       day: "numeric",
       hour: "numeric",
-      minute: "2-digit",
+      minute: "2-digit"
     })}`
   }
 
-  const delayChipClass = "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50"
-  const emailChipClass = "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50"
+  const delayChipClass =
+    "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50"
+  const emailChipClass =
+    "h-6 shrink-0 rounded-full border-blue-200 bg-blue-50 px-2 text-xs font-normal text-blue-700 hover:bg-blue-50"
 
   const getEmailStatusLabel = (node: AutomationStep) => {
     if (!node.subject?.trim()) return "Needs subject"
-    if (automation?.status === "active" && (emailStepStats[node.step_order]?.sent ?? 0) <= 0) return "Waiting for trigger"
+    if (automation?.status === "active" && (emailStepStats[node.step_order]?.sent ?? 0) <= 0)
+      return "Waiting for trigger"
     if (automation?.status === "active" && node.node_config?.drip_config?.enabled === true) return "Drip sending"
     if (automation?.status === "active") return "Sending"
     if (automation?.status === "paused") return "Paused"
@@ -601,7 +616,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       : typeof node.node_config?.product_id === "string"
         ? [node.node_config.product_id]
         : []
-    const names = ids.map(id => products.find(product => product.id === id)?.title).filter(Boolean)
+    const names = ids.map((id) => products.find((product) => product.id === id)?.title).filter(Boolean)
     return names.length ? names.join(", ") : "Choose products"
   }
 
@@ -609,58 +624,58 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (triggerNode.type === "segment_added") {
       return {
         title: "Added to segment",
-        description: "Starts when a contact is newly added to a segment.",
+        description: "Starts when a contact is newly added to a segment."
       }
     }
 
     if (triggerNode.type === "lead_magnet_signup") {
       return {
         title: "Lead magnet signup",
-        description: "Starts when someone signs up for a lead magnet.",
+        description: "Starts when someone signs up for a lead magnet."
       }
     }
 
     if (triggerNode.type === "paid_purchase") {
       return {
         title: "Paid purchase",
-        description: "Starts when someone completes a purchase.",
+        description: "Starts when someone completes a purchase."
       }
     }
 
     return {
       title: "Choose trigger",
-      description: "Select how contacts should enter this automation.",
+      description: "Select how contacts should enter this automation."
     }
   }
 
   const getTriggerChip = (triggerNode: AutomationTriggerNode) => {
     if (triggerNode.type === "segment_added") {
       const segmentId = typeof triggerNode.config?.segment_id === "string" ? triggerNode.config.segment_id : ""
-      const segmentName = segments.find(segment => segment.id === segmentId)?.name
+      const segmentName = segments.find((segment) => segment.id === segmentId)?.name
 
       return {
         label: segmentName || "Choose segment",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100",
+        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
       }
     }
 
     if (triggerNode.type === "lead_magnet_signup") {
       const productId = typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : ""
-      const productName = products.find(product => product.id === productId)?.title
+      const productName = products.find((product) => product.id === productId)?.title
 
       return {
         label: productName || "Choose lead magnet",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100",
+        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
       }
     }
 
     if (triggerNode.type === "paid_purchase") {
       const productId = typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : ""
-      const productName = purchaseProducts.find(product => product.id === productId)?.title
+      const productName = purchaseProducts.find((product) => product.id === productId)?.title
 
       return {
         label: productName || "Choose product",
-        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100",
+        className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
       }
     }
 
@@ -680,7 +695,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           <Button size="sm" variant="outline" onClick={() => handleAddNode("end_rules", afterIndex)}>
             <CheckCircle2 className="mr-1 h-3 w-3" /> End Rules
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => setAddAfterIndex(null)}>✕</Button>
+          <Button size="sm" variant="ghost" onClick={() => setAddAfterIndex(null)}>
+            ✕
+          </Button>
         </div>
       ) : (
         <button
@@ -714,24 +731,24 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
         <DashboardStickyHeader
-          rightActions={(
+          rightActions={
             <StickybarTopRightActions
-              rightActions={(
+              rightActions={
                 <>
                   <div className="h-6 w-16 animate-pulse rounded-full bg-muted" />
                   <div className="h-8 w-20 animate-pulse rounded bg-muted" />
                 </>
-              )}
+              }
             />
-          )}
+          }
         />
         <AdminLayout>
           <div className="mx-auto w-full max-w-2xl px-6 py-8">
             <div className="flex flex-col items-center">
               <div className="w-full">
-                {[1, 2].map(index => (
+                {[1, 2].map((index) => (
                   <div key={index} className="flex flex-col items-center">
-                    <Card className="w-full p-4 border-l-4 border-l-muted">
+                    <Card className="w-full border-l-4 border-l-muted">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
                         <div className="flex-1">
@@ -746,9 +763,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               </div>
               <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
               <div className="h-6 w-px bg-border" />
-              {[1, 2, 3].map(index => (
+              {[1, 2, 3].map((index) => (
                 <div key={index} className="flex w-full flex-col items-center">
-                  <Card className="w-full p-4 border-l-4 border-l-muted">
+                  <Card className="w-full border-l-4 border-l-muted">
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
                       <div className="flex-1">
@@ -776,7 +793,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         <AdminLayout>
           <div className="w-full p-8 text-center">
             <p className="mb-4 text-red-600">{error}</p>
-            <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">Back</Button>
+            <Button onClick={() => router.push("/admin/newsletters/automations")} variant="outline">
+              Back
+            </Button>
           </div>
         </AdminLayout>
       </div>
@@ -786,10 +805,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <DashboardStickyHeader
-        rightActions={(
+        rightActions={
           <StickybarTopRightActions
             saveMessage={saveMessage}
-            rightActions={(
+            rightActions={
               <>
                 <Badge
                   variant={automation.status === "active" ? "default" : "secondary"}
@@ -801,14 +820,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   size="sm"
                   variant={automation.status === "active" ? "destructive" : "default"}
                   onClick={handleStatusToggle}
-                  disabled={saving || (automation.status !== "active" && (!triggerConfigured || nodes.filter(node => node.node_type === "email").length === 0))}
+                  disabled={
+                    saving ||
+                    (automation.status !== "active" &&
+                      (!triggerConfigured || nodes.filter((node) => node.node_type === "email").length === 0))
+                  }
                 >
                   {automation.status === "active" ? "Pause" : "Activate"}
                 </Button>
               </>
-            )}
+            }
           />
-        )}
+        }
       />
       <AdminLayout>
         <div className="mx-auto w-full max-w-2xl px-6 py-8">
@@ -836,7 +859,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       role="button"
                       tabIndex={0}
                       onClick={() => openTriggerEditor(index)}
-                      onKeyDown={event => {
+                      onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault()
                           openTriggerEditor(index)
@@ -852,11 +875,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <div className="flex min-w-0 flex-1 items-center gap-3">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className={cn(
-                                "flex h-9 w-9 items-center justify-center rounded-lg",
-                                isPlaceholder ? "bg-muted" : "bg-zinc-100"
-                              )}>
-                                <Zap className={cn("h-4 w-4", isPlaceholder ? "text-muted-foreground" : "text-zinc-950")} />
+                              <div
+                                className={cn(
+                                  "flex h-9 w-9 items-center justify-center rounded-lg",
+                                  isPlaceholder ? "bg-muted" : "bg-zinc-100"
+                                )}
+                              >
+                                <Zap
+                                  className={cn("h-4 w-4", isPlaceholder ? "text-muted-foreground" : "text-zinc-950")}
+                                />
                               </div>
                             </TooltipTrigger>
                             <TooltipContent side="top">Trigger</TooltipContent>
@@ -865,7 +892,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             <p className="text-sm font-medium">{triggerDetails.title}</p>
                             <p className="mt-1 text-xs text-muted-foreground">{triggerDetails.description}</p>
                             {triggerChip && (
-                              <Badge className={cn("mt-3 rounded-md px-2.5 py-1 text-xs font-medium shadow-none", triggerChip.className)}>
+                              <Badge
+                                className={cn(
+                                  "mt-3 rounded-md px-2.5 py-1 text-xs font-medium shadow-none",
+                                  triggerChip.className
+                                )}
+                              >
                                 {triggerChip.label}
                               </Badge>
                             )}
@@ -879,7 +911,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             aria-label="Remove trigger"
                             disabled={savingTrigger}
                             className="h-8 w-8 shrink-0 p-0 text-red-600 hover:text-red-600"
-                            onClick={event => {
+                            onClick={(event) => {
                               event.stopPropagation()
                               void removeTriggerAtIndex(index)
                             }}
@@ -915,7 +947,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           </Tooltip>
                           <div>
                             <p className="text-sm font-medium">{formatDelay(node)}</p>
-                            {(formatNextTriggerTime(journeyIndicators[node.step_order]?.next_due_at) || journeyIndicators[node.step_order]) && (
+                            {(formatNextTriggerTime(journeyIndicators[node.step_order]?.next_due_at) ||
+                              journeyIndicators[node.step_order]) && (
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 {formatNextTriggerTime(journeyIndicators[node.step_order]?.next_due_at) && (
                                   <Badge variant="outline" className={delayChipClass}>
@@ -935,7 +968,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={event => {
+                          onClick={(event) => {
                             event.stopPropagation()
                             setPendingDeleteNodeId(node.id)
                           }}
@@ -962,11 +995,18 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           <div>
                             <p className="text-sm font-medium">End Rules</p>
                             <div className="mt-2 flex flex-wrap gap-1.5">
-                              <Badge variant="outline" className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50">
+                              <Badge
+                                variant="outline"
+                                className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50"
+                              >
                                 Bought: {getEndRulesProductLabel(node)}
                               </Badge>
-                              <Badge variant="outline" className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50">
-                                Opened fewer than {Math.max(1, Number(node.node_config?.minimum_opens) || 1)}: unsubscribe
+                              <Badge
+                                variant="outline"
+                                className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50"
+                              >
+                                Opened fewer than {Math.max(1, Number(node.node_config?.minimum_opens) || 1)}:
+                                unsubscribe
                               </Badge>
                             </div>
                           </div>
@@ -975,7 +1015,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={event => {
+                          onClick={(event) => {
                             event.stopPropagation()
                             setPendingDeleteNodeId(node.id)
                           }}
@@ -1005,15 +1045,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                               <Badge variant="outline" className={emailChipClass}>
                                 {getEmailStatusLabel(node)}
                               </Badge>
-                              {(emailStepStats[node.step_order]?.sent ?? 0) > 0 && [
-                                ["sent", emailStepStats[node.step_order]?.sent ?? 0],
-                                ["opened", emailStepStats[node.step_order]?.opened ?? 0],
-                                ["clicked", emailStepStats[node.step_order]?.clicked ?? 0],
-                              ].map(([label, count]) => (
-                                <Badge key={label} variant="outline" className={emailChipClass}>
-                                  {Number(count).toLocaleString()} {label}
-                                </Badge>
-                              ))}
+                              {(emailStepStats[node.step_order]?.sent ?? 0) > 0 &&
+                                [
+                                  ["sent", emailStepStats[node.step_order]?.sent ?? 0],
+                                  ["opened", emailStepStats[node.step_order]?.opened ?? 0],
+                                  ["clicked", emailStepStats[node.step_order]?.clicked ?? 0]
+                                ].map(([label, count]) => (
+                                  <Badge key={label} variant="outline" className={emailChipClass}>
+                                    {Number(count).toLocaleString()} {label}
+                                  </Badge>
+                                ))}
                             </div>
                           </div>
                         </div>
@@ -1023,7 +1064,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             size="sm"
                             aria-label="View email events"
                             className="h-8 w-8 p-0"
-                            onClick={event => {
+                            onClick={(event) => {
                               event.stopPropagation()
                               setStatusEventsStep(node)
                             }}
@@ -1035,7 +1076,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             size="sm"
                             aria-label="Edit email"
                             className="h-8 w-8 p-0"
-                            onClick={event => {
+                            onClick={(event) => {
                               event.stopPropagation()
                               router.push(`/admin/newsletters/automations/${automationId}/email/${node.id}`)
                             }}
@@ -1047,7 +1088,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             size="sm"
                             aria-label="Delete email"
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={event => {
+                            onClick={(event) => {
                               event.stopPropagation()
                               setPendingDeleteNodeId(node.id)
                             }}
@@ -1074,19 +1115,27 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
         <Dialog
           open={emailCreateOpen}
-          onOpenChange={open => {
+          onOpenChange={(open) => {
             setEmailCreateOpen(open)
             if (open) setEmailCreateActiveTab("general")
           }}
         >
           <AdminModalContent>
-            <Tabs value={emailCreateActiveTab} onValueChange={setEmailCreateActiveTab} className="flex min-h-0 flex-1 flex-col">
+            <Tabs
+              value={emailCreateActiveTab}
+              onValueChange={setEmailCreateActiveTab}
+              className="flex min-h-0 flex-1 flex-col"
+            >
               <AdminModalHeader>
                 <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
                   <AdminModalTitle className="shrink-0">Create Email</AdminModalTitle>
                   <TabsList className="h-9 shrink-0">
-                    <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-                    <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                    <TabsTrigger value="general" className="h-7 py-0">
+                      General
+                    </TabsTrigger>
+                    <TabsTrigger value="drip-options" className="h-7 py-0">
+                      Drip Options
+                    </TabsTrigger>
                   </TabsList>
                 </div>
               </AdminModalHeader>
@@ -1101,12 +1150,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
         <AutomationEmailSettingsModal
           open={editingEmailSettings !== null}
-          onOpenChange={open => {
+          onOpenChange={(open) => {
             if (!open) setEditingEmailSettings(null)
           }}
           step={editingEmailSettings}
-          onSuccess={step => {
-            setNodes(prev => prev.map(node => node.id === step.id ? step : node))
+          onSuccess={(step) => {
+            setNodes((prev) => prev.map((node) => (node.id === step.id ? step : node)))
             flash("Saved")
           }}
         />
@@ -1117,7 +1166,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           stepOrder={statusEventsStep?.step_order ?? null}
           showRateCards
           onError={setError}
-          onOpenChange={open => {
+          onOpenChange={(open) => {
             if (!open) setStatusEventsStep(null)
           }}
         />
@@ -1132,7 +1181,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
         <Dialog
           open={triggerEditorOpen}
-          onOpenChange={open => {
+          onOpenChange={(open) => {
             setTriggerEditorOpen(open)
             if (!open) {
               setEditingTriggerIndex(null)
@@ -1145,16 +1194,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           <AdminModalContent>
             <AdminModalHeader>
               <AdminModalTitle>Trigger</AdminModalTitle>
-              <AdminModalDescription>
-                Choose what event enrolls a contact into this automation.
-              </AdminModalDescription>
+              <AdminModalDescription>Choose what event enrolls a contact into this automation.</AdminModalDescription>
             </AdminModalHeader>
             <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
               <div>
                 <Label>When should this automation start?</Label>
                 <Select
                   value={draftTriggerType}
-                  onValueChange={value => {
+                  onValueChange={(value) => {
                     const nextTriggerType = value as AutomationTriggerType
                     setDraftTriggerType(nextTriggerType)
                     if (nextTriggerType !== "segment_added") setDraftSegmentId("")
@@ -1163,7 +1210,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="segment_added">Added to segment</SelectItem>
                     <SelectItem value="paid_purchase">Paid purchase</SelectItem>
@@ -1181,8 +1230,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <SelectValue placeholder={loadingSegments ? "Loading segments..." : "Choose a segment"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {segments.map(segment => (
-                          <SelectItem key={segment.id} value={segment.id}>{segment.name}</SelectItem>
+                        {segments.map((segment) => (
+                          <SelectItem key={segment.id} value={segment.id}>
+                            {segment.name}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1201,11 +1252,17 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     <Label>{productTriggerLabel}</Label>
                     <Select value={draftProductId} onValueChange={setDraftProductId}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`} />
+                        <SelectValue
+                          placeholder={
+                            loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {productTriggerOptions.map(product => (
-                          <SelectItem key={product.id} value={product.id}>{product.title}</SelectItem>
+                        {productTriggerOptions.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.title}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1241,12 +1298,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               <Button
                 onClick={saveTrigger}
                 disabled={
-                  savingTrigger
-                  || (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0))
-                  || (
-                    draftTriggerType === "paid_purchase"
-                    && (!draftProductId || productTriggerOptions.length === 0)
-                  )
+                  savingTrigger ||
+                  (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0)) ||
+                  (draftTriggerType === "paid_purchase" && (!draftProductId || productTriggerOptions.length === 0))
                 }
               >
                 {savingTrigger ? "Saving..." : "Save"}
@@ -1255,13 +1309,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           </AdminModalContent>
         </Dialog>
 
-        <Dialog open={editingEndRules !== null} onOpenChange={open => { if (!open) setEditingEndRules(null) }}>
+        <Dialog
+          open={editingEndRules !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingEndRules(null)
+          }}
+        >
           <AdminModalContent>
             <AdminModalHeader>
               <AdminModalTitle>End Rules</AdminModalTitle>
-              <AdminModalDescription>
-                Decide what happens when a contact reaches this point.
-              </AdminModalDescription>
+              <AdminModalDescription>Decide what happens when a contact reaches this point.</AdminModalDescription>
             </AdminModalHeader>
             <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_[data-slot=input-group]]:mt-2">
               <div>
@@ -1275,11 +1332,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 >
                   <ComboboxChips ref={endRulesProductAnchor} className="w-full">
                     <ComboboxValue>
-                      {values => (
+                      {(values) => (
                         <>
-                          {values.map(productId => (
+                          {values.map((productId) => (
                             <ComboboxChip key={productId} value={productId}>
-                              {products.find(product => product.id === productId)?.title || productId}
+                              {products.find((product) => product.id === productId)?.title || productId}
                             </ComboboxChip>
                           ))}
                           <ComboboxChipsInput placeholder={values.length ? "" : "Search products"} />
@@ -1290,7 +1347,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   <ComboboxContent anchor={endRulesProductAnchor}>
                     <ComboboxEmpty>{loadingProducts ? "Loading products..." : "No products found."}</ComboboxEmpty>
                     <ComboboxList>
-                      {item => {
+                      {(item) => {
                         const value = typeof item === "string" ? item : item.value
                         const label = typeof item === "string" ? item : item.label
                         return (
@@ -1310,7 +1367,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   type="number"
                   min="1"
                   value={endRulesMinimumOpens}
-                  onChange={event => setEndRulesMinimumOpens(event.target.value)}
+                  onChange={(event) => setEndRulesMinimumOpens(event.target.value)}
                 />
               </div>
 
@@ -1319,7 +1376,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               </div>
             </AdminModalBody>
             <AdminModalFooter className="sm:justify-end">
-              <Button variant="outline" onClick={() => setEditingEndRules(null)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setEditingEndRules(null)}>
+                Cancel
+              </Button>
               <Button onClick={saveEndRulesNode} disabled={savingNode || !endRulesProductIds.length}>
                 {savingNode ? "Saving..." : "Save"}
               </Button>
@@ -1327,7 +1386,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           </AdminModalContent>
         </Dialog>
 
-        <Dialog open={editingDelay !== null} onOpenChange={open => { if (!open) setEditingDelay(null) }}>
+        <Dialog
+          open={editingDelay !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingDelay(null)
+          }}
+        >
           <AdminModalContent>
             <AdminModalHeader>
               <AdminModalTitle>Time Delay</AdminModalTitle>
@@ -1339,7 +1403,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               <div>
                 <Label>Wait for</Label>
                 <Select value={delayType} onValueChange={setDelayType}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="amount_of_time">A certain amount of time</SelectItem>
                     <SelectItem value="day_of_week">A certain day of the week</SelectItem>
@@ -1352,12 +1418,19 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <Label>Amount</Label>
-                    <Input type="number" min="1" value={delayValue} onChange={event => setDelayValue(event.target.value)} />
+                    <Input
+                      type="number"
+                      min="1"
+                      value={delayValue}
+                      onChange={(event) => setDelayValue(event.target.value)}
+                    />
                   </div>
                   <div>
                     <Label>Unit</Label>
                     <Select value={delayUnit} onValueChange={setDelayUnit}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="minutes">Minutes</SelectItem>
                         <SelectItem value="hours">Hours</SelectItem>
@@ -1372,7 +1445,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <div>
                   <Label>Day</Label>
                   <Select value={delayDay} onValueChange={setDelayDay}>
-                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="0">Sunday</SelectItem>
                       <SelectItem value="1">Monday</SelectItem>
@@ -1389,12 +1464,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
               {delayType === "specific_date" && (
                 <div>
                   <Label>Date</Label>
-                  <Input type="date" value={delayDate} onChange={event => setDelayDate(event.target.value)} />
+                  <Input type="date" value={delayDate} onChange={(event) => setDelayDate(event.target.value)} />
                 </div>
               )}
             </AdminModalBody>
             <AdminModalFooter className="sm:justify-end">
-              <Button variant="outline" onClick={() => setEditingDelay(null)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setEditingDelay(null)}>
+                Cancel
+              </Button>
               <Button onClick={saveDelayNode} disabled={savingNode}>
                 {savingNode ? "Saving..." : "Save"}
               </Button>

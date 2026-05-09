@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
-import type { DirectoryOpeningHoursAttribution, DirectoryOpeningHoursData } from "@/lib/actions/directories/directory-opening-hours"
+import { Card, CardContent } from "@/components/ui/card"
+import type {
+  DirectoryOpeningHoursAttribution,
+  DirectoryOpeningHoursData
+} from "@/lib/actions/directories/directory-opening-hours"
 import { normalizeDirectoryOpeningHoursPlaceId } from "@/lib/actions/directories/directory-opening-hours"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -21,7 +25,7 @@ function OpeningHoursCard({
   title,
   showTitle,
   children,
-  footer,
+  footer
 }: {
   title: string
   showTitle: boolean
@@ -29,15 +33,13 @@ function OpeningHoursCard({
   footer?: ReactNode
 }) {
   return (
-    <section className="rounded-2xl border bg-card p-6 shadow-sm">
-      {showTitle ? (
-        <h2 className="text-2xl font-semibold tracking-normal text-foreground">
-          {title}
-        </h2>
-      ) : null}
-      {children ? <div className={cn(showTitle && "mt-8")}>{children}</div> : null}
-      {footer ? <div className="mt-8 space-y-3 border-t pt-5">{footer}</div> : null}
-    </section>
+    <Card>
+      <CardContent>
+        {showTitle ? <h2 className="text-2xl font-semibold tracking-normal text-foreground">{title}</h2> : null}
+        {children ? <div className={cn(showTitle && "mt-8")}>{children}</div> : null}
+        {footer ? <div className="mt-8 space-y-3 border-t pt-5">{footer}</div> : null}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -54,7 +56,12 @@ function AttributionText({ attributions }: { attributions: DirectoryOpeningHours
           {providers.map((item, index) => (
             <span key={`${item.provider}-${index}`}>
               {item.providerUri ? (
-                <a href={item.providerUri} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                <a
+                  href={item.providerUri}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2"
+                >
                   {item.provider}
                 </a>
               ) : (
@@ -70,19 +77,11 @@ function AttributionText({ attributions }: { attributions: DirectoryOpeningHours
   )
 }
 
-export function DirectoryOpeningHoursBlock({
-  content,
-  isPreview = false,
-  siteId,
-}: DirectoryOpeningHoursBlockProps) {
-  const visibility = content?.visibility && typeof content.visibility === "object"
-    ? content.visibility
-    : {}
+export function DirectoryOpeningHoursBlock({ content, isPreview = false, siteId }: DirectoryOpeningHoursBlockProps) {
+  const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
   const hideBlock = visibility.hideBlock === true
   const placeId = normalizeDirectoryOpeningHoursPlaceId(content?.placeId)
-  const title = typeof content?.title === "string" && content.title.trim()
-    ? content.title.trim()
-    : "Business Hours"
+  const title = typeof content?.title === "string" && content.title.trim() ? content.title.trim() : "Business Hours"
   const [data, setData] = useState<DirectoryOpeningHoursData | null>(null)
 
   const requestPath = useMemo(() => {
@@ -148,16 +147,12 @@ export function DirectoryOpeningHoursBlock({
     <OpeningHoursCard
       title={title}
       showTitle={showTitle}
-      footer={(
+      footer={
         <>
-          {showTimezone ? (
-            <p className="text-base leading-7 text-muted-foreground">
-              Timezone: {data.timeZone}
-            </p>
-          ) : null}
+          {showTimezone ? <p className="text-base leading-7 text-muted-foreground">Timezone: {data.timeZone}</p> : null}
           <AttributionText attributions={data.attributions} />
         </>
-      )}
+      }
     >
       {showHours ? (
         <div className="space-y-5">

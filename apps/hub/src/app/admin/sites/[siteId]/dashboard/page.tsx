@@ -173,61 +173,63 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
             rightContent={<DashboardRangeTabs siteId={siteId} value={selectedRange} />}
           />
 
-          <ChartGroup7
-            cardRange={selectedRange}
-            chartData={chartMetrics.chartData}
-            chartRange="30d"
-            previousTotals={cardMetrics.previousTotals}
-            totals={cardMetrics.totals}
-          />
+          <div className="grid">
+            <ChartGroup7
+              cardRange={selectedRange}
+              chartData={chartMetrics.chartData}
+              chartRange="30d"
+              previousTotals={cardMetrics.previousTotals}
+              totals={cardMetrics.totals}
+            />
 
-          <div className="mt-7 grid lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Pages</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {topPages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No data yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {topPages.map((page) => (
-                      <div key={page.path} className="flex items-center justify-between">
-                        <span className="mr-4 truncate text-sm">{page.path}</span>
-                        <span className="whitespace-nowrap text-sm text-muted-foreground">
-                          {page.views.toLocaleString()} views
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Top Referrers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {topReferrers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No referrer data yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {topReferrers.map((ref) => (
-                      <div key={ref.domain} className="flex items-center justify-between">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                          <span className="truncate text-sm">{ref.domain}</span>
+            <div className="grid lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Pages</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {topPages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {topPages.map((page) => (
+                        <div key={page.path} className="flex items-center justify-between">
+                          <span className="mr-4 truncate text-sm">{page.path}</span>
+                          <span className="whitespace-nowrap text-sm text-muted-foreground">
+                            {page.views.toLocaleString()} views
+                          </span>
                         </div>
-                        <span className="whitespace-nowrap text-sm text-muted-foreground">
-                          {ref.visits.toLocaleString()} visits
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Referrers</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {topReferrers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No referrer data yet</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {topReferrers.map((ref) => (
+                        <div key={ref.domain} className="flex items-center justify-between">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            <span className="truncate text-sm">{ref.domain}</span>
+                          </div>
+                          <span className="whitespace-nowrap text-sm text-muted-foreground">
+                            {ref.visits.toLocaleString()} visits
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </AdminLayout>

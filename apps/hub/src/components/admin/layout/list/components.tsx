@@ -4,13 +4,14 @@ import type { ReactNode } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { CardSection } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from "@/components/ui/dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { cn } from "@/lib/utils/tailwind"
@@ -21,7 +22,7 @@ export function AdminSortButton({
   children,
   className,
   direction,
-  onClick,
+  onClick
 }: {
   active: boolean
   children: ReactNode
@@ -40,7 +41,13 @@ export function AdminSortButton({
     >
       <span>{children}</span>
       <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">
-        {!active ? <ChevronsUpDown className="h-3 w-3 opacity-70" /> : direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+        {!active ? (
+          <ChevronsUpDown className="h-3 w-3 opacity-70" />
+        ) : direction === "asc" ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowDown className="h-3 w-3" />
+        )}
       </span>
     </button>
   )
@@ -49,7 +56,7 @@ export function AdminSortButton({
 export function AdminBulkDeleteButton({
   deleting,
   onClick,
-  selectedCount,
+  selectedCount
 }: {
   deleting: boolean
   onClick: () => void
@@ -80,7 +87,7 @@ export function AdminSelectionBanner({
   onSelectAll,
   selectedCount,
   total,
-  visibleCount,
+  visibleCount
 }: {
   allSelected: boolean
   onClearSelection: () => void
@@ -94,11 +101,15 @@ export function AdminSelectionBanner({
   }
 
   return (
-    <div className="border-b bg-accent/50 px-6 py-2 text-center text-sm">
+    <CardSection className="border-b bg-accent/50 text-center text-sm">
       {allSelected ? (
         <span>
           All {total} items selected.{" "}
-          <button type="button" onClick={onClearSelection} className="text-muted-foreground underline hover:text-foreground">
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="text-muted-foreground underline hover:text-foreground"
+          >
             Clear selection
           </button>
         </span>
@@ -110,7 +121,7 @@ export function AdminSelectionBanner({
           </button>
         </span>
       )}
-    </div>
+    </CardSection>
   )
 }
 
@@ -119,7 +130,7 @@ export function AdminListSkeleton({
   firstColumnClassName,
   firstColumnSpan = 2,
   rowCount = 5,
-  showThumbnail = true,
+  showThumbnail = true
 }: {
   columns?: 5 | 6 | 7 | 8 | 9
   firstColumnClassName?: string
@@ -132,20 +143,20 @@ export function AdminListSkeleton({
     6: "grid-cols-6",
     7: "grid-cols-7",
     8: "grid-cols-8",
-    9: "grid-cols-9",
+    9: "grid-cols-9"
   }[columns]
   const firstColumnSpanClassName = {
     1: "col-span-1",
     2: "col-span-2",
     3: "col-span-3",
-    4: "col-span-4",
+    4: "col-span-4"
   }[firstColumnSpan]
   const middleColumnCount = Math.max(0, columns - firstColumnSpan - 1)
 
   return (
     <div className="space-y-0">
       {Array.from({ length: rowCount }, (_, index) => (
-        <div key={index} className="border-b border-muted/80 p-6">
+        <CardSection key={index} className="border-b border-muted/80">
           <div className={cn("grid items-center gap-4", gridClassName)}>
             <div className={firstColumnSpanClassName}>
               <div className={cn("flex items-center space-x-4", firstColumnClassName)}>
@@ -159,7 +170,12 @@ export function AdminListSkeleton({
             </div>
             {Array.from({ length: middleColumnCount }, (_, columnIndex) => (
               <div key={columnIndex}>
-                <div className={cn("animate-pulse rounded bg-muted/60", columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-3 w-16")} />
+                <div
+                  className={cn(
+                    "animate-pulse rounded bg-muted/60",
+                    columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-3 w-16"
+                  )}
+                />
               </div>
             ))}
             <div>
@@ -169,7 +185,7 @@ export function AdminListSkeleton({
               </div>
             </div>
           </div>
-        </div>
+        </CardSection>
       ))}
     </div>
   )
@@ -179,7 +195,7 @@ export function AdminListFooter({
   currentPage,
   onPageChange,
   pageSize,
-  total,
+  total
 }: {
   currentPage: number
   onPageChange: (page: number) => void
@@ -189,10 +205,15 @@ export function AdminListFooter({
   if (total <= 0) return null
 
   return (
-    <div className="flex items-center justify-between border-t px-6 py-4">
+    <CardSection className="flex items-center justify-between border-t">
       <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-      <Pagination currentPage={currentPage} totalPages={Math.ceil(total / pageSize)} onPageChange={onPageChange} showFirstLast={false} />
-    </div>
+      <Pagination
+        currentPage={currentPage}
+        totalPages={Math.ceil(total / pageSize)}
+        onPageChange={onPageChange}
+        showFirstLast={false}
+      />
+    </CardSection>
   )
 }
 
@@ -205,7 +226,7 @@ export function AdminConfirmDialog({
   onCancel,
   onConfirm,
   open,
-  title,
+  title
 }: {
   cancelLabel?: string
   confirmLabel?: string
@@ -240,7 +261,7 @@ export function AdminConfirmDialog({
 export function AdminErrorDialog({
   message,
   onOpenChange,
-  open,
+  open
 }: {
   message: string
   onOpenChange: (open: boolean) => void

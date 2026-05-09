@@ -28,7 +28,7 @@ export function UserBlock({
   onEmailChange,
   onRoleChange,
   onAvatarChange,
-  onAvatarPreviewChange,
+  onAvatarPreviewChange
 }: UserBlockProps) {
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -48,7 +48,7 @@ export function UserBlock({
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>User Information</CardTitle>
       </CardHeader>
@@ -97,21 +97,11 @@ export function UserBlock({
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
               <label htmlFor="avatar-upload" className="cursor-pointer">
-                <span className="text-sm text-muted-foreground">
-                  Click to upload or drag and drop
-                </span>
+                <span className="text-sm text-muted-foreground">Click to upload or drag and drop</span>
                 <br />
-                <span className="text-xs text-muted-foreground">
-                  PNG, JPG up to 2MB (recommended: 200x200px)
-                </span>
+                <span className="text-xs text-muted-foreground">PNG, JPG up to 2MB (recommended: 200x200px)</span>
               </label>
-              <Input
-                id="avatar-upload"
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarUpload}
-                className="hidden"
-              />
+              <Input id="avatar-upload" type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
             </div>
           ) : (
             <div className="relative">

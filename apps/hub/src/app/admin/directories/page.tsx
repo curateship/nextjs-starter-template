@@ -7,7 +7,7 @@ import dynamic from "next/dynamic"
 import { Copy, Eye, FileEdit, FolderOpen, Globe, List, Plus, Settings, Trash2 } from "lucide-react"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { Button } from "@/components/ui/button"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -20,7 +20,7 @@ import {
   AdminModalContent,
   AdminModalDescription,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   AdminBulkDeleteButton,
@@ -29,30 +29,36 @@ import {
   AdminListSkeleton,
   AdminSortButton,
   formatRelativeDate,
-  useAdminBulkSelection,
+  useAdminBulkSelection
 } from "@/components/admin/layout/list"
 import {
   deleteDirectoryAction,
   deleteDirectoriesAction,
   duplicateDirectoryAction,
   getDirectoryByIdAction,
-  type Directory,
+  type Directory
 } from "@/lib/actions/directories/directory-actions"
 import {
   getDirectoryListPageAction,
   type DirectorySummary,
   type DirectoryListSort,
-  type DirectoryListDirection,
+  type DirectoryListDirection
 } from "@/lib/actions/directories/directory-list-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
-const CreateDirectoryModal = dynamic(() =>
-  import("@/components/admin/directory-builder/layout/CreateDirectoryModal").then((m) => ({ default: m.CreateDirectoryModal })),
+const CreateDirectoryModal = dynamic(
+  () =>
+    import("@/components/admin/directory-builder/layout/CreateDirectoryModal").then((m) => ({
+      default: m.CreateDirectoryModal
+    })),
   { ssr: false }
 )
-const DirectorySettingsModal = dynamic(() =>
-  import("@/components/admin/directory-builder/layout/DirectorySettingsModal").then((m) => ({ default: m.DirectorySettingsModal })),
+const DirectorySettingsModal = dynamic(
+  () =>
+    import("@/components/admin/directory-builder/layout/DirectorySettingsModal").then((m) => ({
+      default: m.DirectorySettingsModal
+    })),
   { ssr: false }
 )
 
@@ -71,15 +77,19 @@ export default function DirectoriesPage() {
   const [settingsDirectoryId, setSettingsDirectoryId] = useState<string | null>(null)
   const [settingsDirectory, setSettingsDirectory] = useState<Directory | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [sortBy, setSortBy] = useState<DirectoryListSort>('default')
-  const [sortDirection, setSortDirection] = useState<DirectoryListDirection>('asc')
+  const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState<DirectoryListSort>("default")
+  const [sortDirection, setSortDirection] = useState<DirectoryListDirection>("asc")
   const [activeCursor, setActiveCursor] = useState<string | null>(null)
   const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
-  const [statusCounts, setStatusCounts] = useState({ all: 0, published: 0, draft: 0 })
+  const [statusCounts, setStatusCounts] = useState({
+    all: 0,
+    published: 0,
+    draft: 0
+  })
   const [reloadToken, setReloadToken] = useState(0)
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -120,13 +130,13 @@ export default function DirectoriesPage() {
           sortBy,
           sortDirection,
           cursor: activeCursor,
-          limit: pageSize,
+          limit: pageSize
         })
 
         if (cancelled) return
 
         if (directoriesError || !data) {
-          setError(directoriesError || 'Failed to load directories')
+          setError(directoriesError || "Failed to load directories")
           setDirectories([])
           setDirectoryCategories({})
           setTotal(0)
@@ -142,7 +152,7 @@ export default function DirectoriesPage() {
         setNextCursor(data.nextCursor)
       } catch (err) {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load directories')
+        setError(err instanceof Error ? err.message : "Failed to load directories")
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -155,7 +165,17 @@ export default function DirectoriesPage() {
     return () => {
       cancelled = true
     }
-  }, [currentSite?.id, siteLoading, filterStatus, searchQuery, sortBy, sortDirection, activeCursor, pageSize, reloadToken])
+  }, [
+    currentSite?.id,
+    siteLoading,
+    filterStatus,
+    searchQuery,
+    sortBy,
+    sortDirection,
+    activeCursor,
+    pageSize,
+    reloadToken
+  ])
 
   useEffect(() => {
     async function loadSettingsDirectory() {
@@ -168,7 +188,7 @@ export default function DirectoriesPage() {
         setSettingsLoading(true)
         const { data, error: settingsError } = await getDirectoryByIdAction(settingsDirectoryId)
         if (settingsError || !data) {
-          setErrorMessage(settingsError || 'Failed to load directory settings')
+          setErrorMessage(settingsError || "Failed to load directory settings")
           setSettingsDirectoryId(null)
           return
         }
@@ -183,8 +203,12 @@ export default function DirectoriesPage() {
   }, [settingsDirectoryId])
 
   const getStatusBadge = (directory: DirectorySummary) => {
-    if (directory.status === 'published') {
-      return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+    if (directory.status === "published") {
+      return (
+        <Badge variant="default" className="bg-green-100 text-green-800">
+          Published
+        </Badge>
+      )
     }
 
     return <Badge variant="secondary">Draft</Badge>
@@ -205,14 +229,14 @@ export default function DirectoriesPage() {
       const { success, error: deleteError } = await deleteDirectoryAction(directoryIdToDelete)
 
       if (deleteError || !success) {
-        setErrorMessage(deleteError || 'Failed to delete directory')
+        setErrorMessage(deleteError || "Failed to delete directory")
         return
       }
 
       directorySelection.remove(directoryIdToDelete)
       setReloadToken((token) => token + 1)
     } catch {
-      setErrorMessage('Failed to delete directory')
+      setErrorMessage("Failed to delete directory")
     } finally {
       setDeleteDirectoryId(null)
     }
@@ -231,14 +255,14 @@ export default function DirectoriesPage() {
       const { success, error: deleteError } = await deleteDirectoriesAction(ids)
 
       if (deleteError || !success) {
-        setErrorMessage(deleteError || 'Failed to delete directories')
+        setErrorMessage(deleteError || "Failed to delete directories")
         return
       }
 
       directorySelection.clearSelection()
       setReloadToken((token) => token + 1)
     } catch {
-      setErrorMessage('Failed to delete directories')
+      setErrorMessage("Failed to delete directories")
     } finally {
       setMassDeleting(false)
     }
@@ -248,7 +272,7 @@ export default function DirectoriesPage() {
     try {
       setDuplicatingDirectoryId(directoryId)
       const originalDirectory = directories.find((directory) => directory.id === directoryId)
-      const duplicateTitle = `${originalDirectory?.title || 'Directory'} Copy`
+      const duplicateTitle = `${originalDirectory?.title || "Directory"} Copy`
       const { error: duplicateError } = await duplicateDirectoryAction(directoryId, duplicateTitle)
 
       if (duplicateError) {
@@ -258,39 +282,45 @@ export default function DirectoriesPage() {
 
       setReloadToken((token) => token + 1)
     } catch {
-      setErrorMessage('Failed to duplicate directory')
+      setErrorMessage("Failed to duplicate directory")
     } finally {
       setDuplicatingDirectoryId(null)
     }
   }
 
   const handleDirectoryUpdated = (updatedDirectory: Directory) => {
-    setDirectories((prev) => prev.map((directory) => directory.id === updatedDirectory.id ? {
-      ...directory,
-      title: updatedDirectory.title,
-      slug: updatedDirectory.slug,
-      status: updatedDirectory.status,
-      featured_image: updatedDirectory.featured_image,
-      meta_description: updatedDirectory.meta_description,
-      updated_at: updatedDirectory.updated_at,
-    } : directory))
+    setDirectories((prev) =>
+      prev.map((directory) =>
+        directory.id === updatedDirectory.id
+          ? {
+              ...directory,
+              title: updatedDirectory.title,
+              slug: updatedDirectory.slug,
+              status: updatedDirectory.status,
+              featured_image: updatedDirectory.featured_image,
+              meta_description: updatedDirectory.meta_description,
+              updated_at: updatedDirectory.updated_at
+            }
+          : directory
+      )
+    )
     setSettingsDirectory(updatedDirectory)
     setReloadToken((token) => token + 1)
   }
 
-  const toggleSort = (column: 'title' | 'modified') => {
+  const toggleSort = (column: "title" | "modified") => {
     if (sortBy === column) {
-      setSortDirection((direction) => direction === 'asc' ? 'desc' : 'asc')
+      setSortDirection((direction) => (direction === "asc" ? "desc" : "asc"))
       return
     }
 
     setSortBy(column)
-    setSortDirection(column === 'modified' ? 'desc' : 'asc')
+    setSortDirection(column === "modified" ? "desc" : "asc")
   }
 
   const resetSort = () => {
-    setSortBy('default')
-    setSortDirection('asc')
+    setSortBy("default")
+    setSortDirection("asc")
   }
 
   const handleNextPage = () => {
@@ -324,31 +354,48 @@ export default function DirectoriesPage() {
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search directories",
+              placeholder: "Search directories"
             }}
             filterMenu={{
               value: filterStatus,
-              onValueChange: (value) => setFilterStatus(value as 'all' | 'published' | 'draft'),
+              onValueChange: (value) => setFilterStatus(value as "all" | "published" | "draft"),
               items: [
-                { value: "all", label: "All", icon: List, count: statusCounts.all },
-                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
-                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
-              ],
+                {
+                  value: "all",
+                  label: "All",
+                  icon: List,
+                  count: statusCounts.all
+                },
+                {
+                  value: "published",
+                  label: "Published",
+                  icon: Globe,
+                  count: statusCounts.published
+                },
+                {
+                  value: "draft",
+                  label: "Draft",
+                  icon: FileEdit,
+                  count: statusCounts.draft
+                }
+              ]
             }}
-            preActions={(sortBy !== 'default' || directorySelection.selectedCount > 0) ? (
-              <div className="flex items-center gap-2">
-                {sortBy !== 'default' && (
-                  <Button variant="outline" size="sm" onClick={resetSort}>
-                    Clear Sort
-                  </Button>
-                )}
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={directorySelection.selectedCount}
-                />
-              </div>
-            ) : undefined}
+            preActions={
+              sortBy !== "default" || directorySelection.selectedCount > 0 ? (
+                <div className="flex items-center gap-2">
+                  {sortBy !== "default" && (
+                    <Button variant="outline" size="sm" onClick={resetSort}>
+                      Clear Sort
+                    </Button>
+                  )}
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={directorySelection.selectedCount}
+                  />
+                </div>
+              ) : undefined
+            }
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4" />
@@ -357,27 +404,33 @@ export default function DirectoriesPage() {
             }
           />
 
-          <Card className="shadow-sm">
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={directorySelection.isPageSelected(directoryIds)}
-                    onCheckedChange={() => directorySelection.togglePage(directoryIds)}
-                    aria-label="Select all directories on this page"
-                  />
-                  <AdminSortButton active={sortBy === 'title'} direction={sortDirection} onClick={() => toggleSort('title')}>
-                    Directory
-                  </AdminSortButton>
-                </div>
-                <div>Category</div>
-                <div>Status</div>
-                <AdminSortButton active={sortBy === 'modified'} direction={sortDirection} onClick={() => toggleSort('modified')}>
-                  Modified
+          <Card>
+            <CardTableHeader className="grid-cols-6">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={directorySelection.isPageSelected(directoryIds)}
+                  onCheckedChange={() => directorySelection.togglePage(directoryIds)}
+                  aria-label="Select all directories on this page"
+                />
+                <AdminSortButton
+                  active={sortBy === "title"}
+                  direction={sortDirection}
+                  onClick={() => toggleSort("title")}
+                >
+                  Directory
                 </AdminSortButton>
-                <div>Actions</div>
               </div>
-            </div>
+              <div>Category</div>
+              <div>Status</div>
+              <AdminSortButton
+                active={sortBy === "modified"}
+                direction={sortDirection}
+                onClick={() => toggleSort("modified")}
+              >
+                Modified
+              </AdminSortButton>
+              <div>Actions</div>
+            </CardTableHeader>
 
             <div className="divide-y divide-muted/80">
               {loading ? (
@@ -399,7 +452,10 @@ export default function DirectoriesPage() {
                 </div>
               ) : (
                 directories.map((directory) => (
-                  <div key={directory.id} className={`p-6 transition-colors ${directorySelection.selectedIds.has(directory.id) ? 'bg-accent/50' : ''}`}>
+                  <div
+                    key={directory.id}
+                    className={`p-6 transition-colors ${directorySelection.selectedIds.has(directory.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
@@ -441,11 +497,11 @@ export default function DirectoriesPage() {
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(directory)}
-                      </div>
+                      <div className="flex items-center gap-2">{getStatusBadge(directory)}</div>
                       <div>
-                        <span className="text-sm text-muted-foreground">{formatRelativeDate(directory.updated_at)}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatRelativeDate(directory.updated_at)}
+                        </span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Button
@@ -459,7 +515,12 @@ export default function DirectoriesPage() {
                           <span className="sr-only">Directory Settings</span>
                         </Button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                          <a href={currentSite ? `${getSiteUrl(currentSite)}/directories/${directory.slug}` : '#'} target="_blank" rel="noopener noreferrer" title="Preview">
+                          <a
+                            href={currentSite ? `${getSiteUrl(currentSite)}/directories/${directory.slug}` : "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Preview"
+                          >
                             <Eye className="h-4 w-4" />
                             <span className="sr-only">Preview</span>
                           </a>
@@ -554,8 +615,8 @@ export default function DirectoriesPage() {
 
           <AdminConfirmDialog
             open={massDeleteConfirmOpen}
-            title={`Delete ${directorySelection.selectedCount} Director${directorySelection.selectedCount !== 1 ? 'ies' : 'y'}`}
-            description={`Are you sure you want to delete ${directorySelection.selectedCount} director${directorySelection.selectedCount !== 1 ? 'ies' : 'y'}? This action cannot be undone.`}
+            title={`Delete ${directorySelection.selectedCount} Director${directorySelection.selectedCount !== 1 ? "ies" : "y"}`}
+            description={`Are you sure you want to delete ${directorySelection.selectedCount} director${directorySelection.selectedCount !== 1 ? "ies" : "y"}? This action cannot be undone.`}
             onCancel={() => setMassDeleteConfirmOpen(false)}
             onConfirm={confirmMassDelete}
           />

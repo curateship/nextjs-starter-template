@@ -49,7 +49,7 @@ export function PostBlock({
   onPublishDateChange,
   onStatusChange,
   onFeaturedImageChange,
-  onFeaturedImagePreviewChange,
+  onFeaturedImagePreviewChange
 }: PostBlockProps) {
   const handleFeaturedImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -69,7 +69,7 @@ export function PostBlock({
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>Post Information</CardTitle>
       </CardHeader>
@@ -146,9 +146,7 @@ export function PostBlock({
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
               <label htmlFor="featured-image-upload" className="cursor-pointer">
-                <span className="text-sm text-muted-foreground">
-                  Click to upload or drag and drop
-                </span>
+                <span className="text-sm text-muted-foreground">Click to upload or drag and drop</span>
                 <br />
                 <span className="text-xs text-muted-foreground">
                   PNG, JPG, GIF up to 10MB (recommended: 1200x630px)
@@ -185,7 +183,7 @@ export function PostBlock({
         {/* SEO & Meta */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">SEO & Meta</h3>
-          
+
           <div className="space-y-2">
             <Input
               id="slug"
@@ -218,7 +216,7 @@ export function PostBlock({
         {/* Publishing Options */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Publishing Options</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Input
@@ -245,4 +243,4 @@ export function PostBlock({
       </CardContent>
     </Card>
   )
-} 
+}

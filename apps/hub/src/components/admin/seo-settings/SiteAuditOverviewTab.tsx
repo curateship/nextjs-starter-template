@@ -1,11 +1,11 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { getSiteAuditData, getSiteForAudit } from '@/lib/actions/seo/site-audit/site-audit-actions'
-import { calculateAuditScore } from '@/lib/utils/site-audit-scoring'
+import { useCallback, useEffect, useState } from "react"
+import { AlertCircle, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { getSiteAuditData, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
+import { calculateAuditScore } from "@/lib/utils/site-audit-scoring"
 
 interface SiteAuditOverviewTabProps {
   siteId: string
@@ -14,8 +14,8 @@ interface SiteAuditOverviewTabProps {
 
 function ScoreGauge({ score, label, maxScore }: { score: number; label: string; maxScore: number }) {
   const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0
-  const color = percentage >= 80 ? 'text-green-500' : percentage >= 50 ? 'text-yellow-500' : 'text-red-500'
-  const bgColor = percentage >= 80 ? 'bg-green-500' : percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+  const color = percentage >= 80 ? "text-green-500" : percentage >= 50 ? "text-yellow-500" : "text-red-500"
+  const bgColor = percentage >= 80 ? "bg-green-500" : percentage >= 50 ? "bg-yellow-500" : "bg-red-500"
 
   return (
     <div className="flex flex-col items-center">
@@ -28,7 +28,7 @@ function ScoreGauge({ score, label, maxScore }: { score: number; label: string; 
             r="35"
             fill="none"
             strokeWidth="6"
-            className={bgColor.replace('bg-', 'stroke-')}
+            className={bgColor.replace("bg-", "stroke-")}
             strokeDasharray={`${percentage * 2.2} 220`}
             strokeLinecap="round"
           />
@@ -47,16 +47,13 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [siteData, contentData] = await Promise.all([
-        getSiteForAudit(siteId),
-        getSiteAuditData(siteId),
-      ])
+      const [siteData, contentData] = await Promise.all([getSiteForAudit(siteId), getSiteAuditData(siteId)])
 
       if (siteData) {
         setScore(calculateAuditScore(siteData, contentData))
       }
     } catch (err) {
-      console.error('Error loading site audit data:', err)
+      console.error("Error loading site audit data:", err)
     }
     setLoading(false)
   }, [siteId])
@@ -71,7 +68,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
         <div className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <Skeleton className="h-4 w-24" />
               </CardHeader>
               <CardContent>
@@ -100,24 +97,20 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredIssues = normalizedSearchQuery
     ? issues.filter((issue: any) => {
-        const searchText = [
-          issue.severity,
-          issue.message,
-          issue.fixAction,
-        ].filter(Boolean).join(' ').toLowerCase()
+        const searchText = [issue.severity, issue.message, issue.fixAction].filter(Boolean).join(" ").toLowerCase()
 
         return searchText.includes(normalizedSearchQuery)
       })
     : issues
-  const criticalIssues = filteredIssues.filter((i: any) => i.severity === 'critical')
-  const warningIssues = filteredIssues.filter((i: any) => i.severity === 'warning')
-  const infoIssues = filteredIssues.filter((i: any) => i.severity === 'info')
+  const criticalIssues = filteredIssues.filter((i: any) => i.severity === "critical")
+  const warningIssues = filteredIssues.filter((i: any) => i.severity === "warning")
+  const infoIssues = filteredIssues.filter((i: any) => i.severity === "info")
 
   return (
     <div>
       <div className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Overall Score</CardTitle>
           </CardHeader>
           <CardContent>
@@ -125,7 +118,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Site Settings</CardTitle>
           </CardHeader>
           <CardContent>
@@ -133,7 +126,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Content</CardTitle>
           </CardHeader>
           <CardContent>
@@ -141,7 +134,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Technical</CardTitle>
           </CardHeader>
           <CardContent>
@@ -166,9 +159,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
               {criticalIssues.map((issue: any, i: number) => (
                 <div key={i} className="flex items-center justify-between py-1 pl-5 text-sm">
                   <span>{issue.message}</span>
-                  {issue.fixAction && (
-                    <span className="text-xs text-muted-foreground">{issue.fixAction}</span>
-                  )}
+                  {issue.fixAction && <span className="text-xs text-muted-foreground">{issue.fixAction}</span>}
                 </div>
               ))}
             </div>
@@ -181,9 +172,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
               {warningIssues.map((issue: any, i: number) => (
                 <div key={i} className="flex items-center justify-between py-1 pl-5 text-sm">
                   <span>{issue.message}</span>
-                  {issue.fixAction && (
-                    <span className="text-xs text-muted-foreground">{issue.fixAction}</span>
-                  )}
+                  {issue.fixAction && <span className="text-xs text-muted-foreground">{issue.fixAction}</span>}
                 </div>
               ))}
             </div>
@@ -202,7 +191,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           )}
           {filteredIssues.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              {normalizedSearchQuery && issues.length > 0 ? 'No issues match your search.' : 'No issues found.'}
+              {normalizedSearchQuery && issues.length > 0 ? "No issues match your search." : "No issues found."}
             </p>
           )}
         </CardContent>

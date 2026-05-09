@@ -1,8 +1,9 @@
 import { MapPinned } from "lucide-react"
 import {
   getDirectoryGoogleMapEmbedUrl,
-  normalizeDirectoryGoogleMapHeight,
+  normalizeDirectoryGoogleMapHeight
 } from "@/lib/actions/directories/directory-google-map"
+import { Card, CardContent } from "@/components/ui/card"
 
 interface DirectoryGoogleMapBlockProps {
   content?: {
@@ -15,14 +16,8 @@ interface DirectoryGoogleMapBlockProps {
   apiKey?: string | null
 }
 
-export function DirectoryGoogleMapBlock({
-  content,
-  isPreview = false,
-  apiKey,
-}: DirectoryGoogleMapBlockProps) {
-  const visibility = content?.visibility && typeof content.visibility === "object"
-    ? content.visibility
-    : {}
+export function DirectoryGoogleMapBlock({ content, isPreview = false, apiKey }: DirectoryGoogleMapBlockProps) {
+  const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
 
   if (visibility.hideBlock === true) {
     return null
@@ -44,34 +39,34 @@ export function DirectoryGoogleMapBlock({
   }
 
   return (
-    <div className="rounded-2xl border bg-card p-3 shadow-sm">
-      {showMap ? (
-        embedUrl ? (
-          <iframe
-            title={locationQuery ? `Google map for ${locationQuery}` : "Google map"}
-            src={embedUrl}
-            loading="lazy"
-            allowFullScreen
-            referrerPolicy="no-referrer-when-downgrade"
-            className="w-full rounded-xl border-0"
-            style={{ height }}
-          />
-        ) : (
-          <div
-            className="flex items-center justify-center rounded-xl border border-dashed bg-muted/30 text-center text-sm text-muted-foreground"
-            style={{ height }}
-          >
-            <div className="space-y-2 px-5">
-              <MapPinned className="mx-auto h-5 w-5" />
-              <p>{locationQuery ? "Google Maps API key is not configured." : "Add a location to show the map."}</p>
+    <Card>
+      <CardContent>
+        {showMap ? (
+          embedUrl ? (
+            <iframe
+              title={locationQuery ? `Google map for ${locationQuery}` : "Google map"}
+              src={embedUrl}
+              loading="lazy"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+              className="w-full rounded-xl border-0"
+              style={{ height }}
+            />
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-xl border border-dashed bg-muted/30 text-center text-sm text-muted-foreground"
+              style={{ height }}
+            >
+              <div className="space-y-2 px-5">
+                <MapPinned className="mx-auto h-5 w-5" />
+                <p>{locationQuery ? "Google Maps API key is not configured." : "Add a location to show the map."}</p>
+              </div>
             </div>
-          </div>
-        )
-      ) : null}
+          )
+        ) : null}
 
-      {showCaption ? (
-        <p className="px-1 pt-3 text-sm leading-6 text-muted-foreground">{caption}</p>
-      ) : null}
-    </div>
+        {showCaption ? <p className="px-1 pt-3 text-sm leading-6 text-muted-foreground">{caption}</p> : null}
+      </CardContent>
+    </Card>
   )
 }

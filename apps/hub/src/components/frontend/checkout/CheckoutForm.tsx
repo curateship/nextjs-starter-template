@@ -1,12 +1,12 @@
-'use client'
+"use client"
 
-import { useState, useMemo } from 'react'
-import Link from 'next/link'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Card } from '@/components/ui/card'
-import { ArrowLeft } from 'lucide-react'
-import { PaymentElementWrapper } from './PaymentElementWrapper'
-import Image from 'next/image'
+import { useState, useMemo } from "react"
+import Link from "next/link"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Card } from "@/components/ui/card"
+import { ArrowLeft } from "lucide-react"
+import { PaymentElementWrapper } from "./PaymentElementWrapper"
+import Image from "next/image"
 
 interface OrderBump {
   id: string
@@ -64,16 +64,12 @@ export function CheckoutForm({
   selectedTier,
   checkoutSettings,
   stripePublishableKey,
-  checkoutOrigin,
+  checkoutOrigin
 }: CheckoutFormProps) {
   const tierOrderBumps = selectedTier.enableOrderBumps ? selectedTier.orderBumps || [] : []
 
   const [selectedBumps, setSelectedBumps] = useState<Set<string>>(
-    new Set(
-      tierOrderBumps
-        .filter((bump) => bump.isPreSelected)
-        .map((bump) => bump.id)
-    )
+    new Set(tierOrderBumps.filter((bump) => bump.isPreSelected).map((bump) => bump.id))
   )
 
   const toggleBump = (bumpId: string) => {
@@ -98,24 +94,22 @@ export function CheckoutForm({
         <div className="flex items-center justify-center gap-2 mb-6 pt-4">
           {(site.logo || site.favicon) && (
             <div className="relative w-8 h-8 shrink-0">
-              <Image
-                src={site.logo || site.favicon || ''}
-                alt={site.name}
-                fill
-                className="object-contain"
-              />
+              <Image src={site.logo || site.favicon || ""} alt={site.name} fill className="object-contain" />
             </div>
           )}
           <span className="font-semibold text-lg">{site.name}</span>
         </div>
         <div className="mb-6 text-center">
-          <Link href={`/products/${product.slug}`} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <Link
+            href={`/products/${product.slug}`}
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-4 w-4" />
             Back to product page
           </Link>
         </div>
 
-        <Card className="overflow-hidden border-0 p-0 shadow-lg">
+        <Card className="overflow-hidden">
           <div className="flex flex-col lg:flex-row">
             {/* Left Column - Product Info with light gray background */}
             <div className="bg-gray-50 p-8 lg:p-12 space-y-6 flex-1">
@@ -126,21 +120,13 @@ export function CheckoutForm({
               </div>
 
               {/* Product Description */}
-              {selectedTier.description && (
-                <p className="text-base leading-relaxed">
-                  {selectedTier.description}
-                </p>
-              )}
+              {selectedTier.description && <p className="text-base leading-relaxed">{selectedTier.description}</p>}
 
               {/* Product Image */}
               {product.featuredImage && (
                 <div className="w-full overflow-hidden rounded-lg border border-border">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={product.featuredImage}
-                    alt={product.title}
-                    className="h-auto w-full"
-                  />
+                  <img src={product.featuredImage} alt={product.title} className="h-auto w-full" />
                 </div>
               )}
 
@@ -150,11 +136,7 @@ export function CheckoutForm({
                   {tierOrderBumps.map((bump) => (
                     <div
                       key={bump.id}
-                      className={`border-2 rounded-xl p-5 cursor-pointer transition-all bg-white ${
-                        selectedBumps.has(bump.id)
-                          ? 'border-foreground'
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
+                      className={`border-2 rounded-xl p-5 cursor-pointer transition-all bg-white ${selectedBumps.has(bump.id) ? "border-foreground" : "border-gray-300 hover:border-gray-400"}`}
                       onClick={() => toggleBump(bump.id)}
                     >
                       <div className="flex items-start gap-4">
@@ -171,21 +153,12 @@ export function CheckoutForm({
                             <h5 className="font-medium mb-3">{bump.title}</h5>
                             {bump.imageUrl && (
                               <div className="relative w-full aspect-square max-w-sm mb-3 rounded-lg overflow-hidden border border-border">
-                                <Image
-                                  src={bump.imageUrl}
-                                  alt={bump.title}
-                                  fill
-                                  className="object-cover"
-                                />
+                                <Image src={bump.imageUrl} alt={bump.title} fill className="object-cover" />
                               </div>
                             )}
-                            <p className="text-base text-muted-foreground mt-0.5">
-                              {bump.description}
-                            </p>
+                            <p className="text-base text-muted-foreground mt-0.5">{bump.description}</p>
                           </div>
-                          <div className="text-lg font-semibold whitespace-nowrap">
-                            ${bump.price.toFixed(2)}
-                          </div>
+                          <div className="text-lg font-semibold whitespace-nowrap">${bump.price.toFixed(2)}</div>
                         </div>
                       </div>
                     </div>
@@ -212,12 +185,7 @@ export function CheckoutForm({
         <div className="mt-10 flex items-center justify-center gap-2 text-sm text-muted-foreground">
           {site.favicon && (
             <div className="relative h-4 w-4">
-              <Image
-                src={site.favicon}
-                alt=""
-                fill
-                className="object-contain"
-              />
+              <Image src={site.favicon} alt="" fill className="object-contain" />
             </div>
           )}
           <span>Made with love ❤️</span>

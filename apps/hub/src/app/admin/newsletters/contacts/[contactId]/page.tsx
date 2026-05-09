@@ -6,40 +6,23 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogTrigger } from "@/components/ui/dialog"
 import {
   AdminModalBody,
   AdminModalContent,
   AdminModalDescription,
   AdminModalFooter,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, ExternalLink } from "lucide-react"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
   getContactById,
   getContactStats,
@@ -48,7 +31,7 @@ import {
   getContactClickedLinks,
   getContactEngagementOverTime,
   updateContact,
-  deleteContacts,
+  deleteContacts
 } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 
@@ -59,12 +42,34 @@ export default function ContactDashboardPage() {
 
   // Contact data
   const [contact, setContact] = useState<CrmContact | null>(null)
-  const [stats, setStats] = useState<{ totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number } | null>(null)
-  const [events, setEvents] = useState<{ id: string; eventType: string; sourceId: string | null; newsletterSubject: string | null; metadata: any; createdAt: string }[]>([])
+  const [stats, setStats] = useState<{
+    totalSent: number
+    totalOpened: number
+    totalClicked: number
+    openRate: number
+    clickRate: number
+  } | null>(null)
+  const [events, setEvents] = useState<
+    {
+      id: string
+      eventType: string
+      sourceId: string | null
+      newsletterSubject: string | null
+      metadata: any
+      createdAt: string
+    }[]
+  >([])
   const [eventsTotal, setEventsTotal] = useState(0)
   const [eventsPage, setEventsPage] = useState(1)
   const [segments, setSegments] = useState<{ id: string; name: string }[]>([])
-  const [clickedLinks, setClickedLinks] = useState<{ id: string; linkUrl: string; newsletterSubject: string | null; createdAt: string }[]>([])
+  const [clickedLinks, setClickedLinks] = useState<
+    {
+      id: string
+      linkUrl: string
+      newsletterSubject: string | null
+      createdAt: string
+    }[]
+  >([])
   const [engagement, setEngagement] = useState<{ month: string; opens: number; clicks: number }[]>([])
 
   // UI state
@@ -74,7 +79,12 @@ export default function ContactDashboardPage() {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Edit form state
-  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", tags: "", status: "active" })
+  const [editForm, setEditForm] = useState({
+    first_name: "",
+    last_name: "",
+    tags: "",
+    status: "active"
+  })
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -96,7 +106,7 @@ export default function ContactDashboardPage() {
         getContactEvents(contactId, 1, 20),
         getContactSegments(contactId),
         getContactClickedLinks(contactId),
-        getContactEngagementOverTime(contactId),
+        getContactEngagementOverTime(contactId)
       ])
 
       if (contactRes.error || !contactRes.data) {
@@ -118,7 +128,7 @@ export default function ContactDashboardPage() {
         first_name: contactRes.data.metadata?.first_name || "",
         last_name: contactRes.data.metadata?.last_name || "",
         tags: contactRes.data.metadata?.tags?.join(", ") || "",
-        status: contactRes.data.status,
+        status: contactRes.data.status
       })
     } catch {
       setError("Failed to load contact data")
@@ -133,7 +143,7 @@ export default function ContactDashboardPage() {
     const nextPage = eventsPage + 1
     const res = await getContactEvents(contactId, nextPage, 20)
     if (res.data) {
-      setEvents(prev => [...prev, ...res.data!])
+      setEvents((prev) => [...prev, ...res.data!])
       setEventsPage(nextPage)
     }
     setLoadingMore(false)
@@ -146,14 +156,19 @@ export default function ContactDashboardPage() {
     setSaving(true)
     setSaveSuccess(false)
 
-    const tags = editForm.tags ? editForm.tags.split(",").map(t => t.trim()).filter(Boolean) : []
+    const tags = editForm.tags
+      ? editForm.tags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : []
     const { data, error } = await updateContact(contact.id, {
       metadata: {
         first_name: editForm.first_name || undefined,
         last_name: editForm.last_name || undefined,
-        tags,
+        tags
       },
-      status: editForm.status as CrmContact["status"],
+      status: editForm.status as CrmContact["status"]
     })
 
     if (data) {
@@ -195,7 +210,11 @@ export default function ContactDashboardPage() {
 
   // Helper: format date for display
   function formatDate(dateStr: string): string {
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    })
   }
 
   // Helper: get initials for avatar
@@ -210,37 +229,92 @@ export default function ContactDashboardPage() {
   // Helper: get status badge
   function getStatusBadge(status: string) {
     switch (status) {
-      case "active": return <Badge className="bg-green-100 text-green-800">Active</Badge>
-      case "unsubscribed": return <Badge variant="secondary">Unsubscribed</Badge>
-      case "bounced": return <Badge variant="destructive">Bounced</Badge>
-      case "complained": return <Badge variant="destructive">Complained</Badge>
-      default: return <Badge variant="secondary">{status}</Badge>
+      case "active":
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      case "unsubscribed":
+        return <Badge variant="secondary">Unsubscribed</Badge>
+      case "bounced":
+        return <Badge variant="destructive">Bounced</Badge>
+      case "complained":
+        return <Badge variant="destructive">Complained</Badge>
+      default:
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 
   // Helper: get source badge
   function getSourceBadge(source: string) {
     switch (source) {
-      case "site_registration": return <Badge variant="outline" className="border-amber-200 text-amber-700">Site Registration</Badge>
-      case "Email Form": return <Badge variant="outline" className="border-sky-200 text-sky-700">Email Form</Badge>
-      case "lead_magnet": return <Badge variant="outline">Lead Magnet</Badge>
-      case "paid_purchase": return <Badge variant="outline" className="border-green-200 text-green-700">Purchase</Badge>
-      case "import": return <Badge variant="outline" className="border-blue-200 text-blue-700">Import</Badge>
-      case "manual": return <Badge variant="outline">Manual</Badge>
-      case "ad": return <Badge variant="outline" className="border-purple-200 text-purple-700">Ad</Badge>
-      default: return <Badge variant="outline">{source}</Badge>
+      case "site_registration":
+        return (
+          <Badge variant="outline" className="border-amber-200 text-amber-700">
+            Site Registration
+          </Badge>
+        )
+      case "Email Form":
+        return (
+          <Badge variant="outline" className="border-sky-200 text-sky-700">
+            Email Form
+          </Badge>
+        )
+      case "lead_magnet":
+        return <Badge variant="outline">Lead Magnet</Badge>
+      case "paid_purchase":
+        return (
+          <Badge variant="outline" className="border-green-200 text-green-700">
+            Purchase
+          </Badge>
+        )
+      case "import":
+        return (
+          <Badge variant="outline" className="border-blue-200 text-blue-700">
+            Import
+          </Badge>
+        )
+      case "manual":
+        return <Badge variant="outline">Manual</Badge>
+      case "ad":
+        return (
+          <Badge variant="outline" className="border-purple-200 text-purple-700">
+            Ad
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{source}</Badge>
     }
   }
 
   // Helper: get event type display with color
   function getEventBadge(eventType: string) {
     switch (eventType) {
-      case "sent": return <Badge variant="secondary" className="text-xs">Sent</Badge>
-      case "opened": return <Badge className="bg-blue-100 text-blue-800 text-xs">Opened</Badge>
-      case "clicked": return <Badge className="bg-green-100 text-green-800 text-xs">Clicked</Badge>
-      case "bounced": return <Badge variant="destructive" className="text-xs">Bounced</Badge>
-      case "complained": return <Badge variant="destructive" className="text-xs">Complained</Badge>
-      default: return <Badge variant="secondary" className="text-xs">{eventType}</Badge>
+      case "sent":
+        return (
+          <Badge variant="secondary" className="text-xs">
+            Sent
+          </Badge>
+        )
+      case "opened":
+        return <Badge className="bg-blue-100 text-blue-800 text-xs">Opened</Badge>
+      case "clicked":
+        return <Badge className="bg-green-100 text-green-800 text-xs">Clicked</Badge>
+      case "bounced":
+        return (
+          <Badge variant="destructive" className="text-xs">
+            Bounced
+          </Badge>
+        )
+      case "complained":
+        return (
+          <Badge variant="destructive" className="text-xs">
+            Complained
+          </Badge>
+        )
+      default:
+        return (
+          <Badge variant="secondary" className="text-xs">
+            {eventType}
+          </Badge>
+        )
     }
   }
 
@@ -250,7 +324,10 @@ export default function ContactDashboardPage() {
     for (const event of events) {
       const key = event.sourceId || event.id
       if (!groups[key]) {
-        groups[key] = { subject: event.newsletterSubject || "Unknown", events: [] }
+        groups[key] = {
+          subject: event.newsletterSubject || "Unknown",
+          events: []
+        }
       }
       groups[key].events.push(event)
     }
@@ -259,9 +336,9 @@ export default function ContactDashboardPage() {
 
   // Contact display name
   const displayName = contact
-    ? (contact.metadata?.first_name || contact.metadata?.last_name
-        ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
-        : contact.email)
+    ? contact.metadata?.first_name || contact.metadata?.last_name
+      ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
+      : contact.email
     : ""
 
   // Nav links (same as contacts list page)
@@ -276,84 +353,108 @@ export default function ContactDashboardPage() {
             items={[
               { label: "Newsletters", href: "/admin/newsletters" },
               { label: "Contacts", href: "/admin/newsletters/contacts" },
-              { label: loading ? <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" /> : displayName },
+              {
+                label: loading ? (
+                  <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse align-middle" />
+                ) : (
+                  displayName
+                )
+              }
             ]}
             actions={
               <div className="flex items-center gap-2">
                 <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={loading || !contact}>
-                    Settings
-                  </Button>
-                </DialogTrigger>
-                {contact && (
-                  <AdminModalContent>
-                    <AdminModalHeader>
-                      <AdminModalTitle>Settings</AdminModalTitle>
-                      <AdminModalDescription>
-                        Update this contact&apos;s name, status, and tags.
-                      </AdminModalDescription>
-                    </AdminModalHeader>
-                    <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-                      <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
-                        <div>
-                          <Label>First Name</Label>
-                          <Input
-                            value={editForm.first_name}
-                            onChange={e => setEditForm(prev => ({ ...prev, first_name: e.target.value }))}
-                            placeholder="First name"
-                          />
-                        </div>
-                        <div>
-                          <Label>Last Name</Label>
-                          <Input
-                            value={editForm.last_name}
-                            onChange={e => setEditForm(prev => ({ ...prev, last_name: e.target.value }))}
-                            placeholder="Last name"
-                          />
-                        </div>
-                        <div>
-                          <Label>Status</Label>
-                          <Select value={editForm.status} onValueChange={v => setEditForm(prev => ({ ...prev, status: v }))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="active">Active</SelectItem>
-                              <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                              <SelectItem value="bounced">Bounced</SelectItem>
-                              <SelectItem value="complained">Complained</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Tags</Label>
-                          <Input
-                            value={editForm.tags}
-                            onChange={e => setEditForm(prev => ({ ...prev, tags: e.target.value }))}
-                            placeholder="tag1, tag2, tag3"
-                          />
-                          <p className="mt-1 text-xs text-muted-foreground">Separate with commas</p>
-                        </div>
-                      </AdminModalBody>
-                      <AdminModalFooter className="sm:justify-end">
-                        <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)} disabled={saving}>
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={saving}>
-                          {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
-                        </Button>
-                      </AdminModalFooter>
-                    </form>
-                  </AdminModalContent>
-                )}
-              </Dialog>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleting || loading}
-                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" disabled={loading || !contact}>
+                      Settings
+                    </Button>
+                  </DialogTrigger>
+                  {contact && (
+                    <AdminModalContent>
+                      <AdminModalHeader>
+                        <AdminModalTitle>Settings</AdminModalTitle>
+                        <AdminModalDescription>
+                          Update this contact&apos;s name, status, and tags.
+                        </AdminModalDescription>
+                      </AdminModalHeader>
+                      <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+                        <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
+                          <div>
+                            <Label>First Name</Label>
+                            <Input
+                              value={editForm.first_name}
+                              onChange={(e) =>
+                                setEditForm((prev) => ({
+                                  ...prev,
+                                  first_name: e.target.value
+                                }))
+                              }
+                              placeholder="First name"
+                            />
+                          </div>
+                          <div>
+                            <Label>Last Name</Label>
+                            <Input
+                              value={editForm.last_name}
+                              onChange={(e) =>
+                                setEditForm((prev) => ({
+                                  ...prev,
+                                  last_name: e.target.value
+                                }))
+                              }
+                              placeholder="Last name"
+                            />
+                          </div>
+                          <div>
+                            <Label>Status</Label>
+                            <Select
+                              value={editForm.status}
+                              onValueChange={(v) => setEditForm((prev) => ({ ...prev, status: v }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                                <SelectItem value="bounced">Bounced</SelectItem>
+                                <SelectItem value="complained">Complained</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Tags</Label>
+                            <Input
+                              value={editForm.tags}
+                              onChange={(e) =>
+                                setEditForm((prev) => ({
+                                  ...prev,
+                                  tags: e.target.value
+                                }))
+                              }
+                              placeholder="tag1, tag2, tag3"
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">Separate with commas</p>
+                          </div>
+                        </AdminModalBody>
+                        <AdminModalFooter className="sm:justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setSettingsOpen(false)}
+                            disabled={saving}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={saving}>
+                            {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
+                          </Button>
+                        </AdminModalFooter>
+                      </form>
+                    </AdminModalContent>
+                  )}
+                </Dialog>
+                <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || loading}>
                   <Trash2 className="h-4 w-4 mr-1" />
                   {deleting ? "Deleting..." : "Delete"}
                 </Button>
@@ -364,7 +465,7 @@ export default function ContactDashboardPage() {
           {/* Loading skeleton */}
           {loading && (
             <>
-              <Card className="p-6">
+              <Card>
                 <div className="flex items-center gap-4">
                   <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                   <div className="space-y-2">
@@ -374,8 +475,8 @@ export default function ContactDashboardPage() {
                 </div>
               </Card>
               <div className="grid grid-cols-2 md:grid-cols-4">
-                {[1, 2, 3, 4].map(i => (
-                  <Card key={i} className="p-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <Card key={i}>
                     <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
                     <div className="h-8 w-16 bg-muted rounded animate-pulse" />
                   </Card>
@@ -386,7 +487,7 @@ export default function ContactDashboardPage() {
 
           {/* Error state */}
           {error && !loading && (
-            <Card className="p-8 text-center">
+            <Card className="text-center">
               <p className="text-red-600 mb-4">{error}</p>
               <Link href="/admin/newsletters/contacts">
                 <Button variant="outline">Back to Contacts</Button>
@@ -398,7 +499,7 @@ export default function ContactDashboardPage() {
           {!loading && contact && (
             <>
               {/* Contact Header */}
-              <Card className="p-6">
+              <Card>
                 <div className="flex items-center gap-4">
                   {/* Avatar circle with initials */}
                   <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-lg shrink-0">
@@ -412,7 +513,9 @@ export default function ContactDashboardPage() {
                     {getStatusBadge(contact.status)}
                     {getSourceBadge(contact.metadata?.source || "manual")}
                     {contact.engagement_score > 0 && (
-                      <Badge variant="outline" className="text-xs">Score: {contact.engagement_score}</Badge>
+                      <Badge variant="outline" className="text-xs">
+                        Score: {contact.engagement_score}
+                      </Badge>
                     )}
                     <span className="text-xs text-muted-foreground">Since {formatDate(contact.created_at)}</span>
                   </div>
@@ -421,19 +524,19 @@ export default function ContactDashboardPage() {
 
               {/* Stats cards */}
               <div className="grid grid-cols-2 md:grid-cols-4">
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Emails Received</p>
                   <p className="text-2xl font-semibold">{stats?.totalSent ?? 0}</p>
                 </Card>
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Open Rate</p>
                   <p className="text-2xl font-semibold">{stats?.openRate ?? 0}%</p>
                 </Card>
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Click Rate</p>
                   <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
                 </Card>
-                <Card className="p-4">
+                <Card>
                   <p className="text-sm text-muted-foreground mb-1">Last Engaged</p>
                   <p className="text-2xl font-semibold">{formatRelativeDate(contact.last_engaged_at)}</p>
                 </Card>
@@ -442,21 +545,23 @@ export default function ContactDashboardPage() {
               {/* Two-column layout: Email History + Sidebar */}
               <div className="grid grid-cols-1 lg:grid-cols-3">
                 {/* Email History — left 2/3 */}
-                <Card className="lg:col-span-2 p-0">
-                  <div className="px-6 py-4 border-b">
+                <Card className="lg:col-span-2">
+                  <CardSection className="border-b">
                     <h2 className="font-semibold text-sm">Email History</h2>
-                  </div>
+                  </CardSection>
                   <div className="divide-y">
                     {events.length === 0 ? (
-                      <div className="p-6 text-center text-muted-foreground text-sm">
+                      <CardSection className="text-center text-muted-foreground text-sm">
                         No email events recorded yet.
-                      </div>
+                      </CardSection>
                     ) : (
                       groupEventsByNewsletter().map((group, i) => (
-                        <div key={i} className="px-6 py-4">
+                        <CardSection key={i}>
                           <p className="font-medium text-sm mb-1">{group.subject}</p>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground">{formatDate(group.events[0].createdAt)}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(group.events[0].createdAt)}
+                            </span>
                             <span className="text-xs text-muted-foreground">·</span>
                             {/* Show event chain: sent → opened → clicked */}
                             {group.events
@@ -471,13 +576,13 @@ export default function ContactDashboardPage() {
                                 </span>
                               ))}
                           </div>
-                        </div>
+                        </CardSection>
                       ))
                     )}
                   </div>
                   {/* Load more button */}
                   {events.length < eventsTotal && (
-                    <div className="px-6 py-4 border-t">
+                    <CardSection className="border-t">
                       <Button
                         variant="outline"
                         size="sm"
@@ -487,43 +592,45 @@ export default function ContactDashboardPage() {
                       >
                         {loadingMore ? "Loading..." : `Load more (${eventsTotal - events.length} remaining)`}
                       </Button>
-                    </div>
+                    </CardSection>
                   )}
                 </Card>
 
                 {/* Right sidebar — Segments, Clicked Links */}
                 <div>
                   {/* Segments */}
-                  <Card className="p-0">
-                    <div className="px-6 py-4 border-b">
+                  <Card>
+                    <CardSection className="border-b">
                       <h2 className="font-semibold text-sm">Segments</h2>
-                    </div>
-                    <div className="px-6 py-4">
+                    </CardSection>
+                    <CardSection>
                       {segments.length === 0 ? (
                         <p className="text-sm text-muted-foreground">Not in any segments</p>
                       ) : (
                         <div className="flex flex-wrap gap-2">
-                          {segments.map(seg => (
-                            <Badge key={seg.id} variant="secondary">{seg.name}</Badge>
+                          {segments.map((seg) => (
+                            <Badge key={seg.id} variant="secondary">
+                              {seg.name}
+                            </Badge>
                           ))}
                         </div>
                       )}
-                    </div>
+                    </CardSection>
                   </Card>
 
                   {/* Clicked Links */}
-                  <Card className="p-0">
-                    <div className="px-6 py-4 border-b">
+                  <Card>
+                    <CardSection className="border-b">
                       <h2 className="font-semibold text-sm">Clicked Links</h2>
-                    </div>
+                    </CardSection>
                     <div className="divide-y">
                       {clickedLinks.length === 0 ? (
-                        <div className="px-6 py-4">
+                        <CardSection>
                           <p className="text-sm text-muted-foreground">No clicks recorded</p>
-                        </div>
+                        </CardSection>
                       ) : (
-                        clickedLinks.map(link => (
-                          <div key={link.id} className="px-6 py-3">
+                        clickedLinks.map((link) => (
+                          <CardSection key={link.id}>
                             <div className="flex items-start gap-2">
                               <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                               <div className="min-w-0">
@@ -534,7 +641,7 @@ export default function ContactDashboardPage() {
                                 </p>
                               </div>
                             </div>
-                          </div>
+                          </CardSection>
                         ))
                       )}
                     </div>
@@ -544,11 +651,11 @@ export default function ContactDashboardPage() {
 
               {/* Engagement Over Time chart — only if 3+ data points */}
               {engagement.length >= 3 && (
-                <Card className="p-0">
-                  <div className="px-6 py-4 border-b">
+                <Card>
+                  <CardSection className="border-b">
                     <h2 className="font-semibold text-sm">Engagement Over Time</h2>
-                  </div>
-                  <div className="px-6 py-4">
+                  </CardSection>
+                  <CardSection>
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={engagement}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -559,7 +666,7 @@ export default function ContactDashboardPage() {
                         <Line type="monotone" dataKey="clicks" stroke="#22c55e" name="Clicks" />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
+                  </CardSection>
                 </Card>
               )}
             </>

@@ -2,16 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  Trash2,
-  ShoppingCart,
-  List,
-  Magnet,
-  CreditCard,
-} from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2, ShoppingCart, List, Magnet, CreditCard } from "lucide-react"
 
 import { cn } from "@/lib/utils/tailwind"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
@@ -19,7 +10,7 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -27,15 +18,9 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -45,18 +30,18 @@ import {
   deleteOrders,
   getOrderIdsAction,
   type ProductOrder,
-  type OrderType,
+  type OrderType
 } from "@/lib/actions/email/order-actions"
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
-  currency: "USD",
+  currency: "USD"
 })
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
-  year: "numeric",
+  year: "numeric"
 })
 
 const formatCurrency = (value: number) => currencyFormatter.format(value)
@@ -65,23 +50,19 @@ const formatDate = (value: string) => dateFormatter.format(new Date(value))
 type OrderBadgeType = "lead_magnet" | "paid_purchase"
 
 const orderTypeStyles: Record<OrderBadgeType, string> = {
-  lead_magnet:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10",
-  paid_purchase:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10",
+  lead_magnet: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10",
+  paid_purchase: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10"
 }
 
 const orderTypeLabels: Record<OrderBadgeType, string> = {
   lead_magnet: "Lead Magnet",
-  paid_purchase: "Paid",
+  paid_purchase: "Paid"
 }
 
 const emailStatusStyles = {
   sent: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10",
-  clicked:
-    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10",
-  pending:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10",
+  clicked: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10",
+  pending: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10"
 }
 
 type SortColumn = "created_at" | "customer_email" | "product" | "amount" | null
@@ -110,9 +91,7 @@ function OrdersContent() {
 
   const typeParam = searchParams.get("type") as OrderType | null
   const [activeTab, setActiveTab] = useState<"all" | OrderType>(
-    typeParam === "lead_magnet" || typeParam === "paid_purchase"
-      ? typeParam
-      : "all"
+    typeParam === "lead_magnet" || typeParam === "paid_purchase" ? typeParam : "all"
   )
 
   // Product filter — "all" means no filter
@@ -131,7 +110,10 @@ function OrdersContent() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const result = await getOrdersWithProducts(currentSite.id, { page: currentPage, pageSize })
+        const result = await getOrdersWithProducts(currentSite.id, {
+          page: currentPage,
+          pageSize
+        })
 
         setOrders(result.data)
         setTotal(result.total)
@@ -182,7 +164,9 @@ function OrdersContent() {
     if (normalizedSearchQuery) {
       result = result.filter((o) => {
         const productName = productMap[o.product_id] || ""
-        return `${o.customer_email} ${productName} ${o.order_type} ${o.payment_status ?? ""} ${o.amount_total ?? ""}`.toLowerCase().includes(normalizedSearchQuery)
+        return `${o.customer_email} ${productName} ${o.order_type} ${o.payment_status ?? ""} ${o.amount_total ?? ""}`
+          .toLowerCase()
+          .includes(normalizedSearchQuery)
       })
     }
     return result
@@ -192,7 +176,7 @@ function OrdersContent() {
     () => ({
       all: total,
       lead_magnet: orders.filter((o) => o.order_type === "lead_magnet").length,
-      paid_purchase: orders.filter((o) => o.order_type === "paid_purchase").length,
+      paid_purchase: orders.filter((o) => o.order_type === "paid_purchase").length
     }),
     [orders, total]
   )
@@ -308,14 +292,11 @@ function OrdersContent() {
         <div className="w-full">
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
-            items={[
-              { label: "Products", href: "/admin/products" },
-              { label: "Orders" },
-            ]}
+            items={[{ label: "Products", href: "/admin/products" }, { label: "Orders" }]}
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search orders",
+              placeholder: "Search orders"
             }}
             filterMenu={{
               value: activeTab,
@@ -326,10 +307,25 @@ function OrdersContent() {
                 setAllSelected(false)
               },
               items: [
-                { value: "all", label: "All", icon: List, count: tabCounts.all },
-                { value: "lead_magnet", label: "Lead Magnets", icon: Magnet, count: tabCounts.lead_magnet },
-                { value: "paid_purchase", label: "Paid", icon: CreditCard, count: tabCounts.paid_purchase },
-              ],
+                {
+                  value: "all",
+                  label: "All",
+                  icon: List,
+                  count: tabCounts.all
+                },
+                {
+                  value: "lead_magnet",
+                  label: "Lead Magnets",
+                  icon: Magnet,
+                  count: tabCounts.lead_magnet
+                },
+                {
+                  value: "paid_purchase",
+                  label: "Paid",
+                  icon: CreditCard,
+                  count: tabCounts.paid_purchase
+                }
+              ]
             }}
             preActions={
               /* Product filter dropdown — skeleton while loading */
@@ -384,93 +380,109 @@ function OrdersContent() {
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {/* Table Header */}
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={filteredOrders.length > 0 && selectedIds.size === filteredOrders.length}
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all orders"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("customer_email")}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Customer</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("customer_email")}</span>
-                  </button>
-                </div>
-                <div className="col-span-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("created_at")}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Date</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("created_at")}</span>
-                  </button>
-                </div>
-                <div className="col-span-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("product")}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Product</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("product")}</span>
-                  </button>
-                </div>
-                <div className="col-span-1">
-                  <span className="text-[0.8125rem]">Type</span>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-[0.8125rem]">Email Status</span>
-                </div>
-                <div className="col-span-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("amount")}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
-                  >
-                    <span>Amount</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("amount")}</span>
-                  </button>
-                </div>
-                <div className="col-span-1">
-                  <span className="text-[0.8125rem]">Actions</span>
-                </div>
+            <CardTableHeader className="grid-cols-12">
+              <div className="col-span-2 flex items-center space-x-4">
+                <Checkbox
+                  checked={filteredOrders.length > 0 && selectedIds.size === filteredOrders.length}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all orders"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleSort("customer_email")}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Customer</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">
+                    {getSortIcon("customer_email")}
+                  </span>
+                </button>
               </div>
-            </div>
+              <div className="col-span-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("created_at")}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Date</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("created_at")}</span>
+                </button>
+              </div>
+              <div className="col-span-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("product")}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Product</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("product")}</span>
+                </button>
+              </div>
+              <div className="col-span-1">
+                <span className="text-[0.8125rem]">Type</span>
+              </div>
+              <div className="col-span-2">
+                <span className="text-[0.8125rem]">Email Status</span>
+              </div>
+              <div className="col-span-2">
+                <button
+                  type="button"
+                  onClick={() => toggleSort("amount")}
+                  className={cn(
+                    "flex items-center gap-1.5",
+                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
+                    "cursor-pointer outline-none transition-colors"
+                  )}
+                >
+                  <span>Amount</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("amount")}</span>
+                </button>
+              </div>
+              <div className="col-span-1">
+                <span className="text-[0.8125rem]">Actions</span>
+              </div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredOrders.length > 0 && selectedIds.size === filteredOrders.length && total > filteredOrders.length && (
-              <div className="px-6 py-2 bg-accent/50 border-b text-sm text-center">
-                {allSelected ? (
-                  <span>All {total} items selected. <button type="button" onClick={handleClearSelection} className="underline hover:text-foreground text-muted-foreground">Clear selection</button></span>
-                ) : (
-                  <span>{filteredOrders.length} items on this page are selected. <button type="button" onClick={handleSelectAll} className="underline font-medium">Select all {total}</button></span>
-                )}
-              </div>
-            )}
+            {filteredOrders.length > 0 &&
+              selectedIds.size === filteredOrders.length &&
+              total > filteredOrders.length && (
+                <CardSection className="bg-accent/50 border-b text-sm text-center">
+                  {allSelected ? (
+                    <span>
+                      All {total} items selected.{" "}
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="underline hover:text-foreground text-muted-foreground"
+                      >
+                        Clear selection
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      {filteredOrders.length} items on this page are selected.{" "}
+                      <button type="button" onClick={handleSelectAll} className="underline font-medium">
+                        Select all {total}
+                      </button>
+                    </span>
+                  )}
+                </CardSection>
+              )}
 
             {/* Table Body */}
             <div className="divide-y divide-muted/80">
@@ -534,26 +546,17 @@ function OrdersContent() {
                         </div>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(order.created_at)}
-                        </span>
+                        <span className="text-sm text-muted-foreground">{formatDate(order.created_at)}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-sm font-medium">
-                          {productMap[order.product_id] || "Unknown Product"}
-                        </span>
+                        <span className="text-sm font-medium">{productMap[order.product_id] || "Unknown Product"}</span>
                       </div>
                       <div className="col-span-1">
-                        <Badge
-                          variant="outline"
-                          className={orderTypeStyles[order.order_type as OrderBadgeType]}
-                        >
+                        <Badge variant="outline" className={orderTypeStyles[order.order_type as OrderBadgeType]}>
                           {orderTypeLabels[order.order_type as OrderBadgeType]}
                         </Badge>
                       </div>
-                      <div className="col-span-2">
-                        {getEmailStatusBadge(order)}
-                      </div>
+                      <div className="col-span-2">{getEmailStatusBadge(order)}</div>
                       <div className="col-span-2">
                         {order.order_type === "lead_magnet" ? (
                           <span className="text-sm text-muted-foreground">Free</span>
@@ -608,7 +611,9 @@ function OrdersContent() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
               {deleting ? "Deleting..." : "Delete"}
             </Button>

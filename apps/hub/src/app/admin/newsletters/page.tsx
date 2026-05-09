@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -19,25 +19,37 @@ import {
   AdminSortButton,
   formatRelativeDate,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
 import {
   AdminModalContent,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import dynamic from "next/dynamic"
 
-const CreateNewsletterModal = dynamic(() =>
-  import("@/components/admin/newsletter-builder/layout/CreateNewsletterModal").then(m => ({ default: m.CreateNewsletterModal })),
+const CreateNewsletterModal = dynamic(
+  () =>
+    import("@/components/admin/newsletter-builder/layout/CreateNewsletterModal").then((m) => ({
+      default: m.CreateNewsletterModal
+    })),
   { ssr: false }
 )
-const NewsletterSettingsModal = dynamic(() =>
-  import("@/components/admin/newsletter-builder/layout/NewsletterSettingsModal").then(m => ({ default: m.NewsletterSettingsModal })),
+const NewsletterSettingsModal = dynamic(
+  () =>
+    import("@/components/admin/newsletter-builder/layout/NewsletterSettingsModal").then((m) => ({
+      default: m.NewsletterSettingsModal
+    })),
   { ssr: false }
 )
 import type { Newsletter } from "@/components/admin/newsletter-builder/layout/CreateNewsletterModal"
-import { getNewslettersBySite, deleteNewsletters, pauseNewsletter, resumeNewsletter, getNewsletterIdsAction } from "@/lib/actions/newsletters/newsletter-actions"
+import {
+  getNewslettersBySite,
+  deleteNewsletters,
+  pauseNewsletter,
+  resumeNewsletter,
+  getNewsletterIdsAction
+} from "@/lib/actions/newsletters/newsletter-actions"
 import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Mail, Trash2, Settings, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
@@ -48,32 +60,36 @@ import Link from "next/link"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { NewsletterStatusEventsModal } from "@/components/admin/newsletter-builder/layout/NewsletterStatusEventsModal"
 
-type NewsletterSortColumn = 'name' | 'opens' | 'clicks' | 'modified'
+type NewsletterSortColumn = "name" | "opens" | "clicks" | "modified"
 
 function getDripStatusLabel(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
 
-  if (newsletter.status === 'paused') return 'Paused'
-  if (newsletter.status !== 'sending' || dripConfig?.enabled !== true) return 'Sending'
+  if (newsletter.status === "paused") return "Paused"
+  if (newsletter.status !== "sending" || dripConfig?.enabled !== true) return "Sending"
   if (!isWithinNewsletterSendWindow(dripConfig)) return `Waiting for ${formatNewsletterSendWindows(dripConfig)}`
-  if (typeof dripConfig?.next_batch_at === 'string' && new Date(dripConfig.next_batch_at) <= new Date()) {
-    return 'Waiting for cron'
+  if (typeof dripConfig?.next_batch_at === "string" && new Date(dripConfig.next_batch_at) <= new Date()) {
+    return "Waiting for cron"
   }
 
-  return 'Sending'
+  return "Sending"
 }
 
 function getNextBatchLabel(newsletter: Newsletter) {
   const dripConfig = newsletter.metadata?.drip_config
 
-  if (newsletter.status !== 'sending' || dripConfig?.enabled !== true || typeof dripConfig?.next_batch_at !== 'string') {
+  if (
+    newsletter.status !== "sending" ||
+    dripConfig?.enabled !== true ||
+    typeof dripConfig?.next_batch_at !== "string"
+  ) {
     return null
   }
 
   const nextBatchAt = new Date(dripConfig.next_batch_at)
   if (nextBatchAt <= new Date()) return null
 
-  return `Next batch: ${nextBatchAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  return `Next batch: ${nextBatchAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
 }
 
 function getDeliveryChips(newsletter: Newsletter) {
@@ -81,9 +97,9 @@ function getDeliveryChips(newsletter: Newsletter) {
 
   if (newsletter.total_send_events > 0) {
     chips.push({
-      key: 'delivery-summary',
+      key: "delivery-summary",
       label: `${newsletter.total_send_events.toLocaleString()} of ${newsletter.total_recipients.toLocaleString()} sent`,
-      className: 'bg-muted/40 text-muted-foreground',
+      className: "bg-muted/40 text-muted-foreground"
     })
   }
 
@@ -93,35 +109,35 @@ function getDeliveryChips(newsletter: Newsletter) {
 function getSentStatsChips(newsletter: Newsletter) {
   return [
     {
-      key: 'sent',
+      key: "sent",
       label: `${newsletter.total_sent.toLocaleString()} sent`,
-      className: 'bg-muted/40 text-muted-foreground',
+      className: "bg-muted/40 text-muted-foreground"
     },
     {
-      key: 'opened',
+      key: "opened",
       label: `${newsletter.total_opened.toLocaleString()} opened`,
-      className: 'bg-muted/40 text-muted-foreground',
+      className: "bg-muted/40 text-muted-foreground"
     },
     {
-      key: 'clicked',
+      key: "clicked",
       label: `${newsletter.total_clicked.toLocaleString()} clicked`,
-      className: 'bg-muted/40 text-muted-foreground',
+      className: "bg-muted/40 text-muted-foreground"
     },
     {
-      key: 'unsubscribed',
+      key: "unsubscribed",
       label: `${newsletter.total_unsubscribed.toLocaleString()} unsubscribed`,
-      className: 'bg-muted/40 text-muted-foreground',
+      className: "bg-muted/40 text-muted-foreground"
     },
     {
-      key: 'bounced',
+      key: "bounced",
       label: `${newsletter.total_bounced.toLocaleString()} bounced`,
-      className: 'bg-muted/40 text-muted-foreground',
+      className: "bg-muted/40 text-muted-foreground"
     },
     {
-      key: 'duplicates',
+      key: "duplicates",
       label: `${newsletter.duplicate_send_events.toLocaleString()} duplicates`,
-      className: 'bg-muted/40 text-muted-foreground',
-    },
+      className: "bg-muted/40 text-muted-foreground"
+    }
   ]
 }
 
@@ -134,50 +150,60 @@ export default function NewslettersPage() {
   const [createActiveTab, setCreateActiveTab] = useState("general")
   const [settingsNewsletterId, setSettingsNewsletterId] = useState<string | null>(null)
   const [statusNewsletterId, setStatusNewsletterId] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'sent'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState<"all" | "draft" | "sent">("all")
+  const [searchQuery, setSearchQuery] = useState("")
 
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [errorDialogOpen, setErrorDialogOpen] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState("")
   const newsletterSelection = useAdminBulkSelection()
   const newsletterSort = useAdminSort<NewsletterSortColumn>()
 
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
-  const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === 'sending')
+  const hasSendingNewsletter = newsletters.some((newsletter) => newsletter.status === "sending")
 
   const showError = useCallback((message: string) => {
     setErrorMessage(message)
     setErrorDialogOpen(true)
   }, [])
 
-  const loadNewsletters = useCallback(async (showSkeleton = true) => {
-    if (!currentSite?.id) {
-      setLoading(true)
-      setNewsletters([])
-      return
-    }
-
-    try {
-      if (showSkeleton) setLoading(true)
-      const { data, total: t, error } = await getNewslettersBySite(currentSite.id, { page: currentPage, pageSize })
-      if (error) {
-        setErrorMessage(error)
-        setErrorDialogOpen(true)
-        setLoading(false)
+  const loadNewsletters = useCallback(
+    async (showSkeleton = true) => {
+      if (!currentSite?.id) {
+        setLoading(true)
+        setNewsletters([])
         return
       }
-      setNewsletters(data ?? [])
-      setTotal(t)
-      setLoading(false)
-    } catch {
-      setLoading(false)
-    }
-  }, [currentSite?.id, currentPage, pageSize])
+
+      try {
+        if (showSkeleton) setLoading(true)
+        const {
+          data,
+          total: t,
+          error
+        } = await getNewslettersBySite(currentSite.id, {
+          page: currentPage,
+          pageSize
+        })
+        if (error) {
+          setErrorMessage(error)
+          setErrorDialogOpen(true)
+          setLoading(false)
+          return
+        }
+        setNewsletters(data ?? [])
+        setTotal(t)
+        setLoading(false)
+      } catch {
+        setLoading(false)
+      }
+    },
+    [currentSite?.id, currentPage, pageSize]
+  )
 
   useEffect(() => {
     loadNewsletters()
@@ -249,19 +275,40 @@ export default function NewslettersPage() {
 
   const getStatusBadge = (newsletter: Newsletter) => {
     switch (newsletter.status) {
-      case 'sent': return <Badge variant="default" className="bg-green-100 text-green-800">Sent</Badge>
-      case 'sending': return <Badge variant="default" className="bg-blue-100 text-blue-800">{getDripStatusLabel(newsletter)}</Badge>
-      case 'paused': return <Badge variant="default" className="bg-orange-100 text-orange-800">Paused</Badge>
-      case 'scheduled': return <Badge variant="default" className="bg-yellow-100 text-yellow-800">Scheduled</Badge>
-      default: return <Badge variant="secondary">Draft</Badge>
+      case "sent":
+        return (
+          <Badge variant="default" className="bg-green-100 text-green-800">
+            Sent
+          </Badge>
+        )
+      case "sending":
+        return (
+          <Badge variant="default" className="bg-blue-100 text-blue-800">
+            {getDripStatusLabel(newsletter)}
+          </Badge>
+        )
+      case "paused":
+        return (
+          <Badge variant="default" className="bg-orange-100 text-orange-800">
+            Paused
+          </Badge>
+        )
+      case "scheduled":
+        return (
+          <Badge variant="default" className="bg-yellow-100 text-yellow-800">
+            Scheduled
+          </Badge>
+        )
+      default:
+        return <Badge variant="secondary">Draft</Badge>
     }
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredNewsletters = newsletters.filter((n) => {
     let statusMatch = true
-    if (filterStatus === 'sent') statusMatch = n.status === 'sent' || n.status === 'sending' || n.status === 'paused'
-    if (filterStatus === 'draft') statusMatch = n.status === 'draft' || n.status === 'scheduled'
+    if (filterStatus === "sent") statusMatch = n.status === "sent" || n.status === "sending" || n.status === "paused"
+    if (filterStatus === "draft") statusMatch = n.status === "draft" || n.status === "scheduled"
 
     const searchText = `${n.subject} ${n.from_name ?? ""} ${n.status}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
@@ -271,37 +318,53 @@ export default function NewslettersPage() {
 
   const sortedNewsletters = [...filteredNewsletters].sort((a, b) => {
     if (!newsletterSort.sortColumn) return 0
-    const dir = newsletterSort.sortDirection === 'asc' ? 1 : -1
-    if (newsletterSort.sortColumn === 'name') return a.subject.localeCompare(b.subject) * dir
-    if (newsletterSort.sortColumn === 'opens') {
+    const dir = newsletterSort.sortDirection === "asc" ? 1 : -1
+    if (newsletterSort.sortColumn === "name") return a.subject.localeCompare(b.subject) * dir
+    if (newsletterSort.sortColumn === "opens") {
       const aRate = a.total_sent > 0 ? a.total_opened / a.total_sent : -1
       const bRate = b.total_sent > 0 ? b.total_opened / b.total_sent : -1
       return (aRate - bRate) * dir
     }
-    if (newsletterSort.sortColumn === 'clicks') {
+    if (newsletterSort.sortColumn === "clicks") {
       const aRate = a.total_sent > 0 ? a.total_clicked / a.total_sent : -1
       const bRate = b.total_sent > 0 ? b.total_clicked / b.total_sent : -1
       return (aRate - bRate) * dir
     }
-    if (newsletterSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (newsletterSort.sortColumn === "modified")
+      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
   const filteredNewsletterIds = filteredNewsletters.map((newsletter) => newsletter.id)
 
   const statusCounts = {
     all: newsletters.length,
-    sent: newsletters.filter((n) => n.status === 'sent' || n.status === 'sending' || n.status === 'paused').length,
-    draft: newsletters.filter((n) => n.status === 'draft' || n.status === 'scheduled').length,
+    sent: newsletters.filter((n) => n.status === "sent" || n.status === "sending" || n.status === "paused").length,
+    draft: newsletters.filter((n) => n.status === "draft" || n.status === "scheduled").length
   }
 
   const filterOptions = [
-    { value: 'all' as const, label: 'All', count: statusCounts.all, icon: List },
-    { value: 'draft' as const, label: 'Drafts', count: statusCounts.draft, icon: FileEdit },
-    { value: 'sent' as const, label: 'Sent', count: statusCounts.sent, icon: Send },
+    {
+      value: "all" as const,
+      label: "All",
+      count: statusCounts.all,
+      icon: List
+    },
+    {
+      value: "draft" as const,
+      label: "Drafts",
+      count: statusCounts.draft,
+      icon: FileEdit
+    },
+    {
+      value: "sent" as const,
+      label: "Sent",
+      count: statusCounts.sent,
+      icon: Send
+    }
   ]
 
   const handleFilterChange = (value: string) => {
-    setFilterStatus(value as 'all' | 'draft' | 'sent')
+    setFilterStatus(value as "all" | "draft" | "sent")
     newsletterSelection.clearSelection()
     setCurrentPage(1)
   }
@@ -323,7 +386,7 @@ export default function NewslettersPage() {
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search newsletters",
+              placeholder: "Search newsletters"
             }}
             preActions={
               <>
@@ -366,33 +429,47 @@ export default function NewslettersPage() {
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {/* Table Header */}
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-9 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-4 flex items-center space-x-4">
-                  <Checkbox
-                    checked={newsletterSelection.isPageSelected(filteredNewsletterIds)}
-                    onCheckedChange={() => newsletterSelection.togglePage(filteredNewsletterIds)}
-                    aria-label="Select all newsletters"
-                  />
-                  <AdminSortButton active={newsletterSort.sortColumn === 'name'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('name')}>
-                    Newsletter
-                  </AdminSortButton>
-                </div>
-                <AdminSortButton active={newsletterSort.sortColumn === 'opens'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('opens')}>
-                  Opens
+            <CardTableHeader className="grid-cols-9">
+              <div className="col-span-4 flex items-center space-x-4">
+                <Checkbox
+                  checked={newsletterSelection.isPageSelected(filteredNewsletterIds)}
+                  onCheckedChange={() => newsletterSelection.togglePage(filteredNewsletterIds)}
+                  aria-label="Select all newsletters"
+                />
+                <AdminSortButton
+                  active={newsletterSort.sortColumn === "name"}
+                  direction={newsletterSort.sortDirection}
+                  onClick={() => newsletterSort.toggleSort("name")}
+                >
+                  Newsletter
                 </AdminSortButton>
-                <AdminSortButton active={newsletterSort.sortColumn === 'clicks'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('clicks')}>
-                  Clicks
-                </AdminSortButton>
-                <div>Unsubscribes</div>
-                <AdminSortButton active={newsletterSort.sortColumn === 'modified'} direction={newsletterSort.sortDirection} onClick={() => newsletterSort.toggleSort('modified')}>
-                  Modified
-                </AdminSortButton>
-                <div>Actions</div>
               </div>
-            </div>
+              <AdminSortButton
+                active={newsletterSort.sortColumn === "opens"}
+                direction={newsletterSort.sortDirection}
+                onClick={() => newsletterSort.toggleSort("opens")}
+              >
+                Opens
+              </AdminSortButton>
+              <AdminSortButton
+                active={newsletterSort.sortColumn === "clicks"}
+                direction={newsletterSort.sortDirection}
+                onClick={() => newsletterSort.toggleSort("clicks")}
+              >
+                Clicks
+              </AdminSortButton>
+              <div>Unsubscribes</div>
+              <AdminSortButton
+                active={newsletterSort.sortColumn === "modified"}
+                direction={newsletterSort.sortDirection}
+                onClick={() => newsletterSort.toggleSort("modified")}
+              >
+                Modified
+              </AdminSortButton>
+              <div>Actions</div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
             <AdminSelectionBanner
@@ -412,8 +489,8 @@ export default function NewslettersPage() {
                   <Mail className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
                     {newsletters.length === 0
-                      ? 'No newsletters found'
-                      : `No ${filterStatus === 'all' ? '' : filterStatus} newsletters found`}
+                      ? "No newsletters found"
+                      : `No ${filterStatus === "all" ? "" : filterStatus} newsletters found`}
                   </p>
                   <Button onClick={() => setShowCreateDialog(true)} variant="outline">
                     Create Your First Newsletter
@@ -421,7 +498,10 @@ export default function NewslettersPage() {
                 </div>
               ) : (
                 sortedNewsletters.map((newsletter) => (
-                  <div key={newsletter.id} className={`p-6 transition-colors ${newsletterSelection.selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}>
+                  <div
+                    key={newsletter.id}
+                    className={`p-6 transition-colors ${newsletterSelection.selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-9 gap-4 items-center">
                       <div className="col-span-4">
                         <div className="flex items-center space-x-4">
@@ -441,45 +521,68 @@ export default function NewslettersPage() {
                               <h4 className="font-medium hover:underline">{newsletter.subject}</h4>
                             </Link>
                             <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-                              {(newsletter.status === 'sending' || newsletter.status === 'paused') && newsletter.metadata?.drip_config?.enabled && (
-                                <>
-                                  <button
-                                    type="button"
-                                    className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === 'sending' ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'}`}
-                                    title={newsletter.status === 'sending' ? 'Pause' : 'Resume'}
-                                    onClick={async (e) => {
-                                      e.stopPropagation()
-                                      if (newsletter.status === 'sending') {
-                                        await pauseNewsletter(newsletter.id)
-                                      } else {
-                                        await resumeNewsletter(newsletter.id)
-                                      }
-                                      await loadNewsletters(false)
-                                    }}
-                                  >
-                                    {newsletter.status === 'sending' ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                                    {newsletter.status === 'sending' ? 'Pause' : 'Resume'}
-                                  </button>
-                                  <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-medium">
-                                    {getDripStatusLabel(newsletter)}
-                                  </Badge>
-                                  {getNextBatchLabel(newsletter) ? (
-                                    <Badge variant="outline" className="h-6 shrink-0 bg-background px-2 text-xs font-normal">
-                                      {getNextBatchLabel(newsletter)}
+                              {(newsletter.status === "sending" || newsletter.status === "paused") &&
+                                newsletter.metadata?.drip_config?.enabled && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
+                                      title={newsletter.status === "sending" ? "Pause" : "Resume"}
+                                      onClick={async (e) => {
+                                        e.stopPropagation()
+                                        if (newsletter.status === "sending") {
+                                          await pauseNewsletter(newsletter.id)
+                                        } else {
+                                          await resumeNewsletter(newsletter.id)
+                                        }
+                                        await loadNewsletters(false)
+                                      }}
+                                    >
+                                      {newsletter.status === "sending" ? (
+                                        <Pause className="h-3 w-3" />
+                                      ) : (
+                                        <Play className="h-3 w-3" />
+                                      )}
+                                      {newsletter.status === "sending" ? "Pause" : "Resume"}
+                                    </button>
+                                    <Badge
+                                      variant="outline"
+                                      className="h-6 shrink-0 bg-background px-2 text-xs font-medium"
+                                    >
+                                      {getDripStatusLabel(newsletter)}
                                     </Badge>
-                                  ) : null}
-                                  {getDeliveryChips(newsletter).map((chip) => (
-                                    <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
-                                      {chip.label}
-                                    </Badge>
-                                  ))}
-                                </>
-                              )}
-                              {!(newsletter.status === 'sending' || newsletter.status === 'paused') || !newsletter.metadata?.drip_config?.enabled ? (
+                                    {getNextBatchLabel(newsletter) ? (
+                                      <Badge
+                                        variant="outline"
+                                        className="h-6 shrink-0 bg-background px-2 text-xs font-normal"
+                                      >
+                                        {getNextBatchLabel(newsletter)}
+                                      </Badge>
+                                    ) : null}
+                                    {getDeliveryChips(newsletter).map((chip) => (
+                                      <Badge
+                                        key={chip.key}
+                                        variant="outline"
+                                        className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}
+                                      >
+                                        {chip.label}
+                                      </Badge>
+                                    ))}
+                                  </>
+                                )}
+                              {!(newsletter.status === "sending" || newsletter.status === "paused") ||
+                              !newsletter.metadata?.drip_config?.enabled ? (
                                 <>
                                   {getStatusBadge(newsletter)}
-                                  {(newsletter.status === 'sent' ? getSentStatsChips(newsletter) : getDeliveryChips(newsletter)).map((chip) => (
-                                    <Badge key={chip.key} variant="outline" className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}>
+                                  {(newsletter.status === "sent"
+                                    ? getSentStatsChips(newsletter)
+                                    : getDeliveryChips(newsletter)
+                                  ).map((chip) => (
+                                    <Badge
+                                      key={chip.key}
+                                      variant="outline"
+                                      className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}
+                                    >
                                       {chip.label}
                                     </Badge>
                                   ))}
@@ -510,7 +613,7 @@ export default function NewslettersPage() {
                             : (newsletter.total_unsubscribed / newsletter.total_sent) * 100 === 0
                               ? "0%"
                               : (newsletter.total_unsubscribed / newsletter.total_sent) * 100 < 10
-                                ? `${(((newsletter.total_unsubscribed / newsletter.total_sent) * 100)).toFixed(1)}%`
+                                ? `${((newsletter.total_unsubscribed / newsletter.total_sent) * 100).toFixed(1)}%`
                                 : `${Math.round((newsletter.total_unsubscribed / newsletter.total_sent) * 100)}%`}
                         </span>
                       </div>
@@ -554,7 +657,14 @@ export default function NewslettersPage() {
                 ))
               )}
             </div>
-            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
+            {!loading && (
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setCurrentPage}
+              />
+            )}
           </Card>
 
           {/* Create Newsletter Dialog */}
@@ -573,8 +683,12 @@ export default function NewslettersPage() {
                   <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
                     <AdminModalTitle className="shrink-0">Create New Newsletter</AdminModalTitle>
                     <TabsList className="h-9 shrink-0">
-                      <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-                      <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                      <TabsTrigger value="general" className="h-7 py-0">
+                        General
+                      </TabsTrigger>
+                      <TabsTrigger value="drip-options" className="h-7 py-0">
+                        Drip Options
+                      </TabsTrigger>
                     </TabsList>
                   </div>
                 </AdminModalHeader>
@@ -594,7 +708,7 @@ export default function NewslettersPage() {
             open={settingsNewsletterId !== null}
             onOpenChange={(open) => setSettingsNewsletterId(open ? settingsNewsletterId : null)}
             newsletter={newsletters.find((n) => n.id === settingsNewsletterId) || null}
-            siteId={currentSite?.id || ''}
+            siteId={currentSite?.id || ""}
             onSuccess={(updated) => {
               setNewsletters((prev) => prev.map((n) => (n.id === updated.id ? updated : n)))
             }}
@@ -627,14 +741,9 @@ export default function NewslettersPage() {
             onConfirm={confirmMassDelete}
           />
 
-          <AdminErrorDialog
-            open={errorDialogOpen}
-            message={errorMessage}
-            onOpenChange={setErrorDialogOpen}
-          />
+          <AdminErrorDialog open={errorDialogOpen} message={errorMessage} onOpenChange={setErrorDialogOpen} />
         </div>
       </AdminLayout>
-
     </>
   )
 }

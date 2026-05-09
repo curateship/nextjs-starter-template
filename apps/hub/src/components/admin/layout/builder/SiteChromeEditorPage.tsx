@@ -19,56 +19,49 @@ import {
   createDefaultNavigationAccountMenu,
   resolveSiteChrome,
   sanitizeFooterSettings,
-  sanitizeNavigationSettings,
+  sanitizeNavigationSettings
 } from "@/lib/utils/site-structure"
 
 function createDefaultNavigation(publicAuthPagePath?: string | null) {
   return {
-  logo: '',
-  logoUrl: '/',
-  links: [{ id: 'link-default-0', text: 'Home', url: '/' }],
-  buttons: [],
-  actionItemOrder: [...BUILT_IN_NAVIGATION_ACTION_ITEM_IDS],
-  accountMenu: createDefaultNavigationAccountMenu(publicAuthPagePath),
-  navigationStyle: 'default',
-  styleConfig: {
-    default: {
-      blurEffect: 'light',
-      containerWidth: 'custom',
-      showDarkModeToggle: true,
-      showDarkModeToggleOnMobile: true,
-    },
-  },
-}
+    logo: "",
+    logoUrl: "/",
+    links: [{ id: "link-default-0", text: "Home", url: "/" }],
+    buttons: [],
+    actionItemOrder: [...BUILT_IN_NAVIGATION_ACTION_ITEM_IDS],
+    accountMenu: createDefaultNavigationAccountMenu(publicAuthPagePath),
+    navigationStyle: "default",
+    styleConfig: {
+      default: {
+        blurEffect: "light",
+        containerWidth: "custom",
+        showDarkModeToggle: true,
+        showDarkModeToggleOnMobile: true
+      }
+    }
+  }
 }
 
 const DEFAULT_FOOTER = {
-  logo: '',
-  logoUrl: '/',
-  links: [{ id: 'footer-link-default-0', text: 'Home', url: '/' }],
+  logo: "",
+  logoUrl: "/",
+  links: [{ id: "footer-link-default-0", text: "Home", url: "/" }],
   socialLinks: [],
-  copyright: '',
+  copyright: ""
 }
 
 interface SiteChromeEditorPageProps {
   siteId: string
-  mode: 'navigation' | 'footer'
+  mode: "navigation" | "footer"
   publicAuthPagePath?: string | null
 }
 
-export function SiteChromeEditorPage({
-  siteId,
-  mode,
-  publicAuthPagePath,
-}: SiteChromeEditorPageProps) {
+export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteChromeEditorPageProps) {
   const searchParams = useSearchParams()
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
-  const defaultNavigation = useMemo(
-    () => createDefaultNavigation(publicAuthPagePath),
-    [publicAuthPagePath]
-  )
+  const defaultNavigation = useMemo(() => createDefaultNavigation(publicAuthPagePath), [publicAuthPagePath])
   const cachedSite = useMemo(
-    () => sites.find(site => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null),
+    () => sites.find((site) => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null),
     [currentSite, siteId, sites]
   )
 
@@ -80,9 +73,9 @@ export function SiteChromeEditorPage({
   const [navigationContent, setNavigationContent] = useState<Record<string, any>>(defaultNavigation)
   const [footerContent, setFooterContent] = useState<Record<string, any>>(DEFAULT_FOOTER)
 
-  const returnTo = searchParams.get('returnTo')
-  const safeReturnTo = returnTo?.startsWith('/admin/') ? returnTo : null
-  const activeLabel = mode === 'navigation' ? 'Navigation' : 'Footer'
+  const returnTo = searchParams.get("returnTo")
+  const safeReturnTo = returnTo?.startsWith("/admin/") ? returnTo : null
+  const activeLabel = mode === "navigation" ? "Navigation" : "Footer"
 
   useEffect(() => {
     if (cachedSite) {
@@ -90,7 +83,7 @@ export function SiteChromeEditorPage({
       const chrome = resolveSiteChrome(cachedSite.settings)
       setNavigationContent(
         sanitizeNavigationSettings(chrome.navigation || defaultNavigation, {
-          publicAuthPagePath,
+          publicAuthPagePath
         }) || defaultNavigation
       )
       setFooterContent(chrome.footer || DEFAULT_FOOTER)
@@ -108,7 +101,7 @@ export function SiteChromeEditorPage({
 
         if (cancelled) return
         if (!result.data) {
-          setError(result.error || 'Failed to load site')
+          setError(result.error || "Failed to load site")
           return
         }
 
@@ -116,14 +109,14 @@ export function SiteChromeEditorPage({
         const chrome = resolveSiteChrome(result.data.settings)
         setNavigationContent(
           sanitizeNavigationSettings(chrome.navigation || defaultNavigation, {
-            publicAuthPagePath,
+            publicAuthPagePath
           }) || defaultNavigation
         )
         setFooterContent(chrome.footer || DEFAULT_FOOTER)
       } catch (loadError) {
         if (!cancelled) {
-          console.error('Failed to load site chrome settings:', loadError)
-          setError('Failed to load site')
+          console.error("Failed to load site chrome settings:", loadError)
+          setError("Failed to load site")
         }
       } finally {
         if (!cancelled) {
@@ -146,16 +139,18 @@ export function SiteChromeEditorPage({
       setError(null)
       setSaveMessage("")
 
-      const nextNavigationContent = sanitizeNavigationSettings(navigationContent, {
-        publicAuthPagePath,
-      }) || defaultNavigation
+      const nextNavigationContent =
+        sanitizeNavigationSettings(navigationContent, {
+          publicAuthPagePath
+        }) || defaultNavigation
       const nextFooterContent = sanitizeFooterSettings(footerContent) || DEFAULT_FOOTER
-      const result = mode === 'navigation'
-        ? await updateSiteNavigationAction(site.id, nextNavigationContent)
-        : await updateSiteFooterAction(site.id, nextFooterContent)
+      const result =
+        mode === "navigation"
+          ? await updateSiteNavigationAction(site.id, nextNavigationContent)
+          : await updateSiteFooterAction(site.id, nextFooterContent)
 
       if (!result.success) {
-        setError(result.error || 'Failed to save changes')
+        setError(result.error || "Failed to save changes")
         return
       }
 
@@ -163,13 +158,11 @@ export function SiteChromeEditorPage({
         ...site,
         settings: {
           ...(site.settings || {}),
-          ...(mode === 'navigation'
-            ? { navigation: nextNavigationContent }
-            : { footer: nextFooterContent }),
-        },
+          ...(mode === "navigation" ? { navigation: nextNavigationContent } : { footer: nextFooterContent })
+        }
       }
 
-      if (mode === 'navigation') {
+      if (mode === "navigation") {
         setNavigationContent(nextNavigationContent)
       } else {
         setFooterContent(nextFooterContent)
@@ -197,9 +190,10 @@ export function SiteChromeEditorPage({
       setError(null)
       setSaveMessage("")
 
-      const sanitizedNavigation = sanitizeNavigationSettings(nextNavigationContent, {
-        publicAuthPagePath,
-      }) || defaultNavigation
+      const sanitizedNavigation =
+        sanitizeNavigationSettings(nextNavigationContent, {
+          publicAuthPagePath
+        }) || defaultNavigation
       const result = await updateSiteNavigationAction(site.id, sanitizedNavigation)
 
       if (!result.success) {
@@ -211,8 +205,8 @@ export function SiteChromeEditorPage({
         ...site,
         settings: {
           ...(site.settings || {}),
-          navigation: sanitizedNavigation,
-        },
+          navigation: sanitizedNavigation
+        }
       }
 
       setNavigationContent(sanitizedNavigation)
@@ -253,8 +247,8 @@ export function SiteChromeEditorPage({
         ...site,
         settings: {
           ...(site.settings || {}),
-          footer: sanitizedFooter,
-        },
+          footer: sanitizedFooter
+        }
       }
 
       setFooterContent(sanitizedFooter)
@@ -282,9 +276,12 @@ export function SiteChromeEditorPage({
         <div className="w-full pb-8">
           <DashboardSubheader
             items={[
-              { label: site?.name || 'Site', href: `/admin/sites/${siteId}/dashboard` },
-              { label: 'Structure', href: `/admin/sites/${siteId}/pages` },
-              { label: activeLabel },
+              {
+                label: site?.name || "Site",
+                href: `/admin/sites/${siteId}/dashboard`
+              },
+              { label: "Structure", href: `/admin/sites/${siteId}/pages` },
+              { label: activeLabel }
             ]}
             actions={
               <div className="flex items-center gap-2">
@@ -299,9 +296,7 @@ export function SiteChromeEditorPage({
                     <span className="text-sm font-medium text-green-700">{saveMessage}</span>
                   </div>
                 )}
-                <Button onClick={saving ? undefined : handleSave}>
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </Button>
+                <Button onClick={saving ? undefined : handleSave}>{saving ? "Saving..." : "Save Changes"}</Button>
               </div>
             }
           />
@@ -314,7 +309,7 @@ export function SiteChromeEditorPage({
 
           {loading ? (
             <Card>
-              <CardContent className="space-y-4 p-6">
+              <CardContent className="space-y-4">
                 <div className="h-8 w-48 animate-pulse rounded bg-muted" />
                 <div className="h-48 animate-pulse rounded bg-muted/60" />
                 <div className="h-48 animate-pulse rounded bg-muted/40" />
@@ -322,15 +317,15 @@ export function SiteChromeEditorPage({
             </Card>
           ) : !site ? (
             <Card>
-              <CardContent className="p-6">
+              <CardContent>
                 <p className="text-sm text-muted-foreground">Unable to load structure settings for this site.</p>
               </CardContent>
             </Card>
-          ) : mode === 'navigation' ? (
+          ) : mode === "navigation" ? (
             <Navigation
               content={navigationContent}
               onContentChange={(field, value) => {
-                setNavigationContent(prev => ({ ...prev, [field]: value }))
+                setNavigationContent((prev) => ({ ...prev, [field]: value }))
               }}
               onContentPersist={persistNavigationContent}
               siteId={site.id}
@@ -341,7 +336,7 @@ export function SiteChromeEditorPage({
             <Footer
               content={footerContent}
               onContentChange={(field, value) => {
-                setFooterContent(prev => ({ ...prev, [field]: value }))
+                setFooterContent((prev) => ({ ...prev, [field]: value }))
               }}
               onContentPersist={persistFooterContent}
               siteFavicon={site.settings?.favicon}

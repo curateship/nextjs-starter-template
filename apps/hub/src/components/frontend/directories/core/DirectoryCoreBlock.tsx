@@ -1,14 +1,4 @@
-import {
-  Facebook,
-  Github,
-  Globe,
-  Instagram,
-  Linkedin,
-  Music2,
-  Twitter,
-  type LucideIcon,
-  Youtube,
-} from "lucide-react"
+import { Facebook, Github, Globe, Instagram, Linkedin, Music2, Twitter, type LucideIcon, Youtube } from "lucide-react"
 import {
   buildDirectoryCoreMenuHref,
   buildDirectoryCoreUrlHref,
@@ -19,9 +9,10 @@ import {
   renderDirectoryCoreIntroText,
   type DirectoryCoreCategoryContext,
   type DirectoryCoreMenuLink,
-  type DirectoryCoreSocialLink,
+  type DirectoryCoreSocialLink
 } from "@/lib/actions/directories/directory-core"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
+import { Card } from "@/components/ui/card"
 import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -44,7 +35,7 @@ const SOCIAL_ICON_MAP: Record<string, { label: string; Icon: LucideIcon }> = {
   linkedin: { label: "LinkedIn", Icon: Linkedin },
   youtube: { label: "YouTube", Icon: Youtube },
   tiktok: { label: "TikTok", Icon: Music2 },
-  github: { label: "GitHub", Icon: Github },
+  github: { label: "GitHub", Icon: Github }
 }
 
 function resolveMediaUrl(url?: string | null) {
@@ -64,10 +55,12 @@ function isExternalHref(href: string) {
 
 function getSocialMeta(platform?: string) {
   const normalizedPlatform = platform?.toLowerCase() || ""
-  return SOCIAL_ICON_MAP[normalizedPlatform] || {
-    label: platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Social Link",
-    Icon: Globe,
-  }
+  return (
+    SOCIAL_ICON_MAP[normalizedPlatform] || {
+      label: platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Social Link",
+      Icon: Globe
+    }
+  )
 }
 
 function SocialLink({ link }: { link: DirectoryCoreSocialLink }) {
@@ -110,26 +103,21 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   )
 }
 
-export function DirectoryCoreBlock({
-  content,
-  directory,
-  claimAuthPath,
-}: DirectoryCoreBlockProps) {
-  const visibility = content?.visibility && typeof content.visibility === "object"
-    ? content.visibility as Record<string, boolean>
-    : {}
+export function DirectoryCoreBlock({ content, directory, claimAuthPath }: DirectoryCoreBlockProps) {
+  const visibility =
+    content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
   if (visibility.hideBlock === true) return null
 
   const socialLinks = Array.isArray(content?.socialLinks)
     ? content.socialLinks
-      .map((link, index) => normalizeDirectoryCoreSocialLink(link, index))
-      .filter((link): link is DirectoryCoreSocialLink => !!link)
+        .map((link, index) => normalizeDirectoryCoreSocialLink(link, index))
+        .filter((link): link is DirectoryCoreSocialLink => !!link)
     : []
   const menuLinks = Array.isArray(content?.menuLinks)
     ? content.menuLinks
-      .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
-      .filter((link): link is DirectoryCoreMenuLink => !!link)
+        .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
+        .filter((link): link is DirectoryCoreMenuLink => !!link)
     : []
   const title = directory.title || "Directory Listing"
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
@@ -138,59 +126,59 @@ export function DirectoryCoreBlock({
   const introText = renderDirectoryCoreIntroText(introTemplate, {
     directoryTitle: title,
     parentCategory: directory.category_context?.parent_title,
-    childCategory: directory.category_context?.child_title,
+    childCategory: directory.category_context?.child_title
   })
 
   return (
-    <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-        {featuredImage && visibility.image !== false ? (
-          <img
-            src={featuredImage}
-            alt={title}
-            className="h-auto w-full object-cover"
-          />
+    <Card className="overflow-hidden">
+      {featuredImage && visibility.image !== false ? (
+        <img src={featuredImage} alt={title} className="h-auto w-full object-cover" />
+      ) : null}
+
+      <div className="space-y-6 p-6">
+        {visibility.title !== false ? (
+          <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
         ) : null}
 
-        <div className="space-y-6 p-6">
-          {visibility.title !== false ? (
-            <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">
-              {title}
-            </h1>
-          ) : null}
+        {introText.trim() && visibility.introText !== false ? (
+          <p className="whitespace-pre-line text-base leading-7 text-muted-foreground">{introText}</p>
+        ) : null}
 
-          {introText.trim() && visibility.introText !== false ? (
-            <p className="whitespace-pre-line text-base leading-7 text-muted-foreground">
-              {introText}
-            </p>
-          ) : null}
-
-          {socialLinks.length > 0 && visibility.socialLinks !== false ? (
-            <div className="flex flex-wrap items-center gap-5 pt-1">
-              {socialLinks.map((link, index) => (
-                <SocialLink key={link.id || `${link.platform}-${index}`} link={link} />
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        {(menuLinks.length > 0 && visibility.menuLinks !== false) || showClaimButton ? (
-          <div className={cn(featuredImage || title || socialLinks.length ? "" : "border-t-0")}>
-            {menuLinks.map((link, index) => (
-              <MenuLink key={link.id || `${link.type}-${index}`} link={link} />
+        {socialLinks.length > 0 && visibility.socialLinks !== false ? (
+          <div className="flex flex-wrap items-center gap-5 pt-1">
+            {socialLinks.map((link, index) => (
+              <SocialLink key={link.id || `${link.platform}-${index}`} link={link} />
             ))}
-            {showClaimButton ? (
-              <DirectoryClaimButton
-                directoryId={directory.id!}
-                authPath={claimAuthPath}
-                ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
-                buttonText={typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing"}
-                pendingEmailText={typeof content?.claimPendingEmailText === "string" ? content.claimPendingEmailText : "Check Business Email"}
-                pendingReviewText={typeof content?.claimPendingReviewText === "string" ? content.claimPendingReviewText : "Claim Pending Review"}
-                approvedText={typeof content?.claimApprovedText === "string" ? content.claimApprovedText : "Edit Listing"}
-              />
-            ) : null}
           </div>
         ) : null}
-    </article>
+      </div>
+
+      {(menuLinks.length > 0 && visibility.menuLinks !== false) || showClaimButton ? (
+        <div className={cn(featuredImage || title || socialLinks.length ? "" : "border-t-0")}>
+          {menuLinks.map((link, index) => (
+            <MenuLink key={link.id || `${link.type}-${index}`} link={link} />
+          ))}
+          {showClaimButton ? (
+            <DirectoryClaimButton
+              directoryId={directory.id!}
+              authPath={claimAuthPath}
+              ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
+              buttonText={typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing"}
+              pendingEmailText={
+                typeof content?.claimPendingEmailText === "string"
+                  ? content.claimPendingEmailText
+                  : "Check Business Email"
+              }
+              pendingReviewText={
+                typeof content?.claimPendingReviewText === "string"
+                  ? content.claimPendingReviewText
+                  : "Claim Pending Review"
+              }
+              approvedText={typeof content?.claimApprovedText === "string" ? content.claimApprovedText : "Edit Listing"}
+            />
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
   )
 }

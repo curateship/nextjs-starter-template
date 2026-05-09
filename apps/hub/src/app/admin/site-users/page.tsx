@@ -2,7 +2,18 @@
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
-import { ArrowDown, ArrowUp, CalendarIcon, ChevronsUpDown, Plus, Settings, SlidersHorizontal, Trash2, Users, X } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  CalendarIcon,
+  ChevronsUpDown,
+  Plus,
+  Settings,
+  SlidersHorizontal,
+  Trash2,
+  Users,
+  X
+} from "lucide-react"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -16,11 +27,11 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialogTitle
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants, Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -38,7 +49,7 @@ import {
   getSiteUserIdsAction,
   getSiteUsers,
   updateSiteUser,
-  type SiteUserListItem,
+  type SiteUserListItem
 } from "@/lib/actions/site-users/site-user-actions"
 import {
   cloneSiteUserFilterGroup,
@@ -54,7 +65,7 @@ import {
   type SiteUserDateOperator,
   type SiteUserFilterGroup,
   type SiteUserFilterRule,
-  type SiteUserFilterType,
+  type SiteUserFilterType
 } from "@/lib/actions/site-users/site-user-filters"
 
 function makeFilterRuleId() {
@@ -79,16 +90,22 @@ function formatDatePickerLabel(value: string | null, placeholder: string) {
   return date ? format(date, "MMM d, yyyy") : placeholder
 }
 
-function isDateRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRule, { type: 'lastEngaged' | 'dateAdded' }> {
+function isDateRule(
+  rule: SiteUserFilterRule
+): rule is Extract<SiteUserFilterRule, { type: "lastEngaged" | "dateAdded" }> {
   return rule.type === "lastEngaged" || rule.type === "dateAdded"
 }
 
-function isValueRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRule, { type: 'status' | 'role' }> {
+function isValueRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRule, { type: "status" | "role" }> {
   return rule.type === "status" || rule.type === "role"
 }
 
 function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  })
 }
 
 function formatRelativeTime(dateString: string | null) {
@@ -163,14 +180,14 @@ export default function SiteUsersPage() {
     displayName: "",
     password: "",
     role: "member" as "admin" | "member",
-    status: "active" as "active" | "suspended",
+    status: "active" as "active" | "suspended"
   })
   const [creating, setCreating] = useState(false)
   const [editUser, setEditUser] = useState<SiteUserListItem | null>(null)
   const [editForm, setEditForm] = useState({
     displayName: "",
     role: "member" as "admin" | "member",
-    status: "active" as "active" | "suspended",
+    status: "active" as "active" | "suspended"
   })
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -194,7 +211,7 @@ export default function SiteUsersPage() {
         filterGroup: filters.rules.length ? filters : undefined,
         searchQuery: deferredSearchQuery,
         page: currentPage,
-        pageSize,
+        pageSize
       })
 
       if (requestId !== requestIdRef.current) return
@@ -237,7 +254,7 @@ export default function SiteUsersPage() {
         filterGroup: previewFilters,
         searchQuery: deferredSearchQuery,
         page: 1,
-        pageSize,
+        pageSize
       })
 
       if (cancelled) return
@@ -271,28 +288,28 @@ export default function SiteUsersPage() {
     const rule = createSiteUserFilterRule(makeFilterRuleId(), type)
     setPendingFilters((prev) => ({
       ...prev,
-      rules: [...prev.rules, rule],
+      rules: [...prev.rules, rule]
     }))
   }
 
   function updatePendingRule(ruleId: string, updater: (rule: SiteUserFilterRule) => SiteUserFilterRule) {
     setPendingFilters((prev) => ({
       ...prev,
-      rules: prev.rules.map((rule) => (rule.id === ruleId ? updater(rule) : rule)),
+      rules: prev.rules.map((rule) => (rule.id === ruleId ? updater(rule) : rule))
     }))
   }
 
   function removePendingRule(ruleId: string) {
     setPendingFilters((prev) => ({
       ...prev,
-      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+      rules: prev.rules.filter((rule) => rule.id !== ruleId)
     }))
   }
 
   function removeAppliedRule(ruleId: string) {
     setFilters((prev) => ({
       ...prev,
-      rules: prev.rules.filter((rule) => rule.id !== ruleId),
+      rules: prev.rules.filter((rule) => rule.id !== ruleId)
     }))
     resetSelectionForCurrentView()
   }
@@ -302,9 +319,7 @@ export default function SiteUsersPage() {
       if (!isValueRule(rule)) return rule
       return {
         ...rule,
-        value: rule.value.includes(value)
-          ? rule.value.filter((item) => item !== value)
-          : [...rule.value, value],
+        value: rule.value.includes(value) ? rule.value.filter((item) => item !== value) : [...rule.value, value]
       }
     })
   }
@@ -322,14 +337,14 @@ export default function SiteUsersPage() {
       if (nextValue === "custom") {
         return {
           ...rule,
-          value: { mode: "range", from: null, to: null },
+          value: { mode: "range", from: null, to: null }
         }
       }
 
       const days = Number(nextValue) as 7 | 30 | 60 | 90
       return {
         ...rule,
-        value: { mode: "relative", days },
+        value: { mode: "relative", days }
       }
     })
   }
@@ -342,8 +357,8 @@ export default function SiteUsersPage() {
         ...rule,
         value: {
           ...currentRange,
-          [boundary]: fromCalendarDate(selectedDate),
-        },
+          [boundary]: fromCalendarDate(selectedDate)
+        }
       }
     })
   }
@@ -435,7 +450,7 @@ export default function SiteUsersPage() {
 
     const result = await getSiteUserIdsAction(currentSite.id, {
       filterGroup: filters.rules.length ? filters : undefined,
-      searchQuery: deferredSearchQuery,
+      searchQuery: deferredSearchQuery
     })
 
     if (result.error) {
@@ -467,7 +482,7 @@ export default function SiteUsersPage() {
     try {
       const result = await deleteSiteUsers({
         siteId: currentSite.id,
-        membershipIds: [pendingDeleteId],
+        membershipIds: [pendingDeleteId]
       })
 
       if (result.error) {
@@ -497,7 +512,7 @@ export default function SiteUsersPage() {
     try {
       const result = await deleteSiteUsers({
         siteId: currentSite.id,
-        membershipIds: Array.from(selectedIds),
+        membershipIds: Array.from(selectedIds)
       })
 
       if (result.error) {
@@ -518,7 +533,7 @@ export default function SiteUsersPage() {
     setEditForm({
       displayName: user.display_name || "",
       role: user.role === "admin" ? "admin" : "member",
-      status: user.status,
+      status: user.status
     })
     setErrorMessage(null)
   }
@@ -535,7 +550,7 @@ export default function SiteUsersPage() {
       displayName: createForm.displayName,
       password: createForm.password,
       role: createForm.role,
-      status: createForm.status,
+      status: createForm.status
     })
 
     if (result.error) {
@@ -550,7 +565,7 @@ export default function SiteUsersPage() {
       displayName: "",
       password: "",
       role: "member",
-      status: "active",
+      status: "active"
     })
     setCreating(false)
     await loadUsers()
@@ -567,7 +582,7 @@ export default function SiteUsersPage() {
       siteId: currentSite.id,
       displayName: editForm.displayName,
       role: editForm.role,
-      status: editForm.status,
+      status: editForm.status
     })
 
     if (result.error) {
@@ -594,16 +609,12 @@ export default function SiteUsersPage() {
                 setSearchQuery(value)
                 resetSelectionForCurrentView()
               },
-              placeholder: "Search users",
+              placeholder: "Search users"
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
                 {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    disabled={massDeleting}
-                  >
+                  <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
                     <Trash2 className="h-4 w-4" />
                     <span className="hidden sm:inline">
                       {massDeleting ? "Deleting..." : `Delete (${selectedIds.size})`}
@@ -619,7 +630,12 @@ export default function SiteUsersPage() {
                     </span>
                   )}
                 </Button>
-                <Button onClick={() => { setErrorMessage(null); setCreateModalOpen(true) }}>
+                <Button
+                  onClick={() => {
+                    setErrorMessage(null)
+                    setCreateModalOpen(true)
+                  }}
+                >
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Add User</span>
                 </Button>
@@ -627,7 +643,7 @@ export default function SiteUsersPage() {
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap items-center gap-2 border-b px-6 py-4">
                 <Badge variant="outline" className="font-medium">
@@ -636,89 +652,102 @@ export default function SiteUsersPage() {
                 {filters.rules.map((rule) => (
                   <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
                     {formatSiteUserFilterRule(rule)}
-                    <button type="button" onClick={() => removeAppliedRule(rule.id)} className="ml-1 rounded-full p-0.5 hover:bg-muted">
+                    <button
+                      type="button"
+                      onClick={() => removeAppliedRule(rule.id)}
+                      className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                    >
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
                 ))}
-                <button type="button" onClick={clearAllFilters} className="text-sm text-muted-foreground underline hover:text-foreground">
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="text-sm text-muted-foreground underline hover:text-foreground"
+                >
                   Clear all ({total})
                 </button>
               </div>
             )}
 
-            <div className="border-b bg-muted/30 px-6 py-4">
-              <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 text-sm font-medium text-muted-foreground">
-                <div className="flex items-center space-x-4">
-                  <Checkbox
-                    checked={deletableUsersOnPage.length > 0 && selectedIds.size === deletableUsersOnPage.length}
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all site users"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("user")}
-                    className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <span>User</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("user")}</span>
-                  </button>
-                </div>
+            <CardTableHeader className="grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px]">
+              <div className="flex items-center space-x-4">
+                <Checkbox
+                  checked={deletableUsersOnPage.length > 0 && selectedIds.size === deletableUsersOnPage.length}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all site users"
+                />
                 <button
                   type="button"
-                  onClick={() => toggleSort("role")}
+                  onClick={() => toggleSort("user")}
                   className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  <span>Role</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("role")}</span>
+                  <span>User</span>
+                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("user")}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("status")}
-                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span>Status</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("added")}
-                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span>Date Added</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("engaged")}
-                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <span>Last Engaged</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("engaged")}</span>
-                </button>
-                <div>Actions</div>
               </div>
-            </div>
+              <button
+                type="button"
+                onClick={() => toggleSort("role")}
+                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span>Role</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("role")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("status")}
+                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span>Status</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("added")}
+                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span>Date Added</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleSort("engaged")}
+                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span>Last Engaged</span>
+                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("engaged")}</span>
+              </button>
+              <div>Actions</div>
+            </CardTableHeader>
 
-            {deletableUsersOnPage.length > 0 && selectedIds.size > 0 && selectedIds.size === deletableUsersOnPage.length && total > users.length && (
-              <div className="border-b bg-accent/50 px-6 py-2 text-center text-sm">
-                {allSelected ? (
-                  <span>
-                    All deletable users matching this view are selected.{" "}
-                    <button type="button" onClick={handleClearSelection} className="text-muted-foreground underline hover:text-foreground">
-                      Clear selection
-                    </button>
-                  </span>
-                ) : (
-                  <span>
-                    {selectedIds.size} users on this page are selected.{" "}
-                    <button type="button" onClick={handleSelectAll} className="font-medium underline">
-                      Select all matching users
-                    </button>
-                  </span>
-                )}
-              </div>
-            )}
+            {deletableUsersOnPage.length > 0 &&
+              selectedIds.size > 0 &&
+              selectedIds.size === deletableUsersOnPage.length &&
+              total > users.length && (
+                <CardSection className="border-b bg-accent/50 text-center text-sm">
+                  {allSelected ? (
+                    <span>
+                      All deletable users matching this view are selected.{" "}
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="text-muted-foreground underline hover:text-foreground"
+                      >
+                        Clear selection
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      {selectedIds.size} users on this page are selected.{" "}
+                      <button type="button" onClick={handleSelectAll} className="font-medium underline">
+                        Select all matching users
+                      </button>
+                    </span>
+                  )}
+                </CardSection>
+              )}
 
             <div className="divide-y divide-muted/80">
               {siteLoading || loading ? (
@@ -730,11 +759,21 @@ export default function SiteUsersPage() {
                           <div className="h-4 w-4 animate-pulse rounded bg-muted" />
                           <div className="mb-2 h-4 w-40 animate-pulse rounded bg-muted" />
                         </div>
-                        <div><div className="h-5 w-16 animate-pulse rounded-full bg-muted" /></div>
-                        <div><div className="h-5 w-16 animate-pulse rounded-full bg-muted" /></div>
-                        <div><div className="h-3 w-24 animate-pulse rounded bg-muted/60" /></div>
-                        <div><div className="h-3 w-20 animate-pulse rounded bg-muted/60" /></div>
-                        <div><div className="h-8 w-8 animate-pulse rounded bg-muted" /></div>
+                        <div>
+                          <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                        </div>
+                        <div>
+                          <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+                        </div>
+                        <div>
+                          <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
+                        </div>
+                        <div>
+                          <div className="h-3 w-20 animate-pulse rounded bg-muted/60" />
+                        </div>
+                        <div>
+                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -747,7 +786,9 @@ export default function SiteUsersPage() {
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="mb-4 text-red-600">{error}</p>
-                  <Button onClick={() => loadUsers()} variant="outline" size="sm">Try Again</Button>
+                  <Button onClick={() => loadUsers()} variant="outline" size="sm">
+                    Try Again
+                  </Button>
                 </div>
               ) : users.length === 0 ? (
                 <div className="p-8 text-center">
@@ -764,7 +805,10 @@ export default function SiteUsersPage() {
                 </div>
               ) : (
                 sortedUsers.map((user) => (
-                  <div key={user.id} className={cn("p-6 transition-colors", selectedIds.has(user.id) && "bg-accent/50")}>
+                  <div
+                    key={user.id}
+                    className={cn("p-6 transition-colors", selectedIds.has(user.id) && "bg-accent/50")}
+                  >
                     <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 items-center">
                       <div className="flex items-center space-x-4">
                         <Checkbox
@@ -774,17 +818,29 @@ export default function SiteUsersPage() {
                           aria-label={`Select ${user.display_name || user.email}`}
                         />
                         <div>
-                        <h4 className="text-sm font-medium">{user.display_name || user.email}</h4>
-                        {user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
-                        {!user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
+                          <h4 className="text-sm font-medium">{user.display_name || user.email}</h4>
+                          {user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
+                          {!user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
                         </div>
                       </div>
                       <div>{getRoleBadge(user.role)}</div>
                       <div>{getStatusBadge(user.status)}</div>
-                      <div><span className="text-sm text-muted-foreground">{formatDate(user.created_at)}</span></div>
-                      <div><span className="text-sm text-muted-foreground">{formatRelativeTime(user.last_engaged_at)}</span></div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">{formatDate(user.created_at)}</span>
+                      </div>
+                      <div>
+                        <span className="text-sm text-muted-foreground">
+                          {formatRelativeTime(user.last_engaged_at)}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEditModal(user)} title="Edit User">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => openEditModal(user)}
+                          title="Edit User"
+                        >
                           <Settings className="h-4 w-4" />
                           <span className="sr-only">Edit User</span>
                         </Button>
@@ -837,8 +893,12 @@ export default function SiteUsersPage() {
                   }}
                 >
                   <TabsList className="h-11 rounded-lg bg-muted/70 p-1">
-                    <TabsTrigger value="all" className="rounded-md px-4 py-2">all</TabsTrigger>
-                    <TabsTrigger value="any" className="rounded-md px-4 py-2">any</TabsTrigger>
+                    <TabsTrigger value="all" className="rounded-md px-4 py-2">
+                      all
+                    </TabsTrigger>
+                    <TabsTrigger value="any" className="rounded-md px-4 py-2">
+                      any
+                    </TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <span>of these:</span>
@@ -855,7 +915,13 @@ export default function SiteUsersPage() {
                       <div>
                         <h3 className="font-medium">{getSiteUserFilterTypeLabel(rule.type)}</h3>
                       </div>
-                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => removePendingRule(rule.id)}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => removePendingRule(rule.id)}
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -886,7 +952,10 @@ export default function SiteUsersPage() {
                     {isDateRule(rule) && (
                       <div className="space-y-3">
                         <div className="grid gap-3 sm:grid-cols-[140px,1fr]">
-                          <Select value={rule.operator} onValueChange={(value: SiteUserDateOperator) => updatePendingDateOperator(rule.id, value)}>
+                          <Select
+                            value={rule.operator}
+                            onValueChange={(value: SiteUserDateOperator) => updatePendingDateOperator(rule.id, value)}
+                          >
                             <SelectTrigger className="w-full">
                               <SelectValue />
                             </SelectTrigger>
@@ -916,14 +985,19 @@ export default function SiteUsersPage() {
                         {rule.value.mode === "range" && (
                           <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
-                              <Label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">Start date</Label>
+                              <Label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">
+                                Start date
+                              </Label>
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
                                     id={`${rule.id}-from`}
                                     type="button"
                                     variant="outline"
-                                    className={cn("w-full justify-between font-normal", !rule.value.from && "text-muted-foreground")}
+                                    className={cn(
+                                      "w-full justify-between font-normal",
+                                      !rule.value.from && "text-muted-foreground"
+                                    )}
                                   >
                                     {formatDatePickerLabel(rule.value.from, "Pick a start date")}
                                     <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -940,14 +1014,19 @@ export default function SiteUsersPage() {
                               </Popover>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">End date</Label>
+                              <Label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">
+                                End date
+                              </Label>
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
                                     id={`${rule.id}-to`}
                                     type="button"
                                     variant="outline"
-                                    className={cn("w-full justify-between font-normal", !rule.value.to && "text-muted-foreground")}
+                                    className={cn(
+                                      "w-full justify-between font-normal",
+                                      !rule.value.to && "text-muted-foreground"
+                                    )}
                                   >
                                     {formatDatePickerLabel(rule.value.to, "Pick an end date")}
                                     <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -974,7 +1053,9 @@ export default function SiteUsersPage() {
               <div className="flex justify-end">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="outline">Add filter</Button>
+                    <Button type="button" variant="outline">
+                      Add filter
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {SITE_USER_FILTER_TYPE_OPTIONS.map((option) => (
@@ -1024,7 +1105,12 @@ export default function SiteUsersPage() {
                   type="email"
                   required
                   value={createForm.email}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      email: e.target.value
+                    }))
+                  }
                 />
               </div>
               <div>
@@ -1032,7 +1118,12 @@ export default function SiteUsersPage() {
                 <Input
                   id="site-user-display-name"
                   value={createForm.displayName}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      displayName: e.target.value
+                    }))
+                  }
                 />
               </div>
               <div>
@@ -1042,32 +1133,49 @@ export default function SiteUsersPage() {
                   type="password"
                   required
                   value={createForm.password}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, password: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      password: e.target.value
+                    }))
+                  }
                 />
               </div>
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="site-user-role">Role</Label>
-                  <Select value={createForm.role} onValueChange={(value: "admin" | "member") => setCreateForm((prev) => ({ ...prev, role: value }))}>
+                  <Select
+                    value={createForm.role}
+                    onValueChange={(value: "admin" | "member") => setCreateForm((prev) => ({ ...prev, role: value }))}
+                  >
                     <SelectTrigger id="site-user-role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {SITE_USER_ROLE_OPTIONS.filter((option) => option.value !== "owner").map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label htmlFor="site-user-status">Status</Label>
-                  <Select value={createForm.status} onValueChange={(value: "active" | "suspended") => setCreateForm((prev) => ({ ...prev, status: value }))}>
+                  <Select
+                    value={createForm.status}
+                    onValueChange={(value: "active" | "suspended") =>
+                      setCreateForm((prev) => ({ ...prev, status: value }))
+                    }
+                  >
                     <SelectTrigger id="site-user-status">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {SITE_USER_STATUS_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1085,7 +1193,12 @@ export default function SiteUsersPage() {
           </DialogContent>
         </Dialog>
 
-        <Dialog open={editUser !== null} onOpenChange={(open) => { if (!open) setEditUser(null) }}>
+        <Dialog
+          open={editUser !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditUser(null)
+          }}
+        >
           <DialogContent size="admin" className="p-6">
             <DialogHeader>
               <DialogTitle>Edit Site User</DialogTitle>
@@ -1101,7 +1214,12 @@ export default function SiteUsersPage() {
                 <Input
                   id="edit-site-user-display-name"
                   value={editForm.displayName}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      displayName: e.target.value
+                    }))
+                  }
                 />
               </div>
               <div className="grid grid-cols-2 gap-6">
@@ -1117,7 +1235,9 @@ export default function SiteUsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {SITE_USER_ROLE_OPTIONS.filter((option) => option.value !== "owner").map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1126,7 +1246,9 @@ export default function SiteUsersPage() {
                   <Label htmlFor="edit-site-user-status">Status</Label>
                   <Select
                     value={editForm.status}
-                    onValueChange={(value: "active" | "suspended") => setEditForm((prev) => ({ ...prev, status: value }))}
+                    onValueChange={(value: "active" | "suspended") =>
+                      setEditForm((prev) => ({ ...prev, status: value }))
+                    }
                     disabled={editUser?.role === "owner"}
                   >
                     <SelectTrigger id="edit-site-user-status">
@@ -1134,7 +1256,9 @@ export default function SiteUsersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {SITE_USER_STATUS_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1174,7 +1298,9 @@ export default function SiteUsersPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete selected site users?</AlertDialogTitle>
               <AlertDialogDescription>
-                This removes {selectedIds.size} user{selectedIds.size === 1 ? "" : "s"} from the current site only. Their platform accounts will stay intact.
+                This removes {selectedIds.size} user
+                {selectedIds.size === 1 ? "" : "s"} from the current site only. Their platform accounts will stay
+                intact.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,7 @@ import {
   AdminModalContent,
   AdminModalDescription,
   AdminModalHeader,
-  AdminModalTitle,
+  AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
 import {
   AdminBulkDeleteButton,
@@ -27,27 +27,34 @@ import {
   AdminSortButton,
   formatRelativeDate,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
 
 import dynamic from "next/dynamic"
 
-const CreatePostModal = dynamic(() =>
-  import("@/components/admin/post-builder/layout/CreatePostModal").then(m => ({ default: m.CreatePostModal })),
+const CreatePostModal = dynamic(
+  () => import("@/components/admin/post-builder/layout/CreatePostModal").then((m) => ({ default: m.CreatePostModal })),
   { ssr: false }
 )
-const PostSettingsModal = dynamic(() =>
-  import("@/components/admin/post-builder/layout/PostSettingsModal").then(m => ({ default: m.PostSettingsModal })),
+const PostSettingsModal = dynamic(
+  () =>
+    import("@/components/admin/post-builder/layout/PostSettingsModal").then((m) => ({ default: m.PostSettingsModal })),
   { ssr: false }
 )
 import { Eye, Copy, Trash2, Settings, BookOpen, Plus, List, Globe, FileEdit } from "lucide-react"
-import { getSitePostsWithCategoriesAction, deletePostAction, deletePostsAction, duplicatePostAction, getPostIdsAction } from "@/lib/actions/posts/post-actions"
+import {
+  getSitePostsWithCategoriesAction,
+  deletePostAction,
+  deletePostsAction,
+  duplicatePostAction,
+  getPostIdsAction
+} from "@/lib/actions/posts/post-actions"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { Post } from "@/lib/actions/posts/post-actions"
 
-type PostSortColumn = 'title' | 'category' | 'status' | 'modified'
+type PostSortColumn = "title" | "category" | "status" | "modified"
 
 export default function PostsPage() {
   const router = useRouter()
@@ -59,8 +66,8 @@ export default function PostsPage() {
   const [deletePostId, setDeletePostId] = useState<string | null>(null)
   const [duplicatingPostId, setDuplicatingPostId] = useState<string | null>(null)
   const [settingsPostId, setSettingsPostId] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [postCategories, setPostCategories] = useState<Record<string, CategoryInfo[]>>({})
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
@@ -87,7 +94,15 @@ export default function PostsPage() {
         setLoading(true)
         setError(null)
 
-        const { data: postsData, categories, total: postsTotal, error: postsError } = await getSitePostsWithCategoriesAction(currentSite.id, { page: currentPage, pageSize })
+        const {
+          data: postsData,
+          categories,
+          total: postsTotal,
+          error: postsError
+        } = await getSitePostsWithCategoriesAction(currentSite.id, {
+          page: currentPage,
+          pageSize
+        })
         if (postsError) {
           setError(postsError)
           setLoading(false)
@@ -101,7 +116,7 @@ export default function PostsPage() {
         }
         setLoading(false)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load posts')
+        setError(err instanceof Error ? err.message : "Failed to load posts")
         setLoading(false)
       }
     }
@@ -131,10 +146,10 @@ export default function PostsPage() {
       }
 
       if (success) {
-        setPosts(prev => prev.filter(post => post.id !== postIdToDelete))
+        setPosts((prev) => prev.filter((post) => post.id !== postIdToDelete))
       }
     } catch (err) {
-      setErrorMessage('Failed to delete post')
+      setErrorMessage("Failed to delete post")
     } finally {
       setDeletePostId(null)
     }
@@ -165,11 +180,11 @@ export default function PostsPage() {
         return
       }
       if (success) {
-        setPosts(prev => prev.filter(p => !idsToDelete.has(p.id)))
+        setPosts((prev) => prev.filter((p) => !idsToDelete.has(p.id)))
         postSelection.clearSelection()
       }
     } catch (err) {
-      setErrorMessage('Failed to delete posts')
+      setErrorMessage("Failed to delete posts")
     } finally {
       setMassDeleting(false)
     }
@@ -178,21 +193,21 @@ export default function PostsPage() {
   const handleDuplicatePost = async (postId: string) => {
     try {
       setDuplicatingPostId(postId)
-      const originalPost = posts.find(p => p.id === postId)
-      const duplicateTitle = `${originalPost?.title || 'Post'} Copy`
-      
+      const originalPost = posts.find((p) => p.id === postId)
+      const duplicateTitle = `${originalPost?.title || "Post"} Copy`
+
       const { data, error: duplicateError } = await duplicatePostAction(postId, duplicateTitle)
-      
+
       if (duplicateError) {
         setErrorMessage(`Failed to duplicate post: ${duplicateError}`)
         return
       }
-      
+
       if (data) {
-        setPosts(prev => [...prev, data])
+        setPosts((prev) => [...prev, data])
       }
     } catch (err) {
-      setErrorMessage('Failed to duplicate post')
+      setErrorMessage("Failed to duplicate post")
     } finally {
       setDuplicatingPostId(null)
     }
@@ -200,24 +215,29 @@ export default function PostsPage() {
 
   const getStatusBadge = (post: Post) => {
     if (post.is_published) {
-      return <Badge variant="default" className="bg-green-100 text-green-800">Published</Badge>
+      return (
+        <Badge variant="default" className="bg-green-100 text-green-800">
+          Published
+        </Badge>
+      )
     }
     return <Badge variant="secondary">Draft</Badge>
   }
 
   const handlePostUpdated = (updatedPost: Post) => {
-    setPosts(prev => prev.map(p => p.id === updatedPost.id ? updatedPost : p))
+    setPosts((prev) => prev.map((p) => (p.id === updatedPost.id ? updatedPost : p)))
   }
 
   // Filter posts based on status
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-  const filteredPosts = posts.filter(post => {
+  const filteredPosts = posts.filter((post) => {
     let statusMatch = true
-    if (filterStatus === 'published') statusMatch = post.is_published
-    if (filterStatus === 'draft') statusMatch = !post.is_published
+    if (filterStatus === "published") statusMatch = post.is_published
+    if (filterStatus === "draft") statusMatch = !post.is_published
 
-    const categoryText = postCategories[post.id]?.map(category => category.title).join(" ") ?? ""
-    const searchText = `${post.title} ${post.slug} ${post.excerpt ?? ""} ${post.meta_description ?? ""} ${categoryText}`.toLowerCase()
+    const categoryText = postCategories[post.id]?.map((category) => category.title).join(" ") ?? ""
+    const searchText =
+      `${post.title} ${post.slug} ${post.excerpt ?? ""} ${post.meta_description ?? ""} ${categoryText}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
 
     return statusMatch && searchMatch
@@ -225,15 +245,16 @@ export default function PostsPage() {
 
   const sortedPosts = [...filteredPosts].sort((a, b) => {
     if (!postSort.sortColumn) return 0
-    const dir = postSort.sortDirection === 'asc' ? 1 : -1
-    if (postSort.sortColumn === 'title') return a.title.localeCompare(b.title) * dir
-    if (postSort.sortColumn === 'category') {
-      const aCat = postCategories[a.id]?.[0]?.title || '\uffff'
-      const bCat = postCategories[b.id]?.[0]?.title || '\uffff'
+    const dir = postSort.sortDirection === "asc" ? 1 : -1
+    if (postSort.sortColumn === "title") return a.title.localeCompare(b.title) * dir
+    if (postSort.sortColumn === "category") {
+      const aCat = postCategories[a.id]?.[0]?.title || "\uffff"
+      const bCat = postCategories[b.id]?.[0]?.title || "\uffff"
       return aCat.localeCompare(bCat) * dir
     }
-    if (postSort.sortColumn === 'status') return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (postSort.sortColumn === 'modified') return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
+    if (postSort.sortColumn === "status") return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (postSort.sortColumn === "modified")
+      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
   const filteredPostIds = filteredPosts.map((post) => post.id)
@@ -241,8 +262,8 @@ export default function PostsPage() {
   // Get counts for each status
   const statusCounts = {
     all: posts.length,
-    published: posts.filter(p => p.is_published).length,
-    draft: posts.filter(p => !p.is_published).length
+    published: posts.filter((p) => p.is_published).length,
+    draft: posts.filter((p) => !p.is_published).length
   }
 
   return (
@@ -255,16 +276,35 @@ export default function PostsPage() {
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
-              placeholder: "Search posts",
+              placeholder: "Search posts"
             }}
             filterMenu={{
               value: filterStatus,
-              onValueChange: (value) => { setFilterStatus(value as 'all' | 'published' | 'draft'); postSelection.clearSelection(); setCurrentPage(1) },
+              onValueChange: (value) => {
+                setFilterStatus(value as "all" | "published" | "draft")
+                postSelection.clearSelection()
+                setCurrentPage(1)
+              },
               items: [
-                { value: "all", label: "All", icon: List, count: statusCounts.all },
-                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
-                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
-              ],
+                {
+                  value: "all",
+                  label: "All",
+                  icon: List,
+                  count: statusCounts.all
+                },
+                {
+                  value: "published",
+                  label: "Published",
+                  icon: Globe,
+                  count: statusCounts.published
+                },
+                {
+                  value: "draft",
+                  label: "Draft",
+                  icon: FileEdit,
+                  count: statusCounts.draft
+                }
+              ]
             }}
             preActions={
               <AdminBulkDeleteButton
@@ -275,37 +315,52 @@ export default function PostsPage() {
             }
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4" /><span className="hidden sm:inline">Create Post</span>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Post</span>
               </Button>
             }
           />
 
-          <Card className="shadow-sm">
+          <Card>
             {/* Table Header */}
-            <div className="px-6 py-4 border-b bg-muted/30">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
-                  <Checkbox
-                    checked={postSelection.isPageSelected(filteredPostIds)}
-                    onCheckedChange={() => postSelection.togglePage(filteredPostIds)}
-                    aria-label="Select all posts"
-                  />
-                  <AdminSortButton active={postSort.sortColumn === 'title'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('title')}>
-                    Post
-                  </AdminSortButton>
-                </div>
-                <AdminSortButton active={postSort.sortColumn === 'category'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('category')}>
-                  Category
+            <CardTableHeader className="grid-cols-6">
+              <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
+                <Checkbox
+                  checked={postSelection.isPageSelected(filteredPostIds)}
+                  onCheckedChange={() => postSelection.togglePage(filteredPostIds)}
+                  aria-label="Select all posts"
+                />
+                <AdminSortButton
+                  active={postSort.sortColumn === "title"}
+                  direction={postSort.sortDirection}
+                  onClick={() => postSort.toggleSort("title")}
+                >
+                  Post
                 </AdminSortButton>
-                <AdminSortButton active={postSort.sortColumn === 'status'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('status')}>
-                  Status
-                </AdminSortButton>
-                <AdminSortButton active={postSort.sortColumn === 'modified'} direction={postSort.sortDirection} onClick={() => postSort.toggleSort('modified')}>
-                  Modified
-                </AdminSortButton>
-                <div>Actions</div>
               </div>
-            </div>
+              <AdminSortButton
+                active={postSort.sortColumn === "category"}
+                direction={postSort.sortDirection}
+                onClick={() => postSort.toggleSort("category")}
+              >
+                Category
+              </AdminSortButton>
+              <AdminSortButton
+                active={postSort.sortColumn === "status"}
+                direction={postSort.sortDirection}
+                onClick={() => postSort.toggleSort("status")}
+              >
+                Status
+              </AdminSortButton>
+              <AdminSortButton
+                active={postSort.sortColumn === "modified"}
+                direction={postSort.sortDirection}
+                onClick={() => postSort.toggleSort("modified")}
+              >
+                Modified
+              </AdminSortButton>
+              <div>Actions</div>
+            </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
             <AdminSelectionBanner
@@ -332,10 +387,9 @@ export default function PostsPage() {
                 <div className="p-8 text-center">
                   <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4">
-                    {posts.length === 0 
-                      ? 'No posts found' 
-                      : `No ${filterStatus === 'all' ? '' : filterStatus} posts found`
-                    }
+                    {posts.length === 0
+                      ? "No posts found"
+                      : `No ${filterStatus === "all" ? "" : filterStatus} posts found`}
                   </p>
                   <Button onClick={() => setShowCreateDialog(true)} variant="outline">
                     Create Your First Post
@@ -343,7 +397,10 @@ export default function PostsPage() {
                 </div>
               ) : (
                 sortedPosts.map((post) => (
-                  <div key={post.id} className={`p-6 transition-colors ${postSelection.selectedIds.has(post.id) ? 'bg-accent/50' : ''}`}>
+                  <div
+                    key={post.id}
+                    className={`p-6 transition-colors ${postSelection.selectedIds.has(post.id) ? "bg-accent/50" : ""}`}
+                  >
                     <div className="grid grid-cols-6 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4 pl-[3px]">
@@ -352,28 +409,26 @@ export default function PostsPage() {
                             onCheckedChange={() => postSelection.toggleOne(post.id)}
                             aria-label={`Select ${post.title}`}
                           />
-                        <Link
-                          href={`/admin/posts/builder/${post.site_id}?post=${post.slug}`}
-                          className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
-                        >
-                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden ml-2">
-                            {post.featured_image ? (
-                              <img
-                                src={post.featured_image}
-                                alt={post.title}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <BookOpen className="h-6 w-6 text-muted-foreground" />
-                            )}
-                          </div>
-                          <div>
-                            <h4 className="font-medium hover:underline">{post.title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              /posts/{post.slug}
-                            </p>
-                          </div>
-                        </Link>
+                          <Link
+                            href={`/admin/posts/builder/${post.site_id}?post=${post.slug}`}
+                            className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
+                          >
+                            <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden ml-2">
+                              {post.featured_image ? (
+                                <img
+                                  src={post.featured_image}
+                                  alt={post.title}
+                                  className="w-full h-full object-contain"
+                                />
+                              ) : (
+                                <BookOpen className="h-6 w-6 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div>
+                              <h4 className="font-medium hover:underline">{post.title}</h4>
+                              <p className="text-sm text-muted-foreground">/posts/{post.slug}</p>
+                            </div>
+                          </Link>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1">
@@ -387,13 +442,9 @@ export default function PostsPage() {
                           <span className="text-sm text-muted-foreground">—</span>
                         )}
                       </div>
+                      <div>{getStatusBadge(post)}</div>
                       <div>
-                        {getStatusBadge(post)}
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          {formatRelativeDate(post.updated_at)}
-                        </span>
+                        <span className="text-sm text-muted-foreground">{formatRelativeDate(post.updated_at)}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <Button
@@ -407,13 +458,13 @@ export default function PostsPage() {
                           <span className="sr-only">Post Settings</span>
                         </Button>
                         {post.is_published && currentSite ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            asChild
-                          >
-                            <a href={`${getSiteUrl(currentSite)}/posts/${post.slug}`} target="_blank" rel="noopener noreferrer" title="Preview">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                            <a
+                              href={`${getSiteUrl(currentSite)}/posts/${post.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Preview"
+                            >
                               <Eye className="h-4 w-4" />
                               <span className="sr-only">Preview</span>
                             </a>
@@ -458,64 +509,71 @@ export default function PostsPage() {
                 ))
               )}
             </div>
-            {!loading && <AdminListFooter currentPage={currentPage} pageSize={pageSize} total={total} onPageChange={setCurrentPage} />}
+            {!loading && (
+              <AdminListFooter
+                currentPage={currentPage}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setCurrentPage}
+              />
+            )}
           </Card>
 
-        {/* Create Post Dialog */}
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <AdminModalContent>
-            <AdminModalHeader>
-              <AdminModalTitle>Create New Post</AdminModalTitle>
-              <AdminModalDescription>
-                Add a new post to your blog. You can customize the content after creation.
-              </AdminModalDescription>
-            </AdminModalHeader>
-            <CreatePostModal
-              onSuccess={(post, continueToBuilder) => {
-                setPosts(prev => [...prev, post])
-                setShowCreateDialog(false)
-                if (continueToBuilder && currentSite?.id) {
-                  router.push(`/admin/posts/builder/${currentSite.id}?post=${post.slug}`)
-                }
-              }}
-              onCancel={() => setShowCreateDialog(false)}
-            />
-          </AdminModalContent>
-        </Dialog>
+          {/* Create Post Dialog */}
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <AdminModalContent>
+              <AdminModalHeader>
+                <AdminModalTitle>Create New Post</AdminModalTitle>
+                <AdminModalDescription>
+                  Add a new post to your blog. You can customize the content after creation.
+                </AdminModalDescription>
+              </AdminModalHeader>
+              <CreatePostModal
+                onSuccess={(post, continueToBuilder) => {
+                  setPosts((prev) => [...prev, post])
+                  setShowCreateDialog(false)
+                  if (continueToBuilder && currentSite?.id) {
+                    router.push(`/admin/posts/builder/${currentSite.id}?post=${post.slug}`)
+                  }
+                }}
+                onCancel={() => setShowCreateDialog(false)}
+              />
+            </AdminModalContent>
+          </Dialog>
 
-        {/* Post Settings Modal */}
-        <PostSettingsModal 
-          open={settingsPostId !== null}
-          onOpenChange={(open) => setSettingsPostId(open ? settingsPostId : null)}
-          post={posts.find(p => p.id === settingsPostId) || null}
-          site={null}
-          onSuccess={handlePostUpdated}
-        />
+          {/* Post Settings Modal */}
+          <PostSettingsModal
+            open={settingsPostId !== null}
+            onOpenChange={(open) => setSettingsPostId(open ? settingsPostId : null)}
+            post={posts.find((p) => p.id === settingsPostId) || null}
+            site={null}
+            onSuccess={handlePostUpdated}
+          />
 
-        <AdminConfirmDialog
-          open={pendingDeleteId !== null}
-          title="Delete Post"
-          description="Are you sure you want to delete this post? This action cannot be undone."
-          onCancel={cancelDeletePost}
-          onConfirm={confirmDeletePost}
-        />
+          <AdminConfirmDialog
+            open={pendingDeleteId !== null}
+            title="Delete Post"
+            description="Are you sure you want to delete this post? This action cannot be undone."
+            onCancel={cancelDeletePost}
+            onConfirm={confirmDeletePost}
+          />
 
-        <AdminConfirmDialog
-          open={massDeleteConfirmOpen}
-          title={`Delete ${postSelection.selectedCount} Post${postSelection.selectedCount !== 1 ? 's' : ''}`}
-          description={`Are you sure you want to delete ${postSelection.selectedCount} post${postSelection.selectedCount !== 1 ? 's' : ''}? This action cannot be undone.`}
-          confirmLabel={`Delete ${postSelection.selectedCount} Post${postSelection.selectedCount !== 1 ? 's' : ''}`}
-          onCancel={() => setMassDeleteConfirmOpen(false)}
-          onConfirm={confirmMassDelete}
-        />
+          <AdminConfirmDialog
+            open={massDeleteConfirmOpen}
+            title={`Delete ${postSelection.selectedCount} Post${postSelection.selectedCount !== 1 ? "s" : ""}`}
+            description={`Are you sure you want to delete ${postSelection.selectedCount} post${postSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
+            confirmLabel={`Delete ${postSelection.selectedCount} Post${postSelection.selectedCount !== 1 ? "s" : ""}`}
+            onCancel={() => setMassDeleteConfirmOpen(false)}
+            onConfirm={confirmMassDelete}
+          />
 
-        <AdminErrorDialog
-          open={errorMessage !== null}
-          message={errorMessage ?? ""}
-          onOpenChange={(open) => {
-            if (!open) setErrorMessage(null)
-          }}
-        />
+          <AdminErrorDialog
+            open={errorMessage !== null}
+            message={errorMessage ?? ""}
+            onOpenChange={(open) => {
+              if (!open) setErrorMessage(null)
+            }}
+          />
         </div>
       </AdminLayout>
     </>

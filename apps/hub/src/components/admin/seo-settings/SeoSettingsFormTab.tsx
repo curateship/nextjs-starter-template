@@ -1,93 +1,93 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
-import { getSiteForAudit, saveSiteAuditSettings } from '@/lib/actions/seo/site-audit/site-audit-actions'
-import { buildCanonicalUrl, getHomeSeoDescription, getHomeSeoTitle } from '@/lib/utils/seo-helpers'
-import { toCdnUrl } from '@/lib/utils/cdn'
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
+import { getSiteForAudit, saveSiteAuditSettings } from "@/lib/actions/seo/site-audit/site-audit-actions"
+import { buildCanonicalUrl, getHomeSeoDescription, getHomeSeoTitle } from "@/lib/utils/seo-helpers"
+import { toCdnUrl } from "@/lib/utils/cdn"
 
 interface SeoSettingsFormTabProps {
   siteId: string
-  mode: 'metadata' | 'technical'
+  mode: "metadata" | "technical"
   formId: string
   onStatusChange?: (status: { loading: boolean; saving: boolean; message: string | null }) => void
 }
 
 const CONTENT_SEO_CARDS = [
   {
-    key: 'pages',
-    label: 'Pages',
-    itemLabel: 'page',
-    description: 'Default metadata for public pages.',
-    titleSetting: 'seo_pages_title_template',
-    descriptionSetting: 'seo_pages_description_template',
-    titleToken: '{{page_title}}',
-    defaultTitleTemplate: '{{page_title}} | {{site_title}}',
-    defaultDescriptionTemplate: 'Visit {{page_title}} on {{site_title}}',
+    key: "pages",
+    label: "Pages",
+    itemLabel: "page",
+    description: "Default metadata for public pages.",
+    titleSetting: "seo_pages_title_template",
+    descriptionSetting: "seo_pages_description_template",
+    titleToken: "{{page_title}}",
+    defaultTitleTemplate: "{{page_title}} | {{site_title}}",
+    defaultDescriptionTemplate: "Visit {{page_title}} on {{site_title}}"
   },
   {
-    key: 'posts',
-    label: 'Posts',
-    itemLabel: 'post',
-    description: 'Default metadata for post pages.',
-    titleSetting: 'seo_posts_title_template',
-    descriptionSetting: 'seo_posts_description_template',
-    titleToken: '{{post_title}}',
-    defaultTitleTemplate: '{{post_title}} | {{site_title}}',
-    defaultDescriptionTemplate: 'Read {{post_title}} on {{site_title}}',
+    key: "posts",
+    label: "Posts",
+    itemLabel: "post",
+    description: "Default metadata for post pages.",
+    titleSetting: "seo_posts_title_template",
+    descriptionSetting: "seo_posts_description_template",
+    titleToken: "{{post_title}}",
+    defaultTitleTemplate: "{{post_title}} | {{site_title}}",
+    defaultDescriptionTemplate: "Read {{post_title}} on {{site_title}}"
   },
   {
-    key: 'products',
-    label: 'Products',
-    itemLabel: 'product',
-    description: 'Default metadata for product pages.',
-    titleSetting: 'seo_products_title_template',
-    descriptionSetting: 'seo_products_description_template',
-    titleToken: '{{product_title}}',
-    defaultTitleTemplate: '{{product_title}} | {{site_title}}',
-    defaultDescriptionTemplate: '{{product_title}} from {{site_title}}',
+    key: "products",
+    label: "Products",
+    itemLabel: "product",
+    description: "Default metadata for product pages.",
+    titleSetting: "seo_products_title_template",
+    descriptionSetting: "seo_products_description_template",
+    titleToken: "{{product_title}}",
+    defaultTitleTemplate: "{{product_title}} | {{site_title}}",
+    defaultDescriptionTemplate: "{{product_title}} from {{site_title}}"
   },
   {
-    key: 'categories',
-    label: 'Categories',
-    itemLabel: 'category',
-    description: 'Default metadata for category pages.',
-    titleSetting: 'seo_categories_title_template',
-    descriptionSetting: 'seo_categories_description_template',
-    titleToken: '{{category_title}}',
-    defaultTitleTemplate: '{{category_title}} | {{site_title}}',
-    defaultDescriptionTemplate: '{{category_title}} on {{site_title}}',
+    key: "categories",
+    label: "Categories",
+    itemLabel: "category",
+    description: "Default metadata for category pages.",
+    titleSetting: "seo_categories_title_template",
+    descriptionSetting: "seo_categories_description_template",
+    titleToken: "{{category_title}}",
+    defaultTitleTemplate: "{{category_title}} | {{site_title}}",
+    defaultDescriptionTemplate: "{{category_title}} on {{site_title}}"
   },
   {
-    key: 'directories',
-    label: 'Directory',
-    itemLabel: 'directory item',
-    description: 'Default metadata for directory item pages.',
-    titleSetting: 'seo_directories_title_template',
-    descriptionSetting: 'seo_directories_description_template',
-    titleToken: '{{directory_title}}',
-    defaultTitleTemplate: '{{directory_title}} | {{site_title}}',
-    defaultDescriptionTemplate: '{{directory_title}} on {{site_title}}',
+    key: "directories",
+    label: "Directory",
+    itemLabel: "directory item",
+    description: "Default metadata for directory item pages.",
+    titleSetting: "seo_directories_title_template",
+    descriptionSetting: "seo_directories_description_template",
+    titleToken: "{{directory_title}}",
+    defaultTitleTemplate: "{{directory_title}} | {{site_title}}",
+    defaultDescriptionTemplate: "{{directory_title}} on {{site_title}}"
   },
   {
-    key: 'events',
-    label: 'Events',
-    itemLabel: 'event',
-    description: 'Default metadata for event pages.',
-    titleSetting: 'seo_events_title_template',
-    descriptionSetting: 'seo_events_description_template',
-    titleToken: '{{event_title}}',
-    defaultTitleTemplate: '{{event_title}} | {{site_title}}',
-    defaultDescriptionTemplate: '{{event_title}} on {{site_title}}',
-  },
+    key: "events",
+    label: "Events",
+    itemLabel: "event",
+    description: "Default metadata for event pages.",
+    titleSetting: "seo_events_title_template",
+    descriptionSetting: "seo_events_description_template",
+    titleToken: "{{event_title}}",
+    defaultTitleTemplate: "{{event_title}} | {{site_title}}",
+    defaultDescriptionTemplate: "{{event_title}} on {{site_title}}"
+  }
 ] as const
 
-type ContentSeoCardKey = (typeof CONTENT_SEO_CARDS)[number]['key']
+type ContentSeoCardKey = (typeof CONTENT_SEO_CARDS)[number]["key"]
 type ContentTemplateState = Record<ContentSeoCardKey, { title: string; description: string }>
 
 function getDefaultContentTemplates(): ContentTemplateState {
@@ -95,7 +95,7 @@ function getDefaultContentTemplates(): ContentTemplateState {
   for (const card of CONTENT_SEO_CARDS) {
     templates[card.key] = {
       title: card.defaultTitleTemplate,
-      description: card.defaultDescriptionTemplate,
+      description: card.defaultDescriptionTemplate
     }
   }
   return templates
@@ -110,21 +110,13 @@ function getContentTemplateSettings(templates: ContentTemplateState) {
   return settings
 }
 
-function HomePageSearchResultCard({
-  title,
-  description,
-  url,
-}: {
-  title: string
-  description: string
-  url: string
-}) {
+function HomePageSearchResultCard({ title, description, url }: { title: string; description: string; url: string }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Home Page Search Result</CardTitle>
       </CardHeader>
-      <CardContent className="max-w-2xl space-y-1 pt-0">
+      <CardContent className="max-w-2xl space-y-1">
         <p className="truncate text-sm text-green-700">{url}</p>
         <h3 className="text-xl text-blue-700">{title}</h3>
         <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{description}</p>
@@ -137,7 +129,7 @@ function HomePageSocialCard({
   title,
   description,
   url,
-  ogImage,
+  ogImage
 }: {
   title: string
   description: string
@@ -149,7 +141,7 @@ function HomePageSocialCard({
       <CardHeader>
         <CardTitle className="text-base">Home Page Social Card</CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent>
         <div className="max-w-xl overflow-hidden rounded-md border bg-background">
           {ogImage ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -170,26 +162,21 @@ function HomePageSocialCard({
   )
 }
 
-export function SeoSettingsFormTab({
-  siteId,
-  mode,
-  formId,
-  onStatusChange,
-}: SeoSettingsFormTabProps) {
+export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: SeoSettingsFormTabProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [site, setSite] = useState<any>(null)
-  const [homeTitle, setHomeTitle] = useState('')
-  const [homeDescription, setHomeDescription] = useState('')
+  const [homeTitle, setHomeTitle] = useState("")
+  const [homeDescription, setHomeDescription] = useState("")
   const [contentTemplates, setContentTemplates] = useState<ContentTemplateState>(() => getDefaultContentTemplates())
-  const [ogImage, setOgImage] = useState('')
-  const [twitterCardType, setTwitterCardType] = useState('summary_large_image')
-  const [twitterHandle, setTwitterHandle] = useState('')
-  const [googleVerification, setGoogleVerification] = useState('')
-  const [canonicalDomain, setCanonicalDomain] = useState('')
-  const [orgName, setOrgName] = useState('')
-  const [orgLogo, setOrgLogo] = useState('')
-  const [socialLinks, setSocialLinks] = useState('')
+  const [ogImage, setOgImage] = useState("")
+  const [twitterCardType, setTwitterCardType] = useState("summary_large_image")
+  const [twitterHandle, setTwitterHandle] = useState("")
+  const [googleVerification, setGoogleVerification] = useState("")
+  const [canonicalDomain, setCanonicalDomain] = useState("")
+  const [orgName, setOrgName] = useState("")
+  const [orgLogo, setOrgLogo] = useState("")
+  const [socialLinks, setSocialLinks] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
@@ -200,28 +187,28 @@ export function SeoSettingsFormTab({
       if (siteData) {
         setSite(siteData)
         const settings = siteData.settings || {}
-        setHomeTitle(settings.seo_home_title || settings.site_title || siteData.name || '')
-        setHomeDescription(settings.seo_home_description || settings.seo_site_description || '')
+        setHomeTitle(settings.seo_home_title || settings.site_title || siteData.name || "")
+        setHomeDescription(settings.seo_home_description || settings.seo_site_description || "")
         const loadedTemplates = getDefaultContentTemplates()
         for (const card of CONTENT_SEO_CARDS) {
           loadedTemplates[card.key] = {
             title: settings[card.titleSetting] || card.defaultTitleTemplate,
-            description: settings[card.descriptionSetting] || card.defaultDescriptionTemplate,
+            description: settings[card.descriptionSetting] || card.defaultDescriptionTemplate
           }
         }
         setContentTemplates(loadedTemplates)
-        setOgImage(settings.seo_default_og_image || '')
-        setTwitterCardType(settings.seo_twitter_card_type || 'summary_large_image')
-        setTwitterHandle(settings.seo_twitter_handle || '')
-        setGoogleVerification(settings.seo_google_verification || '')
-        setCanonicalDomain(settings.seo_canonical_domain || '')
-        setOrgName(settings.seo_org_name || '')
-        setOrgLogo(settings.seo_org_logo || '')
-        setSocialLinks((settings.seo_org_social_links || []).join('\n'))
+        setOgImage(settings.seo_default_og_image || "")
+        setTwitterCardType(settings.seo_twitter_card_type || "summary_large_image")
+        setTwitterHandle(settings.seo_twitter_handle || "")
+        setGoogleVerification(settings.seo_google_verification || "")
+        setCanonicalDomain(settings.seo_canonical_domain || "")
+        setOrgName(settings.seo_org_name || "")
+        setOrgLogo(settings.seo_org_logo || "")
+        setSocialLinks((settings.seo_org_social_links || []).join("\n"))
       }
     } catch (err) {
-      console.error('Error loading SEO settings:', err)
-      setError('Failed to load SEO settings')
+      console.error("Error loading SEO settings:", err)
+      setError("Failed to load SEO settings")
     }
     setLoading(false)
   }, [siteId])
@@ -235,11 +222,11 @@ export function SeoSettingsFormTab({
   }, [loading, onStatusChange, saveMessage, saving])
 
   const canonicalPreview = useMemo(() => {
-    if (!site) return ''
-    if (canonicalDomain === 'custom') {
-      return site.custom_domain ? `https://${site.custom_domain}` : 'Custom domain is not configured'
+    if (!site) return ""
+    if (canonicalDomain === "custom") {
+      return site.custom_domain ? `https://${site.custom_domain}` : "Custom domain is not configured"
     }
-    if (canonicalDomain === 'subdomain') {
+    if (canonicalDomain === "subdomain") {
       return `https://${site.subdomain}.systemeverything.com`
     }
     return site.custom_domain ? `https://${site.custom_domain}` : `https://${site.subdomain}.systemeverything.com`
@@ -251,8 +238,8 @@ export function SeoSettingsFormTab({
     return {
       title: homeTitle.trim() || getHomeSeoTitle(site),
       description: homeDescription.trim() || getHomeSeoDescription(site),
-      url: buildCanonicalUrl(site, '/'),
-      ogImage: ogImage.trim() ? toCdnUrl(ogImage.trim()) : null,
+      url: buildCanonicalUrl(site, "/"),
+      ogImage: ogImage.trim() ? toCdnUrl(ogImage.trim()) : null
     }
   }, [homeDescription, homeTitle, ogImage, site])
 
@@ -263,32 +250,38 @@ export function SeoSettingsFormTab({
     setError(null)
     setSaveMessage(null)
 
-    const result = await saveSiteAuditSettings(siteId, mode === 'metadata'
-      ? {
-          seo_home_title: homeTitle.trim() || undefined,
-          seo_home_description: homeDescription.trim() || undefined,
-          ...getContentTemplateSettings(contentTemplates),
-          seo_default_og_image: ogImage.trim() || undefined,
-          seo_twitter_card_type: (twitterCardType as any) || undefined,
-          seo_twitter_handle: twitterHandle.trim() || undefined,
-        }
-      : {
-          seo_google_verification: googleVerification.trim() || undefined,
-          seo_canonical_domain: (canonicalDomain as any) || undefined,
-          seo_org_name: orgName.trim() || undefined,
-          seo_org_logo: orgLogo.trim() || undefined,
-          seo_org_social_links: socialLinks
-            ? socialLinks.split('\n').map((link) => link.trim()).filter(Boolean)
-            : undefined,
-        })
+    const result = await saveSiteAuditSettings(
+      siteId,
+      mode === "metadata"
+        ? {
+            seo_home_title: homeTitle.trim() || undefined,
+            seo_home_description: homeDescription.trim() || undefined,
+            ...getContentTemplateSettings(contentTemplates),
+            seo_default_og_image: ogImage.trim() || undefined,
+            seo_twitter_card_type: (twitterCardType as any) || undefined,
+            seo_twitter_handle: twitterHandle.trim() || undefined
+          }
+        : {
+            seo_google_verification: googleVerification.trim() || undefined,
+            seo_canonical_domain: (canonicalDomain as any) || undefined,
+            seo_org_name: orgName.trim() || undefined,
+            seo_org_logo: orgLogo.trim() || undefined,
+            seo_org_social_links: socialLinks
+              ? socialLinks
+                  .split("\n")
+                  .map((link) => link.trim())
+                  .filter(Boolean)
+              : undefined
+          }
+    )
 
     setSaving(false)
     if (result.success) {
-      setSaveMessage('SEO settings saved')
+      setSaveMessage("SEO settings saved")
       window.setTimeout(() => setSaveMessage(null), 3000)
       loadData()
     } else {
-      setError(result.error || 'Failed to save SEO settings')
+      setError(result.error || "Failed to save SEO settings")
     }
   }
 
@@ -301,8 +294,8 @@ export function SeoSettingsFormTab({
       ...current,
       [key]: {
         ...current[key],
-        [field]: value,
-      },
+        [field]: value
+      }
     }))
   }
 
@@ -339,7 +332,7 @@ export function SeoSettingsFormTab({
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
-      {mode === 'metadata' ? (
+      {mode === "metadata" ? (
         <>
           {homePreview && (
             <HomePageSearchResultCard
@@ -354,7 +347,7 @@ export function SeoSettingsFormTab({
               <CardTitle className="text-base">Home Page Title & Description</CardTitle>
               <CardDescription>Metadata used for the public home page.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-0">
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="home-title">Home Page Title</Label>
                 <Input
@@ -385,28 +378,32 @@ export function SeoSettingsFormTab({
                 <CardTitle className="text-base">{card.label}</CardTitle>
                 <CardDescription>{card.description}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 pt-0">
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor={`${card.key}-title-template`}>Title Template</Label>
                   <Input
                     id={`${card.key}-title-template`}
                     value={contentTemplates[card.key].title}
-                    onChange={(event) => updateContentTemplate(card.key, 'title', event.target.value)}
+                    onChange={(event) => updateContentTemplate(card.key, "title", event.target.value)}
                     placeholder={card.defaultTitleTemplate}
                   />
-                  <p className="text-xs text-muted-foreground">Tokens: {card.titleToken}, {'{{site_title}}'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Tokens: {card.titleToken}, {"{{site_title}}"}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`${card.key}-description-template`}>Meta Description Template</Label>
                   <Textarea
                     id={`${card.key}-description-template`}
                     value={contentTemplates[card.key].description}
-                    onChange={(event) => updateContentTemplate(card.key, 'description', event.target.value)}
+                    onChange={(event) => updateContentTemplate(card.key, "description", event.target.value)}
                     placeholder={card.defaultDescriptionTemplate}
                     rows={1}
                     className="h-10 min-h-10 resize-none overflow-hidden"
                   />
-                  <p className="text-xs text-muted-foreground">Used when a {card.itemLabel} does not have its own meta description.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Used when a {card.itemLabel} does not have its own meta description.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -426,7 +423,7 @@ export function SeoSettingsFormTab({
               <CardTitle className="text-base">Social Preview Defaults</CardTitle>
               <CardDescription>Fallback image and Twitter/X card metadata.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-0">
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="og-image">Default OG Image URL</Label>
                 <Input
@@ -439,7 +436,11 @@ export function SeoSettingsFormTab({
               {ogImage && (
                 <div className="overflow-hidden rounded-md border bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={ogImage} alt="Default Open Graph preview" className="aspect-[1.91/1] w-full max-w-xl object-cover" />
+                  <img
+                    src={ogImage}
+                    alt="Default Open Graph preview"
+                    className="aspect-[1.91/1] w-full max-w-xl object-cover"
+                  />
                 </div>
               )}
               <div className="grid gap-4 md:grid-cols-2">
@@ -475,7 +476,7 @@ export function SeoSettingsFormTab({
               <CardTitle className="text-base">Search Engine Setup</CardTitle>
               <CardDescription>Verification and canonical URL settings.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-0">
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="google-verify">Google Verification Code</Label>
                 <Input
@@ -487,7 +488,10 @@ export function SeoSettingsFormTab({
               </div>
               <div className="space-y-2">
                 <Label>Canonical Domain</Label>
-                <Select value={canonicalDomain || 'not_set'} onValueChange={(value) => setCanonicalDomain(value === 'not_set' ? '' : value)}>
+                <Select
+                  value={canonicalDomain || "not_set"}
+                  onValueChange={(value) => setCanonicalDomain(value === "not_set" ? "" : value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
@@ -511,7 +515,7 @@ export function SeoSettingsFormTab({
               <CardTitle className="text-base">Structured Data</CardTitle>
               <CardDescription>Organization details used in JSON-LD schema.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pt-0">
+            <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="org-name">Organization Name</Label>

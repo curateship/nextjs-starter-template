@@ -1,8 +1,8 @@
-"use client";
+"use client"
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BlockContainer } from "@/components/frontend/layout/block-container";
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
 
 const DUMMY_PRODUCTS = [
   {
@@ -53,7 +53,7 @@ const DUMMY_PRODUCTS = [
     image: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=300&fit=crop",
     category: "Fitness"
   }
-];
+]
 
 export const ProductArchiveBlock = () => {
   return (
@@ -66,59 +66,67 @@ export const ProductArchiveBlock = () => {
           align: "center"
         }}
       >
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 justify-center mb-8">
-        <Button variant="outline" size="sm">All Products</Button>
-        <Button variant="ghost" size="sm">Electronics</Button>
-        <Button variant="ghost" size="sm">Wearables</Button>
-        <Button variant="ghost" size="sm">Food & Beverage</Button>
-        <Button variant="ghost" size="sm">Fashion</Button>
-        <Button variant="ghost" size="sm">Fitness</Button>
-      </div>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-4 justify-center mb-8">
+          <Button variant="outline" size="sm">
+            All Products
+          </Button>
+          <Button variant="ghost" size="sm">
+            Electronics
+          </Button>
+          <Button variant="ghost" size="sm">
+            Wearables
+          </Button>
+          <Button variant="ghost" size="sm">
+            Food & Beverage
+          </Button>
+          <Button variant="ghost" size="sm">
+            Fashion
+          </Button>
+          <Button variant="ghost" size="sm">
+            Fitness
+          </Button>
+        </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {DUMMY_PRODUCTS.map((product) => (
-          <a key={product.id} href="http://localhost:3000/themes/marketplace/products" className="block">
-            <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="aspect-square overflow-hidden">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    {product.category}
-                  </span>
-                  <span className="text-lg font-semibold text-foreground">
-                    {product.price}
-                  </span>
+        {/* Products Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {DUMMY_PRODUCTS.map((product) => (
+            <a key={product.id} href="http://localhost:3000/themes/marketplace/products" className="block">
+              <Card className="overflow-hidden">
+                <div className="aspect-square overflow-hidden">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                  />
                 </div>
-                <CardTitle className="text-lg">{product.name}</CardTitle>
-                <CardDescription className="text-sm text-muted-foreground">
-                  {product.description}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <Button className="w-full" size="sm">
-                  View Details
-                </Button>
-              </CardContent>
-            </Card>
-          </a>
-        ))}
-      </div>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                      {product.category}
+                    </span>
+                    <span className="text-lg font-semibold text-foreground">{product.price}</span>
+                  </div>
+                  <CardTitle className="text-lg">{product.name}</CardTitle>
+                  <CardDescription className="text-sm text-muted-foreground">{product.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" size="sm">
+                    View Details
+                  </Button>
+                </CardContent>
+              </Card>
+            </a>
+          ))}
+        </div>
 
-      {/* Load More */}
-      <div className="text-center mt-12">
-        <Button variant="outline" size="lg">
-          Load More Products
-        </Button>
-      </div>
+        {/* Load More */}
+        <div className="text-center mt-12">
+          <Button variant="outline" size="lg">
+            Load More Products
+          </Button>
+        </div>
       </BlockContainer>
     </div>
-  );
-}; 
+  )
+}

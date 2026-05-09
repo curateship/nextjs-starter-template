@@ -8,23 +8,17 @@ import {
   closestCenter,
   type DragEndEvent,
   useSensor,
-  useSensors,
+  useSensors
 } from "@dnd-kit/core"
 import {
   SortableContext,
   arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
-  verticalListSortingStrategy,
+  verticalListSortingStrategy
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import {
-  CheckIcon,
-  GripVertical,
-  PlusIcon,
-  RotateCcwIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { CheckIcon, GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -35,14 +29,10 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
+  DialogTitle
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/tailwind"
 import {
   ADMIN_SIDEBAR_ICON_OPTIONS,
@@ -51,7 +41,7 @@ import {
   type AdminSidebarChildItem,
   type AdminSidebarItem,
   type AdminSidebarSection,
-  type AdminSidebarSettings,
+  type AdminSidebarSettings
 } from "@/lib/utils/admin-sidebar"
 import type { QuickLinkIconName } from "@/lib/utils/site-quick-links"
 
@@ -64,25 +54,12 @@ type AdminSidebarSettingsCardProps = {
 type SortableItemProps = {
   sectionId: string
   item: AdminSidebarItem
-  onItemChange: (
-    sectionId: string,
-    itemId: string,
-    patch: Partial<AdminSidebarItem>
-  ) => void
+  onItemChange: (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => void
   onItemDelete: (sectionId: string, itemId: string) => void
   onChildAdd: (sectionId: string, itemId: string) => void
-  onChildChange: (
-    sectionId: string,
-    itemId: string,
-    childId: string,
-    patch: Partial<AdminSidebarChildItem>
-  ) => void
+  onChildChange: (sectionId: string, itemId: string, childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onChildDelete: (sectionId: string, itemId: string, childId: string) => void
-  onChildDragEnd: (
-    sectionId: string,
-    itemId: string,
-    event: DragEndEvent
-  ) => void
+  onChildDragEnd: (sectionId: string, itemId: string, event: DragEndEvent) => void
 }
 
 type SortableChildProps = {
@@ -96,31 +73,18 @@ type SortableSectionProps = {
   onSectionTitleChange: (sectionId: string, title: string) => void
   onReset: () => void
   onItemAdd: (sectionId: string) => void
-  onItemChange: (
-    sectionId: string,
-    itemId: string,
-    patch: Partial<AdminSidebarItem>
-  ) => void
+  onItemChange: (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => void
   onItemDelete: (sectionId: string, itemId: string) => void
   onItemDragEnd: (sectionId: string, event: DragEndEvent) => void
   onChildAdd: (sectionId: string, itemId: string) => void
-  onChildChange: (
-    sectionId: string,
-    itemId: string,
-    childId: string,
-    patch: Partial<AdminSidebarChildItem>
-  ) => void
+  onChildChange: (sectionId: string, itemId: string, childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onChildDelete: (sectionId: string, itemId: string, childId: string) => void
-  onChildDragEnd: (
-    sectionId: string,
-    itemId: string,
-    event: DragEndEvent
-  ) => void
+  onChildDragEnd: (sectionId: string, itemId: string, event: DragEndEvent) => void
 }
 
 const iconOptions = ADMIN_SIDEBAR_ICON_OPTIONS.map((option) => ({
   value: option.value,
-  label: option.label,
+  label: option.label
 }))
 
 function createSidebarId(prefix: string) {
@@ -138,9 +102,7 @@ function updateSection(
 ) {
   return {
     ...config,
-    sections: config.sections.map((section) =>
-      section.id === sectionId ? update(section) : section
-    ),
+    sections: config.sections.map((section) => (section.id === sectionId ? update(section) : section))
   }
 }
 
@@ -154,7 +116,7 @@ function IconPickerButton({
   onValueChange,
   allowEmpty = false,
   compact = false,
-  ghost = false,
+  ghost = false
 }: {
   value?: QuickLinkIconName
   onValueChange: (value: QuickLinkIconName | undefined) => void
@@ -163,9 +125,7 @@ function IconPickerButton({
   ghost?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
-  const currentLabel = value
-    ? iconOptions.find((option) => option.value === value)?.label || "Icon"
-    : "No icon"
+  const currentLabel = value ? iconOptions.find((option) => option.value === value)?.label || "Icon" : "No icon"
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -197,9 +157,7 @@ function IconPickerButton({
               aria-label="Use no icon"
             >
               None
-              {!value ? (
-                <CheckIcon className="absolute right-1 top-1 h-3 w-3" />
-              ) : null}
+              {!value ? <CheckIcon className="absolute right-1 top-1 h-3 w-3" /> : null}
             </button>
           ) : null}
           {iconOptions.map((option) => (
@@ -218,9 +176,7 @@ function IconPickerButton({
               title={option.label}
             >
               {renderAdminSidebarIcon(option.value, "h-4 w-4")}
-              {value === option.value ? (
-                <CheckIcon className="absolute right-1 top-1 h-3 w-3" />
-              ) : null}
+              {value === option.value ? <CheckIcon className="absolute right-1 top-1 h-3 w-3" /> : null}
             </button>
           ))}
         </div>
@@ -230,19 +186,12 @@ function IconPickerButton({
 }
 
 function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: child.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id })
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.55 : 1,
+    opacity: isDragging ? 0.55 : 1
   }
 
   return (
@@ -302,37 +251,28 @@ function SortableSidebarItem({
   onChildAdd,
   onChildChange,
   onChildDelete,
-  onChildDragEnd,
+  onChildDragEnd
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
   )
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.55 : 1,
+    opacity: isDragging ? 0.55 : 1
   }
 
   const children = item.children ?? []
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="group rounded-lg bg-background transition-colors hover:bg-muted/40"
-    >
+    <div ref={setNodeRef} style={style} className="group rounded-lg bg-background transition-colors hover:bg-muted/40">
       <div className="flex items-center">
         <button
           type="button"
@@ -353,9 +293,7 @@ function SortableSidebarItem({
             {renderAdminSidebarIcon(item.icon, "h-4 w-4")}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">
-              {item.label || "Untitled link"}
-            </span>
+            <span className="block truncate text-sm font-medium">{item.label || "Untitled link"}</span>
           </span>
           {children.length ? (
             <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
@@ -363,9 +301,7 @@ function SortableSidebarItem({
             </span>
           ) : null}
           {!item.visible ? (
-            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
-              Hidden
-            </span>
+            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">Hidden</span>
           ) : null}
         </button>
 
@@ -375,9 +311,7 @@ function SortableSidebarItem({
         >
           <Checkbox
             checked={item.visible}
-            onCheckedChange={(checked) =>
-              onItemChange(sectionId, item.id, { visible: checked === true })
-            }
+            onCheckedChange={(checked) => onItemChange(sectionId, item.id, { visible: checked === true })}
           />
           <span className="sr-only">Show {item.label || "sidebar link"}</span>
         </label>
@@ -398,9 +332,7 @@ function SortableSidebarItem({
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{item.label || "Sidebar Link"}</DialogTitle>
-            <DialogDescription>
-              Edit this sidebar destination and its child links.
-            </DialogDescription>
+            <DialogDescription>Edit this sidebar destination and its child links.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5">
@@ -408,15 +340,13 @@ function SortableSidebarItem({
               <IconPickerButton
                 value={item.icon}
                 compact
-                onValueChange={(icon) =>
-                  icon ? onItemChange(sectionId, item.id, { icon }) : undefined
-                }
+                onValueChange={(icon) => (icon ? onItemChange(sectionId, item.id, { icon }) : undefined)}
               />
               <Input
                 value={item.label}
                 onChange={(event) =>
                   onItemChange(sectionId, item.id, {
-                    label: event.target.value,
+                    label: event.target.value
                   })
                 }
                 placeholder="Label"
@@ -424,9 +354,7 @@ function SortableSidebarItem({
               />
               <Input
                 value={item.href}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, { href: event.target.value })
-                }
+                onChange={(event) => onItemChange(sectionId, item.id, { href: event.target.value })}
                 placeholder="/admin/example"
                 aria-label="Sidebar link URL"
               />
@@ -440,12 +368,7 @@ function SortableSidebarItem({
                     These become the nested links and sticky header shortcuts.
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onChildAdd(sectionId, item.id)}
-                >
+                <Button type="button" variant="outline" size="sm" onClick={() => onChildAdd(sectionId, item.id)}>
                   <PlusIcon className="h-4 w-4" />
                   Add Child
                 </Button>
@@ -455,25 +378,16 @@ function SortableSidebarItem({
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
-                  onDragEnd={(event) =>
-                    onChildDragEnd(sectionId, item.id, event)
-                  }
+                  onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
                 >
-                  <SortableContext
-                    items={children.map((child) => child.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
+                  <SortableContext items={children.map((child) => child.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-2">
                       {children.map((child) => (
                         <SortableChild
                           key={child.id}
                           child={child}
-                          onChange={(childId, patch) =>
-                            onChildChange(sectionId, item.id, childId, patch)
-                          }
-                          onDelete={(childId) =>
-                            onChildDelete(sectionId, item.id, childId)
-                          }
+                          onChange={(childId, patch) => onChildChange(sectionId, item.id, childId, patch)}
+                          onDelete={(childId) => onChildDelete(sectionId, item.id, childId)}
                         />
                       ))}
                     </div>
@@ -488,11 +402,7 @@ function SortableSidebarItem({
           </div>
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               Done
             </Button>
           </DialogFooter>
@@ -513,30 +423,25 @@ function SortableSectionCard({
   onChildAdd,
   onChildChange,
   onChildDelete,
-  onChildDragEnd,
+  onChildDragEnd
 }: SortableSectionProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: section.id })
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id })
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
   )
   const sortableItemIds = section.entries.map((entry) => entry.id)
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
     transition,
-    opacity: isDragging ? 0.55 : 1,
+    opacity: isDragging ? 0.55 : 1
   }
 
   return (
     <Card ref={setNodeRef} style={style}>
-      <CardContent className="pt-6">
+      <CardContent>
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
@@ -550,9 +455,7 @@ function SortableSectionCard({
           <div className="min-w-0 flex-1">
             <Input
               value={section.title}
-              onChange={(event) =>
-                onSectionTitleChange(section.id, event.target.value)
-              }
+              onChange={(event) => onSectionTitleChange(section.id, event.target.value)}
               placeholder="Untitled Section"
               aria-label="Sidebar section label"
               className="h-8 max-w-xs border-transparent bg-transparent px-2 text-sm font-semibold shadow-none hover:bg-muted/40 focus-visible:bg-background"
@@ -563,12 +466,7 @@ function SortableSectionCard({
               <RotateCcwIcon className="h-4 w-4" />
               Reset
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onItemAdd(section.id)}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={() => onItemAdd(section.id)}>
               <PlusIcon className="h-4 w-4" />
               Add Link
             </Button>
@@ -580,10 +478,7 @@ function SortableSectionCard({
           collisionDetection={closestCenter}
           onDragEnd={(event) => onItemDragEnd(section.id, event)}
         >
-          <SortableContext
-            items={sortableItemIds}
-            strategy={verticalListSortingStrategy}
-          >
+          <SortableContext items={sortableItemIds} strategy={verticalListSortingStrategy}>
             <div>
               {section.entries.map((entry) => (
                 <SortableSidebarItem
@@ -603,12 +498,7 @@ function SortableSectionCard({
         </DndContext>
 
         {!sortableItemIds.length ? (
-          <div
-            className={cn(
-              "rounded-lg border border-dashed p-4 text-center text-sm",
-              "text-muted-foreground"
-            )}
-          >
+          <div className={cn("rounded-lg border border-dashed p-4 text-center text-sm", "text-muted-foreground")}>
             No sidebar links in this section.
           </div>
         ) : null}
@@ -617,14 +507,12 @@ function SortableSectionCard({
   )
 }
 
-export function AdminSidebarSettingsCard({
-  config,
-  siteId,
-  onConfigChange,
-}: AdminSidebarSettingsCardProps) {
+export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: AdminSidebarSettingsCardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
   )
 
   const handleAddItem = (sectionId: string) => {
@@ -634,13 +522,13 @@ export function AdminSidebarSettingsCard({
       label: "New Link",
       href: "/admin/new-link",
       icon: "grid",
-      visible: true,
+      visible: true
     }
 
     onConfigChange(
       updateSection(config, sectionId, (section) => ({
         ...section,
-        entries: [...section.entries, item],
+        entries: [...section.entries, item]
       }))
     )
   }
@@ -653,9 +541,9 @@ export function AdminSidebarSettingsCard({
         {
           id: createSidebarId("section"),
           title: "New Section",
-          entries: [],
-        },
-      ],
+          entries: []
+        }
+      ]
     })
   }
 
@@ -663,22 +551,16 @@ export function AdminSidebarSettingsCard({
     onConfigChange(
       updateSection(config, sectionId, (section) => ({
         ...section,
-        title,
+        title
       }))
     )
   }
 
-  const handleItemChange = (
-    sectionId: string,
-    itemId: string,
-    patch: Partial<AdminSidebarItem>
-  ) => {
+  const handleItemChange = (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => {
     onConfigChange(
       updateSection(config, sectionId, (section) => ({
         ...section,
-        entries: section.entries.map((entry) =>
-          entry.id === itemId ? { ...entry, ...patch } : entry
-        ),
+        entries: section.entries.map((entry) => (entry.id === itemId ? { ...entry, ...patch } : entry))
       }))
     )
   }
@@ -687,7 +569,7 @@ export function AdminSidebarSettingsCard({
     onConfigChange(
       updateSection(config, sectionId, (section) => ({
         ...section,
-        entries: section.entries.filter((entry) => entry.id !== itemId),
+        entries: section.entries.filter((entry) => entry.id !== itemId)
       }))
     )
   }
@@ -698,18 +580,14 @@ export function AdminSidebarSettingsCard({
 
     onConfigChange(
       updateSection(config, sectionId, (section) => {
-        const oldIndex = section.entries.findIndex(
-          (entry) => entry.id === active.id
-        )
-        const newIndex = section.entries.findIndex(
-          (entry) => entry.id === over.id
-        )
+        const oldIndex = section.entries.findIndex((entry) => entry.id === active.id)
+        const newIndex = section.entries.findIndex((entry) => entry.id === over.id)
 
         if (oldIndex === -1 || newIndex === -1) return section
 
         return {
           ...section,
-          entries: arrayMove(section.entries, oldIndex, newIndex),
+          entries: arrayMove(section.entries, oldIndex, newIndex)
         }
       })
     )
@@ -719,18 +597,14 @@ export function AdminSidebarSettingsCard({
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const oldIndex = config.sections.findIndex(
-      (section) => section.id === active.id
-    )
-    const newIndex = config.sections.findIndex(
-      (section) => section.id === over.id
-    )
+    const oldIndex = config.sections.findIndex((section) => section.id === active.id)
+    const newIndex = config.sections.findIndex((section) => section.id === over.id)
 
     if (oldIndex === -1 || newIndex === -1) return
 
     onConfigChange({
       ...config,
-      sections: arrayMove(config.sections, oldIndex, newIndex),
+      sections: arrayMove(config.sections, oldIndex, newIndex)
     })
   }
 
@@ -738,17 +612,15 @@ export function AdminSidebarSettingsCard({
     const child: AdminSidebarChildItem = {
       id: createSidebarId("child"),
       label: "New Child",
-      href: "/admin/new-child",
+      href: "/admin/new-child"
     }
 
     onConfigChange(
       updateSection(config, sectionId, (section) => ({
         ...section,
         entries: section.entries.map((entry) =>
-          entry.id === itemId
-            ? { ...entry, children: [...(entry.children ?? []), child] }
-            : entry
-        ),
+          entry.id === itemId ? { ...entry, children: [...(entry.children ?? []), child] } : entry
+        )
       }))
     )
   }
@@ -766,21 +638,15 @@ export function AdminSidebarSettingsCard({
           entry.id === itemId
             ? {
                 ...entry,
-                children: (entry.children ?? []).map((child) =>
-                  child.id === childId ? { ...child, ...patch } : child
-                ),
+                children: (entry.children ?? []).map((child) => (child.id === childId ? { ...child, ...patch } : child))
               }
             : entry
-        ),
+        )
       }))
     )
   }
 
-  const handleChildDelete = (
-    sectionId: string,
-    itemId: string,
-    childId: string
-  ) => {
+  const handleChildDelete = (sectionId: string, itemId: string, childId: string) => {
     onConfigChange(
       updateSection(config, sectionId, (section) => ({
         ...section,
@@ -788,21 +654,15 @@ export function AdminSidebarSettingsCard({
           entry.id === itemId
             ? {
                 ...entry,
-                children: (entry.children ?? []).filter(
-                  (child) => child.id !== childId
-                ),
+                children: (entry.children ?? []).filter((child) => child.id !== childId)
               }
             : entry
-        ),
+        )
       }))
     )
   }
 
-  const handleChildDragEnd = (
-    sectionId: string,
-    itemId: string,
-    event: DragEndEvent
-  ) => {
+  const handleChildDragEnd = (sectionId: string, itemId: string, event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -820,25 +680,18 @@ export function AdminSidebarSettingsCard({
 
           return {
             ...entry,
-            children: arrayMove(children, oldIndex, newIndex),
+            children: arrayMove(children, oldIndex, newIndex)
           }
-        }),
+        })
       }))
     )
   }
 
   return (
     <>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleSectionDragEnd}
-      >
-        <SortableContext
-          items={config.sections.map((section) => section.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-4">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
+        <SortableContext items={config.sections.map((section) => section.id)} strategy={verticalListSortingStrategy}>
+          <div className="grid">
             {config.sections.map((section) => (
               <SortableSectionCard
                 key={section.id}

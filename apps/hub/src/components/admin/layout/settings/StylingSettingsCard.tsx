@@ -14,36 +14,36 @@ interface StylingSettingsCardProps {
   fontFamily?: string
   secondaryFontFamily?: string
   favicon?: string
-  siteWidth?: 'full' | 'custom'
+  siteWidth?: "full" | "custom"
   customWidth?: number
-  defaultTheme?: 'system' | 'light' | 'dark'
+  defaultTheme?: "system" | "light" | "dark"
   onFontFamilyChange?: (value: string) => void
   onSecondaryFontFamilyChange?: (value: string) => void
   onFaviconChange?: (value: string) => void
-  onSiteWidthChange?: (value: 'full' | 'custom') => void
+  onSiteWidthChange?: (value: "full" | "custom") => void
   onCustomWidthChange?: (value: number | undefined) => void
-  onDefaultThemeChange?: (value: 'system' | 'light' | 'dark') => void
+  onDefaultThemeChange?: (value: "system" | "light" | "dark") => void
 }
 
 export function StylingSettingsCard({
   fontFamily = "playfair-display",
   secondaryFontFamily = "inter",
   favicon = "",
-  siteWidth = 'custom',
+  siteWidth = "custom",
   customWidth,
-  defaultTheme = 'system',
+  defaultTheme = "system",
   onFontFamilyChange,
   onSecondaryFontFamilyChange,
   onFaviconChange,
   onSiteWidthChange,
   onCustomWidthChange,
-  onDefaultThemeChange,
+  onDefaultThemeChange
 }: StylingSettingsCardProps) {
   const [showFaviconPicker, setShowFaviconPicker] = useState(false)
 
   return (
     <>
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Styling Settings</CardTitle>
         </CardHeader>
@@ -78,7 +78,10 @@ export function StylingSettingsCard({
                 </SelectContent>
               </Select>
               <div className="text-xs text-muted-foreground">
-                <p>Default color mode for visitors. Users can override this with the theme toggle if enabled in navigation settings.</p>
+                <p>
+                  Default color mode for visitors. Users can override this with the theme toggle if enabled in
+                  navigation settings.
+                </p>
               </div>
             </div>
           )}
@@ -110,28 +113,26 @@ export function StylingSettingsCard({
           {/* Layout Width */}
           {onCustomWidthChange && (
             <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-700">
-                Layout Width
-              </label>
+              <label className="text-sm font-medium text-gray-700">Layout Width</label>
 
               <div className="flex items-center gap-3">
-                {siteWidth !== 'full' && (
+                {siteWidth !== "full" && (
                   <div className="w-32">
                     <Input
                       id="width-input"
                       type="number"
                       min="320"
                       max="2560"
-                      value={siteWidth === 'custom' ? customWidth || '' : ''}
+                      value={siteWidth === "custom" ? customWidth || "" : ""}
                       onChange={(e) => {
                         const value = e.target.value
-                        if (value === '' || value === '0') {
-                          onSiteWidthChange?.('full')
+                        if (value === "" || value === "0") {
+                          onSiteWidthChange?.("full")
                           onCustomWidthChange?.(0)
                         } else {
                           const numValue = parseInt(value)
                           if (!isNaN(numValue) && numValue > 0) {
-                            onSiteWidthChange?.('custom')
+                            onSiteWidthChange?.("custom")
                             onCustomWidthChange?.(numValue)
                           }
                         }
@@ -144,15 +145,14 @@ export function StylingSettingsCard({
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="full-width"
-                    checked={siteWidth === 'full'}
-                    onCheckedChange={(checked) => onSiteWidthChange?.(checked ? 'full' : 'custom')}
+                    checked={siteWidth === "full"}
+                    onCheckedChange={(checked) => onSiteWidthChange?.(checked ? "full" : "custom")}
                   />
                   <Label htmlFor="full-width" className="text-sm">
                     Full Width
                   </Label>
                 </div>
               </div>
-
             </div>
           )}
 
@@ -168,11 +168,7 @@ export function StylingSettingsCard({
                     className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => setShowFaviconPicker(true)}
                   >
-                    <img
-                      src={favicon}
-                      alt="Favicon preview"
-                      className="w-16 h-16 object-cover"
-                    />
+                    <img src={favicon} alt="Favicon preview" className="w-16 h-16 object-cover" />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
                       <div className="text-white text-center">
                         <ImageIcon className="mx-auto h-4 w-4 mb-1" />
@@ -197,7 +193,6 @@ export function StylingSettingsCard({
               </div>
             </div>
           )}
-
         </CardContent>
       </Card>
 

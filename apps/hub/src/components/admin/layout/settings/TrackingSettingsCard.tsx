@@ -16,10 +16,10 @@ export function TrackingSettingsCard({
   trackingScripts = "",
   customAnalyticsEnabled = false,
   onTrackingScriptsChange,
-  onCustomAnalyticsEnabledChange,
+  onCustomAnalyticsEnabledChange
 }: TrackingSettingsCardProps) {
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>Tracking Settings</CardTitle>
       </CardHeader>
@@ -54,7 +54,8 @@ export function TrackingSettingsCard({
               rows={3}
             />
             <p className="text-xs text-muted-foreground">
-              For any other tracking scripts not listed above. These will be added to the &lt;head&gt; section of your site.
+              For any other tracking scripts not listed above. These will be added to the &lt;head&gt; section of your
+              site.
             </p>
           </div>
         )}

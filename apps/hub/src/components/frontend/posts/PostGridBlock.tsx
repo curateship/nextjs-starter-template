@@ -1,51 +1,41 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react"
 
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/card";
-import { BlockContainer } from "@/components/frontend/layout/block-container";
-import { ViewAllButton } from "@/components/ui/view-all-button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
+import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { ViewAllButton } from "@/components/ui/view-all-button"
 
 interface PostGridBlockProps {
-  tagline?: string;
-  heading?: string;
-  description?: string;
-  buttonText?: string;
-  buttonUrl?: string;
+  tagline?: string
+  heading?: string
+  description?: string
+  buttonText?: string
+  buttonUrl?: string
 }
 
 const PostGridBlock = ({
   heading = "Article Posts",
   description = "Discover the latest trends, tips, and best practices in modern web development.",
   buttonText = "View all posts",
-  buttonUrl = "/posts",
+  buttonUrl = "/posts"
 }: PostGridBlockProps) => {
   return (
     <BlockContainer
       header={{
         title: heading,
         subtitle: description,
-        align: 'left'
+        align: "left"
       }}
     >
       {/* ViewAll Button */}
       <div className="flex justify-end mb-6">
-        <ViewAllButton 
-          text={buttonText}
-          href={buttonUrl}
-        />
+        <ViewAllButton text={buttonText} href={buttonUrl} />
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
         <a href="http://localhost:3000/themes/marketplace/posts" className="block">
-          <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
+          <Card className="grid grid-rows-[auto_auto_1fr_auto]">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
-              <h3 className="text-lg font-semibold hover:underline md:text-xl">
-                Getting Started with shadcn/ui
-              </h3>
+              <h3 className="text-lg font-semibold hover:underline md:text-xl">Getting Started with shadcn/ui</h3>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
@@ -60,14 +50,12 @@ const PostGridBlock = ({
             </CardFooter>
           </Card>
         </a>
-        
+
         <a href="http://localhost:3000/themes/marketplace/posts" className="block">
-          <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
+          <Card className="grid grid-rows-[auto_auto_1fr_auto]">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
-              <h3 className="text-lg font-semibold hover:underline md:text-xl">
-                Building Accessible Web Applications
-              </h3>
+              <h3 className="text-lg font-semibold hover:underline md:text-xl">Building Accessible Web Applications</h3>
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">
@@ -82,9 +70,9 @@ const PostGridBlock = ({
             </CardFooter>
           </Card>
         </a>
-        
+
         <a href="http://localhost:3000/themes/marketplace/posts" className="block">
-          <Card className="grid grid-rows-[auto_auto_1fr_auto] pt-0">
+          <Card className="grid grid-rows-[auto_auto_1fr_auto]">
             <div className="bg-muted rounded-t-lg aspect-video mb-4"></div>
             <CardHeader>
               <h3 className="text-lg font-semibold hover:underline md:text-xl">
@@ -106,7 +94,7 @@ const PostGridBlock = ({
         </a>
       </div>
     </BlockContainer>
-  );
-};
+  )
+}
 
-export { PostGridBlock }; 
+export { PostGridBlock }

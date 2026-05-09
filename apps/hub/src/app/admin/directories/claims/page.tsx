@@ -8,7 +8,7 @@ import {
   getDirectoryClaimListAction,
   reviewDirectoryClaimAction,
   type DirectoryClaimListItem,
-  type DirectoryClaimStatus,
+  type DirectoryClaimStatus
 } from "@/lib/actions/directories/directory-claim-actions"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -17,7 +17,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AdminListSkeleton } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,11 +27,17 @@ const CLAIM_FILTERS = [
   { value: "pending_review", label: "Pending Review", icon: Clock3 },
   { value: "approved", label: "Approved", icon: CheckCircle2 },
   { value: "rejected", label: "Rejected", icon: XCircle },
-  { value: "revoked", label: "Revoked", icon: Ban },
+  { value: "revoked", label: "Revoked", icon: Ban }
 ]
 
 function formatDate(value: string) {
-  return value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-"
+  return value
+    ? new Date(value).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      })
+    : "-"
 }
 
 function statusBadge(status: DirectoryClaimStatus) {
@@ -58,7 +64,7 @@ export default function DirectoryClaimsPage() {
     pending_review: 0,
     approved: 0,
     rejected: 0,
-    revoked: 0,
+    revoked: 0
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -109,7 +115,7 @@ export default function DirectoryClaimsPage() {
     const result = await reviewDirectoryClaimAction({
       claimId: selectedClaim.id,
       status,
-      note: reviewNote,
+      note: reviewNote
     })
     setSavingStatus(null)
 
@@ -128,30 +134,25 @@ export default function DirectoryClaimsPage() {
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
-            items={[
-              { label: "Directory", href: "/admin/directories" },
-              { label: "Claims" },
-            ]}
+            items={[{ label: "Directory", href: "/admin/directories" }, { label: "Claims" }]}
             filterMenu={{
               value: activeStatus,
               onValueChange: (value) => setActiveStatus(value as DirectoryClaimStatus),
               items: CLAIM_FILTERS.map((item) => ({
                 ...item,
-                count: counts[item.value as DirectoryClaimStatus] || 0,
-              })),
+                count: counts[item.value as DirectoryClaimStatus] || 0
+              }))
             }}
           />
 
-          <Card className="shadow-sm">
-            <div className="border-b bg-muted/30 px-6 py-4">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-muted-foreground">
-                <div className="col-span-2">Listing</div>
-                <div>Claimant</div>
-                <div>Business Email</div>
-                <div>Status</div>
-                <div>Actions</div>
-              </div>
-            </div>
+          <Card>
+            <CardTableHeader className="grid-cols-6">
+              <div className="col-span-2">Listing</div>
+              <div>Claimant</div>
+              <div>Business Email</div>
+              <div>Status</div>
+              <div>Actions</div>
+            </CardTableHeader>
 
             <div className="divide-y divide-muted/80">
               {loading ? (
@@ -179,7 +180,9 @@ export default function DirectoryClaimsPage() {
                         </Link>
                       </div>
                       <div className="min-w-0">
-                        <div className="truncate text-sm">{claim.claimant_name || claim.claimant_display_name || "Unknown"}</div>
+                        <div className="truncate text-sm">
+                          {claim.claimant_name || claim.claimant_display_name || "Unknown"}
+                        </div>
                         <div className="truncate text-sm text-muted-foreground">{claim.claimant_account_email}</div>
                       </div>
                       <div className="min-w-0">
@@ -198,7 +201,12 @@ export default function DirectoryClaimsPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                          <a href={`/directories/${claim.directory_slug}`} target="_blank" rel="noopener noreferrer" title="View Listing">
+                          <a
+                            href={`/directories/${claim.directory_slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="View Listing"
+                          >
                             <ExternalLink className="h-4 w-4" />
                             <span className="sr-only">View Listing</span>
                           </a>
@@ -220,9 +228,7 @@ export default function DirectoryClaimsPage() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Review Claim</DialogTitle>
-            <DialogDescription>
-              Confirm the business email and proof before granting edit access.
-            </DialogDescription>
+            <DialogDescription>Confirm the business email and proof before granting edit access.</DialogDescription>
           </DialogHeader>
 
           {selectedClaim ? (
@@ -258,7 +264,9 @@ export default function DirectoryClaimsPage() {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Domain Check</div>
-                  <div>{selectedClaim.domain_matches ? "Matches listing website" : "Does not match listing website"}</div>
+                  <div>
+                    {selectedClaim.domain_matches ? "Matches listing website" : "Does not match listing website"}
+                  </div>
                 </div>
               </div>
 
@@ -280,7 +288,12 @@ export default function DirectoryClaimsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="review-note">Review Note</Label>
-                <Textarea id="review-note" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={3} />
+                <Textarea
+                  id="review-note"
+                  value={reviewNote}
+                  onChange={(event) => setReviewNote(event.target.value)}
+                  rows={3}
+                />
               </div>
 
               <div className="flex flex-wrap justify-end gap-2">
@@ -292,11 +305,18 @@ export default function DirectoryClaimsPage() {
                 ) : null}
                 {selectedClaim.status !== "approved" ? (
                   <>
-                    <Button variant="outline" onClick={() => handleReview("rejected")} disabled={!!savingStatus || selectedClaim.status === "pending_email"}>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleReview("rejected")}
+                      disabled={!!savingStatus || selectedClaim.status === "pending_email"}
+                    >
                       <XCircle className="mr-2 h-4 w-4" />
                       Reject
                     </Button>
-                    <Button onClick={() => handleReview("approved")} disabled={!!savingStatus || selectedClaim.status !== "pending_review"}>
+                    <Button
+                      onClick={() => handleReview("approved")}
+                      disabled={!!savingStatus || selectedClaim.status !== "pending_review"}
+                    >
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Approve
                     </Button>
