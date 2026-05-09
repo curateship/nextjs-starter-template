@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { AdminConfirmDialog } from "@/components/admin/layout/list/components"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -118,6 +119,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
   const [editingEmailSettings, setEditingEmailSettings] = useState<AutomationStep | null>(null)
   const [statusEventsStep, setStatusEventsStep] = useState<AutomationStep | null>(null)
+  const [pendingDeleteNodeId, setPendingDeleteNodeId] = useState<string | null>(null)
   const siteId = automation?.site_id ?? null
   const endRulesProductAnchor = useComboboxAnchor()
 
@@ -426,6 +428,13 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     void loadJourneyIndicators()
     if (editingDelay?.id === nodeId) setEditingDelay(null)
     if (editingEndRules?.id === nodeId) setEditingEndRules(null)
+  }
+
+  const confirmDeleteNode = async () => {
+    if (!pendingDeleteNodeId) return
+    const nodeId = pendingDeleteNodeId
+    setPendingDeleteNodeId(null)
+    await handleDeleteNode(nodeId)
   }
 
   const openTriggerEditor = (index: number) => {
@@ -928,7 +937,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
                           onClick={event => {
                             event.stopPropagation()
-                            handleDeleteNode(node.id)
+                            setPendingDeleteNodeId(node.id)
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -968,7 +977,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                           className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
                           onClick={event => {
                             event.stopPropagation()
-                            handleDeleteNode(node.id)
+                            setPendingDeleteNodeId(node.id)
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -1040,7 +1049,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
                             onClick={event => {
                               event.stopPropagation()
-                              handleDeleteNode(node.id)
+                              setPendingDeleteNodeId(node.id)
                             }}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1111,6 +1120,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           onOpenChange={open => {
             if (!open) setStatusEventsStep(null)
           }}
+        />
+
+        <AdminConfirmDialog
+          open={pendingDeleteNodeId !== null}
+          title="Delete Node"
+          description="Are you sure you want to delete this node? This action cannot be undone."
+          onCancel={() => setPendingDeleteNodeId(null)}
+          onConfirm={confirmDeleteNode}
         />
 
         <Dialog
