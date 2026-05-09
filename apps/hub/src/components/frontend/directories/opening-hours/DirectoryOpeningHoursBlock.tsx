@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import type { ReactNode } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type {
@@ -19,21 +19,26 @@ interface DirectoryOpeningHoursBlockProps {
   }
   isPreview?: boolean
   siteId?: string
+  cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
 function OpeningHoursCard({
   title,
   showTitle,
   children,
-  footer
+  footer,
+  cardProps
 }: {
   title: string
   showTitle: boolean
   children?: ReactNode
   footer?: ReactNode
+  cardProps?: HTMLAttributes<HTMLDivElement>
 }) {
+  const { className: cardClassName, ...rootProps } = cardProps || {}
+
   return (
-    <Card>
+    <Card {...rootProps} className={cardClassName}>
       <CardContent>
         {showTitle ? <h2 className="text-2xl font-semibold tracking-normal text-foreground">{title}</h2> : null}
         {children ? <div className={cn(showTitle && "mt-8")}>{children}</div> : null}
@@ -77,7 +82,12 @@ function AttributionText({ attributions }: { attributions: DirectoryOpeningHours
   )
 }
 
-export function DirectoryOpeningHoursBlock({ content, isPreview = false, siteId }: DirectoryOpeningHoursBlockProps) {
+export function DirectoryOpeningHoursBlock({
+  content,
+  isPreview = false,
+  siteId,
+  cardProps
+}: DirectoryOpeningHoursBlockProps) {
   const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
   const hideBlock = visibility.hideBlock === true
   const placeId = normalizeDirectoryOpeningHoursPlaceId(content?.placeId)
@@ -136,17 +146,18 @@ export function DirectoryOpeningHoursBlock({ content, isPreview = false, siteId 
   }
 
   if (!placeId) {
-    return <OpeningHoursCard title={title} showTitle={showTitle} />
+    return <OpeningHoursCard title={title} showTitle={showTitle} cardProps={cardProps} />
   }
 
   if (!data) {
-    return <OpeningHoursCard title={title} showTitle={showTitle} />
+    return <OpeningHoursCard title={title} showTitle={showTitle} cardProps={cardProps} />
   }
 
   return (
     <OpeningHoursCard
       title={title}
       showTitle={showTitle}
+      cardProps={cardProps}
       footer={
         <>
           {showTimezone ? <p className="text-base leading-7 text-muted-foreground">Timezone: {data.timeZone}</p> : null}

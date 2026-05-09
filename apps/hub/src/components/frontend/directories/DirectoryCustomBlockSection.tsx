@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils/tailwind"
 import { Card, CardContent } from "@/components/ui/card"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
+import type { HTMLAttributes } from "react"
 import type {
   DirectoryCustomBlockField,
   DirectoryCustomBlockRepeaterField,
@@ -10,40 +11,33 @@ import type {
 interface DirectoryCustomBlockSectionProps {
   template: Pick<DirectoryCustomBlockTemplate, "name" | "layout" | "fields">
   values: Record<string, any>
-  blockId?: string
-  blockType?: string
+  cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
 export function DirectoryCustomBlockSection({
   template,
   values,
-  blockId,
-  blockType
+  cardProps
 }: DirectoryCustomBlockSectionProps) {
-  const isStackCard = template.layout === "stack-card"
   const fieldsWithContent = template.fields.filter((field) => hasFieldContent(field, values[field.key]))
 
   if (!fieldsWithContent.length) {
     return null
   }
 
-  return (
-    <div data-block-id={blockId} data-block-type={blockType}>
-      {!isStackCard && <SectionHeading title={template.name} />}
+  const { className: cardClassName, ...rootProps } = cardProps || {}
 
-      {template.layout === "two-column" ? (
-        <TwoColumnLayout fields={fieldsWithContent} values={values} />
-      ) : isStackCard ? (
-        <Card>
-          <CardContent>
-            <SectionHeading title={template.name} />
-            <StackLayout fields={fieldsWithContent} values={values} />
-          </CardContent>
-        </Card>
-      ) : (
-        <StackLayout fields={fieldsWithContent} values={values} />
-      )}
-    </div>
+  return (
+    <Card {...rootProps} className={cardClassName}>
+      <CardContent>
+        <SectionHeading title={template.name} />
+        {template.layout === "two-column" ? (
+          <TwoColumnLayout fields={fieldsWithContent} values={values} />
+        ) : (
+          <StackLayout fields={fieldsWithContent} values={values} />
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -117,17 +111,17 @@ function FieldRenderer({ field, value }: { field: DirectoryCustomBlockField; val
     return (
       <div className="space-y-4">
         {field.label && <FieldLabel label={field.label} />}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid sm:grid-cols-2">
           {value
             .filter((row) => row && typeof row === "object")
             .map((row, index) => (
-              <div key={`${field.id}-${index}`} className="rounded-xl border bg-card p-4 shadow-sm">
-                <div className="space-y-3">
+              <Card key={`${field.id}-${index}`}>
+                <CardContent>
                   {(field.fields || []).map((subField) => (
                     <RepeaterFieldRenderer key={subField.id} field={subField} value={row[subField.key]} />
                   ))}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
         </div>
       </div>

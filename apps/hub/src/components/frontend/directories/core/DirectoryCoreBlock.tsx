@@ -12,9 +12,10 @@ import {
   type DirectoryCoreSocialLink
 } from "@/lib/actions/directories/directory-core"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
-import { Card } from "@/components/ui/card"
+import { Card, CardSection } from "@/components/ui/card"
 import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
+import type { HTMLAttributes } from "react"
 
 interface DirectoryCoreBlockProps {
   content?: Record<string, any>
@@ -26,6 +27,7 @@ interface DirectoryCoreBlockProps {
     category_context?: DirectoryCoreCategoryContext | null
   }
   claimAuthPath?: string | null
+  cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
 const SOCIAL_ICON_MAP: Record<string, { label: string; Icon: LucideIcon }> = {
@@ -103,7 +105,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   )
 }
 
-export function DirectoryCoreBlock({ content, directory, claimAuthPath }: DirectoryCoreBlockProps) {
+export function DirectoryCoreBlock({ content, directory, claimAuthPath, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
@@ -129,13 +131,15 @@ export function DirectoryCoreBlock({ content, directory, claimAuthPath }: Direct
     childCategory: directory.category_context?.child_title
   })
 
+  const { className: cardClassName, ...rootProps } = cardProps || {}
+
   return (
-    <Card className="overflow-hidden">
+    <Card {...rootProps} className={cn("overflow-hidden", cardClassName)}>
       {featuredImage && visibility.image !== false ? (
         <img src={featuredImage} alt={title} className="h-auto w-full object-cover" />
       ) : null}
 
-      <div className="space-y-6 p-6">
+      <CardSection>
         {visibility.title !== false ? (
           <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
         ) : null}
@@ -151,7 +155,7 @@ export function DirectoryCoreBlock({ content, directory, claimAuthPath }: Direct
             ))}
           </div>
         ) : null}
-      </div>
+      </CardSection>
 
       {(menuLinks.length > 0 && visibility.menuLinks !== false) || showClaimButton ? (
         <div className={cn(featuredImage || title || socialLinks.length ? "" : "border-t-0")}>

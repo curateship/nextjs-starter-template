@@ -5,7 +5,7 @@ import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import { DirectoryGoogleMapBlock } from "./google-map/DirectoryGoogleMapBlock"
 import { DirectoryOpeningHoursBlock } from "./opening-hours/DirectoryOpeningHoursBlock"
 import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
-import type { ReactNode } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
@@ -99,7 +99,22 @@ export function DirectoryBlockRenderer({
 
   const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
   const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
-  const containerClassName = cn(siteWidth === 'custom' ? "mx-auto px-6" : "px-6", "mt-2")
+  const containerClassName = siteWidth === 'custom' ? "mx-auto px-6" : "px-6"
+
+  function getBlockCardProps(
+    block: DirectoryWithBlocks["blocks"][number],
+    className?: string
+  ): HTMLAttributes<HTMLDivElement> {
+    return {
+      "data-block-id": block.id,
+      "data-block-type": block.type,
+      className: cn(
+        className,
+        isStickyBlock(block) && "lg:sticky lg:self-start",
+        isStickyBlock(block) && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
+      ),
+    }
+  }
 
   function renderDirectoryBlock(block: DirectoryWithBlocks["blocks"][number]) {
     if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
@@ -108,21 +123,13 @@ export function DirectoryBlockRenderer({
       }
 
       return (
-        <div
+        <DirectoryCoreBlock
           key={`directory-core-${block.id}`}
-          data-block-id={block.id}
-          data-block-type={block.type}
-          className={cn(
-            isStickyBlock(block) && "lg:sticky lg:self-start",
-            isStickyBlock(block) && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
-          )}
-        >
-          <DirectoryCoreBlock
-            content={block.content}
-            directory={directory}
-            claimAuthPath={claimAuthPath}
-          />
-        </div>
+          content={block.content}
+          directory={directory}
+          claimAuthPath={claimAuthPath}
+          cardProps={getBlockCardProps(block, "overflow-hidden")}
+        />
       )
     }
 
@@ -139,17 +146,14 @@ export function DirectoryBlockRenderer({
       const inlineBody = renderRichTextBody?.(block, bodyHtml)
 
       return (
-        <div
+        <DirectoryRichTextBlock
           key={`directory-rich-text-${block.id}`}
-          data-block-id={block.id}
-          data-block-type={block.type}
-          className="relative group/directory-preview-block"
+          content={block.content}
+          cardOverlay={renderBlockOverlay?.(block)}
+          cardProps={getBlockCardProps(block, "relative group/directory-preview-block")}
         >
-          {renderBlockOverlay?.(block)}
-          <DirectoryRichTextBlock content={block.content}>
-            {inlineBody}
-          </DirectoryRichTextBlock>
-        </div>
+          {inlineBody}
+        </DirectoryRichTextBlock>
       )
     }
 
@@ -166,41 +170,32 @@ export function DirectoryBlockRenderer({
           key={`directory-custom-${block.id}`}
           template={template}
           values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
-          blockId={block.id}
-          blockType={block.type}
+          cardProps={getBlockCardProps(block)}
         />
       )
     }
 
     if (block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE) {
       return (
-        <div
+        <DirectoryGoogleMapBlock
           key={`directory-google-map-${block.id}`}
-          data-block-id={block.id}
-          data-block-type={block.type}
-        >
-          <DirectoryGoogleMapBlock
-            content={block.content}
-            isPreview={isPreview}
-            apiKey={googleMapsEmbedApiKey}
-          />
-        </div>
+          content={block.content}
+          isPreview={isPreview}
+          apiKey={googleMapsEmbedApiKey}
+          cardProps={getBlockCardProps(block)}
+        />
       )
     }
 
     if (block.type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE) {
       return (
-        <div
+        <DirectoryOpeningHoursBlock
           key={`directory-opening-hours-${block.id}`}
-          data-block-id={block.id}
-          data-block-type={block.type}
-        >
-          <DirectoryOpeningHoursBlock
-            content={block.content}
-            isPreview={isPreview}
-            siteId={isPreview ? site.id : undefined}
-          />
-        </div>
+          content={block.content}
+          isPreview={isPreview}
+          siteId={isPreview ? site.id : undefined}
+          cardProps={getBlockCardProps(block)}
+        />
       )
     }
 
@@ -215,17 +210,17 @@ export function DirectoryBlockRenderer({
             className={containerClassName}
             style={outerContainerStyle}
           >
-            <div className="grid gap-6 lg:gap-10 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-              <div className={cn("space-y-6 lg:order-2 lg:space-y-10", sidebarHasStickyBlock && "lg:self-stretch")}>
+            <div className="grid lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+              <div className={cn("grid lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
               </div>
-              <div className={cn("space-y-6 lg:order-1 lg:space-y-10", mainHasStickyBlock && "lg:self-stretch")}>
+              <div className={cn("grid lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
                 {mainBlocks.map((block) => renderDirectoryBlock(block))}
               </div>
             </div>
           </div>
         ) : (
-          <div className={cn(containerClassName, "space-y-6 lg:space-y-10")} style={outerContainerStyle}>
+          <div className={cn(containerClassName, "grid")} style={outerContainerStyle}>
             {[...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))}
           </div>
         )}

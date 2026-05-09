@@ -4,6 +4,7 @@ import {
   normalizeDirectoryGoogleMapHeight
 } from "@/lib/actions/directories/directory-google-map"
 import { Card, CardContent } from "@/components/ui/card"
+import type { HTMLAttributes } from "react"
 
 interface DirectoryGoogleMapBlockProps {
   content?: {
@@ -14,9 +15,15 @@ interface DirectoryGoogleMapBlockProps {
   }
   isPreview?: boolean
   apiKey?: string | null
+  cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
-export function DirectoryGoogleMapBlock({ content, isPreview = false, apiKey }: DirectoryGoogleMapBlockProps) {
+export function DirectoryGoogleMapBlock({
+  content,
+  isPreview = false,
+  apiKey,
+  cardProps
+}: DirectoryGoogleMapBlockProps) {
   const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
 
   if (visibility.hideBlock === true) {
@@ -38,8 +45,10 @@ export function DirectoryGoogleMapBlock({ content, isPreview = false, apiKey }: 
     return null
   }
 
+  const { className: cardClassName, ...rootProps } = cardProps || {}
+
   return (
-    <Card>
+    <Card {...rootProps} className={cardClassName}>
       <CardContent>
         {showMap ? (
           embedUrl ? (
