@@ -48,10 +48,10 @@ export function DashboardSubheader({ items, filterMenu, search, preActions, acti
     <>
       {slot && topRightActions ? createPortal(topRightActions, slot) : null}
 
-      <div className={cn("mb-3 flex flex-col gap-13 sm:flex-row sm:items-center sm:justify-between", className)}>
+      <div className={cn("my-3 flex flex-col sm:flex-row sm:items-center sm:justify-between", className)}>
         {/* Left side: breadcrumbs */}
         <Breadcrumb className="min-w-0">
-          <BreadcrumbList className="h-8 gap-2 rounded-md text-sm">
+          <BreadcrumbList className="rounded-md text-sm">
             {items.map((item, index) => {
               const isLast = index === items.length - 1
               return (

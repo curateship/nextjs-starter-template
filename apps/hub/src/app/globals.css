@@ -146,9 +146,6 @@
 
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
-[role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
-[role="menuitemcheckbox"]:not([aria-disabled="true"]):not([data-disabled]),
-[role="menuitemradio"]:not([aria-disabled="true"]):not([data-disabled]),
 [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
 [cmdk-item]:not([data-disabled]) {
   cursor: pointer;
@@ -166,21 +163,17 @@ button:not(:disabled),
 @layer components {
   :where(
     .grid:has(> [data-slot="card"]),
-    .grid:has(> a [data-slot="card"]),
-    .grid:has(> div [data-slot="card"]),
-    .grid:has(> section [data-slot="card"]),
+    .grid:has(> a > [data-slot="card"]),
+    .grid:has(> div > [data-slot="card"]),
+    .grid:has(> section > [data-slot="card"]),
     .flex:has(> [data-slot="card"]),
-    .flex:has(> a [data-slot="card"]),
-    .flex:has(> div [data-slot="card"]),
-    .flex:has(> section [data-slot="card"])
+    .flex:has(> a > [data-slot="card"]),
+    .flex:has(> div > [data-slot="card"]),
+    .flex:has(> section > [data-slot="card"])
   ) {
     gap: 1.5rem;
   }
 }
-
-/* Font utility classes for explicit overrides */
-.font-primary { font-family: var(--font-primary); }
-.font-secondary { font-family: var(--font-secondary); }
 
 /* Admin-scoped fonts - only apply within admin layout */
 .admin-layout {

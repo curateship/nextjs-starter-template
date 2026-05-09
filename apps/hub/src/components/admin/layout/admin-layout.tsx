@@ -4,7 +4,6 @@ import { AdminCard } from "@/components/admin/layout/dashboard/AdminCard"
 
 interface AdminLayoutProps {
   children: React.ReactNode
-  headerActions?: React.ReactNode
   noPadding?: boolean
 }
 
@@ -15,19 +14,9 @@ interface AdminLayoutProps {
  */
 export function AdminLayout({
   children,
-  headerActions,
   noPadding = false,
 }: AdminLayoutProps) {
-  return (
-    <div className={noPadding ? "" : "px-7 pt-[12px]"}>
-      {headerActions && (
-        <div className="mb-4">
-          {headerActions}
-        </div>
-      )}
-      {children}
-    </div>
-  )
+  return <div className={noPadding ? "" : "px-7"}>{children}</div>
 }
 
 // Re-export admin components
