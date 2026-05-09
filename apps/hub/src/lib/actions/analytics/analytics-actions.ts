@@ -259,20 +259,20 @@ export async function getTopReferrers(siteId: string, period: string, limit = 10
       ),
       email_referrer AS (
         SELECT 'Email' AS domain, COUNT(*)::int AS visits
-        FROM newsletter_events ne
-        JOIN sites site_domains ON site_domains.id = ne.site_id
+        FROM newsletter_deliveries nd
+        JOIN sites site_domains ON site_domains.id = nd.site_id
         CROSS JOIN LATERAL (
           SELECT lower(regexp_replace(
-            split_part(split_part(regexp_replace(COALESCE(ne.metadata->>'link_url', ''), '^https?://', '', 'i'), '/', 1), ':', 1),
+            split_part(split_part(regexp_replace(COALESCE(nd.last_clicked_url, ''), '^https?://', '', 'i'), '/', 1), ':', 1),
             '^www\\.',
             '',
             'i'
           )) AS host
         ) clicked_link
-        WHERE ne.site_id = ${siteId}::uuid
-          AND ne.event_type = 'clicked'
-          AND ne.created_at >= ${from}::timestamptz
-          AND ne.created_at <= ${to}::timestamptz
+        WHERE nd.site_id = ${siteId}::uuid
+          AND nd.first_clicked_at IS NOT NULL
+          AND nd.first_clicked_at >= ${from}::timestamptz
+          AND nd.first_clicked_at <= ${to}::timestamptz
           AND clicked_link.host <> ''
           AND clicked_link.host IN (
             lower(regexp_replace(

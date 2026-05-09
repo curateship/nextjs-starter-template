@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites, authUsers } from '@/lib/db/schema'
+import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterDeliveries, newsletterSourceStats, sites, authUsers } from '@/lib/db/schema'
 import { eq, and, lte, inArray, or, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider, type EmailProvider } from '@/lib/actions/email/provider'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
+import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
 import { randomUUID } from 'crypto'
 
 const BATCH_SIZE = 50
@@ -131,11 +132,14 @@ export async function GET(request: NextRequest) {
 
         // Get contacts that have already been sent to
         const sentEvents = await db
-          .select({ contactId: newsletterEvents.contactId })
-          .from(newsletterEvents)
-          .where(and(eq(newsletterEvents.sourceId, newsletter.id), eq(newsletterEvents.eventType, 'sent')))
+          .select({ contactId: newsletterDeliveries.contactId })
+          .from(newsletterDeliveries)
+          .where(and(
+            eq(newsletterDeliveries.sourceType, 'broadcast'),
+            eq(newsletterDeliveries.sourceId, newsletter.id),
+          ))
 
-        const sentContactIds = new Set(sentEvents.map(e => e.contactId))
+        const sentContactIds = new Set(sentEvents.map(e => e.contactId).filter(Boolean))
 
         // Get matching active contacts
         const audienceFilter = newsletter.audienceFilter as Record<string, any> | null
@@ -274,15 +278,14 @@ export async function GET(request: NextRequest) {
             })
 
             if (result.success && result.messageId) {
-              batchSent++
-              await db.insert(newsletterEvents).values({
+              const delivery = await recordNewsletterDeliverySent(db, {
                 siteId: newsletter.siteId,
                 contactId: contact.id,
-                eventType: 'sent',
                 sourceType: 'broadcast',
                 sourceId: newsletter.id,
                 providerMessageId: result.messageId,
               })
+              if (delivery.inserted && !delivery.isDuplicateSend) batchSent++
             }
           } catch {
             // Skip failed contact, will retry next cron tick
@@ -309,12 +312,17 @@ export async function GET(request: NextRequest) {
           lockReleased = true
         } else if (isDrip && !allDone) {
           // Bounce check
-          const [bounceResult] = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(newsletterEvents)
-            .where(and(eq(newsletterEvents.sourceId, newsletter.id), eq(newsletterEvents.eventType, 'bounced')))
+          const [sourceStats] = await db
+            .select({ bounced: newsletterSourceStats.bounced })
+            .from(newsletterSourceStats)
+            .where(and(
+              eq(newsletterSourceStats.sourceType, 'broadcast'),
+              eq(newsletterSourceStats.sourceId, newsletter.id),
+              eq(newsletterSourceStats.stepOrder, 0),
+            ))
+            .limit(1)
 
-          const totalBounced = bounceResult?.count || 0
+          const totalBounced = sourceStats?.bounced || 0
           const bounceRate = newTotalSent > 0 ? (totalBounced / newTotalSent) * 100 : 0
           const threshold = dripConfig.bounce_threshold_percent || 5
 

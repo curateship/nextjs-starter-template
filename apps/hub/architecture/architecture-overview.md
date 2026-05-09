@@ -114,6 +114,12 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - Multi-day visitor totals sum daily visitors; they are daily visitor activity, not strict cross-period deduped people.
 - HUB analytics intentionally tracks only site basics: pageviews, daily visitors, top pages, and referring domains.
 
+**Newsletter event retention:**
+- Newsletter reporting uses `newsletter_source_stats` as the permanent rollup per broadcast or automation step.
+- `newsletter_deliveries` stores one row per sent email for webhook lookup/dedupe and is retained for 60 days.
+- Contact open filters read `newsletter_contacts.metadata.recent_email_activity`, capped at 50 entries per contact.
+- `newsletter_events` is legacy raw history for migration/backfill only; new runtime code should not depend on it.
+
 ### Frontend Rendering
 
 **Layout hierarchy:**

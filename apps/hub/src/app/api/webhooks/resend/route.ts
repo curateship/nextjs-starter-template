@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
-import { siteIntegrations, newsletterEvents, newsletterContacts, newsletters } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
-import { sql } from 'drizzle-orm'
+import { siteIntegrations, newsletterContacts } from '@/lib/db/schema'
+import { eq, sql } from 'drizzle-orm'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
+import { recordNewsletterDeliveryEvent } from '@/lib/actions/newsletters/event-stats'
 
 const SVIX_SECRET_PREFIX = `whsec${String.fromCharCode(95)}`
 
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     let body: Record<string, any> | null = null
+    let matchedSiteId: string | null = null
     for (const integration of integrations) {
       const config = integration.config as Record<string, any>
       const secret = typeof config?.webhook_secret === 'string'
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
       try {
         if (verifySvixSignature(rawBody, svixId, svixTimestamp, svixSignature, secret)) {
           body = JSON.parse(rawBody) as Record<string, any>
+          matchedSiteId = integration.siteId
           break
         }
       } catch {
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!body) {
+    if (!body || !matchedSiteId) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
     const { type, data } = body
@@ -97,52 +99,24 @@ export async function POST(request: NextRequest) {
       'email.clicked': 'clicked',
       'email.bounced': 'bounced',
       'email.complained': 'complained',
-      'email.delivered': 'sent',
+      'email.delivered': 'delivered',
     }
 
     const eventType = eventTypeMap[type]
 
-    // Record to newsletter_events if we have a message ID
+    // Record against the compact delivery ledger if we have a message ID.
     if (eventType && messageId) {
       try {
-        const [duplicateEvent] = await db
-          .select({ id: newsletterEvents.id })
-          .from(newsletterEvents)
-          .where(and(
-            eq(newsletterEvents.providerMessageId, messageId),
-            eq(newsletterEvents.eventType, eventType),
-          ))
-          .limit(1)
+        const result = await recordNewsletterDeliveryEvent(db, {
+          siteId: matchedSiteId,
+          providerMessageId: messageId,
+          eventType: eventType as 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained',
+          linkUrl: data?.click?.link || null,
+        })
 
-        if (duplicateEvent) {
-          return NextResponse.json({ message: 'Event already recorded' })
-        }
-
-        // Find the event record by provider_message_id to get contact_id and source
-        const [existingEvent] = await db
-          .select({
-            siteId: newsletterEvents.siteId,
-            contactId: newsletterEvents.contactId,
-            sourceType: newsletterEvents.sourceType,
-            sourceId: newsletterEvents.sourceId,
-          })
-          .from(newsletterEvents)
-          .where(eq(newsletterEvents.providerMessageId, messageId))
-          .limit(1)
-
-        if (existingEvent) {
-          await db.insert(newsletterEvents).values({
-            siteId: existingEvent.siteId,
-            contactId: existingEvent.contactId,
-            eventType,
-            sourceType: existingEvent.sourceType,
-            sourceId: existingEvent.sourceId,
-            providerMessageId: messageId,
-            metadata: { link_url: data?.click?.link, bounce_type: data?.bounce?.type },
-          })
-
+        if (result.matched && result.delivery) {
           // Update contact status on bounces/complaints
-          if (eventType === 'bounced' && existingEvent.contactId) {
+          if (result.counted && eventType === 'bounced' && result.delivery.contactId) {
             await db
               .update(newsletterContacts)
               .set({
@@ -150,39 +124,24 @@ export async function POST(request: NextRequest) {
                 bounceCount: sql`${newsletterContacts.bounceCount} + 1`,
                 updatedAt: new Date(),
               })
-              .where(eq(newsletterContacts.id, existingEvent.contactId))
+              .where(eq(newsletterContacts.id, result.delivery.contactId))
           }
 
-          if (eventType === 'complained' && existingEvent.contactId) {
+          if (result.counted && eventType === 'complained' && result.delivery.contactId) {
             await db
               .update(newsletterContacts)
               .set({ status: 'complained', updatedAt: new Date() })
-              .where(eq(newsletterContacts.id, existingEvent.contactId))
-          }
-
-          // Update newsletter open/click counts
-          if (existingEvent.sourceType === 'broadcast' && existingEvent.sourceId) {
-            if (eventType === 'opened') {
-              await db
-                .update(newsletters)
-                .set({ totalOpened: sql`${newsletters.totalOpened} + 1` })
-                .where(eq(newsletters.id, existingEvent.sourceId))
-            } else if (eventType === 'clicked') {
-              await db
-                .update(newsletters)
-                .set({ totalClicked: sql`${newsletters.totalClicked} + 1` })
-                .where(eq(newsletters.id, existingEvent.sourceId))
-            }
+              .where(eq(newsletterContacts.id, result.delivery.contactId))
           }
 
           // Update engagement
-          if (existingEvent.contactId && (eventType === 'opened' || eventType === 'clicked')) {
+          if (result.counted && result.delivery.contactId && (eventType === 'opened' || eventType === 'clicked')) {
             await db
               .update(newsletterContacts)
               .set({ lastEngagedAt: new Date() })
-              .where(eq(newsletterContacts.id, existingEvent.contactId))
+              .where(eq(newsletterContacts.id, result.delivery.contactId))
 
-            await syncDynamicSegmentsForContacts([existingEvent.contactId])
+            await syncDynamicSegmentsForContacts([result.delivery.contactId])
           }
         }
       } catch (err) {

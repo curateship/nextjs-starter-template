@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, productOrders } from '@/lib/db/schema'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, productOrders } from '@/lib/db/schema'
 import { eq, and, inArray, sql } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
+import { recordNewsletterDeliverySent, recordNewsletterUnsubscribe } from '@/lib/actions/newsletters/event-stats'
 
 const NON_DRIP_BATCH_SIZE = 50
 const ENROLLMENT_SCAN_LIMIT = 500
@@ -218,13 +219,13 @@ export async function GET(request: NextRequest) {
           }
 
           const openedRows = await db.execute<{ count: number }>(sql`
-            select count(distinct coalesce(provider_message_id, id::text))::int as count
-            from newsletter_events
+            select count(*)::int as count
+            from newsletter_deliveries
             where site_id = ${siteId}
               and contact_id = ${contact.id}
               and source_type = 'automation'
               and source_id = ${enrollment.automationId}
-              and event_type = 'opened'
+              and first_opened_at is not null
           `)
           const openedCount = Number(openedRows.rows[0]?.count ?? 0)
           const minimumOpens = Math.max(1, Math.floor(Number(nodeConfig.minimum_opens) || 1))
@@ -243,13 +244,13 @@ export async function GET(request: NextRequest) {
               .set({ status: 'unsubscribed', updatedAt: now })
               .where(eq(newsletterContacts.id, contact.id))
 
-            await db.insert(newsletterEvents).values({
+            await recordNewsletterUnsubscribe(db, {
               siteId,
               contactId: contact.id,
-              eventType: 'unsubscribed',
               sourceType: 'automation',
               sourceId: enrollment.automationId,
-              metadata: { step_order: nextStepOrder, reason: 'end_rules' },
+              stepOrder: nextStepOrder,
+              occurredAt: now,
             })
 
             await db
@@ -354,6 +355,16 @@ export async function GET(request: NextRequest) {
         })
 
         if (result.success && result.messageId) {
+          await recordNewsletterDeliverySent(db, {
+            siteId,
+            contactId: contact.id,
+            sourceType: 'automation',
+            sourceId: enrollment.automationId,
+            stepOrder: nextStepOrder,
+            providerMessageId: result.messageId,
+            sentAt: now,
+          })
+
           // Update enrollment
           await db
             .update(emailAutomationEnrollments)
@@ -362,17 +373,6 @@ export async function GET(request: NextRequest) {
               lastStepSentAt: now,
             })
             .where(eq(emailAutomationEnrollments.id, enrollment.id))
-
-          // Record event
-          await db.insert(newsletterEvents).values({
-            siteId,
-            contactId: contact.id,
-            eventType: 'sent',
-            sourceType: 'automation',
-            sourceId: enrollment.automationId,
-            providerMessageId: result.messageId,
-            metadata: { step_order: nextStepOrder },
-          })
 
           if (dripState) {
             dripState.sent++

@@ -42,21 +42,58 @@ export const newsletters = pgTable('newsletters', {
   index('idx_newsletters_scheduled').on(table.scheduledAt),
 ])
 
-export const newsletterEvents = pgTable('newsletter_events', {
+export const newsletterSourceStats = pgTable('newsletter_source_stats', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  sourceType: varchar('source_type', { length: 20 }).notNull(),
+  sourceId: uuid('source_id').notNull(),
+  stepOrder: integer('step_order').notNull().default(0),
+  sent: integer('sent').notNull().default(0),
+  delivered: integer('delivered').notNull().default(0),
+  opened: integer('opened').notNull().default(0),
+  clicked: integer('clicked').notNull().default(0),
+  bounced: integer('bounced').notNull().default(0),
+  complained: integer('complained').notNull().default(0),
+  unsubscribed: integer('unsubscribed').notNull().default(0),
+  duplicateSends: integer('duplicate_sends').notNull().default(0),
+  firstSentAt: timestamp('first_sent_at', { withTimezone: true }),
+  lastSentAt: timestamp('last_sent_at', { withTimezone: true }),
+  lastEventAt: timestamp('last_event_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex('idx_newsletter_source_stats_unique').on(table.siteId, table.sourceType, table.sourceId, table.stepOrder),
+  index('idx_newsletter_source_stats_site').on(table.siteId),
+  index('idx_newsletter_source_stats_source').on(table.sourceType, table.sourceId, table.stepOrder),
+])
+
+export const newsletterDeliveries = pgTable('newsletter_deliveries', {
   id: uuid('id').defaultRandom().primaryKey(),
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
   contactId: uuid('contact_id').references(() => newsletterContacts.id, { onDelete: 'set null' }),
-  eventType: varchar('event_type', { length: 20 }).notNull(),
   sourceType: varchar('source_type', { length: 20 }).notNull(),
-  sourceId: uuid('source_id'),
-  providerMessageId: varchar('provider_message_id', { length: 255 }),
-  metadata: jsonb('metadata').default({}),
+  sourceId: uuid('source_id').notNull(),
+  stepOrder: integer('step_order').notNull().default(0),
+  providerMessageId: varchar('provider_message_id', { length: 255 }).notNull(),
+  isDuplicateSend: boolean('is_duplicate_send').notNull().default(false),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull(),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  firstOpenedAt: timestamp('first_opened_at', { withTimezone: true }),
+  lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
+  firstClickedAt: timestamp('first_clicked_at', { withTimezone: true }),
+  lastClickedAt: timestamp('last_clicked_at', { withTimezone: true }),
+  bouncedAt: timestamp('bounced_at', { withTimezone: true }),
+  complainedAt: timestamp('complained_at', { withTimezone: true }),
+  unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
+  lastClickedUrl: text('last_clicked_url'),
+  lastEventAt: timestamp('last_event_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  index('idx_newsletter_events_site_created').on(table.siteId, table.createdAt),
-  index('idx_newsletter_events_contact').on(table.contactId),
-  index('idx_newsletter_events_source').on(table.sourceType, table.sourceId),
-  index('idx_newsletter_events_provider_msg').on(table.providerMessageId),
+  uniqueIndex('idx_newsletter_deliveries_provider_msg').on(table.providerMessageId),
+  index('idx_newsletter_deliveries_site_sent').on(table.siteId, table.sentAt),
+  index('idx_newsletter_deliveries_contact_sent').on(table.contactId, table.sentAt),
+  index('idx_newsletter_deliveries_source').on(table.sourceType, table.sourceId, table.stepOrder),
 ])
 
 export const newsletterTemplates = pgTable('newsletter_templates', {

@@ -2,9 +2,10 @@
 
 import { eq, and, sql, desc, inArray, or, ilike, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterEvents, newsletters, sites, emailAutomationEnrollments } from '@/lib/db/schema'
+import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, newsletterSourceStats, newsletters, sites, emailAutomationEnrollments } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { findActiveAutomations } from './automation-actions'
+import { buildRecentEmailOpenCondition } from '@/lib/actions/newsletters/event-stats'
 import {
   formatSegmentDynamicRule,
   normalizeSegmentDynamicRule,
@@ -135,30 +136,7 @@ function buildDynamicSegmentCondition(condition: SegmentDynamicCondition) {
   }
 
   if (condition.type === 'email_open_count') {
-    const recentEmails = sql`
-      select sent.source_type, sent.source_id
-      from newsletter_events as sent
-      where sent.site_id = ${newsletterContacts.siteId}
-        and sent.event_type = 'sent'
-        and sent.source_id is not null
-      group by sent.source_type, sent.source_id
-      order by max(sent.created_at) desc
-      limit ${condition.times}
-    `
-    const hasOpenedRecentEmail = sql`exists (
-      select 1
-      from newsletter_events as opened
-      inner join (${recentEmails}) as recent_email
-        on opened.source_type = recent_email.source_type
-        and opened.source_id = recent_email.source_id
-      where opened.contact_id = ${newsletterContacts.id}
-        and opened.site_id = ${newsletterContacts.siteId}
-        and opened.event_type = 'opened'
-    )`
-
-    return condition.operator === 'has_opened'
-      ? hasOpenedRecentEmail
-      : sql`not ${hasOpenedRecentEmail}`
+    return buildRecentEmailOpenCondition(condition.times, condition.operator)
   }
 
   if (condition.type === 'status_match') {
@@ -848,8 +826,6 @@ export async function getSegmentStats(
       return { data: null, error: 'Access denied' }
     }
 
-    // Query 1: contact count + avg engagement score from segment contacts
-    // Query 2: event type counts for all contacts in the segment
     const [contactStats, eventStats] = await Promise.all([
       db
         .select({
@@ -860,15 +836,15 @@ export async function getSegmentStats(
         .from(newsletterSegmentContacts)
         .innerJoin(newsletterContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
         .where(eq(newsletterSegmentContacts.segmentId, segmentId)),
-      db
-        .select({
-          eventType: newsletterEvents.eventType,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(newsletterSegmentContacts)
-        .innerJoin(newsletterEvents, eq(newsletterSegmentContacts.contactId, newsletterEvents.contactId))
-        .where(eq(newsletterSegmentContacts.segmentId, segmentId))
-        .groupBy(newsletterEvents.eventType),
+      db.execute<{ sent: number; opened: number; clicked: number }>(sql`
+        select
+          count(*) filter (where d.is_duplicate_send = false)::int as sent,
+          count(*) filter (where d.first_opened_at is not null)::int as opened,
+          count(*) filter (where d.first_clicked_at is not null)::int as clicked
+        from newsletter_segment_contacts sc
+        join newsletter_deliveries d on d.contact_id = sc.contact_id
+        where sc.segment_id = ${segmentId}
+      `),
     ])
 
     const totalContacts = contactStats[0]?.totalContacts ?? 0
@@ -876,13 +852,9 @@ export async function getSegmentStats(
     const unsubscribeRate = totalContacts > 0 ? Math.round((unsubscribedCount / totalContacts) * 100) : 0
     const avgEngagementScore = contactStats[0]?.avgEngagementScore ?? 0
 
-    // Sum up event counts by type
-    const counts: Record<string, number> = {}
-    for (const r of eventStats) counts[r.eventType] = r.count
-
-    const totalSent = counts['sent'] || 0
-    const totalOpened = counts['opened'] || 0
-    const totalClicked = counts['clicked'] || 0
+    const totalSent = Number(eventStats.rows[0]?.sent ?? 0)
+    const totalOpened = Number(eventStats.rows[0]?.opened ?? 0)
+    const totalClicked = Number(eventStats.rows[0]?.clicked ?? 0)
     const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0
     const clickRate = totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0
 
@@ -981,40 +953,37 @@ export async function getSegmentEngagementOverTime(
       return { data: null, error: 'Access denied' }
     }
 
-    // Group opens and clicks by month across all segment contacts
-    const rows = await db
-      .select({
-        month: sql<string>`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`,
-        eventType: newsletterEvents.eventType,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(newsletterSegmentContacts)
-      .innerJoin(newsletterEvents, eq(newsletterSegmentContacts.contactId, newsletterEvents.contactId))
-      .where(and(
-        eq(newsletterSegmentContacts.segmentId, segmentId),
-        or(
-          eq(newsletterEvents.eventType, 'opened'),
-          eq(newsletterEvents.eventType, 'clicked'),
-        ),
-      ))
-      .groupBy(sql`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`, newsletterEvents.eventType)
-      .orderBy(sql`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`)
+    const rows = await db.execute<{ month: string; opens: number; clicks: number }>(sql`
+      with engagement_events as (
+        select d.first_opened_at as event_at, 1 as opens, 0 as clicks
+        from newsletter_segment_contacts sc
+        join newsletter_deliveries d on d.contact_id = sc.contact_id
+        where sc.segment_id = ${segmentId}
+          and d.first_opened_at is not null
+        union all
+        select d.first_clicked_at as event_at, 0 as opens, 1 as clicks
+        from newsletter_segment_contacts sc
+        join newsletter_deliveries d on d.contact_id = sc.contact_id
+        where sc.segment_id = ${segmentId}
+          and d.first_clicked_at is not null
+      )
+      select
+        to_char(event_at, 'YYYY-MM') as month,
+        sum(opens)::int as opens,
+        sum(clicks)::int as clicks
+      from engagement_events
+      group by to_char(event_at, 'YYYY-MM')
+      order by to_char(event_at, 'YYYY-MM')
+    `)
 
-    // Merge into { month, opens, clicks } format
-    const byMonth: Record<string, { opens: number; clicks: number }> = {}
-    for (const r of rows) {
-      if (!byMonth[r.month]) byMonth[r.month] = { opens: 0, clicks: 0 }
-      if (r.eventType === 'opened') byMonth[r.month].opens = r.count
-      if (r.eventType === 'clicked') byMonth[r.month].clicks = r.count
+    return {
+      data: rows.rows.map((row) => ({
+        month: row.month,
+        opens: Number(row.opens ?? 0),
+        clicks: Number(row.clicks ?? 0),
+      })),
+      error: null,
     }
-
-    const data = Object.entries(byMonth).map(([month, counts]) => ({
-      month,
-      opens: counts.opens,
-      clicks: counts.clicks,
-    }))
-
-    return { data, error: null }
   } catch (err) {
     console.error('getSegmentEngagementOverTime error:', err)
     return { data: null, error: 'Server error' }
@@ -1050,11 +1019,17 @@ export async function getSegmentNewsletters(
         subject: newsletters.subject,
         status: newsletters.status,
         sentAt: newsletters.sentAt,
-        totalSent: newsletters.totalSent,
-        totalOpened: newsletters.totalOpened,
-        totalClicked: newsletters.totalClicked,
+        totalSent: newsletterSourceStats.sent,
+        totalOpened: newsletterSourceStats.opened,
+        totalClicked: newsletterSourceStats.clicked,
       })
       .from(newsletters)
+      .leftJoin(newsletterSourceStats, and(
+        eq(newsletterSourceStats.siteId, newsletters.siteId),
+        eq(newsletterSourceStats.sourceType, 'broadcast'),
+        eq(newsletterSourceStats.sourceId, newsletters.id),
+        eq(newsletterSourceStats.stepOrder, 0),
+      ))
       .where(and(
         eq(newsletters.siteId, segment.siteId),
         sql`${newsletters.audienceFilter}->>'segment_id' = ${segmentId}`,

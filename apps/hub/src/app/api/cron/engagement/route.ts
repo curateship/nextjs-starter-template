@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { newsletterContacts, newsletterEvents } from '@/lib/db/schema'
-import { eq, and, inArray, gte } from 'drizzle-orm'
+import { newsletterContacts } from '@/lib/db/schema'
+import { eq, inArray } from 'drizzle-orm'
 import { syncAllDynamicSegments } from '@/lib/actions/newsletters/segment-actions'
 
 /**
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         bounceCount: newsletterContacts.bounceCount,
         lastEngagedAt: newsletterContacts.lastEngagedAt,
         engagementScore: newsletterContacts.engagementScore,
+        metadata: newsletterContacts.metadata,
       })
       .from(newsletterContacts)
       .where(inArray(newsletterContacts.status, ['active', 'unsubscribed']))
@@ -38,43 +39,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: 'No contacts to score', updated: 0 })
     }
 
-    // Get events from last 90 days
-    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
-
-    const events = await db
-      .select({
-        contactId: newsletterEvents.contactId,
-        eventType: newsletterEvents.eventType,
-        createdAt: newsletterEvents.createdAt,
-      })
-      .from(newsletterEvents)
-      .where(and(
-        inArray(newsletterEvents.eventType, ['opened', 'clicked']),
-        gte(newsletterEvents.createdAt, ninetyDaysAgo),
-      ))
-
-    // Group events by contact
-    const eventsByContact = new Map<string, { type: string; date: Date }[]>()
-    for (const event of events) {
-      if (!event.contactId) continue
-      const list = eventsByContact.get(event.contactId) || []
-      list.push({ type: event.eventType, date: new Date(event.createdAt) })
-      eventsByContact.set(event.contactId, list)
-    }
-
     // Calculate scores
     let updated = 0
     for (const contact of contacts) {
-      const contactEvents = eventsByContact.get(contact.id) || []
+      const metadata = contact.metadata && typeof contact.metadata === 'object' && !Array.isArray(contact.metadata)
+        ? contact.metadata as Record<string, any>
+        : {}
+      const activity = Array.isArray(metadata.recent_email_activity) ? metadata.recent_email_activity : []
 
       let score = 0
-      for (const event of contactEvents) {
-        const daysAgo = (now.getTime() - event.date.getTime()) / (1000 * 60 * 60 * 24)
-        const decay = Math.max(0, 1 - daysAgo / 90)
-
-        if (event.type === 'clicked') {
-          score += 30 * decay
-        } else if (event.type === 'opened') {
+      for (const entry of activity) {
+        if (entry?.opened_at) {
+          const openedAt = new Date(entry.opened_at)
+          if (Number.isNaN(openedAt.getTime())) continue
+          const daysAgo = (now.getTime() - openedAt.getTime()) / (1000 * 60 * 60 * 24)
+          const decay = Math.max(0, 1 - daysAgo / 90)
           score += 20 * decay
         }
       }

@@ -53,9 +53,7 @@ export default function ContactDashboardPage() {
     {
       id: string
       eventType: string
-      sourceId: string | null
       newsletterSubject: string | null
-      metadata: any
       createdAt: string
     }[]
   >([])
@@ -318,22 +316,6 @@ export default function ContactDashboardPage() {
     }
   }
 
-  // Group events by newsletter (sourceId) for the timeline
-  function groupEventsByNewsletter() {
-    const groups: Record<string, { subject: string; events: typeof events }> = {}
-    for (const event of events) {
-      const key = event.sourceId || event.id
-      if (!groups[key]) {
-        groups[key] = {
-          subject: event.newsletterSubject || "Unknown",
-          events: []
-        }
-      }
-      groups[key].events.push(event)
-    }
-    return Object.values(groups)
-  }
-
   // Contact display name
   const displayName = contact
     ? contact.metadata?.first_name || contact.metadata?.last_name
@@ -580,26 +562,15 @@ export default function ContactDashboardPage() {
                           No email events recorded yet.
                         </CardSection>
                       ) : (
-                        groupEventsByNewsletter().map((group, i) => (
-                          <CardSection key={i}>
-                            <p className="font-medium text-sm mb-1">{group.subject}</p>
+                        events.map((event) => (
+                          <CardSection key={event.id}>
+                            <p className="font-medium text-sm mb-1">{event.newsletterSubject || "Unknown"}</p>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs text-muted-foreground">
-                                {formatDate(group.events[0].createdAt)}
+                                {formatDate(event.createdAt)}
                               </span>
                               <span className="text-xs text-muted-foreground">·</span>
-                              {/* Show event chain: sent → opened → clicked */}
-                              {group.events
-                                .sort((a, b) => {
-                                  const order = ["sent", "opened", "clicked", "bounced", "complained"]
-                                  return order.indexOf(a.eventType) - order.indexOf(b.eventType)
-                                })
-                                .map((event, j) => (
-                                  <span key={event.id} className="flex items-center gap-1">
-                                    {j > 0 && <span className="text-xs text-muted-foreground">→</span>}
-                                    {getEventBadge(event.eventType)}
-                                  </span>
-                                ))}
+                              {getEventBadge(event.eventType)}
                             </div>
                           </CardSection>
                         ))

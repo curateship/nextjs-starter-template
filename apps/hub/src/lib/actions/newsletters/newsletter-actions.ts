@@ -2,7 +2,7 @@
 
 import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterEvents, sites } from '@/lib/db/schema'
+import { newsletters, newsletterContacts, newsletterSegmentContacts, newsletterSourceStats, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
@@ -11,6 +11,7 @@ import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/ne
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
 import { queryNewsletterStatusEvents, type NewsletterStatusEvent, type NewsletterStatusEventFilter } from '@/lib/actions/newsletters/status-events-query'
+import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
 import { randomUUID } from 'crypto'
 
 export interface Newsletter {
@@ -157,56 +158,6 @@ async function isNewsletterPaused(newsletterId: string) {
   return row?.status === 'paused'
 }
 
-async function getConfirmedDuplicateSendCounts(siteId: string, newsletterIds: string[]) {
-  if (!newsletterIds.length) return new Map<string, number>()
-
-  const rows = await db.execute<{ source_id: string; duplicate_count: number }>(sql`
-    with sent_events as (
-      select source_id, contact_id, provider_message_id
-      from newsletter_events
-      where site_id = ${siteId}
-        and source_type = 'broadcast'
-        and event_type = 'sent'
-        and source_id in (${sql.join(newsletterIds.map((id) => sql`${id}`), sql`, `)})
-    ),
-    local_duplicate_rows as (
-      select source_id, sum(event_count - 1)::int as duplicate_count
-      from (
-        select source_id, contact_id, provider_message_id, count(*)::int as event_count
-        from sent_events
-        where contact_id is not null
-          and provider_message_id is not null
-        group by source_id, contact_id, provider_message_id
-        having count(*) > 1
-      ) grouped
-      group by source_id
-    ),
-    actual_duplicate_sends as (
-      select source_id, sum(provider_count - 1)::int as duplicate_count
-      from (
-        select source_id, contact_id, count(distinct provider_message_id)::int as provider_count
-        from sent_events
-        where contact_id is not null
-          and provider_message_id is not null
-        group by source_id, contact_id
-        having count(distinct provider_message_id) > 1
-      ) grouped
-      group by source_id
-    )
-    select
-      ids.source_id::text,
-      (
-        coalesce(local_duplicate_rows.duplicate_count, 0)
-        + coalesce(actual_duplicate_sends.duplicate_count, 0)
-      )::int as duplicate_count
-    from (select unnest(array[${sql.join(newsletterIds.map((id) => sql`${id}`), sql`, `)}]::uuid[]) as source_id) ids
-    left join local_duplicate_rows on local_duplicate_rows.source_id = ids.source_id
-    left join actual_duplicate_sends on actual_duplicate_sends.source_id = ids.source_id
-  `)
-
-  return new Map(rows.rows.map((row) => [row.source_id, Number(row.duplicate_count ?? 0)]))
-}
-
 export async function getNewslettersBySite(
   siteId: string,
   options?: { page?: number; pageSize?: number }
@@ -240,74 +191,37 @@ export async function getNewslettersBySite(
     ])
 
     const newsletterIds = rows.map((row) => row.id)
-    const [unsubscribeRows, bouncedRows, sendEventRows, duplicateSendCounts] = newsletterIds.length === 0
-      ? [[], [], [], new Map<string, number>()]
-      : await Promise.all([
-        db
-          .select({
-            sourceId: newsletterEvents.sourceId,
-            count: sql<number>`count(*)::int`,
-          })
-          .from(newsletterEvents)
-          .where(and(
-            eq(newsletterEvents.siteId, siteId),
-            eq(newsletterEvents.sourceType, 'broadcast'),
-            eq(newsletterEvents.eventType, 'unsubscribed'),
-            inArray(newsletterEvents.sourceId, newsletterIds),
-          ))
-          .groupBy(newsletterEvents.sourceId),
-        db
-          .select({
-            sourceId: newsletterEvents.sourceId,
-            count: sql<number>`count(*)::int`,
-          })
-          .from(newsletterEvents)
-          .where(and(
-            eq(newsletterEvents.siteId, siteId),
-            eq(newsletterEvents.sourceType, 'broadcast'),
-            eq(newsletterEvents.eventType, 'bounced'),
-            inArray(newsletterEvents.sourceId, newsletterIds),
-          ))
-          .groupBy(newsletterEvents.sourceId),
-        db
-          .select({
-            sourceId: newsletterEvents.sourceId,
-            count: sql<number>`count(*)::int`,
-          })
-          .from(newsletterEvents)
-          .where(and(
-            eq(newsletterEvents.siteId, siteId),
-            eq(newsletterEvents.sourceType, 'broadcast'),
-            eq(newsletterEvents.eventType, 'sent'),
-            inArray(newsletterEvents.sourceId, newsletterIds),
-          ))
-          .groupBy(newsletterEvents.sourceId),
-        getConfirmedDuplicateSendCounts(siteId, newsletterIds),
-      ])
+    const statsRows = newsletterIds.length === 0
+      ? []
+      : await db
+        .select()
+        .from(newsletterSourceStats)
+        .where(and(
+          eq(newsletterSourceStats.siteId, siteId),
+          eq(newsletterSourceStats.sourceType, 'broadcast'),
+          eq(newsletterSourceStats.stepOrder, 0),
+          inArray(newsletterSourceStats.sourceId, newsletterIds),
+        ))
 
-    const unsubscribeCounts = new Map(
-      unsubscribeRows
-        .filter((row) => row.sourceId)
-        .map((row) => [row.sourceId as string, row.count]),
-    )
-    const bouncedCounts = new Map(
-      bouncedRows
-        .filter((row) => row.sourceId)
-        .map((row) => [row.sourceId as string, row.count]),
-    )
-    const sendEventCounts = new Map(
-      sendEventRows
-        .filter((row) => row.sourceId)
-        .map((row) => [row.sourceId as string, row.count]),
-    )
+    const statsByNewsletter = new Map(statsRows.map((row) => [row.sourceId, row]))
     return {
-      data: rows.map((row) => rowToNewsletter(
-        row,
-        unsubscribeCounts.get(row.id) ?? 0,
-        sendEventCounts.get(row.id) ?? (row.totalSent ?? 0),
-        duplicateSendCounts.get(row.id) ?? 0,
-        bouncedCounts.get(row.id) ?? 0,
-      )),
+      data: rows.map((row) => {
+        const stats = statsByNewsletter.get(row.id)
+        return rowToNewsletter(
+          stats
+            ? {
+                ...row,
+                totalSent: stats.sent,
+                totalOpened: stats.opened,
+                totalClicked: stats.clicked,
+              }
+            : row,
+          stats?.unsubscribed ?? 0,
+          stats ? stats.sent + stats.duplicateSends : (row.totalSent ?? 0),
+          stats?.duplicateSends ?? 0,
+          stats?.bounced ?? 0,
+        )
+      }),
       total: countResult[0]?.count ?? 0,
       error: null,
     }
@@ -361,47 +275,31 @@ export async function getNewsletterById(
       return { data: null, error: 'Access denied' }
     }
 
-    const [sendEventRow, unsubscribeRow, bouncedRow, duplicateSendCounts] = await Promise.all([
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(newsletterEvents)
-        .where(and(
-          eq(newsletterEvents.siteId, row.siteId),
-          eq(newsletterEvents.sourceType, 'broadcast'),
-          eq(newsletterEvents.eventType, 'sent'),
-          eq(newsletterEvents.sourceId, row.id),
-        ))
-        .limit(1),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(newsletterEvents)
-        .where(and(
-          eq(newsletterEvents.siteId, row.siteId),
-          eq(newsletterEvents.sourceType, 'broadcast'),
-          eq(newsletterEvents.eventType, 'unsubscribed'),
-          eq(newsletterEvents.sourceId, row.id),
-        ))
-        .limit(1),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(newsletterEvents)
-        .where(and(
-          eq(newsletterEvents.siteId, row.siteId),
-          eq(newsletterEvents.sourceType, 'broadcast'),
-          eq(newsletterEvents.eventType, 'bounced'),
-          eq(newsletterEvents.sourceId, row.id),
-        ))
-        .limit(1),
-      getConfirmedDuplicateSendCounts(row.siteId, [row.id]),
-    ])
+    const [stats] = await db
+      .select()
+      .from(newsletterSourceStats)
+      .where(and(
+        eq(newsletterSourceStats.siteId, row.siteId),
+        eq(newsletterSourceStats.sourceType, 'broadcast'),
+        eq(newsletterSourceStats.sourceId, row.id),
+        eq(newsletterSourceStats.stepOrder, 0),
+      ))
+      .limit(1)
 
     return {
       data: rowToNewsletter(
-        row,
-        unsubscribeRow[0]?.count ?? 0,
-        sendEventRow[0]?.count ?? (row.totalSent ?? 0),
-        duplicateSendCounts.get(row.id) ?? 0,
-        bouncedRow[0]?.count ?? 0,
+        stats
+          ? {
+              ...row,
+              totalSent: stats.sent,
+              totalOpened: stats.opened,
+              totalClicked: stats.clicked,
+            }
+          : row,
+        stats?.unsubscribed ?? 0,
+        stats ? stats.sent + stats.duplicateSends : (row.totalSent ?? 0),
+        stats?.duplicateSends ?? 0,
+        stats?.bounced ?? 0,
       ),
       error: null,
     }
@@ -773,15 +671,14 @@ export async function sendNewsletter(newsletterId: string): Promise<{ success: b
           })
 
           if (result.success && result.messageId) {
-            totalSent++
-            await db.insert(newsletterEvents).values({
+            const delivery = await recordNewsletterDeliverySent(db, {
               siteId: newsletter.site_id,
               contactId: contact.id,
-              eventType: 'sent',
               sourceType: 'broadcast',
               sourceId: newsletterId,
               providerMessageId: result.messageId,
             })
+            if (delivery.inserted && !delivery.isDuplicateSend) totalSent++
           }
         } catch {
           errors.push(contact.email)

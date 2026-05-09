@@ -57,100 +57,46 @@ export async function queryNewsletterStatusEvents({
   const page = Math.max(1, Math.floor(rawPage ?? 1))
   const pageSize = Math.min(50, Math.max(1, Math.floor(rawPageSize ?? 50)))
   const offset = (page - 1) * pageSize
+  const normalizedStepOrder = typeof stepOrder === 'number' ? stepOrder : 0
   const allowedFilters = new Set<NewsletterStatusEventFilter>(['all', 'bounced', 'unsubscribed', 'opened', 'clicked', 'duplicates'])
   const eventFilter = allowedFilters.has(rawEventFilter ?? 'all') ? rawEventFilter ?? 'all' : 'all'
-  const filterCondition =
-    eventFilter === 'all'
-      ? sql``
-      : eventFilter === 'duplicates'
-        ? sql`and e.is_duplicate_send = true`
-        : sql`and e.event_type = ${eventFilter}`
-  const stepCondition = typeof stepOrder === 'number'
-    ? sql`and e.event_step_order = ${stepOrder}`
-    : sql``
+  const latestEvent = sql<string>`case
+    when d.complained_at is not null then 'complained'
+    when d.bounced_at is not null then 'bounced'
+    when d.unsubscribed_at is not null then 'unsubscribed'
+    when d.first_clicked_at is not null then 'clicked'
+    when d.first_opened_at is not null then 'opened'
+    when d.delivered_at is not null then 'delivered'
+    when d.is_duplicate_send = true then 'duplicate'
+    else 'sent'
+  end`
+  const latestEventAt = sql<Date>`coalesce(
+    d.complained_at,
+    d.bounced_at,
+    d.unsubscribed_at,
+    d.first_clicked_at,
+    d.first_opened_at,
+    d.delivered_at,
+    d.sent_at
+  )`
+  const eventLookup = {
+    all: { condition: sql``, event: latestEvent, date: latestEventAt },
+    bounced: { condition: sql`and d.bounced_at is not null`, event: sql`'bounced'`, date: sql`d.bounced_at` },
+    unsubscribed: { condition: sql`and d.unsubscribed_at is not null`, event: sql`'unsubscribed'`, date: sql`d.unsubscribed_at` },
+    opened: { condition: sql`and d.first_opened_at is not null`, event: sql`'opened'`, date: sql`d.first_opened_at` },
+    clicked: { condition: sql`and d.first_clicked_at is not null`, event: sql`'clicked'`, date: sql`d.first_clicked_at` },
+    duplicates: { condition: sql`and d.is_duplicate_send = true`, event: sql`'duplicate'`, date: sql`d.sent_at` },
+  }
+  const selectedEvent = eventLookup[eventFilter]
 
-  const eventRowsCte = sql`
-    with scoped_events as (
-      select *
-      from newsletter_events
-      where site_id = ${siteId}
-        and source_type = ${sourceType}
-        and source_id = ${sourceId}
-    ),
-    sent_with_step as (
-      select
-        *,
-        case
-          when metadata->>'step_order' ~ '^[0-9]+$' then (metadata->>'step_order')::int
-          else null
-        end as sent_step_order
-      from scoped_events
-      where event_type = 'sent'
-    ),
-    sent_ranked as (
-      select
-        id,
-        contact_id,
-        provider_message_id,
-        sent_step_order,
-        created_at,
-        row_number() over (
-          partition by contact_id, provider_message_id
-          order by created_at asc, id asc
-        ) as message_row_number
-      from sent_with_step
-      where contact_id is not null
-        and provider_message_id is not null
-    ),
-    canonical_sent_messages as (
-      select
-        id,
-        contact_id,
-        provider_message_id,
-        sent_step_order,
-        row_number() over (
-          partition by contact_id, coalesce(sent_step_order, 0)
-          order by created_at asc, id asc
-        ) as contact_message_number
-      from sent_ranked
-      where message_row_number = 1
-    ),
-    event_rows as (
-      select
-        e.*,
-        coalesce(
-          case
-            when e.metadata->>'step_order' ~ '^[0-9]+$' then (e.metadata->>'step_order')::int
-            else null
-          end,
-          csm.sent_step_order
-        ) as event_step_order,
-        (
-          e.event_type = 'sent'
-          and (
-            coalesce(sr.message_row_number, 1) > 1
-            or coalesce(csm.contact_message_number, 1) > 1
-          )
-        ) as is_duplicate_send
-      from scoped_events e
-      left join sent_ranked sr on sr.id = e.id
-      left join canonical_sent_messages csm on (
-        csm.id = e.id
-        or (
-          e.event_type <> 'sent'
-          and csm.provider_message_id = e.provider_message_id
-          and csm.contact_id is not distinct from e.contact_id
-        )
-      )
-    )
-  `
-
-  const baseEvents = sql`
-    from event_rows e
-    left join newsletter_contacts c on c.id = e.contact_id
-    where true
-      ${stepCondition}
-      ${filterCondition}
+  const baseDeliveries = sql`
+    from newsletter_deliveries d
+    left join newsletter_contacts c on c.id = d.contact_id
+    where d.site_id = ${siteId}
+      and d.source_type = ${sourceType}
+      and d.source_id = ${sourceId}
+      and d.step_order = ${normalizedStepOrder}
+      ${selectedEvent.condition}
   `
 
   const [rows, countResult, statsResult] = await Promise.all([
@@ -160,32 +106,32 @@ export async function queryNewsletterStatusEvents({
       event: string
       created_at: Date
     }>(sql`
-      ${eventRowsCte}
       select
-        e.id::text,
+        d.id::text,
         c.email,
-        case when e.is_duplicate_send then 'duplicate' else e.event_type end as event,
-        e.created_at
-      ${baseEvents}
-      order by e.created_at desc
+        ${selectedEvent.event} as event,
+        ${selectedEvent.date} as created_at
+      ${baseDeliveries}
+      order by ${selectedEvent.date} desc
       limit ${pageSize}
       offset ${offset}
     `),
     db.execute<{ count: number }>(sql`
-      ${eventRowsCte}
       select count(*)::int as count
-      ${baseEvents}
+      ${baseDeliveries}
     `),
     db.execute<{ sent: number; opened: number; clicked: number; unsubscribed: number }>(sql`
-      ${eventRowsCte}
       select
-        count(*) filter (where e.event_type = 'sent' and e.is_duplicate_send = false)::int as sent,
-        count(*) filter (where e.event_type = 'opened')::int as opened,
-        count(*) filter (where e.event_type = 'clicked')::int as clicked,
-        count(*) filter (where e.event_type = 'unsubscribed')::int as unsubscribed
-      from event_rows e
-      where true
-        ${stepCondition}
+        coalesce(sent, 0)::int as sent,
+        coalesce(opened, 0)::int as opened,
+        coalesce(clicked, 0)::int as clicked,
+        coalesce(unsubscribed, 0)::int as unsubscribed
+      from newsletter_source_stats
+      where site_id = ${siteId}
+        and source_type = ${sourceType}
+        and source_id = ${sourceId}
+        and step_order = ${normalizedStepOrder}
+      limit 1
     `),
   ])
 

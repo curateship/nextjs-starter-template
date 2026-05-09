@@ -1,8 +1,8 @@
 'use server'
 
-import { eq, and, gte } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
+import { newsletterContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
 import dns from 'dns/promises'
@@ -160,20 +160,35 @@ export async function getDeliverabilityReport(siteId: string): Promise<{ data: D
     // Email metrics (last 30 days)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
-    const events = await db
-      .select({ eventType: newsletterEvents.eventType })
-      .from(newsletterEvents)
-      .where(and(eq(newsletterEvents.siteId, siteId), gte(newsletterEvents.createdAt, thirtyDaysAgo)))
+    const metricRows = await db.execute<{
+      total_sent: number
+      total_opened: number
+      total_clicked: number
+      total_bounced: number
+      total_complained: number
+    }>(sql`
+      select
+        count(*) filter (where sent_at >= ${thirtyDaysAgo} and is_duplicate_send = false)::int as total_sent,
+        count(*) filter (where first_opened_at >= ${thirtyDaysAgo})::int as total_opened,
+        count(*) filter (where first_clicked_at >= ${thirtyDaysAgo})::int as total_clicked,
+        count(*) filter (where bounced_at >= ${thirtyDaysAgo})::int as total_bounced,
+        count(*) filter (where complained_at >= ${thirtyDaysAgo})::int as total_complained
+      from newsletter_deliveries
+      where site_id = ${siteId}
+        and (
+          sent_at >= ${thirtyDaysAgo}
+          or first_opened_at >= ${thirtyDaysAgo}
+          or first_clicked_at >= ${thirtyDaysAgo}
+          or bounced_at >= ${thirtyDaysAgo}
+          or complained_at >= ${thirtyDaysAgo}
+        )
+    `)
 
-    let totalSent = 0, totalOpened = 0, totalClicked = 0, totalBounced = 0, totalComplained = 0
-
-    for (const e of events) {
-      if (e.eventType === 'sent') totalSent++
-      else if (e.eventType === 'opened') totalOpened++
-      else if (e.eventType === 'clicked') totalClicked++
-      else if (e.eventType === 'bounced') totalBounced++
-      else if (e.eventType === 'complained') totalComplained++
-    }
+    const totalSent = Number(metricRows.rows[0]?.total_sent ?? 0)
+    const totalOpened = Number(metricRows.rows[0]?.total_opened ?? 0)
+    const totalClicked = Number(metricRows.rows[0]?.total_clicked ?? 0)
+    const totalBounced = Number(metricRows.rows[0]?.total_bounced ?? 0)
+    const totalComplained = Number(metricRows.rows[0]?.total_complained ?? 0)
 
     const emailMetrics = {
       totalSent,

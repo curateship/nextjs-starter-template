@@ -2,7 +2,7 @@
 
 import { eq, and, or, sql, desc, inArray, gte, lte, ilike, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterContacts, newsletterEvents, newsletters, newsletterSegments, newsletterSegmentContacts, sites } from '@/lib/db/schema'
+import { newsletterContacts, newsletterDeliveries, newsletters, newsletterSegments, newsletterSegmentContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { verifyUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import {
@@ -15,6 +15,7 @@ import {
   type ContactFilterRule,
 } from '@/lib/actions/newsletters/contact-filters'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
+import { buildRecentEmailOpenCondition, recordNewsletterUnsubscribe } from '@/lib/actions/newsletters/event-stats'
 
 export interface CrmContact {
   id: string
@@ -310,30 +311,7 @@ function buildRuleCondition(rule: ContactFilterRule): SQL | null {
   }
 
   if (rule.type === 'emailOpens') {
-    const recentEmails = sql`
-      select sent.source_type, sent.source_id
-      from newsletter_events as sent
-      where sent.site_id = ${newsletterContacts.siteId}
-        and sent.event_type = 'sent'
-        and sent.source_id is not null
-      group by sent.source_type, sent.source_id
-      order by max(sent.created_at) desc
-      limit ${Number(rule.times)}
-    `
-    const hasOpenedRecentEmail = sql`exists (
-      select 1
-      from newsletter_events as opened
-      inner join (${recentEmails}) as recent_email
-        on opened.source_type = recent_email.source_type
-        and opened.source_id = recent_email.source_id
-      where opened.contact_id = ${newsletterContacts.id}
-        and opened.site_id = ${newsletterContacts.siteId}
-        and opened.event_type = 'opened'
-    )`
-
-    return rule.operator === 'has_opened'
-      ? hasOpenedRecentEmail
-      : sql`not ${hasOpenedRecentEmail}`
+    return buildRecentEmailOpenCondition(rule.times, rule.operator)
   }
 
   const column = rule.type === 'lastEngaged' ? newsletterContacts.lastEngagedAt : newsletterContacts.createdAt
@@ -397,9 +375,9 @@ async function repairBouncedContacts(siteId: string) {
       and contact.status = 'active'
       and exists (
         select 1
-        from newsletter_events as event
+        from newsletter_deliveries as event
         where event.contact_id = contact.id
-          and event.event_type = 'bounced'
+          and event.bounced_at is not null
       )
   `)
 }
@@ -800,7 +778,7 @@ export async function getContactById(
   }
 }
 
-/** Aggregate stats for a contact from newsletter_events */
+/** Aggregate recent delivery stats for a contact */
 export async function getContactStats(
   contactId: string
 ): Promise<{ data: { totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number } | null; error: string | null }> {
@@ -810,7 +788,6 @@ export async function getContactStats(
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    // Verify contact exists and user owns the site
     const [contact] = await db
       .select({ siteId: newsletterContacts.siteId })
       .from(newsletterContacts)
@@ -822,22 +799,18 @@ export async function getContactStats(
       return { data: null, error: 'Access denied' }
     }
 
-    // Count events by type for this contact
-    const rows = await db
-      .select({
-        eventType: newsletterEvents.eventType,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(newsletterEvents)
-      .where(eq(newsletterEvents.contactId, contactId))
-      .groupBy(newsletterEvents.eventType)
+    const rows = await db.execute<{ total_sent: number; total_opened: number; total_clicked: number }>(sql`
+      select
+        count(*) filter (where is_duplicate_send = false)::int as total_sent,
+        count(*) filter (where first_opened_at is not null)::int as total_opened,
+        count(*) filter (where first_clicked_at is not null)::int as total_clicked
+      from newsletter_deliveries
+      where contact_id = ${contactId}
+    `)
 
-    const counts: Record<string, number> = {}
-    for (const r of rows) counts[r.eventType] = r.count
-
-    const totalSent = counts['sent'] || 0
-    const totalOpened = counts['opened'] || 0
-    const totalClicked = counts['clicked'] || 0
+    const totalSent = Number(rows.rows[0]?.total_sent ?? 0)
+    const totalOpened = Number(rows.rows[0]?.total_opened ?? 0)
+    const totalClicked = Number(rows.rows[0]?.total_clicked ?? 0)
     const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0
     const clickRate = totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0
 
@@ -848,12 +821,12 @@ export async function getContactStats(
   }
 }
 
-/** Paginated event history for a contact, joined with newsletter subject */
+/** Paginated delivery history for a contact, joined with newsletter subject */
 export async function getContactEvents(
   contactId: string,
   page = 1,
   pageSize = 20
-): Promise<{ data: { id: string; eventType: string; sourceId: string | null; newsletterSubject: string | null; metadata: any; createdAt: string }[] | null; total: number; error: string | null }> {
+): Promise<{ data: { id: string; eventType: string; newsletterSubject: string | null; createdAt: string }[] | null; total: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(contactId)) return { data: null, total: 0, error: 'Invalid contact ID' }
 
@@ -875,39 +848,47 @@ export async function getContactEvents(
     const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
     const offset = (safePage - 1) * safePageSize
 
-    // Fetch events with left-joined newsletter subject
     const [events, countResult] = await Promise.all([
       db
         .select({
-          id: newsletterEvents.id,
-          eventType: newsletterEvents.eventType,
-          sourceId: newsletterEvents.sourceId,
+          id: newsletterDeliveries.id,
+          eventType: sql<string>`case
+            when ${newsletterDeliveries.complainedAt} is not null then 'complained'
+            when ${newsletterDeliveries.bouncedAt} is not null then 'bounced'
+            when ${newsletterDeliveries.unsubscribedAt} is not null then 'unsubscribed'
+            when ${newsletterDeliveries.firstClickedAt} is not null then 'clicked'
+            when ${newsletterDeliveries.firstOpenedAt} is not null then 'opened'
+            when ${newsletterDeliveries.deliveredAt} is not null then 'delivered'
+            when ${newsletterDeliveries.isDuplicateSend} = true then 'duplicate'
+            else 'sent'
+          end`,
           newsletterSubject: newsletters.subject,
-          metadata: newsletterEvents.metadata,
-          createdAt: newsletterEvents.createdAt,
+          createdAt: sql<Date>`coalesce(${newsletterDeliveries.lastEventAt}, ${newsletterDeliveries.sentAt})`,
         })
-        .from(newsletterEvents)
-        .leftJoin(newsletters, eq(newsletterEvents.sourceId, newsletters.id))
-        .where(eq(newsletterEvents.contactId, contactId))
-        .orderBy(desc(newsletterEvents.createdAt))
+        .from(newsletterDeliveries)
+        .leftJoin(newsletters, and(
+          eq(newsletterDeliveries.sourceId, newsletters.id),
+          eq(newsletterDeliveries.sourceType, 'broadcast'),
+        ))
+        .where(eq(newsletterDeliveries.contactId, contactId))
+        .orderBy(desc(sql`coalesce(${newsletterDeliveries.lastEventAt}, ${newsletterDeliveries.sentAt})`))
         .limit(safePageSize)
         .offset(offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(newsletterEvents)
-        .where(eq(newsletterEvents.contactId, contactId)),
+      db.execute<{ count: number }>(sql`
+        select count(*)::int as count
+        from newsletter_deliveries
+        where contact_id = ${contactId}
+      `),
     ])
 
     return {
       data: events.map(e => ({
         id: e.id,
         eventType: e.eventType,
-        sourceId: e.sourceId,
         newsletterSubject: e.newsletterSubject,
-        metadata: e.metadata,
         createdAt: e.createdAt?.toISOString() ?? '',
       })),
-      total: countResult[0]?.count ?? 0,
+      total: countResult.rows[0]?.count ?? 0,
       error: null,
     }
   } catch (err) {
@@ -953,7 +934,7 @@ export async function getContactSegments(
   }
 }
 
-/** Click events for a contact with link URL from metadata, joined with newsletter name */
+/** Clicked links for a contact, joined with newsletter name */
 export async function getContactClickedLinks(
   contactId: string
 ): Promise<{ data: { id: string; linkUrl: string; newsletterSubject: string | null; createdAt: string }[] | null; error: string | null }> {
@@ -976,24 +957,27 @@ export async function getContactClickedLinks(
 
     const rows = await db
       .select({
-        id: newsletterEvents.id,
-        metadata: newsletterEvents.metadata,
+        id: newsletterDeliveries.id,
+        linkUrl: newsletterDeliveries.lastClickedUrl,
         newsletterSubject: newsletters.subject,
-        createdAt: newsletterEvents.createdAt,
+        createdAt: newsletterDeliveries.firstClickedAt,
       })
-      .from(newsletterEvents)
-      .leftJoin(newsletters, eq(newsletterEvents.sourceId, newsletters.id))
-      .where(and(
-        eq(newsletterEvents.contactId, contactId),
-        eq(newsletterEvents.eventType, 'clicked'),
+      .from(newsletterDeliveries)
+      .leftJoin(newsletters, and(
+        eq(newsletterDeliveries.sourceId, newsletters.id),
+        eq(newsletterDeliveries.sourceType, 'broadcast'),
       ))
-      .orderBy(desc(newsletterEvents.createdAt))
+      .where(and(
+        eq(newsletterDeliveries.contactId, contactId),
+        sql`${newsletterDeliveries.firstClickedAt} is not null`,
+      ))
+      .orderBy(desc(newsletterDeliveries.firstClickedAt))
       .limit(50)
 
     return {
       data: rows.map(r => ({
         id: r.id,
-        linkUrl: (r.metadata as any)?.link_url || '',
+        linkUrl: r.linkUrl || '',
         newsletterSubject: r.newsletterSubject,
         createdAt: r.createdAt?.toISOString() ?? '',
       })),
@@ -1026,36 +1010,31 @@ export async function getContactEngagementOverTime(
       return { data: null, error: 'Access denied' }
     }
 
-    // Group opens and clicks by month
-    const rows = await db
-      .select({
-        month: sql<string>`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`,
-        eventType: newsletterEvents.eventType,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(newsletterEvents)
-      .where(and(
-        eq(newsletterEvents.contactId, contactId),
-        or(
-          eq(newsletterEvents.eventType, 'opened'),
-          eq(newsletterEvents.eventType, 'clicked'),
-        ),
-      ))
-      .groupBy(sql`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`, newsletterEvents.eventType)
-      .orderBy(sql`to_char(${newsletterEvents.createdAt}, 'YYYY-MM')`)
+    const rows = await db.execute<{ month: string; opens: number; clicks: number }>(sql`
+      with engagement_events as (
+        select first_opened_at as event_at, 1 as opens, 0 as clicks
+        from newsletter_deliveries
+        where contact_id = ${contactId}
+          and first_opened_at is not null
+        union all
+        select first_clicked_at as event_at, 0 as opens, 1 as clicks
+        from newsletter_deliveries
+        where contact_id = ${contactId}
+          and first_clicked_at is not null
+      )
+      select
+        to_char(event_at, 'YYYY-MM') as month,
+        sum(opens)::int as opens,
+        sum(clicks)::int as clicks
+      from engagement_events
+      group by to_char(event_at, 'YYYY-MM')
+      order by to_char(event_at, 'YYYY-MM')
+    `)
 
-    // Merge into { month, opens, clicks } format
-    const byMonth: Record<string, { opens: number; clicks: number }> = {}
-    for (const r of rows) {
-      if (!byMonth[r.month]) byMonth[r.month] = { opens: 0, clicks: 0 }
-      if (r.eventType === 'opened') byMonth[r.month].opens = r.count
-      if (r.eventType === 'clicked') byMonth[r.month].clicks = r.count
-    }
-
-    const data = Object.entries(byMonth).map(([month, counts]) => ({
-      month,
-      opens: counts.opens,
-      clicks: counts.clicks,
+    const data = rows.rows.map((row) => ({
+      month: row.month,
+      opens: Number(row.opens ?? 0),
+      clicks: Number(row.clicks ?? 0),
     }))
 
     return { data, error: null }
@@ -1101,13 +1080,20 @@ export async function unsubscribeContact(
         .where(and(eq(newsletterContacts.siteId, siteId), eq(newsletterContacts.email, emailLower)))
 
       if (normalizedNewsletterId) {
-        await db.insert(newsletterEvents).values({
-          siteId,
-          contactId: contact.id,
-          eventType: 'unsubscribed',
-          sourceType: 'broadcast',
-          sourceId: normalizedNewsletterId,
-        })
+        const [newsletter] = await db
+          .select({ id: newsletters.id })
+          .from(newsletters)
+          .where(and(eq(newsletters.id, normalizedNewsletterId), eq(newsletters.siteId, siteId)))
+          .limit(1)
+
+        if (newsletter) {
+          await recordNewsletterUnsubscribe(db, {
+            siteId,
+            contactId: contact.id,
+            sourceType: 'broadcast',
+            sourceId: newsletter.id,
+          })
+        }
       }
     }
 
