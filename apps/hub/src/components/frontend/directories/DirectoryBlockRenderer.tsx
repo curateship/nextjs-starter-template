@@ -5,7 +5,7 @@ import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import { DirectoryGoogleMapBlock } from "./google-map/DirectoryGoogleMapBlock"
 import { DirectoryOpeningHoursBlock } from "./opening-hours/DirectoryOpeningHoursBlock"
 import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
-import type { HTMLAttributes, ReactNode } from "react"
+import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
@@ -104,7 +104,7 @@ export function DirectoryBlockRenderer({
   function getBlockCardProps(
     block: DirectoryWithBlocks["blocks"][number],
     className?: string
-  ): HTMLAttributes<HTMLDivElement> {
+  ) {
     return {
       "data-block-id": block.id,
       "data-block-type": block.type,
