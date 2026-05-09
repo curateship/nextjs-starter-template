@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, sql, gte } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterSegmentContacts, siteIntegrations, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -137,7 +137,7 @@ export async function syncContactsToResend(siteId: string): Promise<{ synced: nu
  */
 export async function getAudienceCount(
   siteId: string,
-  audienceFilter: { segment_id?: string; tags?: string[]; sources?: string[]; min_engagement_score?: number }
+  audienceFilter: { segment_id?: string; tags?: string[]; sources?: string[] }
 ): Promise<{ count: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(siteId)) return { count: 0, error: 'Invalid site ID' }
@@ -172,10 +172,6 @@ export async function getAudienceCount(
 
     if (audienceFilter.sources?.length) {
       conditions.push(sql`${newsletterContacts.metadata}->>'source' IN (${sql.join(audienceFilter.sources.map((s: string) => sql`${s}`), sql`, `)})`)
-    }
-
-    if (audienceFilter.min_engagement_score) {
-      conditions.push(gte(newsletterContacts.engagementScore, audienceFilter.min_engagement_score))
     }
 
     const [result] = await db

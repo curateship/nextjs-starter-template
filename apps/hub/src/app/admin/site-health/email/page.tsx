@@ -208,61 +208,6 @@ export default function EmailHealthPage() {
                   </div>
                 </div>
               </Card>
-
-              {/* Engagement Distribution */}
-              <Card>
-                <h3 className="font-semibold mb-4">Engagement Distribution</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Hot (70-100)</span>
-                      <span className="text-lg font-bold text-green-600">
-                        {report.engagementDistribution.hot.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-green-500 h-2 rounded-full"
-                        style={{
-                          width: `${((contacts) => (contacts > 0 ? (report.engagementDistribution.hot / contacts) * 100 : 0))(report.contactHealth.active + report.contactHealth.unsubscribed + report.contactHealth.bounced + report.contactHealth.complained)}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Warm (30-69)</span>
-                      <span className="text-lg font-bold text-yellow-600">
-                        {report.engagementDistribution.warm.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-yellow-500 h-2 rounded-full"
-                        style={{
-                          width: `${((contacts) => (contacts > 0 ? (report.engagementDistribution.warm / contacts) * 100 : 0))(report.contactHealth.active + report.contactHealth.unsubscribed + report.contactHealth.bounced + report.contactHealth.complained)}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Cold (0-29)</span>
-                      <span className="text-lg font-bold text-gray-500">
-                        {report.engagementDistribution.cold.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div
-                        className="bg-gray-400 h-2 rounded-full"
-                        style={{
-                          width: `${((contacts) => (contacts > 0 ? (report.engagementDistribution.cold / contacts) * 100 : 0))(report.contactHealth.active + report.contactHealth.unsubscribed + report.contactHealth.bounced + report.contactHealth.complained)}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </Card>
             </div>
           ) : null}
         </div>

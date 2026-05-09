@@ -63,14 +63,12 @@ export default function SegmentDashboardPage() {
     openRate: number
     clickRate: number
     unsubscribeRate: number
-    avgEngagementScore: number
   } | null>(null)
   const [contacts, setContacts] = useState<
     {
       id: string
       email: string
       status: string
-      engagementScore: number
       metadata: any
       createdAt: string
     }[]
@@ -369,8 +367,8 @@ export default function SegmentDashboardPage() {
                   </div>
                 </div>
               </Card>
-              <div className="grid grid-cols-2 md:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
+              <div className="grid grid-cols-1 md:grid-cols-3">
+                {[1, 2, 3].map((i) => (
                   <Card key={i}>
                     <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
                     <div className="h-8 w-16 bg-muted rounded animate-pulse" />
@@ -430,10 +428,6 @@ export default function SegmentDashboardPage() {
                 <Card>
                   <p className="text-sm text-muted-foreground mb-1">Click Rate</p>
                   <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
-                </Card>
-                <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Avg Engagement</p>
-                  <p className="text-2xl font-semibold">{stats?.avgEngagementScore ?? 0}</p>
                 </Card>
                 <Card>
                   <p className="text-sm text-muted-foreground mb-1">Unsubscribe Rate</p>
@@ -567,11 +561,6 @@ export default function SegmentDashboardPage() {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {getStatusBadge(contact.status)}
-                              {contact.engagementScore > 0 && (
-                                <Badge variant="outline" className="text-xs">
-                                  Score: {contact.engagementScore}
-                                </Badge>
-                              )}
                               {segment.segment_type === "static" && (
                                 <Button
                                   variant="ghost"

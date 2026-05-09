@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { siteIntegrations, newsletterContacts } from '@/lib/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
 import { recordNewsletterDeliveryEvent } from '@/lib/actions/newsletters/event-stats'
@@ -121,7 +121,6 @@ export async function POST(request: NextRequest) {
               .update(newsletterContacts)
               .set({
                 status: 'bounced',
-                bounceCount: sql`${newsletterContacts.bounceCount} + 1`,
                 updatedAt: new Date(),
               })
               .where(eq(newsletterContacts.id, result.delivery.contactId))

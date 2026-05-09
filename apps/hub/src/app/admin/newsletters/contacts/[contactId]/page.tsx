@@ -502,11 +502,6 @@ export default function ContactDashboardPage() {
                       <div className="flex items-center gap-3 flex-wrap">
                         {getStatusBadge(contact.status)}
                         {getSourceBadge(contact.metadata?.source || "manual")}
-                        {contact.engagement_score > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            Score: {contact.engagement_score}
-                          </Badge>
-                        )}
                         <span className="text-xs text-muted-foreground">Since {formatDate(contact.created_at)}</span>
                       </div>
                     </div>

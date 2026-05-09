@@ -45,11 +45,6 @@ export interface DeliverabilityReport {
     bounceRate: number
     complaintRate: number
   }
-  engagementDistribution: {
-    hot: number    // 70-100
-    warm: number   // 30-69
-    cold: number   // 0-29
-  }
 }
 
 /**
@@ -128,7 +123,6 @@ export async function getDeliverabilityReport(siteId: string): Promise<{ data: D
     const contacts = await db
       .select({
         status: newsletterContacts.status,
-        engagementScore: newsletterContacts.engagementScore,
         lastEngagedAt: newsletterContacts.lastEngagedAt,
       })
       .from(newsletterContacts)
@@ -137,7 +131,6 @@ export async function getDeliverabilityReport(siteId: string): Promise<{ data: D
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
 
     const contactHealth = { active: 0, unsubscribed: 0, bounced: 0, complained: 0, cold: 0 }
-    const engagementDistribution = { hot: 0, warm: 0, cold: 0 }
 
     for (const c of contacts) {
       if (c.status === 'active') {
@@ -150,11 +143,6 @@ export async function getDeliverabilityReport(siteId: string): Promise<{ data: D
       else if (c.status === 'unsubscribed') contactHealth.unsubscribed++
       else if (c.status === 'bounced') contactHealth.bounced++
       else if (c.status === 'complained') contactHealth.complained++
-
-      const score = c.engagementScore || 0
-      if (score >= 70) engagementDistribution.hot++
-      else if (score >= 30) engagementDistribution.warm++
-      else engagementDistribution.cold++
     }
 
     // Email metrics (last 30 days)
@@ -203,7 +191,7 @@ export async function getDeliverabilityReport(siteId: string): Promise<{ data: D
     }
 
     return {
-      data: { domain, contactHealth, emailMetrics, engagementDistribution },
+      data: { domain, contactHealth, emailMetrics },
       error: null,
     }
   } catch (err) {

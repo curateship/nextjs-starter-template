@@ -805,10 +805,10 @@ export async function removeContactsFromSegment(
   }
 }
 
-/** Aggregate stats for a segment: contact count, event counts, rates, avg engagement */
+/** Aggregate stats for a segment: contact count, event counts, and rates */
 export async function getSegmentStats(
   segmentId: string
-): Promise<{ data: { totalContacts: number; totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number; unsubscribeRate: number; avgEngagementScore: number } | null; error: string | null }> {
+): Promise<{ data: { totalContacts: number; totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number; unsubscribeRate: number } | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
 
@@ -831,7 +831,6 @@ export async function getSegmentStats(
         .select({
           totalContacts: sql<number>`count(*)::int`,
           unsubscribedCount: sql<number>`count(*) filter (where ${newsletterContacts.status} = 'unsubscribed')::int`,
-          avgEngagementScore: sql<number>`coalesce(round(avg(${newsletterContacts.engagementScore}))::int, 0)`,
         })
         .from(newsletterSegmentContacts)
         .innerJoin(newsletterContacts, eq(newsletterSegmentContacts.contactId, newsletterContacts.id))
@@ -850,7 +849,6 @@ export async function getSegmentStats(
     const totalContacts = contactStats[0]?.totalContacts ?? 0
     const unsubscribedCount = contactStats[0]?.unsubscribedCount ?? 0
     const unsubscribeRate = totalContacts > 0 ? Math.round((unsubscribedCount / totalContacts) * 100) : 0
-    const avgEngagementScore = contactStats[0]?.avgEngagementScore ?? 0
 
     const totalSent = Number(eventStats.rows[0]?.sent ?? 0)
     const totalOpened = Number(eventStats.rows[0]?.opened ?? 0)
@@ -858,7 +856,7 @@ export async function getSegmentStats(
     const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0
     const clickRate = totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0
 
-    return { data: { totalContacts, totalSent, totalOpened, totalClicked, openRate, clickRate, unsubscribeRate, avgEngagementScore }, error: null }
+    return { data: { totalContacts, totalSent, totalOpened, totalClicked, openRate, clickRate, unsubscribeRate }, error: null }
   } catch (err) {
     console.error('getSegmentStats error:', err)
     return { data: null, error: 'Server error' }
@@ -870,7 +868,7 @@ export async function getSegmentContacts(
   segmentId: string,
   page = 1,
   pageSize = 20
-): Promise<{ data: { id: string; email: string; status: string; engagementScore: number; metadata: any; createdAt: string }[] | null; total: number; error: string | null }> {
+): Promise<{ data: { id: string; email: string; status: string; metadata: any; createdAt: string }[] | null; total: number; error: string | null }> {
   try {
     if (!UUID_REGEX.test(segmentId)) return { data: null, total: 0, error: 'Invalid ID' }
 
@@ -898,7 +896,6 @@ export async function getSegmentContacts(
           id: newsletterContacts.id,
           email: newsletterContacts.email,
           status: newsletterContacts.status,
-          engagementScore: newsletterContacts.engagementScore,
           metadata: newsletterContacts.metadata,
           createdAt: newsletterContacts.createdAt,
         })
@@ -919,7 +916,6 @@ export async function getSegmentContacts(
         id: r.id,
         email: r.email,
         status: r.status ?? 'active',
-        engagementScore: r.engagementScore ?? 0,
         metadata: r.metadata,
         createdAt: r.createdAt?.toISOString() ?? '',
       })),

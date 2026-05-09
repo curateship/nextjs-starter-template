@@ -22,9 +22,7 @@ export interface CrmContact {
   site_id: string
   email: string
   status: 'active' | 'unsubscribed' | 'bounced' | 'complained'
-  engagement_score: number
   last_engaged_at: string | null
-  bounce_count: number
   metadata: {
     first_name?: string
     last_name?: string
@@ -62,9 +60,7 @@ function rowToContact(row: any): CrmContact {
     site_id: row.siteId,
     email: row.email,
     status: row.status,
-    engagement_score: row.engagementScore ?? 0,
     last_engaged_at: row.lastEngagedAt?.toISOString() ?? null,
-    bounce_count: row.bounceCount ?? 0,
     metadata,
     created_at: row.createdAt?.toISOString() ?? '',
     updated_at: row.updatedAt?.toISOString() ?? '',
@@ -369,7 +365,6 @@ async function repairBouncedContacts(siteId: string) {
   await db.execute(sql`
     update newsletter_contacts as contact
     set status = 'bounced',
-        bounce_count = greatest(coalesce(contact.bounce_count, 0), 1),
         updated_at = now()
     where contact.site_id = ${siteId}
       and contact.status = 'active'
