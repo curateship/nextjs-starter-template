@@ -678,7 +678,10 @@ export async function deleteStep(stepId: string): Promise<{ success: boolean; er
     if (!user) return { success: false, error: 'Not authenticated' }
 
     const [step] = await db
-      .select({ automationId: emailAutomationSteps.automationId })
+      .select({
+        automationId: emailAutomationSteps.automationId,
+        stepOrder: emailAutomationSteps.stepOrder,
+      })
       .from(emailAutomationSteps)
       .where(eq(emailAutomationSteps.id, stepId))
       .limit(1)
@@ -695,6 +698,26 @@ export async function deleteStep(stepId: string): Promise<{ success: boolean; er
     if (!await verifySiteOwnership(automation.siteId, user.id)) return { success: false, error: 'Access denied' }
 
     await db.delete(emailAutomationSteps).where(eq(emailAutomationSteps.id, stepId))
+
+    await db
+      .update(emailAutomationEnrollments)
+      .set({
+        currentStepOrder: sql`greatest(coalesce(${emailAutomationEnrollments.currentStepOrder}, 0) - 1, 0)`,
+      })
+      .where(and(
+        eq(emailAutomationEnrollments.automationId, step.automationId),
+        eq(emailAutomationEnrollments.status, 'active'),
+        sql`coalesce(${emailAutomationEnrollments.currentStepOrder}, 0) >= ${step.stepOrder}`,
+      ))
+
+    const remainingSteps = await db
+      .select({ id: emailAutomationSteps.id })
+      .from(emailAutomationSteps)
+      .where(eq(emailAutomationSteps.automationId, step.automationId))
+      .orderBy(asc(emailAutomationSteps.stepOrder))
+
+    const compactResult = await reorderSteps(step.automationId, remainingSteps.map(s => s.id))
+    if (!compactResult.success) return compactResult
 
     return { success: true, error: null }
   } catch (err) {
