@@ -72,13 +72,13 @@ function IntegrationCard({
     ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
   -H "Authorization: Bearer YOUR_GUMROAD_ACCESS_TOKEN" \\
   -d "resource_name=sale" \\
-  -d "post_url=${webhookUrl}"`
+  --data-urlencode "post_url=${webhookUrl}"`
     : ''
   const gumroadSetupCommandPreview = entry.type === 'gumroad' && webhookUrlPreview
     ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
   -H "Authorization: Bearer YOUR_GUMROAD_ACCESS_TOKEN" \\
   -d "resource_name=sale" \\
-  -d "post_url=${webhookUrlPreview}"`
+  --data-urlencode "post_url=${webhookUrlPreview}"`
     : ''
 
   useEffect(() => {
