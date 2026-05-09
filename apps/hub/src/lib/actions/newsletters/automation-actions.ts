@@ -2,7 +2,7 @@
 
 import { eq, and, sql, desc, asc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterEvents, sites } from '@/lib/db/schema'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
@@ -843,35 +843,29 @@ export async function getAutomationReport(automationId: string): Promise<{
       else if (e.status === 'cancelled') counts.cancelled++
     }
 
-    // Step stats from events
-    const [steps, events] = await Promise.all([
-      db
-        .select({ stepOrder: emailAutomationSteps.stepOrder, subject: emailAutomationSteps.subject })
-        .from(emailAutomationSteps)
-        .where(eq(emailAutomationSteps.automationId, automationId))
-        .orderBy(asc(emailAutomationSteps.stepOrder)),
-      db
-        .select({ eventType: newsletterEvents.eventType, metadata: newsletterEvents.metadata })
-        .from(newsletterEvents)
-        .where(and(
-          eq(newsletterEvents.sourceType, 'automation'),
-          eq(newsletterEvents.sourceId, automationId),
-        )),
-    ])
+    const steps = await db
+      .select({ stepOrder: emailAutomationSteps.stepOrder, subject: emailAutomationSteps.subject })
+      .from(emailAutomationSteps)
+      .where(eq(emailAutomationSteps.automationId, automationId))
+      .orderBy(asc(emailAutomationSteps.stepOrder))
 
-    const stepStats = steps.map(s => {
-      const stepEvents = events.filter(e => {
-        const meta = e.metadata as Record<string, any> | null
-        return meta?.step_order === s.stepOrder
+    const stepStats = await Promise.all(steps.map(async s => {
+      const result = await queryNewsletterStatusEvents({
+        pageSize: 1,
+        siteId: automation.siteId,
+        sourceId: automationId,
+        sourceType: 'automation',
+        stepOrder: s.stepOrder,
       })
+
       return {
         step_order: s.stepOrder,
         subject: s.subject ?? '',
-        sent: stepEvents.filter(e => e.eventType === 'sent').length,
-        opened: stepEvents.filter(e => e.eventType === 'opened').length,
-        clicked: stepEvents.filter(e => e.eventType === 'clicked').length,
+        sent: result.stats.sent,
+        opened: result.stats.opened,
+        clicked: result.stats.clicked,
       }
-    })
+    }))
 
     return { data: { ...counts, stepStats }, error: null }
   } catch (err) {
