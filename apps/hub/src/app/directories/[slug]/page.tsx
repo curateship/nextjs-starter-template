@@ -17,6 +17,7 @@ import {
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { getGoogleMapsConfig } from "@/lib/actions/integrations/config-helpers"
+import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -35,6 +36,14 @@ function directoryBlocksNeedGoogleMapsConfig(blocks: any[]) {
 
     return visibility.hideBlock !== true && visibility.map !== false && locationQuery.length > 0
   })
+}
+
+function directoryBlocksNeedClaimAuthPath(blocks: any[]) {
+  return blocks.some((block) =>
+    block.type === DIRECTORY_CORE_BLOCK_TYPE &&
+    block.content?.visibility?.hideBlock !== true &&
+    block.content?.claimEnabled !== false
+  )
 }
 
 function directoryBlocksNeedCategoryContext(blocks: any[]) {
@@ -87,7 +96,8 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
 
   const needsCategoryContext = directoryBlocksNeedCategoryContext(blocks)
   const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
-  const [breadcrumbs, categoryContext, googleMapsConfig] = await Promise.all([
+  const needsClaimAuthPath = directoryBlocksNeedClaimAuthPath(blocks)
+  const [breadcrumbs, categoryContext, googleMapsConfig, authPathResult] = await Promise.all([
     shouldShowFrontendBreadcrumbs(site.settings, 'directories')
       ? getContentBreadcrumbItems({
         siteId: site.id,
@@ -106,6 +116,9 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     needsGoogleMapsConfig
       ? getGoogleMapsConfig(site.id)
       : Promise.resolve(null),
+    needsClaimAuthPath
+      ? getPublicAuthPagePath(site.id)
+      : Promise.resolve({ path: null, error: null }),
   ])
 
   const directoryWithBlocks = {
@@ -154,6 +167,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         customBlockTemplates={customBlockTemplates}
         breadcrumbs={breadcrumbs}
         googleMapsEmbedApiKey={googleMapsConfig?.apiKey || ''}
+        claimAuthPath={authPathResult.path || '/'}
       />
     </>
   )

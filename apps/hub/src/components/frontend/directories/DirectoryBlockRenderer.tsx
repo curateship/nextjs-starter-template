@@ -43,6 +43,7 @@ interface DirectoryBlockRendererProps {
   isPreview?: boolean
   hideSiteChrome?: boolean
   googleMapsEmbedApiKey?: string
+  claimAuthPath?: string | null
   renderRichTextBody?: (block: DirectoryWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: DirectoryWithBlocks["blocks"][number]) => ReactNode
 }
@@ -55,6 +56,7 @@ export function DirectoryBlockRenderer({
   isPreview = false,
   hideSiteChrome = false,
   googleMapsEmbedApiKey = '',
+  claimAuthPath = null,
   renderRichTextBody,
   renderBlockOverlay,
 }: DirectoryBlockRendererProps) {
@@ -118,6 +120,7 @@ export function DirectoryBlockRenderer({
           <DirectoryCoreBlock
             content={block.content}
             directory={directory}
+            claimAuthPath={claimAuthPath}
           />
         </div>
       )

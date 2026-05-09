@@ -21,16 +21,20 @@ import {
   type DirectoryCoreMenuLink,
   type DirectoryCoreSocialLink,
 } from "@/lib/actions/directories/directory-core"
+import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
 import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DirectoryCoreBlockProps {
   content?: Record<string, any>
   directory: {
+    id?: string | null
     title?: string | null
+    slug?: string | null
     featured_image?: string | null
     category_context?: DirectoryCoreCategoryContext | null
   }
+  claimAuthPath?: string | null
 }
 
 const SOCIAL_ICON_MAP: Record<string, { label: string; Icon: LucideIcon }> = {
@@ -109,6 +113,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
 export function DirectoryCoreBlock({
   content,
   directory,
+  claimAuthPath,
 }: DirectoryCoreBlockProps) {
   const visibility = content?.visibility && typeof content.visibility === "object"
     ? content.visibility as Record<string, boolean>
@@ -128,6 +133,7 @@ export function DirectoryCoreBlock({
     : []
   const title = directory.title || "Directory Listing"
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
+  const showClaimButton = content?.claimEnabled !== false && Boolean(directory.id)
   const introTemplate = typeof content?.introText === "string" ? content.introText : ""
   const introText = renderDirectoryCoreIntroText(introTemplate, {
     directoryTitle: title,
@@ -167,11 +173,22 @@ export function DirectoryCoreBlock({
           ) : null}
         </div>
 
-        {menuLinks.length > 0 && visibility.menuLinks !== false ? (
+        {(menuLinks.length > 0 && visibility.menuLinks !== false) || showClaimButton ? (
           <div className={cn(featuredImage || title || socialLinks.length ? "" : "border-t-0")}>
             {menuLinks.map((link, index) => (
               <MenuLink key={link.id || `${link.type}-${index}`} link={link} />
             ))}
+            {showClaimButton ? (
+              <DirectoryClaimButton
+                directoryId={directory.id!}
+                authPath={claimAuthPath}
+                ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
+                buttonText={typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing"}
+                pendingEmailText={typeof content?.claimPendingEmailText === "string" ? content.claimPendingEmailText : "Check Business Email"}
+                pendingReviewText={typeof content?.claimPendingReviewText === "string" ? content.claimPendingReviewText : "Claim Pending Review"}
+                approvedText={typeof content?.claimApprovedText === "string" ? content.claimApprovedText : "Edit Listing"}
+              />
+            ) : null}
           </div>
         ) : null}
     </article>

@@ -8,6 +8,7 @@ import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlo
 import dynamic from "next/dynamic"
 const AuthBlock = dynamic(() => import("@/components/frontend/pages/auth/AuthBlock").then(m => ({ default: m.AuthBlock })))
 const AccountEditProfileBlock = dynamic(() => import("@/components/frontend/account/edit-profile/AccountEditProfileBlock").then(m => ({ default: m.AccountEditProfileBlock })))
+const AccountClaimedListingsBlock = dynamic(() => import("@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock").then(m => ({ default: m.AccountClaimedListingsBlock })))
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -202,6 +203,22 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <AccountEditProfileBlock
+                content={block.content}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+                isPreview={isPreview}
+              />
+            </div>
+          )
+        }
+
+        if (block.type === 'account-claimed-listings') {
+          if (!accountContext) return null
+
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <AccountClaimedListingsBlock
+                siteId={site.id}
                 content={block.content}
                 siteWidth={siteWidth}
                 customWidth={customWidth}

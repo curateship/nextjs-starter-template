@@ -1100,6 +1100,73 @@ export function DirectoryCoreBlock({
               </div>
             </div>
           </div>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold leading-none tracking-tight">Claim Listing</h2>
+              <p className="text-sm text-muted-foreground">
+                Let verified business owners request access to edit this listing.
+              </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="directory-core-claim-enabled"
+                checked={content.claimEnabled !== false}
+                onCheckedChange={(checked) => onContentChange("claimEnabled", checked === true)}
+              />
+              <Label htmlFor="directory-core-claim-enabled" className="cursor-pointer">
+                Show claim listing action
+              </Label>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="directory-core-claim-button">Button Text</Label>
+                <Input
+                  id="directory-core-claim-button"
+                  value={content.claimButtonText ?? "Claim Listing"}
+                  onChange={(event) => onContentChange("claimButtonText", event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="directory-core-claim-edit-path">Owner Edit Path</Label>
+                <Input
+                  id="directory-core-claim-edit-path"
+                  value={content.ownerEditPath ?? "/account"}
+                  onChange={(event) => onContentChange("ownerEditPath", event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="directory-core-claim-email-text">Pending Email Text</Label>
+                <Input
+                  id="directory-core-claim-email-text"
+                  value={content.claimPendingEmailText ?? "Check Business Email"}
+                  onChange={(event) => onContentChange("claimPendingEmailText", event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="directory-core-claim-review-text">Pending Review Text</Label>
+                <Input
+                  id="directory-core-claim-review-text"
+                  value={content.claimPendingReviewText ?? "Claim Pending Review"}
+                  onChange={(event) => onContentChange("claimPendingReviewText", event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="directory-core-claim-approved-text">Approved Text</Label>
+                <Input
+                  id="directory-core-claim-approved-text"
+                  value={content.claimApprovedText ?? "Edit Listing"}
+                  onChange={(event) => onContentChange("claimApprovedText", event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       ),
     },

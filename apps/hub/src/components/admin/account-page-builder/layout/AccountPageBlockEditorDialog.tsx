@@ -10,6 +10,7 @@ import {
   AdminModalScrollBody,
   AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import { AccountClaimedListingsBlock } from "../blocks/claimed-listings/AccountClaimedListingsBlock"
 import { AccountEditProfileBlock } from "../blocks/edit-profile/AccountEditProfileBlock"
 import { getBlockName } from "../config/account-page-block-types"
 import type { ContentBlock as AccountPageBlock } from "@/lib/utils/block-utils"
@@ -49,6 +50,12 @@ export function AccountPageBlockEditorDialog({
           <AdminModalScrollBody>
             {selectedBlock.type === "account-edit-profile" && (
               <AccountEditProfileBlock
+                content={draftContent}
+                onContentChange={onContentChange}
+              />
+            )}
+            {selectedBlock.type === "account-claimed-listings" && (
+              <AccountClaimedListingsBlock
                 content={draftContent}
                 onContentChange={onContentChange}
               />

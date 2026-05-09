@@ -1,4 +1,4 @@
-import { FileText, UserRoundCog } from "lucide-react"
+import { Building2, FileText, UserRoundCog } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -27,6 +27,21 @@ export const ACCOUNT_PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       visibility: {},
     },
     conflictsWith: ['account-edit-profile'],
+  },
+  {
+    type: 'account-claimed-listings',
+    name: 'Claimed Listings',
+    icon: Building2,
+    description: 'Let approved listing owners edit their claimed directory listings',
+    defaultContent: {
+      title: 'Claimed Listings',
+      description: 'Manage the listings approved for your account.',
+      listingLabel: 'Listing',
+      saveButtonText: 'Save Listing',
+      emptyText: 'No approved listing claims yet.',
+      visibility: {},
+    },
+    conflictsWith: ['account-claimed-listings'],
   },
 ]
 

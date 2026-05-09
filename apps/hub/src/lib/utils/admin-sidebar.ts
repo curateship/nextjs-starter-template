@@ -114,9 +114,10 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-product-templates", "Templates", "/admin/products/templates", "file"),
           ], ["/admin/products/builder", "/admin/products/new", "/admin/products/analytics"]),
           item("item-directory", "Directory", "/admin/directories", "directory", [
+            child("child-directory-claims", "Claims", "/admin/directories/claims", "clipboard"),
             child("child-directory-custom-blocks", "Custom Blocks", "/admin/directories/custom-blocks", "grid"),
             child("child-directory-templates", "Templates", "/admin/directories/templates", "file"),
-          ], ["/admin/directories/builder"]),
+          ], ["/admin/directories/builder", "/admin/directories/claims"]),
           item("item-newsletters", "Newsletters", "/admin/newsletters", "newsletters", [
             child("child-newsletter-contacts", "Contacts", "/admin/newsletters/contacts", "users"),
             child("child-newsletter-segments", "Segments", "/admin/newsletters/segments", "clipboard"),
@@ -221,6 +222,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "product-templates": "child-product-templates",
   "post-templates": "child-post-templates",
   "directory-custom-blocks": "child-directory-custom-blocks",
+  "directory-claims": "child-directory-claims",
   "directory-templates": "child-directory-templates",
   "newsletter-contacts": "child-newsletter-contacts",
   "newsletter-segments": "child-newsletter-segments",

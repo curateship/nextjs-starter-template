@@ -246,6 +246,12 @@ export function normalizeDirectoryCoreContent(
     menuLinks: Array.isArray(nextContent.menuLinks)
       ? nextContent.menuLinks.map(normalizeDirectoryCoreMenuLink).filter(Boolean)
       : [],
+    claimEnabled: nextContent.claimEnabled !== false,
+    claimButtonText: typeof nextContent.claimButtonText === "string" ? nextContent.claimButtonText : "Claim Listing",
+    claimPendingEmailText: typeof nextContent.claimPendingEmailText === "string" ? nextContent.claimPendingEmailText : "Check Business Email",
+    claimPendingReviewText: typeof nextContent.claimPendingReviewText === "string" ? nextContent.claimPendingReviewText : "Claim Pending Review",
+    claimApprovedText: typeof nextContent.claimApprovedText === "string" ? nextContent.claimApprovedText : "Edit Listing",
+    ownerEditPath: typeof nextContent.ownerEditPath === "string" ? nextContent.ownerEditPath : "/account",
     visibility,
   }
 }
