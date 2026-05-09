@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardSection } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -462,215 +462,241 @@ export default function ContactDashboardPage() {
             }
           />
 
-          {/* Loading skeleton */}
-          {loading && (
-            <>
-              <Card>
-                <div className="flex items-center gap-4">
-                  <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
-                  <div className="space-y-2">
-                    <div className="h-5 w-48 bg-muted rounded animate-pulse" />
-                    <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
-                  </div>
+          <div className="grid">
+            {/* Loading skeleton */}
+            {loading && (
+              <>
+                <Card>
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
+                      <div className="space-y-2">
+                        <div className="h-5 w-48 bg-muted rounded animate-pulse" />
+                        <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <div className="grid grid-cols-2 md:grid-cols-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Card key={i}>
+                      <CardContent>
+                        <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
+                        <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </Card>
-              <div className="grid grid-cols-2 md:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <Card key={i}>
-                    <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
-                    <div className="h-8 w-16 bg-muted rounded animate-pulse" />
-                  </Card>
-                ))}
-              </div>
-            </>
-          )}
+              </>
+            )}
 
-          {/* Error state */}
-          {error && !loading && (
-            <Card className="text-center">
-              <p className="text-red-600 mb-4">{error}</p>
-              <Link href="/admin/newsletters/contacts">
-                <Button variant="outline">Back to Contacts</Button>
-              </Link>
-            </Card>
-          )}
-
-          {/* Loaded content */}
-          {!loading && contact && (
-            <>
-              {/* Contact Header */}
+            {/* Error state */}
+            {error && !loading && (
               <Card>
-                <div className="flex items-center gap-4">
-                  {/* Avatar circle with initials */}
-                  <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-lg shrink-0">
-                    {getInitials()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h1 className="text-lg font-semibold truncate">{displayName}</h1>
-                    <p className="text-sm text-muted-foreground truncate">{contact.email}</p>
-                  </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {getStatusBadge(contact.status)}
-                    {getSourceBadge(contact.metadata?.source || "manual")}
-                    {contact.engagement_score > 0 && (
-                      <Badge variant="outline" className="text-xs">
-                        Score: {contact.engagement_score}
-                      </Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">Since {formatDate(contact.created_at)}</span>
-                  </div>
-                </div>
+                <CardContent className="text-center">
+                  <p className="text-red-600 mb-4">{error}</p>
+                  <Link href="/admin/newsletters/contacts">
+                    <Button variant="outline">Back to Contacts</Button>
+                  </Link>
+                </CardContent>
               </Card>
+            )}
 
-              {/* Stats cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4">
+            {/* Loaded content */}
+            {!loading && contact && (
+              <>
+                {/* Contact Header */}
                 <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Emails Received</p>
-                  <p className="text-2xl font-semibold">{stats?.totalSent ?? 0}</p>
-                </Card>
-                <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Open Rate</p>
-                  <p className="text-2xl font-semibold">{stats?.openRate ?? 0}%</p>
-                </Card>
-                <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Click Rate</p>
-                  <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
-                </Card>
-                <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Last Engaged</p>
-                  <p className="text-2xl font-semibold">{formatRelativeDate(contact.last_engaged_at)}</p>
-                </Card>
-              </div>
-
-              {/* Two-column layout: Email History + Sidebar */}
-              <div className="grid grid-cols-1 lg:grid-cols-3">
-                {/* Email History — left 2/3 */}
-                <Card className="lg:col-span-2">
-                  <CardSection className="border-b">
-                    <h2 className="font-semibold text-sm">Email History</h2>
-                  </CardSection>
-                  <div className="divide-y">
-                    {events.length === 0 ? (
-                      <CardSection className="text-center text-muted-foreground text-sm">
-                        No email events recorded yet.
-                      </CardSection>
-                    ) : (
-                      groupEventsByNewsletter().map((group, i) => (
-                        <CardSection key={i}>
-                          <p className="font-medium text-sm mb-1">{group.subject}</p>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(group.events[0].createdAt)}
-                            </span>
-                            <span className="text-xs text-muted-foreground">·</span>
-                            {/* Show event chain: sent → opened → clicked */}
-                            {group.events
-                              .sort((a, b) => {
-                                const order = ["sent", "opened", "clicked", "bounced", "complained"]
-                                return order.indexOf(a.eventType) - order.indexOf(b.eventType)
-                              })
-                              .map((event, j) => (
-                                <span key={event.id} className="flex items-center gap-1">
-                                  {j > 0 && <span className="text-xs text-muted-foreground">→</span>}
-                                  {getEventBadge(event.eventType)}
-                                </span>
-                              ))}
-                          </div>
-                        </CardSection>
-                      ))
-                    )}
-                  </div>
-                  {/* Load more button */}
-                  {events.length < eventsTotal && (
-                    <CardSection className="border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={loadMoreEvents}
-                        disabled={loadingMore}
-                        className="w-full"
-                      >
-                        {loadingMore ? "Loading..." : `Load more (${eventsTotal - events.length} remaining)`}
-                      </Button>
-                    </CardSection>
-                  )}
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      {/* Avatar circle with initials */}
+                      <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-lg shrink-0">
+                        {getInitials()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h1 className="text-lg font-semibold truncate">{displayName}</h1>
+                        <p className="text-sm text-muted-foreground truncate">{contact.email}</p>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {getStatusBadge(contact.status)}
+                        {getSourceBadge(contact.metadata?.source || "manual")}
+                        {contact.engagement_score > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            Score: {contact.engagement_score}
+                          </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">Since {formatDate(contact.created_at)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
                 </Card>
 
-                {/* Right sidebar — Segments, Clicked Links */}
-                <div>
-                  {/* Segments */}
+                {/* Stats cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4">
                   <Card>
-                    <CardSection className="border-b">
-                      <h2 className="font-semibold text-sm">Segments</h2>
-                    </CardSection>
-                    <CardSection>
-                      {segments.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Not in any segments</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {segments.map((seg) => (
-                            <Badge key={seg.id} variant="secondary">
-                              {seg.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </CardSection>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Emails Received</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold">{stats?.totalSent ?? 0}</p>
+                    </CardContent>
                   </Card>
-
-                  {/* Clicked Links */}
                   <Card>
-                    <CardSection className="border-b">
-                      <h2 className="font-semibold text-sm">Clicked Links</h2>
-                    </CardSection>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Open Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold">{stats?.openRate ?? 0}%</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Click Rate</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Last Engaged</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold">{formatRelativeDate(contact.last_engaged_at)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Two-column layout: Email History + Sidebar */}
+                <div className="grid grid-cols-1 lg:grid-cols-3">
+                  {/* Email History — left 2/3 */}
+                  <Card className="lg:col-span-2">
+                    <CardHeader className="border-b">
+                      <CardTitle className="text-base">Email History</CardTitle>
+                    </CardHeader>
                     <div className="divide-y">
-                      {clickedLinks.length === 0 ? (
-                        <CardSection>
-                          <p className="text-sm text-muted-foreground">No clicks recorded</p>
+                      {events.length === 0 ? (
+                        <CardSection className="text-center text-muted-foreground text-sm">
+                          No email events recorded yet.
                         </CardSection>
                       ) : (
-                        clickedLinks.map((link) => (
-                          <CardSection key={link.id}>
-                            <div className="flex items-start gap-2">
-                              <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-                              <div className="min-w-0">
-                                <p className="text-sm truncate">{link.linkUrl || "Unknown URL"}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {link.newsletterSubject && <span>{link.newsletterSubject} · </span>}
-                                  {formatDate(link.createdAt)}
-                                </p>
-                              </div>
+                        groupEventsByNewsletter().map((group, i) => (
+                          <CardSection key={i}>
+                            <p className="font-medium text-sm mb-1">{group.subject}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(group.events[0].createdAt)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">·</span>
+                              {/* Show event chain: sent → opened → clicked */}
+                              {group.events
+                                .sort((a, b) => {
+                                  const order = ["sent", "opened", "clicked", "bounced", "complained"]
+                                  return order.indexOf(a.eventType) - order.indexOf(b.eventType)
+                                })
+                                .map((event, j) => (
+                                  <span key={event.id} className="flex items-center gap-1">
+                                    {j > 0 && <span className="text-xs text-muted-foreground">→</span>}
+                                    {getEventBadge(event.eventType)}
+                                  </span>
+                                ))}
                             </div>
                           </CardSection>
                         ))
                       )}
                     </div>
+                    {/* Load more button */}
+                    {events.length < eventsTotal && (
+                      <CardSection className="border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={loadMoreEvents}
+                          disabled={loadingMore}
+                          className="w-full"
+                        >
+                          {loadingMore ? "Loading..." : `Load more (${eventsTotal - events.length} remaining)`}
+                        </Button>
+                      </CardSection>
+                    )}
                   </Card>
-                </div>
-              </div>
 
-              {/* Engagement Over Time chart — only if 3+ data points */}
-              {engagement.length >= 3 && (
-                <Card>
-                  <CardSection className="border-b">
-                    <h2 className="font-semibold text-sm">Engagement Over Time</h2>
-                  </CardSection>
-                  <CardSection>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={engagement}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="opens" stroke="#3b82f6" name="Opens" />
-                        <Line type="monotone" dataKey="clicks" stroke="#22c55e" name="Clicks" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardSection>
-                </Card>
-              )}
-            </>
-          )}
+                  {/* Right sidebar — Segments, Clicked Links */}
+                  <div className="grid">
+                    {/* Segments */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Segments</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {segments.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Not in any segments</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {segments.map((seg) => (
+                              <Badge key={seg.id} variant="secondary">
+                                {seg.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Clicked Links */}
+                    <Card>
+                      <CardHeader className="border-b">
+                        <CardTitle className="text-base">Clicked Links</CardTitle>
+                      </CardHeader>
+                      <div className="divide-y">
+                        {clickedLinks.length === 0 ? (
+                          <CardSection>
+                            <p className="text-sm text-muted-foreground">No clicks recorded</p>
+                          </CardSection>
+                        ) : (
+                          clickedLinks.map((link) => (
+                            <CardSection key={link.id}>
+                              <div className="flex items-start gap-2">
+                                <ExternalLink className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                                <div className="min-w-0">
+                                  <p className="text-sm truncate">{link.linkUrl || "Unknown URL"}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {link.newsletterSubject && <span>{link.newsletterSubject} · </span>}
+                                    {formatDate(link.createdAt)}
+                                  </p>
+                                </div>
+                              </div>
+                            </CardSection>
+                          ))
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+
+                {/* Engagement Over Time chart — only if 3+ data points */}
+                {engagement.length >= 3 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Engagement Over Time</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={engagement}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="opens" stroke="#3b82f6" name="Opens" />
+                          <Line type="monotone" dataKey="clicks" stroke="#22c55e" name="Clicks" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </AdminLayout>
     </>
