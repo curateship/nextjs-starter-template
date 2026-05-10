@@ -189,7 +189,7 @@ apps/hub/src/components/
 - Leave truly custom dialogs such as media pickers and other utility flows on custom shells until repetition proves they belong in the shared form modal system.
 - Builder and editor pages should keep a single `StickyHeader`: section navigation on the left, current-item actions in `rightActions`, and no extra toolbar row beneath it.
 - Admin dashboard list pages should also render filters and primary actions in the sticky header top-right controls; `DashboardSubheader` is breadcrumb-only.
-- Admin dashboard list pages should reuse shared helpers in `src/components/admin/layout/list/` for bulk selection, tri-state sort buttons, skeleton rows, pagination footers, and simple confirm/error dialogs. Product, post, and event index pages use the shared content list shell in `src/components/admin/layout/content/` with type-specific wrapper config.
+- Admin dashboard list pages should reuse shared helpers in `src/components/admin/layout/list/` for bulk selection, tri-state sort buttons, skeleton rows, pagination footers, and simple confirm/error dialogs. Product, post, event, directory, page, and account-page index pages use the shared content list shell in `src/components/admin/layout/content/` with type-specific wrapper config.
 
 ### Working On HUB
 

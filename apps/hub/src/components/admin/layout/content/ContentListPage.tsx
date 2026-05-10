@@ -26,40 +26,70 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog } from "@/components/ui/dialog"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { cn } from "@/lib/utils/tailwind"
 
-type ContentSortColumn = "title" | "category" | "status" | "modified"
-type ContentStatusFilter = "all" | "published" | "draft"
+export type ContentSortColumn = "title" | "category" | "status" | "modified"
+export type ContentStatusFilter = "all" | "published" | "draft"
+type ContentStatusCounts = Record<ContentStatusFilter, number>
+
+export interface ContentCursorListParams {
+  cursor: string | null
+  limit: number
+  search: string
+  siteId: string
+  sortColumn: ContentSortColumn | null
+  sortDirection: "asc" | "desc"
+  status: ContentStatusFilter
+}
+
+export interface ContentCursorListData<TItem extends ContentListItem> {
+  rows: TItem[]
+  categories: Record<string, CategoryInfo[]>
+  totalCount: number
+  statusCounts: ContentStatusCounts
+  nextCursor: string | null
+}
 
 export type ContentListItem = {
   id: string
   site_id: string
   title: string
   slug: string
-  is_published: boolean
-  featured_image: string | null
+  is_published?: boolean
+  featured_image?: string | null
   meta_description?: string | null
   content_blocks?: Record<string, any>
   updated_at: string
 }
 
 interface ContentListPageProps<TItem extends ContentListItem> {
+  breadcrumbs?: Array<{ label: string; href?: string }>
   builderPath: string
+  canDeleteItem?: (item: TItem) => boolean
+  canSelectItem?: (item: TItem) => boolean
+  columnCount?: 5 | 6
   createButtonLabel: string
   duplicateTitle: (item: TItem) => string
   emptyButtonLabel: string
   emptyDescription?: (items: TItem[], filterStatus: ContentStatusFilter) => string
   emptyTitle: (items: TItem[], filterStatus: ContentStatusFilter) => string
   formatModified?: (item: TItem) => string
-  getIds: (siteId: string) => Promise<{ ids: string[]; error: string | null }>
-  getItems: (
+  getBuilderHref?: (item: TItem) => string
+  getCursorItems?: (params: ContentCursorListParams) => Promise<{ data: ContentCursorListData<TItem> | null; error: string | null }>
+  getDisplayPath?: (item: TItem) => string
+  getIds?: (siteId: string) => Promise<{ ids: string[]; error: string | null }>
+  getIsPublished?: (item: TItem) => boolean
+  getItems?: (
     siteId: string,
     options?: { page?: number; pageSize?: number }
   ) => Promise<{ data: TItem[] | null; categories: Record<string, CategoryInfo[]>; total: number; error: string | null }>
+  getPreviewHref?: (item: TItem, site: SiteWithTheme | null) => string
+  getRowIcon?: (item: TItem) => ReactNode
   getSearchText?: (item: TItem, categories: CategoryInfo[]) => string
   icon: LucideIcon
   itemLabel: string
@@ -79,16 +109,32 @@ interface ContentListPageProps<TItem extends ContentListItem> {
     onSuccess: (item: TItem) => void
     open: boolean
   }) => ReactNode
+  renderStatusBadge?: (item: TItem) => ReactNode
   searchPlaceholder: string
+  showCategoryColumn?: boolean
+  showClearSortAction?: boolean
+  showEmptyButtonWhenFiltered?: boolean
   showNoSiteMessage?: boolean
   showPrivateBadge?: boolean
+  showSelectAllBanner?: boolean
+  refreshAfterCreate?: boolean
+  refreshAfterDelete?: boolean
+  refreshAfterDuplicate?: boolean
+  refreshAfterUpdate?: boolean
+  siteId?: string
+  previewSite?: SiteWithTheme | null
+  sortableColumns?: Partial<Record<ContentSortColumn, boolean>>
   deleteItem: (itemId: string) => Promise<{ success: boolean; error: string | null }>
   deleteItems: (ids: string[]) => Promise<{ success: boolean; error: string | null }>
   duplicateItem: (itemId: string, title: string) => Promise<{ data: TItem | null; error: string | null }>
 }
 
 export function ContentListPage<TItem extends ContentListItem>({
+  breadcrumbs,
   builderPath,
+  canDeleteItem,
+  canSelectItem,
+  columnCount = 6,
   createButtonLabel,
   deleteItem,
   deleteItems,
@@ -98,8 +144,14 @@ export function ContentListPage<TItem extends ContentListItem>({
   emptyDescription,
   emptyTitle,
   formatModified,
+  getBuilderHref,
+  getCursorItems,
+  getDisplayPath,
   getIds,
+  getIsPublished,
   getItems,
+  getPreviewHref,
+  getRowIcon,
   getSearchText,
   icon: EmptyIcon,
   itemLabel,
@@ -109,9 +161,21 @@ export function ContentListPage<TItem extends ContentListItem>({
   previewPublishedOnly = false,
   renderCreateModal,
   renderSettingsModal,
+  renderStatusBadge,
   searchPlaceholder,
+  showCategoryColumn = true,
+  showClearSortAction = false,
+  showEmptyButtonWhenFiltered = false,
   showNoSiteMessage = false,
   showPrivateBadge = false,
+  showSelectAllBanner = true,
+  refreshAfterCreate = false,
+  refreshAfterDelete = false,
+  refreshAfterDuplicate = false,
+  refreshAfterUpdate = false,
+  siteId,
+  previewSite,
+  sortableColumns,
 }: ContentListPageProps<TItem>) {
   const router = useRouter()
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
@@ -131,32 +195,117 @@ export function ContentListPage<TItem extends ContentListItem>({
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
+  const [remoteStatusCounts, setRemoteStatusCounts] = useState<ContentStatusCounts | null>(null)
+  const [activeCursor, setActiveCursor] = useState<string | null>(null)
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
+  const [hydrated, setHydrated] = useState(process.env.NODE_ENV !== "development")
   const itemSelection = useAdminBulkSelection()
+  const clearItemSelection = itemSelection.clearSelection
   const itemSort = useAdminSort<ContentSortColumn>()
   const pageSize = contextPageSize
+  const effectiveSiteId = siteId || currentSite?.id
+  const effectiveSite = previewSite === undefined ? currentSite : previewSite
+  const usesCursorPagination = Boolean(getCursorItems)
+  const renderCategoryColumn = showCategoryColumn || !hydrated
+  const gridClassName = columnCount === 5 && !renderCategoryColumn ? "grid-cols-5" : "grid-cols-6"
+  const canSort = {
+    title: true,
+    category: renderCategoryColumn,
+    status: true,
+    modified: true,
+    ...sortableColumns,
+  }
+  const cursorSearch = usesCursorPagination ? searchQuery : ""
+  const cursorStatus = usesCursorPagination ? filterStatus : "all"
+  const cursorSortColumn = usesCursorPagination ? itemSort.sortColumn : null
+  const cursorSortDirection = usesCursorPagination ? itemSort.sortDirection : "asc"
 
   useEffect(() => {
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!usesCursorPagination) return
+    setActiveCursor(null)
+    setCursorHistory([])
+    clearItemSelection()
+  }, [
+    clearItemSelection,
+    effectiveSiteId,
+    cursorSearch,
+    cursorSortColumn,
+    cursorSortDirection,
+    cursorStatus,
+    usesCursorPagination,
+  ])
+
+  useEffect(() => {
+    let cancelled = false
+
     async function loadItems() {
-      if (!currentSite?.id) {
+      if (!effectiveSiteId) {
         setLoading(true)
         setItems([])
         setCategoriesByItemId({})
         setTotal(0)
+        setRemoteStatusCounts(null)
+        setNextCursor(null)
         return
       }
 
       try {
         setLoading(true)
         setError(null)
+
+        if (getCursorItems) {
+          const { data, error: itemError } = await getCursorItems({
+            siteId: effectiveSiteId,
+            search: searchQuery,
+            status: filterStatus,
+            sortColumn: itemSort.sortColumn,
+            sortDirection: itemSort.sortDirection,
+            cursor: activeCursor,
+            limit: pageSize,
+          })
+
+          if (cancelled) return
+
+          if (itemError || !data) {
+            setError(itemError || `Failed to load ${itemLabelPlural.toLowerCase()}`)
+            setItems([])
+            setCategoriesByItemId({})
+            setTotal(0)
+            setRemoteStatusCounts({ all: 0, published: 0, draft: 0 })
+            setNextCursor(null)
+            return
+          }
+
+          setItems(data.rows)
+          setCategoriesByItemId(data.categories)
+          setTotal(data.totalCount)
+          setRemoteStatusCounts(data.statusCounts)
+          setNextCursor(data.nextCursor)
+          return
+        }
+
+        if (!getItems) {
+          setError(`Missing ${itemLabel.toLowerCase()} list loader`)
+          return
+        }
+
         const {
           data,
           categories,
           total: itemTotal,
           error: itemError,
-        } = await getItems(currentSite.id, {
+        } = await getItems(effectiveSiteId, {
           page: currentPage,
           pageSize,
         })
+
+        if (cancelled) return
 
         if (itemError) {
           setError(itemError)
@@ -166,26 +315,59 @@ export function ContentListPage<TItem extends ContentListItem>({
 
         setItems(data || [])
         setTotal(itemTotal)
+        setRemoteStatusCounts(null)
+        setNextCursor(null)
         if (categories) setCategoriesByItemId(categories)
       } catch (err) {
+        if (cancelled) return
         setError(err instanceof Error ? err.message : "An unexpected error occurred")
         setItems([])
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     loadItems()
-  }, [currentPage, currentSite?.id, getItems, pageSize])
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeCursor,
+    currentPage,
+    effectiveSiteId,
+    filterStatus,
+    getCursorItems,
+    getItems,
+    itemLabel,
+    itemLabelPlural,
+    itemSort.sortColumn,
+    itemSort.sortDirection,
+    pageSize,
+    reloadToken,
+    searchQuery,
+  ])
 
   function isPrivate(item: TItem) {
     return item.content_blocks?._settings?.is_private === true
   }
 
-  function getStatusBadge(item: TItem) {
+  function isPublished(item: TItem) {
+    return getIsPublished ? getIsPublished(item) : item.is_published === true
+  }
+
+  function isSelectable(item: TItem) {
+    return canSelectItem ? canSelectItem(item) : true
+  }
+
+  function isDeletable(item: TItem) {
+    return canDeleteItem ? canDeleteItem(item) : true
+  }
+
+  function getDefaultStatusBadge(item: TItem) {
     const privateItem = showPrivateBadge && isPrivate(item)
 
-    if (item.is_published) {
+    if (isPublished(item)) {
       return (
         <div className="flex gap-1">
           <Badge variant="default" className="bg-green-100 text-green-800">
@@ -213,10 +395,10 @@ export function ContentListPage<TItem extends ContentListItem>({
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-  const filteredItems = items.filter((item) => {
+  const filteredItems = usesCursorPagination ? items : items.filter((item) => {
     let statusMatch = true
-    if (filterStatus === "published") statusMatch = item.is_published
-    if (filterStatus === "draft") statusMatch = !item.is_published
+    if (filterStatus === "published") statusMatch = isPublished(item)
+    if (filterStatus === "draft") statusMatch = !isPublished(item)
 
     const categories = categoriesByItemId[item.id] || []
     const categoryText = categories.map((category) => category.title).join(" ")
@@ -228,6 +410,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   })
 
   const sortedItems = [...filteredItems].sort((a, b) => {
+    if (usesCursorPagination) return 0
     if (!itemSort.sortColumn) return 0
     const dir = itemSort.sortDirection === "asc" ? 1 : -1
     if (itemSort.sortColumn === "title") return a.title.localeCompare(b.title) * dir
@@ -236,23 +419,24 @@ export function ContentListPage<TItem extends ContentListItem>({
       const bCategory = categoriesByItemId[b.id]?.[0]?.title || "\uffff"
       return aCategory.localeCompare(bCategory) * dir
     }
-    if (itemSort.sortColumn === "status") return (Number(a.is_published) - Number(b.is_published)) * dir
+    if (itemSort.sortColumn === "status") return (Number(isPublished(a)) - Number(isPublished(b))) * dir
     if (itemSort.sortColumn === "modified") {
       return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     }
     return 0
   })
 
-  const filteredItemIds = filteredItems.map((item) => item.id)
-  const statusCounts = {
+  const visibleItemIds = sortedItems.filter(isSelectable).map((item) => item.id)
+  const localStatusCounts = {
     all: items.length,
-    published: items.filter((item) => item.is_published).length,
-    draft: items.filter((item) => !item.is_published).length,
+    published: items.filter((item) => isPublished(item)).length,
+    draft: items.filter((item) => !isPublished(item)).length,
   }
+  const statusCounts = remoteStatusCounts || localStatusCounts
 
   async function handleSelectAll() {
-    if (!currentSite?.id || total === 0) return
-    const { ids, error: idsError } = await getIds(currentSite.id)
+    if (!effectiveSiteId || total === 0 || !getIds) return
+    const { ids, error: idsError } = await getIds(effectiveSiteId)
     if (idsError) {
       setErrorMessage(idsError)
       return
@@ -274,7 +458,12 @@ export function ContentListPage<TItem extends ContentListItem>({
         return
       }
 
-      setItems((current) => current.filter((item) => item.id !== itemIdToDelete))
+      if (refreshAfterDelete) {
+        itemSelection.remove(itemIdToDelete)
+        setReloadToken((token) => token + 1)
+      } else {
+        setItems((current) => current.filter((item) => item.id !== itemIdToDelete))
+      }
     } catch {
       setErrorMessage(`Failed to delete ${itemLabel.toLowerCase()}`)
     } finally {
@@ -295,8 +484,12 @@ export function ContentListPage<TItem extends ContentListItem>({
         return
       }
 
-      setItems((current) => current.filter((item) => !idsToDelete.has(item.id)))
       itemSelection.clearSelection()
+      if (refreshAfterDelete) {
+        setReloadToken((token) => token + 1)
+      } else {
+        setItems((current) => current.filter((item) => !idsToDelete.has(item.id)))
+      }
     } catch {
       setErrorMessage(`Failed to delete ${itemLabelPlural.toLowerCase()}`)
     } finally {
@@ -314,7 +507,11 @@ export function ContentListPage<TItem extends ContentListItem>({
         return
       }
 
-      if (data) setItems((current) => [...current, data])
+      if (refreshAfterDuplicate) {
+        setReloadToken((token) => token + 1)
+      } else if (data) {
+        setItems((current) => [...current, data])
+      }
     } catch {
       setErrorMessage(`Failed to duplicate ${itemLabel.toLowerCase()}`)
     } finally {
@@ -323,18 +520,56 @@ export function ContentListPage<TItem extends ContentListItem>({
   }
 
   function handleCreateSuccess(item: TItem, continueToBuilder?: boolean) {
-    setItems((current) => [...current, item])
+    if (refreshAfterCreate) {
+      setReloadToken((token) => token + 1)
+    } else {
+      setItems((current) => [...current, item])
+    }
     setShowCreateDialog(false)
-    if (continueToBuilder && currentSite?.id) {
-      router.push(`${builderPath}/${currentSite.id}?${itemLabel.toLowerCase()}=${item.slug}`)
+    if (continueToBuilder && effectiveSiteId) {
+      router.push(`${builderPath}/${effectiveSiteId}?${itemLabel.toLowerCase()}=${item.slug}`)
     }
   }
 
   function handleItemUpdated(updatedItem: TItem) {
     setItems((current) => current.map((item) => (item.id === updatedItem.id ? updatedItem : item)))
+    if (refreshAfterUpdate) setReloadToken((token) => token + 1)
   }
 
-  if (!currentSite && showNoSiteMessage) {
+  function handleNextPage() {
+    if (!nextCursor) return
+    setCursorHistory((current) => [...current, activeCursor])
+    setActiveCursor(nextCursor)
+    itemSelection.clearSelection()
+  }
+
+  function handlePreviousPage() {
+    setCursorHistory((current) => {
+      if (current.length === 0) return current
+
+      const nextHistory = [...current]
+      const previousCursor = nextHistory.pop() ?? null
+      setActiveCursor(previousCursor)
+      itemSelection.clearSelection()
+      return nextHistory
+    })
+  }
+
+  function renderSortHeader(column: ContentSortColumn, label: string) {
+    if (!canSort[column]) return <div>{label}</div>
+
+    return (
+      <AdminSortButton
+        active={itemSort.sortColumn === column}
+        direction={itemSort.sortDirection}
+        onClick={() => itemSort.toggleSort(column)}
+      >
+        {label}
+      </AdminSortButton>
+    )
+  }
+
+  if (!effectiveSiteId && showNoSiteMessage) {
     return (
       <AdminLayout>
         <div className="flex min-h-[400px] items-center justify-center">
@@ -354,7 +589,7 @@ export function ContentListPage<TItem extends ContentListItem>({
       <AdminLayout>
         <div className="w-full">
           <DashboardSubheader
-            items={[{ label: listLabel }]}
+            items={breadcrumbs || [{ label: listLabel }]}
             search={{
               value: searchQuery,
               onValueChange: setSearchQuery,
@@ -374,11 +609,24 @@ export function ContentListPage<TItem extends ContentListItem>({
               ],
             }}
             preActions={
-              <AdminBulkDeleteButton
-                deleting={massDeleting}
-                onClick={() => setMassDeleteConfirmOpen(true)}
-                selectedCount={itemSelection.selectedCount}
-              />
+              showClearSortAction && itemSort.sortColumn ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={itemSort.resetSort}>
+                    Clear Sort
+                  </Button>
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={itemSelection.selectedCount}
+                  />
+                </div>
+              ) : (
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={itemSelection.selectedCount}
+                />
+              )
             }
             actions={
               <Button onClick={() => setShowCreateDialog(true)}>
@@ -389,57 +637,38 @@ export function ContentListPage<TItem extends ContentListItem>({
           />
 
           <Card>
-            <CardTableHeader className="grid-cols-6">
+            <CardTableHeader className={gridClassName}>
               <div className="col-span-2 flex items-center space-x-4">
                 <Checkbox
-                  checked={itemSelection.isPageSelected(filteredItemIds)}
-                  onCheckedChange={() => itemSelection.togglePage(filteredItemIds)}
+                  checked={itemSelection.isPageSelected(visibleItemIds)}
+                  onCheckedChange={() => itemSelection.togglePage(visibleItemIds)}
                   aria-label={`Select all ${itemLabelPlural.toLowerCase()}`}
                 />
-                <AdminSortButton
-                  active={itemSort.sortColumn === "title"}
-                  direction={itemSort.sortDirection}
-                  onClick={() => itemSort.toggleSort("title")}
-                >
-                  {itemLabel}
-                </AdminSortButton>
+                {renderSortHeader("title", itemLabel)}
               </div>
-              <AdminSortButton
-                active={itemSort.sortColumn === "category"}
-                direction={itemSort.sortDirection}
-                onClick={() => itemSort.toggleSort("category")}
-              >
-                Category
-              </AdminSortButton>
-              <AdminSortButton
-                active={itemSort.sortColumn === "status"}
-                direction={itemSort.sortDirection}
-                onClick={() => itemSort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <AdminSortButton
-                active={itemSort.sortColumn === "modified"}
-                direction={itemSort.sortDirection}
-                onClick={() => itemSort.toggleSort("modified")}
-              >
-                Modified
-              </AdminSortButton>
+              {renderCategoryColumn && renderSortHeader("category", "Category")}
+              {renderSortHeader("status", "Status")}
+              {renderSortHeader("modified", "Modified")}
               <div>Actions</div>
             </CardTableHeader>
 
-            <AdminSelectionBanner
-              allSelected={itemSelection.allSelected}
-              onClearSelection={itemSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={itemSelection.selectedCount}
-              total={total}
-              visibleCount={filteredItems.length}
-            />
+            {showSelectAllBanner && getIds && (
+              <AdminSelectionBanner
+                allSelected={itemSelection.allSelected}
+                onClearSelection={itemSelection.clearSelection}
+                onSelectAll={handleSelectAll}
+                selectedCount={itemSelection.selectedCount}
+                total={total}
+                visibleCount={visibleItemIds.length}
+              />
+            )}
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <AdminListSkeleton />
+                <AdminListSkeleton
+                  columns={gridClassName === "grid-cols-5" ? 5 : 6}
+                  rowCount={columnCount === 5 ? 4 : 5}
+                />
               ) : error ? (
                 <div className="p-8 text-center">
                   <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
@@ -453,7 +682,7 @@ export function ContentListPage<TItem extends ContentListItem>({
                   {emptyDescription && (
                     <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
                   )}
-                  {items.length === 0 && (
+                  {(items.length === 0 || showEmptyButtonWhenFiltered) && (
                     <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
                       {emptyButtonLabel}
                     </Button>
@@ -462,24 +691,33 @@ export function ContentListPage<TItem extends ContentListItem>({
               ) : (
                 sortedItems.map((item) => {
                   const itemCategories = categoriesByItemId[item.id] || []
-                  const previewHref = currentSite ? `${getSiteUrl(currentSite)}/${pathPrefix}/${item.slug}` : "#"
-                  const previewDisabled = previewPublishedOnly && !item.is_published
+                  const previewHref = getPreviewHref
+                    ? getPreviewHref(item, effectiveSite)
+                    : effectiveSite
+                      ? `${getSiteUrl(effectiveSite)}/${pathPrefix}/${item.slug}`
+                      : "#"
+                  const previewDisabled = previewPublishedOnly && !isPublished(item)
+                  const rowIcon = getRowIcon?.(item)
 
                   return (
                     <div
                       key={item.id}
                       className={cn("p-6 transition-colors", itemSelection.selectedIds.has(item.id) && "bg-accent/50")}
                     >
-                      <div className="grid grid-cols-6 items-center gap-4">
+                      <div className={cn("grid items-center gap-4", gridClassName)}>
                         <div className="col-span-2">
                           <div className="flex items-center space-x-4">
-                            <Checkbox
-                              checked={itemSelection.selectedIds.has(item.id)}
-                              onCheckedChange={() => itemSelection.toggleOne(item.id)}
-                              aria-label={`Select ${item.title}`}
-                            />
+                            {isSelectable(item) ? (
+                              <Checkbox
+                                checked={itemSelection.selectedIds.has(item.id)}
+                                onCheckedChange={() => itemSelection.toggleOne(item.id)}
+                                aria-label={`Select ${item.title}`}
+                              />
+                            ) : (
+                              <div className="w-4" />
+                            )}
                             <Link
-                              href={`${builderPath}/${item.site_id}?${itemLabel.toLowerCase()}=${item.slug}`}
+                              href={getBuilderHref?.(item) || `${builderPath}/${item.site_id}?${itemLabel.toLowerCase()}=${item.slug}`}
                               className="flex items-center space-x-4 transition-opacity hover:opacity-80"
                             >
                               <div className="ml-2 flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted">
@@ -489,29 +727,35 @@ export function ContentListPage<TItem extends ContentListItem>({
                                     alt={item.title}
                                     className="h-full w-full object-contain"
                                   />
+                                ) : rowIcon ? (
+                                  rowIcon
                                 ) : (
                                   <EmptyIcon className="h-6 w-6 text-muted-foreground" />
                                 )}
                               </div>
                               <div>
                                 <h4 className="font-medium hover:underline">{item.title}</h4>
-                                <p className="text-sm text-muted-foreground">/{pathPrefix}/{item.slug}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
+                                </p>
                               </div>
                             </Link>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-1">
-                          {itemCategories.length ? (
-                            itemCategories.map((category) => (
-                              <Badge key={category.id} variant="outline" className="text-xs">
-                                {category.title}
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">-</span>
-                          )}
-                        </div>
-                        <div>{getStatusBadge(item)}</div>
+                        {renderCategoryColumn && (
+                          <div className="flex flex-wrap gap-1">
+                            {itemCategories.length ? (
+                              itemCategories.map((category) => (
+                                <Badge key={category.id} variant="outline" className="text-xs">
+                                  {category.title}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        )}
+                        <div>{renderStatusBadge ? renderStatusBadge(item) : getDefaultStatusBadge(item)}</div>
                         <div>
                           <span className="text-sm text-muted-foreground">
                             {formatModified ? formatModified(item) : formatRelativeDate(item.updated_at)}
@@ -552,17 +796,19 @@ export function ContentListPage<TItem extends ContentListItem>({
                             <Copy className="h-4 w-4" />
                             <span className="sr-only">Duplicate</span>
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => setPendingDeleteId(item.id)}
-                            disabled={deletingItemId === item.id}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
+                          {isDeletable(item) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                              onClick={() => setPendingDeleteId(item.id)}
+                              disabled={deletingItemId === item.id}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -571,7 +817,21 @@ export function ContentListPage<TItem extends ContentListItem>({
               )}
             </div>
 
-            {!loading && (
+            {!loading && usesCursorPagination && total > 0 && (
+              <div className="flex items-center justify-between border-t px-6 py-4">
+                <div className="text-sm text-muted-foreground">
+                  Showing {items.length} items from a filtered total of {total}
+                </div>
+                <CursorPagination
+                  hasPreviousPage={cursorHistory.length > 0}
+                  hasNextPage={Boolean(nextCursor)}
+                  onPreviousPage={handlePreviousPage}
+                  onNextPage={handleNextPage}
+                />
+              </div>
+            )}
+
+            {!loading && !usesCursorPagination && (
               <AdminListFooter
                 currentPage={currentPage}
                 pageSize={pageSize}

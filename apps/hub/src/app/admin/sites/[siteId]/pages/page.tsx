@@ -1,575 +1,108 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
-import Link from "next/link"
-import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Card, CardTableHeader } from "@/components/ui/card"
-import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Dialog } from "@/components/ui/dialog"
+import { use } from "react"
+import dynamic from "next/dynamic"
+import { FileText, Home } from "lucide-react"
+
 import {
   AdminModalContent,
   AdminModalDescription,
   AdminModalHeader,
-  AdminModalTitle
+  AdminModalTitle,
 } from "@/components/admin/layout/builder/AdminModalLayout"
+import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { Badge } from "@/components/ui/badge"
 import {
-  AdminBulkDeleteButton,
-  AdminConfirmDialog,
-  AdminErrorDialog,
-  AdminListFooter,
-  AdminListSkeleton,
-  AdminSelectionBanner,
-  AdminSortButton,
-  formatRelativeDate,
-  useAdminBulkSelection,
-  useAdminSort
-} from "@/components/admin/layout/list"
-
-import { Checkbox } from "@/components/ui/checkbox"
-import dynamic from "next/dynamic"
+  deletePageAction,
+  deletePagesAction,
+  duplicatePageAction,
+  getPageIdsAction,
+  getSitePagesAction,
+  type Page,
+} from "@/lib/actions/pages/page-actions"
+import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 const CreatePageModal = dynamic(
   () => import("@/components/admin/page-builder/layout/CreatePageModal").then((m) => ({ default: m.CreatePageModal })),
   { ssr: false }
 )
+
 const PageSettingsModal = dynamic(
   () =>
     import("@/components/admin/page-builder/layout/PageSettingsModal").then((m) => ({ default: m.PageSettingsModal })),
   { ssr: false }
 )
-import { Eye, Copy, Trash2, Settings, FileText, Home, Plus, List, Globe, FileEdit } from "lucide-react"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import {
-  getSitePagesAction,
-  deletePageAction,
-  deletePagesAction,
-  duplicatePageAction,
-  getPageIdsAction
-} from "@/lib/actions/pages/page-actions"
-import type { Page } from "@/lib/actions/pages/page-actions"
 
-interface PageProps {
-  params: Promise<{
-    siteId: string
-  }>
+async function getPages(siteId: string, options?: { page?: number; pageSize?: number }) {
+  const { data, total, error } = await getSitePagesAction(siteId, options)
+  return { data, categories: {}, total, error }
 }
 
-type PageSortColumn = "title" | "status" | "modified"
-
-export default function SitePagesPage({ params }: PageProps) {
+export default function SitePagesPage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
-  const { pageSize: contextPageSize, currentSite, sites } = useSiteSwitcher()
-  const site = sites.find((s) => s.id === siteId) || currentSite
-  const [pages, setPages] = useState<Page[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [deletePageId, setDeletePageId] = useState<string | null>(null)
-  const [duplicatingPageId, setDuplicatingPageId] = useState<string | null>(null)
-  const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
-  const [massDeleting, setMassDeleting] = useState(false)
-  const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const pageSelection = useAdminBulkSelection()
-  const pageSort = useAdminSort<PageSortColumn>()
-  const [currentPage, setCurrentPage] = useState(1)
-  const [total, setTotal] = useState(0)
-  const pageSize = contextPageSize
-
-  // Load pages data
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const {
-          data: pagesData,
-          total: pagesTotal,
-          error: pagesError
-        } = await getSitePagesAction(siteId, { page: currentPage, pageSize })
-        if (pagesError) {
-          setError(pagesError)
-          return
-        }
-
-        if (pagesData) {
-          setPages(pagesData)
-        }
-        setTotal(pagesTotal ?? 0)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load data")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [siteId, currentPage, pageSize])
-
-  const handleDeletePage = async (pageId: string) => {
-    const page = pages.find((p) => p.id === pageId)
-
-    // For home page, skip confirmation and go straight to error
-    if (page?.slug === "home") {
-      try {
-        setDeletePageId(pageId)
-        const { error: deleteError } = await deletePageAction(pageId)
-
-        if (deleteError) {
-          setErrorMessage(deleteError)
-        }
-      } catch (err) {
-        setErrorMessage("Failed to delete page")
-      } finally {
-        setDeletePageId(null)
-      }
-      return
-    }
-
-    // For other pages, show confirmation first
-    setPendingDeleteId(pageId)
-  }
-
-  const confirmDeletePage = async () => {
-    if (!pendingDeleteId) return
-
-    const pageIdToDelete = pendingDeleteId
-
-    // Close dialog immediately and clear state
-    setPendingDeleteId(null)
-
-    try {
-      setDeletePageId(pageIdToDelete)
-      const { success, error: deleteError } = await deletePageAction(pageIdToDelete)
-
-      if (deleteError) {
-        setErrorMessage(deleteError)
-        return
-      }
-
-      if (success) {
-        setPages((prev) => prev.filter((page) => page.id !== pageIdToDelete))
-      }
-    } catch (err) {
-      setErrorMessage("Failed to delete page")
-    } finally {
-      setDeletePageId(null)
-    }
-  }
-
-  const cancelDeletePage = () => {
-    setPendingDeleteId(null)
-  }
-
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    if (total === 0) return
-    const { ids } = await getPageIdsAction(siteId)
-    if (ids) {
-      pageSelection.selectAll(ids)
-    }
-  }
-
-  const confirmMassDelete = async () => {
-    setMassDeleteConfirmOpen(false)
-    setMassDeleting(true)
-    try {
-      const ids = Array.from(pageSelection.selectedIds)
-      const idsToDelete = new Set(ids)
-      const { success, error: deleteError } = await deletePagesAction(ids)
-      if (deleteError) {
-        setErrorMessage(deleteError)
-        return
-      }
-      if (success) {
-        setPages((prev) => prev.filter((p) => !idsToDelete.has(p.id)))
-        pageSelection.clearSelection()
-      }
-    } catch (err) {
-      setErrorMessage("Failed to delete pages")
-    } finally {
-      setMassDeleting(false)
-    }
-  }
-
-  const handleDuplicatePage = async (pageId: string) => {
-    try {
-      setDuplicatingPageId(pageId)
-      const originalPage = pages.find((p) => p.id === pageId)
-      const duplicateTitle = `${originalPage?.title || "Page"} Copy`
-
-      const { data, error: duplicateError } = await duplicatePageAction(pageId, duplicateTitle)
-
-      if (duplicateError) {
-        setErrorMessage(`Failed to duplicate page: ${duplicateError}`)
-        return
-      }
-
-      if (data) {
-        setPages((prev) => [...prev, data])
-      }
-    } catch (err) {
-      setErrorMessage("Failed to duplicate page")
-    } finally {
-      setDuplicatingPageId(null)
-    }
-  }
-
-  const getStatusBadge = (page: Page) => {
-    if (page.is_homepage) {
-      return (
-        <Badge variant="default" className="bg-blue-100 text-blue-800">
-          Homepage
-        </Badge>
-      )
-    }
-    if (page.is_published) {
-      return (
-        <Badge variant="default" className="bg-green-100 text-green-800">
-          Published
-        </Badge>
-      )
-    }
-    return <Badge variant="secondary">Draft</Badge>
-  }
-
-  const handlePageUpdated = (updatedPage: Page) => {
-    setPages((prev) => prev.map((p) => (p.id === updatedPage.id ? updatedPage : p)))
-  }
-
-  // Filter pages based on status
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-  const filteredPages = pages.filter((page) => {
-    let statusMatch = true
-    if (filterStatus === "published") statusMatch = page.is_published
-    if (filterStatus === "draft") statusMatch = !page.is_published
-
-    const searchText = `${page.title} ${page.slug} ${page.meta_description ?? ""}`.toLowerCase()
-    const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
-
-    return statusMatch && searchMatch
-  })
-
-  const sortedPages = [...filteredPages].sort((a, b) => {
-    if (!pageSort.sortColumn) return 0
-    const dir = pageSort.sortDirection === "asc" ? 1 : -1
-    if (pageSort.sortColumn === "title") return a.title.localeCompare(b.title) * dir
-    if (pageSort.sortColumn === "status") return (Number(a.is_published) - Number(b.is_published)) * dir
-    if (pageSort.sortColumn === "modified")
-      return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
-    return 0
-  })
-  const selectablePageIds = filteredPages.filter((p) => !p.is_homepage).map((p) => p.id)
-
-  // Get counts for each status
-  const statusCounts = {
-    all: pages.length,
-    published: pages.filter((p) => p.is_published).length,
-    draft: pages.filter((p) => !p.is_published).length
-  }
-
-  if (!site && !loading) {
-    return (
-      <AdminLayout>
-        <div className="w-full">
-          <div className="text-center py-8">
-            <p className="text-red-600 mb-4">Site not found or access denied</p>
-            <Button asChild>
-              <Link href="/admin/sites">Back to Sites</Link>
-            </Button>
-          </div>
-        </div>
-      </AdminLayout>
-    )
-  }
+  const { currentSite, sites } = useSiteSwitcher()
+  const site = sites.find((item) => item.id === siteId) || currentSite
 
   return (
-    <>
-      <StickyHeader />
-      <AdminLayout>
-        <div className="w-full">
-          <DashboardSubheader
-            items={[{ label: "Pages" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search pages"
-            }}
-            filterMenu={{
-              value: filterStatus,
-              onValueChange: (value) => {
-                setFilterStatus(value as "all" | "published" | "draft")
-                pageSelection.clearSelection()
-                setCurrentPage(1)
-              },
-              items: [
-                {
-                  value: "all",
-                  label: "All",
-                  icon: List,
-                  count: statusCounts.all
-                },
-                {
-                  value: "published",
-                  label: "Published",
-                  icon: Globe,
-                  count: statusCounts.published
-                },
-                {
-                  value: "draft",
-                  label: "Draft",
-                  icon: FileEdit,
-                  count: statusCounts.draft
-                }
-              ]
-            }}
-            preActions={
-              <AdminBulkDeleteButton
-                deleting={massDeleting}
-                onClick={() => setMassDeleteConfirmOpen(true)}
-                selectedCount={pageSelection.selectedCount}
-              />
-            }
-            actions={
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4" />
-                Create Page
-              </Button>
-            }
-          />
-
-          <Card>
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-5">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={pageSelection.isPageSelected(selectablePageIds)}
-                  onCheckedChange={() => pageSelection.togglePage(selectablePageIds)}
-                  aria-label="Select all pages"
-                />
-                <AdminSortButton
-                  active={pageSort.sortColumn === "title"}
-                  direction={pageSort.sortDirection}
-                  onClick={() => pageSort.toggleSort("title")}
-                >
-                  Page
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={pageSort.sortColumn === "status"}
-                direction={pageSort.sortDirection}
-                onClick={() => pageSort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <AdminSortButton
-                active={pageSort.sortColumn === "modified"}
-                direction={pageSort.sortDirection}
-                onClick={() => pageSort.toggleSort("modified")}
-              >
-                Modified
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            <AdminSelectionBanner
-              allSelected={pageSelection.allSelected}
-              onClearSelection={pageSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={pageSelection.selectedCount}
-              total={total}
-              visibleCount={selectablePageIds.length}
-            />
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                // Skeleton loading state for pages
-                <AdminListSkeleton columns={5} rowCount={4} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => window.location.reload()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : filteredPages.length === 0 ? (
-                <div className="p-8 text-center">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    {pages.length === 0
-                      ? "No pages found"
-                      : `No ${filterStatus === "all" ? "" : filterStatus} pages found`}
-                  </p>
-                  <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                    Create Your First Page
-                  </Button>
-                </div>
-              ) : (
-                sortedPages.map((page) => (
-                  <div
-                    key={page.id}
-                    className={`p-6 transition-colors ${pageSelection.selectedIds.has(page.id) ? "bg-accent/50" : ""}`}
-                  >
-                    <div className="grid grid-cols-5 gap-4 items-center">
-                      <div className="col-span-2">
-                        <div className="flex items-center space-x-4">
-                          {!page.is_homepage ? (
-                            <Checkbox
-                              checked={pageSelection.selectedIds.has(page.id)}
-                              onCheckedChange={() => pageSelection.toggleOne(page.id)}
-                              aria-label={`Select ${page.title}`}
-                            />
-                          ) : (
-                            <div className="w-4" />
-                          )}
-                          <Link
-                            href={`/admin/pages/${siteId}?page=${page.slug}`}
-                            className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
-                          >
-                            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center ml-2">
-                              {page.is_homepage ? (
-                                <Home className="h-6 w-6 text-blue-600" />
-                              ) : (
-                                <FileText className="h-6 w-6 text-muted-foreground" />
-                              )}
-                            </div>
-                            <div>
-                              <h4 className="font-medium hover:underline">{page.title}</h4>
-                              <p className="text-sm text-muted-foreground">/{page.slug}</p>
-                            </div>
-                          </Link>
-                        </div>
-                      </div>
-                      <div>{getStatusBadge(page)}</div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatRelativeDate(page.updated_at)}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => setSettingsPageId(page.id)}
-                          title="Page Settings"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Page Settings</span>
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                          <a
-                            href={site ? `${getSiteUrl(site)}/${page.slug}` : "#"}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Preview"
-                          >
-                            <Eye className="h-4 w-4" />
-                            <span className="sr-only">Preview</span>
-                          </a>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => handleDuplicatePage(page.id)}
-                          disabled={duplicatingPageId === page.id}
-                          title="Duplicate"
-                        >
-                          <Copy className="h-4 w-4" />
-                          <span className="sr-only">Duplicate</span>
-                        </Button>
-                        {!page.is_homepage && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => handleDeletePage(page.id)}
-                            disabled={deletePageId === page.id}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={setCurrentPage}
-              />
-            )}
-          </Card>
-
-          {/* Create Page Dialog */}
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Page</AdminModalTitle>
-                <AdminModalDescription>
-                  Add a new page to your site. You can customize the content after creation.
-                </AdminModalDescription>
-              </AdminModalHeader>
-              <CreatePageModal
-                siteId={siteId}
-                onSuccess={(page) => {
-                  setPages((prev) => [...prev, page])
-                  setShowCreateDialog(false)
-                }}
-                onCancel={() => setShowCreateDialog(false)}
-              />
-            </AdminModalContent>
-          </Dialog>
-
-          {/* Page Settings Modal */}
-          <PageSettingsModal
-            open={settingsPageId !== null}
-            onOpenChange={(open) => setSettingsPageId(open ? settingsPageId : null)}
-            page={pages.find((p) => p.id === settingsPageId) || null}
-            site={site}
-            onSuccess={handlePageUpdated}
-          />
-
-          <AdminConfirmDialog
-            open={pendingDeleteId !== null}
-            title="Delete Page"
-            description="Are you sure you want to delete this page? This action cannot be undone."
-            onCancel={cancelDeletePage}
-            onConfirm={confirmDeletePage}
-          />
-
-          <AdminConfirmDialog
-            open={massDeleteConfirmOpen}
-            title={`Delete ${pageSelection.selectedCount} Page${pageSelection.selectedCount !== 1 ? "s" : ""}`}
-            description={`Are you sure you want to delete ${pageSelection.selectedCount} page${pageSelection.selectedCount !== 1 ? "s" : ""}? This action cannot be undone.`}
-            confirmLabel={`Delete ${pageSelection.selectedCount} Page${pageSelection.selectedCount !== 1 ? "s" : ""}`}
-            onCancel={() => setMassDeleteConfirmOpen(false)}
-            onConfirm={confirmMassDelete}
-          />
-
-          <AdminErrorDialog
-            open={errorMessage !== null}
-            message={errorMessage ?? ""}
-            onOpenChange={(open) => {
-              if (!open) setErrorMessage(null)
-            }}
-          />
-        </div>
-      </AdminLayout>
-    </>
+    <ContentListPage<Page>
+      builderPath="/admin/pages"
+      canDeleteItem={(page) => !page.is_homepage}
+      canSelectItem={(page) => !page.is_homepage}
+      columnCount={5}
+      createButtonLabel="Create Page"
+      deleteItem={deletePageAction}
+      deleteItems={deletePagesAction}
+      duplicateItem={duplicatePageAction}
+      duplicateTitle={(page) => `${page.title || "Page"} Copy`}
+      emptyButtonLabel="Create Your First Page"
+      emptyTitle={(pages, filterStatus) =>
+        pages.length === 0 || filterStatus === "all" ? "No pages found" : `No ${filterStatus} pages found`
+      }
+      getBuilderHref={(page) => `/admin/pages/${siteId}?page=${page.slug}`}
+      getDisplayPath={(page) => `/${page.slug}`}
+      getIds={getPageIdsAction}
+      getItems={getPages}
+      getPreviewHref={(page, previewSite) => (previewSite ? `${getSiteUrl(previewSite)}/${page.slug}` : "#")}
+      getRowIcon={(page) =>
+        page.is_homepage ? <Home className="h-6 w-6 text-blue-600" /> : <FileText className="h-6 w-6 text-muted-foreground" />
+      }
+      icon={FileText}
+      itemLabel="Page"
+      itemLabelPlural="Pages"
+      listLabel="Pages"
+      pathPrefix=""
+      previewSite={site}
+      renderCreateModal={({ onCancel, onSuccess }) => (
+        <AdminModalContent>
+          <AdminModalHeader>
+            <AdminModalTitle>Create New Page</AdminModalTitle>
+            <AdminModalDescription>
+              Add a new page to your site. You can customize the content after creation.
+            </AdminModalDescription>
+          </AdminModalHeader>
+          <CreatePageModal siteId={siteId} onSuccess={(page) => onSuccess(page)} onCancel={onCancel} />
+        </AdminModalContent>
+      )}
+      renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
+        <PageSettingsModal open={open} onOpenChange={onOpenChange} page={item} site={site} onSuccess={onSuccess} />
+      )}
+      renderStatusBadge={(page) =>
+        page.is_homepage ? (
+          <Badge variant="default" className="bg-blue-100 text-blue-800">
+            Homepage
+          </Badge>
+        ) : page.is_published ? (
+          <Badge variant="default" className="bg-green-100 text-green-800">
+            Published
+          </Badge>
+        ) : (
+          <Badge variant="secondary">Draft</Badge>
+        )
+      }
+      searchPlaceholder="Search pages"
+      showCategoryColumn={false}
+      siteId={siteId}
+    />
   )
 }
