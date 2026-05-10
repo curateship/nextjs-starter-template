@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   CheckIcon,
   GripVertical,
+  ImageIcon,
   PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
@@ -31,20 +32,14 @@ import {
   CardGroup,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
@@ -66,12 +61,15 @@ const iconOptions = Object.entries(iconMeta).map(([value, meta]) => ({
 
 type SidebarSettingsProps = {
   config: ShellConfig
+  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
+  onSaveConfig: () => Promise<boolean>
 }
 
 type SortableItemProps = {
   sectionId: string
   item: ShellItem
+  isSaving: boolean
   onItemChange: (
     sectionId: string,
     itemId: string,
@@ -91,6 +89,7 @@ type SortableItemProps = {
     itemId: string,
     event: DragEndEvent
   ) => void
+  onSaveConfig: () => Promise<boolean>
 }
 
 type SortableChildProps = {
@@ -101,6 +100,7 @@ type SortableChildProps = {
 
 type SortableSectionProps = {
   section: ShellSection
+  isSaving: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
   onReset: () => void
   onItemAdd: (sectionId: string) => void
@@ -124,6 +124,7 @@ type SortableSectionProps = {
     itemId: string,
     event: DragEndEvent
   ) => void
+  onSaveConfig: () => Promise<boolean>
 }
 
 function createShellId(prefix: string) {
@@ -170,10 +171,18 @@ function IconPickerButton({
           type="button"
           variant={ghost ? "ghost" : "outline"}
           size={compact ? "icon" : "default"}
-          className={cn(!compact && "justify-start")}
+          className={cn(
+            !compact && "justify-start",
+            !value &&
+              "border-dotted border-muted-foreground/30 bg-muted/40 text-muted-foreground/50 hover:bg-muted/60"
+          )}
           aria-label={`Choose icon, current icon ${currentLabel}`}
         >
-          {value ? renderShellIcon(value, "h-4 w-4") : null}
+          {value ? (
+            renderShellIcon(value, "h-4 w-4")
+          ) : (
+            <ImageIcon className="h-4 w-4" />
+          )}
           {!compact ? <span className="truncate">{currentLabel}</span> : null}
         </Button>
       </PopoverTrigger>
@@ -305,12 +314,14 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
 function SortableSidebarItem({
   sectionId,
   item,
+  isSaving,
   onItemChange,
   onItemDelete,
   onChildAdd,
   onChildChange,
   onChildDelete,
   onChildDragEnd,
+  onSaveConfig,
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const {
@@ -403,108 +414,104 @@ function SortableSidebarItem({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{item.label || "Sidebar Link"}</DialogTitle>
-            <DialogDescription>
-              Edit this sidebar destination and its child links.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-5">
-            <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-              <IconPickerButton
-                value={item.icon}
-                compact
-                onValueChange={(icon) =>
-                  icon ? onItemChange(sectionId, item.id, { icon }) : undefined
-                }
-              />
-              <Input
-                value={item.label}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, {
-                    label: event.target.value,
-                  })
-                }
-                placeholder="Label"
-                aria-label="Sidebar link label"
-              />
-              <Input
-                value={item.href}
-                onChange={(event) =>
-                  onItemChange(sectionId, item.id, { href: event.target.value })
-                }
-                placeholder="/admin/example"
-                aria-label="Sidebar link URL"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">Child links</p>
-                  <p className="text-xs text-muted-foreground">
-                    These become the nested links and sticky header shortcuts.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onChildAdd(sectionId, item.id)}
-                >
-                  <PlusIcon className="h-4 w-4" />
-                  Add Child
-                </Button>
-              </div>
-
-              {children.length ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={(event) =>
-                    onChildDragEnd(sectionId, item.id, event)
-                  }
-                >
-                  <SortableContext
-                    items={children.map((child) => child.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="space-y-2">
-                      {children.map((child) => (
-                        <SortableChild
-                          key={child.id}
-                          child={child}
-                          onChange={(childId, patch) =>
-                            onChildChange(sectionId, item.id, childId, patch)
-                          }
-                          onDelete={(childId) =>
-                            onChildDelete(sectionId, item.id, childId)
-                          }
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
-              ) : (
-                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                  No child links.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
+        <AdminModalContent
+          title={item.label || "Sidebar Link"}
+          description="Edit this sidebar destination and its child links."
+          footer={
             <Button
               type="button"
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
+              disabled={isSaving}
+              onClick={async () => {
+                const saved = await onSaveConfig()
+                if (saved) setDialogOpen(false)
+              }}
             >
-              Done
+              {isSaving ? "Saving" : "Save"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
+            <IconPickerButton
+              value={item.icon}
+              compact
+              onValueChange={(icon) =>
+                icon ? onItemChange(sectionId, item.id, { icon }) : undefined
+              }
+            />
+            <Input
+              value={item.label}
+              onChange={(event) =>
+                onItemChange(sectionId, item.id, {
+                  label: event.target.value,
+                })
+              }
+              placeholder="Label"
+              aria-label="Sidebar link label"
+            />
+            <Input
+              value={item.href}
+              onChange={(event) =>
+                onItemChange(sectionId, item.id, {
+                  href: event.target.value,
+                })
+              }
+              placeholder="/admin/example"
+              aria-label="Sidebar link URL"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Child links</p>
+                <p className="text-xs text-muted-foreground">
+                  These become the nested links and sticky header shortcuts.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onChildAdd(sectionId, item.id)}
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add Child
+              </Button>
+            </div>
+
+            {children.length ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
+              >
+                <SortableContext
+                  items={children.map((child) => child.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {children.map((child) => (
+                      <SortableChild
+                        key={child.id}
+                        child={child}
+                        onChange={(childId, patch) =>
+                          onChildChange(sectionId, item.id, childId, patch)
+                        }
+                        onDelete={(childId) =>
+                          onChildDelete(sectionId, item.id, childId)
+                        }
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                No child links.
+              </div>
+            )}
+          </div>
+        </AdminModalContent>
       </Dialog>
     </div>
   )
@@ -512,6 +519,7 @@ function SortableSidebarItem({
 
 function SortableSectionCard({
   section,
+  isSaving,
   onSectionTitleChange,
   onReset,
   onItemAdd,
@@ -522,6 +530,7 @@ function SortableSectionCard({
   onChildChange,
   onChildDelete,
   onChildDragEnd,
+  onSaveConfig,
 }: SortableSectionProps) {
   const {
     attributes,
@@ -601,12 +610,14 @@ function SortableSectionCard({
                     key={entry.id}
                     sectionId={section.id}
                     item={entry}
+                    isSaving={isSaving}
                     onItemChange={onItemChange}
                     onItemDelete={onItemDelete}
                     onChildAdd={onChildAdd}
                     onChildChange={onChildChange}
                     onChildDelete={onChildDelete}
                     onChildDragEnd={onChildDragEnd}
+                    onSaveConfig={onSaveConfig}
                   />
                 ) : (
                   <DividerPreview key={entry.id} entry={entry} />
@@ -633,7 +644,9 @@ function SortableSectionCard({
 
 export function SidebarSettings({
   config,
+  isSaving,
   onConfigChange,
+  onSaveConfig,
 }: SidebarSettingsProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -858,6 +871,7 @@ export function SidebarSettings({
               <SortableSectionCard
                 key={section.id}
                 section={section}
+                isSaving={isSaving}
                 onSectionTitleChange={handleSectionTitleChange}
                 onReset={() => onConfigChange(createDefaultShellConfig())}
                 onItemAdd={handleAddItem}
@@ -868,6 +882,7 @@ export function SidebarSettings({
                 onChildChange={handleChildChange}
                 onChildDelete={handleChildDelete}
                 onChildDragEnd={handleChildDragEnd}
+                onSaveConfig={onSaveConfig}
               />
             ))}
           </CardGroup>

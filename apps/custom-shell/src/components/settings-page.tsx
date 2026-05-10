@@ -39,8 +39,10 @@ export function SettingsPage({
   settingsError: string | null
   saveStatus: SaveStatus
   onConfigChange: (config: ShellConfig) => void
-  onSaveConfig: () => void
+  onSaveConfig: () => Promise<boolean>
 }) {
+  const isSaving = saveStatus === "saving"
+
   return (
     <div className="w-full pb-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -61,14 +63,14 @@ export function SettingsPage({
             type="button"
             size="sm"
             onClick={onSaveConfig}
-            disabled={saveStatus === "saving"}
+            disabled={isSaving}
           >
-            {saveStatus === "saving" ? (
+            {isSaving ? (
               <Loader2Icon className="h-4 w-4 animate-spin" />
             ) : (
               <SaveIcon className="h-4 w-4" />
             )}
-            {saveStatus === "saving" ? "Saving" : "Save"}
+            {isSaving ? "Saving" : "Save"}
           </Button>
         </div>
       </div>
@@ -105,13 +107,17 @@ export function SettingsPage({
           {activeTab === "sidebar" ? (
             <SidebarSettings
               config={config}
+              isSaving={isSaving}
               onConfigChange={onConfigChange}
+              onSaveConfig={onSaveConfig}
             />
           ) : null}
           {activeTab === "top-navigation" ? (
             <TopNavigationSettings
               config={config}
+              isSaving={isSaving}
               onConfigChange={onConfigChange}
+              onSaveConfig={onSaveConfig}
             />
           ) : null}
         </div>

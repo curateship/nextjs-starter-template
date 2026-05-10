@@ -85,7 +85,9 @@ function getStickyHeaderNavLinks(
       .map((item) => ({
         label: item.label,
         href: `#${item.href}`,
-        icon: renderShellIcon(item.icon, "h-3.5 w-3.5"),
+        icon: item.icon
+          ? renderShellIcon(item.icon, "h-3.5 w-3.5")
+          : undefined,
         active: currentPath === item.href,
       }))
   }
@@ -215,9 +217,11 @@ export function App() {
     try {
       await saveShellSettings(config)
       setSaveStatus("saved")
+      return true
     } catch (error) {
       setSettingsError(getShellSettingsErrorMessage(error))
       setSaveStatus("idle")
+      return false
     }
   }, [config])
 

@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   CheckIcon,
   GripVertical,
+  ImageIcon,
   PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
@@ -27,20 +28,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { cn } from "@/lib/utils"
 import {
   createDefaultTopNavigation,
@@ -58,16 +53,20 @@ const iconOptions = Object.entries(iconMeta).map(([value, meta]) => ({
 
 type TopNavigationSettingsProps = {
   config: ShellConfig
+  isSaving: boolean
   onConfigChange: (config: ShellConfig) => void
+  onSaveConfig: () => Promise<boolean>
 }
 
 type SortableTopNavigationItemProps = {
   item: ShellTopNavigationItem
+  isSaving: boolean
   onItemChange: (
     itemId: string,
     patch: Partial<ShellTopNavigationItem>
   ) => void
   onItemDelete: (itemId: string) => void
+  onSaveConfig: () => Promise<boolean>
 }
 
 function createTopNavigationId() {
@@ -83,12 +82,12 @@ function IconPickerButton({
   onValueChange,
   compact = false,
 }: {
-  value: IconKey
-  onValueChange: (value: IconKey) => void
+  value?: IconKey
+  onValueChange: (value: IconKey | undefined) => void
   compact?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
-  const currentLabel = iconMeta[value].label
+  const currentLabel = value ? iconMeta[value].label : "No icon"
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -97,15 +96,40 @@ function IconPickerButton({
           type="button"
           variant="outline"
           size={compact ? "icon" : "default"}
-          className={cn(!compact && "justify-start")}
+          className={cn(
+            !compact && "justify-start",
+            !value &&
+              "border-dotted border-muted-foreground/30 bg-muted/40 text-muted-foreground/50 hover:bg-muted/60"
+          )}
           aria-label={`Choose icon, current icon ${currentLabel}`}
         >
-          {renderShellIcon(value, "h-4 w-4")}
+          {value ? (
+            renderShellIcon(value, "h-4 w-4")
+          ) : (
+            <ImageIcon className="h-4 w-4" />
+          )}
           {!compact ? <span className="truncate">{currentLabel}</span> : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80">
         <div className="grid grid-cols-5 gap-1.5">
+          <button
+            type="button"
+            className={cn(
+              "relative flex aspect-square items-center justify-center rounded-md border text-xs transition-colors hover:bg-muted",
+              !value && "border-primary bg-primary/5"
+            )}
+            onClick={() => {
+              onValueChange(undefined)
+              setOpen(false)
+            }}
+            aria-label="Use no icon"
+          >
+            None
+            {!value ? (
+              <CheckIcon className="absolute right-1 top-1 h-3 w-3" />
+            ) : null}
+          </button>
           {iconOptions.map((option) => (
             <button
               key={option.value}
@@ -135,8 +159,10 @@ function IconPickerButton({
 
 function SortableTopNavigationItem({
   item,
+  isSaving,
   onItemChange,
   onItemDelete,
+  onSaveConfig,
 }: SortableTopNavigationItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const {
@@ -176,8 +202,18 @@ function SortableTopNavigationItem({
           className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
           onClick={() => setDialogOpen(true)}
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center text-foreground">
-            {renderShellIcon(item.icon, "h-4 w-4")}
+          <span
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center text-foreground",
+              !item.icon &&
+                "rounded-md border border-dotted border-muted-foreground/30 bg-muted/40"
+            )}
+          >
+            {item.icon ? (
+              renderShellIcon(item.icon, "h-4 w-4")
+            ) : (
+              <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+            )}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">
@@ -219,14 +255,23 @@ function SortableTopNavigationItem({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{item.label || "Top Navigation Link"}</DialogTitle>
-            <DialogDescription>
-              Edit this dashboard navigation destination.
-            </DialogDescription>
-          </DialogHeader>
-
+        <AdminModalContent
+          title={item.label || "Top Navigation Link"}
+          description="Edit this dashboard navigation destination."
+          bodyClassName="space-y-4"
+          footer={
+            <Button
+              type="button"
+              disabled={isSaving}
+              onClick={async () => {
+                const saved = await onSaveConfig()
+                if (saved) setDialogOpen(false)
+              }}
+            >
+              {isSaving ? "Saving" : "Save"}
+            </Button>
+          }
+        >
           <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
             <IconPickerButton
               value={item.icon}
@@ -250,17 +295,7 @@ function SortableTopNavigationItem({
               aria-label="Top navigation URL"
             />
           </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </AdminModalContent>
       </Dialog>
     </div>
   )
@@ -268,7 +303,9 @@ function SortableTopNavigationItem({
 
 export function TopNavigationSettings({
   config,
+  isSaving,
   onConfigChange,
+  onSaveConfig,
 }: TopNavigationSettingsProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -379,8 +416,10 @@ export function TopNavigationSettings({
                 <SortableTopNavigationItem
                   key={item.id}
                   item={item}
+                  isSaving={isSaving}
                   onItemChange={handleItemChange}
                   onItemDelete={handleItemDelete}
+                  onSaveConfig={onSaveConfig}
                 />
               ))}
             </div>

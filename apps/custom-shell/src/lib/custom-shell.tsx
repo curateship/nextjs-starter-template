@@ -167,7 +167,7 @@ export type ShellTopNavigationItem = {
   id: string
   label: string
   href: string
-  icon: IconKey
+  icon?: IconKey
   visible: boolean
 }
 
