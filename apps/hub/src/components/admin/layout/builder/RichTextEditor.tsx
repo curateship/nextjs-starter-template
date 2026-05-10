@@ -1,13 +1,11 @@
 "use client"
 
 import { useEditor, EditorContent } from "@tiptap/react"
-import { mergeAttributes } from "@tiptap/core"
 import { NodeSelection } from "@tiptap/pm/state"
 import StarterKit from "@tiptap/starter-kit"
 import Link from "@tiptap/extension-link"
 import TextAlign from "@tiptap/extension-text-align"
 import Placeholder from "@tiptap/extension-placeholder"
-import Image from "@tiptap/extension-image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -30,8 +28,15 @@ import {
   Eye,
   EyeOff
 } from "lucide-react"
-import { useState, useCallback, useEffect, useId, useRef, type CSSProperties, type MouseEvent } from "react"
+import { useState, useCallback, useId, useRef, type CSSProperties, type MouseEvent } from "react"
 import { cn } from "@/lib/utils/tailwind"
+import {
+  createRichTextEditorProps,
+  LinkedImage,
+  useRichTextContentSync,
+  useRichTextLinkDialog,
+  useSelectedRichTextImageControls,
+} from "./richTextEditorCore"
 
 export interface RichTextEditorProps {
   content: {
@@ -58,78 +63,6 @@ export interface RichTextEditorProps {
   mediaPickerSiteId?: string
 }
 
-function normalizeLinkedImageAttribute(value: string | null): string | null {
-  return value && value.trim().length > 0 ? value : null
-}
-
-function getLinkedImageAttributes(element: HTMLElement) {
-  const imageElement = element instanceof HTMLImageElement ? element : element.querySelector("img[src]")
-
-  if (!(imageElement instanceof HTMLImageElement)) {
-    return false
-  }
-
-  const linkElement = imageElement.closest("a[href]")
-
-  return {
-    src: normalizeLinkedImageAttribute(imageElement.getAttribute("src")),
-    alt: normalizeLinkedImageAttribute(imageElement.getAttribute("alt")),
-    title: normalizeLinkedImageAttribute(imageElement.getAttribute("title")),
-    width: normalizeLinkedImageAttribute(imageElement.getAttribute("width")),
-    height: normalizeLinkedImageAttribute(imageElement.getAttribute("height")),
-    href: normalizeLinkedImageAttribute(linkElement?.getAttribute("href") ?? null),
-    target: normalizeLinkedImageAttribute(linkElement?.getAttribute("target") ?? null),
-    rel: normalizeLinkedImageAttribute(linkElement?.getAttribute("rel") ?? null)
-  }
-}
-
-const LinkedImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      href: {
-        default: null
-      },
-      target: {
-        default: "_blank"
-      },
-      rel: {
-        default: "noopener noreferrer nofollow"
-      }
-    }
-  },
-
-  parseHTML() {
-    const imageSelector = this.options.allowBase64 ? "img[src]" : 'img[src]:not([src^="data:"])'
-
-    return [
-      {
-        tag: `a[href] ${imageSelector}`,
-        getAttrs: (element) => getLinkedImageAttributes(element as HTMLElement)
-      },
-      {
-        tag: imageSelector,
-        getAttrs: (element) => getLinkedImageAttributes(element as HTMLElement)
-      }
-    ]
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    const { href, target, rel, ...imageAttributes } = HTMLAttributes
-    const mergedImageAttributes = mergeAttributes(this.options.HTMLAttributes, imageAttributes)
-
-    if (!href) {
-      return ["img", mergedImageAttributes]
-    }
-
-    return [
-      "a",
-      mergeAttributes({ href }, target ? { target } : {}, rel ? { rel } : {}),
-      ["img", mergedImageAttributes]
-    ]
-  }
-})
-
 export function RichTextEditor({
   content,
   onContentChange,
@@ -144,16 +77,7 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const [showPreview, setShowPreview] = useState(false)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
-  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
-  const [linkUrl, setLinkUrl] = useState("")
-  const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(
-    null
-  )
   const pendingContentRef = useRef<string | null>(null)
-  const pendingLinkTargetRef = useRef<{
-    range: { from: number; to: number }
-    isImage: boolean
-  } | null>(null)
   const editorSurfaceRef = useRef<HTMLDivElement | null>(null)
   const linkInputId = useId()
 
@@ -180,60 +104,7 @@ export function RichTextEditor({
     ],
     content: content.content,
     immediatelyRender: false,
-    editorProps: {
-      handleDOMEvents: {
-        mousedown: (view, event) => {
-          const target = event.target
-
-          if (!(target instanceof HTMLElement)) {
-            return false
-          }
-
-          const imageElement = target.closest("img")
-          const linkElement = target.closest("a[href]")
-
-          if (!(imageElement instanceof HTMLImageElement) || !linkElement || !view.dom.contains(imageElement)) {
-            return false
-          }
-
-          event.preventDefault()
-          view.dispatch(
-            view.state.tr.setSelection(NodeSelection.create(view.state.doc, view.posAtDOM(imageElement, 0)))
-          )
-          view.focus()
-          return true
-        },
-        click: (_view, event) => {
-          const target = event.target
-
-          if (!(target instanceof HTMLElement)) {
-            return false
-          }
-
-          const imageElement = target.closest("img")
-          const linkElement = target.closest("a[href]")
-
-          if (!(imageElement instanceof HTMLImageElement) || !linkElement) {
-            return false
-          }
-
-          event.preventDefault()
-          return true
-        }
-      },
-      transformPastedText(text) {
-        // Convert single newlines to double so Tiptap creates
-        // separate <p> tags instead of <br> within one <p>
-        return text.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
-      },
-      transformPastedHTML(html) {
-        // Convert <br> sequences and <div>s into paragraph breaks
-        return html
-          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
-          .replace(/<div>/gi, "<p>")
-          .replace(/<\/div>/gi, "</p>")
-      }
-    },
+    editorProps: createRichTextEditorProps(),
     onUpdate: ({ editor }) => {
       const html = editor.getHTML()
       pendingContentRef.current = html
@@ -244,25 +115,23 @@ export function RichTextEditor({
     }
   })
 
-  // Update editor content when content prop changes
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
+  useRichTextContentSync(editor, content.content, pendingContentRef)
 
-    if (pendingContentRef.current === content.content) {
-      pendingContentRef.current = null
-      return
-    }
+  const {
+    applyLink,
+    handleLinkDialogOpenChange,
+    isLinkDialogOpen,
+    linkUrl,
+    openLinkDialog: addLink,
+    removeLink,
+    setLinkUrl,
+  } = useRichTextLinkDialog(editor)
 
-    if (pendingContentRef.current !== null) {
-      return
-    }
-
-    if (content.content !== editor.getHTML()) {
-      editor.commands.setContent(content.content)
-    }
-  }, [content.content, editor])
+  const { handleDeleteSelectedImage, selectedImageButtonPosition } = useSelectedRichTextImageControls(
+    editor,
+    editorSurfaceRef,
+    { trackScroll: true },
+  )
 
   const handleTitleChange = (value: string) => {
     onContentChange({
@@ -285,89 +154,6 @@ export function RichTextEditor({
     })
   }
 
-  const handleLinkDialogOpenChange = useCallback((open: boolean) => {
-    setIsLinkDialogOpen(open)
-    if (!open) {
-      pendingLinkTargetRef.current = null
-    }
-  }, [])
-
-  const addLink = useCallback(() => {
-    if (!editor) {
-      return
-    }
-
-    const selection = editor.state.selection
-    const { from, to } = selection
-    const imageSelection = selection instanceof NodeSelection && selection.node.type.name === "image" ? selection : null
-    pendingLinkTargetRef.current = {
-      range: { from, to },
-      isImage: Boolean(imageSelection)
-    }
-    setLinkUrl(imageSelection ? imageSelection.node.attrs.href || "" : editor.getAttributes("link").href || "")
-    setIsLinkDialogOpen(true)
-  }, [editor])
-
-  const applyLink = useCallback(() => {
-    if (!editor || !pendingLinkTargetRef.current) {
-      return
-    }
-
-    const nextUrl = linkUrl.trim()
-    const { range, isImage } = pendingLinkTargetRef.current
-
-    if (isImage) {
-      editor
-        .chain()
-        .focus()
-        .setNodeSelection(range.from)
-        .updateAttributes("image", {
-          href: nextUrl || null,
-          target: nextUrl ? "_blank" : null,
-          rel: nextUrl ? "noopener noreferrer nofollow" : null
-        })
-        .run()
-    } else {
-      const chain = editor.chain().focus().setTextSelection(range).extendMarkRange("link")
-
-      if (!nextUrl) {
-        chain.unsetLink().run()
-      } else {
-        chain.setLink({ href: nextUrl }).run()
-      }
-    }
-
-    pendingLinkTargetRef.current = null
-    setIsLinkDialogOpen(false)
-  }, [editor, linkUrl])
-
-  const removeLink = useCallback(() => {
-    if (!editor || !pendingLinkTargetRef.current) {
-      return
-    }
-
-    const { range, isImage } = pendingLinkTargetRef.current
-
-    if (isImage) {
-      editor
-        .chain()
-        .focus()
-        .setNodeSelection(range.from)
-        .updateAttributes("image", {
-          href: null,
-          target: null,
-          rel: null
-        })
-        .run()
-    } else {
-      editor.chain().focus().setTextSelection(range).extendMarkRange("link").unsetLink().run()
-    }
-
-    pendingLinkTargetRef.current = null
-    setLinkUrl("")
-    setIsLinkDialogOpen(false)
-  }, [editor])
-
   const handleImageSelect = useCallback(
     (imageUrl: string, altText?: string) => {
       if (!imageUrl) {
@@ -382,52 +168,6 @@ export function RichTextEditor({
     },
     [editor]
   )
-
-  const updateSelectedImageButtonPosition = useCallback(() => {
-    if (!editor || !editorSurfaceRef.current) {
-      setSelectedImageButtonPosition(null)
-      return
-    }
-
-    const { selection } = editor.state
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
-      setSelectedImageButtonPosition(null)
-      return
-    }
-
-    const imageElement = editor.view.nodeDOM(selection.from)
-    if (!(imageElement instanceof HTMLElement)) {
-      setSelectedImageButtonPosition(null)
-      return
-    }
-
-    const surfaceRect = editorSurfaceRef.current.getBoundingClientRect()
-    const imageRect = imageElement.getBoundingClientRect()
-    const buttonSize = 36
-    const padding = 8
-
-    setSelectedImageButtonPosition({
-      top: Math.max(padding, imageRect.top - surfaceRect.top + padding),
-      left: Math.max(
-        padding,
-        Math.min(surfaceRect.width - buttonSize - padding, imageRect.right - surfaceRect.left - buttonSize - padding)
-      )
-    })
-  }, [editor])
-
-  const handleDeleteSelectedImage = useCallback(() => {
-    if (!editor) {
-      return
-    }
-
-    const { selection } = editor.state
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
-      return
-    }
-
-    editor.chain().focus().deleteSelection().run()
-    setSelectedImageButtonPosition(null)
-  }, [editor])
 
   const handleEditorContainerMouseDown = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
@@ -446,47 +186,6 @@ export function RichTextEditor({
     },
     [editor]
   )
-
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
-
-    const syncSelectedImageButton = () => {
-      window.requestAnimationFrame(updateSelectedImageButtonPosition)
-    }
-
-    syncSelectedImageButton()
-    editor.on("selectionUpdate", syncSelectedImageButton)
-    editor.on("transaction", syncSelectedImageButton)
-    editor.on("focus", syncSelectedImageButton)
-    editor.on("blur", syncSelectedImageButton)
-
-    return () => {
-      editor.off("selectionUpdate", syncSelectedImageButton)
-      editor.off("transaction", syncSelectedImageButton)
-      editor.off("focus", syncSelectedImageButton)
-      editor.off("blur", syncSelectedImageButton)
-    }
-  }, [editor, updateSelectedImageButtonPosition])
-
-  useEffect(() => {
-    if (!selectedImageButtonPosition) {
-      return
-    }
-
-    const syncSelectedImageButton = () => {
-      updateSelectedImageButtonPosition()
-    }
-
-    window.addEventListener("resize", syncSelectedImageButton)
-    window.addEventListener("scroll", syncSelectedImageButton, true)
-
-    return () => {
-      window.removeEventListener("resize", syncSelectedImageButton)
-      window.removeEventListener("scroll", syncSelectedImageButton, true)
-    }
-  }, [selectedImageButtonPosition, updateSelectedImageButtonPosition])
 
   if (!editor) {
     return inline ? (

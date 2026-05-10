@@ -10,7 +10,6 @@ import { BubbleMenu } from "@tiptap/react/menus"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
 import Link from "@tiptap/extension-link"
-import Image from "@tiptap/extension-image"
 import { Button } from "@/components/ui/button"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { SponsorPickerDialog } from "@/components/admin/sponsors/SponsorPickerDialog"
@@ -39,6 +38,13 @@ import { cn } from "@/lib/utils/tailwind"
 import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR, normalizeNewsletterRichTextHtml } from "@/lib/actions/newsletters/render"
 import { getActiveSponsorsByIdsAction, type SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
 import { SponsorCard } from "@/components/admin/sponsors/SponsorCard"
+import {
+  createRichTextEditorProps,
+  LinkedImage,
+  useRichTextContentSync,
+  useRichTextLinkDialog,
+  useSelectedRichTextImageControls,
+} from "./richTextEditorCore"
 
 type InlineRichTextEditorVariant = "newsletter" | "post" | "directory" | "page" | "product"
 type ProseEditorVariant = Exclude<InlineRichTextEditorVariant, "newsletter">
@@ -100,82 +106,6 @@ const EDITOR_CONTENT_CLASS: Record<InlineRichTextEditorVariant, string> = {
   newsletter:
     "newsletter-email-rich-text [&_.ProseMirror]:min-h-[80px] [&_.ProseMirror]:outline-none [&_.ProseMirror]:whitespace-pre-wrap",
 }
-
-function normalizeLinkedImageAttribute(value: string | null): string | null {
-  return value && value.trim().length > 0 ? value : null
-}
-
-function getLinkedImageAttributes(element: HTMLElement) {
-  const imageElement = element instanceof HTMLImageElement ? element : element.querySelector("img[src]")
-
-  if (!(imageElement instanceof HTMLImageElement)) {
-    return false
-  }
-
-  const linkElement = imageElement.closest("a[href]")
-
-  return {
-    src: normalizeLinkedImageAttribute(imageElement.getAttribute("src")),
-    alt: normalizeLinkedImageAttribute(imageElement.getAttribute("alt")),
-    title: normalizeLinkedImageAttribute(imageElement.getAttribute("title")),
-    width: normalizeLinkedImageAttribute(imageElement.getAttribute("width")),
-    height: normalizeLinkedImageAttribute(imageElement.getAttribute("height")),
-    href: normalizeLinkedImageAttribute(linkElement?.getAttribute("href") ?? null),
-    target: normalizeLinkedImageAttribute(linkElement?.getAttribute("target") ?? null),
-    rel: normalizeLinkedImageAttribute(linkElement?.getAttribute("rel") ?? null),
-  }
-}
-
-const LinkedImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      href: {
-        default: null,
-      },
-      target: {
-        default: "_blank",
-      },
-      rel: {
-        default: "noopener noreferrer nofollow",
-      },
-    }
-  },
-
-  parseHTML() {
-    const imageSelector = this.options.allowBase64 ? "img[src]" : 'img[src]:not([src^="data:"])'
-
-    return [
-      {
-        tag: `a[href] ${imageSelector}`,
-        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
-      },
-      {
-        tag: imageSelector,
-        getAttrs: element => getLinkedImageAttributes(element as HTMLElement),
-      },
-    ]
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    const { href, target, rel, ...imageAttributes } = HTMLAttributes
-    const mergedImageAttributes = mergeAttributes(this.options.HTMLAttributes, imageAttributes)
-
-    if (!href) {
-      return ["img", mergedImageAttributes]
-    }
-
-    return [
-      "a",
-      mergeAttributes(
-        { href },
-        target ? { target } : {},
-        rel ? { rel } : {},
-      ),
-      ["img", mergedImageAttributes],
-    ]
-  },
-})
 
 function SponsorEmbedNodeView(props: any) {
   const sponsorId = props.node?.attrs?.sponsorId as string | null
@@ -488,7 +418,6 @@ export function InlineRichTextEditor({
   const pendingContentRef = useRef<string | null>(null)
   const pendingImageRangeRef = useRef<SlashCommandRange | null>(null)
   const pendingSponsorRangeRef = useRef<SlashCommandRange | null>(null)
-  const pendingLinkTargetRef = useRef<{ range: SlashCommandRange; isImage: boolean } | null>(null)
   const activationPositionRef = useRef<{ left: number; top: number } | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const slashMenuElementRef = useRef<HTMLDivElement | null>(null)
@@ -505,11 +434,6 @@ export function InlineRichTextEditor({
   const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [isSponsorPickerOpen, setIsSponsorPickerOpen] = useState(false)
-  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
-  const [linkUrl, setLinkUrl] = useState("")
-  const [selectedImageButtonPosition, setSelectedImageButtonPosition] = useState<{ top: number; left: number } | null>(
-    null,
-  )
   const normalizedContent = useMemo(
     () => normalizeNewsletterRichTextHtml(content.htmlContent || ""),
     [content.htmlContent],
@@ -553,54 +477,7 @@ export function InlineRichTextEditor({
     content: normalizedContent,
     immediatelyRender: false,
     editable: isActive,
-    editorProps: {
-      handleDOMEvents: {
-        mousedown: (view, event) => {
-          const target = event.target
-
-          if (!(target instanceof HTMLElement)) {
-            return false
-          }
-
-          const imageElement = target.closest("img")
-          const linkElement = target.closest("a[href]")
-
-          if (!(imageElement instanceof HTMLImageElement) || !linkElement || !view.dom.contains(imageElement)) {
-            return false
-          }
-
-          event.preventDefault()
-          view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, view.posAtDOM(imageElement, 0))))
-          view.focus()
-          return true
-        },
-        click: (_view, event) => {
-          const target = event.target
-
-          if (!(target instanceof HTMLElement)) {
-            return false
-          }
-
-          const imageElement = target.closest("img")
-          const linkElement = target.closest("a[href]")
-
-          if (!(imageElement instanceof HTMLImageElement) || !linkElement) {
-            return false
-          }
-
-          event.preventDefault()
-          return true
-        },
-      },
-      transformPastedText(text) {
-        return text.replace(/(?<!\n)\n(?!\n)/g, "\n\n")
-      },
-      transformPastedHTML(html) {
-        return html
-          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
-          .replace(/<div>/gi, "<p>")
-          .replace(/<\/div>/gi, "</p>")
-      },
+    editorProps: createRichTextEditorProps({
       handleKeyDown: (_view, event) => {
         if (!slashMenuRef.current) {
           return false
@@ -657,13 +534,31 @@ export function InlineRichTextEditor({
       attributes: {
         class: "outline-none min-h-[80px]",
       },
-    },
+    }),
     onUpdate: ({ editor: currentEditor }) => {
       const html = normalizeNewsletterRichTextHtml(currentEditor.getHTML())
       pendingContentRef.current = html
       onContentChange(html)
     },
   })
+
+  useRichTextContentSync(editor, normalizedContent, pendingContentRef, "<p></p>")
+
+  const {
+    applyLink,
+    handleLinkDialogOpenChange,
+    isLinkDialogOpen,
+    linkUrl,
+    openLinkDialog: handleLink,
+    removeLink,
+    setLinkUrl,
+  } = useRichTextLinkDialog(editor)
+
+  const {
+    clearSelectedImageButtonPosition,
+    handleDeleteSelectedImage,
+    selectedImageButtonPosition,
+  } = useSelectedRichTextImageControls(editor, rootRef)
 
   const handleImageSelect = useCallback(
     (imageUrl: string, altText?: string) => {
@@ -716,59 +611,6 @@ export function InlineRichTextEditor({
       pendingSponsorRangeRef.current = null
     }
   }, [])
-
-  const handleLinkDialogOpenChange = useCallback((open: boolean) => {
-    setIsLinkDialogOpen(open)
-    if (!open) {
-      pendingLinkTargetRef.current = null
-    }
-  }, [])
-
-  const updateSelectedImageButtonPosition = useCallback(() => {
-    if (!editor || !rootRef.current) {
-      setSelectedImageButtonPosition(null)
-      return
-    }
-
-    const { selection } = editor.state
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
-      setSelectedImageButtonPosition(null)
-      return
-    }
-
-    const imageElement = editor.view.nodeDOM(selection.from)
-    if (!(imageElement instanceof HTMLElement)) {
-      setSelectedImageButtonPosition(null)
-      return
-    }
-
-    const surfaceRect = rootRef.current.getBoundingClientRect()
-    const imageRect = imageElement.getBoundingClientRect()
-    const buttonSize = 36
-    const padding = 8
-
-    setSelectedImageButtonPosition({
-      top: Math.max(padding, imageRect.top - surfaceRect.top + padding),
-      left: Math.max(
-        padding,
-        Math.min(surfaceRect.width - buttonSize - padding, imageRect.right - surfaceRect.left - buttonSize - padding),
-      ),
-    })
-  }, [editor])
-
-  const handleDeleteSelectedImage = useCallback(() => {
-    if (!editor) {
-      return
-    }
-
-    const { selection } = editor.state
-    if (!(selection instanceof NodeSelection) || selection.node.type.name !== "image") {
-      return
-    }
-
-    editor.chain().focus().deleteSelection().run()
-    setSelectedImageButtonPosition(null)
-  }, [editor])
 
   const slashCommands = useMemo(() => {
     const commands = [...BASE_SLASH_COMMANDS]
@@ -846,27 +688,8 @@ export function InlineRichTextEditor({
     }
 
     setSlashMenu(null)
-    setSelectedImageButtonPosition(null)
-  }, [isActive])
-
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
-
-    if (pendingContentRef.current === normalizedContent) {
-      pendingContentRef.current = null
-      return
-    }
-
-    if (pendingContentRef.current !== null) {
-      return
-    }
-
-    if (editor.getHTML() !== normalizedContent) {
-      editor.commands.setContent(normalizedContent || "<p></p>")
-    }
-  }, [editor, normalizedContent])
+    clearSelectedImageButtonPosition()
+  }, [clearSelectedImageButtonPosition, isActive])
 
   const filteredSlashCommands = useMemo(() => {
     if (!slashMenu) {
@@ -1086,45 +909,6 @@ export function InlineRichTextEditor({
     }
   }, [refreshSlashMenu, scrollTarget, slashMenu])
 
-  useEffect(() => {
-    if (!editor) {
-      return
-    }
-
-    const syncSelectedImageButton = () => {
-      window.requestAnimationFrame(updateSelectedImageButtonPosition)
-    }
-
-    syncSelectedImageButton()
-    editor.on("selectionUpdate", syncSelectedImageButton)
-    editor.on("transaction", syncSelectedImageButton)
-    editor.on("focus", syncSelectedImageButton)
-    editor.on("blur", syncSelectedImageButton)
-
-    return () => {
-      editor.off("selectionUpdate", syncSelectedImageButton)
-      editor.off("transaction", syncSelectedImageButton)
-      editor.off("focus", syncSelectedImageButton)
-      editor.off("blur", syncSelectedImageButton)
-    }
-  }, [editor, updateSelectedImageButtonPosition])
-
-  useEffect(() => {
-    if (!selectedImageButtonPosition) {
-      return
-    }
-
-    const syncSelectedImageButton = () => {
-      updateSelectedImageButtonPosition()
-    }
-
-    window.addEventListener("resize", syncSelectedImageButton)
-
-    return () => {
-      window.removeEventListener("resize", syncSelectedImageButton)
-    }
-  }, [selectedImageButtonPosition, updateSelectedImageButtonPosition])
-
   const editorState = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => ({
@@ -1145,87 +929,6 @@ export function InlineRichTextEditor({
         false,
     }),
   })
-
-  const handleLink = useCallback(() => {
-    if (!editor) {
-      return
-    }
-
-    const selection = editor.state.selection
-    const { from, to } = selection
-    const imageSelection =
-      selection instanceof NodeSelection && selection.node.type.name === "image" ? selection : null
-
-    pendingLinkTargetRef.current = {
-      range: { from, to },
-      isImage: Boolean(imageSelection),
-    }
-    setLinkUrl(imageSelection ? imageSelection.node.attrs.href || "" : editor.getAttributes("link").href || "")
-    setIsLinkDialogOpen(true)
-  }, [editor])
-
-  const applyLink = useCallback(() => {
-    if (!editor || !pendingLinkTargetRef.current) {
-      return
-    }
-
-    const nextUrl = linkUrl.trim()
-    const { range, isImage } = pendingLinkTargetRef.current
-
-    if (isImage) {
-      editor
-        .chain()
-        .focus()
-        .setNodeSelection(range.from)
-        .updateAttributes("image", {
-          href: nextUrl || null,
-          target: nextUrl ? "_blank" : null,
-          rel: nextUrl ? "noopener noreferrer nofollow" : null,
-        })
-        .run()
-      pendingLinkTargetRef.current = null
-      setIsLinkDialogOpen(false)
-      return
-    }
-
-    const chain = editor.chain().focus().setTextSelection(range).extendMarkRange("link")
-
-    if (!nextUrl) {
-      chain.unsetLink().run()
-    } else {
-      chain.setLink({ href: nextUrl }).run()
-    }
-
-    pendingLinkTargetRef.current = null
-    setIsLinkDialogOpen(false)
-  }, [editor, linkUrl])
-
-  const removeLink = useCallback(() => {
-    if (!editor || !pendingLinkTargetRef.current) {
-      return
-    }
-
-    const { range, isImage } = pendingLinkTargetRef.current
-
-    if (isImage) {
-      editor
-        .chain()
-        .focus()
-        .setNodeSelection(range.from)
-        .updateAttributes("image", {
-          href: null,
-          target: null,
-          rel: null,
-        })
-        .run()
-    } else {
-      editor.chain().focus().setTextSelection(range).extendMarkRange("link").unsetLink().run()
-    }
-
-    pendingLinkTargetRef.current = null
-    setLinkUrl("")
-    setIsLinkDialogOpen(false)
-  }, [editor])
 
   if (!editor) {
     return null
