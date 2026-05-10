@@ -327,6 +327,7 @@ export function DirectorySettingsModal({
                 primaryCategoryId={primaryCategoryId}
                 onPrimaryCategoryChange={setPrimaryCategoryId}
                 loadingSelectedCategories={loadingCategories}
+                variant="combobox"
               />
               <FieldDescription>
                 Assign this directory to one or more categories

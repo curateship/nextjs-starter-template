@@ -371,6 +371,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                 onSelectionChange={setSelectedCategoryIds}
                 primaryCategoryId={primaryCategoryId}
                 onPrimaryCategoryChange={setPrimaryCategoryId}
+                variant="combobox"
               />
               <FieldDescription>
                 Assign this product to one or more categories.

@@ -308,6 +308,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             onSelectionChange={setSelectedCategoryIds}
             primaryCategoryId={primaryCategoryId}
             onPrimaryCategoryChange={setPrimaryCategoryId}
+            variant="combobox"
           />
           <FieldDescription>
             Assign this directory to one or more categories

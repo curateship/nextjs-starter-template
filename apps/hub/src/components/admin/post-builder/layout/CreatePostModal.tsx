@@ -360,6 +360,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
               onSelectionChange={setSelectedCategoryIds}
               primaryCategoryId={primaryCategoryId}
               onPrimaryCategoryChange={setPrimaryCategoryId}
+              variant="combobox"
             />
             <FieldDescription>
               Assign this post to one or more categories

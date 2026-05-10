@@ -563,6 +563,7 @@ export function ProductSettingsModal({
                     primaryCategoryId={primaryCategoryId}
                     onPrimaryCategoryChange={setPrimaryCategoryId}
                     loadingSelectedCategories={showCategorySkeleton}
+                    variant="combobox"
                   />
                   <FieldDescription>
                     Assign this product to one or more categories.

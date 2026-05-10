@@ -405,6 +405,7 @@ export function PostSettingsModal({
                 primaryCategoryId={primaryCategoryId}
                 onPrimaryCategoryChange={setPrimaryCategoryId}
                 loadingSelectedCategories={loadingCategories}
+                variant="combobox"
               />
               <FieldDescription>
                 Assign this post to one or more categories

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useId, useMemo } from "react"
 import { ChevronsUpDown, Plus, Star, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,6 +32,7 @@ interface CategoryPickerProps {
   onPrimaryCategoryChange?: (categoryId: string | null) => void
   loadingSelectedCategories?: boolean
   selectedCategoryDetails?: Array<{ id: string; title: string }>
+  variant?: "default" | "combobox"
 }
 
 function isCategoryPublished(category: Category) {
@@ -50,7 +51,9 @@ export function CategoryPicker({
   onPrimaryCategoryChange,
   loadingSelectedCategories = false,
   selectedCategoryDetails = [],
+  variant = "default",
 }: CategoryPickerProps) {
+  const listboxId = useId()
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [categories, setCategories] = useState<Category[]>([])
@@ -198,33 +201,91 @@ export function CategoryPicker({
   const showSelectedCategorySkeleton =
     loadingSelectedCategories ||
     (selectedCategoryIds.length > 0 && hasUnresolvedSelectedCategories && loading)
+  const useComboboxStyle = variant === "combobox"
 
   return (
     <div className="space-y-2">
       <Popover open={open} onOpenChange={setOpen} modal={false}>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between"
-          >
-            <span className="truncate text-muted-foreground">
-              {selectedCategoryIds.length > 0
-                ? `${selectedCategoryIds.length} categor${selectedCategoryIds.length === 1 ? "y" : "ies"} selected`
-                : "Select categories..."}
-            </span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+          {useComboboxStyle ? (
+            <div
+              role="combobox"
+              aria-controls={listboxId}
+              aria-expanded={open}
+              aria-haspopup="listbox"
+              tabIndex={0}
+              className="border-input flex min-h-10 w-full cursor-text flex-wrap items-center gap-1 rounded-md border bg-transparent px-2 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              {showSelectedCategorySkeleton ? (
+                <Skeleton className="h-6 w-28 rounded-full" />
+              ) : selectedCategories.length > 0 ? (
+                selectedCategories.map((cat) => (
+                  <Badge key={cat.id} variant="secondary" className="max-w-full gap-1 pr-1">
+                    {onPrimaryCategoryChange && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          onPrimaryCategoryChange(cat.id)
+                        }}
+                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                        title={cat.id === primaryCategoryId ? "Primary category" : "Make primary category"}
+                      >
+                        <Star
+                          className={cn(
+                            "h-3 w-3",
+                            cat.id === primaryCategoryId && "fill-current text-amber-500"
+                          )}
+                        />
+                      </button>
+                    )}
+                    <span className="truncate">{cat.title}</span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        removeCategory(cat.id)
+                      }}
+                      className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))
+              ) : (
+                <span className="px-1 text-muted-foreground">Select categories...</span>
+              )}
+              <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="w-full justify-between"
+            >
+              <span className="truncate text-muted-foreground">
+                {selectedCategoryIds.length > 0
+                  ? `${selectedCategoryIds.length} categor${selectedCategoryIds.length === 1 ? "y" : "ies"} selected`
+                  : "Select categories..."}
+              </span>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          )}
         </PopoverTrigger>
-        <PopoverContent className="w-[400px] p-0" align="start">
+        <PopoverContent
+          className={cn("p-0", useComboboxStyle ? "w-[var(--radix-popover-trigger-width)]" : "w-[400px]")}
+          align="start"
+        >
           <Command shouldFilter={false}>
             <CommandInput
               placeholder="Search categories..."
               value={searchQuery}
               onValueChange={setSearchQuery}
             />
-            <CommandList>
+            <CommandList id={listboxId}>
               {loading ? (
                 <div className="py-6 text-center text-sm text-muted-foreground">
                   Loading categories...
@@ -307,11 +368,11 @@ export function CategoryPicker({
       </Popover>
 
       {/* Selected category badges */}
-      {showSelectedCategorySkeleton ? (
+      {!useComboboxStyle && showSelectedCategorySkeleton ? (
         <div className="flex min-h-6 flex-wrap gap-1.5">
           <Skeleton className="h-6 w-28 rounded-full" />
         </div>
-      ) : selectedCategories.length > 0 && (
+      ) : !useComboboxStyle && selectedCategories.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedCategories.map((cat) => (
             <Badge
