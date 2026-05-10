@@ -69,18 +69,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import DialogStickyHeaderDemo from "@/components/shadcn-studio/dialog/dialog-06";
 import {
   Select,
   SelectContent,
@@ -2333,8 +2324,6 @@ const TransactionsTable = () => {
 
 const Dashboard2Content = () => {
   const [period, setPeriod] = React.useState<PeriodKey>("1year");
-  const [newTxnOpen, setNewTxnOpen] = React.useState(false);
-  const [txnNote, setTxnNote] = React.useState("");
 
   React.useEffect(() => {
     const params = getDashboard2SearchParams();
@@ -2377,8 +2366,8 @@ const Dashboard2Content = () => {
             <Download className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Dialog open={newTxnOpen} onOpenChange={setNewTxnOpen}>
-            <DialogTrigger asChild>
+          <DialogStickyHeaderDemo
+            trigger={
               <Button
                 size="sm"
                 className="h-8 gap-2 sm:h-9"
@@ -2387,47 +2376,8 @@ const Dashboard2Content = () => {
                 <Plus className="size-4" aria-hidden="true" />
                 <span className="hidden sm:inline">New transaction</span>
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Record a transaction</DialogTitle>
-                <DialogDescription>
-                  Capture a quick note for your close checklist. This demo does
-                  not persist data.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="dashboard2-txn-note">Description</Label>
-                  <Input
-                    id="dashboard2-txn-note"
-                    name="txn-note"
-                    value={txnNote}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setTxnNote(e.target.value)
-                    }
-                    placeholder="e.g. Wire — Q1 tax payment"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setNewTxnOpen(false);
-                    setTxnNote("");
-                  }}
-                >
-                  Save draft
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            }
+          />
         </div>
       </div>
 
