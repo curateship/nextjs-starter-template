@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -243,7 +243,7 @@ export function NewsletterStatusEventsModal({
             className={cn(
               "min-h-0 flex-1",
               showRateCards
-                ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-8 sm:grid-cols-3"
+                ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-3"
                 : "flex flex-col"
             )}
           >
@@ -254,8 +254,12 @@ export function NewsletterStatusEventsModal({
                 ["Unsub percentage", rates.unsubscribeRate]
               ].map(([label, rate]) => (
                 <Card key={label}>
-                  <p className="text-xs font-medium text-muted-foreground">{label}</p>
-                  <p className="mt-2 text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
+                  </CardContent>
                 </Card>
               ))}
 

@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardSection } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -357,43 +357,49 @@ export default function SegmentDashboardPage() {
 
           {/* Loading skeleton */}
           {loading && (
-            <>
+            <div className="grid">
               <Card>
-                <div className="flex items-center gap-4">
+                <CardContent className="flex items-center gap-4">
                   <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                   <div className="space-y-2">
                     <div className="h-5 w-48 bg-muted rounded animate-pulse" />
                     <div className="h-4 w-32 bg-muted/60 rounded animate-pulse" />
                   </div>
-                </div>
+                </CardContent>
               </Card>
               <div className="grid grid-cols-1 md:grid-cols-3">
                 {[1, 2, 3].map((i) => (
                   <Card key={i}>
-                    <div className="h-4 w-20 bg-muted rounded animate-pulse mb-2" />
-                    <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                    <CardHeader>
+                      <div className="h-4 w-20 bg-muted rounded animate-pulse" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                    </CardContent>
                   </Card>
                 ))}
               </div>
-            </>
+            </div>
           )}
 
           {/* Error state */}
           {error && !loading && (
             <Card className="text-center">
-              <p className="text-red-600 mb-4">{error}</p>
-              <Link href="/admin/newsletters/segments">
-                <Button variant="outline">Back to Segments</Button>
-              </Link>
+              <CardContent>
+                <p className="text-red-600 mb-4">{error}</p>
+                <Link href="/admin/newsletters/segments">
+                  <Button variant="outline">Back to Segments</Button>
+                </Link>
+              </CardContent>
             </Card>
           )}
 
           {/* Loaded content */}
           {!loading && segment && (
-            <>
+            <div className="grid">
               {/* Segment Header */}
               <Card>
-                <div className="flex items-center gap-4">
+                <CardContent className="flex items-center gap-4">
                   {/* Icon circle */}
                   <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                     <Filter className="h-6 w-6" />
@@ -416,22 +422,34 @@ export default function SegmentDashboardPage() {
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">Created {formatDate(segment.created_at)}</span>
-                </div>
+                </CardContent>
               </Card>
 
               {/* Stat cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4">
+              <div className="grid grid-cols-1 md:grid-cols-3">
                 <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Open Rate</p>
-                  <p className="text-2xl font-semibold">{stats?.openRate ?? 0}%</p>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Open Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold">{stats?.openRate ?? 0}%</p>
+                  </CardContent>
                 </Card>
                 <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Click Rate</p>
-                  <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Click Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold">{stats?.clickRate ?? 0}%</p>
+                  </CardContent>
                 </Card>
                 <Card>
-                  <p className="text-sm text-muted-foreground mb-1">Unsubscribe Rate</p>
-                  <p className="text-2xl font-semibold">{stats?.unsubscribeRate ?? 0}%</p>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Unsubscribe Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-semibold">{stats?.unsubscribeRate ?? 0}%</p>
+                  </CardContent>
                 </Card>
               </div>
 
@@ -439,9 +457,9 @@ export default function SegmentDashboardPage() {
               <div className="grid grid-cols-1 lg:grid-cols-3">
                 {/* Newsletters — left 2/3 */}
                 <Card className="lg:col-span-2">
-                  <CardSection className="border-b">
-                    <h2 className="font-semibold text-sm">Newsletters</h2>
-                  </CardSection>
+                  <CardHeader className="border-b">
+                    <CardTitle className="text-base">Newsletters</CardTitle>
+                  </CardHeader>
                   <div className="divide-y">
                     {newsletters.length === 0 ? (
                       <CardSection className="text-center text-muted-foreground text-sm">
@@ -481,8 +499,8 @@ export default function SegmentDashboardPage() {
                 <div>
                   {/* Contacts list */}
                   <Card>
-                    <CardSection className="border-b flex items-center justify-between">
-                      <h2 className="font-semibold text-sm">Contacts ({contactsTotal})</h2>
+                    <CardHeader className="border-b flex-row items-center justify-between space-y-0">
+                      <CardTitle className="text-base">Contacts ({contactsTotal})</CardTitle>
                       {segment.segment_type === "static" ? (
                         <Popover>
                           <PopoverTrigger asChild>
@@ -540,9 +558,9 @@ export default function SegmentDashboardPage() {
                           </PopoverContent>
                         </Popover>
                       ) : (
-                        <span className="text-xs text-muted-foreground">Updates automatically</span>
+                        <CardDescription>Updates automatically</CardDescription>
                       )}
-                    </CardSection>
+                    </CardHeader>
                     <div className="divide-y">
                       {contacts.length === 0 ? (
                         <CardSection className="text-center text-muted-foreground text-sm">
@@ -598,9 +616,9 @@ export default function SegmentDashboardPage() {
               {/* Engagement Over Time chart — only if 3+ data points */}
               {engagement.length >= 3 && (
                 <Card>
-                  <CardSection className="border-b">
-                    <h2 className="font-semibold text-sm">Engagement Over Time</h2>
-                  </CardSection>
+                  <CardHeader className="border-b">
+                    <CardTitle className="text-base">Engagement Over Time</CardTitle>
+                  </CardHeader>
                   <CardSection>
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={engagement}>
@@ -615,7 +633,7 @@ export default function SegmentDashboardPage() {
                   </CardSection>
                 </Card>
               )}
-            </>
+            </div>
           )}
         </div>
       </AdminLayout>

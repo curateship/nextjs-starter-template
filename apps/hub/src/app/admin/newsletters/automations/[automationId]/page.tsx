@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog } from "@/components/ui/dialog"
 import {
@@ -744,41 +744,77 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         />
         <AdminLayout>
           <div className="mx-auto w-full max-w-2xl px-6 py-8">
-            <div className="flex flex-col items-center">
-              <div className="w-full">
+            <div className="relative mx-auto w-full pb-6">
+              <div className="pointer-events-none absolute inset-0 flex justify-center">
+                <div className="h-full w-px bg-border" style={centerAxisStyle} />
+              </div>
+
+              <div className="relative z-10">
                 {[1, 2].map((index) => (
-                  <div key={index} className="flex flex-col items-center">
-                    <Card className="w-full border-l-4 border-l-muted">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
-                        <div className="flex-1">
-                          <div className="mb-2 h-3 w-16 animate-pulse rounded bg-muted" />
-                          <div className="h-4 w-36 animate-pulse rounded bg-muted" />
+                  <div key={index} className="w-full">
+                    <Card className="w-full">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
+                            <div className="min-w-0 flex-1">
+                              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+                              <div className="mt-2 h-3 w-48 animate-pulse rounded bg-muted/70" />
+                              <div className="mt-3 h-6 w-24 animate-pulse rounded-md bg-muted/70" />
+                            </div>
+                          </div>
+                          <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
                         </div>
-                      </div>
+                      </CardContent>
                     </Card>
-                    <div className="h-6 w-px bg-border" />
+                    {index === 1 && (
+                      <div className="my-6 flex justify-center">
+                        <div className="h-9 w-28 animate-pulse rounded-md bg-muted" style={centerAxisStyle} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <div className="my-6 flex justify-center">
+                  <div
+                    className="h-6 w-6 animate-pulse rounded-full bg-muted"
+                    style={centerAxisStyle}
+                  />
+                </div>
+
+                {[1, 2, 3].map((index) => (
+                  <div key={index} className="w-full">
+                    <Card className="w-full">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                            <div className="h-[52px] w-[52px] animate-pulse rounded-lg bg-muted" />
+                            <div className="min-w-0 flex-1">
+                              <div className="h-4 w-44 animate-pulse rounded bg-muted" />
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <div className="h-6 w-16 animate-pulse rounded bg-muted/70" />
+                                <div className="h-6 w-14 animate-pulse rounded bg-muted/70" />
+                                <div className="h-6 w-20 animate-pulse rounded bg-muted/70" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
+                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
+                            <div className="h-8 w-8 animate-pulse rounded bg-muted/70" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <div className="my-6 flex justify-center">
+                      <div
+                        className="h-6 w-6 animate-pulse rounded-full bg-muted"
+                        style={centerAxisStyle}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
-              <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
-              <div className="h-6 w-px bg-border" />
-              {[1, 2, 3].map((index) => (
-                <div key={index} className="flex w-full flex-col items-center">
-                  <Card className="w-full border-l-4 border-l-muted">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
-                      <div className="flex-1">
-                        <div className="mb-2 h-3 w-16 animate-pulse rounded bg-muted" />
-                        <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                      </div>
-                    </div>
-                  </Card>
-                  <div className="h-6 w-px bg-border" />
-                  <div className="h-6 w-6 animate-pulse rounded-full bg-muted" />
-                  <div className="h-6 w-px bg-border" />
-                </div>
-              ))}
             </div>
           </div>
         </AdminLayout>
