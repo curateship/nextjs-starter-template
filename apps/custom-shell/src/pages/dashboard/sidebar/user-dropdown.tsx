@@ -34,12 +34,14 @@ import {
 
 export function UserDropdown({
   user,
+  onLogout,
 }: {
   user: {
     name: string
     email: string
     avatar: string
   }
+  onLogout: () => void
 }) {
   const { isMobile } = useSidebar()
   const initials = React.useMemo(() => {
@@ -122,7 +124,7 @@ export function UserDropdown({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={onLogout}>
               <LogOutIcon />
               Log out
             </DropdownMenuItem>

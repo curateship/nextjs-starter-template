@@ -21,9 +21,12 @@ import {
   type ShellConfig,
   type ShellSection,
 } from "@/lib/custom-shell"
+import type { AuthUser } from "@/lib/auth-api"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
+  user: AuthUser
+  onLogout: () => void
 }
 
 function getCurrentHashPath() {
@@ -86,7 +89,7 @@ function mapSectionEntries(
   return entries
 }
 
-export function AppSidebar({ config, ...props }: AppSidebarProps) {
+export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps) {
   const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
 
   const handleNavigate = React.useCallback((href: string) => {
@@ -135,9 +138,10 @@ export function AppSidebar({ config, ...props }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <UserDropdown
+          onLogout={onLogout}
           user={{
-            name: "Tyler",
-            email: "tyler@internal.dev",
+            name: user.name,
+            email: user.email,
             avatar: "",
           }}
         />

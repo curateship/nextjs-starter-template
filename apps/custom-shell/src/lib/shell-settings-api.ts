@@ -27,7 +27,9 @@ async function readShellSettingsResponse(response: Response) {
 }
 
 export async function loadShellSettings() {
-  const response = await fetch(`${shellSettingsApiUrl}/api/v1/shell-settings`)
+  const response = await fetch(`${shellSettingsApiUrl}/api/v1/shell-settings`, {
+    credentials: "include",
+  })
   return readShellSettingsResponse(response)
 }
 
@@ -35,6 +37,7 @@ export async function saveShellSettings(settings: ShellConfig) {
   const response = await fetch(`${shellSettingsApiUrl}/api/v1/shell-settings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(settings),
   })
 

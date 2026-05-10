@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.dependencies import get_current_user, require_app_origin
 from app.models import CustomShellSettings, utcnow
 from app.schemas import ShellConfigIn, ShellSettingsOut
 
@@ -11,13 +12,21 @@ router = APIRouter(prefix="/api/v1")
 
 
 @router.get("/shell-settings", response_model=ShellSettingsOut)
-def get_shell_settings(db: Session = Depends(get_db)):
+def get_shell_settings(
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     row = db.get(CustomShellSettings, DEFAULT_SETTINGS_KEY)
     return {"settings": row.settings if row else None}
 
 
 @router.put("/shell-settings", response_model=ShellSettingsOut)
-def put_shell_settings(settings: ShellConfigIn, db: Session = Depends(get_db)):
+def put_shell_settings(
+    settings: ShellConfigIn,
+    _: object = Depends(get_current_user),
+    __: None = Depends(require_app_origin),
+    db: Session = Depends(get_db),
+):
     settings_json = settings.model_dump(mode="json", exclude_none=True)
     row = db.get(CustomShellSettings, DEFAULT_SETTINGS_KEY)
 

@@ -2,6 +2,9 @@ import * as React from "react"
 
 import { Dashboard2Content } from "@/components/dashboard2"
 import { DashboardContent } from "@/components/demo/dashboard-content"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   getSettingsTabFromPath,
   SettingsPage,
@@ -21,8 +24,16 @@ import {
   loadShellSettings,
   saveShellSettings,
 } from "@/lib/shell-settings-api"
+import {
+  getAuthErrorMessage,
+  loadCurrentUser,
+  login,
+  logout,
+  type AuthUser,
+} from "@/lib/auth-api"
 
 type SaveStatus = "idle" | "saving" | "saved"
+type AuthStatus = "loading" | "authenticated" | "unauthenticated"
 
 function getCurrentHashPath() {
   if (typeof window === "undefined") {
@@ -119,8 +130,38 @@ export function App() {
   const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
+  const [authStatus, setAuthStatus] = React.useState<AuthStatus>("loading")
+  const [authUser, setAuthUser] = React.useState<AuthUser | null>(null)
+  const [authError, setAuthError] = React.useState<string | null>(null)
+  const [loginEmail, setLoginEmail] = React.useState("")
+  const [loginPassword, setLoginPassword] = React.useState("")
+  const [loginLoading, setLoginLoading] = React.useState(false)
 
   React.useEffect(() => {
+    let active = true
+
+    loadCurrentUser()
+      .then((user) => {
+        if (!active) return
+        setAuthUser(user)
+        setAuthStatus(user ? "authenticated" : "unauthenticated")
+      })
+      .catch((error) => {
+        if (!active) return
+        setAuthError(getAuthErrorMessage(error))
+        setAuthStatus("unauthenticated")
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (authStatus !== "authenticated") {
+      return
+    }
+
     let active = true
 
     loadShellSettings()
@@ -150,7 +191,7 @@ export function App() {
     return () => {
       active = false
     }
-  }, [])
+  }, [authStatus])
 
   React.useEffect(() => {
     const handleHashChange = () => {
@@ -180,6 +221,39 @@ export function App() {
     }
   }, [config])
 
+  const handleLogin = React.useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      setAuthError(null)
+      setLoginLoading(true)
+
+      try {
+        const user = await login(loginEmail, loginPassword)
+        setAuthUser(user)
+        setAuthStatus("authenticated")
+        setLoginPassword("")
+      } catch (error) {
+        setAuthError(getAuthErrorMessage(error))
+      } finally {
+        setLoginLoading(false)
+      }
+    },
+    [loginEmail, loginPassword]
+  )
+
+  const handleLogout = React.useCallback(async () => {
+    try {
+      await logout()
+      setAuthUser(null)
+      setAuthStatus("unauthenticated")
+      setLoginPassword("")
+      setAuthError(null)
+      setSettingsError(null)
+    } catch (error) {
+      setSettingsError(getAuthErrorMessage(error))
+    }
+  }, [])
+
   const navLinks = getStickyHeaderNavLinks(config, currentPath)
   const dashboardPaths = getDashboardPaths(config)
 
@@ -189,10 +263,62 @@ export function App() {
     currentPath === "/admin/settings" ||
     currentPath.startsWith("/admin/settings/")
 
+  if (authStatus === "loading") {
+    return <div className="min-h-screen bg-background" />
+  }
+
+  if (authStatus !== "authenticated" || !authUser) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background px-4">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-sm rounded-lg border bg-card p-6 shadow-sm"
+        >
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold">Sign in to Custom Shell</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Use your Custom Shell account.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                required
+              />
+            </div>
+            {authError ? (
+              <p className="text-sm text-destructive">{authError}</p>
+            ) : null}
+            <Button type="submit" className="w-full" disabled={loginLoading}>
+              {loginLoading ? "Signing in..." : "Sign in"}
+            </Button>
+          </div>
+        </form>
+      </main>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <SidebarProvider className="h-screen">
-        <AppSidebar config={config} />
+        <AppSidebar config={config} user={authUser} onLogout={handleLogout} />
         <SidebarInset>
           <StickyHeader navLinks={navLinks} />
           {isDashboardRoute ? (

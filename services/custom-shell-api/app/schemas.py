@@ -86,3 +86,21 @@ class ShellConfigIn(StrictModel):
 
 class ShellSettingsOut(BaseModel):
     settings: Optional[dict[str, Any]]
+
+
+class AuthLoginIn(StrictModel):
+    email: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+class CustomShellUserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    email: str
+    name: str
+    role: str
+
+
+class AuthMeOut(BaseModel):
+    user: CustomShellUserOut

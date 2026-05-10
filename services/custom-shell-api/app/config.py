@@ -22,6 +22,7 @@ class RawSettings(BaseSettings):
     environment: str = Field(default="development", validation_alias="CUSTOM_SHELL_API_ENV")
     database_url: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_DATABASE_URL")
     app_origins: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_APP_ORIGINS")
+    session_ttl_hours: int = Field(default=12, validation_alias="CUSTOM_SHELL_SESSION_TTL_HOURS")
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class Settings:
     environment: str
     database_url: str
     app_origins: tuple[str, ...]
+    session_ttl_hours: int
 
 
 @lru_cache
@@ -48,6 +50,7 @@ def get_settings() -> Settings:
             raw.database_url,
         ),
         app_origins=_resolve_app_origins(raw.environment, app_origins),
+        session_ttl_hours=raw.session_ttl_hours,
     )
 
 
