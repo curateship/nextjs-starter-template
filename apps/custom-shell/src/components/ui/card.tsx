@@ -79,6 +79,16 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+function CardGroup({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-group"
+      className={cn("flex flex-col gap-4 sm:gap-6", className)}
+      {...props}
+    />
+  )
+}
+
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -100,4 +110,5 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  CardGroup,
 }

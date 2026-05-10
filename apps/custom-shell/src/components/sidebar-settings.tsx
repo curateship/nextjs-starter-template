@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
+  CardGroup,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -852,7 +853,7 @@ export function SidebarSettings({
           items={config.sections.map((section) => section.id)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="space-y-4">
+          <CardGroup>
             {config.sections.map((section) => (
               <SortableSectionCard
                 key={section.id}
@@ -869,7 +870,7 @@ export function SidebarSettings({
                 onChildDragEnd={handleChildDragEnd}
               />
             ))}
-          </div>
+          </CardGroup>
         </SortableContext>
       </DndContext>
       <div className="mt-3 flex justify-end">

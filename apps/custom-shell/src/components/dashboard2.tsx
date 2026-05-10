@@ -54,6 +54,13 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardGroup,
+  CardHeader,
+} from "@/components/ui/card";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import {
   Collapsible,
@@ -1332,8 +1339,8 @@ const RevenueChart = ({ period }: { period: PeriodKey }) => {
   const summary = revenueSummary[period];
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-xl border bg-card p-4 sm:gap-5 sm:p-5">
-      <div className="flex flex-col gap-1">
+    <Card className="min-w-0 flex-1">
+      <CardHeader>
         <p className="text-xs text-muted-foreground sm:text-sm">
           Revenue Overview
         </p>
@@ -1364,9 +1371,9 @@ const RevenueChart = ({ period }: { period: PeriodKey }) => {
             </span>
           </div>
         </div>
-      </div>
+      </CardHeader>
 
-      <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
+      <CardContent className="h-[180px] w-full min-w-0 sm:h-[220px]">
         <ChartContainer config={revenueChartConfig} className="h-full w-full">
           <AreaChart data={data}>
             <defs>
@@ -1412,8 +1419,8 @@ const RevenueChart = ({ period }: { period: PeriodKey }) => {
             />
           </AreaChart>
         </ChartContainer>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
@@ -1477,8 +1484,8 @@ const CostsChart = ({ period }: { period: PeriodKey }) => {
   const summary = costsSummary[period];
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-xl border bg-card p-4 sm:gap-5 sm:p-5">
-      <div className="flex flex-col gap-1">
+    <Card className="min-w-0 flex-1">
+      <CardHeader>
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground sm:text-sm">
             Costs Breakdown
@@ -1531,9 +1538,9 @@ const CostsChart = ({ period }: { period: PeriodKey }) => {
             </span>
           </div>
         </div>
-      </div>
+      </CardHeader>
 
-      <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
+      <CardContent className="h-[180px] w-full min-w-0 sm:h-[220px]">
         <ChartContainer config={costsChartConfig} className="h-full w-full">
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -1577,66 +1584,71 @@ const CostsChart = ({ period }: { period: PeriodKey }) => {
             />
           </BarChart>
         </ChartContainer>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
 const StatsCards = () => {
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-xl border bg-card p-4 sm:gap-4 sm:p-5 lg:grid-cols-4 lg:gap-6 lg:p-6">
-      {statsData.map((stat, index) => {
-        const formatter =
-          stat.format === "currency" ? currencyFormatter : percentFormatter;
+    <Card>
+      <CardContent className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
+        {statsData.map((stat, index) => {
+          const formatter =
+            stat.format === "currency" ? currencyFormatter : percentFormatter;
 
-        return (
-          <div key={stat.title} className="flex items-start">
-            <div className="flex-1 space-y-1 sm:space-y-2 lg:space-y-3">
-              <div className="flex items-center gap-1.5 text-muted-foreground sm:gap-2">
-                <stat.icon className="size-3.5 sm:size-4" aria-hidden="true" />
-                <span className="truncate text-[10px] font-medium sm:text-xs lg:text-sm">
-                  {stat.title}
-                </span>
-              </div>
-              <p className="hidden text-[10px] text-muted-foreground/70 sm:block sm:text-xs">
-                {formatter.format(stat.previousValue)} previous month
-              </p>
-              <p className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl lg:text-[28px]">
-                {formatter.format(stat.value)}
-              </p>
-              <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] sm:text-xs">
-                {stat.isPositive ? (
-                  <ArrowUpRight
-                    className="size-3 shrink-0 text-emerald-600 sm:size-3.5"
+          return (
+            <div key={stat.title} className="flex items-start">
+              <div className="flex-1 space-y-1 sm:space-y-2 lg:space-y-3">
+                <div className="flex items-center gap-1.5 text-muted-foreground sm:gap-2">
+                  <stat.icon
+                    className="size-3.5 sm:size-4"
                     aria-hidden="true"
                   />
-                ) : (
-                  <ArrowDownRight
-                    className="size-3 shrink-0 text-red-600 sm:size-3.5"
-                    aria-hidden="true"
-                  />
-                )}
-                <span
-                  className={cn(
-                    "whitespace-nowrap",
-                    stat.isPositive ? "text-emerald-600" : "text-red-600",
+                  <span className="truncate text-[10px] font-medium sm:text-xs lg:text-sm">
+                    {stat.title}
+                  </span>
+                </div>
+                <p className="hidden text-[10px] text-muted-foreground/70 sm:block sm:text-xs">
+                  {formatter.format(stat.previousValue)} previous month
+                </p>
+                <p className="text-xl leading-tight font-semibold tracking-tight sm:text-2xl lg:text-[28px]">
+                  {formatter.format(stat.value)}
+                </p>
+                <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] sm:text-xs">
+                  {stat.isPositive ? (
+                    <ArrowUpRight
+                      className="size-3 shrink-0 text-emerald-600 sm:size-3.5"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <ArrowDownRight
+                      className="size-3 shrink-0 text-red-600 sm:size-3.5"
+                      aria-hidden="true"
+                    />
                   )}
-                >
-                  {stat.isPositive ? "+" : "-"}
-                  {stat.changePercent.toFixed(1)}%
-                </span>
-                <span className="whitespace-nowrap text-muted-foreground">
-                  vs last month
-                </span>
+                  <span
+                    className={cn(
+                      "whitespace-nowrap",
+                      stat.isPositive ? "text-emerald-600" : "text-red-600",
+                    )}
+                  >
+                    {stat.isPositive ? "+" : "-"}
+                    {stat.changePercent.toFixed(1)}%
+                  </span>
+                  <span className="whitespace-nowrap text-muted-foreground">
+                    vs last month
+                  </span>
+                </div>
               </div>
+              {index < statsData.length - 1 && (
+                <div className="mx-4 hidden h-full w-px bg-border lg:block xl:mx-6" />
+              )}
             </div>
-            {index < statsData.length - 1 && (
-              <div className="mx-4 hidden h-full w-px bg-border lg:block xl:mx-6" />
-            )}
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 };
 
@@ -1901,8 +1913,8 @@ const TransactionsTable = () => {
   };
 
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-3.5">
+    <Card>
+      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
           <Button
             variant="outline"
@@ -2031,10 +2043,10 @@ const TransactionsTable = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </CardContent>
 
       {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2 px-3 pb-3 sm:px-6">
+        <CardContent className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] text-muted-foreground sm:text-xs">
             Filters:
           </span>
@@ -2077,10 +2089,10 @@ const TransactionsTable = () => {
           >
             Clear all
           </button>
-        </div>
+        </CardContent>
       )}
 
-      <div className="overflow-x-auto px-3 pb-3 sm:px-6 sm:pb-4">
+      <CardContent className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -2216,9 +2228,9 @@ const TransactionsTable = () => {
             )}
           </TableBody>
         </Table>
-      </div>
+      </CardContent>
 
-      <div className="flex flex-col items-center justify-between gap-3 border-t px-3 py-3 sm:flex-row sm:px-6">
+      <CardFooter className="flex-col justify-between gap-3 sm:flex-row">
         <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
           <span className="hidden sm:inline">Rows per page:</span>
           <Select
@@ -2317,8 +2329,8 @@ const TransactionsTable = () => {
             <ChevronsRight className="size-4" />
           </Button>
         </div>
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 };
 
@@ -2351,7 +2363,7 @@ const Dashboard2Content = () => {
     <div
       id="dashboard-main"
       tabIndex={-1}
-      className="w-full flex-1 space-y-4 overflow-auto bg-background p-3 sm:space-y-6 sm:p-4 md:p-6"
+      className="w-full flex-1 overflow-auto bg-background p-3 sm:p-4 md:p-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <PeriodTabs activePeriod={period} onPeriodChange={setPeriod} />
@@ -2381,14 +2393,16 @@ const Dashboard2Content = () => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row">
-        <RevenueChart period={period} />
-        <CostsChart period={period} />
-      </div>
+      <CardGroup className="mt-4 sm:mt-6">
+        <CardGroup className="lg:flex-row">
+          <RevenueChart period={period} />
+          <CostsChart period={period} />
+        </CardGroup>
 
-      <StatsCards />
+        <StatsCards />
 
-      <TransactionsTable />
+        <TransactionsTable />
+      </CardGroup>
     </div>
   );
 };
