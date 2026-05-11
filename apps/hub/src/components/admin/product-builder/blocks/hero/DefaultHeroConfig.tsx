@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Field, FieldLabel } from "@/components/ui/field"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Plus, Trash2, ImageIcon, GripVertical, X } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
@@ -28,6 +29,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { HeroStyleAdminProps } from "."
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 // Sortable avatar item component
 function SortableAvatarItem({
@@ -172,11 +174,13 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
   }
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-base font-medium">Trusted By Badge</h3>
-        </div>
+    <>
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <DashboardModalCardTitle>Trusted by badge</DashboardModalCardTitle>
+          <CardDescription>Manage the social proof avatars and badge text.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 p-4 pt-0">
 
         {trustedByAvatars.length === 0 ? (
           <div className="flex items-center gap-2">
@@ -235,13 +239,15 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
             placeholder="Badge text (e.g., 'Trusted by developers')"
           />
         </Field>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-base font-medium">Hero Image</h3>
-        </div>
-
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <DashboardModalCardTitle>Hero image</DashboardModalCardTitle>
+          <CardDescription>Choose the image shown in the hero.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
         <div className="relative">
           {heroImage ? (
             <div
@@ -282,13 +288,15 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
             </div>
           )}
         </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="space-y-4">
-        <div>
-          <h3 className="text-base font-medium">Background Pattern</h3>
-        </div>
-
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <DashboardModalCardTitle>Background pattern</DashboardModalCardTitle>
+          <CardDescription>Set the optional background texture.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
         <div className="inline-flex items-end gap-3">
           <Field className="w-[180px]">
             <FieldLabel className="text-xs">Pattern Type</FieldLabel>
@@ -349,9 +357,9 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
             </>
           )}
         </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      {/* Image Picker Modal for Avatars */}
       <MediaPicker
         open={showPicker !== null}
         onOpenChange={(open) => setShowPicker(open ? showPicker : null)}
@@ -359,7 +367,6 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
         currentMediaUrl={showPicker !== null ? trustedByAvatars[showPicker]?.src : undefined}
       />
 
-      {/* Image Picker Modal for Hero Image */}
       <MediaPicker
         open={showHeroImagePicker}
         onOpenChange={setShowHeroImagePicker}
@@ -369,6 +376,6 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
         }}
         currentMediaUrl={heroImage}
       />
-    </div>
+    </>
   )
 }

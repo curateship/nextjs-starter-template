@@ -26,13 +26,7 @@ import {
   Dialog,
 } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import {
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalScrollBody,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { ProductPreview } from "@/components/admin/product-builder/layout/ProductPreview"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
@@ -334,15 +328,22 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
             }}
           >
             <ModalTabsProvider>
-              <AdminModalContent size="wide">
-                <AdminModalHeader>
-                  <div className="flex min-w-0 items-center gap-4 pr-10">
-                    <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
-                    <ModalTabs />
-                  </div>
-                </AdminModalHeader>
-
-                <AdminModalScrollBody>
+              <DashboardModalContent
+                title={`Edit ${selectedBlock.title}`}
+                titleAccessory={<ModalTabs />}
+                className="max-w-[960px]"
+                footerClassName="sm:justify-end"
+                footer={(
+                  <>
+                    <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                      {isSavingBlock ? "Saving..." : "Save"}
+                    </Button>
+                  </>
+                )}
+              >
                     {selectedBlock.type === "product-hero" && (
                       <ProductHeroBlock
                         content={draftContent}
@@ -503,17 +504,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                       />
                     )}
 
-                </AdminModalScrollBody>
-
-                <AdminModalFooter className="sm:justify-end">
-                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                    Cancel
-                  </Button>
-                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                    {isSavingBlock ? "Saving..." : "Save"}
-                  </Button>
-                </AdminModalFooter>
-              </AdminModalContent>
+              </DashboardModalContent>
             </ModalTabsProvider>
           </Dialog>
         )}

@@ -3,13 +3,15 @@
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Check } from "lucide-react"
 import { useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
@@ -109,92 +111,92 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-6">
-              <FieldGroup className="gap-4">
-                <div>
-                  <h3 className="text-base font-medium">Text Content</h3>
-                </div>
-
-                <Field>
-                  <FieldLabel htmlFor="heroTitle">Hero Title</FieldLabel>
-                  <Input
-                    id="heroTitle"
-                    type="text"
-                    value={content.title || ''}
-                    onChange={(e) => onContentChange('title', e.target.value)}
-                    placeholder="Build Exceptional Interfaces with Ease"
-                    required
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="heroSubtitle">Hero Subtitle</FieldLabel>
-                  <Textarea
-                    id="heroSubtitle"
-                    value={content.subtitle || ''}
-                    onChange={(e) => onContentChange('subtitle', e.target.value)}
-                    placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
-                    rows={2}
-                    required
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel>Primary Button</FieldLabel>
-                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <div className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Text content</DashboardModalCardTitle>
+                  <CardDescription>Set the headline, subtitle, and calls to action.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="heroTitle">Hero Title</FieldLabel>
                     <Input
+                      id="heroTitle"
                       type="text"
-                      value={content.primaryButton || ''}
-                      onChange={(e) => onContentChange('primaryButton', e.target.value)}
-                      placeholder="Get Started"
+                      value={content.title || ''}
+                      onChange={(e) => onContentChange('title', e.target.value)}
+                      placeholder="Build Exceptional Interfaces with Ease"
                       required
                     />
-                    <Input
-                      type="url"
-                      value={content.primaryButtonLink || ''}
-                      onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
-                      placeholder="https://example.com or /page"
-                    />
-                    <ButtonStyleSelect
-                      value={content.primaryButtonStyle || 'primary'}
-                      onChange={(v) => onContentChange('primaryButtonStyle', v)}
-                    />
-                  </div>
-                </Field>
+                  </Field>
 
-                <Field>
-                  <FieldLabel>Secondary Button</FieldLabel>
-                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                    <Input
-                      type="text"
-                      value={content.secondaryButton || ''}
-                      onChange={(e) => onContentChange('secondaryButton', e.target.value)}
-                      placeholder="Browse Components"
+                  <Field>
+                    <FieldLabel htmlFor="heroSubtitle">Hero Subtitle</FieldLabel>
+                    <Textarea
+                      id="heroSubtitle"
+                      value={content.subtitle || ''}
+                      onChange={(e) => onContentChange('subtitle', e.target.value)}
+                      placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
+                      rows={2}
                       required
                     />
-                    <Input
-                      type="url"
-                      value={content.secondaryButtonLink || ''}
-                      onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
-                      placeholder="https://example.com or /page"
-                    />
-                    <ButtonStyleSelect
-                      value={content.secondaryButtonStyle || 'outline'}
-                      onChange={(v) => onContentChange('secondaryButtonStyle', v)}
-                    />
-                  </div>
-                </Field>
-              </FieldGroup>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Primary Button</FieldLabel>
+                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                      <Input
+                        type="text"
+                        value={content.primaryButton || ''}
+                        onChange={(e) => onContentChange('primaryButton', e.target.value)}
+                        placeholder="Get Started"
+                        required
+                      />
+                      <Input
+                        type="url"
+                        value={content.primaryButtonLink || ''}
+                        onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
+                        placeholder="https://example.com or /page"
+                      />
+                      <ButtonStyleSelect
+                        value={content.primaryButtonStyle || 'primary'}
+                        onChange={(v) => onContentChange('primaryButtonStyle', v)}
+                      />
+                    </div>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Secondary Button</FieldLabel>
+                    <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                      <Input
+                        type="text"
+                        value={content.secondaryButton || ''}
+                        onChange={(e) => onContentChange('secondaryButton', e.target.value)}
+                        placeholder="Browse Components"
+                        required
+                      />
+                      <Input
+                        type="url"
+                        value={content.secondaryButtonLink || ''}
+                        onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
+                        placeholder="https://example.com or /page"
+                      />
+                      <ButtonStyleSelect
+                        value={content.secondaryButtonStyle || 'outline'}
+                        onChange={(v) => onContentChange('secondaryButtonStyle', v)}
+                      />
+                    </div>
+                  </Field>
+                </CardContent>
+              </Card>
 
               {ActivePanel && (
-                <div className="space-y-4">
-                  <ActivePanel
-                    config={currentStyleConfig}
-                    onConfigChange={handleStyleConfigChange}
-                    siteId={siteId}
-                    blockId={blockId}
-                  />
-                </div>
+                <ActivePanel
+                  config={currentStyleConfig}
+                  onConfigChange={handleStyleConfigChange}
+                  siteId={siteId}
+                  blockId={blockId}
+                />
               )}
             </div>
           ),
@@ -203,11 +205,14 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-4">
-              {/* Hero Style Selector */}
-              <section className="space-y-2 pb-4">
-                <h3 className="text-base font-medium">Hero Style</h3>
-                <div className="grid grid-cols-2 gap-2 max-w-sm">
+            <div className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Hero style</DashboardModalCardTitle>
+                  <CardDescription>Choose the hero layout for this block.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="grid max-w-sm grid-cols-2 gap-2">
                   {Object.entries(HERO_STYLES).map(([key, style]) => (
                     <button
                       key={key}
@@ -236,14 +241,15 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                       </div>
                     </button>
                   ))}
-                </div>
-              </section>
+                  </div>
+                </CardContent>
+              </Card>
 
               <VisibilitySettings
                 title="Element Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
-                useCard={false}
+                useCard
                 fields={[
                   { key: 'title', label: 'Title' },
                   { key: 'subtitle', label: 'Subtitle' },

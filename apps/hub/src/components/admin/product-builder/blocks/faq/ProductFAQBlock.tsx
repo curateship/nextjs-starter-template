@@ -2,11 +2,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BlockTabs } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical } from "lucide-react"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
   DndContext,
   closestCenter,
@@ -27,7 +29,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/ui/tabs"
 
 interface FaqItem {
   id: string
@@ -210,45 +212,54 @@ export function ProductFAQBlock({
           value: "content",
             label: "Content",
             content: (
-            <div className="space-y-6">
-              <BlockEditorSection heading="Header Settings">
-                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="product-faq-title">Header</Label>
-                      <Input
-                        id="product-faq-title"
-                        value={header}
-                        onChange={(e) => onHeaderChange?.(e.target.value)}
-                        placeholder="Product FAQ"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="product-faq-subtitle">Sub Header</Label>
-                      <Input
-                        id="product-faq-subtitle"
-                        value={subheader}
-                        onChange={(e) => onSubheaderChange?.(e.target.value)}
-                        placeholder="Get answers to common questions about this product..."
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="product-faq-align">Header Alignment</Label>
-                      <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                        <SelectTrigger id="product-faq-align" size="button">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="left">Left</SelectItem>
-                          <SelectItem value="center">Center</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+            <div className="grid">
+              <Card className="shadow-none">
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Header settings</DashboardModalCardTitle>
+                  <CardDescription>Set the FAQ heading and alignment.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                  <div className="space-y-2">
+                    <Label htmlFor="product-faq-title">Header</Label>
+                    <Input
+                      id="product-faq-title"
+                      value={header}
+                      onChange={(e) => onHeaderChange?.(e.target.value)}
+                      placeholder="Product FAQ"
+                    />
                   </div>
-              </BlockEditorSection>
 
-              <BlockEditorSection heading="FAQ Items">
+                  <div className="space-y-2">
+                    <Label htmlFor="product-faq-subtitle">Sub Header</Label>
+                    <Input
+                      id="product-faq-subtitle"
+                      value={subheader}
+                      onChange={(e) => onSubheaderChange?.(e.target.value)}
+                      placeholder="Get answers to common questions about this product..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="product-faq-align">Header Alignment</Label>
+                    <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                      <SelectTrigger id="product-faq-align" size="button">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="left">Left</SelectItem>
+                        <SelectItem value="center">Center</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-none">
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>FAQ items</DashboardModalCardTitle>
+                  <CardDescription>Add, edit, and reorder questions.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
                   {localFaqItems.length === 0 ? (
                     <BlockEditorEmptyState>
                       <p>No FAQ items yet. Click &quot;Add FAQ&quot; to create your first item.</p>
@@ -277,13 +288,14 @@ export function ProductFAQBlock({
                       </SortableContext>
                     </DndContext>
                   )}
-                  <div className="pt-2">
+                  <div className="pt-4">
                     <Button onClick={addNewFaqItem} variant="outline">
                       <Plus className="w-4 h-4 mr-1" />
                       Add FAQ
                     </Button>
                   </div>
-              </BlockEditorSection>
+                </CardContent>
+              </Card>
             </div>
           ),
         },
@@ -291,18 +303,19 @@ export function ProductFAQBlock({
           value: "settings",
           label: "Settings",
           content: (
-            <>
+            <div className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  useCard
                   fields={[
                     { key: 'header', label: 'Header' },
                     { key: 'subheader', label: 'Sub Header' },
                   ]}
                 />
               )}
-            </>
+            </div>
           ),
         },
       ]}

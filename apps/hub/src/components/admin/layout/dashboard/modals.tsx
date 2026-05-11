@@ -4,6 +4,7 @@ import * as React from "react"
 import { XIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { CardTitle } from "@/components/ui/card"
 import {
   DialogClose,
   DialogContent,
@@ -15,11 +16,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils/tailwind"
 
-type DashboardModalContentProps = Omit<React.ComponentProps<typeof DialogContent>, "children" | "showCloseButton" | "size"> & {
+type DashboardModalContentProps = Omit<React.ComponentProps<typeof DialogContent>, "children" | "showCloseButton" | "size" | "title"> & {
   title: React.ReactNode
   description?: React.ReactNode
   children: React.ReactNode
   footer?: React.ReactNode
+  titleAccessory?: React.ReactNode
+  footerClassName?: string
   bodyClassName?: string
   viewportClassName?: string
 }
@@ -29,6 +32,8 @@ function DashboardModalContent({
   description,
   children,
   footer,
+  titleAccessory,
+  footerClassName,
   className,
   bodyClassName,
   viewportClassName,
@@ -42,7 +47,10 @@ function DashboardModalContent({
       {...props}
     >
       <DashboardModalHeader>
-        <DashboardModalTitle>{title}</DashboardModalTitle>
+        <div className="flex min-w-0 items-center">
+          <DashboardModalTitle className="min-w-0">{title}</DashboardModalTitle>
+          {titleAccessory ? <div className="shrink-0">{titleAccessory}</div> : null}
+        </div>
         <DashboardModalCloseButton />
       </DashboardModalHeader>
 
@@ -53,7 +61,7 @@ function DashboardModalContent({
         {children}
       </DashboardModalScrollBody>
 
-      {footer ? <DashboardModalFooter>{footer}</DashboardModalFooter> : null}
+      {footer ? <DashboardModalFooter className={footerClassName}>{footer}</DashboardModalFooter> : null}
     </DialogContent>
   )
 }
@@ -71,6 +79,10 @@ function DashboardModalDescription({
   ...props
 }: React.ComponentProps<typeof DialogDescription>) {
   return <DialogDescription className={cn("text-sm", className)} {...props} />
+}
+
+function DashboardModalCardTitle({ className, ...props }: React.ComponentProps<typeof CardTitle>) {
+  return <CardTitle className={cn("text-base", className)} {...props} />
 }
 
 function DashboardModalCloseButton() {
@@ -100,7 +112,7 @@ function DashboardModalScrollBody({
 }) {
   return (
     <ScrollArea className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)} {...props}>
-      <div className={cn("p-6", viewportClassName)}>
+      <div className={cn("p-6 [&_[data-slot=card]]:shadow-none", viewportClassName)}>
         {children}
       </div>
     </ScrollArea>
@@ -113,6 +125,7 @@ function DashboardModalFooter({ className, ...props }: React.ComponentProps<type
 
 export {
   DashboardModalCloseButton,
+  DashboardModalCardTitle,
   DashboardModalContent,
   DashboardModalDescription,
   DashboardModalFooter,

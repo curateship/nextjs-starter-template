@@ -5,8 +5,10 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2, GripVertical, ImageIcon, Play } from "lucide-react"
 import { useState } from "react"
 import {
@@ -28,7 +30,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/ui/tabs"
 
 // Helper function to detect media type from URL
 const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {
@@ -257,46 +259,54 @@ export function ProductFeaturesBlock({
             value: "content",
             label: "Content",
             content: (
-              <div className="space-y-6">
-                <BlockEditorSection heading="Header Settings">
-                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="features-title">Header</Label>
-                        <Input
-                          id="features-title"
-                          value={header}
-                          onChange={(e) => onHeaderChange(e.target.value)}
-                          placeholder="Features"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="features-subtitle">Sub Header</Label>
-                        <Input
-                          id="features-subtitle"
-                          value={subheader}
-                          onChange={(e) => onSubheaderChange(e.target.value)}
-                          placeholder="Discover what makes our product special"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="features-align">Header Alignment</Label>
-                        <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                          <SelectTrigger id="features-align" size="button">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="left">Left</SelectItem>
-                            <SelectItem value="center">Center</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              <div className="grid">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Header settings</DashboardModalCardTitle>
+                    <CardDescription>Set the features heading and alignment.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 p-4 pt-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                    <div className="space-y-2">
+                      <Label htmlFor="features-title">Header</Label>
+                      <Input
+                        id="features-title"
+                        value={header}
+                        onChange={(e) => onHeaderChange(e.target.value)}
+                        placeholder="Features"
+                      />
                     </div>
-                </BlockEditorSection>
 
-                <section className="space-y-4">
-                  <h3 className="pt-0! text-base font-medium">Features</h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="features-subtitle">Sub Header</Label>
+                      <Input
+                        id="features-subtitle"
+                        value={subheader}
+                        onChange={(e) => onSubheaderChange(e.target.value)}
+                        placeholder="Discover what makes our product special"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="features-align">Header Alignment</Label>
+                      <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                        <SelectTrigger id="features-align" size="button">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Features</DashboardModalCardTitle>
+                    <CardDescription>Add, edit, and reorder product features.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -336,7 +346,8 @@ export function ProductFeaturesBlock({
                       <Plus className="w-4 h-4 mr-1" />
                       Add Feature
                     </Button>
-                </section>
+                  </CardContent>
+                </Card>
               </div>
             ),
           },
@@ -344,18 +355,19 @@ export function ProductFeaturesBlock({
             value: "settings",
             label: "Settings",
             content: (
-              <>
+              <div className="grid">
                 {onVisibilityChange && (
                   <VisibilitySettings
                     visibility={visibility}
                     onChange={onVisibilityChange}
+                    useCard
                     fields={[
                       { key: 'header', label: 'Header' },
                       { key: 'subheader', label: 'Sub Header' },
                     ]}
                   />
                 )}
-              </>
+              </div>
             ),
           },
         ]}

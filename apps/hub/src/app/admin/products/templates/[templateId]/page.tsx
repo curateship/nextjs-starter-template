@@ -11,13 +11,7 @@ import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import {
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalScrollBody,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { PRODUCT_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/product-builder/config/product-block-types"
 import {
   parseProductBlocksFromJson,
@@ -421,15 +415,27 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
             }}
           >
             <ModalTabsProvider>
-              <AdminModalContent size="wide">
-                <AdminModalHeader>
-                  <div className="flex min-w-0 items-center gap-4 pr-10">
-                    <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
-                    <ModalTabs />
-                  </div>
-                </AdminModalHeader>
-
-                <AdminModalScrollBody>
+              <DashboardModalContent
+                title={`Edit ${selectedBlock.title}`}
+                titleAccessory={<ModalTabs />}
+                className="max-w-[960px]"
+                footerClassName={blockSaveError ? "sm:justify-between" : "sm:justify-end"}
+                footer={(
+                  <>
+                    {blockSaveError ? (
+                      <div className="text-sm text-red-600">{blockSaveError}</div>
+                    ) : null}
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                        Cancel
+                      </Button>
+                      <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                        {isSavingBlock ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              >
                   {selectedBlock.type === "product-hero" && (
                     <ProductHeroBlock
                       content={draftContent}
@@ -590,21 +596,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                     />
                   )}
 
-                </AdminModalScrollBody>
-
-                {blockSaveError && (
-                  <div className="px-6 pt-3 text-sm text-red-600">{blockSaveError}</div>
-                )}
-
-                <AdminModalFooter className="sm:justify-end">
-                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                    Cancel
-                  </Button>
-                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                    {isSavingBlock ? "Saving..." : "Save"}
-                  </Button>
-                </AdminModalFooter>
-              </AdminModalContent>
+              </DashboardModalContent>
             </ModalTabsProvider>
           </Dialog>
         )}

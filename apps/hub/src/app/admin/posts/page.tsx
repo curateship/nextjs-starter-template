@@ -3,12 +3,6 @@
 import dynamic from "next/dynamic"
 import { BookOpen } from "lucide-react"
 
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
 import {
   deletePostAction,
@@ -59,15 +53,7 @@ export default function PostsPage() {
       pathPrefix="posts"
       previewPublishedOnly
       renderCreateModal={({ onCancel, onSuccess }) => (
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create New Post</AdminModalTitle>
-            <AdminModalDescription>
-              Add a new post to your blog. You can customize the content after creation.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <CreatePostModal onSuccess={onSuccess} onCancel={onCancel} />
-        </AdminModalContent>
+        <CreatePostModal onSuccess={onSuccess} onCancel={onCancel} />
       )}
       renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
         <PostSettingsModal

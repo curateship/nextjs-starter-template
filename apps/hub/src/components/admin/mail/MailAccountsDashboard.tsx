@@ -19,13 +19,13 @@ import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import {
   Dialog,
   DialogClose,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import {
   Drawer,
   DrawerContent,
@@ -299,7 +299,7 @@ function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promi
   return (
     <Card>
       <CardHeader className="p-4 pb-3">
-        <CardTitle className="text-sm">MXroute credentials</CardTitle>
+        <DashboardModalCardTitle>MXroute credentials</DashboardModalCardTitle>
         <CardDescription className="text-xs">Credentials are encrypted before storage.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 p-4 pt-0">
@@ -358,7 +358,7 @@ function CreateMailboxForm({
   return (
     <Card>
       <CardHeader className="p-4 pb-3">
-        <CardTitle className="text-sm">Create mailbox</CardTitle>
+        <DashboardModalCardTitle>Create mailbox</DashboardModalCardTitle>
         <CardDescription className="text-xs">Password is stored encrypted for provider-backed management.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 p-4 pt-0">
@@ -463,7 +463,7 @@ function SettingsModal({
 
           <Card>
             <CardHeader className="p-4 pb-3">
-              <CardTitle className="text-sm">Mail domain setup</CardTitle>
+              <DashboardModalCardTitle>Mail domain setup</DashboardModalCardTitle>
               <CardDescription className="text-xs">After the MXroute verification TXT record passes, add the custom domain to MXroute.</CardDescription>
             </CardHeader>
             <CardContent className="p-4 pt-0">
@@ -475,7 +475,7 @@ function SettingsModal({
 
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
-              <CardTitle className="text-sm">DNS</CardTitle>
+              <DashboardModalCardTitle>DNS</DashboardModalCardTitle>
               <Button variant="outline" size="sm" onClick={onRefresh}>Refresh DNS</Button>
             </CardHeader>
             <CardContent className="p-4 pt-0">
@@ -502,7 +502,7 @@ function SettingsModal({
 
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
-              <CardTitle className="text-sm">Mailboxes</CardTitle>
+              <DashboardModalCardTitle>Mailboxes</DashboardModalCardTitle>
               {data?.webmailUrl ? (
                 <Button asChild variant="outline" size="sm">
                   <a href={data.webmailUrl} target="_blank" rel="noreferrer">Open webmail</a>
