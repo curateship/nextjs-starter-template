@@ -16,6 +16,7 @@ import {
   AdminListSkeleton,
   AdminSelectionBanner,
   AdminSortButton,
+  formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -322,15 +323,6 @@ export default function ContactsPage() {
       default:
         return <Badge variant="outline">{source}</Badge>
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
   }
 
   /* Format a date as relative time (e.g. "3d ago", "2h ago") */

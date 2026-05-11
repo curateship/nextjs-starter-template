@@ -32,8 +32,7 @@ import {
   AdminModalHeader,
   AdminModalTitle
 } from "@/components/admin/layout/builder/AdminModalLayout"
-import { Trash2, Settings, Zap, Mail, Plus, List, Play, Pause, FileEdit, ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import { Trash2, Settings, Zap, Mail, Plus, List, Play, Pause, FileEdit } from "lucide-react"
 import {
   getAutomationsBySite,
   createAutomation,
@@ -46,7 +45,6 @@ import {
   AUTOMATION_TRIGGER_SHORT_LABELS,
   getAutomationTriggerNodes
 } from "@/lib/actions/newsletters/automation-triggers"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 type AutomationSortColumn = "name" | "trigger" | "status" | "steps" | "enrolled"
 
@@ -213,15 +211,13 @@ export default function EmailAutomationsPage() {
       icon: FileEdit,
       count: statusCounts.draft
     }
-  ] as const
+  ]
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value)
     automationSelection.clearSelection()
     setCurrentPage(1)
   }
-
-  const activeFilter = filterOptions.find((option) => option.value === filterStatus) ?? filterOptions[0]
 
   const getStatusBadge = (status: string) => {
     if (status === "active") return <Badge className="bg-green-100 text-green-800">Active</Badge>
@@ -248,30 +244,11 @@ export default function EmailAutomationsPage() {
               onValueChange: setSearchQuery,
               placeholder: "Search automations"
             }}
-            preActions={
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" aria-label="Filter automations">
-                    <activeFilter.icon className="h-4 w-4 text-muted-foreground" />
-                    <span>{activeFilter.label}</span>
-                    <ChevronDown className="h-4 w-4 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-40 space-y-1">
-                  {filterOptions.map((option) => (
-                    <DropdownMenuItem
-                      key={option.value}
-                      onSelect={() => handleFilterChange(option.value)}
-                      className={cn(option.value === filterStatus && "bg-accent text-accent-foreground")}
-                    >
-                      <option.icon className="h-4 w-4 text-muted-foreground" />
-                      <span>{option.label}</span>
-                      <span className="ml-auto text-muted-foreground">{option.count}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            }
+            filterMenu={{
+              value: filterStatus,
+              onValueChange: handleFilterChange,
+              items: filterOptions
+            }}
             actions={
               <>
                 <AdminBulkDeleteButton

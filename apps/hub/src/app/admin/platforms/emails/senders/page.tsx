@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { AdminListSkeleton } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardTableHeader } from "@/components/ui/card"
@@ -110,14 +111,7 @@ export default function PlatformSenderEmailsPage() {
 
             <div className="divide-y">
               {loading && (
-                <div className="px-6 py-4">
-                  <div className="grid grid-cols-12 gap-4 items-center">
-                    <div className="col-span-6 h-4 w-56 animate-pulse rounded bg-muted" />
-                    <div className="col-span-2 h-4 w-24 animate-pulse rounded bg-muted" />
-                    <div className="col-span-2 h-4 w-20 animate-pulse rounded bg-muted" />
-                    <div className="col-span-2 justify-self-end h-9 w-24 animate-pulse rounded bg-muted" />
-                  </div>
-                </div>
+                <AdminListSkeleton columns={12} firstColumnSpan={6} rowCount={1} showCheckbox={false} showThumbnail={false} />
               )}
 
               {!loading && filteredSenders.length === 0 && (

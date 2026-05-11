@@ -4,19 +4,9 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
+import { AdminConfirmDialog } from "@/components/admin/layout/list"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from "@/components/ui/alert-dialog"
 import { deleteUser, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 import { Plus, List, Shield, Pencil, Trash2, User, UserX } from "lucide-react"
 import Link from "next/link"
@@ -199,45 +189,17 @@ export default function UsersPage() {
                       {user.id === currentUserId ? (
                         <span className="text-sm text-muted-foreground">Current account</span>
                       ) : (
-                        <AlertDialog
-                          open={pendingDeleteUser?.id === user.id}
-                          onOpenChange={(open) => setPendingDeleteUser(open ? user : null)}
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={deletingUserId === user.id}
+                          onClick={() => setPendingDeleteUser(user)}
+                          aria-label={`Delete ${user.display_name || user.email}`}
+                          title={`Delete ${user.display_name || user.email}`}
                         >
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              disabled={deletingUserId === user.id}
-                              aria-label={`Delete ${user.display_name || user.email}`}
-                              title={`Delete ${user.display_name || user.email}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete user?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Delete {user.display_name || user.email}. This also removes their auth records and any
-                                sites or media they own through cascading deletes. This cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel disabled={deletingUserId === user.id}>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={(event) => {
-                                  event.preventDefault()
-                                  void handleDeleteUser()
-                                }}
-                                disabled={deletingUserId === user.id}
-                                className="bg-destructive text-white hover:bg-destructive/90"
-                              >
-                                {deletingUserId === user.id ? "Deleting..." : "Delete"}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -245,6 +207,20 @@ export default function UsersPage() {
               )}
             </div>
           </Card>
+
+          <AdminConfirmDialog
+            open={Boolean(pendingDeleteUser)}
+            onCancel={() => setPendingDeleteUser(null)}
+            onConfirm={() => void handleDeleteUser()}
+            disabled={Boolean(pendingDeleteUser && deletingUserId === pendingDeleteUser.id)}
+            title="Delete user?"
+            description={
+              pendingDeleteUser
+                ? `Delete ${pendingDeleteUser.display_name || pendingDeleteUser.email}. This also removes their auth records and any sites or media they own through cascading deletes. This cannot be undone.`
+                : ""
+            }
+            confirmLabel={pendingDeleteUser && deletingUserId === pendingDeleteUser.id ? "Deleting..." : "Delete"}
+          />
         </div>
       </AdminLayout>
     </>

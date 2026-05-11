@@ -14,7 +14,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminListSkeleton } from "@/components/admin/layout/list"
+import { AdminListSkeleton, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardTableHeader } from "@/components/ui/card"
@@ -29,16 +29,6 @@ const CLAIM_FILTERS = [
   { value: "rejected", label: "Rejected", icon: XCircle },
   { value: "revoked", label: "Revoked", icon: Ban }
 ]
-
-function formatDate(value: string) {
-  return value
-    ? new Date(value).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      })
-    : "-"
-}
 
 function statusBadge(status: DirectoryClaimStatus) {
   switch (status) {
@@ -156,7 +146,7 @@ export default function DirectoryClaimsPage() {
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <AdminListSkeleton columns={6} firstColumnSpan={2} showThumbnail={false} />
+                <AdminListSkeleton columns={6} firstColumnSpan={2} showCheckbox={false} showThumbnail={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="mb-4 text-red-600">{error}</p>

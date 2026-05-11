@@ -9,29 +9,19 @@ import { Card, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog"
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListSkeleton,
+  AdminSortButton,
+  formatRelativeDate as formatDate,
+  useAdminBulkSelection,
+  useAdminSort
+} from "@/components/admin/layout/list"
 import { cn } from "@/lib/utils/tailwind"
 import { deleteMediaItemsAction, scanUnusedMediaAction } from "@/lib/actions/media/media-actions"
 import type { MediaData } from "@/lib/actions/media/media-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
-  ImageOff,
-  Image as ImageIcon,
-  RefreshCw,
-  Trash2,
-  VideoIcon
-} from "lucide-react"
+import { ImageOff, Image as ImageIcon, RefreshCw, Trash2, VideoIcon } from "lucide-react"
 import { toast } from "sonner"
 
 type SortColumn = "name" | "type" | "size" | "added"
@@ -41,25 +31,25 @@ export default function UnusedMediaPage() {
   const currentSiteId = currentSite?.id
   const [mediaItems, setMediaItems] = useState<MediaData[] | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isScanning, setIsScanning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [scannedAt, setScannedAt] = useState<string | null>(null)
-  const [sortColumn, setSortColumn] = useState<SortColumn | null>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const mediaSelection = useAdminBulkSelection()
+  const clearMediaSelection = mediaSelection.clearSelection
+  const mediaSort = useAdminSort<SortColumn>()
 
   useEffect(() => {
     setMediaItems(null)
-    setSelectedIds(new Set())
+    clearMediaSelection()
     setScannedAt(null)
-  }, [currentSiteId])
+  }, [currentSiteId, clearMediaSelection])
 
   async function handleScan() {
     if (!currentSiteId) return
 
     setIsScanning(true)
-    setSelectedIds(new Set())
+    clearMediaSelection()
     try {
       const { data, error } = await scanUnusedMediaAction(currentSiteId)
       if (error) {
@@ -89,11 +79,7 @@ export default function UnusedMediaPage() {
       }
 
       setMediaItems((prev) => prev?.filter((item) => !ids.includes(item.id)) ?? null)
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
+      ids.forEach((id) => mediaSelection.remove(id))
       toast.success(`Deleted ${deletedCount} ${deletedCount === 1 ? "item" : "items"}`)
     } catch {
       toast.error("Delete failed")
@@ -121,78 +107,17 @@ export default function UnusedMediaPage() {
 
   const sortedMedia = useMemo(() => {
     return [...filteredMedia].sort((a, b) => {
-      if (!sortColumn) return 0
-      const dir = sortDirection === "asc" ? 1 : -1
-      if (sortColumn === "name") return a.original_name.localeCompare(b.original_name) * dir
-      if (sortColumn === "type") return a.file_type.localeCompare(b.file_type) * dir
-      if (sortColumn === "size") return (a.file_size - b.file_size) * dir
-      if (sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+      if (!mediaSort.sortColumn) return 0
+      const dir = mediaSort.sortDirection === "asc" ? 1 : -1
+      if (mediaSort.sortColumn === "name") return a.original_name.localeCompare(b.original_name) * dir
+      if (mediaSort.sortColumn === "type") return a.file_type.localeCompare(b.file_type) * dir
+      if (mediaSort.sortColumn === "size") return (a.file_size - b.file_size) * dir
+      if (mediaSort.sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
       return 0
     })
-  }, [filteredMedia, sortColumn, sortDirection])
+  }, [filteredMedia, mediaSort.sortColumn, mediaSort.sortDirection])
 
-  const allFilteredSelected = sortedMedia.length > 0 && sortedMedia.every((item) => selectedIds.has(item.id))
-
-  function handleToggleSelectAll() {
-    if (allFilteredSelected) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        sortedMedia.forEach((item) => next.delete(item.id))
-        return next
-      })
-      return
-    }
-
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      sortedMedia.forEach((item) => next.add(item.id))
-      return next
-    })
-  }
-
-  function handleToggleSelection(mediaId: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(mediaId)) {
-        next.delete(mediaId)
-      } else {
-        next.add(mediaId)
-      }
-      return next
-    })
-  }
-
-  function toggleSort(column: SortColumn) {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-      return
-    }
-
-    setSortColumn(column)
-    setSortDirection("asc")
-  }
-
-  function getSortIcon(column: SortColumn) {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
-  function formatDate(dateString: string) {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    if (diffDays === 1) return "1 day ago"
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
+  const sortedMediaIds = sortedMedia.map((media) => media.id)
 
   function formatFileSize(bytes: number) {
     if (bytes === 0) return "0 Bytes"
@@ -215,12 +140,11 @@ export default function UnusedMediaPage() {
               placeholder: "Search unused media"
             }}
             preActions={
-              selectedIds.size > 0 ? (
-                <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)} disabled={isDeleting}>
-                  <Trash2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">{isDeleting ? "Deleting..." : `Delete ${selectedIds.size}`}</span>
-                </Button>
-              ) : undefined
+              <AdminBulkDeleteButton
+                deleting={isDeleting}
+                onClick={() => setDeleteConfirmOpen(true)}
+                selectedCount={mediaSelection.selectedCount}
+              />
             }
             actions={
               <Button onClick={handleScan} disabled={siteLoading || !currentSiteId || isScanning}>
@@ -234,68 +158,45 @@ export default function UnusedMediaPage() {
             <CardTableHeader className="grid-cols-6">
               <div className="col-span-2 flex items-center space-x-4">
                 <Checkbox
-                  checked={allFilteredSelected}
-                  onCheckedChange={handleToggleSelectAll}
+                  checked={mediaSelection.isPageSelected(sortedMediaIds)}
+                  onCheckedChange={() => mediaSelection.togglePage(sortedMediaIds)}
                   aria-label="Select all unused media"
                 />
-                <button
-                  type="button"
-                  onClick={() => toggleSort("name")}
-                  className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+                <AdminSortButton
+                  active={mediaSort.sortColumn === "name"}
+                  direction={mediaSort.sortDirection}
+                  onClick={() => mediaSort.toggleSort("name")}
                 >
-                  <span>File</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
-                </button>
+                  File
+                </AdminSortButton>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleSort("type")}
-                className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+              <AdminSortButton
+                active={mediaSort.sortColumn === "type"}
+                direction={mediaSort.sortDirection}
+                onClick={() => mediaSort.toggleSort("type")}
               >
-                <span>Type</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("type")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("size")}
-                className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+                Type
+              </AdminSortButton>
+              <AdminSortButton
+                active={mediaSort.sortColumn === "size"}
+                direction={mediaSort.sortDirection}
+                onClick={() => mediaSort.toggleSort("size")}
               >
-                <span>Size</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("size")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("added")}
-                className="flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground outline-none"
+                Size
+              </AdminSortButton>
+              <AdminSortButton
+                active={mediaSort.sortColumn === "added"}
+                direction={mediaSort.sortDirection}
+                onClick={() => mediaSort.toggleSort("added")}
               >
-                <span>Added</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
-              </button>
+                Added
+              </AdminSortButton>
               <div>Actions</div>
             </CardTableHeader>
 
             <div className="divide-y divide-muted/80">
               {isScanning ? (
-                <div className="space-y-0">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2 flex items-center space-x-4">
-                          <div className="h-4 w-4 rounded bg-muted animate-pulse" />
-                          <div className="h-12 w-12 rounded bg-muted animate-pulse" />
-                          <div>
-                            <div className="mb-2 h-4 w-32 rounded bg-muted animate-pulse" />
-                            <div className="h-3 w-24 rounded bg-muted/60 animate-pulse" />
-                          </div>
-                        </div>
-                        <div className="h-4 w-12 rounded bg-muted animate-pulse" />
-                        <div className="h-4 w-14 rounded bg-muted animate-pulse" />
-                        <div className="h-4 w-16 rounded bg-muted animate-pulse" />
-                        <div className="h-8 w-20 rounded bg-muted animate-pulse" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton rowCount={6} />
               ) : mediaItems === null ? (
                 <div className="p-8 text-center">
                   <ImageOff className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
@@ -321,7 +222,7 @@ export default function UnusedMediaPage() {
                 </div>
               ) : (
                 sortedMedia.map((media) => {
-                  const isSelected = selectedIds.has(media.id)
+                  const isSelected = mediaSelection.selectedIds.has(media.id)
                   return (
                     <div key={media.id} className={cn("p-6 transition-colors", isSelected && "bg-accent/50")}>
                       <div className="grid grid-cols-6 gap-4 items-center">
@@ -329,7 +230,7 @@ export default function UnusedMediaPage() {
                           <div className="flex items-center space-x-4">
                             <Checkbox
                               checked={isSelected}
-                              onCheckedChange={() => handleToggleSelection(media.id)}
+                              onCheckedChange={() => mediaSelection.toggleOne(media.id)}
                               aria-label={`Select ${media.original_name}`}
                             />
                             <div className="relative ml-2 flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted">
@@ -393,31 +294,15 @@ export default function UnusedMediaPage() {
             </div>
           </Card>
 
-          <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Delete {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"}?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes the selected unused media from the library. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                  disabled={isDeleting}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    handleDelete(Array.from(selectedIds))
-                  }}
-                >
-                  {isDeleting ? "Deleting..." : "Delete"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <AdminConfirmDialog
+            open={deleteConfirmOpen}
+            title={`Delete ${mediaSelection.selectedCount} ${mediaSelection.selectedCount === 1 ? "item" : "items"}?`}
+            description="This removes the selected unused media from the library. This action cannot be undone."
+            disabled={isDeleting}
+            confirmLabel={isDeleting ? "Deleting..." : "Delete"}
+            onCancel={() => setDeleteConfirmOpen(false)}
+            onConfirm={() => handleDelete(Array.from(mediaSelection.selectedIds))}
+          />
         </div>
       </AdminLayout>
     </>

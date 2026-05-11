@@ -11,6 +11,7 @@ import {
   AdminConfirmDialog,
   AdminListSkeleton,
   AdminSortButton,
+  formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -30,14 +31,6 @@ import { CheckCircle2, CircleOff, ExternalLink, Handshake, List, Pencil, Plus, T
 
 type SponsorFilter = "all" | "active" | "inactive"
 type SortColumn = "title" | "status" | "url" | "modified"
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  }).format(new Date(value))
-}
 
 export default function SponsorsPage() {
   const { currentSite } = useSiteSwitcher()

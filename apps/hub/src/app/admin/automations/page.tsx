@@ -18,15 +18,13 @@ import {
   Globe,
   MousePointer,
   Workflow,
-  ArrowUp,
-  ArrowDown,
-  ChevronsUpDown,
   Plus
 } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import { AdminSortButton, useAdminSort } from "@/components/admin/layout/list"
 
 type WorkflowTrigger = "manual" | "schedule" | "webhook" | "event"
 type WorkflowStatus = "active" | "paused" | "draft"
+type WorkflowSortColumn = "name" | "trigger" | "status" | "lastRun"
 
 interface MockWorkflow {
   id: string
@@ -122,8 +120,7 @@ function getStatusBadge(status: WorkflowStatus) {
 export default function AutomationsPage() {
   const [filterStatus, setFilterStatus] = useState<"all" | WorkflowStatus>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortColumn, setSortColumn] = useState<"name" | "trigger" | "status" | "lastRun" | null>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const workflowSort = useAdminSort<WorkflowSortColumn>()
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredWorkflows = mockWorkflows.filter((w) => {
@@ -134,33 +131,13 @@ export default function AutomationsPage() {
     return statusMatch && searchMatch
   })
 
-  const toggleSort = (column: "name" | "trigger" | "status" | "lastRun") => {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection("asc")
-    }
-  }
-
-  const getSortIcon = (column: "name" | "trigger" | "status" | "lastRun") => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedWorkflows = [...filteredWorkflows].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === "asc" ? 1 : -1
-    if (sortColumn === "name") return a.name.localeCompare(b.name) * dir
-    if (sortColumn === "trigger") return a.trigger.localeCompare(b.trigger) * dir
-    if (sortColumn === "status") return a.status.localeCompare(b.status) * dir
-    if (sortColumn === "lastRun") {
+    if (!workflowSort.sortColumn) return 0
+    const dir = workflowSort.sortDirection === "asc" ? 1 : -1
+    if (workflowSort.sortColumn === "name") return a.name.localeCompare(b.name) * dir
+    if (workflowSort.sortColumn === "trigger") return a.trigger.localeCompare(b.trigger) * dir
+    if (workflowSort.sortColumn === "status") return a.status.localeCompare(b.status) * dir
+    if (workflowSort.sortColumn === "lastRun") {
       if (!a.lastRun && !b.lastRun) return 0
       if (!a.lastRun) return 1
       if (!b.lastRun) return -1
@@ -219,55 +196,35 @@ export default function AutomationsPage() {
             {/* Table Header */}
             <CardTableHeader className="grid-cols-6">
               <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("name")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={workflowSort.sortColumn === "name"}
+                  direction={workflowSort.sortDirection}
+                  onClick={() => workflowSort.toggleSort("name")}
                 >
-                  <span>Workflow</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
-                </button>
+                  Workflow
+                </AdminSortButton>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleSort("trigger")}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
+              <AdminSortButton
+                active={workflowSort.sortColumn === "trigger"}
+                direction={workflowSort.sortDirection}
+                onClick={() => workflowSort.toggleSort("trigger")}
               >
-                <span>Trigger</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("trigger")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("status")}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
+                Trigger
+              </AdminSortButton>
+              <AdminSortButton
+                active={workflowSort.sortColumn === "status"}
+                direction={workflowSort.sortDirection}
+                onClick={() => workflowSort.toggleSort("status")}
               >
-                <span>Status</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("lastRun")}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
+                Status
+              </AdminSortButton>
+              <AdminSortButton
+                active={workflowSort.sortColumn === "lastRun"}
+                direction={workflowSort.sortDirection}
+                onClick={() => workflowSort.toggleSort("lastRun")}
               >
-                <span>Last Run</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("lastRun")}</span>
-              </button>
+                Last Run
+              </AdminSortButton>
               <div>Actions</div>
             </CardTableHeader>
 

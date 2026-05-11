@@ -2,27 +2,27 @@
 
 import { Suspense, useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2, ShoppingCart, List, Magnet, CreditCard } from "lucide-react"
+import { Trash2, ShoppingCart, List, Magnet, CreditCard } from "lucide-react"
 
-import { cn } from "@/lib/utils/tailwind"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog"
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatShortDate as formatDate,
+  useAdminBulkSelection,
+  useAdminSort
+} from "@/components/admin/layout/list"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
@@ -38,14 +38,7 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
   currency: "USD"
 })
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric"
-})
-
 const formatCurrency = (value: number) => currencyFormatter.format(value)
-const formatDate = (value: string) => dateFormatter.format(new Date(value))
 
 type OrderBadgeType = "lead_magnet" | "paid_purchase"
 
@@ -65,7 +58,7 @@ const emailStatusStyles = {
   pending: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10"
 }
 
-type SortColumn = "created_at" | "customer_email" | "product" | "amount" | null
+type OrderSortColumn = "created_at" | "customer_email" | "product" | "amount"
 
 export default function OrdersPage() {
   return (
@@ -85,9 +78,9 @@ function OrdersContent() {
   const [deleting, setDeleting] = useState(false)
   const [deleteIds, setDeleteIds] = useState<string[]>([])
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
+  const orderSelection = useAdminBulkSelection()
+  const clearOrderSelection = orderSelection.clearSelection
+  const orderSort = useAdminSort<OrderSortColumn>("created_at", "desc")
 
   const typeParam = searchParams.get("type") as OrderType | null
   const [activeTab, setActiveTab] = useState<"all" | OrderType>(
@@ -101,8 +94,6 @@ function OrdersContent() {
   const [total, setTotal] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
-  const [sortColumn, setSortColumn] = useState<SortColumn>("created_at")
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
 
   useEffect(() => {
     if (!currentSite?.id) return
@@ -138,8 +129,7 @@ function OrdersContent() {
     try {
       await deleteOrders(deleteIds)
       setOrders((prev) => prev.filter((o) => !deleteIds.includes(o.id)))
-      setSelectedIds(new Set())
-      setAllSelected(false)
+      clearOrderSelection()
     } catch (error) {
       console.error("Error deleting orders:", error)
     } finally {
@@ -147,7 +137,7 @@ function OrdersContent() {
       setShowDeleteDialog(false)
       setDeleteIds([])
     }
-  }, [deleteIds])
+  }, [clearOrderSelection, deleteIds])
 
   const filteredOrders = useMemo(() => {
     let result = orders
@@ -181,84 +171,37 @@ function OrdersContent() {
     [orders, total]
   )
 
-  const toggleSort = (column: SortColumn) => {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection("asc")
-    }
-  }
-
-  const getSortIcon = (column: SortColumn) => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedOrders = useMemo(() => {
-    if (!sortColumn) return filteredOrders
+    if (!orderSort.sortColumn) return filteredOrders
     return [...filteredOrders].sort((a, b) => {
-      const dir = sortDirection === "asc" ? 1 : -1
-      if (sortColumn === "created_at") {
+      const dir = orderSort.sortDirection === "asc" ? 1 : -1
+      if (orderSort.sortColumn === "created_at") {
         return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
       }
-      if (sortColumn === "customer_email") {
+      if (orderSort.sortColumn === "customer_email") {
         return a.customer_email.localeCompare(b.customer_email) * dir
       }
-      if (sortColumn === "product") {
+      if (orderSort.sortColumn === "product") {
         const nameA = productMap[a.product_id] || ""
         const nameB = productMap[b.product_id] || ""
         return nameA.localeCompare(nameB) * dir
       }
-      if (sortColumn === "amount") {
+      if (orderSort.sortColumn === "amount") {
         return ((a.amount_total || 0) - (b.amount_total || 0)) * dir
       }
       return 0
     })
-  }, [filteredOrders, sortColumn, sortDirection, productMap])
+  }, [filteredOrders, orderSort.sortColumn, orderSort.sortDirection, productMap])
 
-  const toggleSelectOrder = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-        setAllSelected(false)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === filteredOrders.length) {
-      setSelectedIds(new Set())
-      setAllSelected(false)
-    } else {
-      setSelectedIds(new Set(filteredOrders.map((o) => o.id)))
-    }
-  }
+  const filteredOrderIds = filteredOrders.map((order) => order.id)
 
   // Select all items across all pages (lightweight ID-only fetch)
   const handleSelectAll = async () => {
     if (!currentSite?.id || total === 0) return
     const { ids } = await getOrderIdsAction(currentSite.id)
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      orderSelection.selectAll(ids)
     }
-  }
-
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
   }
 
   const getEmailStatusBadge = (order: ProductOrder) => {
@@ -283,8 +226,6 @@ function OrdersContent() {
     )
   }
 
-  const totalPages = Math.ceil(total / pageSize)
-
   return (
     <>
       <StickyHeader />
@@ -303,8 +244,7 @@ function OrdersContent() {
               onValueChange: (v) => {
                 setActiveTab(v as "all" | OrderType)
                 setCurrentPage(1)
-                setSelectedIds(new Set())
-                setAllSelected(false)
+                clearOrderSelection()
               },
               items: [
                 {
@@ -337,8 +277,7 @@ function OrdersContent() {
                   onValueChange={(v) => {
                     setSelectedProduct(v)
                     setCurrentPage(1)
-                    setSelectedIds(new Set())
-                    setAllSelected(false)
+                    clearOrderSelection()
                   }}
                 >
                   <SelectTrigger className="w-[180px]">
@@ -356,27 +295,11 @@ function OrdersContent() {
               ) : undefined
             }
             actions={
-              <>
-                {selectedIds.size > 0 && (
-                  <Button
-                    variant="destructive"
-                    disabled={deleting}
-                    onClick={() => promptDelete(Array.from(selectedIds))}
-                  >
-                    {deleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        <span className="hidden sm:inline">Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
-                      </>
-                    )}
-                  </Button>
-                )}
-              </>
+              <AdminBulkDeleteButton
+                deleting={deleting}
+                onClick={() => promptDelete(Array.from(orderSelection.selectedIds))}
+                selectedCount={orderSelection.selectedCount}
+              />
             }
           />
 
@@ -385,52 +308,35 @@ function OrdersContent() {
             <CardTableHeader className="grid-cols-12">
               <div className="col-span-2 flex items-center space-x-4">
                 <Checkbox
-                  checked={filteredOrders.length > 0 && selectedIds.size === filteredOrders.length}
-                  onCheckedChange={toggleSelectAll}
+                  checked={orderSelection.isPageSelected(filteredOrderIds)}
+                  onCheckedChange={() => orderSelection.togglePage(filteredOrderIds)}
                   aria-label="Select all orders"
                 />
-                <button
-                  type="button"
-                  onClick={() => toggleSort("customer_email")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={orderSort.sortColumn === "customer_email"}
+                  direction={orderSort.sortDirection}
+                  onClick={() => orderSort.toggleSort("customer_email")}
                 >
-                  <span>Customer</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">
-                    {getSortIcon("customer_email")}
-                  </span>
-                </button>
+                  Customer
+                </AdminSortButton>
               </div>
               <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("created_at")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={orderSort.sortColumn === "created_at"}
+                  direction={orderSort.sortDirection}
+                  onClick={() => orderSort.toggleSort("created_at")}
                 >
-                  <span>Date</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("created_at")}</span>
-                </button>
+                  Date
+                </AdminSortButton>
               </div>
               <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("product")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={orderSort.sortColumn === "product"}
+                  direction={orderSort.sortDirection}
+                  onClick={() => orderSort.toggleSort("product")}
                 >
-                  <span>Product</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("product")}</span>
-                </button>
+                  Product
+                </AdminSortButton>
               </div>
               <div className="col-span-1">
                 <span className="text-[0.8125rem]">Type</span>
@@ -439,18 +345,13 @@ function OrdersContent() {
                 <span className="text-[0.8125rem]">Email Status</span>
               </div>
               <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("amount")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={orderSort.sortColumn === "amount"}
+                  direction={orderSort.sortDirection}
+                  onClick={() => orderSort.toggleSort("amount")}
                 >
-                  <span>Amount</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("amount")}</span>
-                </button>
+                  Amount
+                </AdminSortButton>
               </div>
               <div className="col-span-1">
                 <span className="text-[0.8125rem]">Actions</span>
@@ -458,67 +359,19 @@ function OrdersContent() {
             </CardTableHeader>
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {filteredOrders.length > 0 &&
-              selectedIds.size === filteredOrders.length &&
-              total > filteredOrders.length && (
-                <CardSection className="bg-accent/50 border-b text-sm text-center">
-                  {allSelected ? (
-                    <span>
-                      All {total} items selected.{" "}
-                      <button
-                        type="button"
-                        onClick={handleClearSelection}
-                        className="underline hover:text-foreground text-muted-foreground"
-                      >
-                        Clear selection
-                      </button>
-                    </span>
-                  ) : (
-                    <span>
-                      {filteredOrders.length} items on this page are selected.{" "}
-                      <button type="button" onClick={handleSelectAll} className="underline font-medium">
-                        Select all {total}
-                      </button>
-                    </span>
-                  )}
-                </CardSection>
-              )}
+            <AdminSelectionBanner
+              allSelected={orderSelection.allSelected}
+              onClearSelection={orderSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectedCount={orderSelection.selectedCount}
+              total={total}
+              visibleCount={filteredOrders.length}
+            />
 
             {/* Table Body */}
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-6 border-b border-muted/80">
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-4 h-4 bg-muted rounded animate-pulse" />
-                            <div className="h-4 bg-muted rounded animate-pulse w-32" />
-                          </div>
-                        </div>
-                        <div className="col-span-2">
-                          <div className="h-4 bg-muted rounded animate-pulse w-24" />
-                        </div>
-                        <div className="col-span-2">
-                          <div className="h-4 bg-muted rounded animate-pulse w-28" />
-                        </div>
-                        <div className="col-span-1">
-                          <div className="h-5 bg-muted rounded-full animate-pulse w-16" />
-                        </div>
-                        <div className="col-span-2">
-                          <div className="h-5 bg-muted rounded-full animate-pulse w-16" />
-                        </div>
-                        <div className="col-span-2">
-                          <div className="h-4 bg-muted rounded animate-pulse w-16" />
-                        </div>
-                        <div className="col-span-1">
-                          <div className="h-8 w-8 bg-muted rounded animate-pulse" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={6} firstColumnSpan={1} rowCount={5} showThumbnail={false} />
               ) : filteredOrders.length === 0 ? (
                 <div className="p-8 text-center">
                   <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -532,14 +385,14 @@ function OrdersContent() {
                 sortedOrders.map((order) => (
                   <div
                     key={order.id}
-                    className={`p-6 transition-colors ${selectedIds.has(order.id) ? "bg-accent/50" : ""}`}
+                    className={`p-6 transition-colors ${orderSelection.selectedIds.has(order.id) ? "bg-accent/50" : ""}`}
                   >
                     <div className="grid grid-cols-12 gap-4 items-center">
                       <div className="col-span-2">
                         <div className="flex items-center space-x-4">
                           <Checkbox
-                            checked={selectedIds.has(order.id)}
-                            onCheckedChange={() => toggleSelectOrder(order.id)}
+                            checked={orderSelection.selectedIds.has(order.id)}
+                            onCheckedChange={() => orderSelection.toggleOne(order.id)}
                             aria-label={`Select order ${order.id}`}
                           />
                           <h4 className="font-medium truncate">{order.customer_email}</h4>
@@ -586,40 +439,30 @@ function OrdersContent() {
 
             {/* Pagination */}
             {!loading && total > 0 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={setCurrentPage}
-                  showFirstLast={false}
-                />
-              </div>
+              <AdminListFooter
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                total={total}
+              />
             )}
           </Card>
         </div>
       </AdminLayout>
 
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-md" onCloseAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>Delete {deleteIds.length === 1 ? "Order" : `${deleteIds.length} Orders`}</DialogTitle>
-            <DialogDescription>
-              {deleteIds.length === 1
-                ? "Are you sure you want to delete this order? This action cannot be undone."
-                : `Are you sure you want to delete these ${deleteIds.length} orders? This action cannot be undone.`}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AdminConfirmDialog
+        open={showDeleteDialog}
+        title={`Delete ${deleteIds.length === 1 ? "Order" : `${deleteIds.length} Orders`}`}
+        description={
+          deleteIds.length === 1
+            ? "Are you sure you want to delete this order? This action cannot be undone."
+            : `Are you sure you want to delete these ${deleteIds.length} orders? This action cannot be undone.`
+        }
+        disabled={deleting}
+        confirmLabel={deleting ? "Deleting..." : "Delete"}
+        onCancel={() => setShowDeleteDialog(false)}
+        onConfirm={confirmDelete}
+      />
     </>
   )
 }

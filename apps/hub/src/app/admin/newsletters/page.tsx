@@ -52,12 +52,10 @@ import {
 } from "@/lib/actions/newsletters/newsletter-actions"
 import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, Pause, Play, Plus, List, FileEdit, Send, ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import { Mail, Trash2, Settings, Pause, Play, Plus, List, FileEdit, Send } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { NewsletterStatusEventsModal } from "@/components/admin/newsletter-builder/layout/NewsletterStatusEventsModal"
 
 type NewsletterSortColumn = "name" | "opens" | "clicks" | "modified"
@@ -373,8 +371,6 @@ export default function NewslettersPage() {
     setStatusNewsletterId(newsletterId)
   }
 
-  const activeFilter = filterOptions.find((option) => option.value === filterStatus) ?? filterOptions[0]
-
   return (
     <>
       <StickyHeader />
@@ -388,36 +384,17 @@ export default function NewslettersPage() {
               onValueChange: setSearchQuery,
               placeholder: "Search newsletters"
             }}
+            filterMenu={{
+              value: filterStatus,
+              onValueChange: handleFilterChange,
+              items: filterOptions
+            }}
             preActions={
-              <>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" aria-label="Filter newsletters">
-                      <activeFilter.icon className="h-4 w-4 text-muted-foreground" />
-                      <span>{activeFilter.label}</span>
-                      <ChevronDown className="h-4 w-4 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-40 space-y-1">
-                    {filterOptions.map((option) => (
-                      <DropdownMenuItem
-                        key={option.value}
-                        onSelect={() => handleFilterChange(option.value)}
-                        className={cn(option.value === filterStatus && "bg-accent text-accent-foreground")}
-                      >
-                        <option.icon className="h-4 w-4 text-muted-foreground" />
-                        <span>{option.label}</span>
-                        <span className="ml-auto text-muted-foreground">{option.count}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={newsletterSelection.selectedCount}
-                />
-              </>
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={newsletterSelection.selectedCount}
+              />
             }
             actions={
               <>

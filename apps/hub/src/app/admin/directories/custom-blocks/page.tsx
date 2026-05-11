@@ -10,6 +10,7 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { AdminListSkeleton } from "@/components/admin/layout/list"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
@@ -124,26 +125,7 @@ export default function DirectoryCustomBlocksPage() {
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3].map((index) => (
-                    <div key={index} className="border-b border-muted/80 p-6 last:border-b-0">
-                      <div className="grid grid-cols-7 gap-4 items-center">
-                        <div className="col-span-2 space-y-2">
-                          <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                          <div className="h-3 w-32 animate-pulse rounded bg-muted/60" />
-                        </div>
-                        <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                        <div className="h-4 w-10 animate-pulse rounded bg-muted" />
-                        <div className="h-4 w-10 animate-pulse rounded bg-muted" />
-                        <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                        <div className="flex gap-1">
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={7} rowCount={3} showCheckbox={false} showThumbnail={false} />
               ) : filteredTemplates.length === 0 ? (
                 <div className="p-12 text-center text-sm text-muted-foreground">
                   {normalizedSearchQuery

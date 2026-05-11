@@ -16,6 +16,7 @@ import {
   AdminListSkeleton,
   AdminSelectionBanner,
   AdminSortButton,
+  formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -141,15 +142,6 @@ export default function SegmentsPage() {
     return 0
   })
   const filteredSegmentIds = filteredSegments.map((segment) => segment.id)
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric"
-    })
-  }
 
   return (
     <>

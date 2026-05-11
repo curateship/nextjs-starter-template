@@ -6,6 +6,7 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { AdminListSkeleton, formatShortDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardTableHeader } from "@/components/ui/card"
@@ -106,20 +107,9 @@ export default function PlatformEmailsPage() {
               </CardTableHeader>
 
               <div className="divide-y">
-                {loading &&
-                  Array.from({ length: 3 }).map((_, index) => (
-                    <div key={index} className="px-6 py-4">
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-6 space-y-2">
-                          <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-                          <div className="h-3 w-72 animate-pulse rounded bg-muted/60" />
-                        </div>
-                        <div className="col-span-2 h-4 w-24 animate-pulse rounded bg-muted" />
-                        <div className="col-span-2 h-4 w-24 animate-pulse rounded bg-muted" />
-                        <div className="col-span-2 justify-self-end h-9 w-20 animate-pulse rounded bg-muted" />
-                      </div>
-                    </div>
-                  ))}
+                {loading && (
+                  <AdminListSkeleton columns={12} firstColumnSpan={6} rowCount={3} showCheckbox={false} showThumbnail={false} />
+                )}
 
                 {!loading && filteredTemplates.length === 0 && (
                   <div className="px-6 py-12 text-center text-sm text-muted-foreground">
@@ -150,11 +140,7 @@ export default function PlatformEmailsPage() {
                         <div className="col-span-2 text-sm">{template.scope_label}</div>
                         <div className="col-span-2 text-sm text-muted-foreground">
                           {template.updated_at
-                            ? new Date(template.updated_at).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric"
-                              })
+                            ? formatShortDate(template.updated_at)
                             : "Default"}
                         </div>
                         <div className="col-span-2 flex justify-end">

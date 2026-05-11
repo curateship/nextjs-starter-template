@@ -8,16 +8,19 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AdminConfirmDialog,
+  AdminListSkeleton,
+  AdminSortButton,
+  formatRelativeDate as formatDate,
+  useAdminSort
+} from "@/components/admin/layout/list"
 
 import {
   Eye,
   Settings,
   Trash2,
   Globe,
-  ArrowUp,
-  ArrowDown,
-  ChevronsUpDown,
   Plus,
   List,
   CircleCheck,
@@ -38,38 +41,7 @@ import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 type FilterStatus = "all" | "active" | "inactive" | "draft"
-
-function SitesTableSkeletonRows() {
-  return (
-    <>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="p-6" aria-hidden="true">
-          <div className="grid grid-cols-6 gap-4 items-center">
-            <div className="col-span-2 flex items-center space-x-4">
-              <Skeleton className="h-12 w-12 rounded-lg" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-3 w-24" />
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Skeleton className="h-8 w-8 rounded-full" />
-              <Skeleton className="h-4 w-10" />
-            </div>
-            <Skeleton className="h-4 w-20" />
-            <Skeleton className="h-6 w-16 rounded-full" />
-            <div className="flex items-center space-x-1">
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
-              <Skeleton className="h-8 w-8" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
+type SiteSortColumn = "name" | "created" | "status"
 
 export default function SitesPage() {
   const { refreshSites } = useSiteSwitcher()
@@ -93,8 +65,7 @@ export default function SitesPage() {
   const [duplicatePages, setDuplicatePages] = useState(true)
   const [duplicating, setDuplicating] = useState(false)
   const [duplicateError, setDuplicateError] = useState<string | null>(null)
-  const [sortColumn, setSortColumn] = useState<"name" | "created" | "status" | null>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const siteSort = useAdminSort<SiteSortColumn>()
 
   useEffect(() => {
     loadSites()
@@ -206,32 +177,12 @@ export default function SitesPage() {
     return statusMatch && searchMatch
   })
 
-  const toggleSort = (column: "name" | "created" | "status") => {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection("asc")
-    }
-  }
-
-  const getSortIcon = (column: "name" | "created" | "status") => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedSites = [...filteredSites].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === "asc" ? 1 : -1
-    if (sortColumn === "name") return a.name.localeCompare(b.name) * dir
-    if (sortColumn === "created") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
-    if (sortColumn === "status") return a.status.localeCompare(b.status) * dir
+    if (!siteSort.sortColumn) return 0
+    const dir = siteSort.sortDirection === "asc" ? 1 : -1
+    if (siteSort.sortColumn === "name") return a.name.localeCompare(b.name) * dir
+    if (siteSort.sortColumn === "created") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (siteSort.sortColumn === "status") return a.status.localeCompare(b.status) * dir
     return 0
   })
 
@@ -253,18 +204,6 @@ export default function SitesPage() {
       default:
         return "bg-gray-100 text-gray-800"
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 1) return "1 day ago"
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
   }
 
   return (
@@ -323,50 +262,35 @@ export default function SitesPage() {
             {/* Table Header */}
             <CardTableHeader className="grid-cols-6">
               <div className="col-span-2">
-                <button
-                  type="button"
-                  onClick={() => toggleSort("name")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={siteSort.sortColumn === "name"}
+                  direction={siteSort.sortDirection}
+                  onClick={() => siteSort.toggleSort("name")}
                 >
-                  <span>Site</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
-                </button>
+                  Site
+                </AdminSortButton>
               </div>
               <div className="text-[0.8125rem]">User</div>
-              <button
-                type="button"
-                onClick={() => toggleSort("created")}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
+              <AdminSortButton
+                active={siteSort.sortColumn === "created"}
+                direction={siteSort.sortDirection}
+                onClick={() => siteSort.toggleSort("created")}
               >
-                <span>Created</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("created")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("status")}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                  "cursor-pointer outline-none transition-colors"
-                )}
+                Created
+              </AdminSortButton>
+              <AdminSortButton
+                active={siteSort.sortColumn === "status"}
+                direction={siteSort.sortDirection}
+                onClick={() => siteSort.toggleSort("status")}
               >
-                <span>Status</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
-              </button>
+                Status
+              </AdminSortButton>
               <div>Actions</div>
             </CardTableHeader>
 
             <div className="divide-y divide-muted/80" aria-busy={loading}>
               {loading ? (
-                <SitesTableSkeletonRows />
+                <AdminListSkeleton showCheckbox={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="text-red-600 mb-4">{error}</p>
@@ -472,26 +396,20 @@ export default function SitesPage() {
           </Card>
         </div>
 
-        {deleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/50" onClick={() => !deleting && setDeleteConfirm(null)} />
-            <div className="relative bg-background rounded-lg border shadow-lg p-6 w-full max-w-lg z-50">
-              <h2 className="text-lg font-semibold mb-2">Delete Site</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This will permanently remove the
-                site and all its pages. This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-2">
-                <Button onClick={() => setDeleteConfirm(null)} variant="outline" disabled={!!deleting}>
-                  Cancel
-                </Button>
-                <Button onClick={() => handleDelete(deleteConfirm.id)} variant="destructive" disabled={!!deleting}>
-                  {deleting ? "Deleting..." : "Delete"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <AdminConfirmDialog
+          open={Boolean(deleteConfirm)}
+          title="Delete Site"
+          description={
+            <>
+              Are you sure you want to delete <strong>{deleteConfirm?.name}</strong>? This will permanently remove the
+              site and all its pages. This action cannot be undone.
+            </>
+          }
+          disabled={!!deleting}
+          confirmLabel={deleting ? "Deleting..." : "Delete"}
+          onCancel={() => setDeleteConfirm(null)}
+          onConfirm={() => deleteConfirm && handleDelete(deleteConfirm.id)}
+        />
 
         {/* Site clones are draft-only and intentionally exclude business/runtime data. */}
         {duplicateConfirm && (

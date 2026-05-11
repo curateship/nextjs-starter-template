@@ -3,10 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
 import { format } from "date-fns"
 import {
-  ArrowDown,
-  ArrowUp,
   CalendarIcon,
-  ChevronsUpDown,
   Plus,
   Settings,
   SlidersHorizontal,
@@ -20,24 +17,24 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog"
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatShortDate as formatDate,
+  useAdminBulkSelection,
+  useAdminSort
+} from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
-import { buttonVariants, Button } from "@/components/ui/button"
-import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -100,14 +97,6 @@ function isValueRule(rule: SiteUserFilterRule): rule is Extract<SiteUserFilterRu
   return rule.type === "status" || rule.type === "role"
 }
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  })
-}
-
 function formatRelativeTime(dateString: string | null) {
   if (!dateString) return "—"
   const diff = Date.now() - new Date(dateString).getTime()
@@ -144,7 +133,7 @@ function getStatusBadge(status: string) {
   }
 }
 
-type SortColumn = "user" | "role" | "status" | "added" | "engaged" | null
+type SortColumn = "user" | "role" | "status" | "added" | "engaged"
 
 function compareNullableStrings(a: string | null | undefined, b: string | null | undefined) {
   return (a || "\uffff").localeCompare(b || "\uffff")
@@ -158,14 +147,13 @@ export default function SiteUsersPage() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [allSelected, setAllSelected] = useState(false)
+  const userSelection = useAdminBulkSelection()
+  const clearUserSelection = userSelection.clearSelection
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const [sortColumn, setSortColumn] = useState<SortColumn>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const userSort = useAdminSort<SortColumn>()
   const [searchQuery, setSearchQuery] = useState("")
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const requestIdRef = useRef(0)
@@ -270,12 +258,12 @@ export default function SiteUsersPage() {
   const activeFilterCount = filters.rules.length
   const hasSearchQuery = deferredSearchQuery.trim().length > 0
   const deletableUsersOnPage = users.filter((user) => user.role !== "owner")
+  const deletableUserIdsOnPage = deletableUsersOnPage.map((user) => user.id)
 
   const resetSelectionForCurrentView = useCallback(() => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    clearUserSelection()
     setCurrentPage(1)
-  }, [])
+  }, [clearUserSelection])
 
   function openFilterModal() {
     const clonedFilters = cloneSiteUserFilterGroup(filters)
@@ -375,42 +363,21 @@ export default function SiteUsersPage() {
     resetSelectionForCurrentView()
   }
 
-  const toggleSort = (column: Exclude<SortColumn, null>) => {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-      return
-    }
-
-    setSortColumn(column)
-    setSortDirection("asc")
-  }
-
-  const getSortIcon = (column: Exclude<SortColumn, null>) => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
-
   const sortedUsers = [...users].sort((a, b) => {
-    if (!sortColumn) return 0
+    if (!userSort.sortColumn) return 0
 
-    const dir = sortDirection === "asc" ? 1 : -1
+    const dir = userSort.sortDirection === "asc" ? 1 : -1
 
-    if (sortColumn === "user") {
+    if (userSort.sortColumn === "user") {
       const aLabel = a.display_name || a.email
       const bLabel = b.display_name || b.email
       return aLabel.localeCompare(bLabel) * dir
     }
 
-    if (sortColumn === "role") return a.role.localeCompare(b.role) * dir
-    if (sortColumn === "status") return a.status.localeCompare(b.status) * dir
-    if (sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
-    if (sortColumn === "engaged") {
+    if (userSort.sortColumn === "role") return a.role.localeCompare(b.role) * dir
+    if (userSort.sortColumn === "status") return a.status.localeCompare(b.status) * dir
+    if (userSort.sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (userSort.sortColumn === "engaged") {
       const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
       const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
       if (aTime === bTime) {
@@ -421,29 +388,6 @@ export default function SiteUsersPage() {
 
     return 0
   })
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-        setAllSelected(false)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === deletableUsersOnPage.length) {
-      setSelectedIds(new Set())
-      setAllSelected(false)
-      return
-    }
-
-    setSelectedIds(new Set(deletableUsersOnPage.map((user) => user.id)))
-  }
 
   const handleSelectAll = async () => {
     if (!currentSite?.id || total === 0) return
@@ -458,13 +402,7 @@ export default function SiteUsersPage() {
       return
     }
 
-    setSelectedIds(new Set(result.ids))
-    setAllSelected(true)
-  }
-
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    userSelection.selectAll(result.ids)
   }
 
   const handleDelete = (membershipId: string) => {
@@ -490,11 +428,7 @@ export default function SiteUsersPage() {
         return
       }
 
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        next.delete(pendingDeleteId)
-        return next
-      })
+      userSelection.remove(pendingDeleteId)
       await loadUsers()
     } finally {
       setPendingDeleteId(null)
@@ -503,7 +437,7 @@ export default function SiteUsersPage() {
   }
 
   const confirmMassDelete = async () => {
-    if (!currentSite?.id || !selectedIds.size) return
+    if (!currentSite?.id || !userSelection.selectedCount) return
 
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
@@ -512,7 +446,7 @@ export default function SiteUsersPage() {
     try {
       const result = await deleteSiteUsers({
         siteId: currentSite.id,
-        membershipIds: Array.from(selectedIds)
+        membershipIds: Array.from(userSelection.selectedIds)
       })
 
       if (result.error) {
@@ -520,8 +454,7 @@ export default function SiteUsersPage() {
         return
       }
 
-      setSelectedIds(new Set())
-      setAllSelected(false)
+      clearUserSelection()
       await loadUsers()
     } finally {
       setMassDeleting(false)
@@ -613,14 +546,11 @@ export default function SiteUsersPage() {
             }}
             actions={
               <div className="flex items-center gap-1.5 sm:gap-3">
-                {selectedIds.size > 0 && (
-                  <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={massDeleting}>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">
-                      {massDeleting ? "Deleting..." : `Delete (${selectedIds.size})`}
-                    </span>
-                  </Button>
-                )}
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={userSelection.selectedCount}
+                />
                 <Button variant="outline" className="relative" onClick={openFilterModal}>
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Filter</span>
@@ -674,110 +604,64 @@ export default function SiteUsersPage() {
             <CardTableHeader className="grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px]">
               <div className="flex items-center space-x-4">
                 <Checkbox
-                  checked={deletableUsersOnPage.length > 0 && selectedIds.size === deletableUsersOnPage.length}
-                  onCheckedChange={toggleSelectAll}
+                  checked={userSelection.isPageSelected(deletableUserIdsOnPage)}
+                  onCheckedChange={() => userSelection.togglePage(deletableUserIdsOnPage)}
                   aria-label="Select all site users"
                 />
-                <button
-                  type="button"
-                  onClick={() => toggleSort("user")}
-                  className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                <AdminSortButton
+                  active={userSort.sortColumn === "user"}
+                  direction={userSort.sortDirection}
+                  onClick={() => userSort.toggleSort("user")}
                 >
-                  <span>User</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("user")}</span>
-                </button>
+                  User
+                </AdminSortButton>
               </div>
-              <button
-                type="button"
-                onClick={() => toggleSort("role")}
-                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+              <AdminSortButton
+                active={userSort.sortColumn === "role"}
+                direction={userSort.sortDirection}
+                onClick={() => userSort.toggleSort("role")}
               >
-                <span>Role</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("role")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("status")}
-                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                Role
+              </AdminSortButton>
+              <AdminSortButton
+                active={userSort.sortColumn === "status"}
+                direction={userSort.sortDirection}
+                onClick={() => userSort.toggleSort("status")}
               >
-                <span>Status</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("status")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("added")}
-                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                Status
+              </AdminSortButton>
+              <AdminSortButton
+                active={userSort.sortColumn === "added"}
+                direction={userSort.sortDirection}
+                onClick={() => userSort.toggleSort("added")}
               >
-                <span>Date Added</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => toggleSort("engaged")}
-                className="flex items-center gap-1.5 text-[0.8125rem] text-muted-foreground transition-colors hover:text-foreground"
+                Date Added
+              </AdminSortButton>
+              <AdminSortButton
+                active={userSort.sortColumn === "engaged"}
+                direction={userSort.sortDirection}
+                onClick={() => userSort.toggleSort("engaged")}
               >
-                <span>Last Engaged</span>
-                <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("engaged")}</span>
-              </button>
+                Last Engaged
+              </AdminSortButton>
               <div>Actions</div>
             </CardTableHeader>
 
-            {deletableUsersOnPage.length > 0 &&
-              selectedIds.size > 0 &&
-              selectedIds.size === deletableUsersOnPage.length &&
-              total > users.length && (
-                <CardSection className="border-b bg-accent/50 text-center text-sm">
-                  {allSelected ? (
-                    <span>
-                      All deletable users matching this view are selected.{" "}
-                      <button
-                        type="button"
-                        onClick={handleClearSelection}
-                        className="text-muted-foreground underline hover:text-foreground"
-                      >
-                        Clear selection
-                      </button>
-                    </span>
-                  ) : (
-                    <span>
-                      {selectedIds.size} users on this page are selected.{" "}
-                      <button type="button" onClick={handleSelectAll} className="font-medium underline">
-                        Select all matching users
-                      </button>
-                    </span>
-                  )}
-                </CardSection>
-              )}
+            <AdminSelectionBanner
+              allSelected={userSelection.allSelected}
+              allSelectedMessage="All deletable users matching this view are selected."
+              itemLabelPlural="users"
+              onClearSelection={userSelection.clearSelection}
+              onSelectAll={handleSelectAll}
+              selectAllLabel="Select all matching users"
+              selectedCount={userSelection.selectedCount}
+              total={total}
+              visibleCount={deletableUsersOnPage.length}
+            />
 
             <div className="divide-y divide-muted/80">
               {siteLoading || loading ? (
-                <div className="space-y-0">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="border-b border-muted/80 p-6">
-                      <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 items-center">
-                        <div className="flex items-center space-x-4">
-                          <div className="h-4 w-4 animate-pulse rounded bg-muted" />
-                          <div className="mb-2 h-4 w-40 animate-pulse rounded bg-muted" />
-                        </div>
-                        <div>
-                          <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
-                        </div>
-                        <div>
-                          <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
-                        </div>
-                        <div>
-                          <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
-                        </div>
-                        <div>
-                          <div className="h-3 w-20 animate-pulse rounded bg-muted/60" />
-                        </div>
-                        <div>
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={6} firstColumnSpan={1} rowCount={5} showThumbnail={false} />
               ) : !currentSite?.id ? (
                 <div className="p-8 text-center">
                   <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
@@ -807,13 +691,13 @@ export default function SiteUsersPage() {
                 sortedUsers.map((user) => (
                   <div
                     key={user.id}
-                    className={cn("p-6 transition-colors", selectedIds.has(user.id) && "bg-accent/50")}
+                    className={cn("p-6 transition-colors", userSelection.selectedIds.has(user.id) && "bg-accent/50")}
                   >
                     <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 items-center">
                       <div className="flex items-center space-x-4">
                         <Checkbox
-                          checked={selectedIds.has(user.id)}
-                          onCheckedChange={() => toggleSelect(user.id)}
+                          checked={userSelection.selectedIds.has(user.id)}
+                          onCheckedChange={() => userSelection.toggleOne(user.id)}
                           disabled={user.role === "owner"}
                           aria-label={`Select ${user.display_name || user.email}`}
                         />
@@ -863,15 +747,12 @@ export default function SiteUsersPage() {
             </div>
 
             {!loading && total > 0 && (
-              <div className="flex items-center justify-between border-t px-6 py-4">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(total / pageSize)}
-                  onPageChange={setCurrentPage}
-                  showFirstLast={false}
-                />
-              </div>
+              <AdminListFooter
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                pageSize={pageSize}
+                total={total}
+              />
             )}
           </Card>
         </div>
@@ -1276,41 +1157,26 @@ export default function SiteUsersPage() {
           </DialogContent>
         </Dialog>
 
-        <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete site user?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes the user from the current site only. Their platform account will stay intact.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setPendingDeleteId(null)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete} className={buttonVariants({ variant: "destructive" })}>
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <AdminConfirmDialog
+          open={confirmDeleteOpen}
+          title="Delete site user?"
+          description="This removes the user from the current site only. Their platform account will stay intact."
+          onCancel={() => {
+            setConfirmDeleteOpen(false)
+            setPendingDeleteId(null)
+          }}
+          onConfirm={confirmDelete}
+        />
 
-        <AlertDialog open={massDeleteConfirmOpen} onOpenChange={setMassDeleteConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete selected site users?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes {selectedIds.size} user
-                {selectedIds.size === 1 ? "" : "s"} from the current site only. Their platform accounts will stay
-                intact.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmMassDelete} className={buttonVariants({ variant: "destructive" })}>
-                Delete selected
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <AdminConfirmDialog
+          open={massDeleteConfirmOpen}
+          title="Delete selected site users?"
+          description={`This removes ${userSelection.selectedCount} user${userSelection.selectedCount === 1 ? "" : "s"} from the current site only. Their platform accounts will stay intact.`}
+          confirmLabel="Delete selected"
+          disabled={massDeleting}
+          onCancel={() => setMassDeleteConfirmOpen(false)}
+          onConfirm={confirmMassDelete}
+        />
       </AdminLayout>
     </>
   )

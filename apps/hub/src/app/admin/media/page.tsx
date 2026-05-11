@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card, CardContent, CardTableHeader } from "@/components/ui/card"
+import { Card, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,12 +14,19 @@ import {
   Trash2,
   Edit,
   VideoIcon,
-  ArrowUp,
-  ArrowDown,
-  ChevronsUpDown,
   Upload
 } from "lucide-react"
-import { cn } from "@/lib/utils/tailwind"
+import {
+  AdminBulkDeleteButton,
+  AdminConfirmDialog,
+  AdminListFooter,
+  AdminListSkeleton,
+  AdminSelectionBanner,
+  AdminSortButton,
+  formatRelativeDate as formatDate,
+  useAdminBulkSelection,
+  useAdminSort
+} from "@/components/admin/layout/list"
 import {
   getPaginatedMediaAction,
   deleteImageAction,
@@ -31,19 +38,10 @@ import Image from "next/image"
 import { toast } from "sonner"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+
+type MediaSortColumn = "name" | "type" | "size" | "added"
 
 export default function ImagesPage() {
   const { currentSite, loading: siteLoading } = useSiteSwitcher()
@@ -58,13 +56,11 @@ export default function ImagesPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Tracks if user selected all items across all pages
-  const [allSelected, setAllSelected] = useState(false)
+  const mediaSelection = useAdminBulkSelection()
+  const clearMediaSelection = mediaSelection.clearSelection
+  const mediaSort = useAdminSort<MediaSortColumn>()
   const [isDeleting, setIsDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [sortColumn, setSortColumn] = useState<"name" | "type" | "size" | "added" | null>(null)
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [typeCounts, setTypeCounts] = useState<{
     all: number
     image: number
@@ -126,9 +122,8 @@ export default function ImagesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-    setSelectedIds(new Set())
-    setAllSelected(false)
-  }, [currentSiteId])
+    clearMediaSelection()
+  }, [currentSiteId, clearMediaSelection])
 
   useEffect(() => {
     if (siteLoading) return
@@ -139,8 +134,7 @@ export default function ImagesPage() {
   const handleFilterChange = (newFilter: "all" | "image" | "video") => {
     setFilterType(newFilter)
     setCurrentPage(1)
-    setSelectedIds(new Set())
-    setAllSelected(false)
+    clearMediaSelection()
   }
 
   // Handle page change
@@ -263,39 +257,6 @@ export default function ImagesPage() {
     }
   }
 
-  const handleToggleSelection = (mediaId: string) => {
-    setSelectedIds((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(mediaId)) {
-        newSet.delete(mediaId)
-        setAllSelected(false)
-      } else {
-        newSet.add(mediaId)
-      }
-      return newSet
-    })
-  }
-
-  const handleToggleSelectAll = () => {
-    const allPageIds = filteredImages.map((media) => media.id)
-    const allPageSelected_ = allPageIds.every((id) => selectedIds.has(id))
-
-    if (allPageSelected_) {
-      setSelectedIds((prev) => {
-        const newSet = new Set(prev)
-        allPageIds.forEach((id) => newSet.delete(id))
-        return newSet
-      })
-      setAllSelected(false)
-    } else {
-      setSelectedIds((prev) => {
-        const newSet = new Set(prev)
-        allPageIds.forEach((id) => newSet.add(id))
-        return newSet
-      })
-    }
-  }
-
   // Select all items across all pages (lightweight ID-only fetch)
   const handleSelectAll = async () => {
     const total = paginatedData?.total ?? 0
@@ -303,24 +264,17 @@ export default function ImagesPage() {
     const fileType = filterType === "all" ? undefined : (filterType as "image" | "video")
     const { ids } = await getMediaIdsAction(fileType, currentSiteId)
     if (ids) {
-      setSelectedIds(new Set(ids))
-      setAllSelected(true)
+      mediaSelection.selectAll(ids)
     }
   }
 
-  // Clear all selections
-  const handleClearSelection = () => {
-    setSelectedIds(new Set())
-    setAllSelected(false)
-  }
-
   const handleBulkDelete = async () => {
-    if (!currentSiteId || selectedIds.size === 0) {
+    if (!currentSiteId || mediaSelection.selectedCount === 0) {
       setMassDeleteConfirmOpen(false)
       return
     }
 
-    const idsToDelete = Array.from(selectedIds)
+    const idsToDelete = Array.from(mediaSelection.selectedIds)
     setIsDeleting(true)
     let successCount = 0
     let failCount = 0
@@ -346,8 +300,7 @@ export default function ImagesPage() {
         toast.error(`Failed to delete ${failCount} ${failCount === 1 ? "item" : "items"}`)
       }
 
-      setSelectedIds(new Set())
-      setAllSelected(false)
+      clearMediaSelection()
       setMassDeleteConfirmOpen(false)
       loadImages()
       loadTypeCounts()
@@ -367,50 +320,20 @@ export default function ImagesPage() {
       .toLowerCase()
       .includes(normalizedSearchQuery)
   })
+  const filteredImageIds = filteredImages.map((media) => media.id)
 
   // Check if all items on current page are selected
-  const allPageSelected = filteredImages.length > 0 && filteredImages.every((media) => selectedIds.has(media.id))
-
-  const toggleSort = (column: "name" | "type" | "size" | "added") => {
-    if (sortColumn === column) {
-      if (sortDirection === "desc") {
-        setSortColumn(null)
-        setSortDirection("asc")
-      } else {
-        setSortDirection("desc")
-      }
-    } else {
-      setSortColumn(column)
-      setSortDirection("asc")
-    }
-  }
-
-  const getSortIcon = (column: "name" | "type" | "size" | "added") => {
-    if (sortColumn !== column) return <ChevronsUpDown className="h-3 w-3 opacity-70" />
-    if (sortDirection === "asc") return <ArrowUp className="h-3 w-3" />
-    return <ArrowDown className="h-3 w-3" />
-  }
+  const allPageSelected = mediaSelection.isPageSelected(filteredImageIds)
 
   const sortedImages = [...filteredImages].sort((a, b) => {
-    if (!sortColumn) return 0
-    const dir = sortDirection === "asc" ? 1 : -1
-    if (sortColumn === "name") return a.original_name.localeCompare(b.original_name) * dir
-    if (sortColumn === "type") return a.file_type.localeCompare(b.file_type) * dir
-    if (sortColumn === "size") return (a.file_size - b.file_size) * dir
-    if (sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+    if (!mediaSort.sortColumn) return 0
+    const dir = mediaSort.sortDirection === "asc" ? 1 : -1
+    if (mediaSort.sortColumn === "name") return a.original_name.localeCompare(b.original_name) * dir
+    if (mediaSort.sortColumn === "type") return a.file_type.localeCompare(b.file_type) * dir
+    if (mediaSort.sortColumn === "size") return (a.file_size - b.file_size) * dir
+    if (mediaSort.sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
     return 0
   })
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    if (diffDays === 1) return "1 day ago"
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -458,17 +381,11 @@ export default function ImagesPage() {
             }}
             preActions={
               <>
-                {/* Bulk Actions */}
-                {selectedIds.size > 0 && (
-                  <Button variant="destructive" onClick={() => setMassDeleteConfirmOpen(true)} disabled={isDeleting}>
-                    <Trash2 className="w-4 h-4" />
-                    {isDeleting ? (
-                      <span className="hidden sm:inline">Deleting...</span>
-                    ) : (
-                      <span className="hidden sm:inline">Delete {selectedIds.size}</span>
-                    )}
-                  </Button>
-                )}
+                <AdminBulkDeleteButton
+                  deleting={isDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={mediaSelection.selectedCount}
+                />
                 {/* View Mode Toggle */}
                 <div className="flex items-center border rounded-md">
                   <Button
@@ -518,85 +435,52 @@ export default function ImagesPage() {
                 <div className="col-span-2 flex items-center space-x-4">
                   <Checkbox
                     checked={allPageSelected}
-                    onCheckedChange={handleToggleSelectAll}
+                    onCheckedChange={() => mediaSelection.togglePage(filteredImageIds)}
                     aria-label="Select all media"
                   />
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("name")}
-                    className={cn(
-                      "flex items-center gap-1.5",
-                      "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                      "cursor-pointer outline-none transition-colors"
-                    )}
+                  <AdminSortButton
+                    active={mediaSort.sortColumn === "name"}
+                    direction={mediaSort.sortDirection}
+                    onClick={() => mediaSort.toggleSort("name")}
                   >
-                    <span>File</span>
-                    <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("name")}</span>
-                  </button>
+                    File
+                  </AdminSortButton>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("type")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                <AdminSortButton
+                  active={mediaSort.sortColumn === "type"}
+                  direction={mediaSort.sortDirection}
+                  onClick={() => mediaSort.toggleSort("type")}
                 >
-                  <span>Type</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("type")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("size")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                  Type
+                </AdminSortButton>
+                <AdminSortButton
+                  active={mediaSort.sortColumn === "size"}
+                  direction={mediaSort.sortDirection}
+                  onClick={() => mediaSort.toggleSort("size")}
                 >
-                  <span>Size</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("size")}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSort("added")}
-                  className={cn(
-                    "flex items-center gap-1.5",
-                    "text-[0.8125rem] text-muted-foreground hover:text-foreground",
-                    "cursor-pointer outline-none transition-colors"
-                  )}
+                  Size
+                </AdminSortButton>
+                <AdminSortButton
+                  active={mediaSort.sortColumn === "added"}
+                  direction={mediaSort.sortDirection}
+                  onClick={() => mediaSort.toggleSort("added")}
                 >
-                  <span>Added</span>
-                  <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">{getSortIcon("added")}</span>
-                </button>
+                  Added
+                </AdminSortButton>
                 <div>Actions</div>
               </CardTableHeader>
             )}
 
             {/* "Select all" banner — shown when all page items selected but more exist */}
-            {allPageSelected && paginatedData && paginatedData.total > images.length && (
-              <CardContent className="border-b bg-accent/50 text-center text-sm">
-                {allSelected ? (
-                  <span>
-                    All {paginatedData.total} items selected.{" "}
-                    <button
-                      type="button"
-                      onClick={handleClearSelection}
-                      className="underline hover:text-foreground text-muted-foreground"
-                    >
-                      Clear selection
-                    </button>
-                  </span>
-                ) : (
-                  <span>
-                    {images.length} items on this page are selected.{" "}
-                    <button type="button" onClick={handleSelectAll} className="underline font-medium">
-                      Select all {paginatedData.total}
-                    </button>
-                  </span>
-                )}
-              </CardContent>
+            {paginatedData && (
+              <AdminSelectionBanner
+                allSelected={mediaSelection.allSelected}
+                onClearSelection={mediaSelection.clearSelection}
+                onSelectAll={handleSelectAll}
+                selectedCount={mediaSelection.selectedCount}
+                total={paginatedData.total}
+                visibleCount={filteredImages.length}
+              />
             )}
 
             <div className="divide-y divide-muted/80">
@@ -615,34 +499,7 @@ export default function ImagesPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-0">
-                    {[...Array(8)].map((_, i) => (
-                      <div key={i} className="p-6 border-b border-muted/80">
-                        <div className="grid grid-cols-6 gap-4 items-center">
-                          <div className="col-span-2 flex items-center space-x-4">
-                            <div className="w-4 h-4 bg-muted rounded animate-pulse"></div>
-                            <div className="w-12 h-12 bg-muted rounded animate-pulse"></div>
-                            <div>
-                              <div className="h-4 bg-muted rounded animate-pulse mb-2 w-32"></div>
-                              <div className="h-3 bg-muted/60 rounded animate-pulse w-20"></div>
-                            </div>
-                          </div>
-                          <div>
-                            <div className="h-5 bg-muted rounded-full animate-pulse w-16"></div>
-                          </div>
-                          <div>
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-14"></div>
-                          </div>
-                          <div>
-                            <div className="h-3 bg-muted/60 rounded animate-pulse w-16"></div>
-                          </div>
-                          <div>
-                            <div className="h-8 w-8 bg-muted rounded animate-pulse"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <AdminListSkeleton rowCount={8} />
                 )
               ) : images.length === 0 ? (
                 <div className="p-8 text-center">
@@ -709,7 +566,7 @@ export default function ImagesPage() {
                 </div>
               ) : (
                 sortedImages.map((media) => {
-                  const isSelected = selectedIds.has(media.id)
+                  const isSelected = mediaSelection.selectedIds.has(media.id)
                   return (
                     <div key={media.id} className={`p-6 transition-colors ${isSelected ? "bg-accent/50" : ""}`}>
                       <div className="grid grid-cols-6 gap-4 items-center">
@@ -717,7 +574,7 @@ export default function ImagesPage() {
                           <div className="flex items-center space-x-4">
                             <Checkbox
                               checked={isSelected}
-                              onCheckedChange={() => handleToggleSelection(media.id)}
+                              onCheckedChange={() => mediaSelection.toggleOne(media.id)}
                               aria-label={`Select ${media.original_name}`}
                             />
                             <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden relative ml-2">
@@ -789,42 +646,24 @@ export default function ImagesPage() {
               )}
             </div>
             {paginatedData && paginatedData.totalPages > 1 && (
-              <div className="flex items-center justify-between px-6 py-4 border-t">
-                <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={paginatedData.total} />
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={paginatedData.totalPages}
-                  onPageChange={handlePageChange}
-                />
-              </div>
+              <AdminListFooter
+                currentPage={currentPage}
+                onPageChange={handlePageChange}
+                pageSize={pageSize}
+                total={paginatedData.total}
+              />
             )}
           </Card>
 
-          <AlertDialog open={massDeleteConfirmOpen} onOpenChange={setMassDeleteConfirmOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Delete {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"}?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes the selected media from the image library. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-white hover:bg-destructive/90"
-                  disabled={isDeleting}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    handleBulkDelete()
-                  }}
-                >
-                  {isDeleting ? "Deleting..." : "Delete"}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <AdminConfirmDialog
+            open={massDeleteConfirmOpen}
+            title={`Delete ${mediaSelection.selectedCount} ${mediaSelection.selectedCount === 1 ? "item" : "items"}?`}
+            description="This removes the selected media from the image library. This action cannot be undone."
+            disabled={isDeleting}
+            confirmLabel={isDeleting ? "Deleting..." : "Delete"}
+            onCancel={() => setMassDeleteConfirmOpen(false)}
+            onConfirm={handleBulkDelete}
+          />
 
           {/* Edit Image Dialog */}
           <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>

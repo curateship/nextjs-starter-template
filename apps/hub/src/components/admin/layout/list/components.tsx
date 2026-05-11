@@ -83,15 +83,21 @@ export function AdminBulkDeleteButton({
 
 export function AdminSelectionBanner({
   allSelected,
+  allSelectedMessage,
+  itemLabelPlural = "items",
   onClearSelection,
   onSelectAll,
+  selectAllLabel,
   selectedCount,
   total,
   visibleCount
 }: {
   allSelected: boolean
+  allSelectedMessage?: ReactNode
+  itemLabelPlural?: string
   onClearSelection: () => void
   onSelectAll: () => void
+  selectAllLabel?: ReactNode
   selectedCount: number
   total: number
   visibleCount: number
@@ -104,7 +110,7 @@ export function AdminSelectionBanner({
     <CardSection className="border-b bg-accent/50 text-center text-sm">
       {allSelected ? (
         <span>
-          All {total} items selected.{" "}
+          {allSelectedMessage || <>All {total} {itemLabelPlural} selected.</>}{" "}
           <button
             type="button"
             onClick={onClearSelection}
@@ -115,9 +121,9 @@ export function AdminSelectionBanner({
         </span>
       ) : (
         <span>
-          {visibleCount} items on this page are selected.{" "}
+          {visibleCount} {itemLabelPlural} on this page are selected.{" "}
           <button type="button" onClick={onSelectAll} className="font-medium underline">
-            Select all {total}
+            {selectAllLabel || <>Select all {total}</>}
           </button>
         </span>
       )}
@@ -130,12 +136,14 @@ export function AdminListSkeleton({
   firstColumnClassName,
   firstColumnSpan = 2,
   rowCount = 5,
+  showCheckbox = true,
   showThumbnail = true
 }: {
-  columns?: 5 | 6 | 7 | 8 | 9
+  columns?: 5 | 6 | 7 | 8 | 9 | 12
   firstColumnClassName?: string
-  firstColumnSpan?: 1 | 2 | 3 | 4
+  firstColumnSpan?: 1 | 2 | 3 | 4 | 6
   rowCount?: number
+  showCheckbox?: boolean
   showThumbnail?: boolean
 }) {
   const gridClassName = {
@@ -143,13 +151,15 @@ export function AdminListSkeleton({
     6: "grid-cols-6",
     7: "grid-cols-7",
     8: "grid-cols-8",
-    9: "grid-cols-9"
+    9: "grid-cols-9",
+    12: "grid-cols-12"
   }[columns]
   const firstColumnSpanClassName = {
     1: "col-span-1",
     2: "col-span-2",
     3: "col-span-3",
-    4: "col-span-4"
+    4: "col-span-4",
+    6: "col-span-6"
   }[firstColumnSpan]
   const middleColumnCount = Math.max(0, columns - firstColumnSpan - 1)
 
@@ -160,7 +170,7 @@ export function AdminListSkeleton({
           <div className={cn("grid items-center gap-4", gridClassName)}>
             <div className={firstColumnSpanClassName}>
               <div className={cn("flex items-center space-x-4", firstColumnClassName)}>
-                <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                {showCheckbox && <div className="h-4 w-4 animate-pulse rounded bg-muted" />}
                 {showThumbnail && <div className="ml-2 h-12 w-12 animate-pulse rounded bg-muted" />}
                 <div>
                   <div className="mb-2 h-4 w-32 animate-pulse rounded bg-muted" />

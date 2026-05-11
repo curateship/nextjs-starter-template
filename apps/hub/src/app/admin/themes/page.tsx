@@ -7,6 +7,7 @@ import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog"
+import { AdminConfirmDialog, AdminListSkeleton, formatRelativeDate } from "@/components/admin/layout/list"
 import { Button } from "@/components/ui/button"
 import { CardTableHeader } from "@/components/ui/card"
 import {
@@ -147,17 +148,6 @@ export default function ThemesPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    if (diffDays === 1) return "1 day ago"
-    if (diffDays < 7) return `${diffDays} days ago`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-    return `${Math.ceil(diffDays / 30)} months ago`
-  }
-
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredTemplates = normalizedSearchQuery
     ? templates.filter((template) => {
@@ -218,29 +208,7 @@ export default function ThemesPage() {
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <div>
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="border-b border-muted/80 p-6">
-                      <div className="grid grid-cols-5 items-center gap-4">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
-                            <div className="h-12 w-12 animate-pulse rounded-lg bg-muted" />
-                            <div>
-                              <div className="mb-2 h-4 w-32 animate-pulse rounded bg-muted" />
-                              <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="h-3 w-16 animate-pulse rounded bg-muted/60" />
-                        </div>
-                        <div>
-                          <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AdminListSkeleton columns={5} rowCount={3} showCheckbox={false} />
               ) : filteredTemplates.length === 0 ? (
                 <div className="p-8 text-center">
                   <Paintbrush className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
@@ -281,7 +249,7 @@ export default function ThemesPage() {
                         </Link>
                       </div>
                       <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(template.created_at)}</span>
+                        <span className="text-sm text-muted-foreground">{formatRelativeDate(template.created_at)}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <DropdownMenu>
@@ -421,29 +389,19 @@ export default function ThemesPage() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}>
-            <DialogContent className="sm:max-w-md" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <DialogHeader>
-                <DialogTitle>Delete Theme</DialogTitle>
-                <DialogDescription>
-                  Are you sure you want to delete &ldquo;
-                  {deleteDialog.templateName}&rdquo;? This action cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteDialog((prev) => ({ ...prev, open: false }))}>
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteConfirm}
-                  disabled={deleting === deleteDialog.templateId}
-                >
-                  {deleting === deleteDialog.templateId ? "Deleting..." : "Delete"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <AdminConfirmDialog
+            open={deleteDialog.open}
+            onCancel={() => setDeleteDialog((prev) => ({ ...prev, open: false }))}
+            onConfirm={handleDeleteConfirm}
+            disabled={deleting === deleteDialog.templateId}
+            title="Delete Theme"
+            description={
+              <>
+                Are you sure you want to delete &ldquo;{deleteDialog.templateName}&rdquo;? This action cannot be undone.
+              </>
+            }
+            confirmLabel={deleting === deleteDialog.templateId ? "Deleting..." : "Delete"}
+          />
 
           <ApplyThemeDialog
             templateId={applyDialog.templateId}
