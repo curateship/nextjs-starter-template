@@ -435,8 +435,8 @@ function SettingsModal({
         size="admin"
         className="flex max-h-[calc(100vh-4rem)] flex-col overflow-hidden p-0"
       >
-        <DialogHeader className="relative p-6 text-left">
-          <DialogTitle className="truncate pr-8">
+        <DialogHeader className="relative px-6 pt-6 text-left">
+          <DialogTitle className="truncate">
             Email Settings
           </DialogTitle>
           <DialogClose asChild>
@@ -565,7 +565,7 @@ function SettingsModal({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-6">
+        <DialogFooter className="px-6 pb-6">
           <DialogClose asChild>
             <Button type="button">Done</Button>
           </DialogClose>
