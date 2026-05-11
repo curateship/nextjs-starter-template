@@ -839,7 +839,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-y-auto">
       <DashboardStickyHeader
         rightActions={
           <StickybarTopRightActions
