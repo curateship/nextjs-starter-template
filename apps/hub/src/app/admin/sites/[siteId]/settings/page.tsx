@@ -21,7 +21,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, CheckCircle, Copy, Eye, EyeOff, RefreshCw, Shield, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -44,36 +43,20 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
   const [revealedFields, setRevealedFields] = useState<Set<string>>(new Set())
   const [webhookBaseUrl, setWebhookBaseUrl] = useState("")
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false)
-  const [copiedSetupCommand, setCopiedSetupCommand] = useState(false)
 
   const isConfigured = integration !== null
   const stripeMode = (formValues.mode || integration?.config?.mode) === "sandbox" ? "Sandbox" : "Live"
   const savedWebhookSecret =
     typeof integration?.config?.webhook_secret === "string" ? integration.config.webhook_secret : ""
   const webhookSlug =
-    entry.type === "notion_marketplace" ? "notion-marketplace" : entry.type === "gumroad" ? "gumroad" : ""
-  const webhookQuery = entry.type === "gumroad" ? "&resource=sale" : ""
+    entry.type === "notion_marketplace" ? "notion-marketplace" : ""
   const webhookUrl =
     webhookSlug && savedWebhookSecret && webhookBaseUrl
-      ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(savedWebhookSecret)}${webhookQuery}`
+      ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(savedWebhookSecret)}`
       : ""
   const webhookUrlPreview = webhookUrl
-    ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=********${webhookQuery}`
+    ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=********`
     : ""
-  const gumroadSetupCommand =
-    entry.type === "gumroad" && webhookUrl
-      ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
-  -H "Authorization: Bearer YOUR_GUMROAD_ACCESS_TOKEN" \\
-  -d "resource_name=sale" \\
-  --data-urlencode "post_url=${webhookUrl}"`
-      : ""
-  const gumroadSetupCommandPreview =
-    entry.type === "gumroad" && webhookUrlPreview
-      ? `curl -X PUT https://api.gumroad.com/v2/resource_subscriptions \\
-  -H "Authorization: Bearer YOUR_GUMROAD_ACCESS_TOKEN" \\
-  -d "resource_name=sale" \\
-  --data-urlencode "post_url=${webhookUrlPreview}"`
-      : ""
 
   useEffect(() => {
     const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
@@ -97,13 +80,6 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
     await navigator.clipboard.writeText(webhookUrl)
     setCopiedWebhookUrl(true)
     setTimeout(() => setCopiedWebhookUrl(false), 2000)
-  }
-
-  const handleCopySetupCommand = async () => {
-    if (!gumroadSetupCommand) return
-    await navigator.clipboard.writeText(gumroadSetupCommand)
-    setCopiedSetupCommand(true)
-    setTimeout(() => setCopiedSetupCommand(false), 2000)
   }
 
   return (
@@ -200,7 +176,7 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
           </div>
         ))}
 
-        {(entry.type === "notion_marketplace" || entry.type === "gumroad") && (
+        {entry.type === "notion_marketplace" && (
           <div className="space-y-2 border-t pt-4">
             <Label htmlFor={`${entry.type}-webhook-url`}>Webhook URL</Label>
             <div className="flex gap-2">
@@ -215,27 +191,6 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
                 {copiedWebhookUrl ? "Copied" : "Copy"}
               </Button>
             </div>
-
-            {entry.type === "gumroad" && (
-              <div className="space-y-2 pt-2">
-                <Label htmlFor="gumroad-sale-command">Sale subscription command</Label>
-                <Textarea
-                  id="gumroad-sale-command"
-                  value={gumroadSetupCommandPreview || "Save a webhook secret to generate the command"}
-                  readOnly
-                  className="min-h-28 font-mono text-xs"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCopySetupCommand}
-                  disabled={!gumroadSetupCommand}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  {copiedSetupCommand ? "Copied" : "Copy command"}
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </CardContent>

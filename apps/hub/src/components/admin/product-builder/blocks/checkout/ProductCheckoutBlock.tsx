@@ -46,24 +46,6 @@ const sanitizeAdminInput = (input: string): string => {
     .substring(0, 1000) // Higher limit for admin but still prevent DoS
 }
 
-const isValidPartialUrl = (url: string): boolean => {
-  if (!url || url.trim() === '') return true // Empty URLs are allowed
-
-  // Allow partial URLs while typing (like "http", "https:", "https://ex")
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return true
-  }
-
-  // Block dangerous protocols immediately
-  if (url.toLowerCase().includes('javascript:') ||
-      url.toLowerCase().includes('data:') ||
-      url.toLowerCase().includes('vbscript:')) {
-    return false
-  }
-
-  return true // Allow other partial input
-}
-
 interface PricingTier {
   id: string
   name: string
@@ -72,7 +54,6 @@ interface PricingTier {
   description: string
   features: string[]
   buttonText: string
-  buttonUrl: string
   highlighted: boolean
   ribbonText: string
   ribbonColor: 'blue' | 'green' | 'purple' | 'red' | 'yellow'
@@ -95,7 +76,6 @@ interface OrderBump {
 
 interface CheckoutSettings {
   enabled: boolean
-  gumroadEnabled?: boolean
   successUrl: string
 }
 
@@ -226,7 +206,6 @@ function SortablePricingTierItem({
   removeTier,
   updateFeatures,
   showStripeFields,
-  showGumroadFields
 }: {
   tier: PricingTier
   tierIndex: number
@@ -234,7 +213,6 @@ function SortablePricingTierItem({
   removeTier: (index: number) => void
   updateFeatures: (tierIndex: number, featuresText: string) => void
   showStripeFields: boolean
-  showGumroadFields: boolean
 }) {
   const [orderBumpsModalOpen, setOrderBumpsModalOpen] = useState(false)
   const {
@@ -473,27 +451,6 @@ function SortablePricingTierItem({
           </div>
         )}
 
-        {/* Gumroad URL field - only show when Gumroad is enabled */}
-        {showGumroadFields && (
-          <div className="space-y-2 pt-4">
-            <Label htmlFor={`tier-gumroad-url-${tierIndex}`}>Gumroad URL</Label>
-            <Input
-              id={`tier-gumroad-url-${tierIndex}`}
-              value={tier.buttonUrl || ''}
-              onChange={(e) => {
-                const url = e.target.value
-                if (isValidPartialUrl(url)) {
-                  updateTier(tierIndex, 'buttonUrl', url)
-                }
-              }}
-              placeholder="https://yourname.gumroad.com/l/product-name"
-              className={!isValidPartialUrl(tier.buttonUrl || '') ? 'border-red-300' : ''}
-            />
-            <p className="text-xs text-muted-foreground">
-              The checkout link from your Gumroad product
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Order Bumps Modal */}
@@ -535,13 +492,9 @@ export function ProductCheckoutBlock({
     })
   )
 
-  // Initialize settings with defaults if not provided
-  // Auto-detect Gumroad if tiers have buttonUrl values
-  const hasGumroadUrls = productPricingTiers?.some(tier => tier.buttonUrl && tier.buttonUrl.trim() !== '')
-  const currentCheckoutSettings: CheckoutSettings = checkoutSettings || {
-    enabled: false,
-    gumroadEnabled: hasGumroadUrls,
-    successUrl: '/products/[slug]/success',
+  const currentCheckoutSettings: CheckoutSettings = {
+    enabled: checkoutSettings?.enabled || false,
+    successUrl: checkoutSettings?.successUrl || '/products/[slug]/success',
   }
 
   // Pricing tier functions
@@ -554,7 +507,6 @@ export function ProductCheckoutBlock({
       description: "Perfect for getting started",
       features: [],
       buttonText: "Get Started",
-      buttonUrl: "",
       highlighted: false,
       ribbonText: "",
       ribbonColor: "blue",
@@ -649,43 +601,19 @@ export function ProductCheckoutBlock({
                         onCheckedChange={(checked) => {
                           if (checked) {
                             onCheckoutSettingsChange?.({
-                              ...currentCheckoutSettings,
                               enabled: true,
-                              gumroadEnabled: false,
+                              successUrl: currentCheckoutSettings.successUrl,
                             })
                           } else {
                             onCheckoutSettingsChange?.({
-                              ...currentCheckoutSettings,
                               enabled: false,
+                              successUrl: currentCheckoutSettings.successUrl,
                             })
                           }
                         }}
                       />
                       <Label htmlFor="payment-stripe" className="font-medium cursor-pointer">
                         Stripe
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="payment-gumroad"
-                        checked={currentCheckoutSettings.gumroadEnabled ?? false}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            onCheckoutSettingsChange?.({
-                              ...currentCheckoutSettings,
-                              enabled: false,
-                              gumroadEnabled: true,
-                            })
-                          } else {
-                            onCheckoutSettingsChange?.({
-                              ...currentCheckoutSettings,
-                              gumroadEnabled: false,
-                            })
-                          }
-                        }}
-                      />
-                      <Label htmlFor="payment-gumroad" className="font-medium cursor-pointer">
-                        Gumroad
                       </Label>
                     </div>
                   </div>
@@ -711,7 +639,6 @@ export function ProductCheckoutBlock({
                             removeTier={removeTier}
                             updateFeatures={updateFeatures}
                             showStripeFields={currentCheckoutSettings.enabled}
-                            showGumroadFields={currentCheckoutSettings.gumroadEnabled || false}
                           />
                         ))}
                       </div>
@@ -763,7 +690,7 @@ export function ProductCheckoutBlock({
                       value={currentCheckoutSettings.successUrl}
                       onChange={(e) =>
                         onCheckoutSettingsChange?.({
-                          ...currentCheckoutSettings,
+                          enabled: currentCheckoutSettings.enabled,
                           successUrl: e.target.value,
                         })
                       }

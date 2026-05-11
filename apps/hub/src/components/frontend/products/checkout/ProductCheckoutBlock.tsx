@@ -5,17 +5,6 @@ import { Button } from "@/components/ui/button"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import Link from "next/link"
 
-// Security utility functions
-const isValidUrl = (url: string): boolean => {
-  try {
-    const parsedUrl = new URL(url)
-    // Only allow HTTP(S) protocols - block javascript:, data:, file:, etc.
-    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 const sanitizeText = (text: any): string => {
   // Handle undefined/null values
   if (!text) return ''
@@ -39,7 +28,6 @@ interface PricingTier {
   price: string
   interval: string
   buttonText: string
-  buttonUrl: string
   buttonVariant: "default" | "outline" | "secondary" | "destructive" | "ghost" | "link"
   features: string[]
   comparison: string
@@ -134,15 +122,6 @@ const SinglePricingCard = ({
                           {sanitizeText(tier.buttonText)}
                         </Button>
                       </Link>
-                    ) : tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
-                      <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer">
-                        <Button
-                          variant={tier.buttonVariant}
-                          size="lg"
-                          className="cursor-pointer">
-                          {sanitizeText(tier.buttonText)}
-                        </Button>
-                      </a>
                     ) : (
                       <Button
                         variant={tier.buttonVariant}
@@ -262,12 +241,6 @@ const PricingCard = ({
                   {sanitizeText(tier.buttonText)}
                 </Button>
               </Link>
-            ) : tier.buttonUrl && isValidUrl(tier.buttonUrl) ? (
-              <a href={tier.buttonUrl} target="_blank" rel="noopener noreferrer" className="block">
-                <Button variant={tier.buttonVariant} className="w-full py-6 cursor-pointer">
-                  {sanitizeText(tier.buttonText)}
-                </Button>
-              </a>
             ) : (
               <Button variant={tier.buttonVariant} className="w-full py-6">
                 {sanitizeText(tier.buttonText)}

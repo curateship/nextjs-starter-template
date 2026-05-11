@@ -101,7 +101,6 @@ export function ProductBlockRenderer({
             price: tier.price || '0',
             interval: tier.interval || '',
             buttonText: tier.buttonText || 'Get Started',
-            buttonUrl: tier.buttonUrl || '',
             buttonVariant: 'default' as const,
             features: tier.features || [],
             comparison: '', // Not used in admin
