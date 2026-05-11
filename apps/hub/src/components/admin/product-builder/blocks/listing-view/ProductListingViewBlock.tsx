@@ -148,7 +148,7 @@ export function ProductListingViewBlock({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="viewAllText">View All Button Text</Label>
+                <Label htmlFor="viewAllText">Header Button Text</Label>
                 <Input
                   id="viewAllText"
                   value={viewAllText}
@@ -158,7 +158,7 @@ export function ProductListingViewBlock({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="viewAllLink">View All Button Link</Label>
+                <Label htmlFor="viewAllLink">Header Button Link</Label>
                 <Input
                   id="viewAllLink"
                   value={viewAllLink}
@@ -168,9 +168,6 @@ export function ProductListingViewBlock({
               </div>
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
-            </p>
         </BlockEditorSection>
 
         <BlockEditorSection heading="Content Settings">
@@ -358,6 +355,7 @@ export function ProductListingViewBlock({
                   fields={[
                     { key: 'header', label: 'Header' },
                     { key: 'subheader', label: 'Sub Header' },
+                    { key: 'viewAllButton', label: 'Show Header Button' },
                   ]}
                 />
               )}

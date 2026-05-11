@@ -76,6 +76,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
 
   // Get URL prefix from props (passed from parent, no API call needed)
   const urlPrefix = urlPrefixes?.products || ""
+  const hasViewAll = Boolean(viewAllText && viewAllLink && visibility?.viewAllButton !== false)
 
   useEffect(() => {
     async function loadData() {
@@ -242,8 +243,8 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
         >
           {/* Custom Header with ViewAll Button */}
           <div className="mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
-              <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
+            <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${hasViewAll ? 'flex justify-between items-start' : ''}`}>
+              <div className={hasViewAll ? 'flex-1' : ''}>
                 {title && visibility?.header !== false && (
                   <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                     {title}
@@ -255,7 +256,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
                   </p>
                 )}
               </div>
-              {viewAllText && viewAllLink && !isPaginated && (
+              {hasViewAll && (
                 <div className="flex-shrink-0 ml-8">
                   <ViewAllButton 
                     text={viewAllText}
@@ -296,8 +297,8 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
         >
           {/* Custom Header with ViewAll Button */}
           <div className="mb-12">
-            <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
-              <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
+            <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${hasViewAll ? 'flex justify-between items-start' : ''}`}>
+              <div className={hasViewAll ? 'flex-1' : ''}>
                 {title && visibility?.header !== false && (
                   <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                     {title}
@@ -309,7 +310,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
                   </p>
                 )}
               </div>
-              {viewAllText && viewAllLink && !isPaginated && (
+              {hasViewAll && (
                 <div className="flex-shrink-0 ml-8">
                   <ViewAllButton 
                     text={viewAllText}
@@ -337,8 +338,8 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
       >
         {/* Custom Header with ViewAll Button */}
         <div className="mb-12">
-          <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${viewAllText && viewAllLink && !isPaginated ? 'flex justify-between items-start' : ''}`}>
-            <div className={viewAllText && viewAllLink && !isPaginated ? 'flex-1' : ''}>
+          <div className={`${headerAlign === 'left' ? 'text-left' : false ? 'text-right' : 'text-center'} ${hasViewAll ? 'flex justify-between items-start' : ''}`}>
+            <div className={hasViewAll ? 'flex-1' : ''}>
               {title && (
                 <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''}`}>
                   {title}
@@ -350,7 +351,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
                 </p>
               )}
             </div>
-            {viewAllText && viewAllLink && !isPaginated && (
+            {hasViewAll && (
               <div className="flex-shrink-0 ml-8">
                 <ViewAllButton 
                   text={viewAllText}

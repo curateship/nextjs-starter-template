@@ -16,6 +16,7 @@ interface VisibilitySettingsProps {
   title?: string
   includeHideBlock?: boolean
   useCard?: boolean
+  helperText?: string | null
 }
 
 export function VisibilitySettings({
@@ -25,6 +26,7 @@ export function VisibilitySettings({
   title = "Visibility",
   includeHideBlock = true,
   useCard = false,
+  helperText = "Toggle elements on or off, or hide the entire block, without deleting content.",
 }: VisibilitySettingsProps) {
   const resolvedFields = includeHideBlock && !fields.some((field) => field.key === 'hideBlock')
     ? [...fields, { key: 'hideBlock', label: 'Hide Block', mode: 'hide' as const }]
@@ -47,9 +49,7 @@ export function VisibilitySettings({
           <Label htmlFor={`visibility-${field.key}`} className="cursor-pointer">{field.label}</Label>
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">
-        Toggle elements on or off, or hide the entire block, without deleting content.
-      </p>
+      {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
     </div>
   )
 

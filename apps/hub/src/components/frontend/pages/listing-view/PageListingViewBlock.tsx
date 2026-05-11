@@ -116,7 +116,7 @@ export function ListingViewsBlock({
   const categoryIdsKey = categoryIds.join("|")
 
   // Extract repeated conditions
-  const hasViewAll = viewAllText && viewAllLink && !isPaginated
+  const hasViewAll = Boolean(viewAllText && viewAllLink && visibility?.viewAllButton !== false)
 
   // Create responsive alignment classes
   const getResponsiveAlignmentClass = () => {
@@ -133,6 +133,24 @@ export function ListingViewsBlock({
 
   const titleClasses = `text-3xl font-bold md:text-5xl max-w-3xl ${getResponsiveMarginClass()}`
   const subtitleClasses = `mt-2 md:mt-4 text-lg text-muted-foreground max-w-3xl ${getResponsiveMarginClass()}`
+
+  const renderHeader = (className = "mb-12") => (
+    <div className={className}>
+      <div
+        className={`${getResponsiveAlignmentClass()} ${hasViewAll ? "md:flex md:justify-between md:items-start" : ""}`}
+      >
+        <div className={hasViewAll ? "md:flex-1" : ""}>
+          {title && visibility?.title !== false && <h2 className={titleClasses}>{title}</h2>}
+          {subtitle && visibility?.subtitle !== false && <p className={subtitleClasses}>{subtitle}</p>}
+        </div>
+        {hasViewAll && (
+          <div className="mt-6 hidden shrink-0 md:mt-0 md:ml-8 md:block">
+            <ViewAllButton text={viewAllText} href={viewAllLink} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
 
   const listingItems = data?.items || data?.products || data?.posts || []
   const emptyMessage =
@@ -370,12 +388,7 @@ export function ListingViewsBlock({
   if (loading && !data) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-        <div className="mb-6 md:mb-12">
-          <div className={getResponsiveAlignmentClass()}>
-            {title && visibility?.title !== false && <h2 className={titleClasses}>{title}</h2>}
-            {subtitle && visibility?.subtitle !== false && <p className={subtitleClasses}>{subtitle}</p>}
-          </div>
-        </div>
+        {renderHeader("mb-6 md:mb-12")}
 
         <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
           {Array.from({ length: itemsToShow }, (_, i) => (
@@ -393,12 +406,7 @@ export function ListingViewsBlock({
   if (!data || listingItems.length === 0) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-        <div className="mb-6 md:mb-12">
-          <div className={getResponsiveAlignmentClass()}>
-            {title && visibility?.title !== false && <h2 className={titleClasses}>{title}</h2>}
-            {subtitle && visibility?.subtitle !== false && <p className={subtitleClasses}>{subtitle}</p>}
-          </div>
-        </div>
+        {renderHeader("mb-6 md:mb-12")}
 
         <p className="text-muted-foreground text-center py-8">{emptyMessage}</p>
       </BlockContainer>
@@ -407,21 +415,7 @@ export function ListingViewsBlock({
 
   return (
     <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
-      <div className="mb-12">
-        <div
-          className={`${getResponsiveAlignmentClass()} ${hasViewAll ? "md:flex md:justify-between md:items-start" : ""}`}
-        >
-          <div className={hasViewAll ? "md:flex-1" : ""}>
-            {title && visibility?.title !== false && <h2 className={titleClasses}>{title}</h2>}
-            {subtitle && visibility?.subtitle !== false && <p className={subtitleClasses}>{subtitle}</p>}
-          </div>
-          {hasViewAll && (
-            <div className="mt-6 hidden shrink-0 md:mt-0 md:ml-8 md:block">
-              <ViewAllButton text={viewAllText} href={viewAllLink} />
-            </div>
-          )}
-        </div>
-      </div>
+      {renderHeader()}
 
       <div
         className={`grid ${listingStyle === "blog" ? "gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8" : `${gridColumns} gap-8`}`}

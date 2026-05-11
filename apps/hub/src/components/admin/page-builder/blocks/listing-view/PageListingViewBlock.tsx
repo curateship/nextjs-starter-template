@@ -174,7 +174,7 @@ export function PageListingViewBlock({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="viewAllText">View All Button Text</Label>
+              <Label htmlFor="viewAllText">Header Button Text</Label>
               <Input
                 id="viewAllText"
                 value={viewAllText}
@@ -184,7 +184,7 @@ export function PageListingViewBlock({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="viewAllLink">View All Button Link</Label>
+              <Label htmlFor="viewAllLink">Header Button Link</Label>
               <Input
                 id="viewAllLink"
                 value={viewAllLink}
@@ -192,12 +192,6 @@ export function PageListingViewBlock({
                 placeholder="/products"
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Add text and link to display a &quot;View All&quot; button (only shown when not paginated)
-            </p>
           </div>
 
           <div className="flex gap-6">
@@ -266,66 +260,10 @@ export function PageListingViewBlock({
                 siteId={siteId}
                 selectedCategoryIds={selectedCategoryIds}
                 onSelectionChange={onCategoryIdsChange}
+                variant="combobox"
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="displayMode">Display Mode</Label>
-              <Select value={displayMode} onValueChange={onDisplayModeChange}>
-                <SelectTrigger id="displayMode" size="button">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="grid">Grid</SelectItem>
-                  <SelectItem value="list">List</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="columns">Columns</Label>
-              <Select 
-                value={displayMode === 'grid' ? columns.toString() : 'disabled'} 
-                onValueChange={(v) => onColumnsChange(parseInt(v))}
-                disabled={displayMode === 'list'}
-              >
-                <SelectTrigger id="columns" size="button">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2 Columns</SelectItem>
-                  <SelectItem value="3">3 Columns</SelectItem>
-                  <SelectItem value="4">4 Columns</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="sortBy">Sort By</Label>
-              <Select value={sortBy} onValueChange={onSortByChange}>
-                <SelectTrigger id="sortBy" size="button">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="title">Title</SelectItem>
-                  <SelectItem value="display_order">Display Order</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="sortOrder">Sort Order</Label>
-              <Select value={sortOrder} onValueChange={onSortOrderChange}>
-                <SelectTrigger id="sortOrder" size="button">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asc">Ascending</SelectItem>
-                  <SelectItem value="desc">Descending</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
       </BlockEditorSection>
             </div>
@@ -364,6 +302,68 @@ export function PageListingViewBlock({
                       </div>
                     </button>
                   ))}
+                </div>
+              </BlockEditorSection>
+
+              <BlockEditorSection heading="Layout">
+                <div className="flex flex-wrap gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="displayMode">Display Mode</Label>
+                    <Select value={displayMode} onValueChange={onDisplayModeChange}>
+                      <SelectTrigger id="displayMode" size="button">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="grid">Grid</SelectItem>
+                        <SelectItem value="list">List</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="columns">Columns</Label>
+                    <Select
+                      value={displayMode === 'grid' ? columns.toString() : 'disabled'}
+                      onValueChange={(v) => onColumnsChange(parseInt(v))}
+                      disabled={displayMode === 'list'}
+                    >
+                      <SelectTrigger id="columns" size="button">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2">2 Columns</SelectItem>
+                        <SelectItem value="3">3 Columns</SelectItem>
+                        <SelectItem value="4">4 Columns</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sortBy">Sort By</Label>
+                    <Select value={sortBy} onValueChange={onSortByChange}>
+                      <SelectTrigger id="sortBy" size="button">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">Date</SelectItem>
+                        <SelectItem value="title">Title</SelectItem>
+                        <SelectItem value="display_order">Display Order</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="sortOrder">Sort Order</Label>
+                    <Select value={sortOrder} onValueChange={onSortOrderChange}>
+                      <SelectTrigger id="sortOrder" size="button">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="asc">Ascending</SelectItem>
+                        <SelectItem value="desc">Descending</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </BlockEditorSection>
             </div>
@@ -411,6 +411,7 @@ export function PageListingViewBlock({
                   visibility={visibility}
                   onChange={onVisibilityChange}
                   includeHideBlock={false}
+                  helperText={null}
                   fields={[
                     { key: 'title', label: 'Title' },
                     { key: 'subtitle', label: 'Subtitle' },
@@ -446,32 +447,36 @@ export function PageListingViewBlock({
                     <Label htmlFor="showDescription" className="cursor-pointer">Show Description</Label>
                   </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showAuthor"
-                      checked={showAuthor}
-                      onCheckedChange={(checked) => onShowAuthorChange(!!checked)}
-                    />
-                    <Label htmlFor="showAuthor" className="cursor-pointer">Show Author</Label>
-                  </div>
+                  {listingStyle === 'blog' && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="showAuthor"
+                          checked={showAuthor}
+                          onCheckedChange={(checked) => onShowAuthorChange(!!checked)}
+                        />
+                        <Label htmlFor="showAuthor" className="cursor-pointer">Show Author</Label>
+                      </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showDate"
-                      checked={showDate}
-                      onCheckedChange={(checked) => onShowDateChange(!!checked)}
-                    />
-                    <Label htmlFor="showDate" className="cursor-pointer">Show Date</Label>
-                  </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="showDate"
+                          checked={showDate}
+                          onCheckedChange={(checked) => onShowDateChange(!!checked)}
+                        />
+                        <Label htmlFor="showDate" className="cursor-pointer">Show Date</Label>
+                      </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showReadMore"
-                      checked={showReadMore}
-                      onCheckedChange={(checked) => onShowReadMoreChange(!!checked)}
-                    />
-                    <Label htmlFor="showReadMore" className="cursor-pointer">Show Read More</Label>
-                  </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="showReadMore"
+                          checked={showReadMore}
+                          onCheckedChange={(checked) => onShowReadMoreChange(!!checked)}
+                        />
+                        <Label htmlFor="showReadMore" className="cursor-pointer">Show Read More</Label>
+                      </div>
+                    </>
+                  )}
 
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -508,7 +513,7 @@ export function PageListingViewBlock({
                   title="Block Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
-                  fields={[]}
+                  fields={[{ key: 'viewAllButton', label: 'Show Header Button' }]}
                 />
               )}
 
