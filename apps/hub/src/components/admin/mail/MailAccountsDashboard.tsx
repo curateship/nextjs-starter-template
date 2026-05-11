@@ -13,7 +13,6 @@ import {
   Send,
   Settings,
   Trash2,
-  XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -24,13 +23,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   Dialog,
   DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import {
   Drawer,
   DrawerContent,
@@ -430,147 +425,120 @@ function SettingsModal({
           <Settings className="size-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent
-        showCloseButton={false}
-        size="admin"
-        className="flex max-h-[calc(100vh-4rem)] flex-col overflow-hidden p-0"
-      >
-        <DialogHeader className="relative px-6 pt-6 text-left">
-          <DialogTitle className="truncate">
-            Email Settings
-          </DialogTitle>
-          <DialogClose asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="absolute top-5 right-5"
-            >
-              <XIcon className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </Button>
-          </DialogClose>
-        </DialogHeader>
-
-        <ScrollArea className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="p-6">
-            <DialogDescription className="mb-4">
-              Manage provider setup, DNS, mailboxes, and webmail access.
-            </DialogDescription>
-
-            <div className="grid">
-              <div className="grid sm:grid-cols-3">
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground">Custom domain</div>
-                    <div className="mt-1 truncate text-sm font-medium">{data?.customDomain || "Missing"}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground">Provider</div>
-                    <div className="mt-1 flex items-center gap-2 text-sm font-medium">
-                      {data?.providerConfigured ? <CheckCircle2 className="size-4 text-green-600" /> : <AlertTriangle className="size-4 text-yellow-600" />}
-                      MXroute
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="text-xs text-muted-foreground">Mailboxes</div>
-                    <div className="mt-1 text-sm font-medium">{data?.mailboxes.length ?? 0}</div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <MxrouteForm siteId={siteId} onSaved={onRefresh} />
-
-              <Card>
-                <CardHeader className="p-4 pb-3">
-                  <CardTitle className="text-sm">Mail domain setup</CardTitle>
-                  <CardDescription className="text-xs">After the MXroute verification TXT record passes, add the custom domain to MXroute.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <Button onClick={setupDomain} disabled={settingUpDomain || !data?.customDomain || !data.providerConfigured}>
-                    {settingUpDomain ? "Setting up..." : "Add domain to MXroute"}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
-                  <CardTitle className="text-sm">DNS</CardTitle>
-                  <Button variant="outline" size="sm" onClick={onRefresh}>Refresh DNS</Button>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="space-y-2">
-                    {data?.mailDomain?.dnsRecords.length ? data.mailDomain.dnsRecords.map((record, index) => (
-                      <div key={`${record.type}-${record.name}-${index}`} className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-[80px_1fr_92px] md:items-center">
-                        <div className="font-medium">{record.type}</div>
-                        <div className="min-w-0">
-                          <div className="truncate">{record.name}</div>
-                          <div className="truncate text-xs text-muted-foreground">{record.value}</div>
-                        </div>
-                        <Badge variant={record.status === "pass" ? "default" : "outline"} className={record.status === "pass" ? "bg-green-100 text-green-800" : ""}>
-                          {record.status === "pass" ? "Pass" : "Missing"}
-                        </Badge>
-                      </div>
-                    )) : (
-                      <p className="text-sm text-muted-foreground">Connect MXroute to load DNS records.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <CreateMailboxForm siteId={siteId} disabled={!data?.customDomain || !data.providerConfigured} onCreated={onRefresh} />
-
-              <Card>
-                <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
-                  <CardTitle className="text-sm">Mailboxes</CardTitle>
-                  {data?.webmailUrl ? (
-                    <Button asChild variant="outline" size="sm">
-                      <a href={data.webmailUrl} target="_blank" rel="noreferrer">Open webmail</a>
-                    </Button>
-                  ) : null}
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="space-y-2">
-                    {data?.mailboxes.length ? data.mailboxes.map((mailbox) => (
-                      <div key={mailbox.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
-                        <div className="min-w-0">
-                          <div className="font-medium">{mailbox.email}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {mailbox.usageMb.toLocaleString()} MB used of {mailbox.quotaMb === 0 ? "unlimited" : `${mailbox.quotaMb.toLocaleString()} MB`}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={mailbox.status === "disabled" ? "secondary" : "default"}>{mailbox.status}</Badge>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => disableMailbox(mailbox)}
-                            disabled={mailbox.status === "disabled" || mailbox.id.startsWith("provider:") || disablingId === mailbox.id}
-                          >
-                            {disablingId === mailbox.id ? "Disabling..." : "Disable"}
-                          </Button>
-                        </div>
-                      </div>
-                    )) : (
-                      <p className="text-sm text-muted-foreground">No mailboxes yet.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </ScrollArea>
-
-        <DialogFooter className="px-6 pb-6">
+      <DashboardModalContent
+        title="Email Settings"
+        description="Manage provider setup, DNS, mailboxes, and webmail access."
+        footer={(
           <DialogClose asChild>
             <Button type="button">Done</Button>
           </DialogClose>
-        </DialogFooter>
-      </DialogContent>
+        )}
+      >
+        <div className="grid">
+          <div className="grid sm:grid-cols-3">
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground">Custom domain</div>
+                <div className="mt-1 truncate text-sm font-medium">{data?.customDomain || "Missing"}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground">Provider</div>
+                <div className="mt-1 flex items-center gap-2 text-sm font-medium">
+                  {data?.providerConfigured ? <CheckCircle2 className="size-4 text-green-600" /> : <AlertTriangle className="size-4 text-yellow-600" />}
+                  MXroute
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground">Mailboxes</div>
+                <div className="mt-1 text-sm font-medium">{data?.mailboxes.length ?? 0}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <MxrouteForm siteId={siteId} onSaved={onRefresh} />
+
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-sm">Mail domain setup</CardTitle>
+              <CardDescription className="text-xs">After the MXroute verification TXT record passes, add the custom domain to MXroute.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <Button onClick={setupDomain} disabled={settingUpDomain || !data?.customDomain || !data.providerConfigured}>
+                {settingUpDomain ? "Setting up..." : "Add domain to MXroute"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
+              <CardTitle className="text-sm">DNS</CardTitle>
+              <Button variant="outline" size="sm" onClick={onRefresh}>Refresh DNS</Button>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="space-y-2">
+                {data?.mailDomain?.dnsRecords.length ? data.mailDomain.dnsRecords.map((record, index) => (
+                  <div key={`${record.type}-${record.name}-${index}`} className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-[80px_1fr_92px] md:items-center">
+                    <div className="font-medium">{record.type}</div>
+                    <div className="min-w-0">
+                      <div className="truncate">{record.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">{record.value}</div>
+                    </div>
+                    <Badge variant={record.status === "pass" ? "default" : "outline"} className={record.status === "pass" ? "bg-green-100 text-green-800" : ""}>
+                      {record.status === "pass" ? "Pass" : "Missing"}
+                    </Badge>
+                  </div>
+                )) : (
+                  <p className="text-sm text-muted-foreground">Connect MXroute to load DNS records.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <CreateMailboxForm siteId={siteId} disabled={!data?.customDomain || !data.providerConfigured} onCreated={onRefresh} />
+
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
+              <CardTitle className="text-sm">Mailboxes</CardTitle>
+              {data?.webmailUrl ? (
+                <Button asChild variant="outline" size="sm">
+                  <a href={data.webmailUrl} target="_blank" rel="noreferrer">Open webmail</a>
+                </Button>
+              ) : null}
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="space-y-2">
+                {data?.mailboxes.length ? data.mailboxes.map((mailbox) => (
+                  <div key={mailbox.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                    <div className="min-w-0">
+                      <div className="font-medium">{mailbox.email}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {mailbox.usageMb.toLocaleString()} MB used of {mailbox.quotaMb === 0 ? "unlimited" : `${mailbox.quotaMb.toLocaleString()} MB`}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={mailbox.status === "disabled" ? "secondary" : "default"}>{mailbox.status}</Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => disableMailbox(mailbox)}
+                        disabled={mailbox.status === "disabled" || mailbox.id.startsWith("provider:") || disablingId === mailbox.id}
+                      >
+                        {disablingId === mailbox.id ? "Disabling..." : "Disable"}
+                      </Button>
+                    </div>
+                  </div>
+                )) : (
+                  <p className="text-sm text-muted-foreground">No mailboxes yet.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardModalContent>
     </Dialog>
   )
 }
