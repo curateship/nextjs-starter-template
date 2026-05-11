@@ -61,9 +61,10 @@ export function StickyHeaderRightNav() {
         size="sm"
         className="cursor-pointer"
         data-icon="inline-start"
+        aria-label="Right nav"
       >
         <PanelRightIcon className="h-3.5 w-3.5" />
-        Right nav
+        <span className="hidden sm:inline">Right nav</span>
       </Button>
       <ThemeToggle />
     </div>

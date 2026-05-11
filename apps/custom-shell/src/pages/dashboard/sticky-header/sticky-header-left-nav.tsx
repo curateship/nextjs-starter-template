@@ -71,7 +71,7 @@ export function StickyHeaderLeftNav({
                 {link.icon}
               </span>
             ) : null}
-            {!isMobile ? <span>{link.label}</span> : null}
+            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
           </a>
         ) : (
           <button
@@ -99,7 +99,7 @@ export function StickyHeaderLeftNav({
                 {link.icon}
               </span>
             ) : null}
-            {!isMobile ? <span>{link.label}</span> : null}
+            {(!isMobile || !link.icon) ? <span>{link.label}</span> : null}
           </button>
         )
       )}
