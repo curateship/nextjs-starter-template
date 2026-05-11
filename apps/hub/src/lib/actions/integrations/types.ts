@@ -1,5 +1,6 @@
 export type IntegrationType =
   | 'resend'
+  | 'mxroute'
   | 'stripe'
   | 'anthropic'
   | 'openai'
@@ -14,6 +15,7 @@ export type IntegrationType =
  */
 export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   resend: ['api_key', 'webhook_secret'],
+  mxroute: ['username', 'api_key'],
   stripe: ['secret_key', 'webhook_secret', 'sandbox_secret_key', 'sandbox_webhook_secret'],
   anthropic: ['api_key'],
   openai: ['api_key'],
@@ -79,6 +81,18 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
       { key: 'webhook_secret', label: 'Webhook Secret', type: 'password' },
       { key: 'from_email', label: 'From Email', type: 'email', placeholder: 'noreply@yourdomain.com' },
       { key: 'from_name', label: 'From Name', type: 'text', placeholder: 'Your Company' },
+    ],
+  },
+  {
+    type: 'mxroute',
+    label: 'MXroute',
+    description: 'Provider-backed mailboxes for verified custom domains',
+    category: 'email',
+    fields: [
+      { key: 'server', label: 'Server', type: 'text', placeholder: 'eagle.mxlogin.com', required: true },
+      { key: 'username', label: 'Username', type: 'text', required: true },
+      { key: 'api_key', label: 'API Key', type: 'password', required: true },
+      { key: 'webmail_url', label: 'Webmail URL', type: 'text', placeholder: 'https://webmail.mxroute.com' },
     ],
   },
   // AI Providers

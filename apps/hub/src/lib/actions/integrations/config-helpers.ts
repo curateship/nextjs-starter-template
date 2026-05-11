@@ -106,6 +106,11 @@ export async function getEmailConfig(siteId: string): Promise<{
   return null
 }
 
+export async function getMxrouteConfig(siteId: string): Promise<Record<string, any> | null> {
+  const integration = await getServerIntegration(siteId, 'mxroute')
+  return integration?.config ?? null
+}
+
 /** @deprecated Use getEmailConfig instead */
 export async function getResendConfig(siteId: string) {
   return getEmailConfig(siteId)

@@ -167,6 +167,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-site-settings-general", "General Settings", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings`), "settings"),
             child("child-site-settings-seo", "SEO", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings/seo`), "search"),
           ]),
+          item("item-site-email", "Email", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/email`), "newsletters"),
         ],
       },
       {
@@ -213,6 +214,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   media: "item-media",
   "site-users": "item-site-users",
   "site-settings": "item-site-settings",
+  "site-email": "item-site-email",
   sites: "item-sites",
   "platform-users": "item-platform-users",
   "platform-automations": "item-platform-automations",
@@ -389,8 +391,14 @@ function resolveDefault<T>(map: Map<string, T>, id: string) {
   return map.get(id) ?? map.get(getAliasedDefaultId(id))
 }
 
-function hydrateHref(href: string, defaultHref?: string) {
-  return sanitizeAdminSidebarHref(href) || sanitizeAdminSidebarHref(defaultHref ?? "")
+function hydrateSiteIdPlaceholder(href: string, siteId: string | null) {
+  if (!href.includes("[siteId]")) return href
+  return siteId ? href.replaceAll("[siteId]", siteId) : "/admin/sites"
+}
+
+function hydrateHref(href: string, defaultHref?: string, siteId?: string | null) {
+  const resolvedHref = sanitizeAdminSidebarHref(href) || sanitizeAdminSidebarHref(defaultHref ?? "")
+  return hydrateSiteIdPlaceholder(resolvedHref, siteId ?? null)
 }
 
 function isRemovedAnalyticsEntry(entry: Pick<AdminSidebarItem, "id" | "href">) {
@@ -421,7 +429,7 @@ export function resolveAdminSidebarSettings(
         const resolvedEntry = {
           ...entry,
           id: getAliasedDefaultId(entry.id),
-          href: hydrateHref(entry.href, defaultEntry?.href),
+          href: hydrateHref(entry.href, defaultEntry?.href, siteId),
           ...(defaultEntry?.activePaths?.length
             ? { activePaths: defaultEntry.activePaths }
             : {}),
@@ -431,7 +439,7 @@ export function resolveAdminSidebarSettings(
             return {
               ...childItem,
               id: getAliasedDefaultId(childItem.id),
-              href: hydrateHref(childItem.href, defaultChild?.href),
+              href: hydrateHref(childItem.href, defaultChild?.href, siteId),
               ...(defaultChild?.activePaths?.length
                 ? { activePaths: defaultChild.activePaths }
                 : {}),

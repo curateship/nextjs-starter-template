@@ -1,10 +1,10 @@
 'use server'
 
 import { eq, and, asc } from 'drizzle-orm'
-import { encrypt, safeDecrypt } from '@/lib/utils/encryption'
+import { encrypt } from '@/lib/utils/encryption'
 import { db } from '@/lib/db'
 import { siteIntegrations, sites } from '@/lib/db/schema'
-import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { requireAdmin } from '@/lib/db/helpers'
 import { SENSITIVE_FIELDS, type IntegrationType } from './types'
 
 /**
@@ -12,8 +12,7 @@ import { SENSITIVE_FIELDS, type IntegrationType } from './types'
  * Returns user ID on success, throws on failure.
  */
 async function verifyOwnership(siteId: string): Promise<string> {
-  const user = await getAuthenticatedUser()
-  if (!user) throw new Error('Authentication required')
+  const user = await requireAdmin()
 
   const site = await db.query.sites.findFirst({
     where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
@@ -54,29 +53,28 @@ function encryptConfig(integrationType: string, config: Record<string, any>): Re
   return encrypted
 }
 
-/**
- * Decrypt sensitive fields in a config object after reading from DB.
- */
-function decryptConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
+function removeBlankSensitiveFields(integrationType: string, config: Record<string, any>): Record<string, any> {
   const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
-  if (sensitiveKeys.length === 0) {
-    return config
-  }
-  if (!process.env.INTEGRATION_ENCRYPTION_KEY) {
-    throw new Error('INTEGRATION_ENCRYPTION_KEY is required before reading integration secrets')
-  }
-
-  const decrypted = { ...config }
+  const cleaned = { ...config }
   for (const key of sensitiveKeys) {
-    if (decrypted[key] && typeof decrypted[key] === 'string') {
-      decrypted[key] = safeDecrypt(decrypted[key])
+    if (typeof cleaned[key] === 'string' && cleaned[key].trim() === '') {
+      delete cleaned[key]
     }
   }
-  return decrypted
+  return cleaned
+}
+
+function maskSensitiveConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
+  const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
+  const masked = { ...config }
+  for (const key of sensitiveKeys) {
+    delete masked[key]
+  }
+  return masked
 }
 
 /**
- * Get a specific integration for a site (with decryption).
+ * Get a specific integration for a site. Sensitive config values are omitted.
  */
 export async function getSiteIntegration(
   siteId: string,
@@ -98,7 +96,7 @@ export async function getSiteIntegration(
 
     return {
       ...result,
-      config: decryptConfig(result.integrationType, result.config as Record<string, any>),
+      config: maskSensitiveConfig(result.integrationType, result.config as Record<string, any>),
     } as SiteIntegration
   } catch (error) {
     console.error('Error in getSiteIntegration:', error)
@@ -107,7 +105,7 @@ export async function getSiteIntegration(
 }
 
 /**
- * Get all integrations for a site (with decryption).
+ * Get all integrations for a site. Sensitive config values are omitted.
  */
 export async function getSiteIntegrations(
   siteId: string
@@ -123,7 +121,7 @@ export async function getSiteIntegrations(
 
     return results.map((row) => ({
       ...row,
-      config: decryptConfig(row.integrationType, row.config as Record<string, any>),
+      config: maskSensitiveConfig(row.integrationType, row.config as Record<string, any>),
     })) as unknown as SiteIntegration[]
   } catch (error) {
     console.error('Error in getSiteIntegrations:', error)
@@ -141,20 +139,32 @@ export async function createOrUpdateIntegration(
 ): Promise<SiteIntegration> {
   try {
     await verifyOwnership(siteId)
-    const encryptedConfig = encryptConfig(integrationType, config)
+    const submittedConfig = removeBlankSensitiveFields(integrationType, config)
+    const encryptedConfig = encryptConfig(integrationType, submittedConfig)
+    const existing = await db.query.siteIntegrations.findFirst({
+      where: and(
+        eq(siteIntegrations.siteId, siteId),
+        eq(siteIntegrations.integrationType, integrationType)
+      ),
+      columns: { config: true },
+    })
+    const configToSave = {
+      ...((existing?.config as Record<string, any> | undefined) ?? {}),
+      ...encryptedConfig,
+    }
 
     const [result] = await db
       .insert(siteIntegrations)
       .values({
         siteId,
         integrationType,
-        config: encryptedConfig,
+        config: configToSave,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [siteIntegrations.siteId, siteIntegrations.integrationType],
         set: {
-          config: encryptedConfig,
+          config: configToSave,
           updatedAt: new Date(),
         },
       })
@@ -166,7 +176,7 @@ export async function createOrUpdateIntegration(
 
     return {
       ...result,
-      config: decryptConfig(result.integrationType, result.config as Record<string, any>),
+      config: maskSensitiveConfig(result.integrationType, result.config as Record<string, any>),
     } as SiteIntegration
   } catch (error) {
     console.error('Error in createOrUpdateIntegration:', error)
