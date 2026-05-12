@@ -16,22 +16,16 @@ import {
   useAdminBulkSelection,
   useAdminSort,
 } from "@/components/admin/layout/list"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils/tailwind"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
@@ -395,36 +389,45 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
       </AdminLayout>
 
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <AdminModalContent className="max-w-xl">
-          <AdminModalHeader>
-            <AdminModalTitle>Create Template</AdminModalTitle>
-          </AdminModalHeader>
-          <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
-            <div>
-              <Label htmlFor="template-name">Name *</Label>
-              <Input
-                id="template-name"
-                value={formName}
-                onChange={(event) => setFormName(event.target.value)}
-                placeholder={createPlaceholder}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    handleCreate()
-                  }
-                }}
-              />
-            </div>
-          </AdminModalBody>
-          <AdminModalFooter className="sm:justify-end">
-            <Button variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={creating || !formName.trim()}>
-              {creating ? "Creating..." : "Create Template"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+        <DashboardModalContent
+          className="max-w-xl"
+          title="Create Template"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreate} disabled={creating || !formName.trim()}>
+                {creating ? "Creating..." : "Create Template"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Template</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="template-name">Name *</FieldLabel>
+                  <Input
+                    id="template-name"
+                    value={formName}
+                    onChange={(event) => setFormName(event.target.value)}
+                    placeholder={createPlaceholder}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        handleCreate()
+                      }
+                    }}
+                  />
+                </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
 
       <AdminConfirmDialog

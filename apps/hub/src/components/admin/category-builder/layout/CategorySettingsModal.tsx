@@ -1,23 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { ImageIcon, X, Check } from "lucide-react"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { updateCategoryAction, type Category, type UpdateCategoryData } from "@/lib/actions/categories/category-actions"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
@@ -254,83 +247,109 @@ export function CategorySettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent>
-        <AdminModalHeader>
-          <AdminModalTitle className="flex items-center gap-3">
-            Configure settings for &quot;{category.title}&quot;
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${
-                category?.is_published ? 'bg-green-500' : 'bg-gray-400'
-              }`} />
-              <span className="text-sm font-medium">
-                {category?.is_published ? 'Published' : 'Draft'}
+      <form onSubmit={handleSubmit} className="contents">
+        <DashboardModalContent
+          title={
+            <span className="flex items-center gap-3">
+              Configure settings for &quot;{category.title}&quot;
+              <span className="flex items-center space-x-2">
+                <span className={`w-2 h-2 rounded-full ${category?.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
+                <span className="text-sm font-medium">{category?.is_published ? 'Published' : 'Draft'}</span>
               </span>
+            </span>
+          }
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <div className="flex items-center space-x-2">
+                {isSaved && (
+                  <div className="flex items-center space-x-1 text-green-600">
+                    <Check className="h-4 w-4" />
+                    <span className="text-sm font-medium">Saved!</span>
+                  </div>
+                )}
+                <Button type="submit" variant="outline" disabled={saving}>
+                  {saving ? "Saving..." : "Save as Draft"}
+                </Button>
+                <Button type="button" onClick={handlePublish} disabled={saving}>
+                  {saving ? "Saving..." : category?.is_published ? "Save" : "Publish"}
+                </Button>
+              </div>
+            </>
+          }
+          footerClassName="sm:justify-between"
+        >
+          {(error || saveMessage) && (
+            <div className="px-6 pb-2 space-y-2">
+              {error && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              )}
+              {saveMessage && (
+                <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                  <p className="text-sm text-green-800">{saveMessage}</p>
+                </div>
+              )}
             </div>
-          </AdminModalTitle>
-        </AdminModalHeader>
+          )}
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="modal-title">Category Title *</FieldLabel>
+                  <Input
+                    id="modal-title"
+                    value={formData.title || ''}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter category title"
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="modal-slug">Category URL</FieldLabel>
+                  <Input
+                    id="modal-slug"
+                    value={formData.slug || ''}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="category-url-slug"
+                  />
+                  <FieldDescription>
+                    {slugManuallyEdited
+                      ? "Custom URL slug. Clear this field to auto-generate from title again."
+                      : "Auto-generated from title. You can edit this to customize the URL."}
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="parent">Parent Category (Optional)</FieldLabel>
+                  <Combobox
+                    options={parentOptions}
+                    value={parentId}
+                    onValueChange={(value) => {
+                      setIsSaved(false)
+                      setParentId(value)
+                    }}
+                    placeholder="None (top-level)"
+                    searchPlaceholder="Search parent categories..."
+                    emptyMessage="No parent categories found."
+                    allowClear={true}
+                  />
+                  <FieldDescription>Create nested hierarchies. Search to find parent categories.</FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
-
-            {saveMessage && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                <p className="text-sm text-green-800">{saveMessage}</p>
-              </div>
-            )}
-
-              <div className="space-y-2">
-                <Label htmlFor="modal-title">Category Title *</Label>
-                <Input
-                  id="modal-title"
-                  value={formData.title || ''}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter category title"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="modal-slug">Category URL</Label>
-                <Input
-                  id="modal-slug"
-                  value={formData.slug || ''}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="category-url-slug"
-                />
-                <p className="text-xs text-muted-foreground">
-                  {slugManuallyEdited
-                    ? "Custom URL slug. Clear this field to auto-generate from title again."
-                    : "Auto-generated from title. You can edit this to customize the URL."}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="parent">Parent Category (Optional)</Label>
-                <Combobox
-                  options={parentOptions}
-                  value={parentId}
-                  onValueChange={(value) => {
-                    setIsSaved(false)
-                    setParentId(value)
-                  }}
-                  placeholder="None (top-level)"
-                  searchPlaceholder="Search parent categories..."
-                  emptyMessage="No parent categories found."
-                  allowClear={true}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Create nested hierarchies. Search to find parent categories.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="featured_image">Featured Image</Label>
-                <div className="mt-2">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Image</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="[&>div]:w-fit">
                   {featuredImage ? (
                     <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
                       <img
@@ -366,90 +385,59 @@ export function CategorySettingsModal({
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Optional featured image for this category
-                </p>
-              </div>
+                <p className="mt-2 text-xs text-muted-foreground">Optional featured image for this category</p>
+              </CardContent>
+            </Card>
 
-              <div className="space-y-2">
-                <Label>Privacy Settings</Label>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="modal-is-private"
-                    checked={isPrivate}
-                    onCheckedChange={(checked) => {
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      id="modal-is-private"
+                      checked={isPrivate}
+                      onCheckedChange={(checked) => {
+                        setIsSaved(false)
+                        setIsPrivate(!!checked)
+                      }}
+                    />
+                    <span className="text-sm">Private (accessible only via direct URL, hidden from listings)</span>
+                  </label>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                  <Textarea
+                    id="meta_description"
+                    value={formData.meta_description || ''}
+                    onChange={(e) => {
                       setIsSaved(false)
-                      setIsPrivate(!!checked)
+                      setFormData(prev => ({ ...prev, meta_description: e.target.value }))
                     }}
+                    placeholder="SEO meta description"
+                    rows={3}
                   />
-                  <Label htmlFor="modal-is-private" className="text-sm font-normal">
-                    Private (accessible only via direct URL, hidden from listings)
-                  </Label>
-                </div>
-              </div>
+                  <FieldDescription>
+                    Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
+                  </FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
 
-              <div className="space-y-2">
-                <Label htmlFor="meta_description">Meta Description</Label>
-                <Textarea
-                  id="meta_description"
-                  value={formData.meta_description || ''}
-                  onChange={(e) => {
-                    setIsSaved(false)
-                    setFormData(prev => ({ ...prev, meta_description: e.target.value }))
-                  }}
-                  placeholder="SEO meta description"
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
-                </p>
-              </div>
-          </AdminModalBody>
-
-          <AdminModalFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
-            <div className="flex items-center space-x-2">
-              {isSaved && (
-                <div className="flex items-center space-x-1 text-green-600">
-                  <Check className="h-4 w-4" />
-                  <span className="text-sm font-medium">Saved!</span>
-                </div>
-              )}
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Save as Draft"}
-              </Button>
-              <Button
-                type="button"
-                onClick={handlePublish}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : category?.is_published ? "Save" : "Publish"}
-              </Button>
-            </div>
-          </AdminModalFooter>
-        </form>
-
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(imageUrl) => {
-            handleImageChange(imageUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={featuredImage || ''}
-        />
-      </AdminModalContent>
+          <MediaPicker
+            open={showImagePicker}
+            onOpenChange={setShowImagePicker}
+            onSelectMedia={(imageUrl) => {
+              handleImageChange(imageUrl)
+              setShowImagePicker(false)
+            }}
+            currentMediaUrl={featuredImage || ''}
+          />
+        </DashboardModalContent>
+      </form>
     </Dialog>
   )
 }

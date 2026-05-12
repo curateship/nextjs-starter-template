@@ -2,19 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  AdminModalBody,
-  AdminModalFooter,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import {
   Field,
   FieldContent,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
@@ -227,197 +224,226 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-      <AdminModalBody>
+    <form onSubmit={handleSubmit} className="contents">
+      <DashboardModalContent
+        title="Create New Product"
+        description="Add a new product to your catalog. You can customize the content after creation."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Save as Draft'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleSave(true)}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Continue'}
+              </Button>
+            </div>
+          </>
+        }
+        footerClassName="sm:justify-between"
+      >
         {error && (
-          <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-            {error}
+          <div className="px-6 pb-2">
+            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
+              {error}
+            </div>
           </div>
         )}
 
-        <FieldGroup className={error ? "gap-6 pt-4" : "gap-6"}>
-          <Field>
-            <FieldLabel htmlFor="template">Start from Template</FieldLabel>
-            {templatesLoading ? (
-              <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                <Skeleton className="h-4 w-24 rounded-sm" />
-                <ChevronDown className="size-4 opacity-50" />
-              </div>
-            ) : (
-              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                <SelectTrigger id="template">
-                  <SelectValue placeholder="Select template" />
-                </SelectTrigger>
-                <SelectContent className="z-60">
-                  <SelectItem value="blank">Blank</SelectItem>
-                  {templates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
-                      {template.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="title">Product Title *</FieldLabel>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Enter product title"
-              required
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="slug">Product URL</FieldLabel>
-            <Input
-              id="slug"
-              value={formData.slug}
-              onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="product-url-slug"
-            />
-            <FieldDescription>
-              {slugManuallyEdited
-                ? "Custom URL slug. Clear this field to auto-generate from title again."
-                : "Auto-generated from title. You can edit this to customize the URL."}
-            </FieldDescription>
-            {formData.slug && (
-              <FieldDescription className="text-blue-600">
-                Product URL: /products/{formData.slug}
-              </FieldDescription>
-            )}
-            {checkingSlug && (
-              <FieldDescription className="text-blue-600">
-                Checking slug availability...
-              </FieldDescription>
-            )}
-            {slugWarning && (
-              <FieldDescription className="text-amber-600">
-                {slugWarning}
-              </FieldDescription>
-            )}
-          </Field>
-
-          <Field className="*:data-[slot=field-label]:w-fit *:data-[slot=field-description]:max-w-md [&>div]:w-fit">
-            <FieldLabel>Featured Image</FieldLabel>
-            {featuredImage ? (
-              <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
-                <img
-                  src={featuredImage}
-                  alt="Featured image preview"
-                  className="h-full w-full object-contain"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-                <div
-                  className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                  onClick={() => setShowImagePicker(true)}
-                >
-                  <div className="text-center text-white">
-                    <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                    <p className="text-sm font-medium">Click to change image</p>
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Product setup</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="template">Start from Template</FieldLabel>
+                {templatesLoading ? (
+                  <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+                    <Skeleton className="h-4 w-24 rounded-sm" />
+                    <ChevronDown className="size-4 opacity-50" />
                   </div>
-                </div>
-              </div>
-            ) : (
-              <div
-                className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                onClick={() => setShowImagePicker(true)}
-              >
-                <div className="text-center">
-                  <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                  <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                </div>
-              </div>
-            )}
-            <FieldDescription>
-              Optional featured image for this product.
-            </FieldDescription>
-          </Field>
+                ) : (
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger id="template">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent className="z-60">
+                      <SelectItem value="blank">Blank</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
 
-          <Field>
-            <FieldLabel>Privacy Settings</FieldLabel>
-            <Field orientation="horizontal" className="items-start gap-3">
-              <Checkbox
-                id="is_private"
-                checked={isPrivate}
-                onCheckedChange={(checked) => setIsPrivate(!!checked)}
-              />
-              <FieldContent>
-                <FieldLabel htmlFor="is_private" className="font-normal">
-                  Private
-                </FieldLabel>
+              <Field>
+                <FieldLabel htmlFor="title">Product Title *</FieldLabel>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter product title"
+                  required
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="slug">Product URL</FieldLabel>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="product-url-slug"
+                />
                 <FieldDescription>
-                  Accessible only by direct URL and hidden from product listings.
+                  {slugManuallyEdited
+                    ? "Custom URL slug. Clear this field to auto-generate from title again."
+                    : "Auto-generated from title. You can edit this to customize the URL."}
                 </FieldDescription>
-              </FieldContent>
-            </Field>
-          </Field>
+                {formData.slug && (
+                  <FieldDescription className="text-blue-600">
+                    Product URL: /products/{formData.slug}
+                  </FieldDescription>
+                )}
+                {checkingSlug && (
+                  <FieldDescription className="text-blue-600">
+                    Checking slug availability...
+                  </FieldDescription>
+                )}
+                {slugWarning && (
+                  <FieldDescription className="text-amber-600">
+                    {slugWarning}
+                  </FieldDescription>
+                )}
+              </Field>
+            </CardContent>
+          </Card>
 
-          {currentSite?.id && (
-            <Field>
-              <FieldLabel>Categories</FieldLabel>
-              <CategoryPicker
-                siteId={currentSite.id}
-                selectedCategoryIds={selectedCategoryIds}
-                onSelectionChange={setSelectedCategoryIds}
-                primaryCategoryId={primaryCategoryId}
-                onPrimaryCategoryChange={setPrimaryCategoryId}
-                variant="combobox"
-              />
-              <FieldDescription>
-                Assign this product to one or more categories.
-              </FieldDescription>
-            </Field>
-          )}
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Image</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field className="[&>div]:w-fit">
+                <FieldLabel>Featured Image</FieldLabel>
+                {featuredImage ? (
+                  <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
+                    <img
+                      src={featuredImage}
+                      alt="Featured image preview"
+                      className="h-full w-full object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <div
+                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
+                      onClick={() => setShowImagePicker(true)}
+                    >
+                      <div className="text-center text-white">
+                        <ImageIcon className="mx-auto mb-2 h-8 w-8" />
+                        <p className="text-sm font-medium">Click to change image</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                    onClick={() => setShowImagePicker(true)}
+                  >
+                    <div className="text-center">
+                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                      <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                    </div>
+                  </div>
+                )}
+                <FieldDescription>Optional featured image for this product.</FieldDescription>
+              </Field>
+            </CardContent>
+          </Card>
 
-          <Field>
-            <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
-            <Textarea
-              id="meta_description"
-              value={formData.meta_description || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-              placeholder="SEO meta description"
-              rows={3}
-            />
-            <FieldDescription>
-              Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
-            </FieldDescription>
-          </Field>
-        </FieldGroup>
-      </AdminModalBody>
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel>Privacy Settings</FieldLabel>
+                <Field orientation="horizontal" className="items-start gap-3">
+                  <Checkbox
+                    id="is_private"
+                    checked={isPrivate}
+                    onCheckedChange={(checked) => setIsPrivate(!!checked)}
+                  />
+                  <FieldContent>
+                    <FieldLabel htmlFor="is_private" className="font-normal">
+                      Private
+                    </FieldLabel>
+                    <FieldDescription>
+                      Accessible only by direct URL and hidden from product listings.
+                    </FieldDescription>
+                  </FieldContent>
+                </Field>
+              </Field>
 
-      <AdminModalFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <div className="flex items-center space-x-2">
-          <Button 
-            type="submit" 
-            variant="outline" 
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : 'Save as Draft'}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => handleSave(true)}
-            disabled={loading}
-          >
-            {loading ? 'Saving...' : 'Continue'}
-          </Button>
-        </div>
-      </AdminModalFooter>
+              {currentSite?.id && (
+                <Field>
+                  <FieldLabel>Categories</FieldLabel>
+                  <CategoryPicker
+                    siteId={currentSite.id}
+                    selectedCategoryIds={selectedCategoryIds}
+                    onSelectionChange={setSelectedCategoryIds}
+                    primaryCategoryId={primaryCategoryId}
+                    onPrimaryCategoryChange={setPrimaryCategoryId}
+                    variant="combobox"
+                  />
+                  <FieldDescription>Assign this product to one or more categories.</FieldDescription>
+                </Field>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Image Picker Modal */}
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                <Textarea
+                  id="meta_description"
+                  value={formData.meta_description || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+                  placeholder="SEO meta description"
+                  rows={3}
+                />
+                <FieldDescription>
+                  Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
+                </FieldDescription>
+              </Field>
+            </CardContent>
+          </Card>
+        </CardGroup>
+      </DashboardModalContent>
       <MediaPicker
         open={showImagePicker}
         onOpenChange={setShowImagePicker}

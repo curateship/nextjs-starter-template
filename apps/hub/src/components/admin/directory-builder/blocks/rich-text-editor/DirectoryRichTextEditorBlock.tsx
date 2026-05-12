@@ -3,7 +3,8 @@
 import { useCallback, useMemo } from "react"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
+import { BlockTabs } from "@/components/ui/tabs"
 
 interface DirectoryRichTextEditorBlockProps {
   content: Record<string, any>
@@ -41,28 +42,32 @@ export function DirectoryRichTextEditorBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection>
-              <InlineRichTextEditor
-                blockId={blockId}
-                content={editorContent}
-                onContentChange={handleBodyChange}
-                siteId={siteId}
-                isActive
-                editorPadding={0}
-                variant="directory"
-              />
-            </BlockEditorSection>
+            <InlineRichTextEditor
+              blockId={blockId}
+              content={editorContent}
+              onContentChange={handleBodyChange}
+              siteId={siteId}
+              isActive
+              editorPadding={0}
+              variant="directory"
+            />
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <VisibilitySettings
-              visibility={content.visibility}
-              onChange={(visibility) => onContentChange("visibility", visibility)}
-              fields={[{ key: "body", label: "Content" }]}
-            />
+            <CardGroup className="grid">
+              <Card>
+                <CardContent className="p-4">
+                  <VisibilitySettings
+                    visibility={content.visibility}
+                    onChange={(visibility) => onContentChange("visibility", visibility)}
+                    fields={[{ key: "body", label: "Content" }]}
+                  />
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}

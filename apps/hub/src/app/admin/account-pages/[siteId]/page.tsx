@@ -4,12 +4,6 @@ import { use } from "react"
 import dynamic from "next/dynamic"
 import { FileText, Home } from "lucide-react"
 
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Badge } from "@/components/ui/badge"
@@ -83,15 +77,7 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
       pathPrefix=""
       previewSite={site}
       renderCreateModal={({ onCancel, onSuccess }) => (
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create New Account Page</AdminModalTitle>
-            <AdminModalDescription>
-              Add a new account page to your site. You can customize the content after creation.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <CreateAccountPageModal siteId={siteId} onSuccess={(page) => onSuccess(page)} onCancel={onCancel} />
-        </AdminModalContent>
+        <CreateAccountPageModal siteId={siteId} onSuccess={(page) => onSuccess(page)} onCancel={onCancel} />
       )}
       renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
         <AccountPageSettingsModal open={open} onOpenChange={onOpenChange} page={item} site={site} onSuccess={onSuccess} />

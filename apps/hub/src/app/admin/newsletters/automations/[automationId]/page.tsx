@@ -8,19 +8,12 @@ import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout
 import { AdminConfirmDialog } from "@/components/admin/layout/list/components"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog } from "@/components/ui/dialog"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Combobox,
@@ -34,7 +27,6 @@ import {
   ComboboxValue,
   useComboboxAnchor
 } from "@/components/ui/combobox"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CreateAutomationEmailModal } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import type { CreateAutomationEmailInput } from "@/components/admin/newsletter-builder/automation/CreateAutomationEmailModal"
 import { AutomationEmailSettingsModal } from "@/components/admin/newsletter-builder/automation/AutomationEmailSettingsModal"
@@ -112,7 +104,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
-  const [emailCreateActiveTab, setEmailCreateActiveTab] = useState("general")
   const [editingEmailSettings, setEditingEmailSettings] = useState<AutomationStep | null>(null)
   const [statusEventsStep, setStatusEventsStep] = useState<AutomationStep | null>(null)
   const [pendingDeleteNodeId, setPendingDeleteNodeId] = useState<string | null>(null)
@@ -268,7 +259,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setPendingInsertIndex(afterIndex)
 
     if (nodeType === "email") {
-      setEmailCreateActiveTab("general")
       setEmailCreateOpen(true)
       return
     }
@@ -1149,39 +1139,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           </div>
         </div>
 
-        <Dialog
-          open={emailCreateOpen}
-          onOpenChange={(open) => {
-            setEmailCreateOpen(open)
-            if (open) setEmailCreateActiveTab("general")
-          }}
-        >
-          <AdminModalContent>
-            <Tabs
-              value={emailCreateActiveTab}
-              onValueChange={setEmailCreateActiveTab}
-              className="flex min-h-0 flex-1 flex-col"
-            >
-              <AdminModalHeader>
-                <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
-                  <AdminModalTitle className="shrink-0">Create Email</AdminModalTitle>
-                  <TabsList className="h-9 shrink-0">
-                    <TabsTrigger value="general" className="h-7 py-0">
-                      General
-                    </TabsTrigger>
-                    <TabsTrigger value="drip-options" className="h-7 py-0">
-                      Drip Options
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-              </AdminModalHeader>
-              <CreateAutomationEmailModal
-                siteId={siteId || ""}
-                onCreate={createEmailNode}
-                onCancel={() => setEmailCreateOpen(false)}
-              />
-            </Tabs>
-          </AdminModalContent>
+        <Dialog open={emailCreateOpen} onOpenChange={setEmailCreateOpen}>
+          <CreateAutomationEmailModal
+            siteId={siteId || ""}
+            onCreate={createEmailNode}
+            onCancel={() => setEmailCreateOpen(false)}
+          />
         </Dialog>
 
         <AutomationEmailSettingsModal
@@ -1227,122 +1190,131 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          <AdminModalContent>
-            <AdminModalHeader>
-              <AdminModalTitle>Trigger</AdminModalTitle>
-              <AdminModalDescription>Choose what event enrolls a contact into this automation.</AdminModalDescription>
-            </AdminModalHeader>
-            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
-              <div>
-                <Label>When should this automation start?</Label>
-                <Select
-                  value={draftTriggerType}
-                  onValueChange={(value) => {
-                    const nextTriggerType = value as AutomationTriggerType
-                    setDraftTriggerType(nextTriggerType)
-                    if (nextTriggerType !== "segment_added") setDraftSegmentId("")
-                    if (nextTriggerType !== "paid_purchase") {
-                      setDraftProductId("")
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="segment_added">Added to segment</SelectItem>
-                    <SelectItem value="paid_purchase">Paid purchase</SelectItem>
-                    <SelectItem value="none">Remove trigger</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {draftTriggerType === "segment_added" && (
-                <div className="space-y-2">
-                  <div>
-                    <Label>Segment</Label>
-                    <Select value={draftSegmentId} onValueChange={setDraftSegmentId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={loadingSegments ? "Loading segments..." : "Choose a segment"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {segments.map((segment) => (
-                          <SelectItem key={segment.id} value={segment.id}>
-                            {segment.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {!loadingSegments && segments.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Create a segment first, then come back here to use a segment trigger.
-                    </p>
+          <DashboardModalContent
+            title="Trigger"
+            description="Choose what event enrolls a contact into this automation."
+            footer={
+              <>
+                <div className="flex gap-2">
+                  {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
+                    <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
+                      Remove
+                    </Button>
                   )}
-                </div>
-              )}
-
-              {draftTriggerType === "paid_purchase" && (
-                <div className="space-y-2">
-                  <div>
-                    <Label>{productTriggerLabel}</Label>
-                    <Select value={draftProductId} onValueChange={setDraftProductId}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue
-                          placeholder={
-                            loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {productTriggerOptions.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {product.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {!loadingProducts && productTriggerOptions.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Create a product with a checkout block first, then come back here to use a paid purchase trigger.
-                    </p>
-                  )}
-                </div>
-              )}
-            </AdminModalBody>
-            <AdminModalFooter>
-              <div className="flex gap-2">
-                {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
-                  <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
-                    Remove
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTriggerEditorOpen(false)
+                      setEditingTriggerIndex(null)
+                      if (selectedTriggerIndex >= displayedTriggerNodes.length) {
+                        setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
+                      }
+                    }}
+                  >
+                    Cancel
                   </Button>
-                )}
+                </div>
                 <Button
-                  variant="outline"
-                  onClick={() => {
-                    setTriggerEditorOpen(false)
-                    setEditingTriggerIndex(null)
-                    if (selectedTriggerIndex >= displayedTriggerNodes.length) {
-                      setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
-                    }
-                  }}
+                  onClick={saveTrigger}
+                  disabled={
+                    savingTrigger ||
+                    (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0)) ||
+                    (draftTriggerType === "paid_purchase" && (!draftProductId || productTriggerOptions.length === 0))
+                  }
                 >
-                  Cancel
+                  {savingTrigger ? "Saving..." : "Save"}
                 </Button>
-              </div>
-              <Button
-                onClick={saveTrigger}
-                disabled={
-                  savingTrigger ||
-                  (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0)) ||
-                  (draftTriggerType === "paid_purchase" && (!draftProductId || productTriggerOptions.length === 0))
-                }
-              >
-                {savingTrigger ? "Saving..." : "Save"}
-              </Button>
-            </AdminModalFooter>
-          </AdminModalContent>
+              </>
+            }
+            footerClassName="sm:justify-between"
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Trigger</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel>When should this automation start?</FieldLabel>
+                    <Select
+                      value={draftTriggerType}
+                      onValueChange={(value) => {
+                        const nextTriggerType = value as AutomationTriggerType
+                        setDraftTriggerType(nextTriggerType)
+                        if (nextTriggerType !== "segment_added") setDraftSegmentId("")
+                        if (nextTriggerType !== "paid_purchase") {
+                          setDraftProductId("")
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="segment_added">Added to segment</SelectItem>
+                        <SelectItem value="paid_purchase">Paid purchase</SelectItem>
+                        <SelectItem value="none">Remove trigger</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  {draftTriggerType === "segment_added" && (
+                    <div className="space-y-2">
+                      <Field>
+                        <FieldLabel>Segment</FieldLabel>
+                        <Select value={draftSegmentId} onValueChange={setDraftSegmentId}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder={loadingSegments ? "Loading segments..." : "Choose a segment"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {segments.map((segment) => (
+                              <SelectItem key={segment.id} value={segment.id}>
+                                {segment.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      {!loadingSegments && segments.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          Create a segment first, then come back here to use a segment trigger.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {draftTriggerType === "paid_purchase" && (
+                    <div className="space-y-2">
+                      <Field>
+                        <FieldLabel>{productTriggerLabel}</FieldLabel>
+                        <Select value={draftProductId} onValueChange={setDraftProductId}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue
+                              placeholder={
+                                loadingProducts ? "Loading products..." : `Choose a ${productTriggerLabel.toLowerCase()}`
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {productTriggerOptions.map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {product.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      {!loadingProducts && productTriggerOptions.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          Create a product with a checkout block first, then come back here to use a paid purchase trigger.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
         </Dialog>
 
         <Dialog
@@ -1351,75 +1323,83 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             if (!open) setEditingEndRules(null)
           }}
         >
-          <AdminModalContent>
-            <AdminModalHeader>
-              <AdminModalTitle>End Rules</AdminModalTitle>
-              <AdminModalDescription>Decide what happens when a contact reaches this point.</AdminModalDescription>
-            </AdminModalHeader>
-            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_[data-slot=input-group]]:mt-2">
-              <div>
-                <Label>Product bought</Label>
-                <Combobox
-                  multiple
-                  autoHighlight
-                  items={endRulesProductItems}
-                  value={endRulesProductIds}
-                  onValueChange={setEndRulesProductIds}
-                >
-                  <ComboboxChips ref={endRulesProductAnchor} className="w-full">
-                    <ComboboxValue>
-                      {(values) => (
-                        <>
-                          {values.map((productId) => (
-                            <ComboboxChip key={productId} value={productId}>
-                              {products.find((product) => product.id === productId)?.title || productId}
-                            </ComboboxChip>
-                          ))}
-                          <ComboboxChipsInput placeholder={values.length ? "" : "Search products"} />
-                        </>
-                      )}
-                    </ComboboxValue>
-                  </ComboboxChips>
-                  <ComboboxContent anchor={endRulesProductAnchor}>
-                    <ComboboxEmpty>{loadingProducts ? "Loading products..." : "No products found."}</ComboboxEmpty>
-                    <ComboboxList>
-                      {(item) => {
-                        const value = typeof item === "string" ? item : item.value
-                        const label = typeof item === "string" ? item : item.label
-                        return (
-                          <ComboboxItem key={value} value={value}>
-                            {label}
-                          </ComboboxItem>
-                        )
-                      }}
-                    </ComboboxList>
-                  </ComboboxContent>
-                </Combobox>
-              </div>
+          <DashboardModalContent
+            title="End Rules"
+            description="Decide what happens when a contact reaches this point."
+            footer={
+              <>
+                <Button variant="outline" onClick={() => setEditingEndRules(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={saveEndRulesNode} disabled={savingNode || !endRulesProductIds.length}>
+                  {savingNode ? "Saving..." : "Save"}
+                </Button>
+              </>
+            }
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>End rules</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel>Product bought</FieldLabel>
+                    <Combobox
+                      multiple
+                      autoHighlight
+                      items={endRulesProductItems}
+                      value={endRulesProductIds}
+                      onValueChange={setEndRulesProductIds}
+                    >
+                      <ComboboxChips ref={endRulesProductAnchor} className="w-full">
+                        <ComboboxValue>
+                          {(values) => (
+                            <>
+                              {values.map((productId) => (
+                                <ComboboxChip key={productId} value={productId}>
+                                  {products.find((product) => product.id === productId)?.title || productId}
+                                </ComboboxChip>
+                              ))}
+                              <ComboboxChipsInput placeholder={values.length ? "" : "Search products"} />
+                            </>
+                          )}
+                        </ComboboxValue>
+                      </ComboboxChips>
+                      <ComboboxContent anchor={endRulesProductAnchor}>
+                        <ComboboxEmpty>{loadingProducts ? "Loading products..." : "No products found."}</ComboboxEmpty>
+                        <ComboboxList>
+                          {(item) => {
+                            const value = typeof item === "string" ? item : item.value
+                            const label = typeof item === "string" ? item : item.label
+                            return (
+                              <ComboboxItem key={value} value={value}>
+                                {label}
+                              </ComboboxItem>
+                            )
+                          }}
+                        </ComboboxList>
+                      </ComboboxContent>
+                    </Combobox>
+                  </Field>
 
-              <div>
-                <Label>Unsubscribe if opened fewer than</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={endRulesMinimumOpens}
-                  onChange={(event) => setEndRulesMinimumOpens(event.target.value)}
-                />
-              </div>
+                  <Field>
+                    <FieldLabel>Unsubscribe if opened fewer than</FieldLabel>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={endRulesMinimumOpens}
+                      onChange={(event) => setEndRulesMinimumOpens(event.target.value)}
+                    />
+                  </Field>
 
-              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                Bought product: remove. Opened this many or more: continue. Opened fewer: unsubscribe.
-              </div>
-            </AdminModalBody>
-            <AdminModalFooter className="sm:justify-end">
-              <Button variant="outline" onClick={() => setEditingEndRules(null)}>
-                Cancel
-              </Button>
-              <Button onClick={saveEndRulesNode} disabled={savingNode || !endRulesProductIds.length}>
-                {savingNode ? "Saving..." : "Save"}
-              </Button>
-            </AdminModalFooter>
-          </AdminModalContent>
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                    Bought product: remove. Opened this many or more: continue. Opened fewer: unsubscribe.
+                  </div>
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
         </Dialog>
 
         <Dialog
@@ -1428,91 +1408,97 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             if (!open) setEditingDelay(null)
           }}
         >
-          <AdminModalContent>
-            <AdminModalHeader>
-              <AdminModalTitle>Time Delay</AdminModalTitle>
-              <AdminModalDescription>
-                Set how long the automation should wait before the next step runs.
-              </AdminModalDescription>
-            </AdminModalHeader>
-            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
-              <div>
-                <Label>Wait for</Label>
-                <Select value={delayType} onValueChange={setDelayType}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="amount_of_time">A certain amount of time</SelectItem>
-                    <SelectItem value="day_of_week">A certain day of the week</SelectItem>
-                    <SelectItem value="specific_date">A specific day of the year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {delayType === "amount_of_time" && (
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <Label>Amount</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={delayValue}
-                      onChange={(event) => setDelayValue(event.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Unit</Label>
-                    <Select value={delayUnit} onValueChange={setDelayUnit}>
+          <DashboardModalContent
+            title="Time Delay"
+            description="Set how long the automation should wait before the next step runs."
+            footer={
+              <>
+                <Button variant="outline" onClick={() => setEditingDelay(null)}>
+                  Cancel
+                </Button>
+                <Button onClick={saveDelayNode} disabled={savingNode}>
+                  {savingNode ? "Saving..." : "Save"}
+                </Button>
+              </>
+            }
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Time delay</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel>Wait for</FieldLabel>
+                    <Select value={delayType} onValueChange={setDelayType}>
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="minutes">Minutes</SelectItem>
-                        <SelectItem value="hours">Hours</SelectItem>
-                        <SelectItem value="days">Days</SelectItem>
+                        <SelectItem value="amount_of_time">A certain amount of time</SelectItem>
+                        <SelectItem value="day_of_week">A certain day of the week</SelectItem>
+                        <SelectItem value="specific_date">A specific day of the year</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                </div>
-              )}
+                  </Field>
 
-              {delayType === "day_of_week" && (
-                <div>
-                  <Label>Day</Label>
-                  <Select value={delayDay} onValueChange={setDelayDay}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Sunday</SelectItem>
-                      <SelectItem value="1">Monday</SelectItem>
-                      <SelectItem value="2">Tuesday</SelectItem>
-                      <SelectItem value="3">Wednesday</SelectItem>
-                      <SelectItem value="4">Thursday</SelectItem>
-                      <SelectItem value="5">Friday</SelectItem>
-                      <SelectItem value="6">Saturday</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                  {delayType === "amount_of_time" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Field>
+                        <FieldLabel>Amount</FieldLabel>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={delayValue}
+                          onChange={(event) => setDelayValue(event.target.value)}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>Unit</FieldLabel>
+                        <Select value={delayUnit} onValueChange={setDelayUnit}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="minutes">Minutes</SelectItem>
+                            <SelectItem value="hours">Hours</SelectItem>
+                            <SelectItem value="days">Days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </div>
+                  )}
 
-              {delayType === "specific_date" && (
-                <div>
-                  <Label>Date</Label>
-                  <Input type="date" value={delayDate} onChange={(event) => setDelayDate(event.target.value)} />
-                </div>
-              )}
-            </AdminModalBody>
-            <AdminModalFooter className="sm:justify-end">
-              <Button variant="outline" onClick={() => setEditingDelay(null)}>
-                Cancel
-              </Button>
-              <Button onClick={saveDelayNode} disabled={savingNode}>
-                {savingNode ? "Saving..." : "Save"}
-              </Button>
-            </AdminModalFooter>
-          </AdminModalContent>
+                  {delayType === "day_of_week" && (
+                    <Field>
+                      <FieldLabel>Day</FieldLabel>
+                      <Select value={delayDay} onValueChange={setDelayDay}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Sunday</SelectItem>
+                          <SelectItem value="1">Monday</SelectItem>
+                          <SelectItem value="2">Tuesday</SelectItem>
+                          <SelectItem value="3">Wednesday</SelectItem>
+                          <SelectItem value="4">Thursday</SelectItem>
+                          <SelectItem value="5">Friday</SelectItem>
+                          <SelectItem value="6">Saturday</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+
+                  {delayType === "specific_date" && (
+                    <Field>
+                      <FieldLabel>Date</FieldLabel>
+                      <Input type="date" value={delayDate} onChange={(event) => setDelayDate(event.target.value)} />
+                    </Field>
+                  )}
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
         </Dialog>
       </AdminLayout>
     </div>

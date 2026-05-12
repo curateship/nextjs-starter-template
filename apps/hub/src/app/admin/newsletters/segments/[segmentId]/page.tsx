@@ -7,22 +7,15 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Filter, Trash2, Plus, X, Search, Settings } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import {
@@ -640,103 +633,117 @@ export default function SegmentDashboardPage() {
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Segment Settings</AdminModalTitle>
-            <AdminModalDescription>Update the segment name, description, and membership rules.</AdminModalDescription>
-          </AdminModalHeader>
-          <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-              <div>
-                <Label htmlFor="segment-name">Name</Label>
-                <Input
-                  id="segment-name"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Segment name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="segment-description">Description</Label>
-                <Textarea
-                  id="segment-description"
-                  value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      description: e.target.value
-                    }))
-                  }
-                  placeholder="Segment description"
-                  className="resize-none"
-                  rows={3}
-                />
-              </div>
-              <div className="space-y-3">
-                <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={editForm.segmentType === "static"}
-                      onCheckedChange={(checked) => {
-                        if (checked !== true) return
+        <form onSubmit={handleSave} className="contents">
+          <DashboardModalContent
+            title="Segment Settings"
+            description="Update the segment name, description, and membership rules."
+            footer={
+              <>
+                <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </>
+            }
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Segment details</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="segment-name">Name</FieldLabel>
+                    <Input
+                      id="segment-name"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Segment name"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="segment-description">Description</FieldLabel>
+                    <Textarea
+                      id="segment-description"
+                      value={editForm.description}
+                      onChange={(e) =>
                         setEditForm((prev) => ({
                           ...prev,
-                          segmentType: "static"
+                          description: e.target.value
                         }))
-                        setDynamicConditions([])
-                      }}
+                      }
+                      placeholder="Segment description"
+                      className="resize-none"
+                      rows={3}
                     />
-                    <div className="space-y-1 pt-0.5">
-                      <span className="block text-sm font-medium leading-none">Static</span>
-                      <p className="text-xs text-muted-foreground">Manual segment membership.</p>
-                    </div>
-                  </label>
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={editForm.segmentType === "dynamic"}
-                      onCheckedChange={(checked) => {
-                        if (checked !== true) return
-                        setEditForm((prev) => ({
-                          ...prev,
-                          segmentType: "dynamic"
-                        }))
-                      }}
+                  </Field>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Membership type</DashboardModalCardTitle>
+                  <CardDescription>Choose how contacts are added to this segment.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={editForm.segmentType === "static"}
+                        onCheckedChange={(checked) => {
+                          if (checked !== true) return
+                          setEditForm((prev) => ({
+                            ...prev,
+                            segmentType: "static"
+                          }))
+                          setDynamicConditions([])
+                        }}
+                      />
+                      <div className="space-y-1 pt-0.5">
+                        <span className="block text-sm font-medium leading-none">Static</span>
+                        <p className="text-xs text-muted-foreground">Manual segment membership.</p>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 cursor-pointer">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={editForm.segmentType === "dynamic"}
+                        onCheckedChange={(checked) => {
+                          if (checked !== true) return
+                          setEditForm((prev) => ({
+                            ...prev,
+                            segmentType: "dynamic"
+                          }))
+                        }}
+                      />
+                      <div className="space-y-1 pt-0.5">
+                        <span className="block text-sm font-medium leading-none">Dynamic</span>
+                        <p className="text-xs text-muted-foreground">Membership updates from conditions.</p>
+                      </div>
+                    </label>
+                  </div>
+                  {editForm.segmentType === "dynamic" && (
+                    <SegmentDynamicConditionEditor
+                      availableTags={availableTags}
+                      conditions={dynamicConditions}
+                      onChange={setDynamicConditions}
+                      segmentOptions={segmentExclusionOptions}
                     />
-                    <div className="space-y-1 pt-0.5">
-                      <span className="block text-sm font-medium leading-none">Dynamic</span>
-                      <p className="text-xs text-muted-foreground">Membership updates from conditions.</p>
-                    </div>
-                  </label>
-                </div>
-                {editForm.segmentType === "dynamic" && (
-                  <SegmentDynamicConditionEditor
-                    availableTags={availableTags}
-                    conditions={dynamicConditions}
-                    onChange={setDynamicConditions}
-                    segmentOptions={segmentExclusionOptions}
-                  />
-                )}
-                {segment?.segment_type !== editForm.segmentType && (
-                  <p className="text-xs text-muted-foreground">
-                    {editForm.segmentType === "dynamic"
-                      ? "Switching to dynamic replaces the current members with contacts matching this rule."
-                      : "Switching to static freezes the current members as a manual list."}
-                  </p>
-                )}
-              </div>
-            </AdminModalBody>
-            <AdminModalFooter className="sm:justify-end">
-              <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
-            </AdminModalFooter>
-          </form>
-        </AdminModalContent>
+                  )}
+                  {segment?.segment_type !== editForm.segmentType && (
+                    <p className="text-xs text-muted-foreground">
+                      {editForm.segmentType === "dynamic"
+                        ? "Switching to dynamic replaces the current members with contacts matching this rule."
+                        : "Switching to static freezes the current members as a manual list."}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
+        </form>
       </Dialog>
     </>
   )

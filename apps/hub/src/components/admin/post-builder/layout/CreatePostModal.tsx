@@ -2,15 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -228,91 +227,79 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         </>
       )}
     >
-      <form
-        id="create-post-form"
-        onSubmit={handleSubmit}
-        className="contents [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2"
-      >
+      <form id="create-post-form" onSubmit={handleSubmit} className="contents">
         {error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4 text-sm text-red-800">{error}</CardContent>
-          </Card>
+          <div className="px-6 pb-2">
+            <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
+          </div>
         )}
 
-        <Card>
-          <CardHeader className="p-4 pb-3">
-            <DashboardModalCardTitle>Post details</DashboardModalCardTitle>
-            <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-6 p-4 pt-0">
-            <div className="col-span-2">
-              <Label htmlFor="template">Start from Template</Label>
-              {templatesLoading ? (
-                <div className="border-input mt-2 inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
-                  <Skeleton className="h-4 w-24 rounded-sm" />
-                  <ChevronDown className="size-4 opacity-50" />
-                </div>
-              ) : (
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-                  <SelectTrigger id="template">
-                    <SelectValue placeholder="Select template" />
-                  </SelectTrigger>
-                  <SelectContent className="z-60">
-                    <SelectItem value="blank">Blank</SelectItem>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Post details</DashboardModalCardTitle>
+              <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="template">Start from Template</FieldLabel>
+                {templatesLoading ? (
+                  <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs">
+                    <Skeleton className="h-4 w-24 rounded-sm" />
+                    <ChevronDown className="size-4 opacity-50" />
+                  </div>
+                ) : (
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger id="template">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent className="z-60">
+                      <SelectItem value="blank">Blank</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
 
-            <div className="col-span-2">
-              <Label htmlFor="title">Post Title *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="Enter post title"
-                required
-              />
-            </div>
+              <Field>
+                <FieldLabel htmlFor="title">Post Title *</FieldLabel>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter post title"
+                  required
+                />
+              </Field>
 
-            <div className="col-span-2">
-              <Label htmlFor="slug">Post URL</Label>
-              <Input
-                id="slug"
-                value={formData.slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="post-url-slug"
-              />
-              {slugManuallyEdited ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Custom URL slug. Clear this field to auto-generate from title again.
-                </p>
-              ) : null}
-              {formData.slug && (
-                <p className="mt-1 text-xs text-blue-600">
-                  Post URL: <strong>/posts/{formData.slug}</strong>
-                </p>
-              )}
-              {checkingSlug && (
-                <p className="mt-1 text-xs text-blue-600">
-                  Checking slug availability...
-                </p>
-              )}
-              {slugWarning && (
-                <p className="mt-1 text-xs text-amber-600">
-                  {slugWarning}
-                </p>
-              )}
-            </div>
+              <Field>
+                <FieldLabel htmlFor="slug">Post URL</FieldLabel>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="post-url-slug"
+                />
+                {slugManuallyEdited ? (
+                  <FieldDescription>Custom URL slug. Clear this field to auto-generate from title again.</FieldDescription>
+                ) : null}
+                {formData.slug && (
+                  <p className="text-xs text-blue-600">Post URL: <strong>/posts/{formData.slug}</strong></p>
+                )}
+                {checkingSlug && (
+                  <p className="text-xs text-blue-600">Checking slug availability...</p>
+                )}
+                {slugWarning && (
+                  <p className="text-xs text-amber-600">{slugWarning}</p>
+                )}
+              </Field>
 
-            <div className="col-span-2">
-              <Label htmlFor="featured_image">Featured Image</Label>
-              <div className="mt-2">
+              <Field className="[&>div]:w-fit">
+                <FieldLabel htmlFor="featured_image">Featured Image</FieldLabel>
                 {formData.featured_image ? (
                   <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
                     <img
@@ -348,68 +335,66 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                     </div>
                   </div>
                 )}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Optional featured image for this post
-              </p>
-            </div>
+                <FieldDescription>Optional featured image for this post</FieldDescription>
+              </Field>
 
-            <div className="col-span-2">
-              <Label htmlFor="excerpt">Post Excerpt</Label>
-              <Textarea
-                id="excerpt"
-                value={formData.excerpt}
-                onChange={(e) => setFormData((prev) => ({ ...prev, excerpt: e.target.value }))}
-                placeholder="A brief summary of your post"
-                rows={1}
-                className="h-10 min-h-10 resize-none overflow-hidden"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {currentSite?.id && (
-          <Card>
-            <CardHeader className="p-4 pb-3">
-              <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
-              <CardDescription>Organize this post by topic.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
               <Field>
-                <FieldLabel>Categories</FieldLabel>
-                <CategoryPicker
-                  siteId={currentSite.id}
-                  selectedCategoryIds={selectedCategoryIds}
-                  onSelectionChange={setSelectedCategoryIds}
-                  primaryCategoryId={primaryCategoryId}
-                  onPrimaryCategoryChange={setPrimaryCategoryId}
-                  variant="combobox"
+                <FieldLabel htmlFor="excerpt">Post Excerpt</FieldLabel>
+                <Textarea
+                  id="excerpt"
+                  value={formData.excerpt}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, excerpt: e.target.value }))}
+                  placeholder="A brief summary of your post"
+                  rows={1}
+                  className="h-10 min-h-10 resize-none overflow-hidden"
                 />
               </Field>
             </CardContent>
           </Card>
-        )}
 
-        <Card>
-          <CardHeader className="p-4 pb-3">
-            <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
-            <CardDescription>Set the search description for this post.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <Label htmlFor="meta_description">Meta Description</Label>
-            <Textarea
-              id="meta_description"
-              value={formData.meta_description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
-              placeholder="A brief description of this post for search engines"
-              rows={1}
-              className="h-10 min-h-10 resize-none overflow-hidden"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Recommended length: 150-160 characters
-            </p>
-          </CardContent>
-        </Card>
+          {currentSite?.id && (
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
+                <CardDescription>Organize this post by topic.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <Field>
+                  <FieldLabel>Categories</FieldLabel>
+                  <CategoryPicker
+                    siteId={currentSite.id}
+                    selectedCategoryIds={selectedCategoryIds}
+                    onSelectionChange={setSelectedCategoryIds}
+                    primaryCategoryId={primaryCategoryId}
+                    onPrimaryCategoryChange={setPrimaryCategoryId}
+                    variant="combobox"
+                  />
+                </Field>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+              <CardDescription>Set the search description for this post.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                <Textarea
+                  id="meta_description"
+                  value={formData.meta_description}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
+                  placeholder="A brief description of this post for search engines"
+                  rows={1}
+                  className="h-10 min-h-10 resize-none overflow-hidden"
+                />
+                <FieldDescription>Recommended length: 150-160 characters</FieldDescription>
+              </Field>
+            </CardContent>
+          </Card>
+        </CardGroup>
       </form>
 
       <MediaPicker

@@ -3,19 +3,13 @@
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
   createSegment,
   getAvailableSegmentTags,
@@ -125,99 +119,110 @@ export function SegmentFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent>
-        <AdminModalHeader>
-          <AdminModalTitle>{segment ? "Edit Segment" : "Create Segment"}</AdminModalTitle>
-          <AdminModalDescription>
-            Set the segment name, description, and membership rules.
-          </AdminModalDescription>
-        </AdminModalHeader>
-
-        <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-          <div>
-            <Label htmlFor="segment-name">Name *</Label>
-            <Input
-              id="segment-name"
-              value={formName}
-              onChange={(event) => setFormName(event.target.value)}
-              placeholder="e.g. Austin Fitness Subscribers"
-            />
-          </div>
-          <div>
-            <Label htmlFor="segment-description">Description</Label>
-            <Textarea
-              id="segment-description"
-              value={formDescription}
-              onChange={(event) => setFormDescription(event.target.value)}
-              placeholder="Optional description for this segment"
-              className="resize-none"
-              rows={2}
-            />
-          </div>
-          <div className="space-y-3">
-            <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={formSegmentType === "static"}
-                  onCheckedChange={(checked) => {
-                    if (checked !== true) return
-                    setFormSegmentType("static")
-                    setFormDynamicConditions([])
-                  }}
+      <DashboardModalContent
+        title={segment ? "Edit Segment" : "Create Segment"}
+        description="Set the segment name, description, and membership rules."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicConditions}>
+              {saving ? "Saving..." : segment ? "Update Segment" : "Create Segment"}
+            </Button>
+          </>
+        }
+      >
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Segment details</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="segment-name">Name *</FieldLabel>
+                <Input
+                  id="segment-name"
+                  value={formName}
+                  onChange={(event) => setFormName(event.target.value)}
+                  placeholder="e.g. Austin Fitness Subscribers"
                 />
-                <div className="space-y-1 pt-0.5">
-                  <span className="block text-sm font-medium leading-none">Static</span>
-                  <p className="text-xs text-muted-foreground">
-                    Manual segment membership.
-                  </p>
-                </div>
-              </label>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={formSegmentType === "dynamic"}
-                  onCheckedChange={(checked) => {
-                    if (checked !== true) return
-                    setFormSegmentType("dynamic")
-                  }}
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="segment-description">Description</FieldLabel>
+                <Textarea
+                  id="segment-description"
+                  value={formDescription}
+                  onChange={(event) => setFormDescription(event.target.value)}
+                  placeholder="Optional description for this segment"
+                  className="resize-none"
+                  rows={2}
                 />
-                <div className="space-y-1 pt-0.5">
-                  <span className="block text-sm font-medium leading-none">Dynamic</span>
-                  <p className="text-xs text-muted-foreground">
-                    Membership updates from conditions.
-                  </p>
-                </div>
-              </label>
-            </div>
+              </Field>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Membership type</DashboardModalCardTitle>
+              <CardDescription>Choose how contacts are added to this segment.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={formSegmentType === "static"}
+                    onCheckedChange={(checked) => {
+                      if (checked !== true) return
+                      setFormSegmentType("static")
+                      setFormDynamicConditions([])
+                    }}
+                  />
+                  <div className="space-y-1 pt-0.5">
+                    <span className="block text-sm font-medium leading-none">Static</span>
+                    <p className="text-xs text-muted-foreground">
+                      Manual segment membership.
+                    </p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={formSegmentType === "dynamic"}
+                    onCheckedChange={(checked) => {
+                      if (checked !== true) return
+                      setFormSegmentType("dynamic")
+                    }}
+                  />
+                  <div className="space-y-1 pt-0.5">
+                    <span className="block text-sm font-medium leading-none">Dynamic</span>
+                    <p className="text-xs text-muted-foreground">
+                      Membership updates from conditions.
+                    </p>
+                  </div>
+                </label>
+              </div>
 
-            {formSegmentType === "dynamic" && (
-              <SegmentDynamicConditionEditor
-                availableTags={availableTags}
-                conditions={formDynamicConditions}
-                onChange={setFormDynamicConditions}
-                segmentOptions={segmentExclusionOptions}
-              />
-            )}
+              {formSegmentType === "dynamic" && (
+                <SegmentDynamicConditionEditor
+                  availableTags={availableTags}
+                  conditions={formDynamicConditions}
+                  onChange={setFormDynamicConditions}
+                  segmentOptions={segmentExclusionOptions}
+                />
+              )}
 
-            {segment && segment.segment_type !== formSegmentType && (
-              <p className="text-xs text-muted-foreground">
-                {formSegmentType === "dynamic"
-                  ? "Switching to dynamic will replace the current members with contacts matching the rule."
-                  : "Switching to static will freeze the current members as a manual list."}
-              </p>
-            )}
-          </div>
-        </AdminModalBody>
-        <AdminModalFooter className="sm:justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !formName.trim() || invalidDynamicConditions}>
-            {saving ? "Saving..." : segment ? "Update Segment" : "Create Segment"}
-          </Button>
-        </AdminModalFooter>
-      </AdminModalContent>
+              {segment && segment.segment_type !== formSegmentType && (
+                <p className="text-xs text-muted-foreground">
+                  {formSegmentType === "dynamic"
+                    ? "Switching to dynamic will replace the current members with contacts matching the rule."
+                    : "Switching to static will freeze the current members as a manual list."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </CardGroup>
+      </DashboardModalContent>
     </Dialog>
   )
 }

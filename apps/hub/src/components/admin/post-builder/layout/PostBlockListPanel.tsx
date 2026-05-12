@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { cn } from "@/lib/utils/tailwind"
@@ -454,7 +455,11 @@ export function PostBlockListPanel({
             </>
           }
         >
-          <div />
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4" />
+            </Card>
+          </CardGroup>
         </DashboardModalContent>
       </Dialog>
     </>

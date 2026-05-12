@@ -1,15 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import {
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalScrollBody,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { AccountClaimedListingsBlock } from "../blocks/claimed-listings/AccountClaimedListingsBlock"
 import { AccountEditProfileBlock } from "../blocks/edit-profile/AccountEditProfileBlock"
 import { getBlockName } from "../config/account-page-block-types"
@@ -37,40 +32,40 @@ export function AccountPageBlockEditorDialog({
   return (
     <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
       <ModalTabsProvider>
-        <AdminModalContent size="wide">
-          <AdminModalHeader>
-            <div className="flex min-w-0 items-center gap-4 pr-10">
-              <AdminModalTitle className="shrink-0">
-                Edit {selectedBlock.title || getBlockName(selectedBlock.type)}
-              </AdminModalTitle>
-              <ModalTabs />
-            </div>
-          </AdminModalHeader>
-
-          <AdminModalScrollBody>
-            {selectedBlock.type === "account-edit-profile" && (
-              <AccountEditProfileBlock
-                content={draftContent}
-                onContentChange={onContentChange}
-              />
-            )}
-            {selectedBlock.type === "account-claimed-listings" && (
-              <AccountClaimedListingsBlock
-                content={draftContent}
-                onContentChange={onContentChange}
-              />
-            )}
-          </AdminModalScrollBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={onSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+        <DashboardModalContent
+          title={`Edit ${selectedBlock.title || getBlockName(selectedBlock.type)}`}
+          titleAccessory={<ModalTabs />}
+          className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={onSave} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-0">
+                {selectedBlock.type === "account-edit-profile" && (
+                  <AccountEditProfileBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                  />
+                )}
+                {selectedBlock.type === "account-claimed-listings" && (
+                  <AccountClaimedListingsBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>
   )

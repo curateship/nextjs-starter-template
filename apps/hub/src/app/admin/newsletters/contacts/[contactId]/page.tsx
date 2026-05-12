@@ -7,19 +7,12 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Card, CardGroup, CardContent, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Dialog, DialogTrigger } from "@/components/ui/dialog"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, ExternalLink } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -352,88 +345,94 @@ export default function ContactDashboardPage() {
                     </Button>
                   </DialogTrigger>
                   {contact && (
-                    <AdminModalContent>
-                      <AdminModalHeader>
-                        <AdminModalTitle>Settings</AdminModalTitle>
-                        <AdminModalDescription>
-                          Update this contact&apos;s name, status, and tags.
-                        </AdminModalDescription>
-                      </AdminModalHeader>
-                      <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-                        <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+button]:mt-2">
-                          <div>
-                            <Label>First Name</Label>
-                            <Input
-                              value={editForm.first_name}
-                              onChange={(e) =>
-                                setEditForm((prev) => ({
-                                  ...prev,
-                                  first_name: e.target.value
-                                }))
-                              }
-                              placeholder="First name"
-                            />
-                          </div>
-                          <div>
-                            <Label>Last Name</Label>
-                            <Input
-                              value={editForm.last_name}
-                              onChange={(e) =>
-                                setEditForm((prev) => ({
-                                  ...prev,
-                                  last_name: e.target.value
-                                }))
-                              }
-                              placeholder="Last name"
-                            />
-                          </div>
-                          <div>
-                            <Label>Status</Label>
-                            <Select
-                              value={editForm.status}
-                              onValueChange={(v) => setEditForm((prev) => ({ ...prev, status: v }))}
+                    <form onSubmit={handleSave} className="contents">
+                      <DashboardModalContent
+                        title="Settings"
+                        description="Update this contact's name, status, and tags."
+                        footer={
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setSettingsOpen(false)}
+                              disabled={saving}
                             >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">Active</SelectItem>
-                                <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                                <SelectItem value="bounced">Bounced</SelectItem>
-                                <SelectItem value="complained">Complained</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>Tags</Label>
-                            <Input
-                              value={editForm.tags}
-                              onChange={(e) =>
-                                setEditForm((prev) => ({
-                                  ...prev,
-                                  tags: e.target.value
-                                }))
-                              }
-                              placeholder="tag1, tag2, tag3"
-                            />
-                            <p className="mt-1 text-xs text-muted-foreground">Separate with commas</p>
-                          </div>
-                        </AdminModalBody>
-                        <AdminModalFooter className="sm:justify-end">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setSettingsOpen(false)}
-                            disabled={saving}
-                          >
-                            Cancel
-                          </Button>
-                          <Button type="submit" disabled={saving}>
-                            {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
-                          </Button>
-                        </AdminModalFooter>
-                      </form>
-                    </AdminModalContent>
+                              Cancel
+                            </Button>
+                            <Button type="submit" disabled={saving}>
+                              {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
+                            </Button>
+                          </>
+                        }
+                      >
+                        <CardGroup className="grid">
+                          <Card>
+                            <CardHeader className="p-4 pb-3">
+                              <DashboardModalCardTitle>Contact info</DashboardModalCardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-4 p-4 pt-0">
+                              <Field>
+                                <FieldLabel>First Name</FieldLabel>
+                                <Input
+                                  value={editForm.first_name}
+                                  onChange={(e) =>
+                                    setEditForm((prev) => ({
+                                      ...prev,
+                                      first_name: e.target.value
+                                    }))
+                                  }
+                                  placeholder="First name"
+                                />
+                              </Field>
+                              <Field>
+                                <FieldLabel>Last Name</FieldLabel>
+                                <Input
+                                  value={editForm.last_name}
+                                  onChange={(e) =>
+                                    setEditForm((prev) => ({
+                                      ...prev,
+                                      last_name: e.target.value
+                                    }))
+                                  }
+                                  placeholder="Last name"
+                                />
+                              </Field>
+                              <Field>
+                                <FieldLabel>Status</FieldLabel>
+                                <Select
+                                  value={editForm.status}
+                                  onValueChange={(v) => setEditForm((prev) => ({ ...prev, status: v }))}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                                    <SelectItem value="bounced">Bounced</SelectItem>
+                                    <SelectItem value="complained">Complained</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                              <Field>
+                                <FieldLabel>Tags</FieldLabel>
+                                <Input
+                                  value={editForm.tags}
+                                  onChange={(e) =>
+                                    setEditForm((prev) => ({
+                                      ...prev,
+                                      tags: e.target.value
+                                    }))
+                                  }
+                                  placeholder="tag1, tag2, tag3"
+                                />
+                                <FieldDescription>Separate with commas</FieldDescription>
+                              </Field>
+                            </CardContent>
+                          </Card>
+                        </CardGroup>
+                      </DashboardModalContent>
+                    </form>
                   )}
                 </Dialog>
                 <Button variant="destructive" size="sm" onClick={handleDelete} disabled={deleting || loading}>

@@ -51,13 +51,11 @@ function DashboardModalContent({
           <DashboardModalTitle className="min-w-0">{title}</DashboardModalTitle>
           {titleAccessory ? <div className="shrink-0">{titleAccessory}</div> : null}
         </div>
+        {description ? <DashboardModalDescription>{description}</DashboardModalDescription> : null}
         <DashboardModalCloseButton />
       </DashboardModalHeader>
 
       <DashboardModalScrollBody className={bodyClassName} viewportClassName={viewportClassName}>
-        {description ? (
-          <DashboardModalDescription className="mb-4">{description}</DashboardModalDescription>
-        ) : null}
         {children}
       </DashboardModalScrollBody>
 
@@ -67,7 +65,7 @@ function DashboardModalContent({
 }
 
 function DashboardModalHeader({ className, ...props }: React.ComponentProps<typeof DialogHeader>) {
-  return <DialogHeader className={cn("relative px-6 pt-6 text-left", className)} {...props} />
+  return <DialogHeader className={cn("relative px-6 pt-6 pb-2 text-left", className)} {...props} />
 }
 
 function DashboardModalTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {

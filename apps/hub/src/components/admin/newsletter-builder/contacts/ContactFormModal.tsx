@@ -3,17 +3,11 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
   Select,
   SelectContent,
@@ -131,138 +125,151 @@ export function ContactFormModal({
   return (
     <>
       <Dialog open={addOpen} onOpenChange={onAddOpenChange}>
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Add Contact</AdminModalTitle>
-            <AdminModalDescription>
-              Add a single contact to this site and optionally tag them.
-            </AdminModalDescription>
-          </AdminModalHeader>
-
-          <form onSubmit={handleAddContact} className="flex min-h-0 flex-1 flex-col">
-            <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
-              <div>
-                <Label htmlFor="add-email">Email *</Label>
-                <Input
-                  id="add-email"
-                  type="email"
-                  required
-                  placeholder="email@example.com"
-                  value={addForm.email}
-                  onChange={(event) => setAddForm((prev) => ({ ...prev, email: event.target.value }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <Label htmlFor="add-first">First Name</Label>
-                  <Input
-                    id="add-first"
-                    placeholder="Jane"
-                    value={addForm.first_name}
-                    onChange={(event) => setAddForm((prev) => ({ ...prev, first_name: event.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="add-last">Last Name</Label>
-                  <Input
-                    id="add-last"
-                    placeholder="Doe"
-                    value={addForm.last_name}
-                    onChange={(event) => setAddForm((prev) => ({ ...prev, last_name: event.target.value }))}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="add-tags">Tags</Label>
-                <Input
-                  id="add-tags"
-                  placeholder="austin, fitness (comma-separated)"
-                  value={addForm.tags}
-                  onChange={(event) => setAddForm((prev) => ({ ...prev, tags: event.target.value }))}
-                />
-              </div>
-            </AdminModalBody>
-            <AdminModalFooter className="sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => onAddOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={adding || !addForm.email}>
-                {adding ? "Adding..." : "Add Contact"}
-              </Button>
-            </AdminModalFooter>
-          </form>
-        </AdminModalContent>
+        <form onSubmit={handleAddContact} className="contents">
+          <DashboardModalContent
+            title="Add Contact"
+            description="Add a single contact to this site and optionally tag them."
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={() => onAddOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={adding || !addForm.email}>
+                  {adding ? "Adding..." : "Add Contact"}
+                </Button>
+              </>
+            }
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Contact info</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="add-email">Email *</FieldLabel>
+                    <Input
+                      id="add-email"
+                      type="email"
+                      required
+                      placeholder="email@example.com"
+                      value={addForm.email}
+                      onChange={(event) => setAddForm((prev) => ({ ...prev, email: event.target.value }))}
+                    />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="add-first">First Name</FieldLabel>
+                      <Input
+                        id="add-first"
+                        placeholder="Jane"
+                        value={addForm.first_name}
+                        onChange={(event) => setAddForm((prev) => ({ ...prev, first_name: event.target.value }))}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="add-last">Last Name</FieldLabel>
+                      <Input
+                        id="add-last"
+                        placeholder="Doe"
+                        value={addForm.last_name}
+                        onChange={(event) => setAddForm((prev) => ({ ...prev, last_name: event.target.value }))}
+                      />
+                    </Field>
+                  </div>
+                  <Field>
+                    <FieldLabel htmlFor="add-tags">Tags</FieldLabel>
+                    <Input
+                      id="add-tags"
+                      placeholder="austin, fitness (comma-separated)"
+                      value={addForm.tags}
+                      onChange={(event) => setAddForm((prev) => ({ ...prev, tags: event.target.value }))}
+                    />
+                    <FieldDescription>Separate tags with commas.</FieldDescription>
+                  </Field>
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
+        </form>
       </Dialog>
 
       <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) onEditClose() }}>
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Edit Contact</AdminModalTitle>
-            <AdminModalDescription>
-              Update this contact&apos;s details, tags, and subscription status.
-            </AdminModalDescription>
-            {editContact && (
-              <p className="text-sm text-muted-foreground">{editContact.email}</p>
-            )}
-          </AdminModalHeader>
-
-          <form onSubmit={handleEditContact} className="flex min-h-0 flex-1 flex-col">
-            <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <Label htmlFor="edit-first">First Name</Label>
-                  <Input
-                    id="edit-first"
-                    value={editForm.first_name}
-                    onChange={(event) => setEditForm((prev) => ({ ...prev, first_name: event.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-last">Last Name</Label>
-                  <Input
-                    id="edit-last"
-                    value={editForm.last_name}
-                    onChange={(event) => setEditForm((prev) => ({ ...prev, last_name: event.target.value }))}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="edit-tags">Tags</Label>
-                <Input
-                  id="edit-tags"
-                  placeholder="austin, fitness (comma-separated)"
-                  value={editForm.tags}
-                  onChange={(event) => setEditForm((prev) => ({ ...prev, tags: event.target.value }))}
-                />
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select
-                  value={editForm.status}
-                  onValueChange={(value) => setEditForm((prev) => ({ ...prev, status: value }))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
-                    <SelectItem value="bounced">Bounced</SelectItem>
-                    <SelectItem value="complained">Complained</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </AdminModalBody>
-            <AdminModalFooter className="sm:justify-end">
-              <Button type="button" variant="outline" onClick={onEditClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </AdminModalFooter>
-          </form>
-        </AdminModalContent>
+        <form onSubmit={handleEditContact} className="contents">
+          <DashboardModalContent
+            title="Edit Contact"
+            description={
+              editContact ? (
+                <>Update this contact&apos;s details, tags, and subscription status. <span className="text-muted-foreground">{editContact.email}</span></>
+              ) : "Update this contact's details, tags, and subscription status."
+            }
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={onEditClose}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            }
+          >
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Contact info</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="edit-first">First Name</FieldLabel>
+                      <Input
+                        id="edit-first"
+                        value={editForm.first_name}
+                        onChange={(event) => setEditForm((prev) => ({ ...prev, first_name: event.target.value }))}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="edit-last">Last Name</FieldLabel>
+                      <Input
+                        id="edit-last"
+                        value={editForm.last_name}
+                        onChange={(event) => setEditForm((prev) => ({ ...prev, last_name: event.target.value }))}
+                      />
+                    </Field>
+                  </div>
+                  <Field>
+                    <FieldLabel htmlFor="edit-tags">Tags</FieldLabel>
+                    <Input
+                      id="edit-tags"
+                      placeholder="austin, fitness (comma-separated)"
+                      value={editForm.tags}
+                      onChange={(event) => setEditForm((prev) => ({ ...prev, tags: event.target.value }))}
+                    />
+                    <FieldDescription>Separate tags with commas.</FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Status</FieldLabel>
+                    <Select
+                      value={editForm.status}
+                      onValueChange={(value) => setEditForm((prev) => ({ ...prev, status: value }))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
+                        <SelectItem value="bounced">Bounced</SelectItem>
+                        <SelectItem value="complained">Complained</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
+        </form>
       </Dialog>
     </>
   )

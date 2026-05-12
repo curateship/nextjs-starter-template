@@ -19,15 +19,9 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Check, GripVertical, Plus, Search, Trash2 } from "lucide-react"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -116,183 +110,187 @@ function QuickLinkSettingsButton({
           setQuery("")
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Quick Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the name, destination URL, and dashboard icon for this quick link.
-            </AdminModalDescription>
-          </AdminModalHeader>
-
-          <AdminModalBody className="space-y-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Icon</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={cn(
-                    "h-9 shrink-0",
-                    SelectedIcon ? "w-9 p-0" : "bg-muted px-2 text-muted-foreground hover:bg-muted/80"
-                  )}
-                  onClick={() => setIconPickerOpen(true)}
-                >
-                  {SelectedIcon ? (
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                      <SelectedIcon className="h-4 w-4 shrink-0" />
-                    </span>
-                  ) : (
-                    <span className="text-center text-[10px] leading-tight font-medium">Choose Icon</span>
-                  )}
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Name</p>
-                <Input
-                  value={draftLabel}
-                  onChange={(event) => setDraftLabel(event.target.value)}
-                  placeholder="Label"
-                  aria-label="Quick link name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={draftHref}
-                  onChange={(event) => setDraftHref(event.target.value)}
-                  placeholder="/settings or https://example.com"
-                  aria-label="Quick link URL"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setDraftIcon(undefined)}>
-              Remove Icon
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                onSave({
-                  label: draftLabel,
-                  href: draftHref.trim(),
-                  icon: draftIcon
-                })
-                setOpen(false)
-              }}
-            >
-              Save
-            </Button>
-          </AdminModalFooter>
-          <Dialog
-            open={iconPickerOpen}
-            onOpenChange={(nextOpen) => {
-              setIconPickerOpen(nextOpen)
-              if (!nextOpen) {
-                setQuery("")
-              }
-            }}
-          >
-            <AdminModalContent className="max-w-xl">
-              <AdminModalHeader className="pb-2">
-                <AdminModalTitle>Choose Icon</AdminModalTitle>
-                <AdminModalDescription>Pick an icon for this quick link.</AdminModalDescription>
-              </AdminModalHeader>
-
-              <AdminModalBody className="space-y-3 pb-6" onWheelCapture={(event) => event.stopPropagation()}>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className="pl-9"
-                    placeholder="Search icons"
-                  />
+        <DashboardModalContent
+          title="Quick Link Settings"
+          description="Update the name, destination URL, and dashboard icon for this quick link."
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setDraftIcon(undefined)}>
+                Remove Icon
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  onSave({
+                    label: draftLabel,
+                    href: draftHref.trim(),
+                    icon: draftIcon
+                  })
+                  setOpen(false)
+                }}
+              >
+                Save
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Quick link</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
+                  <Field>
+                    <FieldLabel>Icon</FieldLabel>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "h-9 shrink-0",
+                        SelectedIcon ? "w-9 p-0" : "bg-muted px-2 text-muted-foreground hover:bg-muted/80"
+                      )}
+                      onClick={() => setIconPickerOpen(true)}
+                    >
+                      {SelectedIcon ? (
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                          <SelectedIcon className="h-4 w-4 shrink-0" />
+                        </span>
+                      ) : (
+                        <span className="text-center text-[10px] leading-tight font-medium">Choose Icon</span>
+                      )}
+                    </Button>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input
+                      value={draftLabel}
+                      onChange={(event) => setDraftLabel(event.target.value)}
+                      placeholder="Label"
+                      aria-label="Quick link name"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>URL</FieldLabel>
+                    <Input
+                      value={draftHref}
+                      onChange={(event) => setDraftHref(event.target.value)}
+                      placeholder="/settings or https://example.com"
+                      aria-label="Quick link URL"
+                    />
+                  </Field>
                 </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
+        <Dialog
+          open={iconPickerOpen}
+          onOpenChange={(nextOpen) => {
+            setIconPickerOpen(nextOpen)
+            if (!nextOpen) {
+              setQuery("")
+            }
+          }}
+        >
+          <DashboardModalContent
+            className="max-w-xl"
+            title="Choose Icon"
+            description="Pick an icon for this quick link."
+            footer={
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIconPickerOpen(false)
+                  setQuery("")
+                }}
+              >
+                Back
+              </Button>
+            }
+          >
+            <CardGroup className="grid" onWheelCapture={(event) => event.stopPropagation()}>
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      className="pl-9"
+                      placeholder="Search icons"
+                    />
+                  </div>
 
-                <ScrollArea className="h-[320px] pr-2 overscroll-contain">
-                  {filteredOptions.length === 0 && !showDefaultOption ? (
-                    <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
-                  ) : (
-                    <div className="grid grid-cols-6 gap-2">
-                      {showDefaultOption && (
+                  <ScrollArea className="h-[320px] pr-2 overscroll-contain">
+                    {filteredOptions.length === 0 && !showDefaultOption ? (
+                      <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
+                    ) : (
+                      <div className="grid grid-cols-6 gap-2">
+                        {showDefaultOption && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraftIcon(undefined)
+                          setIconPickerOpen(false)
+                          setQuery("")
+                        }}
+                        className={cn(
+                          "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                          !draftIcon ? "bg-primary/5" : "hover:bg-muted/50"
+                        )}
+                        aria-label="Use default icon"
+                      >
+                        {!draftIcon && (
+                          <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                            <Check className="h-3 w-3" />
+                          </span>
+                        )}
+                        <DefaultIcon className="h-5 w-5" />
+                        <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
+                      </button>
+                    )}
+                    {filteredOptions.map((option) => {
+                      const Icon = getQuickLinkIcon(option.value)
+                      const isSelected = option.value === draftIcon
+
+                      return (
                         <button
+                          key={option.value}
                           type="button"
                           onClick={() => {
-                            setDraftIcon(undefined)
+                            setDraftIcon(option.value)
                             setIconPickerOpen(false)
                             setQuery("")
                           }}
                           className={cn(
                             "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                            !draftIcon ? "bg-primary/5" : "hover:bg-muted/50"
+                            isSelected ? "bg-primary/5" : "hover:bg-muted/50"
                           )}
-                          aria-label="Use default icon"
+                          aria-label={`Choose ${option.label} icon`}
                         >
-                          {!draftIcon && (
+                          {isSelected && (
                             <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
                               <Check className="h-3 w-3" />
                             </span>
                           )}
-                          <DefaultIcon className="h-5 w-5" />
-                          <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
+                          <Icon className="h-5 w-5" />
+                          <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
                         </button>
-                      )}
-                      {filteredOptions.map((option) => {
-                        const Icon = getQuickLinkIcon(option.value)
-                        const isSelected = option.value === draftIcon
-
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              setDraftIcon(option.value)
-                              setIconPickerOpen(false)
-                              setQuery("")
-                            }}
-                            className={cn(
-                              "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                              isSelected ? "bg-primary/5" : "hover:bg-muted/50"
-                            )}
-                            aria-label={`Choose ${option.label} icon`}
-                          >
-                            {isSelected && (
-                              <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                                <Check className="h-3 w-3" />
-                              </span>
-                            )}
-                            <Icon className="h-5 w-5" />
-                            <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </ScrollArea>
-              </AdminModalBody>
-
-              <AdminModalFooter className="sm:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIconPickerOpen(false)
-                    setQuery("")
-                  }}
-                >
-                  Back
-                </Button>
-              </AdminModalFooter>
-            </AdminModalContent>
-          </Dialog>
-        </AdminModalContent>
+                      )
+                    })}
+                  </div>
+                )}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
+        </Dialog>
       </Dialog>
     </>
   )

@@ -3,18 +3,13 @@
 import { useState, useEffect } from "react"
 import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { CheckCircle } from "lucide-react"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Page, UpdatePageData } from "@/lib/actions/pages/page-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -185,109 +180,121 @@ export function PageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent>
-        <AdminModalHeader>
-          <AdminModalTitle className="flex items-center gap-3">
-            Configure settings for &quot;{page.title}&quot;
-            <div className="flex items-center space-x-2">
-              <div className={`h-2 w-2 rounded-full ${page.is_published ? "bg-green-500" : "bg-gray-400"}`} />
-              <span className="text-sm font-medium">{page.is_published ? "Published" : "Draft"}</span>
-            </div>
-          </AdminModalTitle>
-        </AdminModalHeader>
-
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <AdminModalBody className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-            {error && (
+      <form onSubmit={handleSubmit} className="contents">
+        <DashboardModalContent
+          title={
+            <span className="flex items-center gap-3">
+              Configure settings for &quot;{page.title}&quot;
+              <span className="flex items-center space-x-2">
+                <span className={`h-2 w-2 rounded-full ${page.is_published ? "bg-green-500" : "bg-gray-400"}`} />
+                <span className="text-sm font-medium">{page.is_published ? "Published" : "Draft"}</span>
+              </span>
+            </span>
+          }
+          footer={
+            <>
+              {saveMessage ? (
+                <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium text-green-700">{saveMessage}</span>
+                </div>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center space-x-2">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="outline" disabled={saving}>
+                  {saving ? "Saving..." : "Save as Draft"}
+                </Button>
+                <Button type="button" onClick={handlePublish} disabled={saving}>
+                  {saving ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
+                </Button>
+              </div>
+            </>
+          }
+          footerClassName="sm:justify-between"
+        >
+          {error && (
+            <div className="px-6 pb-2">
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                 <p className="text-sm text-red-800">{error}</p>
               </div>
-            )}
+            </div>
+          )}
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="col-span-2">
-                <Label htmlFor="modal-title">Page Title *</Label>
-                <Input
-                  id="modal-title"
-                  value={formData.title || ""}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter page title"
-                  required
-                />
-              </div>
-
-              <div className="col-span-2">
-                <Label htmlFor="modal-slug">Page URL</Label>
-                <Input
-                  id="modal-slug"
-                  value={formData.slug || ""}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="page-url-slug"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {slugManuallyEdited
-                    ? "Custom URL slug. Clear this field to auto-generate from title again."
-                    : "Auto-generated from title. You can edit this to customize the URL."}
-                </p>
-              </div>
-
-              <div className="col-span-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="modal-is_homepage"
-                    checked={formData.is_homepage === true}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, is_homepage: checked === true }))
-                    }
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Page setup</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="modal-title">Page Title *</FieldLabel>
+                  <Input
+                    id="modal-title"
+                    value={formData.title || ""}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter page title"
+                    required
                   />
-                  <div>
-                    <Label htmlFor="modal-is_homepage">Set as homepage</Label>
-                    <p className="text-xs text-muted-foreground">
-                      This page will be the main landing page for your site
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+                </Field>
 
-            <div>
-              <Label htmlFor="modal-meta_description">Meta Description</Label>
-              <Textarea
-                id="modal-meta_description"
-                value={formData.meta_description || ""}
-                onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
-                placeholder="A brief description of this page for search engines"
-                rows={3}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Recommended length: 150-160 characters ({(formData.meta_description || "").length}/160)
-              </p>
-            </div>
-          </AdminModalBody>
+                <Field>
+                  <FieldLabel htmlFor="modal-slug">Page URL</FieldLabel>
+                  <Input
+                    id="modal-slug"
+                    value={formData.slug || ""}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="page-url-slug"
+                  />
+                  <FieldDescription>
+                    {slugManuallyEdited
+                      ? "Custom URL slug. Clear this field to auto-generate from title again."
+                      : "Auto-generated from title. You can edit this to customize the URL."}
+                  </FieldDescription>
+                </Field>
 
-          <AdminModalFooter>
-            {saveMessage ? (
-              <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-green-700">{saveMessage}</span>
-              </div>
-            ) : (
-              <div />
-            )}
-            <div className="flex items-center space-x-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="outline" disabled={saving}>
-                {saving ? "Saving..." : "Save as Draft"}
-              </Button>
-              <Button type="button" onClick={handlePublish} disabled={saving}>
-                {saving ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
-              </Button>
-            </div>
-          </AdminModalFooter>
-        </form>
-      </AdminModalContent>
+                <Field>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Checkbox
+                      id="modal-is_homepage"
+                      checked={formData.is_homepage === true}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({ ...prev, is_homepage: checked === true }))
+                      }
+                    />
+                    <span className="text-sm font-medium">Set as homepage</span>
+                  </label>
+                  <FieldDescription>This page will be the main landing page for your site</FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="modal-meta_description">Meta Description</FieldLabel>
+                  <Textarea
+                    id="modal-meta_description"
+                    value={formData.meta_description || ""}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
+                    placeholder="A brief description of this page for search engines"
+                    rows={3}
+                  />
+                  <FieldDescription>
+                    Recommended length: 150-160 characters ({(formData.meta_description || "").length}/160)
+                  </FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
+      </form>
     </Dialog>
   )
 }

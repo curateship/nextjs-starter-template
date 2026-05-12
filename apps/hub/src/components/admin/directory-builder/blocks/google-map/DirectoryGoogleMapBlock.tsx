@@ -1,9 +1,11 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { BlockTabs } from "@/components/ui/tabs"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import {
   DIRECTORY_GOOGLE_MAP_MAX_HEIGHT,
@@ -33,58 +35,74 @@ export function DirectoryGoogleMapBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection heading="Map Content" contentClassName="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="directory-google-map-location">Address or Place ID</Label>
-                <Input
-                  id="directory-google-map-location"
-                  value={content.locationQuery ?? ""}
-                  onChange={(event) => onContentChange("locationQuery", event.target.value)}
-                  placeholder="1245 Broadway, New York, NY"
-                />
-              </div>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Map Content</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="directory-google-map-location">Address or Place ID</FieldLabel>
+                    <Input
+                      id="directory-google-map-location"
+                      value={content.locationQuery ?? ""}
+                      onChange={(event) => onContentChange("locationQuery", event.target.value)}
+                      placeholder="1245 Broadway, New York, NY"
+                    />
+                  </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="directory-google-map-caption">Caption</Label>
-                <Textarea
-                  id="directory-google-map-caption"
-                  value={content.caption ?? ""}
-                  onChange={(event) => onContentChange("caption", event.target.value)}
-                  placeholder="Visit us here."
-                />
-              </div>
-            </BlockEditorSection>
+                  <Field>
+                    <FieldLabel htmlFor="directory-google-map-caption">Caption</FieldLabel>
+                    <Textarea
+                      id="directory-google-map-caption"
+                      value={content.caption ?? ""}
+                      onChange={(event) => onContentChange("caption", event.target.value)}
+                      placeholder="Visit us here."
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-6">
-              <BlockEditorSection heading="Map Size">
-                <div className="space-y-2">
-                  <Label htmlFor="directory-google-map-height">Height</Label>
-                  <Input
-                    id="directory-google-map-height"
-                    type="number"
-                    min={DIRECTORY_GOOGLE_MAP_MIN_HEIGHT}
-                    max={DIRECTORY_GOOGLE_MAP_MAX_HEIGHT}
-                    step={20}
-                    value={height}
-                    onChange={(event) => onContentChange("height", normalizeDirectoryGoogleMapHeight(event.target.value))}
-                  />
-                </div>
-              </BlockEditorSection>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Map Size</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="directory-google-map-height">Height</FieldLabel>
+                    <Input
+                      id="directory-google-map-height"
+                      type="number"
+                      min={DIRECTORY_GOOGLE_MAP_MIN_HEIGHT}
+                      max={DIRECTORY_GOOGLE_MAP_MAX_HEIGHT}
+                      step={20}
+                      value={height}
+                      onChange={(event) => onContentChange("height", normalizeDirectoryGoogleMapHeight(event.target.value))}
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
 
-              <VisibilitySettings
-                visibility={content.visibility}
-                onChange={(visibility) => onContentChange("visibility", visibility)}
-                fields={[
-                  { key: "map", label: "Map" },
-                  { key: "caption", label: "Caption" },
-                ]}
-              />
-            </div>
+              <Card>
+                <CardContent className="p-4">
+                  <VisibilitySettings
+                    visibility={content.visibility}
+                    onChange={(visibility) => onContentChange("visibility", visibility)}
+                    fields={[
+                      { key: "map", label: "Map" },
+                      { key: "caption", label: "Caption" },
+                    ]}
+                  />
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}

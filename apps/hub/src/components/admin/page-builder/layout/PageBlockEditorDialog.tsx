@@ -3,13 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import {
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalScrollBody,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { PageHeroBlock } from "../blocks/hero/PageHeroBlock"
 import { PageRichTextEditorBlock } from "../blocks/rich-text-editor/PageRichTextEditorBlock"
 import { PageFaqBlock } from "../blocks/faq/PageFaqBlock"
@@ -45,151 +39,145 @@ export function PageBlockEditorDialog({
   return (
     <Dialog open={!!selectedBlock} onOpenChange={onOpenChange}>
       <ModalTabsProvider>
-        <AdminModalContent size="wide">
-          <AdminModalHeader>
-            <div className="flex min-w-0 items-center gap-4 pr-10">
-              <AdminModalTitle className="shrink-0">
-                Edit {selectedBlock.title || getBlockName(selectedBlock.type)}
-              </AdminModalTitle>
-              <ModalTabs />
-            </div>
-          </AdminModalHeader>
+        <DashboardModalContent
+          title={`Edit ${selectedBlock.title || getBlockName(selectedBlock.type)}`}
+          titleAccessory={<ModalTabs />}
+          className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={onSave} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          {selectedBlock.type === "hero" && (
+                  <PageHeroBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                    siteId={siteId}
+                    blockId={selectedBlock.id}
+                  />
+                )}
 
-          <AdminModalScrollBody>
-              {selectedBlock.type === "hero" && (
-                <PageHeroBlock
-                  content={draftContent}
-                  onContentChange={onContentChange}
-                  siteId={siteId}
-                  blockId={selectedBlock.id}
-                />
-              )}
+                {selectedBlock.type === "rich-text" && (
+                  <PageRichTextEditorBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                    siteId={siteId}
+                    blockId={selectedBlock.id}
+                  />
+                )}
 
-              {selectedBlock.type === "rich-text" && (
-                <PageRichTextEditorBlock
-                  content={draftContent}
-                  onContentChange={onContentChange}
-                  siteId={siteId}
-                  blockId={selectedBlock.id}
-                />
-              )}
+                {selectedBlock.type === "faq" && (
+                  <PageFaqBlock
+                    title={draftContent.title ?? ""}
+                    subtitle={draftContent.subtitle ?? ""}
+                    headerAlign={draftContent.headerAlign ?? "left"}
+                    faqItems={draftContent.faqItems ?? draftContent.faqs}
+                    onTitleChange={(value) => onContentChange("title", value)}
+                    onSubtitleChange={(value) => onContentChange("subtitle", value)}
+                    onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
+                    onFaqItemsChange={(value) => onContentChange("faqItems", value)}
+                    visibility={draftContent.visibility}
+                    onVisibilityChange={(value) => onContentChange("visibility", value)}
+                  />
+                )}
 
-              {selectedBlock.type === "faq" && (
-                <PageFaqBlock
-                  title={draftContent.title ?? ""}
-                  subtitle={draftContent.subtitle ?? ""}
-                  headerAlign={draftContent.headerAlign ?? "left"}
-                  faqItems={draftContent.faqItems ?? draftContent.faqs}
-                  onTitleChange={(value) => onContentChange("title", value)}
-                  onSubtitleChange={(value) => onContentChange("subtitle", value)}
-                  onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
-                  onFaqItemsChange={(value) => onContentChange("faqItems", value)}
-                  visibility={draftContent.visibility}
-                  onVisibilityChange={(value) => onContentChange("visibility", value)}
-                />
-              )}
+                {selectedBlock.type === "listing-views" && (
+                  <PageListingViewBlock
+                    {...draftContent}
+                    onTitleChange={(value) => onContentChange("title", value)}
+                    onSubtitleChange={(value) => onContentChange("subtitle", value)}
+                    onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
+                    onMobileHeaderAlignChange={(value) => onContentChange("mobileHeaderAlign", value)}
+                    onContentTypeChange={(value) => onContentChange("contentType", value)}
+                    onCategoryIdsChange={(value) => onContentChange("categoryIds", value)}
+                    onListingStyleChange={(value) => onContentChange("listingStyle", value)}
+                    onImageFitChange={(value) => onContentChange("imageFit", value)}
+                    onDisplayModeChange={(value) => onContentChange("displayMode", value)}
+                    onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
+                    onColumnsChange={(value) => onContentChange("columns", value)}
+                    onSortByChange={(value) => onContentChange("sortBy", value)}
+                    onSortOrderChange={(value) => onContentChange("sortOrder", value)}
+                    onShowImageChange={(value) => onContentChange("showImage", value)}
+                    onShowTitleChange={(value) => onContentChange("showTitle", value)}
+                    onShowDescriptionChange={(value) => onContentChange("showDescription", value)}
+                    onShowAuthorChange={(value) => onContentChange("showAuthor", value)}
+                    onShowDateChange={(value) => onContentChange("showDate", value)}
+                    onShowReadMoreChange={(value) => onContentChange("showReadMore", value)}
+                    onIsPaginatedChange={(value) => onContentChange("isPaginated", value)}
+                    onItemsPerPageChange={(value) => onContentChange("itemsPerPage", value)}
+                    onViewAllTextChange={(value) => onContentChange("viewAllText", value)}
+                    onViewAllLinkChange={(value) => onContentChange("viewAllLink", value)}
+                    onVisibilityChange={(value) => onContentChange("visibility", value)}
+                    siteId={siteId}
+                  />
+                )}
 
-              {selectedBlock.type === "listing-views" && (
-                <PageListingViewBlock
-                  {...draftContent}
-                  onTitleChange={(value) => onContentChange("title", value)}
-                  onSubtitleChange={(value) => onContentChange("subtitle", value)}
-                  onHeaderAlignChange={(value) => onContentChange("headerAlign", value)}
-                  onMobileHeaderAlignChange={(value) => onContentChange("mobileHeaderAlign", value)}
-                  onContentTypeChange={(value) => onContentChange("contentType", value)}
-                  onCategoryIdsChange={(value) => onContentChange("categoryIds", value)}
-                  onListingStyleChange={(value) => onContentChange("listingStyle", value)}
-                  onImageFitChange={(value) => onContentChange("imageFit", value)}
-                  onDisplayModeChange={(value) => onContentChange("displayMode", value)}
-                  onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
-                  onColumnsChange={(value) => onContentChange("columns", value)}
-                  onSortByChange={(value) => onContentChange("sortBy", value)}
-                  onSortOrderChange={(value) => onContentChange("sortOrder", value)}
-                  onShowImageChange={(value) => onContentChange("showImage", value)}
-                  onShowTitleChange={(value) => onContentChange("showTitle", value)}
-                  onShowDescriptionChange={(value) => onContentChange("showDescription", value)}
-                  onShowAuthorChange={(value) => onContentChange("showAuthor", value)}
-                  onShowDateChange={(value) => onContentChange("showDate", value)}
-                  onShowReadMoreChange={(value) => onContentChange("showReadMore", value)}
-                  onIsPaginatedChange={(value) => onContentChange("isPaginated", value)}
-                  onItemsPerPageChange={(value) => onContentChange("itemsPerPage", value)}
-                  onViewAllTextChange={(value) => onContentChange("viewAllText", value)}
-                  onViewAllLinkChange={(value) => onContentChange("viewAllLink", value)}
-                  onVisibilityChange={(value) => onContentChange("visibility", value)}
-                  siteId={siteId}
-                />
-              )}
+                {selectedBlock.type === "divider" && (
+                  <PageDividerBlock
+                    {...draftContent}
+                    siteId={siteId}
+                    onSpacingTopChange={(value) => onContentChange("spacingTop", value)}
+                    onSpacingBottomChange={(value) => onContentChange("spacingBottom", value)}
+                    onDividerStyleChange={(value) => onContentChange("dividerStyle", value)}
+                    onLineStyleChange={(value) => onContentChange("lineStyle", value)}
+                    onLineWidthChange={(value) => onContentChange("lineWidth", value)}
+                    onLineThicknessChange={(value) => onContentChange("lineThickness", value)}
+                    onLineColorChange={(value) => onContentChange("lineColor", value)}
+                    onIconChange={(value) => onContentChange("icon", value)}
+                    onDividerImageChange={(value) => onContentChange("dividerImage", value)}
+                    onDividerImageOpacityChange={(value) => onContentChange("dividerImageOpacity", value)}
+                    onContainerWidthChange={(value) => onContentChange("containerWidth", value)}
+                    onCustomWidthChange={(value) => onContentChange("customWidth", value)}
+                    onVisibilityChange={(value) => onContentChange("visibility", value)}
+                  />
+                )}
 
-              {selectedBlock.type === "divider" && (
-                <PageDividerBlock
-                  {...draftContent}
-                  siteId={siteId}
-                  onSpacingTopChange={(value) => onContentChange("spacingTop", value)}
-                  onSpacingBottomChange={(value) => onContentChange("spacingBottom", value)}
-                  onDividerStyleChange={(value) => onContentChange("dividerStyle", value)}
-                  onLineStyleChange={(value) => onContentChange("lineStyle", value)}
-                  onLineWidthChange={(value) => onContentChange("lineWidth", value)}
-                  onLineThicknessChange={(value) => onContentChange("lineThickness", value)}
-                  onLineColorChange={(value) => onContentChange("lineColor", value)}
-                  onIconChange={(value) => onContentChange("icon", value)}
-                  onDividerImageChange={(value) => onContentChange("dividerImage", value)}
-                  onDividerImageOpacityChange={(value) => onContentChange("dividerImageOpacity", value)}
-                  onContainerWidthChange={(value) => onContentChange("containerWidth", value)}
-                  onCustomWidthChange={(value) => onContentChange("customWidth", value)}
-                  onVisibilityChange={(value) => onContentChange("visibility", value)}
-                />
-              )}
+                {selectedBlock.type === "auth" && (
+                  <PageAuthBlock
+                    {...draftContent}
+                    onDefaultTabChange={(value) => onContentChange("defaultTab", value)}
+                    onShowLoginTabChange={(value) => onContentChange("showLoginTab", value)}
+                    onShowRegisterTabChange={(value) => onContentChange("showRegisterTab", value)}
+                    onLoginRedirectPathChange={(value) => onContentChange("loginRedirectPath", value)}
+                    onRegisterRedirectPathChange={(value) => onContentChange("registerRedirectPath", value)}
+                    onEmailVerificationEnabledChange={(value) => onContentChange("emailVerificationEnabled", value)}
+                    onLoginButtonTextChange={(value) => onContentChange("loginButtonText", value)}
+                    onRegisterButtonTextChange={(value) => onContentChange("registerButtonText", value)}
+                    onResetButtonTextChange={(value) => onContentChange("resetButtonText", value)}
+                    onLoginTitleChange={(value) => onContentChange("loginTitle", value)}
+                    onLoginDescriptionChange={(value) => onContentChange("loginDescription", value)}
+                    onRegisterTitleChange={(value) => onContentChange("registerTitle", value)}
+                    onRegisterDescriptionChange={(value) => onContentChange("registerDescription", value)}
+                    onResetTitleChange={(value) => onContentChange("resetTitle", value)}
+                    onResetDescriptionChange={(value) => onContentChange("resetDescription", value)}
+                    onVisibilityChange={(value) => onContentChange("visibility", value)}
+                  />
+                )}
 
-              {selectedBlock.type === "auth" && (
-                <PageAuthBlock
-                  {...draftContent}
-                  onDefaultTabChange={(value) => onContentChange("defaultTab", value)}
-                  onShowLoginTabChange={(value) => onContentChange("showLoginTab", value)}
-                  onShowRegisterTabChange={(value) => onContentChange("showRegisterTab", value)}
-                  onLoginRedirectPathChange={(value) => onContentChange("loginRedirectPath", value)}
-                  onRegisterRedirectPathChange={(value) => onContentChange("registerRedirectPath", value)}
-                  onEmailVerificationEnabledChange={(value) => onContentChange("emailVerificationEnabled", value)}
-                  onLoginButtonTextChange={(value) => onContentChange("loginButtonText", value)}
-                  onRegisterButtonTextChange={(value) => onContentChange("registerButtonText", value)}
-                  onResetButtonTextChange={(value) => onContentChange("resetButtonText", value)}
-                  onLoginTitleChange={(value) => onContentChange("loginTitle", value)}
-                  onLoginDescriptionChange={(value) => onContentChange("loginDescription", value)}
-                  onRegisterTitleChange={(value) => onContentChange("registerTitle", value)}
-                  onRegisterDescriptionChange={(value) => onContentChange("registerDescription", value)}
-                  onResetTitleChange={(value) => onContentChange("resetTitle", value)}
-                  onResetDescriptionChange={(value) => onContentChange("resetDescription", value)}
-                  onVisibilityChange={(value) => onContentChange("visibility", value)}
-                />
-              )}
+                {selectedBlock.type === "testimonials" && (
+                  <PageTestimonialsBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
+                    siteId={siteId}
+                    blockId={selectedBlock.id}
+                  />
+                )}
 
-              {selectedBlock.type === "testimonials" && (
-                <PageTestimonialsBlock
-                  content={draftContent}
-                  onContentChange={onContentChange}
-                  siteId={siteId}
-                  blockId={selectedBlock.id}
-                />
-              )}
-
-              {selectedBlock.type === "embedded" && (
-                <PageEmbeddedBlock
-                  {...draftContent}
-                  onCodeChange={(value) => onContentChange("code", value)}
-                  onTypeChange={(value) => onContentChange("type", value)}
-                  onVisibilityChange={(value) => onContentChange("visibility", value)}
-                />
-              )}
-          </AdminModalScrollBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={onSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                {selectedBlock.type === "embedded" && (
+                  <PageEmbeddedBlock
+                    {...draftContent}
+                    onCodeChange={(value) => onContentChange("code", value)}
+                    onTypeChange={(value) => onContentChange("type", value)}
+                    onVisibilityChange={(value) => onContentChange("visibility", value)}
+                  />
+                )}
+          </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>
   )

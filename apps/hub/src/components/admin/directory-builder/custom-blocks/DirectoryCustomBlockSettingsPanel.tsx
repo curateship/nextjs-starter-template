@@ -20,7 +20,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type {
@@ -76,21 +76,20 @@ export function DirectoryCustomBlockSettingsPanel({
         <div className="space-y-6 px-6 py-6">
           <div className="space-y-4">
             <h3 className="text-base font-medium">Block Settings</h3>
-            <div>
-              <Label htmlFor="custom-block-name">Block Name</Label>
+            <Field>
+              <FieldLabel htmlFor="custom-block-name">Block Name</FieldLabel>
               <Input
                 id="custom-block-name"
-                className="mt-1"
                 value={name}
                 onChange={(event) => onNameChange(event.target.value)}
                 placeholder="Business Info"
               />
-            </div>
+            </Field>
 
-            <div>
-              <Label htmlFor="custom-block-layout">Layout</Label>
+            <Field>
+              <FieldLabel htmlFor="custom-block-layout">Layout</FieldLabel>
               <Select value={layout} onValueChange={(value) => onLayoutChange(value as DirectoryCustomBlockLayout)}>
-                <SelectTrigger id="custom-block-layout" className="mt-1">
+                <SelectTrigger id="custom-block-layout">
                   <SelectValue placeholder="Choose layout" />
                 </SelectTrigger>
                 <SelectContent>
@@ -99,7 +98,7 @@ export function DirectoryCustomBlockSettingsPanel({
                   <SelectItem value="two-column">Two Column</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           </div>
 
           <div className="space-y-2 text-sm text-muted-foreground">
@@ -145,38 +144,36 @@ export function DirectoryCustomBlockSettingsPanel({
         <div className="space-y-4">
           <h3 className="text-base font-medium">{selectedField.label || 'Field Settings'}</h3>
 
-          <div>
-            <Label htmlFor={fieldLabelId}>Label</Label>
+          <Field>
+            <FieldLabel htmlFor={fieldLabelId}>Label</FieldLabel>
             <Input
               id={fieldLabelId}
-              className="mt-1"
               value={selectedField.label}
               onChange={(event) => updateSelectedField({ label: event.target.value })}
               placeholder="Phone"
             />
-          </div>
+          </Field>
 
           {selectedField.type !== 'toggle' && selectedField.type !== 'image' && selectedField.type !== 'repeater' && (
-            <div>
-              <Label htmlFor={fieldPlaceholderId}>Placeholder</Label>
+            <Field>
+              <FieldLabel htmlFor={fieldPlaceholderId}>Placeholder</FieldLabel>
               <Input
                 id={fieldPlaceholderId}
-                className="mt-1"
                 value={selectedField.placeholder || ''}
                 onChange={(event) => updateSelectedField({ placeholder: event.target.value })}
                 placeholder="Optional helper text"
               />
-            </div>
+            </Field>
           )}
 
           {layout === 'two-column' && (
-            <div>
-              <Label htmlFor={fieldColumnId}>Column</Label>
+            <Field>
+              <FieldLabel htmlFor={fieldColumnId}>Column</FieldLabel>
               <Select
                 value={selectedField.column || 'left'}
                 onValueChange={(value) => updateSelectedField({ column: value as 'left' | 'right' })}
               >
-                <SelectTrigger id={fieldColumnId} className="mt-1">
+                <SelectTrigger id={fieldColumnId}>
                   <SelectValue placeholder="Choose column" />
                 </SelectTrigger>
                 <SelectContent>
@@ -184,7 +181,7 @@ export function DirectoryCustomBlockSettingsPanel({
                   <SelectItem value="right">Right</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           )}
         </div>
 
@@ -203,10 +200,10 @@ export function DirectoryCustomBlockSettingsPanel({
             </div>
 
             <div className="flex gap-2">
-              <div className="min-w-0 flex-1">
-                <Label htmlFor={repeaterFieldTypeId}>Field Type</Label>
+              <Field className="min-w-0 flex-1">
+                <FieldLabel htmlFor={repeaterFieldTypeId}>Field Type</FieldLabel>
                 <Select value={repeaterFieldType} onValueChange={(value) => setRepeaterFieldType(value as DirectoryCustomBlockSimpleFieldType)}>
-                  <SelectTrigger id={repeaterFieldTypeId} className="mt-1">
+                  <SelectTrigger id={repeaterFieldTypeId}>
                     <SelectValue placeholder="Field type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -215,7 +212,7 @@ export function DirectoryCustomBlockSettingsPanel({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
               <Button
                 type="button"
                 variant="outline"
@@ -277,11 +274,10 @@ function FieldOptionsEditor({
         <div key={option.id} className="rounded-lg border p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="grid flex-1 gap-3">
-              <div>
-                <Label htmlFor={`field-option-label-${option.id}`}>Label</Label>
+              <Field>
+                <FieldLabel htmlFor={`field-option-label-${option.id}`}>Label</FieldLabel>
                 <Input
                   id={`field-option-label-${option.id}`}
-                  className="mt-1"
                   value={option.label}
                   onChange={(event) => {
                     const next = [...options]
@@ -290,12 +286,11 @@ function FieldOptionsEditor({
                   }}
                   placeholder="Option label"
                 />
-              </div>
-              <div>
-                <Label htmlFor={`field-option-value-${option.id}`}>Value</Label>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`field-option-value-${option.id}`}>Value</FieldLabel>
                 <Input
                   id={`field-option-value-${option.id}`}
-                  className="mt-1"
                   value={option.value}
                   onChange={(event) => {
                     const next = [...options]
@@ -304,7 +299,7 @@ function FieldOptionsEditor({
                   }}
                   placeholder="option-value"
                 />
-              </div>
+              </Field>
             </div>
             <Button
               type="button"
@@ -383,33 +378,31 @@ function SortableRepeaterFieldEditor({
       </div>
 
       <div className="space-y-3">
-        <div>
-          <Label htmlFor={repeaterLabelId}>Label</Label>
+        <Field>
+          <FieldLabel htmlFor={repeaterLabelId}>Label</FieldLabel>
           <Input
             id={repeaterLabelId}
-            className="mt-1"
             value={field.label}
             onChange={(event) => onChange({ ...field, label: event.target.value })}
             placeholder="Feature title"
           />
-        </div>
+        </Field>
 
         {field.type !== 'toggle' && field.type !== 'image' && (
-          <div>
-            <Label htmlFor={repeaterPlaceholderId}>Placeholder</Label>
+          <Field>
+            <FieldLabel htmlFor={repeaterPlaceholderId}>Placeholder</FieldLabel>
             <Input
               id={repeaterPlaceholderId}
-              className="mt-1"
               value={field.placeholder || ''}
               onChange={(event) => onChange({ ...field, placeholder: event.target.value })}
               placeholder="Optional helper text"
             />
-          </div>
+          </Field>
         )}
 
         {field.type === 'select' && (
           <div className="space-y-3">
-            <Label>Options</Label>
+            <p className="text-sm font-medium">Options</p>
             {(field.options || []).map((option, optionIndex) => (
               <div key={option.id} className="grid gap-3 rounded-lg border p-3">
                 <Input

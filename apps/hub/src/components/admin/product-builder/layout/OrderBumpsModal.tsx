@@ -2,15 +2,12 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Dialog } from "@/components/ui/dialog"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
 import {
@@ -33,13 +30,12 @@ import { CSS } from '@dnd-kit/utilities'
 
 // Security utility functions for admin component
 const sanitizeAdminInput = (input: string): string => {
-  // Remove potential XSS vectors and limit length for admin inputs
   return input
-    .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .replace(/data:/gi, '') // Remove data: protocol
-    .replace(/vbscript:/gi, '') // Remove vbscript: protocol
-    .substring(0, 1000) // Higher limit for admin but still prevent DoS
+    .replace(/[<>]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/data:/gi, '')
+    .replace(/vbscript:/gi, '')
+    .substring(0, 1000)
 }
 
 interface OrderBump {
@@ -113,19 +109,19 @@ function SortableOrderBumpItem({
         </Button>
       </div>
 
-      <div className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <Label htmlFor={`bump-title-${bumpIndex}`}>Title</Label>
+      <div className="grid gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor={`bump-title-${bumpIndex}`}>Title</FieldLabel>
             <Input
               id={`bump-title-${bumpIndex}`}
               value={bump.title}
               onChange={(e) => updateBump(bumpIndex, 'title', sanitizeAdminInput(e.target.value))}
               placeholder="Priority Support"
             />
-          </div>
-          <div>
-            <Label htmlFor={`bump-price-${bumpIndex}`}>Price</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`bump-price-${bumpIndex}`}>Price</FieldLabel>
             <Input
               id={`bump-price-${bumpIndex}`}
               type="number"
@@ -133,11 +129,11 @@ function SortableOrderBumpItem({
               onChange={(e) => updateBump(bumpIndex, 'price', parseFloat(e.target.value) || 0)}
               placeholder="29.99"
             />
-          </div>
+          </Field>
         </div>
 
-        <div>
-          <Label htmlFor={`bump-description-${bumpIndex}`}>Description</Label>
+        <Field>
+          <FieldLabel htmlFor={`bump-description-${bumpIndex}`}>Description</FieldLabel>
           <Textarea
             id={`bump-description-${bumpIndex}`}
             value={bump.description}
@@ -145,17 +141,17 @@ function SortableOrderBumpItem({
             placeholder="Get 24/7 live chat support"
             rows={2}
           />
-        </div>
+        </Field>
 
-        <div>
-          <Label htmlFor={`bump-stripe-price-${bumpIndex}`}>Stripe Price ID</Label>
+        <Field>
+          <FieldLabel htmlFor={`bump-stripe-price-${bumpIndex}`}>Stripe Price ID</FieldLabel>
           <Input
             id={`bump-stripe-price-${bumpIndex}`}
             value={bump.stripePriceId}
             onChange={(e) => updateBump(bumpIndex, 'stripePriceId', sanitizeAdminInput(e.target.value))}
             placeholder="price_xxxxxxxxxxxxx"
           />
-        </div>
+        </Field>
 
         <div>
           <MediaInput
@@ -169,14 +165,14 @@ function SortableOrderBumpItem({
           />
         </div>
 
-        <div className="flex items-center space-x-2">
+        <label htmlFor={`bump-preselected-${bumpIndex}`} className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             id={`bump-preselected-${bumpIndex}`}
             checked={bump.isPreSelected}
             onCheckedChange={(checked) => updateBump(bumpIndex, 'isPreSelected', checked)}
           />
-          <Label htmlFor={`bump-preselected-${bumpIndex}`}>Pre-select by default</Label>
-        </div>
+          <span className="text-sm font-medium">Pre-select by default</span>
+        </label>
       </div>
     </div>
   )
@@ -190,9 +186,7 @@ export function OrderBumpsModal({
 }: OrderBumpsModalProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
+      activationConstraint: { distance: 8 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -212,8 +206,7 @@ export function OrderBumpsModal({
   }
 
   const removeBump = (index: number) => {
-    const newBumps = orderBumps.filter((_, i) => i !== index)
-    onOrderBumpsChange(newBumps)
+    onOrderBumpsChange(orderBumps.filter((_, i) => i !== index))
   }
 
   const updateBump = (index: number, field: keyof OrderBump, value: any) => {
@@ -224,11 +217,9 @@ export function OrderBumpsModal({
 
   const handleBumpDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-
     if (over && active.id !== over.id) {
       const oldIndex = orderBumps.findIndex((bump) => bump.id === active.id)
       const newIndex = orderBumps.findIndex((bump) => bump.id === over.id)
-
       if (oldIndex !== -1 && newIndex !== -1) {
         onOrderBumpsChange(arrayMove(orderBumps, oldIndex, newIndex))
       }
@@ -237,33 +228,28 @@ export function OrderBumpsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="admin">
-            <DialogHeader>
-              <DialogTitle>Manage Order Bumps</DialogTitle>
-              <p className="text-sm text-muted-foreground mt-2">
-                Add complementary products that customers can add before checkout
-              </p>
-            </DialogHeader>
-
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  {orderBumps.length === 0
-                    ? "No order bumps yet. Add one to get started."
-                    : `${orderBumps.length} order bump${orderBumps.length !== 1 ? 's' : ''}`}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addOrderBump}
-                >
+      <DashboardModalContent
+        title="Manage Order Bumps"
+        footer={
+          <Button onClick={() => onOpenChange(false)}>Done</Button>
+        }
+      >
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <div className="flex items-center justify-between">
+                <DashboardModalCardTitle>Order Bumps</DashboardModalCardTitle>
+                <Button type="button" variant="outline" size="sm" onClick={addOrderBump}>
                   <Plus className="w-4 h-4 mr-1" />
                   Add Order Bump
                 </Button>
               </div>
-
-              {orderBumps.length > 0 && (
+              <CardDescription>
+                Complementary products that customers can add before checkout.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              {orderBumps.length > 0 ? (
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -273,7 +259,7 @@ export function OrderBumpsModal({
                     items={orderBumps.map((b) => b.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {orderBumps.map((bump, index) => (
                         <SortableOrderBumpItem
                           key={bump.id}
@@ -286,13 +272,15 @@ export function OrderBumpsModal({
                     </div>
                   </SortableContext>
                 </DndContext>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No order bumps yet. Click &quot;Add Order Bump&quot; to create one.
+                </p>
               )}
-            </div>
-
-            <div className="flex justify-end pt-6 mt-6 border-t">
-              <Button onClick={() => onOpenChange(false)}>Done</Button>
-            </div>
-      </DialogContent>
+            </CardContent>
+          </Card>
+        </CardGroup>
+      </DashboardModalContent>
     </Dialog>
   )
 }

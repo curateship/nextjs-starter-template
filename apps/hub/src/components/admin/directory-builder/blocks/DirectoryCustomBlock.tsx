@@ -19,10 +19,12 @@ import {
   useSortable,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { MediaInput } from "@/components/admin/media-library/MediaInput"
@@ -60,10 +62,17 @@ export function DirectoryCustomBlock({
             value: 'content',
             label: 'Content',
             content: (
-              <BlockEditorSection heading="Custom Block Missing" contentClassName="space-y-3 text-sm text-muted-foreground">
-                  <p>This directory block references a custom block template that could not be found.</p>
-                  <p>Create or restore the template before editing this block again.</p>
-              </BlockEditorSection>
+              <CardGroup className="grid">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Custom Block Missing</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 p-4 pt-0 text-sm text-muted-foreground">
+                    <p>This directory block references a custom block template that could not be found.</p>
+                    <p>Create or restore the template before editing this block again.</p>
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
         ]}
@@ -80,43 +89,57 @@ export function DirectoryCustomBlock({
           value: 'content',
           label: 'Content',
           content: (
-            <BlockEditorSection heading={template.name} contentClassName="space-y-6">
-                {template.fields.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    This custom block has no fields yet.
-                  </p>
-                ) : (
-                  <DirectoryCustomValuesEditor
-                    fields={template.fields}
-                    values={values}
-                    siteId={siteId}
-                    onChange={(nextValues) => onContentChange('values', nextValues)}
-                  />
-                )}
-            </BlockEditorSection>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>{template.name}</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  {template.fields.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      This custom block has no fields yet.
+                    </p>
+                  ) : (
+                    <DirectoryCustomValuesEditor
+                      fields={template.fields}
+                      values={values}
+                      siteId={siteId}
+                      onChange={(nextValues) => onContentChange('values', nextValues)}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: 'template',
           label: 'Template',
           content: (
-            <BlockEditorSection heading="Template Info" contentClassName="space-y-3 text-sm text-muted-foreground">
-                <div>
-                  <span className="font-medium text-foreground">Name:</span> {template.name}
-                </div>
-                <div>
-                  <span className="font-medium text-foreground">Layout:</span> {template.layout}
-                </div>
-                <div>
-                  <span className="font-medium text-foreground">Fields:</span> {template.fields.length}
-                </div>
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/admin/directories/custom-blocks/${template.id}`}>
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Edit Template
-                  </Link>
-                </Button>
-            </BlockEditorSection>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Template Info</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-3 p-4 pt-0 text-sm text-muted-foreground">
+                  <div>
+                    <span className="font-medium text-foreground">Name:</span> {template.name}
+                  </div>
+                  <div>
+                    <span className="font-medium text-foreground">Layout:</span> {template.layout}
+                  </div>
+                  <div>
+                    <span className="font-medium text-foreground">Fields:</span> {template.fields.length}
+                  </div>
+                  <Button asChild variant="outline" size="sm" className="w-fit">
+                    <Link href={`/admin/directories/custom-blocks/${template.id}`}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Edit Template
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}
@@ -149,63 +172,61 @@ function DirectoryCustomValuesEditor({
 
         if (field.type === 'text') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Text'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Text'}</FieldLabel>
               <Input
                 value={typeof value === 'string' ? value : ''}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || ''}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'textarea') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Textarea'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Textarea'}</FieldLabel>
               <Textarea
                 value={typeof value === 'string' ? value : ''}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || ''}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'number') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Number'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Number'}</FieldLabel>
               <Input
                 type="number"
                 value={value === null || value === undefined ? '' : String(value)}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || ''}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'link') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Link'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Link'}</FieldLabel>
               <Input
                 value={typeof value === 'string' ? value : ''}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || 'https://example.com'}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'toggle') {
           return (
             <div key={field.id} className="flex items-center justify-between rounded-lg border p-4">
-              <div>
-                <Label>{field.label || 'Toggle'}</Label>
-              </div>
+              <span className="text-sm font-medium">{field.label || 'Toggle'}</span>
               <Switch
                 checked={value === true}
                 onCheckedChange={(checked) => updateValue(field.key, checked === true)}
@@ -216,8 +237,8 @@ function DirectoryCustomValuesEditor({
 
         if (field.type === 'select') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Select'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Select'}</FieldLabel>
               <Select value={typeof value === 'string' ? value : ''} onValueChange={(nextValue) => updateValue(field.key, nextValue)}>
                 <SelectTrigger>
                   <SelectValue placeholder={field.placeholder || 'Choose an option'} />
@@ -230,7 +251,7 @@ function DirectoryCustomValuesEditor({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           )
         }
 
@@ -250,8 +271,8 @@ function DirectoryCustomValuesEditor({
 
         if (field.type === 'rich-text') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Rich Text'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Rich Text'}</FieldLabel>
               <RichTextEditor
                 content={{
                   content: typeof value === 'string' ? value : '',
@@ -262,7 +283,7 @@ function DirectoryCustomValuesEditor({
                 compact
                 placeholder={field.placeholder || 'Start writing...'}
               />
-            </div>
+            </Field>
           )
         }
 
@@ -336,7 +357,7 @@ function RepeaterFieldEditor({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <Label>{fieldLabel}</Label>
+          <p className="text-sm font-medium">{fieldLabel}</p>
           <p className="text-xs text-muted-foreground">Repeatable rows</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={addRow}>
@@ -472,61 +493,61 @@ function RepeaterRowFields({
 
         if (field.type === 'text') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Text'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Text'}</FieldLabel>
               <Input
                 value={typeof value === 'string' ? value : ''}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || ''}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'textarea') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Textarea'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Textarea'}</FieldLabel>
               <Textarea
                 value={typeof value === 'string' ? value : ''}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || ''}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'number') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Number'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Number'}</FieldLabel>
               <Input
                 type="number"
                 value={value === null || value === undefined ? '' : String(value)}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || ''}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'link') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Link'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Link'}</FieldLabel>
               <Input
                 value={typeof value === 'string' ? value : ''}
                 onChange={(event) => updateValue(field.key, event.target.value)}
                 placeholder={field.placeholder || 'https://example.com'}
               />
-            </div>
+            </Field>
           )
         }
 
         if (field.type === 'toggle') {
           return (
             <div key={field.id} className="flex items-center justify-between rounded-lg border p-3">
-              <Label>{field.label || 'Toggle'}</Label>
+              <span className="text-sm font-medium">{field.label || 'Toggle'}</span>
               <Switch
                 checked={value === true}
                 onCheckedChange={(checked) => updateValue(field.key, checked === true)}
@@ -537,8 +558,8 @@ function RepeaterRowFields({
 
         if (field.type === 'select') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Select'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Select'}</FieldLabel>
               <Select value={typeof value === 'string' ? value : ''} onValueChange={(nextValue) => updateValue(field.key, nextValue)}>
                 <SelectTrigger>
                   <SelectValue placeholder={field.placeholder || 'Choose an option'} />
@@ -551,7 +572,7 @@ function RepeaterRowFields({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           )
         }
 
@@ -571,8 +592,8 @@ function RepeaterRowFields({
 
         if (field.type === 'rich-text') {
           return (
-            <div key={field.id} className="space-y-2">
-              <Label>{field.label || 'Rich Text'}</Label>
+            <Field key={field.id}>
+              <FieldLabel>{field.label || 'Rich Text'}</FieldLabel>
               <RichTextEditor
                 content={{
                   content: typeof value === 'string' ? value : '',
@@ -583,7 +604,7 @@ function RepeaterRowFields({
                 compact
                 placeholder={field.placeholder || 'Start writing...'}
               />
-            </div>
+            </Field>
           )
         }
 

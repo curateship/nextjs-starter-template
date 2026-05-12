@@ -20,12 +20,6 @@ import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSele
 import { ACCOUNT_PAGE_BLOCK_TYPES } from "@/components/admin/account-page-builder/config/account-page-block-types"
 import { Dialog } from "@/components/ui/dialog"
 import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
-import {
   getAccountPagesAction,
   type AccountPage
 } from "@/lib/actions/account-pages/account-pages-actions"
@@ -281,19 +275,11 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
           </div>
 
           <Dialog open={!pagesLoading && createPageOpen} onOpenChange={setCreatePageOpen}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create New Account Page</AdminModalTitle>
-                <AdminModalDescription>
-                  Add an account page, then add the Edit Profile block to it.
-                </AdminModalDescription>
-              </AdminModalHeader>
-              <CreateAccountPageModal
-                siteId={siteId}
-                onSuccess={handlePageCreated}
-                onCancel={() => setCreatePageOpen(false)}
-              />
-            </AdminModalContent>
+            <CreateAccountPageModal
+              siteId={siteId}
+              onSuccess={handlePageCreated}
+              onCancel={() => setCreatePageOpen(false)}
+            />
           </Dialog>
         </div>
       ) : (

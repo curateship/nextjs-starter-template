@@ -1,21 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { sendNewsletter, sendTestNewsletter } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-actions"
 import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
@@ -152,168 +144,170 @@ export function PublishNewsletterModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent>
-        <AdminModalHeader>
-          <AdminModalTitle className="flex items-center gap-2">
+      <DashboardModalContent
+        title={
+          <span className="flex items-center gap-2">
             <Radio className="h-5 w-5" />
             Publish Newsletter
-          </AdminModalTitle>
-          <AdminModalDescription>
-            Review the audience and delivery settings before broadcasting this newsletter.
-          </AdminModalDescription>
-        </AdminModalHeader>
-
-        <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
-          {error && (
+          </span>
+        }
+        description="Review the audience and delivery settings before broadcasting this newsletter."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={!hasAudience ? 0 : -1}>
+                    <Button onClick={handleConfirmAndBroadcast} disabled={sending || !hasAudience}>
+                      <Send className="mr-2 h-4 w-4" />
+                      {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!hasAudience && (
+                  <TooltipContent side="top">
+                    Fix the audience requirement first.
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          </>
+        }
+      >
+        {error && (
+          <div className="px-6 pb-2">
             <div className="rounded-lg border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-800">{error}</p>
             </div>
-          )}
-          {successMsg && (
+          </div>
+        )}
+        {successMsg && (
+          <div className="px-6 pb-2">
             <div className="rounded-lg border border-green-200 bg-green-50 p-3">
               <p className="text-sm text-green-800">{successMsg}</p>
             </div>
-          )}
-
-          <div className="space-y-2">
-          {/* Subject */}
-          <div className="flex items-start justify-between py-1.5">
-            <span className="text-sm text-muted-foreground">Subject</span>
-            <span className="text-sm font-medium text-right max-w-[300px]">{newsletter.subject}</span>
           </div>
+        )}
 
-          {/* Audience */}
-          <div className="flex items-start justify-between py-1.5">
-            <span className="text-sm text-muted-foreground">Audience</span>
-            <div className="text-right">
-              {hasAudience ? (
-                <>
-                  <span className="text-sm font-medium">{audienceLabel}</span>
-                  <div className="flex items-center gap-1.5 justify-end mt-1">
-                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      {audienceCount !== null
-                        ? `${audienceCount.toLocaleString()} contact${audienceCount !== 1 ? 's' : ''}`
-                        : 'Calculating...'}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>{audienceLabel}</span>
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Send details</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <div className="space-y-2">
+                <div className="flex items-start justify-between py-1.5">
+                  <span className="text-sm text-muted-foreground">Subject</span>
+                  <span className="text-sm font-medium text-right max-w-[300px]">{newsletter.subject}</span>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Drip Config */}
-          <div className="flex items-start justify-between py-1.5">
-            <span className="text-sm text-muted-foreground">Delivery</span>
-            <div className="text-right">
-              {drip?.enabled ? (
-                <>
-                  <span className="text-sm font-medium">Drip Send</span>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {drip.batch_size_min}-{drip.batch_size_max} per batch
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Every {drip.interval_min_minutes}-{drip.interval_max_minutes} min
-                  </p>
-                  {sendWindowLabel && (
-                    <p className="text-xs text-muted-foreground">
-                      Window: {sendWindowLabel}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Bounce threshold: {drip.bounce_threshold_percent}%
-                  </p>
-                </>
-              ) : (
-                <span className="text-sm font-medium">Send All at Once</span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-start justify-between py-1.5">
-            <span className="text-sm text-muted-foreground">Cron Status</span>
-            <div className="text-right">
-              {!cronStatusLoaded ? (
-                <p className="text-xs text-muted-foreground">Checking...</p>
-              ) : cronStatus?.totalCount === 0 ? (
-                <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>No crons setup.</span>
-                </div>
-              ) : cronStatus ? (
-                cronStatus.isRunning ? (
-                  <div className="flex items-center justify-end gap-1.5 text-xs text-green-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>{cronStatus.enabledCount} cron{cronStatus.enabledCount !== 1 ? 's' : ''} running</span>
+                <div className="flex items-start justify-between py-1.5">
+                  <span className="text-sm text-muted-foreground">Audience</span>
+                  <div className="text-right">
+                    {hasAudience ? (
+                      <>
+                        <span className="text-sm font-medium">{audienceLabel}</span>
+                        <div className="flex items-center gap-1.5 justify-end mt-1">
+                          <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {audienceCount !== null
+                              ? `${audienceCount.toLocaleString()} contact${audienceCount !== 1 ? 's' : ''}`
+                              : 'Calculating...'}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span>{audienceLabel}</span>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    <span>No crons are running.</span>
-                  </div>
-                )
-              ) : (
-                <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  <span>Unable to load cron status.</span>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Test Email */}
-          <div className="pt-7">
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <Label htmlFor="publish-test-email" className="text-sm text-muted-foreground">Send a test first</Label>
-                <Input
-                  id="publish-test-email"
-                  type="email"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="mt-2"
-                />
+                <div className="flex items-start justify-between py-1.5">
+                  <span className="text-sm text-muted-foreground">Delivery</span>
+                  <div className="text-right">
+                    {drip?.enabled ? (
+                      <>
+                        <span className="text-sm font-medium">Drip Send</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {drip.batch_size_min}-{drip.batch_size_max} per batch
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Every {drip.interval_min_minutes}-{drip.interval_max_minutes} min
+                        </p>
+                        {sendWindowLabel && (
+                          <p className="text-xs text-muted-foreground">
+                            Window: {sendWindowLabel}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Bounce threshold: {drip.bounce_threshold_percent}%
+                        </p>
+                      </>
+                    ) : (
+                      <span className="text-sm font-medium">Send All at Once</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-start justify-between py-1.5">
+                  <span className="text-sm text-muted-foreground">Cron Status</span>
+                  <div className="text-right">
+                    {!cronStatusLoaded ? (
+                      <p className="text-xs text-muted-foreground">Checking...</p>
+                    ) : cronStatus?.totalCount === 0 ? (
+                      <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span>No crons setup.</span>
+                      </div>
+                    ) : cronStatus ? (
+                      cronStatus.isRunning ? (
+                        <div className="flex items-center justify-end gap-1.5 text-xs text-green-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>{cronStatus.enabledCount} cron{cronStatus.enabledCount !== 1 ? 's' : ''} running</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>No crons are running.</span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex items-center justify-end gap-1.5 text-xs text-orange-700">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span>Unable to load cron status.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>
-                <TestTube className="h-4 w-4 mr-1" />
-                {sendingTest ? 'Sending...' : 'Test'}
-              </Button>
-            </div>
-          </div>
-          </div>
-        </AdminModalBody>
-        <AdminModalFooter className="sm:justify-end">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span tabIndex={!hasAudience ? 0 : -1}>
-                  <Button
-                    onClick={handleConfirmAndBroadcast}
-                    disabled={sending || !hasAudience}
-                  >
-                    <Send className="mr-2 h-4 w-4" />
-                    {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}
+
+              <Field>
+                <FieldLabel htmlFor="publish-test-email">Send a test first</FieldLabel>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="publish-test-email"
+                    type="email"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="flex-1"
+                  />
+                  <Button variant="outline" onClick={handleSendTest} disabled={sendingTest || !testEmail}>
+                    <TestTube className="h-4 w-4 mr-1" />
+                    {sendingTest ? 'Sending...' : 'Test'}
                   </Button>
-                </span>
-              </TooltipTrigger>
-              {!hasAudience && (
-                <TooltipContent side="top">
-                  Fix the audience requirement first.
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-        </AdminModalFooter>
-      </AdminModalContent>
+                </div>
+              </Field>
+            </CardContent>
+          </Card>
+        </CardGroup>
+      </DashboardModalContent>
     </Dialog>
   )
 }

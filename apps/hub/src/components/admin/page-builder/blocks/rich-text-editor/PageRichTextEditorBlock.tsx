@@ -4,7 +4,8 @@ import { useCallback, useMemo } from "react"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import { normalizePageRichTextContent } from "@/components/admin/page-builder/config/page-block-utils"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent } from "@/components/ui/card"
+import { BlockTabs } from "@/components/ui/tabs"
 
 interface PageRichTextEditorBlockProps {
   content: Record<string, any>
@@ -43,28 +44,35 @@ export function PageRichTextEditorBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection>
-              <InlineRichTextEditor
-                blockId={blockId}
-                content={editorContent}
-                onContentChange={handleBodyChange}
-                siteId={siteId}
-                isActive
-                editorPadding={0}
-                variant="page"
-              />
-            </BlockEditorSection>
+            <CardGroup className="grid">
+              <Card>
+                <CardContent className="p-4">
+                  <InlineRichTextEditor
+                    blockId={blockId}
+                    content={editorContent}
+                    onContentChange={handleBodyChange}
+                    siteId={siteId}
+                    isActive
+                    editorPadding={0}
+                    variant="page"
+                  />
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <VisibilitySettings
-              visibility={normalizedContent.visibility}
-              onChange={(visibility) => onContentChange("visibility", visibility)}
-              fields={[{ key: "body", label: "Content" }]}
-            />
+            <CardGroup className="grid">
+              <VisibilitySettings
+                visibility={normalizedContent.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                useCard
+                fields={[{ key: "body", label: "Content" }]}
+              />
+            </CardGroup>
           ),
         },
       ]}

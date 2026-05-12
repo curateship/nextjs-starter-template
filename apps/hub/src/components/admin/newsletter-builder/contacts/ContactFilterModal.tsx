@@ -7,7 +7,6 @@ import { CalendarIcon, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import {
   DropdownMenu,
@@ -28,14 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { cn } from "@/lib/utils/tailwind"
 import { getContactsWithStats } from "@/lib/actions/newsletters/contact-actions"
 import {
@@ -313,14 +306,36 @@ export function ContactFilterModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent>
-        <AdminModalHeader>
-          <AdminModalTitle>Filter Contacts</AdminModalTitle>
-          <AdminModalDescription>
-            Build rules to narrow the contacts shown in this dashboard.
-          </AdminModalDescription>
-        </AdminModalHeader>
-        <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2">
+      <DashboardModalContent
+        title="Filter Contacts"
+        description="Build rules to narrow the contacts shown in this dashboard."
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={clearPendingFilters}
+              className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
+            >
+              Clear all ({pendingFilteredTotal})
+            </button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={applyFilters}>
+                Apply Filters
+              </Button>
+            </div>
+          </>
+        }
+        footerClassName="sm:justify-between"
+      >
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Filter rules</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
           <div className="flex items-center gap-3 text-sm font-medium">
             <span>Matching</span>
             <Tabs
@@ -512,7 +527,7 @@ export function ContactFilterModal({
                     {rule.value.mode === "range" && (
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">Start date</Label>
+                          <label htmlFor={`${rule.id}-from`} className="text-xs text-muted-foreground">Start date</label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button
@@ -539,7 +554,7 @@ export function ContactFilterModal({
                           </Popover>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">End date</Label>
+                          <label htmlFor={`${rule.id}-to`} className="text-xs text-muted-foreground">End date</label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button
@@ -589,26 +604,10 @@ export function ContactFilterModal({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </AdminModalBody>
-
-        <AdminModalFooter>
-          <button
-            type="button"
-            onClick={clearPendingFilters}
-            className="cursor-pointer text-sm text-muted-foreground hover:text-foreground"
-          >
-            Clear all ({pendingFilteredTotal})
-          </button>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={applyFilters}>
-              Apply Filters
-            </Button>
-          </div>
-        </AdminModalFooter>
-      </AdminModalContent>
+            </CardContent>
+          </Card>
+        </CardGroup>
+      </DashboardModalContent>
     </Dialog>
   )
 }

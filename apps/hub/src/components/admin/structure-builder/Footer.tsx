@@ -1,21 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ComponentType } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog } from "@/components/ui/dialog"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import {
   DndContext,
   closestCenter,
@@ -688,14 +681,14 @@ export function Footer({
                 currentMediaUrl={logo}
               />
 
-              <div className="space-y-2">
-                <Label className="px-1 text-sm font-medium">Copyright</Label>
+              <Field>
+                <FieldLabel>Copyright</FieldLabel>
                 <Input
                   value={copyrightText}
                   onChange={(event) => onContentChange("copyright", event.target.value)}
                   placeholder={defaultCopyrightText}
                 />
-              </div>
+              </Field>
             </CardContent>
           </Card>
 
@@ -846,55 +839,58 @@ export function Footer({
           }
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Footer Link Settings</AdminModalTitle>
-            <AdminModalDescription>Update the label and destination URL for this footer link.</AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          title="Footer Link Settings"
+          description="Update the label and destination URL for this footer link."
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
+                {modalSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input
+                      value={linkDraft.text}
+                      onChange={(event) =>
+                        setLinkDraft((prev) => ({
+                          ...prev,
+                          text: event.target.value
+                        }))
+                      }
+                      placeholder="Label"
+                      aria-label="Footer link name"
+                    />
+                  </Field>
 
-          <AdminModalBody className="space-y-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)] md:items-end">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Name</p>
-                <Input
-                  value={linkDraft.text}
-                  onChange={(event) =>
-                    setLinkDraft((prev) => ({
-                      ...prev,
-                      text: event.target.value
-                    }))
-                  }
-                  placeholder="Label"
-                  aria-label="Footer link name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={linkDraft.url}
-                  onChange={(event) =>
-                    setLinkDraft((prev) => ({
-                      ...prev,
-                      url: event.target.value
-                    }))
-                  }
-                  placeholder="/about or https://example.com"
-                  aria-label="Footer link URL"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
-              {modalSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                  <Field>
+                    <FieldLabel>URL</FieldLabel>
+                    <Input
+                      value={linkDraft.url}
+                      onChange={(event) =>
+                        setLinkDraft((prev) => ({
+                          ...prev,
+                          url: event.target.value
+                        }))
+                      }
+                      placeholder="/about or https://example.com"
+                      aria-label="Footer link URL"
+                    />
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
 
       <Dialog
@@ -906,59 +902,62 @@ export function Footer({
           }
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Social Link Settings</AdminModalTitle>
-            <AdminModalDescription>Update the platform and destination URL for this social link.</AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          title="Social Link Settings"
+          description="Update the platform and destination URL for this social link."
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setEditingSocialLinkIndex(null)}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={modalSaving} onClick={saveSocialLinkEditor}>
+                {modalSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
+                  <Field>
+                    <FieldLabel>Platform</FieldLabel>
+                    <Select
+                      value={socialLinkDraft.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
+                      onValueChange={(value) => setSocialLinkDraft((prev) => ({ ...prev, platform: value }))}
+                    >
+                      <SelectTrigger size="button" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SOCIAL_PLATFORM_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <SocialPlatformLabel platform={option.value} />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
 
-          <AdminModalBody className="space-y-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-end">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Platform</p>
-                <Select
-                  value={socialLinkDraft.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
-                  onValueChange={(value) => setSocialLinkDraft((prev) => ({ ...prev, platform: value }))}
-                >
-                  <SelectTrigger size="button" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOCIAL_PLATFORM_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <SocialPlatformLabel platform={option.value} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={socialLinkDraft.url}
-                  onChange={(event) =>
-                    setSocialLinkDraft((prev) => ({
-                      ...prev,
-                      url: event.target.value
-                    }))
-                  }
-                  placeholder="https://twitter.com/example"
-                  aria-label="Social link URL"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setEditingSocialLinkIndex(null)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={modalSaving} onClick={saveSocialLinkEditor}>
-              {modalSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                  <Field>
+                    <FieldLabel>URL</FieldLabel>
+                    <Input
+                      value={socialLinkDraft.url}
+                      onChange={(event) =>
+                        setSocialLinkDraft((prev) => ({
+                          ...prev,
+                          url: event.target.value
+                        }))
+                      }
+                      placeholder="https://twitter.com/example"
+                      aria-label="Social link URL"
+                    />
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
     </>
   )

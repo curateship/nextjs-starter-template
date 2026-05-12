@@ -1,19 +1,15 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
+import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
@@ -28,11 +24,11 @@ interface DirectorySettingsModalProps {
   onSuccess?: (updatedDirectory: Directory) => void
 }
 
-export function DirectorySettingsModal({ 
-  open, 
-  onOpenChange, 
-  directory, 
-  onSuccess 
+export function DirectorySettingsModal({
+  open,
+  onOpenChange,
+  directory,
+  onSuccess
 }: DirectorySettingsModalProps) {
   const [formData, setFormData] = useState({
     title: '',
@@ -49,7 +45,6 @@ export function DirectorySettingsModal({
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
 
-  // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({
       ...prev,
@@ -58,10 +53,8 @@ export function DirectorySettingsModal({
     }))
   }
 
-  // Handle manual slug changes
   const handleSlugChange = (slug: string) => {
     if (slug === '') {
-      // If user clears the field, reset to auto-generation
       setSlugManuallyEdited(false)
       setFormData(prev => ({ ...prev, slug: generateSlug(prev.title || '') }))
     } else {
@@ -78,7 +71,6 @@ export function DirectorySettingsModal({
     setFeaturedImage('')
   }
 
-  // Initialize form data
   useEffect(() => {
     if (!open || !directory) return
 
@@ -111,7 +103,6 @@ export function DirectorySettingsModal({
     }
   }, [directory, open])
 
-  // Save as draft
   const handleSaveDraft = async () => {
     if (!directory) return
 
@@ -119,9 +110,9 @@ export function DirectorySettingsModal({
       setSaving(true)
       setError(null)
       setSaveMessage(null)
-      
-      const draftData = { 
-        ...formData, 
+
+      const draftData = {
+        ...formData,
         status: 'draft' as const,
         featured_image: featuredImage || null
       }
@@ -132,7 +123,7 @@ export function DirectorySettingsModal({
         setError(updateResult.error || 'Failed to save directory as draft')
         return
       }
-      
+
       if (updateResult.data) {
         const categoryResult = await bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
         if (!categoryResult.success) {
@@ -140,17 +131,9 @@ export function DirectorySettingsModal({
           return
         }
 
-        setSaveMessage('Directory saved as draft successfully!')
-        
-        // Call success callback with updated directory
-        if (onSuccess) {
-          onSuccess(updateResult.data)
-        }
-        
-        // Clear success message after 3 seconds but keep modal open
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+        setSaveMessage('Saved as draft')
+        if (onSuccess) onSuccess(updateResult.data)
+        setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (err) {
       setError('Failed to save directory')
@@ -159,7 +142,6 @@ export function DirectorySettingsModal({
     }
   }
 
-  // Publish directory
   const handlePublish = async () => {
     if (!directory) return
 
@@ -167,9 +149,9 @@ export function DirectorySettingsModal({
       setSaving(true)
       setError(null)
       setSaveMessage(null)
-      
-      const publishData = { 
-        ...formData, 
+
+      const publishData = {
+        ...formData,
         status: 'published' as const,
         featured_image: featuredImage || null
       }
@@ -180,7 +162,7 @@ export function DirectorySettingsModal({
         setError(updateResult.error || 'Failed to publish directory')
         return
       }
-      
+
       if (updateResult.data) {
         const categoryResult = await bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
         if (!categoryResult.success) {
@@ -188,17 +170,9 @@ export function DirectorySettingsModal({
           return
         }
 
-        setSaveMessage(directory?.status === 'published' ? 'Directory saved successfully!' : 'Directory published successfully!')
-
-        // Call success callback with updated directory
-        if (onSuccess) {
-          onSuccess(updateResult.data)
-        }
-        
-        // Clear success message after 3 seconds but keep modal open
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+        setSaveMessage(directory?.status === 'published' ? 'Saved' : 'Published')
+        if (onSuccess) onSuccess(updateResult.data)
+        setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (err) {
       setError('Failed to publish directory')
@@ -207,187 +181,180 @@ export function DirectorySettingsModal({
     }
   }
 
-  // Handle form submission (default to save as draft)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     await handleSaveDraft()
   }
 
-  if (!directory) {
-    return null
-  }
+  if (!directory) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="admin">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            Configure settings for &quot;{directory.title}&quot;
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${
-                directory?.status === 'published' ? 'bg-green-500' : 'bg-gray-400'
-              }`} />
+      <DashboardModalContent
+        title={(
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="truncate">{directory.title}</span>
+            <div className="flex shrink-0 items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${directory?.status === 'published' ? 'bg-green-500' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">
                 {directory?.status === 'published' ? 'Published' : 'Draft'}
               </span>
             </div>
-          </DialogTitle>
-        </DialogHeader>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
           </div>
         )}
-
-
-        <form onSubmit={handleSubmit} className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
-          {/* Directory Title */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="col-span-2">
-              <Label htmlFor="modal-title">Directory Title *</Label>
-              <Input
-                id="modal-title"
-                value={formData.title || ''}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="Enter directory title"
-                required
-              />
-            </div>
-
-            {/* Directory Slug */}
-            <div className="col-span-2">
-              <Label htmlFor="modal-slug">Directory URL</Label>
-              <Input
-                id="modal-slug"
-                value={formData.slug || ''}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="directory-url-slug"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {slugManuallyEdited
-                  ? "Custom URL slug. Clear this field to auto-generate from title again."
-                  : "Auto-generated from title. You can edit this to customize the URL."}
-              </p>
-            </div>
-          </div>
-
-          {/* Featured Image */}
-          <div>
-            <Label htmlFor="featured_image">Featured Image</Label>
-            <div className="mt-2">
-              {featuredImage ? (
-                <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
-                  <img
-                    src={featuredImage}
-                    alt="Featured image preview"
-                    className="w-full h-full object-contain"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-white text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                      <p className="text-sm font-medium">Click to change image</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                  onClick={() => setShowImagePicker(true)}
-                >
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                    <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Optional featured image for this directory
-            </p>
-          </div>
-
-          {/* Categories */}
-          {directory?.site_id && (
-            <Field>
-              <FieldLabel>Categories</FieldLabel>
-              <CategoryPicker
-                siteId={directory.site_id}
-                selectedCategoryIds={selectedCategoryIds}
-                onSelectionChange={setSelectedCategoryIds}
-                primaryCategoryId={primaryCategoryId}
-                onPrimaryCategoryChange={setPrimaryCategoryId}
-                loadingSelectedCategories={loadingCategories}
-                variant="combobox"
-              />
-              <FieldDescription>
-                Assign this directory to one or more categories
-              </FieldDescription>
-            </Field>
-          )}
-
-          {/* Meta Description */}
-          <div>
-            <Label htmlFor="meta_description">Meta Description</Label>
-            <Textarea
-              id="meta_description"
-              value={formData.meta_description}
-              onChange={(e) => {
-                setFormData(prev => ({ ...prev, meta_description: e.target.value }))
-              }}
-              placeholder="SEO meta description"
-              rows={3}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
-            </p>
-          </div>
-
-          {/* Form Actions */}
-          <div className="flex justify-between pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Cancel
-            </Button>
+        footerClassName="sm:justify-between"
+        footer={(
+          <>
+            {saveMessage ? (
+              <div className="flex items-center gap-2 text-green-600">
+                <Check className="h-4 w-4" />
+                <span className="text-sm font-medium">{saveMessage}</span>
+              </div>
+            ) : <div />}
             <div className="flex items-center space-x-2">
-              {saveMessage && (
-                <div className="flex items-center space-x-1 text-green-600">
-                  <Check className="h-4 w-4" />
-                  <span className="text-sm font-medium">{saveMessage}</span>
-                </div>
-              )}
-              <Button 
-                type="submit" 
-                variant="outline"
-                disabled={saving}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button type="submit" form="directory-settings-form" variant="outline" disabled={saving}>
                 {saving ? 'Saving...' : 'Save as Draft'}
               </Button>
-              <Button 
-                type="button" 
-                onClick={handlePublish}
-                disabled={saving}
-              >
+              <Button type="button" onClick={handlePublish} disabled={saving}>
                 {saving ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
               </Button>
             </div>
+          </>
+        )}
+      >
+        {error && (
+          <div className="px-6 pb-2">
+            <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
           </div>
+        )}
+
+        <form id="directory-settings-form" onSubmit={handleSubmit} className="contents">
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Directory details</DashboardModalCardTitle>
+                <CardDescription>Name the directory, set its URL, and featured image.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="modal-title">Directory Title *</FieldLabel>
+                  <Input
+                    id="modal-title"
+                    value={formData.title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter directory title"
+                    required
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="modal-slug">Directory URL</FieldLabel>
+                  <Input
+                    id="modal-slug"
+                    value={formData.slug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="directory-url-slug"
+                  />
+                  <FieldDescription>
+                    {slugManuallyEdited
+                      ? "Custom URL slug. Clear this field to auto-generate from title again."
+                      : "Auto-generated from title. You can edit this to customize the URL."}
+                  </FieldDescription>
+                </Field>
+
+                <Field className="[&>div]:w-fit">
+                  <FieldLabel>Featured Image</FieldLabel>
+                  {featuredImage ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                      <img
+                        src={featuredImage}
+                        alt="Featured image preview"
+                        className="w-full h-full object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <div
+                        className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                        onClick={() => setShowImagePicker(true)}
+                      >
+                        <div className="text-white text-center">
+                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                          <p className="text-sm font-medium">Click to change image</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                      onClick={() => setShowImagePicker(true)}
+                    >
+                      <div className="text-center">
+                        <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                        <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                      </div>
+                    </div>
+                  )}
+                  <FieldDescription>Optional featured image for this directory</FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+
+            {directory?.site_id && (
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
+                  <CardDescription>Organize this directory by topic.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <Field>
+                    <FieldLabel>Categories</FieldLabel>
+                    <CategoryPicker
+                      siteId={directory.site_id}
+                      selectedCategoryIds={selectedCategoryIds}
+                      onSelectionChange={setSelectedCategoryIds}
+                      primaryCategoryId={primaryCategoryId}
+                      onPrimaryCategoryChange={setPrimaryCategoryId}
+                      loadingSelectedCategories={loadingCategories}
+                      variant="combobox"
+                    />
+                    <FieldDescription>Assign this directory to one or more categories</FieldDescription>
+                  </Field>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+                <CardDescription>Set the search description for this directory.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                  <Textarea
+                    id="meta_description"
+                    value={formData.meta_description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+                    placeholder="SEO meta description"
+                    rows={3}
+                  />
+                  <FieldDescription>
+                    Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
+                  </FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
         </form>
 
-        {/* Image Picker Modal */}
         <MediaPicker
           open={showImagePicker}
           onOpenChange={setShowImagePicker}
@@ -397,7 +364,7 @@ export function DirectorySettingsModal({
           }}
           currentMediaUrl={featuredImage || ''}
         />
-      </DialogContent>
+      </DashboardModalContent>
     </Dialog>
   )
 }

@@ -1,24 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { cn } from "@/lib/utils/tailwind"
 import {
   ACCOUNT_MENU_ACTION_ITEM_ID,
@@ -194,24 +187,52 @@ function NavigationIconField({
           }
         }}
       >
-        <AdminModalContent className="max-w-xl">
-          <AdminModalHeader className="pb-2">
-            <AdminModalTitle>Choose Icon</AdminModalTitle>
-            <AdminModalDescription>Pick an icon for this navigation item.</AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          className="max-w-xl"
+          title="Choose Icon"
+          description="Pick an icon for this navigation item."
+          footer={
+            <>
+              {value ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    onChange(undefined)
+                    setOpen(false)
+                    setQuery("")
+                  }}
+                >
+                  Remove Icon
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setOpen(false)
+                  setQuery("")
+                }}
+              >
+                Back
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="space-y-3 p-4" onWheelCapture={(event) => event.stopPropagation()}>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className="pl-9"
+                    placeholder="Search icons"
+                  />
+                </div>
 
-          <AdminModalBody className="space-y-3 pb-6" onWheelCapture={(event) => event.stopPropagation()}>
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="pl-9"
-                placeholder="Search icons"
-              />
-            </div>
-
-            <ScrollArea className="h-[320px] pr-2 overscroll-contain">
+                <ScrollArea className="h-[320px] pr-2 overscroll-contain">
               {filteredOptions.length === 0 && !showDefaultOption ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
               ) : (
@@ -270,35 +291,11 @@ function NavigationIconField({
                   })}
                 </div>
               )}
-            </ScrollArea>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            {value ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  onChange(undefined)
-                  setOpen(false)
-                  setQuery("")
-                }}
-              >
-                Remove Icon
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setOpen(false)
-                setQuery("")
-              }}
-            >
-              Back
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
     </>
   )
@@ -396,28 +393,28 @@ function NavigationActionSettingsFields({
     <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
       <NavigationIconField value={action.icon} onChange={(value) => onChange({ ...action, icon: value })} />
 
-      <div className="space-y-2">
-        <Label htmlFor={`${fieldPrefix}-label`}>Name</Label>
+      <Field>
+        <FieldLabel htmlFor={`${fieldPrefix}-label`}>Name</FieldLabel>
         <Input
           id={`${fieldPrefix}-label`}
           value={action.text}
           onChange={(event) => onChange({ ...action, text: event.target.value })}
           placeholder="Label"
         />
-      </div>
+      </Field>
 
-      <div className="min-w-0 space-y-2">
-        <Label htmlFor={`${fieldPrefix}-url`}>URL</Label>
+      <Field className="min-w-0">
+        <FieldLabel htmlFor={`${fieldPrefix}-url`}>URL</FieldLabel>
         <Input
           id={`${fieldPrefix}-url`}
           value={action.url}
           onChange={(event) => onChange({ ...action, url: event.target.value })}
           placeholder="/account or https://example.com"
         />
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <Label>Style</Label>
+      <Field>
+        <FieldLabel>Style</FieldLabel>
         <Select
           value={action.style}
           onValueChange={(value: NavigationActionSettings["style"]) => onChange({ ...action, style: value })}
@@ -431,19 +428,19 @@ function NavigationActionSettingsFields({
             <SelectItem value="ghost">Ghost</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </Field>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${fieldPrefix}-mobile`}>Show on mobile</Label>
+      <Field>
+        <FieldLabel htmlFor={`${fieldPrefix}-mobile`}>Show on mobile</FieldLabel>
         <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3 shadow-xs">
           <Checkbox
             checked={action.showOnMobile === true}
             onCheckedChange={(checked) => onChange({ ...action, showOnMobile: checked === true })}
             id={`${fieldPrefix}-mobile`}
           />
-          <Label htmlFor={`${fieldPrefix}-mobile`}>Enabled</Label>
+          <span className="text-sm font-medium">Enabled</span>
         </div>
-      </div>
+      </Field>
     </div>
   )
 }
@@ -1479,7 +1476,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
 
               <div className="space-y-6 pt-6">
                 <div className="space-y-2">
-                  <Label className="px-1 text-sm font-medium">Navigation Style</Label>
+                  <p className="px-1 text-sm font-medium">Navigation Style</p>
                   <div className="grid max-w-sm grid-cols-2 gap-2">
                     {Object.entries(NAVIGATION_STYLES).map(([key, style]) => (
                       <button
@@ -1515,7 +1512,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="px-1 text-sm font-medium">Navigation Width</Label>
+                  <p className="px-1 text-sm font-medium">Navigation Width</p>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -1524,7 +1521,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                           handleStyleConfigChange("containerWidth", checked ? "full" : "custom")
                         }
                       />
-                      <Label className="text-sm">Full Width</Label>
+                      <span className="text-sm">Full Width</span>
                     </div>
                     {currentStyleConfig.containerWidth !== "full" && (
                       <div className="w-32">
@@ -1555,7 +1552,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="px-1 text-sm font-medium">Glass Blur Effect</Label>
+                  <p className="px-1 text-sm font-medium">Glass Blur Effect</p>
                   <div className="w-[180px]">
                     <Select
                       value={currentStyleConfig.blurEffect || "none"}
@@ -1720,70 +1717,71 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
           }
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Navigation Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the label, destination URL, and optional icon for this link.
-            </AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          title="Navigation Link Settings"
+          description="Update the label, destination URL, and optional icon for this link."
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={modalSaving}
+                onClick={() => setLinkDraft((prev) => ({ ...prev, icon: undefined }))}
+              >
+                Remove Icon
+              </Button>
+              <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
+                {modalSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
+                  <NavigationIconField
+                    value={linkDraft.icon}
+                    onChange={(icon) => setLinkDraft((prev) => ({ ...prev, icon }))}
+                  />
 
-          <AdminModalBody className="space-y-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-              <NavigationIconField
-                value={linkDraft.icon}
-                onChange={(icon) => setLinkDraft((prev) => ({ ...prev, icon }))}
-              />
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input
+                      value={linkDraft.text}
+                      onChange={(event) =>
+                        setLinkDraft((prev) => ({
+                          ...prev,
+                          text: event.target.value
+                        }))
+                      }
+                      placeholder="Label"
+                      aria-label="Navigation link name"
+                    />
+                  </Field>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Name</p>
-                <Input
-                  value={linkDraft.text}
-                  onChange={(event) =>
-                    setLinkDraft((prev) => ({
-                      ...prev,
-                      text: event.target.value
-                    }))
-                  }
-                  placeholder="Label"
-                  aria-label="Navigation link name"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={linkDraft.url}
-                  onChange={(event) =>
-                    setLinkDraft((prev) => ({
-                      ...prev,
-                      url: event.target.value
-                    }))
-                  }
-                  placeholder="/about or https://example.com"
-                  aria-label="Navigation link URL"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setEditingLinkIndex(null)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={modalSaving}
-              onClick={() => setLinkDraft((prev) => ({ ...prev, icon: undefined }))}
-            >
-              Remove Icon
-            </Button>
-            <Button type="button" disabled={modalSaving} onClick={saveLinkEditor}>
-              {modalSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                  <Field>
+                    <FieldLabel>URL</FieldLabel>
+                    <Input
+                      value={linkDraft.url}
+                      onChange={(event) =>
+                        setLinkDraft((prev) => ({
+                          ...prev,
+                          url: event.target.value
+                        }))
+                      }
+                      placeholder="/about or https://example.com"
+                      aria-label="Navigation link URL"
+                    />
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
 
       <Dialog
@@ -1794,106 +1792,107 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
           }
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Action Button Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the label, destination URL, style, mobile visibility, and optional icon.
-            </AdminModalDescription>
-          </AdminModalHeader>
-
-          <AdminModalBody className="pb-6">
-            <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
-              <NavigationIconField
-                value={buttonDraft.icon}
-                onChange={(icon) => setButtonDraft((prev) => ({ ...prev, icon }))}
-              />
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Name</p>
-                <Input
-                  value={buttonDraft.text}
-                  onChange={(event) =>
-                    setButtonDraft((prev) => ({
-                      ...prev,
-                      text: event.target.value
-                    }))
-                  }
-                  placeholder="Label"
-                  aria-label="Action button name"
-                />
-              </div>
-
-              <div className="min-w-0 space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={buttonDraft.url}
-                  onChange={(event) =>
-                    setButtonDraft((prev) => ({
-                      ...prev,
-                      url: event.target.value
-                    }))
-                  }
-                  placeholder="/contact or https://example.com"
-                  aria-label="Action button URL"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Style</p>
-                <Select
-                  value={buttonDraft.style}
-                  onValueChange={(value: NavigationButton["style"]) =>
-                    setButtonDraft((prev) => ({ ...prev, style: value }))
-                  }
-                >
-                  <SelectTrigger size="button" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="primary">Primary</SelectItem>
-                    <SelectItem value="outline">Outline</SelectItem>
-                    <SelectItem value="ghost">Ghost</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Show on mobile</p>
-                <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3 shadow-xs">
-                  <Checkbox
-                    checked={buttonDraft.showOnMobile === true}
-                    onCheckedChange={(checked) =>
-                      setButtonDraft((prev) => ({
-                        ...prev,
-                        showOnMobile: checked === true
-                      }))
-                    }
-                    id="navigation-button-show-mobile"
+        <DashboardModalContent
+          title="Action Button Settings"
+          description="Update the label, destination URL, style, mobile visibility, and optional icon."
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setEditingButtonIndex(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={modalSaving}
+                onClick={() => setButtonDraft((prev) => ({ ...prev, icon: undefined }))}
+              >
+                Remove Icon
+              </Button>
+              <Button type="button" disabled={modalSaving} onClick={saveButtonEditor}>
+                {modalSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4">
+                <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
+                  <NavigationIconField
+                    value={buttonDraft.icon}
+                    onChange={(icon) => setButtonDraft((prev) => ({ ...prev, icon }))}
                   />
-                  <Label htmlFor="navigation-button-show-mobile">Enabled</Label>
-                </div>
-              </div>
-            </div>
-          </AdminModalBody>
 
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setEditingButtonIndex(null)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={modalSaving}
-              onClick={() => setButtonDraft((prev) => ({ ...prev, icon: undefined }))}
-            >
-              Remove Icon
-            </Button>
-            <Button type="button" disabled={modalSaving} onClick={saveButtonEditor}>
-              {modalSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input
+                      value={buttonDraft.text}
+                      onChange={(event) =>
+                        setButtonDraft((prev) => ({
+                          ...prev,
+                          text: event.target.value
+                        }))
+                      }
+                      placeholder="Label"
+                      aria-label="Action button name"
+                    />
+                  </Field>
+
+                  <Field className="min-w-0">
+                    <FieldLabel>URL</FieldLabel>
+                    <Input
+                      value={buttonDraft.url}
+                      onChange={(event) =>
+                        setButtonDraft((prev) => ({
+                          ...prev,
+                          url: event.target.value
+                        }))
+                      }
+                      placeholder="/contact or https://example.com"
+                      aria-label="Action button URL"
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Style</FieldLabel>
+                    <Select
+                      value={buttonDraft.style}
+                      onValueChange={(value: NavigationButton["style"]) =>
+                        setButtonDraft((prev) => ({ ...prev, style: value }))
+                      }
+                    >
+                      <SelectTrigger size="button" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="primary">Primary</SelectItem>
+                        <SelectItem value="outline">Outline</SelectItem>
+                        <SelectItem value="ghost">Ghost</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Show on mobile</FieldLabel>
+                    <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3 shadow-xs">
+                      <Checkbox
+                        checked={buttonDraft.showOnMobile === true}
+                        onCheckedChange={(checked) =>
+                          setButtonDraft((prev) => ({
+                            ...prev,
+                            showOnMobile: checked === true
+                          }))
+                        }
+                        id="navigation-button-show-mobile"
+                      />
+                      <span className="text-sm font-medium">Enabled</span>
+                    </div>
+                  </Field>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
 
       <Dialog
@@ -1904,66 +1903,89 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
           }
         }}
       >
-        <AdminModalContent className={cn(editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID && "sm:max-w-3xl")}>
-          <AdminModalHeader>
-            <AdminModalTitle>
-              {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? "User Panel Settings" : "Dark Mode Settings"}
-            </AdminModalTitle>
-            <AdminModalDescription>
-              {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID
-                ? "Control login and register actions plus signed-in child links."
-                : "Choose where the theme toggle should render in the navigation."}
-            </AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          className={cn(editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID && "sm:max-w-3xl")}
+          title={editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? "User Panel Settings" : "Dark Mode Settings"}
+          description={
+            editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID
+              ? "Control login and register actions plus signed-in child links."
+              : "Choose where the theme toggle should render in the navigation."
+          }
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={() => setEditingBuiltInActionItem(null)}>
+                Cancel
+              </Button>
+              <Button type="button" disabled={modalSaving} onClick={saveBuiltInActionItemEditor}>
+                {modalSaving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4">
+                {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? (
+                  <div className="space-y-6">
+                    <NavigationActionSettingsSection
+                      title="Login"
+                      description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
+                      action={accountMenuDraft.login}
+                      fieldPrefix="navigation-account-menu-login"
+                      onChange={(nextAction) => updateAccountMenuActionDraft("login", nextAction)}
+                    />
 
-          <AdminModalBody className="space-y-6 pb-6">
-            {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? (
-              <div className="space-y-6">
-                <NavigationActionSettingsSection
-                  title="Login"
-                  description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
-                  action={accountMenuDraft.login}
-                  fieldPrefix="navigation-account-menu-login"
-                  onChange={(nextAction) => updateAccountMenuActionDraft("login", nextAction)}
-                />
+                    <NavigationActionSettingsSection
+                      title="Register"
+                      description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
+                      action={accountMenuDraft.register}
+                      fieldPrefix="navigation-account-menu-register"
+                      onChange={(nextAction) => updateAccountMenuActionDraft("register", nextAction)}
+                    />
 
-                <NavigationActionSettingsSection
-                  title="Register"
-                  description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
-                  action={accountMenuDraft.register}
-                  fieldPrefix="navigation-account-menu-register"
-                  onChange={(nextAction) => updateAccountMenuActionDraft("register", nextAction)}
-                />
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">Child links</p>
+                          <p className="text-xs text-muted-foreground">These appear in the signed-in user dropdown.</p>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={addAccountMenuSignedInLinkDraft}>
+                          <Plus className="h-4 w-4" />
+                          Add Child
+                        </Button>
+                      </div>
 
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">Child links</p>
-                      <p className="text-xs text-muted-foreground">These appear in the signed-in user dropdown.</p>
-                    </div>
-                    <Button type="button" variant="outline" size="sm" onClick={addAccountMenuSignedInLinkDraft}>
-                      <Plus className="h-4 w-4" />
-                      Add Child
-                    </Button>
-                  </div>
-
-                  {accountMenuDraft.signedInLinks.length ? (
-                    sortableReady ? (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleAccountMenuSignedInLinkDraftDragEnd}
-                      >
-                        <SortableContext
-                          items={accountMenuDraft.signedInLinks.map(
-                            (link, index) => link.id || `user-panel-child-${index}`
-                          )}
-                          strategy={verticalListSortingStrategy}
-                        >
+                      {accountMenuDraft.signedInLinks.length ? (
+                        sortableReady ? (
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleAccountMenuSignedInLinkDraftDragEnd}
+                          >
+                            <SortableContext
+                              items={accountMenuDraft.signedInLinks.map(
+                                (link, index) => link.id || `user-panel-child-${index}`
+                              )}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              <div className="space-y-2">
+                                {accountMenuDraft.signedInLinks.map((link, index) => (
+                                  <SortableUserPanelChildLink
+                                    key={link.id || `user-panel-child-${index}`}
+                                    link={link}
+                                    index={index}
+                                    onChange={updateAccountMenuSignedInLinkDraft}
+                                    onDelete={removeAccountMenuSignedInLinkDraft}
+                                  />
+                                ))}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        ) : (
                           <div className="space-y-2">
                             {accountMenuDraft.signedInLinks.map((link, index) => (
-                              <SortableUserPanelChildLink
-                                key={link.id || `user-panel-child-${index}`}
+                              <StaticUserPanelChildLink
+                                key={link.id || `user-panel-child-static-${index}`}
                                 link={link}
                                 index={index}
                                 onChange={updateAccountMenuSignedInLinkDraft}
@@ -1971,68 +1993,47 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                               />
                             ))}
                           </div>
-                        </SortableContext>
-                      </DndContext>
-                    ) : (
-                      <div className="space-y-2">
-                        {accountMenuDraft.signedInLinks.map((link, index) => (
-                          <StaticUserPanelChildLink
-                            key={link.id || `user-panel-child-static-${index}`}
-                            link={link}
-                            index={index}
-                            onChange={updateAccountMenuSignedInLinkDraft}
-                            onDelete={removeAccountMenuSignedInLinkDraft}
-                          />
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                      No child links.
+                        )
+                      ) : (
+                        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                          No child links.
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={darkModeDraft}
-                    onCheckedChange={(checked) => setDarkModeDraft(checked === true)}
-                    id="navigation-dark-mode-enabled"
-                  />
-                  <div className="space-y-0.5">
-                    <Label htmlFor="navigation-dark-mode-enabled">Show Toggle</Label>
-                    <p className="text-sm text-muted-foreground">Display theme switcher in navigation.</p>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={darkModeDraft}
+                        onCheckedChange={(checked) => setDarkModeDraft(checked === true)}
+                        id="navigation-dark-mode-enabled"
+                      />
+                      <div className="space-y-0.5">
+                        <label htmlFor="navigation-dark-mode-enabled" className="text-sm font-medium">Show Toggle</label>
+                        <p className="text-sm text-muted-foreground">Display theme switcher in navigation.</p>
+                      </div>
+                    </div>
 
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    checked={darkModeMobileDraft}
-                    onCheckedChange={(checked) => setDarkModeMobileDraft(checked === true)}
-                    id="navigation-dark-mode-mobile-enabled"
-                  />
-                  <div className="space-y-0.5">
-                    <Label htmlFor="navigation-dark-mode-mobile-enabled">Show on mobile</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Display theme switcher in the mobile navigation actions.
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={darkModeMobileDraft}
+                        onCheckedChange={(checked) => setDarkModeMobileDraft(checked === true)}
+                        id="navigation-dark-mode-mobile-enabled"
+                      />
+                      <div className="space-y-0.5">
+                        <label htmlFor="navigation-dark-mode-mobile-enabled" className="text-sm font-medium">Show on mobile</label>
+                        <p className="text-sm text-muted-foreground">
+                          Display theme switcher in the mobile navigation actions.
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setEditingBuiltInActionItem(null)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={modalSaving} onClick={saveBuiltInActionItemEditor}>
-              {modalSaving ? "Saving..." : "Save"}
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                )}
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
     </>
   )

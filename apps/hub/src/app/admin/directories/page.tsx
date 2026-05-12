@@ -5,13 +5,6 @@ import dynamic from "next/dynamic"
 import { FolderOpen } from "lucide-react"
 
 import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
-import {
   ContentListPage,
   type ContentCursorListData,
   type ContentCursorListParams,
@@ -176,20 +169,10 @@ export default function DirectoriesPage() {
       refreshAfterDuplicate
       refreshAfterUpdate
       renderCreateModal={({ onCancel, onSuccess }) => (
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create New Directory Item</AdminModalTitle>
-            <AdminModalDescription>
-              Add a new item to your directory. You can customize the content after creation.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <AdminModalBody className="pb-6">
-            <CreateDirectoryModal
-              onSuccess={(directory, continueToBuilder) => onSuccess(toDirectorySummary(directory), continueToBuilder)}
-              onCancel={onCancel}
-            />
-          </AdminModalBody>
-        </AdminModalContent>
+        <CreateDirectoryModal
+          onSuccess={(directory, continueToBuilder) => onSuccess(toDirectorySummary(directory), continueToBuilder)}
+          onCancel={onCancel}
+        />
       )}
       renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
         <DirectorySettingsBridge item={item} open={open} onOpenChange={onOpenChange} onSuccess={onSuccess} />

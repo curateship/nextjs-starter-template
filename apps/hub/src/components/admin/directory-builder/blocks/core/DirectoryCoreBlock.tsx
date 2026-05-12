@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -18,14 +18,8 @@ import {
 import { BlockEditorEmptyState, BlockTabs } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
   closestCenter,
   DndContext,
@@ -201,122 +195,124 @@ function CoreMenuIconField({
           }
         }}
       >
-        <AdminModalContent className="max-w-xl">
-          <AdminModalHeader className="pb-2">
-            <AdminModalTitle>Choose Icon</AdminModalTitle>
-            <AdminModalDescription>
-              Pick an icon for this menu link.
-            </AdminModalDescription>
-          </AdminModalHeader>
-
-          <AdminModalBody
-            className="space-y-3 pb-6"
-            onWheelCapture={(event) => event.stopPropagation()}
-          >
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="pl-9"
-                placeholder="Search icons"
-              />
-            </div>
-
-            <ScrollArea className="h-[320px] overscroll-contain pr-2">
-              {filteredOptions.length === 0 && !showDefaultOption ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">
-                  No icons match that search.
-                </div>
-              ) : (
-                <div className="grid grid-cols-6 gap-2">
-                  {showDefaultOption && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onChange(undefined)
-                        setOpen(false)
-                        setQuery("")
-                      }}
-                      className={cn(
-                        "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                        !value ? "bg-primary/5" : "hover:bg-muted/50"
-                      )}
-                      aria-label="Use default icon"
-                    >
-                      {!value && (
-                        <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                          <Check className="h-3 w-3" />
-                        </span>
-                      )}
-                      <DefaultIcon className="h-5 w-5" />
-                      <span className="line-clamp-2 text-[11px] leading-tight">
-                        Default
-                      </span>
-                    </button>
-                  )}
-                  {filteredOptions.map((option) => {
-                    const Icon = getQuickLinkIcon(option.value)
-                    const isSelected = option.value === value
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          onChange(option.value)
-                          setOpen(false)
-                          setQuery("")
-                        }}
-                        className={cn(
-                          "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                          isSelected ? "bg-primary/5" : "hover:bg-muted/50"
-                        )}
-                        aria-label={`Choose ${option.label} icon`}
-                      >
-                        {isSelected && (
-                          <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                            <Check className="h-3 w-3" />
-                          </span>
-                        )}
-                        <Icon className="h-5 w-5" />
-                        <span className="line-clamp-2 text-[11px] leading-tight">
-                          {option.label}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </ScrollArea>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            {value ? (
+        <DashboardModalContent
+          className="max-w-xl"
+          title="Choose Icon"
+          description="Pick an icon for this menu link."
+          footer={
+            <>
+              {value ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    onChange(undefined)
+                    setOpen(false)
+                    setQuery("")
+                  }}
+                >
+                  Remove Icon
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  onChange(undefined)
                   setOpen(false)
                   setQuery("")
                 }}
               >
-                Remove Icon
+                Back
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setOpen(false)
-                setQuery("")
-              }}
-            >
-              Back
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent
+                className="p-4 space-y-3"
+                onWheelCapture={(event) => event.stopPropagation()}
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className="pl-9"
+                    placeholder="Search icons"
+                  />
+                </div>
+
+                <ScrollArea className="h-[320px] overscroll-contain pr-2">
+                  {filteredOptions.length === 0 && !showDefaultOption ? (
+                    <div className="py-10 text-center text-sm text-muted-foreground">
+                      No icons match that search.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-6 gap-2">
+                      {showDefaultOption && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onChange(undefined)
+                            setOpen(false)
+                            setQuery("")
+                          }}
+                          className={cn(
+                            "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                            !value ? "bg-primary/5" : "hover:bg-muted/50"
+                          )}
+                          aria-label="Use default icon"
+                        >
+                          {!value && (
+                            <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          )}
+                          <DefaultIcon className="h-5 w-5" />
+                          <span className="line-clamp-2 text-[11px] leading-tight">
+                            Default
+                          </span>
+                        </button>
+                      )}
+                      {filteredOptions.map((option) => {
+                        const Icon = getQuickLinkIcon(option.value)
+                        const isSelected = option.value === value
+
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              onChange(option.value)
+                              setOpen(false)
+                              setQuery("")
+                            }}
+                            className={cn(
+                              "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
+                              isSelected ? "bg-primary/5" : "hover:bg-muted/50"
+                            )}
+                            aria-label={`Choose ${option.label} icon`}
+                          >
+                            {isSelected && (
+                              <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-primary-foreground">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            )}
+                            <Icon className="h-5 w-5" />
+                            <span className="line-clamp-2 text-[11px] leading-tight">
+                              {option.label}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
     </>
   )
@@ -805,7 +801,7 @@ export function DirectoryCoreBlock({
 
   const introTextField = (
     <div className="space-y-3">
-      <Label htmlFor="directory-core-intro-text">Intro Text</Label>
+      <FieldLabel htmlFor="directory-core-intro-text">Intro Text</FieldLabel>
       <Textarea
         ref={introTextRef}
         id="directory-core-intro-text"
@@ -835,92 +831,101 @@ export function DirectoryCoreBlock({
       value: "content",
       label: "Content",
       content: (
-        <div className="space-y-6">
-          <h2 className="text-base font-semibold leading-none tracking-tight">Directory Details</h2>
-          {showDirectoryTitleField ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="directory-core-title">Title</Label>
-                <Input
-                  id="directory-core-title"
-                  value={directoryData?.title || ""}
-                  onChange={(event) => onDirectoryTitleChange?.(event.target.value)}
-                  placeholder="Directory title"
-                  className="text-lg font-medium"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label>Featured Image</Label>
-                {featuredImage ? (
-                  <div className="relative h-48 w-full max-w-sm overflow-hidden rounded-lg bg-muted">
-                    <img
-                      src={featuredImage}
-                      alt="Featured image preview"
-                      className="h-full w-full object-cover"
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Directory Details</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              {showDirectoryTitleField ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="directory-core-title">Title</FieldLabel>
+                    <Input
+                      id="directory-core-title"
+                      value={directoryData?.title || ""}
+                      onChange={(event) => onDirectoryTitleChange?.(event.target.value)}
+                      placeholder="Directory title"
+                      className="text-lg font-medium"
                     />
-                    <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
-                    <button
-                      type="button"
-                      onClick={() => onDirectoryFeaturedImageChange?.("")}
-                      className="absolute right-2 top-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div
-                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center text-white">
-                        <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                        <p className="text-sm font-medium">Click to change image</p>
+                  </Field>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Featured Image</p>
+                    {featuredImage ? (
+                      <div className="relative h-48 w-full max-w-sm overflow-hidden rounded-lg bg-muted">
+                        <img
+                          src={featuredImage}
+                          alt="Featured image preview"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent" />
+                        <button
+                          type="button"
+                          onClick={() => onDirectoryFeaturedImageChange?.("")}
+                          className="absolute right-2 top-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <div
+                          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
+                          onClick={() => setShowImagePicker(true)}
+                        >
+                          <div className="text-center text-white">
+                            <ImageIcon className="mx-auto mb-2 h-8 w-8" />
+                            <p className="text-sm font-medium">Click to change image</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div
+                        className="flex h-48 w-full max-w-sm cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                        onClick={() => setShowImagePicker(true)}
+                      >
+                        <div className="text-center">
+                          <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                          <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                        </div>
+                      </div>
+                    )}
+                    <MediaPicker
+                      open={showImagePicker}
+                      onOpenChange={setShowImagePicker}
+                      onSelectMedia={(mediaUrl) => {
+                        onDirectoryFeaturedImageChange?.(mediaUrl)
+                        setShowImagePicker(false)
+                      }}
+                      currentMediaUrl={featuredImage}
+                      site_id={siteId}
+                    />
                   </div>
-                ) : (
-                  <div
-                    className="flex h-48 w-full max-w-sm cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                    </div>
-                  </div>
-                )}
-                <MediaPicker
-                  open={showImagePicker}
-                  onOpenChange={setShowImagePicker}
-                  onSelectMedia={(mediaUrl) => {
-                    onDirectoryFeaturedImageChange?.(mediaUrl)
-                    setShowImagePicker(false)
-                  }}
-                  currentMediaUrl={featuredImage}
-                  site_id={siteId}
-                />
-              </div>
 
-              {introTextField}
+                  {introTextField}
+                </>
+              ) : (
+                <>
+                  <BlockEditorEmptyState>
+                    Title and featured image come from each real directory item.
+                  </BlockEditorEmptyState>
 
-            </>
-          ) : (
-            <>
-              <BlockEditorEmptyState>
-                Title and featured image come from each real directory item.
-              </BlockEditorEmptyState>
-
-              {introTextField}
-            </>
-          )}
-        </div>
+                  {introTextField}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </CardGroup>
       ),
     },
     {
       value: "social",
       label: "Social",
       content: (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold leading-none tracking-tight">Social Links</h2>
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Social Links</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
           {socialLinks.length === 0 ? (
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
@@ -987,15 +992,21 @@ export function DirectoryCoreBlock({
               </button>
             </div>
           )}
-        </div>
+            </CardContent>
+          </Card>
+        </CardGroup>
       ),
     },
     {
       value: "menu",
       label: "Menu",
       content: (
-        <div className="space-y-4">
-          <h2 className="text-base font-semibold leading-none tracking-tight">Menu Links</h2>
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Menu Links</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
           {menuLinks.length === 0 ? (
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
@@ -1062,112 +1073,123 @@ export function DirectoryCoreBlock({
               </button>
             </div>
           )}
-        </div>
+            </CardContent>
+          </Card>
+        </CardGroup>
       ),
     },
     {
       value: "settings",
       label: "Settings",
       content: (
-        <div className="space-y-6">
-          <VisibilitySettings
-            visibility={content.visibility}
-            onChange={(visibility) => onContentChange("visibility", visibility)}
-            fields={[
-              { key: "image", label: "Image" },
-              { key: "title", label: "Title" },
-              { key: "introText", label: "Intro Text" },
-              { key: "socialLinks", label: "Social Links" },
-              { key: "menuLinks", label: "Menu Links" },
-            ]}
-          />
-
-          <div className="space-y-3">
-            <h2 className="text-base font-semibold leading-none tracking-tight">Sticky</h2>
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="directory-core-sticky"
-                checked={content.sticky === true}
-                onCheckedChange={(checked) => onContentChange("sticky", checked === true)}
+        <CardGroup className="grid">
+          <Card>
+            <CardContent className="p-4">
+              <VisibilitySettings
+                visibility={content.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                fields={[
+                  { key: "image", label: "Image" },
+                  { key: "title", label: "Title" },
+                  { key: "introText", label: "Intro Text" },
+                  { key: "socialLinks", label: "Social Links" },
+                  { key: "menuLinks", label: "Menu Links" },
+                ]}
               />
-              <div className="space-y-1">
-                <Label htmlFor="directory-core-sticky" className="cursor-pointer">
-                  Keep block visible while scrolling
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Uses sticky positioning on larger screens.
-                </p>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold leading-none tracking-tight">Claim Listing</h2>
-              <p className="text-sm text-muted-foreground">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Sticky</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="directory-core-sticky"
+                  checked={content.sticky === true}
+                  onCheckedChange={(checked) => onContentChange("sticky", checked === true)}
+                />
+                <div className="space-y-1">
+                  <label htmlFor="directory-core-sticky" className="text-sm font-medium cursor-pointer">
+                    Keep block visible while scrolling
+                  </label>
+                  <p className="text-sm text-muted-foreground">
+                    Uses sticky positioning on larger screens.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Claim Listing</DashboardModalCardTitle>
+              <CardDescription>
                 Let verified business owners request access to edit this listing.
-              </p>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="directory-core-claim-enabled"
-                checked={content.claimEnabled !== false}
-                onCheckedChange={(checked) => onContentChange("claimEnabled", checked === true)}
-              />
-              <Label htmlFor="directory-core-claim-enabled" className="cursor-pointer">
-                Show claim listing action
-              </Label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="directory-core-claim-button">Button Text</Label>
-                <Input
-                  id="directory-core-claim-button"
-                  value={content.claimButtonText ?? "Claim Listing"}
-                  onChange={(event) => onContentChange("claimButtonText", event.target.value)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="directory-core-claim-enabled"
+                  checked={content.claimEnabled !== false}
+                  onCheckedChange={(checked) => onContentChange("claimEnabled", checked === true)}
                 />
+                <label htmlFor="directory-core-claim-enabled" className="text-sm font-medium cursor-pointer">
+                  Show claim listing action
+                </label>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="directory-core-claim-edit-path">Owner Edit Path</Label>
-                <Input
-                  id="directory-core-claim-edit-path"
-                  value={content.ownerEditPath ?? "/account"}
-                  onChange={(event) => onContentChange("ownerEditPath", event.target.value)}
-                />
-              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="directory-core-claim-button">Button Text</FieldLabel>
+                  <Input
+                    id="directory-core-claim-button"
+                    value={content.claimButtonText ?? "Claim Listing"}
+                    onChange={(event) => onContentChange("claimButtonText", event.target.value)}
+                  />
+                </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="directory-core-claim-email-text">Pending Email Text</Label>
-                <Input
-                  id="directory-core-claim-email-text"
-                  value={content.claimPendingEmailText ?? "Check Business Email"}
-                  onChange={(event) => onContentChange("claimPendingEmailText", event.target.value)}
-                />
-              </div>
+                <Field>
+                  <FieldLabel htmlFor="directory-core-claim-edit-path">Owner Edit Path</FieldLabel>
+                  <Input
+                    id="directory-core-claim-edit-path"
+                    value={content.ownerEditPath ?? "/account"}
+                    onChange={(event) => onContentChange("ownerEditPath", event.target.value)}
+                  />
+                </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="directory-core-claim-review-text">Pending Review Text</Label>
-                <Input
-                  id="directory-core-claim-review-text"
-                  value={content.claimPendingReviewText ?? "Claim Pending Review"}
-                  onChange={(event) => onContentChange("claimPendingReviewText", event.target.value)}
-                />
-              </div>
+                <Field>
+                  <FieldLabel htmlFor="directory-core-claim-email-text">Pending Email Text</FieldLabel>
+                  <Input
+                    id="directory-core-claim-email-text"
+                    value={content.claimPendingEmailText ?? "Check Business Email"}
+                    onChange={(event) => onContentChange("claimPendingEmailText", event.target.value)}
+                  />
+                </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="directory-core-claim-approved-text">Approved Text</Label>
-                <Input
-                  id="directory-core-claim-approved-text"
-                  value={content.claimApprovedText ?? "Edit Listing"}
-                  onChange={(event) => onContentChange("claimApprovedText", event.target.value)}
-                />
+                <Field>
+                  <FieldLabel htmlFor="directory-core-claim-review-text">Pending Review Text</FieldLabel>
+                  <Input
+                    id="directory-core-claim-review-text"
+                    value={content.claimPendingReviewText ?? "Claim Pending Review"}
+                    onChange={(event) => onContentChange("claimPendingReviewText", event.target.value)}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="directory-core-claim-approved-text">Approved Text</FieldLabel>
+                  <Input
+                    id="directory-core-claim-approved-text"
+                    value={content.claimApprovedText ?? "Edit Listing"}
+                    onChange={(event) => onContentChange("claimApprovedText", event.target.value)}
+                  />
+                </Field>
               </div>
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </CardGroup>
       ),
     },
   ]
@@ -1185,67 +1207,72 @@ export function DirectoryCoreBlock({
           }
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Social Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Update the platform and destination URL for this social link.
-            </AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          title="Social Link Settings"
+          description="Update the platform and destination URL for this social link."
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCreatingSocialLink(false)
+                  setEditingSocialLinkIndex(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={saveSocialLinkEditor}>
+                Save
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Social link</DashboardModalCardTitle>
+                <CardDescription>Choose a platform and enter the destination URL.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-end">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Platform</p>
+                    <Select
+                      value={socialLinkDraft.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
+                      onValueChange={(value) =>
+                        setSocialLinkDraft((current) => ({ ...current, platform: value }))
+                      }
+                    >
+                      <SelectTrigger size="button" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SOCIAL_PLATFORM_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <SocialPlatformLabel platform={option.value} />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-          <AdminModalBody className="space-y-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-end">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Platform</p>
-                <Select
-                  value={socialLinkDraft.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
-                  onValueChange={(value) =>
-                    setSocialLinkDraft((current) => ({ ...current, platform: value }))
-                  }
-                >
-                  <SelectTrigger size="button" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOCIAL_PLATFORM_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <SocialPlatformLabel platform={option.value} />
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-sm font-medium">URL</p>
-                <Input
-                  value={socialLinkDraft.url}
-                  onChange={(event) =>
-                    setSocialLinkDraft((current) => ({ ...current, url: event.target.value }))
-                  }
-                  placeholder="https://instagram.com/example"
-                  aria-label="Social link URL"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setCreatingSocialLink(false)
-                setEditingSocialLinkIndex(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="button" onClick={saveSocialLinkEditor}>
-              Save
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">URL</p>
+                    <Input
+                      value={socialLinkDraft.url}
+                      onChange={(event) =>
+                        setSocialLinkDraft((current) => ({ ...current, url: event.target.value }))
+                      }
+                      placeholder="https://instagram.com/example"
+                      aria-label="Social link URL"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
 
       <Dialog
@@ -1257,90 +1284,95 @@ export function DirectoryCoreBlock({
           }
         }}
       >
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Menu Link Settings</AdminModalTitle>
-            <AdminModalDescription>
-              Choose an action type, label, value, and optional icon.
-            </AdminModalDescription>
-          </AdminModalHeader>
+        <DashboardModalContent
+          title="Menu Link Settings"
+          description="Choose an action type, label, value, and optional icon."
+          footer={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCreatingMenuLink(false)
+                  setEditingMenuLinkIndex(null)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMenuLinkDraft((current) => ({ ...current, icon: undefined }))}
+              >
+                Remove Icon
+              </Button>
+              <Button type="button" onClick={saveMenuLinkEditor}>
+                Save
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Menu link</DashboardModalCardTitle>
+                <CardDescription>Configure the action type, label, value, and optional icon.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid gap-4 md:grid-cols-[92px_160px_minmax(0,180px)_minmax(0,1fr)] md:items-end">
+                  <CoreMenuIconField
+                    value={menuLinkDraft.icon}
+                    defaultIcon={getDirectoryCoreMenuDefaultIcon(menuLinkDraft.type)}
+                    onChange={(icon) => setMenuLinkDraft((current) => ({ ...current, icon }))}
+                  />
 
-          <AdminModalBody className="pb-6">
-            <div className="grid gap-4 md:grid-cols-[92px_160px_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-              <CoreMenuIconField
-                value={menuLinkDraft.icon}
-                defaultIcon={getDirectoryCoreMenuDefaultIcon(menuLinkDraft.type)}
-                onChange={(icon) => setMenuLinkDraft((current) => ({ ...current, icon }))}
-              />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Type</p>
+                    <Select
+                      value={menuLinkDraft.type}
+                      onValueChange={(value) => updateMenuLinkType(value as DirectoryCoreMenuLinkType)}
+                    >
+                      <SelectTrigger size="button" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DIRECTORY_CORE_MENU_LINK_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {getDirectoryCoreMenuTypeLabel(type)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Type</p>
-                <Select
-                  value={menuLinkDraft.type}
-                  onValueChange={(value) => updateMenuLinkType(value as DirectoryCoreMenuLinkType)}
-                >
-                  <SelectTrigger size="button" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DIRECTORY_CORE_MENU_LINK_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {getDirectoryCoreMenuTypeLabel(type)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Label</p>
+                    <Input
+                      value={menuLinkDraft.label || ""}
+                      onChange={(event) =>
+                        setMenuLinkDraft((current) => ({ ...current, label: event.target.value }))
+                      }
+                      placeholder={getDirectoryCoreMenuTypeLabel(menuLinkDraft.type)}
+                      aria-label="Menu link label"
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Label</p>
-                <Input
-                  value={menuLinkDraft.label || ""}
-                  onChange={(event) =>
-                    setMenuLinkDraft((current) => ({ ...current, label: event.target.value }))
-                  }
-                  placeholder={getDirectoryCoreMenuTypeLabel(menuLinkDraft.type)}
-                  aria-label="Menu link label"
-                />
-              </div>
-
-              <div className="min-w-0 space-y-2">
-                <p className="text-sm font-medium">Value</p>
-                <Input
-                  value={menuLinkDraft.value || ""}
-                  onChange={(event) =>
-                    setMenuLinkDraft((current) => ({ ...current, value: event.target.value }))
-                  }
-                  placeholder={getDirectoryCoreMenuValuePlaceholder(menuLinkDraft.type)}
-                  aria-label="Menu link value"
-                />
-              </div>
-            </div>
-          </AdminModalBody>
-
-          <AdminModalFooter className="sm:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setCreatingMenuLink(false)
-                setEditingMenuLinkIndex(null)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setMenuLinkDraft((current) => ({ ...current, icon: undefined }))}
-            >
-              Remove Icon
-            </Button>
-            <Button type="button" onClick={saveMenuLinkEditor}>
-              Save
-            </Button>
-          </AdminModalFooter>
-        </AdminModalContent>
+                  <div className="min-w-0 space-y-2">
+                    <p className="text-sm font-medium">Value</p>
+                    <Input
+                      value={menuLinkDraft.value || ""}
+                      onChange={(event) =>
+                        setMenuLinkDraft((current) => ({ ...current, value: event.target.value }))
+                      }
+                      placeholder={getDirectoryCoreMenuValuePlaceholder(menuLinkDraft.type)}
+                      aria-label="Menu link value"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
     </>
   )

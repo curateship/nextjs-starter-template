@@ -1,8 +1,10 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { BlockTabs } from "@/components/ui/tabs"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 
 interface DirectoryOpeningHoursBlockProps {
@@ -25,43 +27,56 @@ export function DirectoryOpeningHoursBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection heading="Opening Hours" contentClassName="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="directory-opening-hours-title">Title</Label>
-                <Input
-                  id="directory-opening-hours-title"
-                  value={content.title ?? ""}
-                  onChange={(event) => onContentChange("title", event.target.value)}
-                  placeholder="Business Hours"
-                />
-              </div>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Opening Hours</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="directory-opening-hours-title">Title</FieldLabel>
+                    <Input
+                      id="directory-opening-hours-title"
+                      value={content.title ?? ""}
+                      onChange={(event) => onContentChange("title", event.target.value)}
+                      placeholder="Business Hours"
+                    />
+                  </Field>
 
-              <div className="space-y-2">
-                <Label htmlFor="directory-opening-hours-place-id">Google Place ID</Label>
-                <Input
-                  id="directory-opening-hours-place-id"
-                  value={content.placeId ?? ""}
-                  onChange={(event) => onContentChange("placeId", event.target.value)}
-                  placeholder="ChIJ..."
-                />
-              </div>
-            </BlockEditorSection>
+                  <Field>
+                    <FieldLabel htmlFor="directory-opening-hours-place-id">Google Place ID</FieldLabel>
+                    <Input
+                      id="directory-opening-hours-place-id"
+                      value={content.placeId ?? ""}
+                      onChange={(event) => onContentChange("placeId", event.target.value)}
+                      placeholder="ChIJ..."
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <VisibilitySettings
-              visibility={content.visibility}
-              onChange={(visibility) => onContentChange("visibility", visibility)}
-              fields={[
-                { key: "title", label: "Title" },
-                { key: "hours", label: "Hours" },
-                { key: "openChip", label: "Open Chip" },
-                { key: "timezone", label: "Timezone" },
-              ]}
-            />
+            <CardGroup className="grid">
+              <Card>
+                <CardContent className="p-4">
+                  <VisibilitySettings
+                    visibility={content.visibility}
+                    onChange={(visibility) => onContentChange("visibility", visibility)}
+                    fields={[
+                      { key: "title", label: "Title" },
+                      { key: "hours", label: "Hours" },
+                      { key: "openChip", label: "Open Chip" },
+                      { key: "timezone", label: "Timezone" },
+                    ]}
+                  />
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}

@@ -436,166 +436,165 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                   </>
                 )}
               >
-                  {selectedBlock.type === "product-hero" && (
-                    <ProductHeroBlock
-                      content={draftContent}
-                      onContentChange={handleDraftChange}
-                      siteId={template?.site_id || currentSite?.id || ""}
-                      blockId={selectedBlock.id}
-                    />
-                  )}
+                {selectedBlock.type === "product-hero" && (
+                        <ProductHeroBlock
+                          content={draftContent}
+                          onContentChange={handleDraftChange}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-details" && (
-                    <ProductDetailsBlock
-                      description={draftContent.description || ""}
-                      specifications={draftContent.specifications || []}
-                      onDescriptionChange={(value) => handleDraftChange("description", value)}
-                      onSpecificationsChange={(specs) => handleDraftChange("specifications", specs)}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
+                      {selectedBlock.type === "product-details" && (
+                        <ProductDetailsBlock
+                          description={draftContent.description || ""}
+                          specifications={draftContent.specifications || []}
+                          onDescriptionChange={(value) => handleDraftChange("description", value)}
+                          onSpecificationsChange={(specs) => handleDraftChange("specifications", specs)}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-gallery" && (
-                    <ProductGalleryBlock
-                      images={draftContent.images || []}
-                      showThumbnails={draftContent.showThumbnails || false}
-                      onImagesChange={(images) => handleDraftChange("images", images)}
-                      onShowThumbnailsChange={(show) => handleDraftChange("showThumbnails", show)}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
+                      {selectedBlock.type === "product-gallery" && (
+                        <ProductGalleryBlock
+                          images={draftContent.images || []}
+                          showThumbnails={draftContent.showThumbnails || false}
+                          onImagesChange={(images) => handleDraftChange("images", images)}
+                          onShowThumbnailsChange={(show) => handleDraftChange("showThumbnails", show)}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-features" && (
-                    <ProductFeaturesBlock
-                      header={draftContent.header ?? ""}
-                      subheader={draftContent.subheader ?? ""}
-                      headerAlign={draftContent.headerAlign || "left"}
-                      featuresCollection={draftContent.featuresCollection || []}
-                      onHeaderChange={(value) => handleDraftChange("header", value)}
-                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
-                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
-                      onFeaturesCollectionChange={(features) => handleDraftChange("featuresCollection", features)}
-                      siteId={template?.site_id || currentSite?.id || ""}
-                      blockId={selectedBlock.id}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
+                      {selectedBlock.type === "product-features" && (
+                        <ProductFeaturesBlock
+                          header={draftContent.header ?? ""}
+                          subheader={draftContent.subheader ?? ""}
+                          headerAlign={draftContent.headerAlign || "left"}
+                          featuresCollection={draftContent.featuresCollection || []}
+                          onHeaderChange={(value) => handleDraftChange("header", value)}
+                          onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                          onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                          onFeaturesCollectionChange={(features) => handleDraftChange("featuresCollection", features)}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-hotspot" && (
-                    <ProductHotspotBlock
-                      header={draftContent.header ?? "Interactive Product Overview"}
-                      subheader={draftContent.subheader ?? "Hover over the blinking dots to discover more about our features"}
-                      headerAlign={draftContent.headerAlign ?? "left"}
-                      backgroundImage={draftContent.backgroundImage || ""}
-                      productHotspots={draftContent.productHotspots || []}
-                      showTooltipsAlways={draftContent.showTooltipsAlways || false}
-                      onHeaderChange={(value) => handleDraftChange("header", value)}
-                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
-                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
-                      onBackgroundImageChange={(value) => handleDraftChange("backgroundImage", value)}
-                      onProductHotspotsChange={(value) => handleDraftChange("productHotspots", value)}
-                      onShowTooltipsAlwaysChange={(value) => handleDraftChange("showTooltipsAlways", value)}
-                      siteId={template?.site_id || currentSite?.id || ""}
-                      blockId={selectedBlock.id}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
+                      {selectedBlock.type === "product-hotspot" && (
+                        <ProductHotspotBlock
+                          header={draftContent.header ?? "Interactive Product Overview"}
+                          subheader={draftContent.subheader ?? "Hover over the blinking dots to discover more about our features"}
+                          headerAlign={draftContent.headerAlign ?? "left"}
+                          backgroundImage={draftContent.backgroundImage || ""}
+                          productHotspots={draftContent.productHotspots || []}
+                          showTooltipsAlways={draftContent.showTooltipsAlways || false}
+                          onHeaderChange={(value) => handleDraftChange("header", value)}
+                          onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                          onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                          onBackgroundImageChange={(value) => handleDraftChange("backgroundImage", value)}
+                          onProductHotspotsChange={(value) => handleDraftChange("productHotspots", value)}
+                          onShowTooltipsAlwaysChange={(value) => handleDraftChange("showTooltipsAlways", value)}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-checkout" && (
-                    <ProductCheckoutBlock
-                      header={draftContent.header ?? ""}
-                      subheader={draftContent.subheader ?? ""}
-                      headerAlign={draftContent.headerAlign ?? "left"}
-                      productPricingTiers={draftContent.productPricingTiers || []}
-                      checkoutSettings={draftContent.checkoutSettings}
-                      onHeaderChange={(value) => handleDraftChange("header", value)}
-                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
-                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
-                      onProductPricingTiersChange={(value) => handleDraftChange("productPricingTiers", value)}
-                      onCheckoutSettingsChange={(value) => handleDraftChange("checkoutSettings", value)}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
+                      {selectedBlock.type === "product-checkout" && (
+                        <ProductCheckoutBlock
+                          header={draftContent.header ?? ""}
+                          subheader={draftContent.subheader ?? ""}
+                          headerAlign={draftContent.headerAlign ?? "left"}
+                          productPricingTiers={draftContent.productPricingTiers || []}
+                          checkoutSettings={draftContent.checkoutSettings}
+                          onHeaderChange={(value) => handleDraftChange("header", value)}
+                          onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                          onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                          onProductPricingTiersChange={(value) => handleDraftChange("productPricingTiers", value)}
+                          onCheckoutSettingsChange={(value) => handleDraftChange("checkoutSettings", value)}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-lead-magnet" && (
-                    <ProductLeadMagnetBlock
-                      content={draftContent}
-                      onContentChange={handleDraftChange}
-                      siteId={template?.site_id || currentSite?.id || ""}
-                      blockId={selectedBlock.id}
-                    />
-                  )}
+                      {selectedBlock.type === "product-lead-magnet" && (
+                        <ProductLeadMagnetBlock
+                          content={draftContent}
+                          onContentChange={handleDraftChange}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-faq" && (
-                    <ProductFAQBlock
-                      header={draftContent.header ?? "Product FAQ"}
-                      subheader={draftContent.subheader ?? "Get answers to common questions about this product, its features, compatibility, and support options."}
-                      headerAlign={draftContent.headerAlign ?? "left"}
-                      productFaqItems={draftContent.productFaqItems || []}
-                      onHeaderChange={(value) => handleDraftChange("header", value)}
-                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
-                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
-                      onProductFaqItemsChange={(value) => handleDraftChange("productFaqItems", value)}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
+                      {selectedBlock.type === "product-faq" && (
+                        <ProductFAQBlock
+                          header={draftContent.header ?? "Product FAQ"}
+                          subheader={draftContent.subheader ?? "Get answers to common questions about this product, its features, compatibility, and support options."}
+                          headerAlign={draftContent.headerAlign ?? "left"}
+                          productFaqItems={draftContent.productFaqItems || []}
+                          onHeaderChange={(value) => handleDraftChange("header", value)}
+                          onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                          onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                          onProductFaqItemsChange={(value) => handleDraftChange("productFaqItems", value)}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
 
-                  {selectedBlock.type === "product-testimonials" && (
-                    <ProductTestimonialsBlock
-                      content={draftContent}
-                      onContentChange={handleDraftChange}
-                      siteId={template?.site_id || currentSite?.id || ""}
-                      blockId={selectedBlock.id}
-                    />
-                  )}
+                      {selectedBlock.type === "product-testimonials" && (
+                        <ProductTestimonialsBlock
+                          content={draftContent}
+                          onContentChange={handleDraftChange}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
+                        />
+                      )}
 
-                  {selectedBlock.type === "listing-views" && (
-                    <ProductListingViewBlock
-                      header={draftContent.header ?? "Latest Products"}
-                      subheader={draftContent.subheader ?? "Check out our products"}
-                      headerAlign={draftContent.headerAlign ?? "left"}
-                      contentType={draftContent.contentType ?? "products"}
-                      imageFit={draftContent.imageFit ?? "crop"}
-                      displayMode={draftContent.displayMode ?? "grid"}
-                      itemsToShow={draftContent.itemsToShow ?? 6}
-                      columns={draftContent.columns ?? 3}
-                      sortBy={draftContent.sortBy ?? "date"}
-                      sortOrder={draftContent.sortOrder ?? "desc"}
-                      showImage={draftContent.showImage ?? true}
-                      showTitle={draftContent.showTitle ?? true}
-                      showDescription={draftContent.showDescription ?? true}
-                      isPaginated={draftContent.isPaginated ?? false}
-                      itemsPerPage={draftContent.itemsPerPage ?? 12}
-                      viewAllText={draftContent.viewAllText ?? ""}
-                      viewAllLink={draftContent.viewAllLink ?? ""}
-                      onHeaderChange={(value) => handleDraftChange("header", value)}
-                      onSubheaderChange={(value) => handleDraftChange("subheader", value)}
-                      onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
-                      onContentTypeChange={(value) => handleDraftChange("contentType", value)}
-                      onImageFitChange={(value) => handleDraftChange("imageFit", value)}
-                      onDisplayModeChange={(value) => handleDraftChange("displayMode", value)}
-                      onItemsToShowChange={(value) => handleDraftChange("itemsToShow", value)}
-                      onColumnsChange={(value) => handleDraftChange("columns", value)}
-                      onSortByChange={(value) => handleDraftChange("sortBy", value)}
-                      onSortOrderChange={(value) => handleDraftChange("sortOrder", value)}
-                      onShowImageChange={(value) => handleDraftChange("showImage", value)}
-                      onShowTitleChange={(value) => handleDraftChange("showTitle", value)}
-                      onShowDescriptionChange={(value) => handleDraftChange("showDescription", value)}
-                      onIsPaginatedChange={(value) => handleDraftChange("isPaginated", value)}
-                      onItemsPerPageChange={(value) => handleDraftChange("itemsPerPage", value)}
-                      onViewAllTextChange={(value) => handleDraftChange("viewAllText", value)}
-                      onViewAllLinkChange={(value) => handleDraftChange("viewAllLink", value)}
-                      visibility={draftContent.visibility}
-                      onVisibilityChange={(v) => handleDraftChange("visibility", v)}
-                    />
-                  )}
-
+                      {selectedBlock.type === "listing-views" && (
+                        <ProductListingViewBlock
+                          header={draftContent.header ?? "Latest Products"}
+                          subheader={draftContent.subheader ?? "Check out our products"}
+                          headerAlign={draftContent.headerAlign ?? "left"}
+                          contentType={draftContent.contentType ?? "products"}
+                          imageFit={draftContent.imageFit ?? "crop"}
+                          displayMode={draftContent.displayMode ?? "grid"}
+                          itemsToShow={draftContent.itemsToShow ?? 6}
+                          columns={draftContent.columns ?? 3}
+                          sortBy={draftContent.sortBy ?? "date"}
+                          sortOrder={draftContent.sortOrder ?? "desc"}
+                          showImage={draftContent.showImage ?? true}
+                          showTitle={draftContent.showTitle ?? true}
+                          showDescription={draftContent.showDescription ?? true}
+                          isPaginated={draftContent.isPaginated ?? false}
+                          itemsPerPage={draftContent.itemsPerPage ?? 12}
+                          viewAllText={draftContent.viewAllText ?? ""}
+                          viewAllLink={draftContent.viewAllLink ?? ""}
+                          onHeaderChange={(value) => handleDraftChange("header", value)}
+                          onSubheaderChange={(value) => handleDraftChange("subheader", value)}
+                          onHeaderAlignChange={(value) => handleDraftChange("headerAlign", value)}
+                          onContentTypeChange={(value) => handleDraftChange("contentType", value)}
+                          onImageFitChange={(value) => handleDraftChange("imageFit", value)}
+                          onDisplayModeChange={(value) => handleDraftChange("displayMode", value)}
+                          onItemsToShowChange={(value) => handleDraftChange("itemsToShow", value)}
+                          onColumnsChange={(value) => handleDraftChange("columns", value)}
+                          onSortByChange={(value) => handleDraftChange("sortBy", value)}
+                          onSortOrderChange={(value) => handleDraftChange("sortOrder", value)}
+                          onShowImageChange={(value) => handleDraftChange("showImage", value)}
+                          onShowTitleChange={(value) => handleDraftChange("showTitle", value)}
+                          onShowDescriptionChange={(value) => handleDraftChange("showDescription", value)}
+                          onIsPaginatedChange={(value) => handleDraftChange("isPaginated", value)}
+                          onItemsPerPageChange={(value) => handleDraftChange("itemsPerPage", value)}
+                          onViewAllTextChange={(value) => handleDraftChange("viewAllText", value)}
+                          onViewAllLinkChange={(value) => handleDraftChange("viewAllLink", value)}
+                          visibility={draftContent.visibility}
+                          onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
               </DashboardModalContent>
             </ModalTabsProvider>
           </Dialog>

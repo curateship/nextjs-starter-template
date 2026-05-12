@@ -1,3 +1,4 @@
+import { CardGroup } from "@/components/ui/card"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import { DirectoryCoreBlock } from "./core/DirectoryCoreBlock"
@@ -210,19 +211,19 @@ export function DirectoryBlockRenderer({
             className={containerClassName}
             style={outerContainerStyle}
           >
-            <div className="grid lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-              <div className={cn("grid lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
+            <CardGroup className="grid lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+              <CardGroup className={cn("grid lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
-              </div>
-              <div className={cn("grid lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
+              </CardGroup>
+              <CardGroup className={cn("grid lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
                 {mainBlocks.map((block) => renderDirectoryBlock(block))}
-              </div>
-            </div>
+              </CardGroup>
+            </CardGroup>
           </div>
         ) : (
-          <div className={cn(containerClassName, "grid")} style={outerContainerStyle}>
+          <CardGroup className={cn(containerClassName, "grid")} style={outerContainerStyle}>
             {[...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))}
-          </div>
+          </CardGroup>
         )}
       </SiteLayout>
   )

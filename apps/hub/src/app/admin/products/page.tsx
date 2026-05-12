@@ -3,12 +3,7 @@
 import dynamic from "next/dynamic"
 import { Package } from "lucide-react"
 
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import {
@@ -59,15 +54,7 @@ export default function ProductsPage() {
       listLabel="Products"
       pathPrefix="products"
       renderCreateModal={({ onCancel, onSuccess }) => (
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create New Product</AdminModalTitle>
-            <AdminModalDescription>
-              Add a new product to your catalog. You can customize the content after creation.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <CreateProductModal onSuccess={onSuccess} onCancel={onCancel} />
-        </AdminModalContent>
+        <CreateProductModal onSuccess={onSuccess} onCancel={onCancel} />
       )}
       renderSettingsModal={({ categories, item, onOpenChange, onSuccess, open }) => (
         <ProductSettingsModal

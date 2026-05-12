@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardTableHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import {
@@ -24,14 +23,8 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Trash2, Settings, Zap, Mail, Plus, List, Play, Pause, FileEdit } from "lucide-react"
 import {
   getAutomationsBySite,
@@ -405,38 +398,44 @@ export default function EmailAutomationsPage() {
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <AdminModalContent>
-              <AdminModalHeader>
-                <AdminModalTitle>Create Email Automation</AdminModalTitle>
-                <AdminModalDescription>
-                  Create the automation shell, then configure triggers and steps in the builder.
-                </AdminModalDescription>
-              </AdminModalHeader>
-              <form onSubmit={handleCreate} className="flex min-h-0 flex-1 flex-col">
-                <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
-                  <div>
-                    <Label>Name *</Label>
-                    <Input
-                      value={createName}
-                      onChange={(e) => setCreateName(e.target.value)}
-                      placeholder="e.g. Fitness Lead Magnet Sequence"
-                      required
-                    />
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Create the automation first, then choose one or more triggers in the builder.
-                  </p>
-                </AdminModalBody>
-                <AdminModalFooter className="sm:justify-end">
-                  <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={creating || !createName.trim()}>
-                    {creating ? "Creating..." : "Create Automation"}
-                  </Button>
-                </AdminModalFooter>
-              </form>
-            </AdminModalContent>
+            <form onSubmit={handleCreate} className="contents">
+              <DashboardModalContent
+                title="Create Email Automation"
+                description="Create the automation shell, then configure triggers and steps in the builder."
+                footer={
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={creating || !createName.trim()}>
+                      {creating ? "Creating..." : "Create Automation"}
+                    </Button>
+                  </>
+                }
+              >
+                <CardGroup className="grid">
+                  <Card>
+                    <CardHeader className="p-4 pb-3">
+                      <DashboardModalCardTitle>Automation</DashboardModalCardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 p-4 pt-0">
+                      <Field>
+                        <FieldLabel>Name *</FieldLabel>
+                        <Input
+                          value={createName}
+                          onChange={(e) => setCreateName(e.target.value)}
+                          placeholder="e.g. Fitness Lead Magnet Sequence"
+                          required
+                        />
+                      </Field>
+                      <p className="text-sm text-muted-foreground">
+                        Create the automation first, then choose one or more triggers in the builder.
+                      </p>
+                    </CardContent>
+                  </Card>
+                </CardGroup>
+              </DashboardModalContent>
+            </form>
           </Dialog>
 
           <AdminConfirmDialog

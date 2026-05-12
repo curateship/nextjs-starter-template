@@ -5,14 +5,13 @@ import {
   Dialog,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
 import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
@@ -331,140 +330,144 @@ export function PostSettingsModal({
           </>
         )}
       >
-        <form id="post-settings-form" onSubmit={handleSubmit} className="contents [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+        <form id="post-settings-form" onSubmit={handleSubmit} className="contents">
           {error && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="p-4 text-sm text-red-800">{error}</CardContent>
-            </Card>
+            <div className="px-6 pb-2">
+              <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
+            </div>
           )}
 
-          <Card>
-            <CardHeader className="p-4 pb-3">
-              <DashboardModalCardTitle>Post details</DashboardModalCardTitle>
-              <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-6 p-4 pt-0">
-              <div className="col-span-2">
-                <Label htmlFor="modal-title">Post Title *</Label>
-                <Input
-                  id="modal-title"
-                  value={formData.title || ''}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter post title"
-                  required
-                />
-              </div>
-              <div className="col-span-2">
-                <Label htmlFor="modal-slug">Post URL</Label>
-                <Input
-                  id="modal-slug"
-                  value={formData.slug || ''}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="post-url-slug"
-                />
-                {slugManuallyEdited ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Custom URL slug. Clear this field to auto-generate from title again.
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="col-span-2">
-                <Label htmlFor="featured_image">Featured Image</Label>
-              <div className="mt-2">
-                {formData.featured_image ? (
-                  <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
-                    <img
-                      src={formData.featured_image}
-                      alt="Featured image preview"
-                      className="w-full h-full object-contain"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-white text-center">
-                        <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                        <p className="text-sm font-medium">Click to change image</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Optional featured image for this post
-              </p>
-              </div>
-
-              <div className="col-span-2">
-                <Label htmlFor="excerpt">Post Excerpt</Label>
-                <Input
-                  id="excerpt"
-                  value={formData.excerpt || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
-                  placeholder="A brief summary of your post"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {post?.site_id && (
+          <CardGroup className="grid">
             <Card>
               <CardHeader className="p-4 pb-3">
-                <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
-                <CardDescription>Organize this post by topic.</CardDescription>
+                <DashboardModalCardTitle>Post details</DashboardModalCardTitle>
+                <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent className="grid gap-4 p-4 pt-0">
                 <Field>
-                  <FieldLabel>Categories</FieldLabel>
-                  <CategoryPicker
-                    siteId={post.site_id}
-                    selectedCategoryIds={selectedCategoryIds}
-                    onSelectionChange={setSelectedCategoryIds}
-                    primaryCategoryId={primaryCategoryId}
-                    onPrimaryCategoryChange={setPrimaryCategoryId}
-                    loadingSelectedCategories={loadingCategories}
-                    variant="combobox"
+                  <FieldLabel htmlFor="modal-title">Post Title *</FieldLabel>
+                  <Input
+                    id="modal-title"
+                    value={formData.title || ''}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="Enter post title"
+                    required
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="modal-slug">Post URL</FieldLabel>
+                  <Input
+                    id="modal-slug"
+                    value={formData.slug || ''}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="post-url-slug"
+                  />
+                  {slugManuallyEdited && (
+                    <FieldDescription>
+                      Custom URL slug. Clear this field to auto-generate from title again.
+                    </FieldDescription>
+                  )}
+                </Field>
+
+                <Field className="[&>div]:w-fit">
+                  <FieldLabel>Featured Image</FieldLabel>
+                  <div>
+                    {formData.featured_image ? (
+                      <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                        <img
+                          src={formData.featured_image}
+                          alt="Featured image preview"
+                          className="w-full h-full object-contain"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                        <div
+                          className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                          onClick={() => setShowImagePicker(true)}
+                        >
+                          <div className="text-white text-center">
+                            <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                            <p className="text-sm font-medium">Click to change image</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                        onClick={() => setShowImagePicker(true)}
+                      >
+                        <div className="text-center">
+                          <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                          <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <FieldDescription>Optional featured image for this post</FieldDescription>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="excerpt">Post Excerpt</FieldLabel>
+                  <Input
+                    id="excerpt"
+                    value={formData.excerpt || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
+                    placeholder="A brief summary of your post"
                   />
                 </Field>
               </CardContent>
             </Card>
-          )}
 
-          <Card>
-            <CardHeader className="p-4 pb-3">
-              <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
-              <CardDescription>Set the search description for this post.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <Label htmlFor="modal-meta_description">Meta Description</Label>
-              <Input
-                id="modal-meta_description"
-                value={formData.meta_description || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-                placeholder="A brief description of this post for search engines"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
-              </p>
-            </CardContent>
-          </Card>
+            {post?.site_id && (
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
+                  <CardDescription>Organize this post by topic.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <Field>
+                    <FieldLabel>Categories</FieldLabel>
+                    <CategoryPicker
+                      siteId={post.site_id}
+                      selectedCategoryIds={selectedCategoryIds}
+                      onSelectionChange={setSelectedCategoryIds}
+                      primaryCategoryId={primaryCategoryId}
+                      onPrimaryCategoryChange={setPrimaryCategoryId}
+                      loadingSelectedCategories={loadingCategories}
+                      variant="combobox"
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+                <CardDescription>Set the search description for this post.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="modal-meta_description">Meta Description</FieldLabel>
+                  <Input
+                    id="modal-meta_description"
+                    value={formData.meta_description || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
+                    placeholder="A brief description of this post for search engines"
+                  />
+                  <FieldDescription>
+                    Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
+                  </FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
         </form>
 
         {/* Image Picker Modal */}

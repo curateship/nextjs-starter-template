@@ -3,12 +3,6 @@
 import dynamic from "next/dynamic"
 import { Calendar } from "lucide-react"
 
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
 import {
   deleteEventAction,
@@ -56,15 +50,7 @@ export default function EventsPage() {
       listLabel="Events"
       pathPrefix="events"
       renderCreateModal={({ onCancel, onSuccess }) => (
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create New Event Item</AdminModalTitle>
-            <AdminModalDescription>
-              Add a new item to your events. You can customize the content after creation.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <CreateEventModal onSuccess={onSuccess} onCancel={onCancel} />
-        </AdminModalContent>
+        <CreateEventModal onSuccess={onSuccess} onCancel={onCancel} />
       )}
       renderSettingsModal={({ currentSite, item, onOpenChange, onSuccess, open }) => (
         <EventSettingsModal

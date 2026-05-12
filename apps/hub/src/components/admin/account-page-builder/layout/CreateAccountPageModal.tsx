@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  AdminModalBody,
-  AdminModalFooter,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { generateSlug } from "@/lib/utils/slug"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
 
@@ -167,101 +165,114 @@ export function CreateAccountPageModal({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-      <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+    <form onSubmit={handleSubmit} className="contents">
+      <DashboardModalContent
+        title="Create New Account Page"
+        description="Add a new account page to your site. You can customize the content after creation."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+            <div className="flex items-center space-x-2">
+              <Button type="submit" variant="outline" disabled={loading}>
+                {loading ? "Saving..." : "Save as Draft"}
+              </Button>
+              <Button type="button" onClick={handlePublish} disabled={loading}>
+                {loading ? "Publishing..." : "Publish"}
+              </Button>
+            </div>
+          </>
+        }
+        footerClassName="sm:justify-between"
+      >
         {error && (
-          <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-            {error}
+          <div className="px-6 pb-2">
+            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
+              {error}
+            </div>
           </div>
         )}
-
-        <div className="grid grid-cols-2 gap-6">
-          <div className="col-span-2">
-            <Label htmlFor="title">Page Title *</Label>
-            <Input
-              id="title"
-              value={formData.title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Enter page title"
-              required
-            />
-          </div>
-
-          <div className="col-span-2">
-            <Label htmlFor="slug">Page URL</Label>
-            <Input
-              id="slug"
-              value={formData.slug}
-              onChange={(e) => handleSlugChange(e.target.value)}
-              placeholder="page-url-slug"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              {slugManuallyEdited
-                ? "Custom URL slug. Clear this field to auto-generate from title again."
-                : "Auto-generated from title. Account pages render under /account."}
-            </p>
-            {formData.slug && (
-              <p className="mt-1 text-xs text-blue-600">
-                Page URL: <strong>/account/{formData.slug}</strong>
-              </p>
-            )}
-            {checkingSlug && (
-              <p className="mt-1 text-xs text-blue-600">
-                Checking slug availability...
-              </p>
-            )}
-            {slugWarning && (
-              <p className="mt-1 text-xs text-amber-600">
-                {slugWarning}
-              </p>
-            )}
-          </div>
-
-          <div className="col-span-2">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_default"
-                checked={formData.is_default}
-                onCheckedChange={(checked) =>
-                  setFormData((prev) => ({ ...prev, is_default: checked === true }))
-                }
-              />
-              <Label htmlFor="is_default">Set as default page</Label>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The default page is the first non-auth account page used when a signed-in user needs a landing page
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <Label htmlFor="meta_description">Meta Description</Label>
-          <Textarea
-            id="meta_description"
-            value={formData.meta_description}
-            onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
-            placeholder="A brief description of this page for search engines"
-            rows={3}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Recommended length: 150-160 characters
-          </p>
-        </div>
-      </AdminModalBody>
-
-      <AdminModalFooter>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <div className="flex items-center space-x-2">
-          <Button type="submit" variant="outline" disabled={loading}>
-            {loading ? "Saving..." : "Save as Draft"}
-          </Button>
-          <Button type="button" onClick={handlePublish} disabled={loading}>
-            {loading ? "Publishing..." : "Publish"}
-          </Button>
-        </div>
-      </AdminModalFooter>
+        <CardGroup className="grid">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>Page setup</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="title">Page Title *</FieldLabel>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="Enter page title"
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="slug">Page URL</FieldLabel>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => handleSlugChange(e.target.value)}
+                  placeholder="page-url-slug"
+                />
+                <FieldDescription>
+                  {slugManuallyEdited
+                    ? "Custom URL slug. Clear this field to auto-generate from title again."
+                    : "Auto-generated from title. Account pages render under /account."}
+                </FieldDescription>
+                {formData.slug && (
+                  <FieldDescription className="text-blue-600">
+                    Page URL: /account/{formData.slug}
+                  </FieldDescription>
+                )}
+                {checkingSlug && (
+                  <FieldDescription className="text-blue-600">Checking slug availability...</FieldDescription>
+                )}
+                {slugWarning && (
+                  <FieldDescription className="text-amber-600">{slugWarning}</FieldDescription>
+                )}
+              </Field>
+              <Field>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    id="is_default"
+                    checked={formData.is_default}
+                    onCheckedChange={(checked) =>
+                      setFormData((prev) => ({ ...prev, is_default: checked === true }))
+                    }
+                  />
+                  <div>
+                    <span className="text-sm font-medium">Set as default page</span>
+                    <p className="text-xs text-muted-foreground">
+                      The default page is the first non-auth account page used when a signed-in user needs a landing page
+                    </p>
+                  </div>
+                </label>
+              </Field>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 p-4 pt-0">
+              <Field>
+                <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                <Textarea
+                  id="meta_description"
+                  value={formData.meta_description}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
+                  placeholder="A brief description of this page for search engines"
+                  rows={3}
+                />
+                <FieldDescription>Recommended length: 150-160 characters</FieldDescription>
+              </Field>
+            </CardContent>
+          </Card>
+        </CardGroup>
+      </DashboardModalContent>
     </form>
   )
 }

@@ -1,7 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { BlockEditorSection } from "@/components/ui/tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 interface VisibilityField {
@@ -56,9 +55,10 @@ export function VisibilitySettings({
 
   if (!useCard) {
     return (
-      <BlockEditorSection heading={title}>
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium">{title}</h3>
         {content}
-      </BlockEditorSection>
+      </div>
     )
   }
 

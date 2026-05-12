@@ -3,23 +3,15 @@
 import { useState } from "react"
 import { createCategoryAction, type Category } from "@/lib/actions/categories/category-actions"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { ImageIcon, X } from "lucide-react"
-import {
-  Dialog,
-} from "@/components/ui/dialog"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Dialog } from "@/components/ui/dialog"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
 
@@ -139,159 +131,156 @@ export function CreateCategoryModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <AdminModalContent>
-        <AdminModalHeader>
-          <AdminModalTitle>Create Category</AdminModalTitle>
-          <AdminModalDescription>
-            Add a new category to organize your content.
-          </AdminModalDescription>
-        </AdminModalHeader>
-
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <AdminModalBody className="space-y-6 [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+      <form onSubmit={handleSubmit} className="contents">
+        <DashboardModalContent
+          title="Create Category"
+          description="Add a new category to organize your content."
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <div className="flex items-center space-x-2">
+                <Button type="submit" variant="outline" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving...' : 'Save as Draft'}
+                </Button>
+                <Button type="button" onClick={() => handleSave(true)} disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving...' : 'Continue'}
+                </Button>
+              </div>
+            </>
+          }
+          footerClassName="sm:justify-between"
+        >
           {error && (
-            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-              {error}
+            <div className="px-6 pb-2">
+              <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
+                {error}
+              </div>
             </div>
           )}
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="col-span-2">
-              <Label htmlFor="title">Category Title *</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="e.g., Technology, Health, Travel"
-                required
-              />
-            </div>
-
-            <div className="col-span-2">
-              <Label htmlFor="slug">Category URL</Label>
-              <Input
-                id="slug"
-                value={slug}
-                onChange={(e) => handleSlugChange(e.target.value)}
-                placeholder="technology-health-travel"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {slugManuallyEdited
-                  ? "Custom URL slug. Clear this field to auto-generate from title again."
-                  : "Auto-generated from title. You can edit this to customize the URL."}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="parent">Parent Category (Optional)</Label>
-            <Combobox
-              options={parentOptions}
-              value={parentId}
-              onValueChange={setParentId}
-              placeholder="None (top-level)"
-              searchPlaceholder="Search parent categories..."
-              emptyMessage="No parent categories found."
-              allowClear={true}
-            />
-            <p className="text-xs text-muted-foreground">
-              Create nested hierarchies. Search to find parent categories.
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="featured_image">Featured Image</Label>
-            <div className="mt-2">
-              {featuredImage ? (
-                <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
-                  <img
-                    src={featuredImage}
-                    alt="Featured image preview"
-                    className="w-full h-full object-contain"
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <FieldLabel htmlFor="title">Category Title *</FieldLabel>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => handleTitleChange(e.target.value)}
+                    placeholder="e.g., Technology, Health, Travel"
+                    required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setFeaturedImage('')}
-                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-white text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                      <p className="text-sm font-medium">Click to change image</p>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="slug">Category URL</FieldLabel>
+                  <Input
+                    id="slug"
+                    value={slug}
+                    onChange={(e) => handleSlugChange(e.target.value)}
+                    placeholder="technology-health-travel"
+                  />
+                  <FieldDescription>
+                    {slugManuallyEdited
+                      ? "Custom URL slug. Clear this field to auto-generate from title again."
+                      : "Auto-generated from title. You can edit this to customize the URL."}
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="parent">Parent Category (Optional)</FieldLabel>
+                  <Combobox
+                    options={parentOptions}
+                    value={parentId}
+                    onValueChange={setParentId}
+                    placeholder="None (top-level)"
+                    searchPlaceholder="Search parent categories..."
+                    emptyMessage="No parent categories found."
+                    allowClear={true}
+                  />
+                  <FieldDescription>Create nested hierarchies. Search to find parent categories.</FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Image</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="[&>div]:w-fit">
+                  {featuredImage ? (
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                      <img
+                        src={featuredImage}
+                        alt="Featured image preview"
+                        className="w-full h-full object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFeaturedImage('')}
+                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                        onClick={() => setShowImagePicker(true)}
+                      >
+                        <div className="text-white text-center">
+                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                          <p className="text-sm font-medium">Click to change image</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div
+                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
+                      onClick={() => setShowImagePicker(true)}
+                    >
+                      <div className="text-center">
+                        <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                        <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div
-                  className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
-                  onClick={() => setShowImagePicker(true)}
-                >
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                    <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Optional featured image for this category
-            </p>
-          </div>
+                <p className="mt-2 text-xs text-muted-foreground">Optional featured image for this category</p>
+              </CardContent>
+            </Card>
 
-          <div className="space-y-2">
-            <Label>Privacy Settings</Label>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="is_private"
-                checked={isPrivate}
-                onCheckedChange={(checked) => setIsPrivate(!!checked)}
-              />
-              <Label htmlFor="is_private" className="text-sm font-normal">
-                Private (accessible only via direct URL, hidden from listings)
-              </Label>
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="meta_description">Meta Description</Label>
-            <Textarea
-              id="meta_description"
-              value={metaDescription}
-              onChange={(e) => setMetaDescription(e.target.value)}
-              placeholder="SEO meta description"
-              rows={3}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160
-            </p>
-          </div>
-          </AdminModalBody>
-
-          <AdminModalFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <div className="flex items-center space-x-2">
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Saving...' : 'Save as Draft'}
-              </Button>
-              <Button
-                type="button"
-                onClick={() => handleSave(true)}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Saving...' : 'Continue'}
-              </Button>
-            </div>
-          </AdminModalFooter>
+            <Card>
+              <CardHeader className="p-4 pb-3">
+                <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0">
+                <Field>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      id="is_private"
+                      checked={isPrivate}
+                      onCheckedChange={(checked) => setIsPrivate(!!checked)}
+                    />
+                    <span className="text-sm">Private (accessible only via direct URL, hidden from listings)</span>
+                  </label>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+                  <Textarea
+                    id="meta_description"
+                    value={metaDescription}
+                    onChange={(e) => setMetaDescription(e.target.value)}
+                    placeholder="SEO meta description"
+                    rows={3}
+                  />
+                  <FieldDescription>
+                    Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160
+                  </FieldDescription>
+                </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
 
           <MediaPicker
             open={showImagePicker}
@@ -302,8 +291,8 @@ export function CreateCategoryModal({
             }}
             currentMediaUrl={featuredImage || ''}
           />
-        </form>
-      </AdminModalContent>
+        </DashboardModalContent>
+      </form>
     </Dialog>
   )
 }

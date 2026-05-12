@@ -4,12 +4,6 @@ import { use } from "react"
 import dynamic from "next/dynamic"
 import { FileText, Home } from "lucide-react"
 
-import {
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
 import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Badge } from "@/components/ui/badge"
@@ -74,15 +68,7 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
       pathPrefix=""
       previewSite={site}
       renderCreateModal={({ onCancel, onSuccess }) => (
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create New Page</AdminModalTitle>
-            <AdminModalDescription>
-              Add a new page to your site. You can customize the content after creation.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <CreatePageModal siteId={siteId} onSuccess={(page) => onSuccess(page)} onCancel={onCancel} />
-        </AdminModalContent>
+        <CreatePageModal siteId={siteId} onSuccess={(page) => onSuccess(page)} onCancel={onCancel} />
       )}
       renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
         <PageSettingsModal open={open} onOpenChange={onOpenChange} page={item} site={site} onSuccess={onSuccess} />

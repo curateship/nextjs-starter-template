@@ -1,15 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import {
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalScrollBody,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { EventBlockEditor } from "./EventBlockEditor"
 
 interface EventBlock {
@@ -54,37 +49,40 @@ export function EventBlockEditorModal({
       }}
     >
       <ModalTabsProvider>
-        <AdminModalContent size="wide">
-          <AdminModalHeader>
-            <div className="flex min-w-0 items-center gap-4 pr-10">
-              <AdminModalTitle className="shrink-0">Edit {block.title}</AdminModalTitle>
-              <ModalTabs />
-            </div>
-          </AdminModalHeader>
-
-          <AdminModalScrollBody>
-              <EventBlockEditor
-                block={block}
-                content={content}
-                onContentChange={onContentChange}
-                siteId={siteId}
-                eventTitle={eventTitle}
-                onEventTitleChange={onEventTitleChange}
-              />
-          </AdminModalScrollBody>
-
-          <AdminModalFooter className="sm:justify-between">
-            {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-                Cancel
-              </Button>
-              <Button type="button" onClick={onSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </AdminModalFooter>
-        </AdminModalContent>
+        <DashboardModalContent
+          title={`Edit ${block.title}`}
+          titleAccessory={<ModalTabs />}
+          className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
+          footer={
+            <>
+              {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button type="button" onClick={onSave} disabled={saving}>
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </>
+          }
+          footerClassName="sm:justify-between"
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-0">
+                <EventBlockEditor
+                  block={block}
+                  content={content}
+                  onContentChange={onContentChange}
+                  siteId={siteId}
+                  eventTitle={eventTitle}
+                  onEventTitleChange={onEventTitleChange}
+                />
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>
   )

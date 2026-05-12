@@ -4,17 +4,11 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Monitor, Smartphone, Tablet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -352,17 +346,25 @@ export function NewsletterEditorShell({
           }}
         >
           <ModalTabsProvider>
-            <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
-              <AdminModalHeader>
-                <div className="flex min-w-0 items-center gap-4 pr-10">
-                  <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
-                  <ModalTabs />
-                </div>
-              </AdminModalHeader>
-
-              <AdminModalBody className="min-h-0 flex-1 overflow-hidden p-0">
-                <ScrollArea className="h-full">
-                  <div className="px-6 pb-0 pr-8 pt-6 [&_h3]:pt-4">
+            <DashboardModalContent
+              title={`Edit ${selectedBlock.title}`}
+              titleAccessory={<ModalTabs />}
+              className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
+              viewportClassName="[&_h3]:pt-4"
+              footer={
+                <>
+                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                    {isSavingBlock ? "Saving..." : "Save"}
+                  </Button>
+                </>
+              }
+            >
+              <CardGroup className="grid">
+                <Card>
+                  <CardContent className="p-0">
                     <NewsletterBlockEditor
                       block={selectedBlock}
                       content={draftContent}
@@ -371,19 +373,10 @@ export function NewsletterEditorShell({
                       subject={draftSubject}
                       onSubjectChange={setDraftSubject}
                     />
-                  </div>
-                </ScrollArea>
-              </AdminModalBody>
-
-              <AdminModalFooter className="sm:justify-end">
-                <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                  {isSavingBlock ? "Saving..." : "Save"}
-                </Button>
-              </AdminModalFooter>
-            </AdminModalContent>
+                  </CardContent>
+                </Card>
+              </CardGroup>
+            </DashboardModalContent>
           </ModalTabsProvider>
         </Dialog>
       )}

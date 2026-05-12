@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card, CardTableHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -22,15 +22,8 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Trash2, Settings, FileText, Star } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -382,41 +375,47 @@ export default function TemplatesPage() {
 
       {/* Create Template Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>Create Template</AdminModalTitle>
-            <AdminModalDescription>
-              Name the template before opening it in the newsletter builder.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              handleCreate()
-            }}
-            className="flex min-h-0 flex-1 flex-col"
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            handleCreate()
+          }}
+          className="contents"
+        >
+          <DashboardModalContent
+            title="Create Template"
+            description="Name the template before opening it in the newsletter builder."
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={creating || !formName.trim()}>
+                  {creating ? "Creating..." : "Create Template"}
+                </Button>
+              </>
+            }
           >
-            <AdminModalBody className="space-y-6 [&_label+input]:mt-2">
-              <div>
-                <Label htmlFor="template-name">Name *</Label>
-                <Input
-                  id="template-name"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="e.g. Weekly Newsletter Layout"
-                />
-              </div>
-            </AdminModalBody>
-            <AdminModalFooter className="sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={creating || !formName.trim()}>
-                {creating ? "Creating..." : "Create Template"}
-              </Button>
-            </AdminModalFooter>
-          </form>
-        </AdminModalContent>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Template</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <Field>
+                    <FieldLabel htmlFor="template-name">Name *</FieldLabel>
+                    <Input
+                      id="template-name"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="e.g. Weekly Newsletter Layout"
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            </CardGroup>
+          </DashboardModalContent>
+        </form>
       </Dialog>
 
       <AdminConfirmDialog

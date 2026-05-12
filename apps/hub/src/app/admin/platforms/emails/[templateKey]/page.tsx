@@ -15,14 +15,7 @@ import { NewsletterBlockEditor } from "@/components/admin/newsletter-builder/lay
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import {
   getSystemEmailEditorAction,
   saveSystemEmailTemplateAction,
@@ -296,43 +289,40 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
           }}
         >
           <ModalTabsProvider>
-            <AdminModalContent size="wide" className="h-[calc(100vh-4rem)] max-h-[820px]">
-              <AdminModalHeader>
-                <div className="flex min-w-0 items-center gap-4 pr-10">
-                  <AdminModalTitle className="shrink-0">Edit {selectedBlock.title}</AdminModalTitle>
+            <DashboardModalContent
+              className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
+              title={`Edit ${selectedBlock.title}`}
+              titleAccessory={
+                <div className="flex items-center pr-10">
                   <ModalTabs />
                 </div>
-              </AdminModalHeader>
-
-              <AdminModalBody className="flex-1 min-h-0 overflow-hidden p-0">
-                <ScrollArea className="h-full">
-                  <div className="px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4">
-                    <NewsletterBlockEditor
-                      block={selectedBlock}
-                      content={draftContent}
-                      onContentChange={(field, value) => {
-                        setDraftContent((current) => ({
-                          ...current,
-                          [field]: value,
-                        }))
-                      }}
-                      siteId={currentSite?.id || ""}
-                      subject={draftSubject}
-                      onSubjectChange={setDraftSubject}
-                    />
-                  </div>
-                </ScrollArea>
-              </AdminModalBody>
-
-              <AdminModalFooter className="sm:justify-end">
-                <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
-                  {isSavingBlock ? "Saving..." : "Save"}
-                </Button>
-              </AdminModalFooter>
-            </AdminModalContent>
+              }
+              viewportClassName="[&_h3]:pt-4"
+              footer={
+                <>
+                  <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
+                    {isSavingBlock ? "Saving..." : "Save"}
+                  </Button>
+                </>
+              }
+            >
+              <NewsletterBlockEditor
+                block={selectedBlock}
+                content={draftContent}
+                onContentChange={(field, value) => {
+                  setDraftContent((current) => ({
+                    ...current,
+                    [field]: value,
+                  }))
+                }}
+                siteId={currentSite?.id || ""}
+                subject={draftSubject}
+                onSubjectChange={setDraftSubject}
+              />
+            </DashboardModalContent>
           </ModalTabsProvider>
         </Dialog>
       )}

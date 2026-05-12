@@ -3,14 +3,9 @@
 import { useState, type ChangeEvent, type RefObject } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalDescription,
-  AdminModalHeader,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { bulkImportContacts } from "@/lib/actions/newsletters/contact-actions"
 
 type ContactImportModalProps = {
@@ -201,14 +196,13 @@ export function ContactImportModal({
       />
 
       <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) closeImportModal() }}>
-        <AdminModalContent>
-          <AdminModalHeader>
-            <AdminModalTitle>{importResult ? "Import Complete" : "Import Contacts"}</AdminModalTitle>
-            <AdminModalDescription>
-              Map CSV columns to contact fields before importing.
-            </AdminModalDescription>
-          </AdminModalHeader>
-          <AdminModalBody className="pb-6">
+        <DashboardModalContent
+          title={importResult ? "Import Complete" : "Import Contacts"}
+          description="Map CSV columns to contact fields before importing."
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardContent className="p-4">
             {importResult ? (
               <div className="text-center space-y-4">
                 <div className="p-4 bg-green-50 text-green-800 rounded-lg">
@@ -304,8 +298,10 @@ export function ContactImportModal({
                 </div>
               </>
             )}
-          </AdminModalBody>
-        </AdminModalContent>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
       </Dialog>
     </>
   )
