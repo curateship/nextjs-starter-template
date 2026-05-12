@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AdminSidebarSettingsCard } from "@/components/admin/layout/settings/AdminSidebarSettingsCard"
 import { QuickLinksSettingsCard } from "@/components/admin/layout/settings/QuickLinksSettingsCard"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { getSiteByIdAction, updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
 import {
@@ -180,22 +180,24 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
   return (
     <form
       id="site-admin-settings-form"
-      className="grid"
+      className="contents"
       onSubmit={(event) => {
         event.preventDefault()
         handleSave()
       }}
     >
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-      {mode === "sidebar" ? (
-        <AdminSidebarSettingsCard config={adminSidebar} siteId={siteId} onConfigChange={setAdminSidebar} />
-      ) : (
-        <QuickLinksSettingsCard quickLinks={quickLinks} onQuickLinksChange={setQuickLinks} />
-      )}
+      <CardGroup className="grid">
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+        {mode === "sidebar" ? (
+          <AdminSidebarSettingsCard config={adminSidebar} siteId={siteId} onConfigChange={setAdminSidebar} />
+        ) : (
+          <QuickLinksSettingsCard quickLinks={quickLinks} onQuickLinksChange={setQuickLinks} />
+        )}
+      </CardGroup>
     </form>
   )
 }

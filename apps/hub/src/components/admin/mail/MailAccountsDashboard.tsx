@@ -19,7 +19,7 @@ import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import {
   Dialog,
   DialogClose,
@@ -434,8 +434,8 @@ function SettingsModal({
           </DialogClose>
         )}
       >
-        <div className="grid">
-          <div className="grid sm:grid-cols-3">
+        <CardGroup className="grid">
+          <CardGroup className="grid sm:grid-cols-3">
             <Card>
               <CardContent className="p-3">
                 <div className="text-xs text-muted-foreground">Custom domain</div>
@@ -457,7 +457,7 @@ function SettingsModal({
                 <div className="mt-1 text-sm font-medium">{data?.mailboxes.length ?? 0}</div>
               </CardContent>
             </Card>
-          </div>
+          </CardGroup>
 
           <MxrouteForm siteId={siteId} onSaved={onRefresh} />
 
@@ -537,7 +537,7 @@ function SettingsModal({
               </div>
             </CardContent>
           </Card>
-        </div>
+        </CardGroup>
       </DashboardModalContent>
     </Dialog>
   )

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { AlertCircle, AlertTriangle, CheckCircle2, Link2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getInternalLinkAnalysis, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
@@ -55,8 +55,8 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
 
   if (loading) {
     return (
-      <div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4">
+      <CardGroup className="grid">
+        <CardGroup className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -67,7 +67,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
               </CardContent>
             </Card>
           ))}
-        </div>
+        </CardGroup>
         <Card>
           <CardHeader>
             <Skeleton className="h-5 w-32" />
@@ -78,13 +78,13 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
             ))}
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
     )
   }
 
   return (
-    <div>
-      <div className="grid md:grid-cols-2 lg:grid-cols-4">
+    <CardGroup className="grid">
+      <CardGroup className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Total Internal Links</CardTitle>
@@ -120,7 +120,7 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
             <div className="text-2xl font-bold">{linkAnalysis?.brokenLinkCount || 0}</div>
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
 
       <Card>
         <CardHeader>
@@ -207,6 +207,6 @@ export function InternalLinksTab({ siteId, searchQuery }: InternalLinksTabProps)
           )}
         </CardContent>
       </Card>
-    </div>
+    </CardGroup>
   )
 }

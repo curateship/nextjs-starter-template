@@ -5,13 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider, useModalTabsDock } from "@/components/admin/layout/dashboard/modal-tabs"
 import type { ModalTabItem } from "@/components/admin/layout/dashboard/modal-tabs"
-import {
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalScrollBody,
-  AdminModalTitle,
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { PostBlockEditor } from "./PostBlockEditor"
 import type { PostBlock } from "@/lib/actions/posts/post-actions"
 import { getBlockName } from "@/components/admin/post-builder/config/post-block-types"
@@ -121,40 +115,36 @@ function PostBlockEditorModalContent({
   }, [setModalTabs, clearModalTabs, modalTabs, block.id])
 
   return (
-    <AdminModalContent size="wide">
-      <AdminModalHeader>
-        <div className="flex min-w-0 items-center gap-4 pr-10">
-          <AdminModalTitle className="shrink-0">Edit {getBlockName(block.type)}</AdminModalTitle>
-          <ModalTabs />
-        </div>
-      </AdminModalHeader>
-
-      <AdminModalScrollBody>
-        <PostBlockEditor
-          block={block}
-          content={content}
-          onContentChange={onContentChange}
-          siteId={siteId}
-          postTitle={postTitle}
-          postData={postData}
-          onPostTitleChange={onPostTitleChange}
-          coreTab={block.type === "core" ? activeTab as CoreBlockTab : undefined}
-          relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}
-          tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
-        />
-      </AdminModalScrollBody>
-
-      <AdminModalFooter className="sm:justify-between">
-        {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={onSave} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
-        </div>
-      </AdminModalFooter>
-    </AdminModalContent>
+    <DashboardModalContent
+      title={`Edit ${getBlockName(block.type)}`}
+      titleAccessory={<ModalTabs />}
+      footerClassName="sm:justify-between"
+      footer={
+        <>
+          {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onSave} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </>
+      }
+    >
+      <PostBlockEditor
+        block={block}
+        content={content}
+        onContentChange={onContentChange}
+        siteId={siteId}
+        postTitle={postTitle}
+        postData={postData}
+        onPostTitleChange={onPostTitleChange}
+        coreTab={block.type === "core" ? activeTab as CoreBlockTab : undefined}
+        relatedPostsTab={block.type === "related-posts" ? activeTab as RelatedPostsBlockTab : undefined}
+        tableOfContentsTab={block.type === "table-of-contents" ? activeTab as TableOfContentsBlockTab : undefined}
+      />
+    </DashboardModalContent>
   )
 }

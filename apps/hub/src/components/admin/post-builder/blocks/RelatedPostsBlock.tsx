@@ -1,10 +1,10 @@
 "use client"
 
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { BlockEditorSection } from "@/components/ui/tabs"
 
 export type RelatedPostsBlockTab = "content" | "styling" | "settings"
 
@@ -31,10 +31,14 @@ export function RelatedPostsBlock({
   const showExcerpt = content.showExcerpt ?? true
 
   return (
-    <div className="space-y-4">
+    <CardGroup className="grid">
       {activeTab === "content" && (
         <>
-          <BlockEditorSection heading="Header Settings">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-base">Header Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="rp-title">Title</Label>
@@ -55,9 +59,14 @@ export function RelatedPostsBlock({
                 />
               </div>
             </div>
-          </BlockEditorSection>
+            </CardContent>
+          </Card>
 
-          <BlockEditorSection heading="Content Settings">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-base">Content Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-2">
                 <Label htmlFor="rp-displayMode">Mode</Label>
@@ -116,18 +125,25 @@ export function RelatedPostsBlock({
                 </Select>
               </div>
             </div>
-          </BlockEditorSection>
+            </CardContent>
+          </Card>
         </>
       )}
 
       {activeTab === "styling" && (
-        <div className="py-8 text-center text-muted-foreground">
-          No styling options available for this block.
-        </div>
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            No styling options available for this block.
+          </CardContent>
+        </Card>
       )}
 
       {activeTab === "settings" && (
-        <BlockEditorSection heading="Display Options">
+        <Card>
+          <CardHeader className="p-4 pb-3">
+            <CardTitle className="text-base">Display Options</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 p-4 pt-0">
           <div className="flex items-center gap-3">
             <Label htmlFor="rp-showImage">Show Image</Label>
             <Switch
@@ -167,8 +183,9 @@ export function RelatedPostsBlock({
               className="w-20"
             />
           </div>
-        </BlockEditorSection>
+          </CardContent>
+        </Card>
       )}
-    </div>
+    </CardGroup>
   )
 }

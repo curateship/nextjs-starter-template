@@ -5,7 +5,7 @@ import { DollarSign, Eye, ShoppingCart, TrendingDown, TrendingUp, Users } from "
 import Link from "next/link"
 import { CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
@@ -137,8 +137,8 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
   )
 
   return (
-    <section className={className ? `grid ${className}` : "grid"}>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4">
+    <section className={className ? `grid gap-6 ${className}` : "grid gap-6"}>
+      <CardGroup className="grid sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon
           const card = (
@@ -179,7 +179,7 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
             <div key={stat.metric}>{card}</div>
           )
         })}
-      </div>
+      </CardGroup>
 
       <Card>
         <CardHeader className="gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">

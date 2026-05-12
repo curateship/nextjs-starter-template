@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -301,7 +301,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <CardGroup className="grid">
         {[1, 2, 3].map((item) => (
           <Card key={item}>
             <CardHeader>
@@ -314,19 +314,20 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
             </CardContent>
           </Card>
         ))}
-      </div>
+      </CardGroup>
     )
   }
 
   return (
     <form
       id={formId}
-      className="space-y-4"
+      className="contents"
       onSubmit={(event) => {
         event.preventDefault()
         handleSave()
       }}
     >
+      <CardGroup className="grid">
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-800">{error}</p>
@@ -551,6 +552,7 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
           </Card>
         </>
       )}
+      </CardGroup>
     </form>
   )
 }

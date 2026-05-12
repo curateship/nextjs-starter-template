@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowUpRight, Settings, Edit3, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -139,7 +139,7 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
             <DashboardRangeTabs siteId={siteId} value={selectedRange} />
           </div>
 
-          <div className="grid">
+          <CardGroup className="grid">
             <ChartGroup7
               cardRange={selectedRange}
               chartData={chartMetrics.chartData}
@@ -148,7 +148,7 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
               totals={cardMetrics.totals}
             />
 
-            <div className="grid lg:grid-cols-2">
+            <CardGroup className="grid lg:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle>Top Pages</CardTitle>
@@ -195,8 +195,8 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
                   )}
                 </CardContent>
               </Card>
-            </div>
-          </div>
+            </CardGroup>
+          </CardGroup>
         </div>
       </AdminLayout>
     </>

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils/tailwind"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 import type { HTMLAttributes } from "react"
 import type {
@@ -111,7 +111,7 @@ function FieldRenderer({ field, value }: { field: DirectoryCustomBlockField; val
     return (
       <div className="space-y-4">
         {field.label && <FieldLabel label={field.label} />}
-        <div className="grid sm:grid-cols-2">
+        <CardGroup className="grid sm:grid-cols-2">
           {value
             .filter((row) => row && typeof row === "object")
             .map((row, index) => (
@@ -123,7 +123,7 @@ function FieldRenderer({ field, value }: { field: DirectoryCustomBlockField; val
                 </CardContent>
               </Card>
             ))}
-        </div>
+        </CardGroup>
       </div>
     )
   }

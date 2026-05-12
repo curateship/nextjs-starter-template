@@ -21,7 +21,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { CheckIcon, GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -691,7 +691,7 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
     <>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
         <SortableContext items={config.sections.map((section) => section.id)} strategy={verticalListSortingStrategy}>
-          <div className="grid">
+          <CardGroup className="grid">
             {config.sections.map((section) => (
               <SortableSectionCard
                 key={section.id}
@@ -708,7 +708,7 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
                 onChildDragEnd={handleChildDragEnd}
               />
             ))}
-          </div>
+          </CardGroup>
         </SortableContext>
       </DndContext>
       <div className="mt-3 flex justify-end">

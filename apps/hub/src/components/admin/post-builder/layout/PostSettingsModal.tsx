@@ -331,7 +331,7 @@ export function PostSettingsModal({
           </>
         )}
       >
-        <form id="post-settings-form" onSubmit={handleSubmit} className="grid [&_label+input]:mt-2 [&_label+textarea]:mt-2">
+        <form id="post-settings-form" onSubmit={handleSubmit} className="contents [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {error && (
             <Card className="border-red-200 bg-red-50">
               <CardContent className="p-4 text-sm text-red-800">{error}</CardContent>

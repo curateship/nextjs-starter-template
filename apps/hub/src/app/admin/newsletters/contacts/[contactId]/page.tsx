@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardContent, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -444,7 +444,7 @@ export default function ContactDashboardPage() {
             }
           />
 
-          <div className="grid">
+          <CardGroup className="grid">
             {/* Loading skeleton */}
             {loading && (
               <>
@@ -459,7 +459,7 @@ export default function ContactDashboardPage() {
                     </div>
                   </CardContent>
                 </Card>
-                <div className="grid grid-cols-2 md:grid-cols-4">
+                <CardGroup className="grid grid-cols-2 md:grid-cols-4">
                   {[1, 2, 3, 4].map((i) => (
                     <Card key={i}>
                       <CardContent>
@@ -468,7 +468,7 @@ export default function ContactDashboardPage() {
                       </CardContent>
                     </Card>
                   ))}
-                </div>
+                </CardGroup>
               </>
             )}
 
@@ -509,7 +509,7 @@ export default function ContactDashboardPage() {
                 </Card>
 
                 {/* Stats cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4">
+                <CardGroup className="grid grid-cols-2 md:grid-cols-4">
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-sm font-medium text-muted-foreground">Emails Received</CardTitle>
@@ -542,10 +542,10 @@ export default function ContactDashboardPage() {
                       <p className="text-2xl font-semibold">{formatRelativeDate(contact.last_engaged_at)}</p>
                     </CardContent>
                   </Card>
-                </div>
+                </CardGroup>
 
                 {/* Two-column layout: Email History + Sidebar */}
-                <div className="grid grid-cols-1 lg:grid-cols-3">
+                <CardGroup className="grid grid-cols-1 lg:grid-cols-3">
                   {/* Email History — left 2/3 */}
                   <Card className="lg:col-span-2">
                     <CardHeader className="border-b">
@@ -588,7 +588,7 @@ export default function ContactDashboardPage() {
                   </Card>
 
                   {/* Right sidebar — Segments, Clicked Links */}
-                  <div className="grid">
+                  <CardGroup className="grid">
                     {/* Segments */}
                     <Card>
                       <CardHeader>
@@ -637,8 +637,8 @@ export default function ContactDashboardPage() {
                         )}
                       </div>
                     </Card>
-                  </div>
-                </div>
+                  </CardGroup>
+                </CardGroup>
 
                 {/* Engagement Over Time chart — only if 3+ data points */}
                 {engagement.length >= 3 && (
@@ -662,7 +662,7 @@ export default function ContactDashboardPage() {
                 )}
               </>
             )}
-          </div>
+          </CardGroup>
         </div>
       </AdminLayout>
     </>

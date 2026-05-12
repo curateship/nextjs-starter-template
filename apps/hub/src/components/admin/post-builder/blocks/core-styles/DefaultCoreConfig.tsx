@@ -1,6 +1,6 @@
 "use client"
 
-import { BlockEditorSection } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -14,8 +14,12 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
   const titleSize = config.titleSize || 'large'
 
   return (
-    <div className="space-y-6">
-      <BlockEditorSection heading="Content Alignment">
+    <CardGroup className="grid">
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <CardTitle className="text-base">Content Alignment</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
           <div className="flex gap-4">
             {(['left', 'center'] as const).map((option) => (
               <div key={option} className="flex items-center gap-2">
@@ -28,9 +32,14 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
               </div>
             ))}
           </div>
-      </BlockEditorSection>
+        </CardContent>
+      </Card>
 
-      <BlockEditorSection heading="Title Size">
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <CardTitle className="text-base">Title Size</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
           <div className="flex gap-4">
             {([
               { key: 'medium', label: 'Medium' },
@@ -47,9 +56,14 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
               </div>
             ))}
           </div>
-      </BlockEditorSection>
+        </CardContent>
+      </Card>
 
-      <BlockEditorSection heading="Content Width">
+      <Card>
+        <CardHeader className="p-4 pb-3">
+          <CardTitle className="text-base">Content Width</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
           <div className="flex items-center gap-2">
             <Label htmlFor="contentMaxWidth" className="text-sm">Max width</Label>
             <Input
@@ -83,7 +97,8 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
           <p className="text-xs text-muted-foreground mt-2">
             {config.contentMaxWidth == null ? (siteDefaultWidth ? `Using site default (${siteDefaultWidth}px)` : 'Using site default width') : 'Clear to use site default width'}
           </p>
-      </BlockEditorSection>
-    </div>
+        </CardContent>
+      </Card>
+    </CardGroup>
   )
 }

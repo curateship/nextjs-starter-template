@@ -15,7 +15,7 @@ import {
   type IntegrationCategory,
   type IntegrationRegistryEntry
 } from "@/lib/actions/integrations/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -296,7 +296,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
 
   if (loading) {
     return (
-      <div className="grid">
+      <CardGroup className="grid">
         {entries.map((entry) => (
           <Card key={entry.type}>
             <CardHeader>
@@ -327,12 +327,12 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
             </CardContent>
           </Card>
         ))}
-      </div>
+      </CardGroup>
     )
   }
 
   return (
-    <div className="grid">
+    <CardGroup className="grid">
       {entries.map((entry) => (
         <IntegrationCard
           key={entry.type}
@@ -343,7 +343,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
           siteId={siteId}
         />
       ))}
-    </div>
+    </CardGroup>
   )
 }
 
@@ -754,7 +754,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
               )}
 
               {activeTab === "email" && (
-                <div className="grid">
+                <CardGroup className="grid">
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Welcome Email</CardTitle>
@@ -783,7 +783,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onError={showError}
                   />
                   <EmailDomainHealthCard siteId={siteId} refreshSignal={domainHealthRefreshSignal} />
-                </div>
+                </CardGroup>
               )}
 
               {activeTab === "integrations" && (

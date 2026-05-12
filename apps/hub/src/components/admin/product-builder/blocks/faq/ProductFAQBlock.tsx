@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -212,7 +212,7 @@ export function ProductFAQBlock({
           value: "content",
             label: "Content",
             content: (
-            <div className="grid">
+            <CardGroup className="grid">
               <Card className="shadow-none">
                 <CardHeader className="p-4 pb-3">
                   <DashboardModalCardTitle>Header settings</DashboardModalCardTitle>
@@ -296,14 +296,14 @@ export function ProductFAQBlock({
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="grid">
+            <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
                   visibility={visibility}
@@ -315,7 +315,7 @@ export function ProductFAQBlock({
                   ]}
                 />
               )}
-            </div>
+            </CardGroup>
           ),
         },
       ]}

@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { BlockEditorSection } from "@/components/ui/tabs"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -79,33 +79,41 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
   }
 
   return (
-    <div className="space-y-4">
+    <CardGroup className="grid">
       {activeTab === "content" && (
         <>
-          {/* Post Title */}
-          <h2>
-            <Input
-              id="post-title"
-              aria-label="Post title"
-              value={localTitle}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="Enter post title..."
-              className="h-auto border-0 bg-transparent px-0 py-0 text-3xl font-semibold tracking-normal shadow-none outline-none focus-visible:ring-0 md:text-4xl"
-            />
-          </h2>
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-base">Post Title</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <Input
+                id="post-title"
+                aria-label="Post title"
+                value={localTitle}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="Enter post title..."
+                className="h-auto border-0 bg-transparent px-0 py-0 text-3xl font-semibold tracking-normal shadow-none outline-none focus-visible:ring-0 md:text-4xl"
+              />
+            </CardContent>
+          </Card>
 
-          {/* Rich Text Editor */}
-          <div>
-            <InlineRichTextEditor
-              blockId={blockId}
-              content={editorContent}
-              onContentChange={handleBodyChange}
-              siteId={siteId}
-              isActive
-              editorPadding={0}
-              variant="post"
-            />
-          </div>
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-base">Post Content</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <InlineRichTextEditor
+                blockId={blockId}
+                content={editorContent}
+                onContentChange={handleBodyChange}
+                siteId={siteId}
+                isActive
+                editorPadding={0}
+                variant="post"
+              />
+            </CardContent>
+          </Card>
         </>
       )}
 
@@ -120,41 +128,49 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
 
       {activeTab === "settings" && (
         <>
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Block Style</Label>
-            <div className="grid grid-cols-2 gap-2 max-w-sm">
-              {Object.entries(CORE_STYLES).map(([key, style]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onContentChange('coreStyle', key)}
-                  className={cn(
-                    "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                    coreStyle === key
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                  )}
-                >
-                  <div className={cn(
-                    "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                    coreStyle === key
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-muted-foreground/30"
-                  )}>
-                    {coreStyle === key && <Check className="h-3 w-3" />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">{style.label}</div>
-                    {style.description && (
-                      <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-base">Block Style</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="grid grid-cols-2 gap-2 max-w-sm">
+                {Object.entries(CORE_STYLES).map(([key, style]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => onContentChange('coreStyle', key)}
+                    className={cn(
+                      "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                      coreStyle === key
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
                     )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+                  >
+                    <div className={cn(
+                      "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                      coreStyle === key
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/30"
+                    )}>
+                      {coreStyle === key && <Check className="h-3 w-3" />}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{style.label}</div>
+                      {style.description && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-          <BlockEditorSection heading="Display Options">
+          <Card>
+            <CardHeader className="p-4 pb-3">
+              <CardTitle className="text-base">Display Options</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-4 pt-0">
             <div className="flex items-start gap-3">
               <Switch
                 id="show-featured-image"
@@ -206,9 +222,10 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
                 <p className="text-sm text-muted-foreground">Display the post publication date</p>
               </div>
             </div>
-          </BlockEditorSection>
+            </CardContent>
+          </Card>
         </>
       )}
-    </div>
+    </CardGroup>
   )
 }

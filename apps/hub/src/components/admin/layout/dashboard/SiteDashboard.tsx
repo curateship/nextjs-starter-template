@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CheckCircle2 } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
@@ -122,7 +122,7 @@ export function SiteDashboard({
 
   if (loading) {
     return (
-      <div className="grid">
+      <CardGroup className="grid">
         {[...Array(4)].map((_, i) => (
           <Card key={i}>
             <CardContent className="space-y-6">
@@ -135,12 +135,12 @@ export function SiteDashboard({
             </CardContent>
           </Card>
         ))}
-      </div>
+      </CardGroup>
     )
   }
 
   return (
-    <div className="grid">
+    <CardGroup className="grid">
       <Card>
         <CardHeader>
           <CardTitle>Site Information</CardTitle>
@@ -296,7 +296,7 @@ export function SiteDashboard({
 
       {/* Cache Settings Card - Only show in edit mode */}
       {isEditMode && <CacheSettingsCard />}
-    </div>
+    </CardGroup>
   )
 }
 

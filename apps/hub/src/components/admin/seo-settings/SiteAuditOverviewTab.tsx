@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { AlertCircle, AlertTriangle, CheckCircle2 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getSiteAuditData, getSiteForAudit } from "@/lib/actions/seo/site-audit/site-audit-actions"
 import { calculateAuditScore } from "@/lib/utils/site-audit-scoring"
@@ -64,8 +64,8 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
 
   if (loading) {
     return (
-      <div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4">
+      <CardGroup className="grid">
+        <CardGroup className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -76,7 +76,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
               </CardContent>
             </Card>
           ))}
-        </div>
+        </CardGroup>
         {[...Array(3)].map((_, i) => (
           <Card key={i}>
             <CardHeader>
@@ -89,7 +89,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
             </CardContent>
           </Card>
         ))}
-      </div>
+      </CardGroup>
     )
   }
 
@@ -107,8 +107,8 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
   const infoIssues = filteredIssues.filter((i: any) => i.severity === "info")
 
   return (
-    <div>
-      <div className="grid md:grid-cols-2 lg:grid-cols-4">
+    <CardGroup className="grid">
+      <CardGroup className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Overall Score</CardTitle>
@@ -141,7 +141,7 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
             <ScoreGauge score={score?.technicalScore || 0} label="" maxScore={30} />
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
 
       <Card>
         <CardHeader>
@@ -196,6 +196,6 @@ export function SiteAuditOverviewTab({ siteId, searchQuery }: SiteAuditOverviewT
           )}
         </CardContent>
       </Card>
-    </div>
+    </CardGroup>
   )
 }

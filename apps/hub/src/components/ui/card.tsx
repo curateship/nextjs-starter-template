@@ -22,6 +22,14 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant, 
 ))
 Card.displayName = "Card"
 
+// CardGroup — wraps a grid or flex of Card elements and applies consistent 1.5rem gap between them
+const CardGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("gap-6", className)} {...props} />
+  )
+)
+CardGroup.displayName = "CardGroup"
+
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
@@ -71,4 +79,4 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 )
 CardFooter.displayName = "CardFooter"
 
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, CardSection, CardTableHeader }
+export { Card, CardGroup, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, CardSection, CardTableHeader }

@@ -2,13 +2,8 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog } from "@/components/ui/dialog"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getPostLayoutColumn,
@@ -444,20 +439,23 @@ export function PostBlockListPanel({
       </div>
 
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete block</DialogTitle>
-            <DialogDescription>
-              {blockToDelete && (
-                <>Are you sure you want to delete the {getBlockName(blockToDelete.type)} block? It will be removed when you save.</>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>Delete block</Button>
-          </div>
-        </DialogContent>
+        <DashboardModalContent
+          title="Delete block"
+          description={
+            blockToDelete
+              ? `Are you sure you want to delete the ${getBlockName(blockToDelete.type)} block? It will be removed when you save.`
+              : undefined
+          }
+          className="sm:max-w-[425px]"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleConfirmDelete}>Delete block</Button>
+            </>
+          }
+        >
+          <div />
+        </DashboardModalContent>
       </Dialog>
     </>
   )

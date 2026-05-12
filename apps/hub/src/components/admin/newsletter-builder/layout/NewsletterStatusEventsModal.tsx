@@ -5,20 +5,14 @@ import { ChevronDown } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Pagination, PaginationInfo } from "@/components/ui/pagination"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  AdminModalBody,
-  AdminModalContent,
-  AdminModalFooter,
-  AdminModalHeader,
-  AdminModalTitle
-} from "@/components/admin/layout/builder/AdminModalLayout"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { getNewsletterStatusEvents } from "@/lib/actions/newsletters/newsletter-actions"
 import { getAutomationStepStatusEvents } from "@/lib/actions/newsletters/automation-actions"
 import type { NewsletterStatusEvent, NewsletterStatusEventFilter } from "@/lib/actions/newsletters/status-events-query"
@@ -213,10 +207,11 @@ export function NewsletterStatusEventsModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <AdminModalContent size="wide">
-        <AdminModalHeader>
-          <div className="flex min-w-0 flex-wrap items-center gap-3 pr-10">
-            <AdminModalTitle className="shrink-0">Events</AdminModalTitle>
+      <DashboardModalContent
+        className="h-[calc(100vh-4rem)] max-w-[960px]"
+        title={
+          <div className="flex items-center gap-3">
+            Events
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" aria-label="Filter events">
@@ -237,105 +232,92 @@ export function NewsletterStatusEventsModal({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </AdminModalHeader>
-        <AdminModalBody className="flex flex-1 flex-col">
-          <div
-            className={cn(
-              "min-h-0 flex-1",
-              showRateCards
-                ? "grid grid-cols-1 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-3"
-                : "flex flex-col"
-            )}
-          >
-            {showRateCards &&
-              [
-                ["Open percentage", rates.openRate],
-                ["Click percentage", rates.clickRate],
-                ["Unsub percentage", rates.unsubscribeRate]
-              ].map(([label, rate]) => (
-                <Card key={label}>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
-                  </CardContent>
-                </Card>
-              ))}
-
-            <div
-              className={cn(
-                "relative col-span-full flex-1 overflow-hidden",
-                showRateCards ? "min-h-0" : "min-h-[420px] sm:min-h-[520px]"
-              )}
-            >
-              <ScrollArea className="h-full w-full">
-                <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
-                  <TableHeader className="sticky top-0 z-20 bg-background">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="relative h-12 w-[48%] bg-muted/50 px-4 text-left text-sm font-medium select-none first:rounded-l-lg first:pl-5">
-                        Email
-                      </TableHead>
-                      <TableHead className="relative h-12 w-[22%] bg-muted/50 px-4 text-left text-sm font-medium select-none">
-                        Event
-                      </TableHead>
-                      <TableHead className="relative h-12 w-[30%] bg-muted/50 px-4 text-left text-sm font-medium select-none last:rounded-r-lg last:pr-5">
-                        Date
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      Array.from({ length: 8 }).map((_, index) => (
-                        <TableRow key={index} className="border-0 hover:bg-transparent">
-                          <TableCell className="px-3 py-2 first:pl-3 sm:px-4 sm:py-3 sm:first:pl-5">
-                            <Skeleton className="h-4 w-56 max-w-full" />
-                          </TableCell>
-                          <TableCell className="px-3 py-2 sm:px-4 sm:py-3">
-                            <Skeleton className="h-6 w-20 rounded-full" />
-                          </TableCell>
-                          <TableCell className="px-3 py-2 sm:px-4 sm:py-3 sm:last:pr-5">
-                            <Skeleton className="h-4 w-28" />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : events.length === 0 ? (
-                      <TableRow className="border-0">
-                        <TableCell colSpan={3} className="h-24 px-4 text-center text-sm text-muted-foreground">
-                          No events found.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      events.map((event) => (
-                        <TableRow key={event.id} className="border-0 hover:bg-muted/50">
-                          <TableCell className="min-w-0 px-3 py-2 text-xs first:pl-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5">
-                            <div className="truncate">{event.email}</div>
-                          </TableCell>
-                          <TableCell className="px-3 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
-                            {getStatusEventBadge(event.event)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2 text-xs text-muted-foreground sm:px-4 sm:py-3 sm:text-sm sm:last:pr-5">
-                            {formatStatusEventDate(event.created_at)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </table>
-                <ScrollBar orientation="vertical" />
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-            </div>
-
-          </div>
-        </AdminModalBody>
-        {total > 0 && (
-          <AdminModalFooter className="flex-col gap-3 sm:flex-row sm:justify-between">
+        }
+        footer={total > 0 ? (
+          <>
             <PaginationInfo currentPage={page} pageSize={STATUS_EVENTS_PAGE_SIZE} total={total} />
             <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} showFirstLast={false} />
-          </AdminModalFooter>
+          </>
+        ) : undefined}
+        footerClassName="flex-col gap-3 sm:flex-row sm:justify-between"
+      >
+        {showRateCards && (
+          <CardGroup className="grid sm:grid-cols-3">
+            {[
+              ["Open percentage", rates.openRate],
+              ["Click percentage", rates.clickRate],
+              ["Unsub percentage", rates.unsubscribeRate]
+            ].map(([label, rate]) => (
+              <Card key={String(label)}>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{String(label)}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-semibold">{Number(rate).toLocaleString()}%</p>
+                </CardContent>
+              </Card>
+            ))}
+          </CardGroup>
         )}
-      </AdminModalContent>
+
+        <Card>
+          <ScrollArea>
+            <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
+              <TableHeader className="sticky top-0 z-20 bg-background">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="relative h-12 w-[48%] bg-muted/50 px-4 text-left text-sm font-medium select-none first:rounded-l-lg first:pl-5">
+                    Email
+                  </TableHead>
+                  <TableHead className="relative h-12 w-[22%] bg-muted/50 px-4 text-left text-sm font-medium select-none">
+                    Event
+                  </TableHead>
+                  <TableHead className="relative h-12 w-[30%] bg-muted/50 px-4 text-left text-sm font-medium select-none last:rounded-r-lg last:pr-5">
+                    Date
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array.from({ length: 8 }).map((_, index) => (
+                    <TableRow key={index} className="border-0 hover:bg-transparent">
+                      <TableCell className="px-3 py-2 first:pl-3 sm:px-4 sm:py-3 sm:first:pl-5">
+                        <Skeleton className="h-4 w-56 max-w-full" />
+                      </TableCell>
+                      <TableCell className="px-3 py-2 sm:px-4 sm:py-3">
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell className="px-3 py-2 sm:px-4 sm:py-3 sm:last:pr-5">
+                        <Skeleton className="h-4 w-28" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : events.length === 0 ? (
+                  <TableRow className="border-0">
+                    <TableCell colSpan={3} className="h-24 px-4 text-center text-sm text-muted-foreground">
+                      No events found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  events.map((event) => (
+                    <TableRow key={event.id} className="border-0 hover:bg-muted/50">
+                      <TableCell className="min-w-0 px-3 py-2 text-xs first:pl-3 sm:px-4 sm:py-3 sm:text-sm sm:first:pl-5">
+                        <div className="truncate">{event.email}</div>
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
+                        {getStatusEventBadge(event.event)}
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-xs text-muted-foreground sm:px-4 sm:py-3 sm:text-sm sm:last:pr-5">
+                        {formatStatusEventDate(event.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </table>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </Card>
+      </DashboardModalContent>
     </Dialog>
   )
 }

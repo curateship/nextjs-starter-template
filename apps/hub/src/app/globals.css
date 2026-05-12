@@ -160,21 +160,6 @@ button:not(:disabled),
   }
 }
 
-@layer components {
-  :where(
-    .grid:has(> [data-slot="card"]),
-    .grid:has(> a > [data-slot="card"]),
-    .grid:has(> div > [data-slot="card"]),
-    .grid:has(> section > [data-slot="card"]),
-    .flex:has(> [data-slot="card"]),
-    .flex:has(> a > [data-slot="card"]),
-    .flex:has(> div > [data-slot="card"]),
-    .flex:has(> section > [data-slot="card"])
-  ) {
-    gap: 1.5rem;
-  }
-}
-
 /* Admin-scoped fonts - only apply within admin layout */
 .admin-layout {
   --font-primary: var(--admin-font-primary, system-ui, sans-serif);

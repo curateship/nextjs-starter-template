@@ -231,7 +231,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       <form
         id="create-post-form"
         onSubmit={handleSubmit}
-        className="grid [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2"
+        className="contents [&_label+button]:mt-2 [&_label+input]:mt-2 [&_label+textarea]:mt-2"
       >
         {error && (
           <Card className="border-red-200 bg-red-50">
@@ -361,13 +361,8 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                 value={formData.excerpt}
                 onChange={(e) => setFormData((prev) => ({ ...prev, excerpt: e.target.value }))}
                 placeholder="A brief summary of your post"
-                className="min-h-[40px] resize-none overflow-hidden"
-                style={{ height: "auto" }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement
-                  target.style.height = "auto"
-                  target.style.height = `${target.scrollHeight}px`
-                }}
+                rows={1}
+                className="h-10 min-h-10 resize-none overflow-hidden"
               />
             </div>
           </CardContent>
@@ -401,23 +396,18 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
             <CardDescription>Set the search description for this post.</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-          <Label htmlFor="meta_description">Meta Description</Label>
-          <Textarea
-            id="meta_description"
-            value={formData.meta_description}
-            onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
-            placeholder="A brief description of this post for search engines"
-            className="min-h-[40px] resize-none overflow-hidden"
-            style={{ height: "auto" }}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement
-              target.style.height = "auto"
-              target.style.height = `${target.scrollHeight}px`
-            }}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Recommended length: 150-160 characters
-          </p>
+            <Label htmlFor="meta_description">Meta Description</Label>
+            <Textarea
+              id="meta_description"
+              value={formData.meta_description}
+              onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
+              placeholder="A brief description of this post for search engines"
+              rows={1}
+              className="h-10 min-h-10 resize-none overflow-hidden"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Recommended length: 150-160 characters
+            </p>
           </CardContent>
         </Card>
       </form>

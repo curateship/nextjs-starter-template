@@ -6,7 +6,7 @@ import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardContent, CardDescription, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardSection, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -357,7 +357,7 @@ export default function SegmentDashboardPage() {
 
           {/* Loading skeleton */}
           {loading && (
-            <div className="grid">
+            <CardGroup className="grid">
               <Card>
                 <CardContent className="flex items-center gap-4">
                   <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
@@ -367,7 +367,7 @@ export default function SegmentDashboardPage() {
                   </div>
                 </CardContent>
               </Card>
-              <div className="grid grid-cols-1 md:grid-cols-3">
+              <CardGroup className="grid grid-cols-1 md:grid-cols-3">
                 {[1, 2, 3].map((i) => (
                   <Card key={i}>
                     <CardHeader>
@@ -378,8 +378,8 @@ export default function SegmentDashboardPage() {
                     </CardContent>
                   </Card>
                 ))}
-              </div>
-            </div>
+              </CardGroup>
+            </CardGroup>
           )}
 
           {/* Error state */}
@@ -396,7 +396,7 @@ export default function SegmentDashboardPage() {
 
           {/* Loaded content */}
           {!loading && segment && (
-            <div className="grid">
+            <CardGroup className="grid">
               {/* Segment Header */}
               <Card>
                 <CardContent className="flex items-center gap-4">
@@ -426,7 +426,7 @@ export default function SegmentDashboardPage() {
               </Card>
 
               {/* Stat cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3">
+              <CardGroup className="grid grid-cols-1 md:grid-cols-3">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm font-medium text-muted-foreground">Open Rate</CardTitle>
@@ -451,10 +451,10 @@ export default function SegmentDashboardPage() {
                     <p className="text-2xl font-semibold">{stats?.unsubscribeRate ?? 0}%</p>
                   </CardContent>
                 </Card>
-              </div>
+              </CardGroup>
 
               {/* Two-column layout: Newsletters + Sidebar */}
-              <div className="grid grid-cols-1 lg:grid-cols-3">
+              <CardGroup className="grid grid-cols-1 lg:grid-cols-3">
                 {/* Newsletters — left 2/3 */}
                 <Card className="lg:col-span-2">
                   <CardHeader className="border-b">
@@ -611,7 +611,7 @@ export default function SegmentDashboardPage() {
                     )}
                   </Card>
                 </div>
-              </div>
+              </CardGroup>
 
               {/* Engagement Over Time chart — only if 3+ data points */}
               {engagement.length >= 3 && (
@@ -633,7 +633,7 @@ export default function SegmentDashboardPage() {
                   </CardSection>
                 </Card>
               )}
-            </div>
+            </CardGroup>
           )}
         </div>
       </AdminLayout>

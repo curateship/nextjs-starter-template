@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { AlertCircle, AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -61,8 +61,8 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
 
   if (loading) {
     return (
-      <div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-4">
+      <CardGroup className="grid">
+        <CardGroup className="grid md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -73,7 +73,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
               </CardContent>
             </Card>
           ))}
-        </div>
+        </CardGroup>
         <Card>
           <CardHeader>
             <Skeleton className="h-5 w-32" />
@@ -84,13 +84,13 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
             ))}
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
     )
   }
 
   return (
-    <div>
-      <div className="grid md:grid-cols-2 lg:grid-cols-4">
+    <CardGroup className="grid">
+      <CardGroup className="grid md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium">Total Content</CardTitle>
@@ -126,7 +126,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
             <div className="text-2xl font-bold">{badTitles}</div>
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
 
       <Card>
         <CardHeader>
@@ -232,6 +232,6 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
           )}
         </CardContent>
       </Card>
-    </div>
+    </CardGroup>
   )
 }

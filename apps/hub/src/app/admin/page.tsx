@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardHeader } from "@/components/ui/card"
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -33,8 +33,8 @@ export default function AdminDashboard() {
         <div className="h-9 w-[332px] max-w-full bg-muted animate-pulse rounded-md" />
       </div>
 
-      <div className="grid">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4">
+      <CardGroup className="grid">
+        <CardGroup className="grid sm:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -50,7 +50,7 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           ))}
-        </div>
+        </CardGroup>
 
         <Card>
           <CardHeader className="gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">
@@ -64,7 +64,7 @@ export default function AdminDashboard() {
             <div className="h-[360px] w-full bg-muted animate-pulse rounded-md" />
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
     </div>
   )
 }

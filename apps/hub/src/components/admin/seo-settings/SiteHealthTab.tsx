@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle, Clock, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardGroup, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getCronJobs, toggleCronJob, type CronJob } from '@/lib/actions/cron/cron-actions'
 
@@ -71,14 +71,14 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <CardGroup className="grid">
         <Card>
           <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
           <CardContent className="space-y-3">
             {[1, 2, 3].map((item) => <Skeleton key={item} className="h-12 w-full" />)}
           </CardContent>
         </Card>
-      </div>
+      </CardGroup>
     )
   }
 
@@ -86,7 +86,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
   const failedJobs = jobs.filter((job) => job.lastRun?.status && job.lastRun.status !== 'success').length
 
   return (
-    <div className="space-y-4">
+    <CardGroup className="grid">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -152,6 +152,6 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
           )}
         </CardContent>
       </Card>
-    </div>
+    </CardGroup>
   )
 }

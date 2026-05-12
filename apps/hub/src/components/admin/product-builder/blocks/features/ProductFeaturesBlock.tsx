@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
@@ -259,7 +259,7 @@ export function ProductFeaturesBlock({
             value: "content",
             label: "Content",
             content: (
-              <div className="grid">
+              <CardGroup className="grid">
                 <Card>
                   <CardHeader className="p-4 pb-3">
                     <DashboardModalCardTitle>Header settings</DashboardModalCardTitle>
@@ -348,14 +348,14 @@ export function ProductFeaturesBlock({
                     </Button>
                   </CardContent>
                 </Card>
-              </div>
+              </CardGroup>
             ),
           },
           {
             value: "settings",
             label: "Settings",
             content: (
-              <div className="grid">
+              <CardGroup className="grid">
                 {onVisibilityChange && (
                   <VisibilitySettings
                     visibility={visibility}
@@ -367,7 +367,7 @@ export function ProductFeaturesBlock({
                     ]}
                   />
                 )}
-              </div>
+              </CardGroup>
             ),
           },
         ]}

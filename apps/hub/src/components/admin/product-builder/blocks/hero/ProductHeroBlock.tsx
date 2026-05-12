@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { BlockTabs } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Check } from "lucide-react"
 import { useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
@@ -111,7 +111,7 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
           value: "content",
           label: "Content",
           content: (
-            <div className="grid">
+            <CardGroup className="grid">
               <Card>
                 <CardHeader className="p-4 pb-3">
                   <DashboardModalCardTitle>Text content</DashboardModalCardTitle>
@@ -198,14 +198,14 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                   blockId={blockId}
                 />
               )}
-            </div>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="grid">
+            <CardGroup className="grid">
               <Card>
                 <CardHeader className="p-4 pb-3">
                   <DashboardModalCardTitle>Hero style</DashboardModalCardTitle>
@@ -257,7 +257,7 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                   { key: 'secondaryButton', label: 'Secondary Button' },
                 ]}
               />
-            </div>
+            </CardGroup>
           ),
         },
       ]}
