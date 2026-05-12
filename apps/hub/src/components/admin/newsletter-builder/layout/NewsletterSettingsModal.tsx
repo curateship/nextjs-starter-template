@@ -289,7 +289,7 @@ export function NewsletterSettingsModal({
               <CardGroup className="grid">
                 <Card>
                   <CardHeader className="p-4 pb-3">
-                    <DashboardModalCardTitle>General</DashboardModalCardTitle>
+                    <DashboardModalCardTitle>Content</DashboardModalCardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-4 p-4 pt-0">
                     <Field>
@@ -302,6 +302,14 @@ export function NewsletterSettingsModal({
                         disabled={isSent}
                       />
                     </Field>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Layout</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 p-4 pt-0">
                     <Field>
                       <FieldLabel htmlFor="settings-max-width">Content Max Width (px)</FieldLabel>
                       <Input
@@ -314,6 +322,14 @@ export function NewsletterSettingsModal({
                       />
                       <FieldDescription>Maximum width of the email content. Default is 600px.</FieldDescription>
                     </Field>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Audience</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 p-4 pt-0">
                     <Field>
                       <FieldLabel htmlFor="audience-select">Segment</FieldLabel>
                       <Select value={audienceMode} onValueChange={handleAudienceModeChange} disabled={isSent}>
@@ -353,9 +369,16 @@ export function NewsletterSettingsModal({
                         </span>
                       </div>
                     )}
-                    {!isSent && (
+                  </CardContent>
+                </Card>
+
+                {!isSent && (
+                  <Card>
+                    <CardHeader className="p-4 pb-3">
+                      <DashboardModalCardTitle>Test Email</DashboardModalCardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 p-4 pt-0">
                       <Field>
-                        <FieldLabel>Test Email</FieldLabel>
                         <div className="flex items-end gap-2">
                           <Input
                             id="test-email"
@@ -370,9 +393,9 @@ export function NewsletterSettingsModal({
                           </Button>
                         </div>
                       </Field>
-                    )}
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                )}
               </CardGroup>
             </TabsContent>
 
@@ -380,7 +403,7 @@ export function NewsletterSettingsModal({
               <CardGroup className="grid">
                 <Card>
                   <CardHeader className="p-4 pb-3">
-                    <DashboardModalCardTitle>Drip options</DashboardModalCardTitle>
+                    <DashboardModalCardTitle>Delivery Mode</DashboardModalCardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-4 p-4 pt-0">
                     {isSent && (
@@ -397,8 +420,16 @@ export function NewsletterSettingsModal({
                         <span className="text-sm font-medium">Enable drip sending</span>
                       </label>
                     </Field>
-                    {dripEnabled && (
-                      <>
+                  </CardContent>
+                </Card>
+
+                {dripEnabled && (
+                  <>
+                    <Card>
+                      <CardHeader className="p-4 pb-3">
+                        <DashboardModalCardTitle>Batch & Timing</DashboardModalCardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-4 p-4 pt-0">
                         <div className="grid grid-cols-2 gap-4">
                           <Field>
                             <FieldLabel htmlFor="drip-batch-min">Batch size min</FieldLabel>
@@ -419,11 +450,27 @@ export function NewsletterSettingsModal({
                             <Input id="drip-interval-max" type="number" value={dripIntervalMax} onChange={(e) => setDripIntervalMax(e.target.value)} min={1} disabled={isSent} />
                           </Field>
                         </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="p-4 pb-3">
+                        <DashboardModalCardTitle>Safety</DashboardModalCardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-4 p-4 pt-0">
                         <Field>
                           <FieldLabel htmlFor="drip-bounce-threshold">Bounce threshold (%)</FieldLabel>
                           <Input id="drip-bounce-threshold" type="number" value={dripBounceThreshold} onChange={(e) => setDripBounceThreshold(e.target.value)} min={0.1} step="any" disabled={isSent} />
                           <FieldDescription>Auto-pause and notify you if bounce rate exceeds this percentage</FieldDescription>
                         </Field>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="p-4 pb-3">
+                        <DashboardModalCardTitle>Send Windows</DashboardModalCardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-4 p-4 pt-0">
                         <Field>
                           <label className="flex items-center gap-2 cursor-pointer">
                             <Checkbox id="send-window-toggle" checked={dripSendWindowEnabled} onCheckedChange={(checked) => setDripSendWindowEnabled(checked === true)} disabled={isSent} />
@@ -477,10 +524,10 @@ export function NewsletterSettingsModal({
                             </p>
                           </>
                         )}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </CardGroup>
             </TabsContent>
           </DashboardModalContent>
