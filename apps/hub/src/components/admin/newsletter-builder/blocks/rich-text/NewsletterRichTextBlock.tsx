@@ -1,9 +1,11 @@
 "use client"
 
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { DEFAULT_NEWSLETTER_IMAGE_BORDER_COLOR } from "@/lib/actions/newsletters/render"
 
 interface NewsletterRichTextBlockProps {
@@ -35,21 +37,30 @@ export function NewsletterRichTextBlock({
           value: "content",
           label: "Content",
           content: (
-            <InlineRichTextEditor
-              blockId={blockId}
-              content={content}
-              onContentChange={(htmlContent) => onContentChange('htmlContent', htmlContent)}
-              siteId={siteId}
-              isActive
-              editorPadding={0}
-            />
+            <Card>
+              <CardContent className="p-4">
+                <InlineRichTextEditor
+                  blockId={blockId}
+                  content={content}
+                  onContentChange={(htmlContent) => onContentChange('htmlContent', htmlContent)}
+                  siteId={siteId}
+                  isActive
+                  editorPadding={0}
+                />
+              </CardContent>
+            </Card>
           ),
         },
         {
           value: "styling",
           label: "Styling",
           content: (
-            <BlockEditorSection heading="Background & Spacing">
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Background & Spacing</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
                 <div>
                   <Label htmlFor="richtext-bg-color">Background Color</Label>
                   <div className="flex items-center gap-2 mt-1">
@@ -84,14 +95,21 @@ export function NewsletterRichTextBlock({
                     style={{ width: '100%' }}
                   />
                 </div>
-            </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <BlockEditorSection heading="Image Output">
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Image Output</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
                 <div>
                   <Label htmlFor="newsletter-image-border-size">Border Size (px)</Label>
                   <Input
@@ -121,7 +139,9 @@ export function NewsletterRichTextBlock({
                     />
                   </div>
                 </div>
-            </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}

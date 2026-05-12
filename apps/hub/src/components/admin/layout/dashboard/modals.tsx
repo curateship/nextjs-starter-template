@@ -110,7 +110,7 @@ function DashboardModalScrollBody({
 }) {
   return (
     <ScrollArea className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)} {...props}>
-      <div className={cn("grid gap-6 p-6 [&_[data-slot=card]]:shadow-none", viewportClassName)}>
+      <div className={cn("grid gap-6 p-6 **:data-[slot=card]:shadow-none", viewportClassName)}>
         {children}
       </div>
     </ScrollArea>

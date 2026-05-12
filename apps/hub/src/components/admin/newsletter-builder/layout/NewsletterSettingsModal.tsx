@@ -242,34 +242,34 @@ export function NewsletterSettingsModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DashboardModalContent
-          title="Newsletter Settings"
-          titleAccessory={
-            <div className="flex items-center gap-4">
-              <div className="flex items-center space-x-2">
-                <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
-                <span className="text-sm font-medium">
-                  {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
-                </span>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <DashboardModalContent
+            title="Newsletter Settings"
+            titleAccessory={
+              <div className="flex items-center gap-4">
+                <div className="flex items-center space-x-2">
+                  <div className={`h-2 w-2 rounded-full ${isSent ? 'bg-green-500' : 'bg-gray-400'}`} />
+                  <span className="text-sm font-medium">
+                    {newsletter.status === 'sent' ? 'Sent' : newsletter.status === 'sending' ? 'Sending' : newsletter.status === 'scheduled' ? 'Scheduled' : 'Draft'}
+                  </span>
+                </div>
+                <TabsList className="h-9 shrink-0">
+                  <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+                  <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+                </TabsList>
               </div>
-              <TabsList className="h-9 shrink-0">
-                <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-                <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
-              </TabsList>
-            </div>
-          }
-          footer={
-            <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                Close
-              </Button>
-              <Button onClick={handleSave} disabled={saving || isSent}>
-                {saving ? 'Saving...' : 'Save'}
-              </Button>
-            </>
-          }
-        >
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            }
+            footer={
+              <>
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                  Close
+                </Button>
+                <Button onClick={handleSave} disabled={saving || isSent}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </>
+            }
+          >
             {(error || successMsg) && (
               <div className="px-6 pb-2 space-y-2">
                 {error && (
@@ -483,8 +483,8 @@ export function NewsletterSettingsModal({
                 </Card>
               </CardGroup>
             </TabsContent>
-          </Tabs>
-        </DashboardModalContent>
+          </DashboardModalContent>
+        </Tabs>
       </Dialog>
 
     </>

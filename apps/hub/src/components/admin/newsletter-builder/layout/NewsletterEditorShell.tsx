@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Monitor, Smartphone, Tablet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
@@ -346,13 +345,13 @@ export function NewsletterEditorShell({
           }}
         >
           <ModalTabsProvider>
-            <DashboardModalContent
-              title={`Edit ${selectedBlock.title}`}
-              titleAccessory={<ModalTabs />}
-              className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
-              viewportClassName="[&_h3]:pt-4"
-              footer={
-                <>
+              <DashboardModalContent
+                title={`Edit ${selectedBlock.title}`}
+                titleAccessory={<ModalTabs />}
+                className="max-w-[960px]"
+                footerClassName="sm:justify-end"
+                footer={
+                  <>
                   <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
                     Cancel
                   </Button>
@@ -360,22 +359,16 @@ export function NewsletterEditorShell({
                     {isSavingBlock ? "Saving..." : "Save"}
                   </Button>
                 </>
-              }
-            >
-              <CardGroup className="grid">
-                <Card>
-                  <CardContent className="p-0">
-                    <NewsletterBlockEditor
-                      block={selectedBlock}
-                      content={draftContent}
-                      onContentChange={handleDraftChange}
-                      siteId={siteId}
-                      subject={draftSubject}
-                      onSubjectChange={setDraftSubject}
-                    />
-                  </CardContent>
-                </Card>
-              </CardGroup>
+                }
+              >
+                <NewsletterBlockEditor
+                  block={selectedBlock}
+                  content={draftContent}
+                  onContentChange={handleDraftChange}
+                  siteId={siteId}
+                  subject={draftSubject}
+                  onSubjectChange={setDraftSubject}
+                />
             </DashboardModalContent>
           </ModalTabsProvider>
         </Dialog>

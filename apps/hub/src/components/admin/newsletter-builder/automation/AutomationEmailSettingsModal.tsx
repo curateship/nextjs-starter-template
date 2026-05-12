@@ -81,26 +81,26 @@ export function AutomationEmailSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DashboardModalContent
-        title="Email Settings"
-        titleAccessory={
-          <TabsList className="h-9 shrink-0">
-            <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-            <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
-          </TabsList>
-        }
-        footer={
-          <>
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-              Close
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </>
-        }
-      >
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <DashboardModalContent
+          title="Email Settings"
+          titleAccessory={
+            <TabsList className="h-9 shrink-0">
+              <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+              <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+            </TabsList>
+          }
+          footer={
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Close
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 mb-4">
               <p className="text-sm text-red-800">{error}</p>
@@ -139,8 +139,8 @@ export function AutomationEmailSettingsModal({
               </Card>
             </CardGroup>
           </TabsContent>
-        </Tabs>
-      </DashboardModalContent>
+        </DashboardModalContent>
+      </Tabs>
     </Dialog>
   )
 }

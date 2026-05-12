@@ -640,7 +640,7 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
           </SidebarHeader>
 
           <SidebarContent className="overflow-hidden">
-            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]>div]:!block">
+            <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!">
               <SidebarGroup className="px-0">
                 <SidebarGroupContent>
                   {visibleMails.map((mail) => {

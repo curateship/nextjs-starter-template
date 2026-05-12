@@ -6,7 +6,7 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -99,33 +99,34 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
-        title="Create Email"
-        titleAccessory={
-          <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
-            <TabsList className="h-9 shrink-0">
-              <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-              <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
-            </TabsList>
-          </div>
-        }
-        footer={
-          <>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Continue"}
-            </Button>
-          </>
-        }
-      >
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800 mb-4">
-            {error}
-          </div>
-        )}
+    <Tabs defaultValue="general">
+      <form onSubmit={handleSubmit} className="contents">
+        <DashboardModalContent
+          title="Create Email"
+          titleAccessory={
+            <div className="flex min-w-0 flex-wrap items-center gap-4 pr-10">
+              <TabsList className="h-9 shrink-0">
+                <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+                <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+              </TabsList>
+            </div>
+          }
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Creating..." : "Continue"}
+              </Button>
+            </>
+          }
+        >
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800 mb-4">
+              {error}
+            </div>
+          )}
 
         <TabsContent value="general" className="mt-0 min-h-[320px]">
           <CardGroup className="grid">
@@ -183,7 +184,8 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
             </Card>
           </CardGroup>
         </TabsContent>
-      </DashboardModalContent>
-    </form>
+        </DashboardModalContent>
+      </form>
+    </Tabs>
   )
 }

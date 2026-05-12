@@ -196,27 +196,27 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
-      <DashboardModalContent
-        title="Create New Newsletter"
-        titleAccessory={
-          <TabsList className="h-9 shrink-0">
-            <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
-            <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
-          </TabsList>
-        }
-        footer={
-          <>
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Continue'}
-            </Button>
-          </>
-        }
-      >
-        <Tabs value={createActiveTab} onValueChange={setCreateActiveTab}>
+    <Tabs value={createActiveTab} onValueChange={setCreateActiveTab}>
+      <form onSubmit={handleSubmit} className="contents">
+        <DashboardModalContent
+          title="Create New Newsletter"
+          titleAccessory={
+            <TabsList className="h-9 shrink-0">
+              <TabsTrigger value="general" className="h-7 py-0">General</TabsTrigger>
+              <TabsTrigger value="drip-options" className="h-7 py-0">Drip Options</TabsTrigger>
+            </TabsList>
+          }
+          footer={
+            <>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Creating...' : 'Continue'}
+              </Button>
+            </>
+          }
+        >
           {error && (
             <div className="px-6 pb-2">
               <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
@@ -464,8 +464,8 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               </Card>
             </CardGroup>
           </TabsContent>
-        </Tabs>
-      </DashboardModalContent>
-    </form>
+        </DashboardModalContent>
+      </form>
+    </Tabs>
   )
 }
