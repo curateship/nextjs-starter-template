@@ -33,7 +33,9 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { BlockEditorEmptyState } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 // Security utility functions for admin component
 const sanitizeAdminInput = (input: string): string => {
@@ -554,8 +556,12 @@ export function ProductCheckoutBlock({
           value: "checkout",
           label: "Checkout",
           content: (
-            <div className="space-y-6">
-              <BlockEditorSection heading="Header Settings">
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Header Settings</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
                   <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pricing-title">Header</Label>
@@ -590,9 +596,14 @@ export function ProductCheckoutBlock({
                       </Select>
                     </div>
                   </div>
-              </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Payment Checkout">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Payment Checkout</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
                   <div className="flex gap-6">
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -617,9 +628,15 @@ export function ProductCheckoutBlock({
                       </Label>
                     </div>
                   </div>
-              </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Pricing Tiers">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Pricing Tiers</DashboardModalCardTitle>
+                  <CardDescription>Add, edit, and reorder pricing tiers.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -662,19 +679,21 @@ export function ProductCheckoutBlock({
                       Add Tier
                     </Button>
                   </div>
-              </BlockEditorSection>
-            </div>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <>
+            <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  useCard
                   fields={[
                     { key: 'header', label: 'Header' },
                     { key: 'subheader', label: 'Sub Header' },
@@ -682,7 +701,11 @@ export function ProductCheckoutBlock({
                 />
               )}
 
-              <BlockEditorSection heading="Success Page Settings">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Success Page Settings</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
                   <div>
                     <Label htmlFor="success-url">Success URL</Label>
                     <Input
@@ -709,8 +732,9 @@ export function ProductCheckoutBlock({
                       by enabling Enable Download Page on individual tiers.
                     </p>
                   </div>
-              </BlockEditorSection>
-            </>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}

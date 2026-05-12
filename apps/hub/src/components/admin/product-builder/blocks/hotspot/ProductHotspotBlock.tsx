@@ -7,13 +7,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockTabs } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { BlockEditorSection } from "@/components/ui/tabs"
 
 interface ProductHotspotBlockProps {
   header?: string
@@ -193,47 +194,55 @@ export function ProductHotspotBlock({
             value: "content",
             label: "Content",
             content: (
-              <div className="space-y-6">
-          <BlockEditorSection heading="Header Content">
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Header</Label>
-                  <Input
-                    id="title"
-                    value={header}
-                    onChange={(e) => onHeaderChange(e.target.value)}
-                    placeholder="Interactive Product Overview"
-                  />
-                </div>
+              <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Header Content</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Header</Label>
+                      <Input
+                        id="title"
+                        value={header}
+                        onChange={(e) => onHeaderChange(e.target.value)}
+                        placeholder="Interactive Product Overview"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="subtitle">Sub Header</Label>
-                  <Input
-                    id="subtitle"
-                    value={subheader}
-                    onChange={(e) => onSubheaderChange(e.target.value)}
-                    placeholder="Hover over the blinking dots to discover more about our features"
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="subtitle">Sub Header</Label>
+                      <Input
+                        id="subtitle"
+                        value={subheader}
+                        onChange={(e) => onSubheaderChange(e.target.value)}
+                        placeholder="Hover over the blinking dots to discover more about our features"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="hotspot-align">Header Alignment</Label>
-                  <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
-                    <SelectTrigger id="hotspot-align" size="button">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="left">Left</SelectItem>
-                      <SelectItem value="center">Center</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-          </BlockEditorSection>
+                    <div className="space-y-2">
+                      <Label htmlFor="hotspot-align">Header Alignment</Label>
+                      <Select value={headerAlign} onValueChange={onHeaderAlignChange}>
+                        <SelectTrigger id="hotspot-align" size="button">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">Left</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          <BlockEditorSection
-            heading="Interactive Hotspots"
-          >
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Interactive Hotspots</DashboardModalCardTitle>
+                  <CardDescription>Click on the image to place hotspot markers.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
               <div className="space-y-4">
               {backgroundImage ? (
                 <div className="relative">
@@ -312,19 +321,21 @@ export function ProductHotspotBlock({
                   </Button>
                 </div>
               </div>
-          </BlockEditorSection>
-              </div>
+                </CardContent>
+              </Card>
+              </CardGroup>
             ),
           },
           {
             value: "settings",
             label: "Settings",
             content: (
-              <>
+              <CardGroup className="grid">
                 {onVisibilityChange && (
                   <VisibilitySettings
                     visibility={visibility}
                     onChange={onVisibilityChange}
+                    useCard
                     fields={[
                       { key: 'header', label: 'Header' },
                       { key: 'subheader', label: 'Sub Header' },
@@ -332,7 +343,11 @@ export function ProductHotspotBlock({
                   />
                 )}
 
-                <BlockEditorSection heading="Display Options">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Display Options</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="showTooltipsAlways"
@@ -343,8 +358,9 @@ export function ProductHotspotBlock({
                         Always show tooltips
                       </Label>
                     </div>
-                </BlockEditorSection>
-              </>
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
         ]}

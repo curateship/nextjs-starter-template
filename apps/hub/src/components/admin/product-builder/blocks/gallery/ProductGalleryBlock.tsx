@@ -1,10 +1,12 @@
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { BlockTabs } from "@/components/ui/tabs"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { BlockTabs, BlockEditorEmptyState } from "@/components/ui/tabs"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2, Upload } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface ProductImage {
   id: string
@@ -60,91 +62,97 @@ export function ProductGalleryBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection
-              heading="Product Images"
-              action={(
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={addImage}
-                  className="h-8"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Image
-                </Button>
-              )}
-            >
-                <div className="space-y-3">
-                  {images.map((image, index) => (
-                    <div key={image.id} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Image {index + 1}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeImage(index)}
-                          className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <div className="flex items-center justify-between">
+                    <DashboardModalCardTitle>Product Images</DashboardModalCardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={addImage}
+                      className="h-8"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Image
+                    </Button>
+                  </div>
+                  <CardDescription>Upload and manage product gallery images.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="space-y-3">
+                    {images.map((image, index) => (
+                      <div key={image.id} className="border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Image {index + 1}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeImage(index)}
+                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
 
-                      <div className="space-y-2">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Image URL</Label>
-                          <div className="flex space-x-2">
+                        <div className="space-y-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Image URL</Label>
+                            <div className="flex space-x-2">
+                              <Input
+                                value={image.url}
+                                onChange={(e) => updateImage(index, 'url', e.target.value)}
+                                placeholder="https://example.com/image.jpg"
+                                className="flex-1"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-10"
+                                disabled
+                              >
+                                <Upload className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Alt Text</Label>
                             <Input
-                              value={image.url}
-                              onChange={(e) => updateImage(index, 'url', e.target.value)}
-                              placeholder="https://example.com/image.jpg"
-                              className="flex-1"
+                              value={image.alt}
+                              onChange={(e) => updateImage(index, 'alt', e.target.value)}
+                              placeholder="Product image description"
                             />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-10"
-                              disabled
-                            >
-                              <Upload className="w-4 h-4" />
-                            </Button>
                           </div>
                         </div>
 
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Alt Text</Label>
-                          <Input
-                            value={image.alt}
-                            onChange={(e) => updateImage(index, 'alt', e.target.value)}
-                            placeholder="Product image description"
-                          />
-                        </div>
+                        {image.url && (
+                          <div className="mt-2">
+                            <div className="w-full h-24 bg-muted rounded border overflow-hidden">
+                              <img
+                                src={image.url}
+                                alt={image.alt}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement
+                                  target.style.display = 'none'
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
+                    ))}
+                  </div>
 
-                      {image.url && (
-                        <div className="mt-2">
-                          <div className="w-full h-24 bg-muted rounded border overflow-hidden">
-                            <img
-                              src={image.url}
-                              alt={image.alt}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement
-                                target.style.display = 'none'
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {images.length === 0 && (
-                  <BlockEditorEmptyState className="py-6">
-                    No images added yet. Click &quot;Add Image&quot; to upload your first product image.
-                  </BlockEditorEmptyState>
-                )}
-            </BlockEditorSection>
+                  {images.length === 0 && (
+                    <BlockEditorEmptyState className="py-6">
+                      No images added yet. Click &quot;Add Image&quot; to upload your first product image.
+                    </BlockEditorEmptyState>
+                  )}
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
@@ -158,29 +166,33 @@ export function ProductGalleryBlock({
           value: "settings",
           label: "Settings",
           content: (
-            <>
+            <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  useCard
                   fields={[
                     { key: 'thumbnails', label: 'Thumbnails' },
                   ]}
                 />
               )}
-              <BlockEditorSection heading="Gallery Settings">
-                  <div className="flex items-center">
-                    <input
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Gallery Settings</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
                       id="showThumbnails"
-                      type="checkbox"
                       checked={showThumbnails}
-                      onChange={(e) => onShowThumbnailsChange(e.target.checked)}
-                      className="mr-2"
+                      onCheckedChange={(checked) => onShowThumbnailsChange(!!checked)}
                     />
-                    <Label htmlFor="showThumbnails" className="text-sm">Show thumbnails</Label>
+                    <Label htmlFor="showThumbnails" className="text-sm cursor-pointer">Show thumbnails</Label>
                   </div>
-              </BlockEditorSection>
-            </>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
       ]}

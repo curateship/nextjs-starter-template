@@ -5,7 +5,9 @@ import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRi
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockTabs } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { normalizeProductLeadMagnetContent } from "@/lib/actions/products/lead-magnet"
 
 interface ProductLeadMagnetBlockProps {
@@ -50,84 +52,100 @@ export function ProductLeadMagnetBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection>
-              <InlineRichTextEditor
-                blockId={`${blockId}-body`}
-                content={bodyEditorContent}
-                onContentChange={handleBodyChange}
-                siteId={siteId}
-                isActive
-                editorPadding={0}
-                variant="product"
-                placeholder="Enter lead magnet descriptions"
-                hidePlaceholderOnFocus
-              />
-            </BlockEditorSection>
+            <Card>
+              <CardContent className="p-4">
+                <InlineRichTextEditor
+                  blockId={`${blockId}-body`}
+                  content={bodyEditorContent}
+                  onContentChange={handleBodyChange}
+                  siteId={siteId}
+                  isActive
+                  editorPadding={0}
+                  variant="product"
+                  placeholder="Enter lead magnet descriptions"
+                  hidePlaceholderOnFocus
+                />
+              </CardContent>
+            </Card>
           ),
         },
         {
           value: "delivery-email",
           label: "Delivery Email",
           content: (
-            <BlockEditorSection>
-              <InlineRichTextEditor
-                blockId={`${blockId}-delivery-email`}
-                content={deliveryEditorContent}
-                onContentChange={handleDeliveryBodyChange}
-                siteId={siteId}
-                isActive
-                editorPadding={0}
-                variant="product"
-                placeholder="Enter email delivery text"
-              />
-            </BlockEditorSection>
+            <Card>
+              <CardContent className="p-4">
+                <InlineRichTextEditor
+                  blockId={`${blockId}-delivery-email`}
+                  content={deliveryEditorContent}
+                  onContentChange={handleDeliveryBodyChange}
+                  siteId={siteId}
+                  isActive
+                  editorPadding={0}
+                  variant="product"
+                  placeholder="Enter email delivery text"
+                />
+              </CardContent>
+            </Card>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-6">
-              <BlockEditorSection heading="Email Form">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="lead-magnet-placeholder">Placeholder</Label>
-                    <Input
-                      id="lead-magnet-placeholder"
-                      value={normalizedContent.formPlaceholder}
-                      onChange={(event) => onContentChange("formPlaceholder", event.target.value)}
-                      placeholder="Enter your email"
-                    />
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Email Form</DashboardModalCardTitle>
+                  <CardDescription>Customize the form placeholder and submit button.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="lead-magnet-placeholder">Placeholder</Label>
+                      <Input
+                        id="lead-magnet-placeholder"
+                        value={normalizedContent.formPlaceholder}
+                        onChange={(event) => onContentChange("formPlaceholder", event.target.value)}
+                        placeholder="Enter your email"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lead-magnet-button">Button Text</Label>
+                      <Input
+                        id="lead-magnet-button"
+                        value={normalizedContent.buttonText}
+                        onChange={(event) => onContentChange("buttonText", event.target.value)}
+                        placeholder="Send it to me"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lead-magnet-button">Button Text</Label>
-                    <Input
-                      id="lead-magnet-button"
-                      value={normalizedContent.buttonText}
-                      onChange={(event) => onContentChange("buttonText", event.target.value)}
-                      placeholder="Send it to me"
-                    />
-                  </div>
-                </div>
-              </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="After Signup">
-                <div className="space-y-2">
-                  <Label htmlFor="lead-magnet-redirect">Redirect URL</Label>
-                  <Input
-                    id="lead-magnet-redirect"
-                    value={normalizedContent.redirectUrl}
-                    onChange={(event) => onContentChange("redirectUrl", event.target.value)}
-                    placeholder="/thank-you"
-                  />
-                </div>
-              </BlockEditorSection>
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>After Signup</DashboardModalCardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <div className="space-y-2">
+                    <Label htmlFor="lead-magnet-redirect">Redirect URL</Label>
+                    <Input
+                      id="lead-magnet-redirect"
+                      value={normalizedContent.redirectUrl}
+                      onChange={(event) => onContentChange("redirectUrl", event.target.value)}
+                      placeholder="/thank-you"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
 
               <VisibilitySettings
                 title="Element Visibility"
                 visibility={normalizedContent.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
                 includeHideBlock={false}
+                useCard
                 fields={[
                   { key: "body", label: "Content" },
                   { key: "image", label: "Feature Image" },
@@ -139,9 +157,10 @@ export function ProductLeadMagnetBlock({
                 title="Block Visibility"
                 visibility={normalizedContent.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
+                useCard
                 fields={[]}
               />
-            </div>
+            </CardGroup>
           ),
         },
       ]}

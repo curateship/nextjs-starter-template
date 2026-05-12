@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical, Check } from "lucide-react"
-import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { BlockEditorEmptyState, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
@@ -235,44 +237,54 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
             value: "content",
             label: "Content",
             content: (
-              <>
-                <BlockEditorSection heading="Header Settings">
-                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
-                    <div className="space-y-2">
-                      <Label>Title</Label>
-                      <Input
-                        value={content.title ?? ''}
-                        onChange={(e) => onContentChange('title', e.target.value)}
-                        placeholder="Meet Our Happy Clients"
-                      />
+              <CardGroup className="grid">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Header Settings</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
+                      <div className="space-y-2">
+                        <Label>Title</Label>
+                        <Input
+                          value={content.title ?? ''}
+                          onChange={(e) => onContentChange('title', e.target.value)}
+                          placeholder="Meet Our Happy Clients"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Subtitle</Label>
+                        <Input
+                          value={content.subtitle ?? ''}
+                          onChange={(e) => onContentChange('subtitle', e.target.value)}
+                          placeholder="Hear from the teams who have transformed their workflow."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Alignment</Label>
+                        <Select
+                          value={content.headerAlign ?? 'center'}
+                          onValueChange={(v) => onContentChange('headerAlign', v)}
+                        >
+                          <SelectTrigger size="button" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="left">Left</SelectItem>
+                            <SelectItem value="center">Center</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Subtitle</Label>
-                      <Input
-                        value={content.subtitle ?? ''}
-                        onChange={(e) => onContentChange('subtitle', e.target.value)}
-                        placeholder="Hear from the teams who have transformed their workflow."
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Alignment</Label>
-                      <Select
-                        value={content.headerAlign ?? 'center'}
-                        onValueChange={(v) => onContentChange('headerAlign', v)}
-                      >
-                        <SelectTrigger size="button" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="left">Left</SelectItem>
-                          <SelectItem value="center">Center</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </BlockEditorSection>
+                  </CardContent>
+                </Card>
 
-                <BlockEditorSection heading="Testimonial Items">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Testimonial Items</DashboardModalCardTitle>
+                    <CardDescription>Add, edit, and reorder testimonials.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -309,74 +321,84 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
                         Add Item
                       </Button>
                     </div>
-                </BlockEditorSection>
-              </>
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
           {
             value: "styling",
             label: "Styling",
             content: (
-              <BlockEditorSection
-                heading={
-                  <>
-                    {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
-                  </>
-                }
-              >
-                {ActiveAdminPanel ? (
-                  <ActiveAdminPanel
-                    config={currentStyleConfig}
-                    onConfigChange={handleStyleConfigChange}
-                  />
-                ) : (
-                  <p className="text-muted-foreground text-sm">No settings for this style.</p>
-                )}
-              </BlockEditorSection>
+              <CardGroup className="grid">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>
+                      {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
+                    </DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    {ActiveAdminPanel ? (
+                      <ActiveAdminPanel
+                        config={currentStyleConfig}
+                        onConfigChange={handleStyleConfigChange}
+                      />
+                    ) : (
+                      <p className="text-muted-foreground text-sm">No settings for this style.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
           {
             value: "settings",
             label: "Settings",
             content: (
-              <div className="space-y-6">
-                <BlockEditorSection heading="Testimonial Style">
-                  <div className="grid grid-cols-2 gap-2 max-w-sm">
-                    {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => onContentChange('testimonialStyle', key)}
-                        className={cn(
-                          "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                          testimonialStyle === key
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                        )}
-                      >
-                        <div className={cn(
-                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                          testimonialStyle === key
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-muted-foreground/30"
-                        )}>
-                          {testimonialStyle === key && <Check className="h-3 w-3" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium">{style.label}</div>
-                          {style.description && (
-                            <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+              <CardGroup className="grid">
+                <Card>
+                  <CardHeader className="p-4 pb-3">
+                    <DashboardModalCardTitle>Testimonial Style</DashboardModalCardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0">
+                    <div className="grid grid-cols-2 gap-2 max-w-sm">
+                      {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => onContentChange('testimonialStyle', key)}
+                          className={cn(
+                            "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                            testimonialStyle === key
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
                           )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </BlockEditorSection>
+                        >
+                          <div className={cn(
+                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                            testimonialStyle === key
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-muted-foreground/30"
+                          )}>
+                            {testimonialStyle === key && <Check className="h-3 w-3" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium">{style.label}</div>
+                            {style.description && (
+                              <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
                 <VisibilitySettings
                   title="Element Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
                   includeHideBlock={false}
+                  useCard
                   fields={[
                     { key: 'title', label: 'Title' },
                     { key: 'subtitle', label: 'Subtitle' },
@@ -386,9 +408,10 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
                   title="Block Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
+                  useCard
                   fields={[]}
                 />
-              </div>
+              </CardGroup>
             ),
           },
         ]}

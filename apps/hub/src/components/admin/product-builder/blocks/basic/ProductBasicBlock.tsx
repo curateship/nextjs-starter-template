@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Upload, X } from "lucide-react"
 import { RichTextEditor } from "@/components/admin/layout/builder/RichTextEditor"
-import { BlockEditorSection } from "@/components/ui/tabs"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 
 interface BasicBlockProps {
   title: string
@@ -54,44 +55,38 @@ export function BasicBlock({
   }
 
   return (
-    <BlockEditorSection heading="Product Information" contentClassName="space-y-6">
-        {/* Title */}
-        <div className="space-y-2">
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="Enter product title"
-            required
-          />
-        </div>
+    <Card>
+      <CardHeader className="p-4 pb-3">
+        <DashboardModalCardTitle>Product Information</DashboardModalCardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-6 p-4 pt-0">
+        <Input
+          id="title"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Enter product title"
+          required
+        />
 
-        {/* Rich Text Editor */}
-        <div className="space-y-2">
-          <RichTextEditor
-            content={{
-              content: richText || '',
-              hideHeader: true,
-              hideEditorHeader: true
-            }}
-            onContentChange={(content) => onRichTextChange(content.content)}
-          />
-        </div>
+        <RichTextEditor
+          content={{
+            content: richText || '',
+            hideHeader: true,
+            hideEditorHeader: true
+          }}
+          onContentChange={(content) => onRichTextChange(content.content)}
+        />
 
-        {/* Status */}
-        <div className="space-y-2">
-          <Select value={status} onValueChange={onStatusChange}>
-            <SelectTrigger size="button">
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="published">Published</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={status} onValueChange={onStatusChange}>
+          <SelectTrigger size="button">
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="published">Published</SelectItem>
+          </SelectContent>
+        </Select>
 
-        {/* Featured Checkbox */}
         <div className="flex items-center space-x-2">
           <Checkbox
             id="featured"
@@ -101,8 +96,7 @@ export function BasicBlock({
           <span className="text-sm">Featured Product</span>
         </div>
 
-        {/* Product Image */}
-        <div className="space-y-2">
+        <div>
           {!imagePreview ? (
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
               <Upload className="w-6 h-6 mx-auto mb-3 text-muted-foreground" />
@@ -142,6 +136,7 @@ export function BasicBlock({
             </div>
           )}
         </div>
-    </BlockEditorSection>
+      </CardContent>
+    </Card>
   )
 }

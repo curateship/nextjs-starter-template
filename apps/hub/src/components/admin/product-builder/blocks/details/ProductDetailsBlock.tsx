@@ -2,8 +2,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { BlockTabs } from "@/components/ui/tabs"
-import { BlockEditorEmptyState, BlockEditorSection } from "@/components/ui/tabs"
+import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { BlockTabs, BlockEditorEmptyState } from "@/components/ui/tabs"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2 } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
@@ -56,67 +57,75 @@ export function ProductDetailsBlock({
           value: "content",
           label: "Content",
           content: (
-            <BlockEditorSection heading="Edit Product Details">
-                <div>
-                  <Label htmlFor="description" className="text-sm font-medium">Product Description</Label>
-                  <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => onDescriptionChange(e.target.value)}
-                    placeholder="Detailed product description..."
-                    className="mt-1"
-                    rows={4}
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm font-medium">Specifications</Label>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={addSpecification}
-                      className="h-8"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add
-                    </Button>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader className="p-4 pb-3">
+                  <DashboardModalCardTitle>Product Details</DashboardModalCardTitle>
+                  <CardDescription>Add a description and key specifications.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 p-4 pt-0">
+                  <div>
+                    <Label htmlFor="description" className="text-sm font-medium">Product Description</Label>
+                    <Textarea
+                      id="description"
+                      value={description}
+                      onChange={(e) => onDescriptionChange(e.target.value)}
+                      placeholder="Detailed product description..."
+                      className="mt-1"
+                      rows={4}
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    {specifications.map((spec, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <Input
-                          value={spec.label}
-                          onChange={(e) => updateSpecification(index, 'label', e.target.value)}
-                          placeholder="Feature name"
-                          className="flex-1"
-                        />
-                        <Input
-                          value={spec.value}
-                          onChange={(e) => updateSpecification(index, 'value', e.target.value)}
-                          placeholder="Feature value"
-                          className="flex-1"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeSpecification(index)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-medium">Specifications</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addSpecification}
+                        className="h-8"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add
+                      </Button>
+                    </div>
 
-                  {specifications.length === 0 && (
-                    <BlockEditorEmptyState className="py-4">
-                      No specifications added yet. Click &quot;Add&quot; to create your first specification.
-                    </BlockEditorEmptyState>
-                  )}
-                </div>
-            </BlockEditorSection>
+                    <div className="space-y-2">
+                      {specifications.map((spec, index) => (
+                        <div key={index} className="flex items-center space-x-2">
+                          <Input
+                            value={spec.label}
+                            onChange={(e) => updateSpecification(index, 'label', e.target.value)}
+                            placeholder="Feature name"
+                            className="flex-1"
+                          />
+                          <Input
+                            value={spec.value}
+                            onChange={(e) => updateSpecification(index, 'value', e.target.value)}
+                            placeholder="Feature value"
+                            className="flex-1"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeSpecification(index)}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {specifications.length === 0 && (
+                      <BlockEditorEmptyState className="py-4">
+                        No specifications added yet. Click &quot;Add&quot; to create your first specification.
+                      </BlockEditorEmptyState>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
@@ -130,18 +139,19 @@ export function ProductDetailsBlock({
           value: "settings",
           label: "Settings",
           content: (
-            <>
+            <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  useCard
                   fields={[
                     { key: 'description', label: 'Description' },
                     { key: 'specifications', label: 'Specifications' },
                   ]}
                 />
               )}
-            </>
+            </CardGroup>
           ),
         },
       ]}
