@@ -33,11 +33,6 @@ The fixed ports are configured in the app-level dev setup:
 - `apps/custom-shell/vite.config.ts`
   - `server.port = 3002`
   - `server.strictPort = true`
-- `apps/scraper/vite.config.ts`
-  - `server.port = 3003`
-  - `server.strictPort = true`
-- `services/scraper-api`
-  - `python3 -m uvicorn app.main:app --reload --port 8001`
 
 `strictPort: true` is enabled for the Vite apps so they fail instead of silently moving to another port.
 
@@ -60,6 +55,4 @@ Running `localapps` should show:
 hub: http://localhost:3000
 seo: http://localhost:3001
 custom-shell: http://localhost:3002
-scraper: http://localhost:3003
-scraper-api: http://localhost:8001
 ```

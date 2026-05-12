@@ -224,14 +224,14 @@ When ready to build the first micro-SaaS (e.g., pomodoro):
 
 ### Phase 4: Python Services (When Needed)
 
-1. `mkdir -p services/scraper`
+1. `mkdir -p services/worker`
 2. Python project with `pyproject.toml` (uv or poetry for deps)
 3. Thin `package.json` for Turborepo orchestration:
    ```json
    {
-     "name": "@repo/scraper",
+     "name": "@repo/worker",
      "scripts": {
-       "dev": "python -m scraper.main",
+       "dev": "python -m worker.main",
        "test": "pytest",
        "lint": "ruff check ."
      }

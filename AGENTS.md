@@ -29,7 +29,6 @@ Do not expand a small request into broad cleanup, scoring changes, helper abstra
 - Before working in a specific app or service directory, check for a local `AGENTS.md` in that directory and follow it for that scope.
 - App-specific `AGENTS.md` files override root-level guidance when the instructions are more specific to that app.
 - For work in `apps/hub/**`, follow `apps/hub/AGENTS.md`.
-- For work in `apps/scraper/**`, follow `apps/scraper/AGENTS.md`.
 
 
 ## Repository Structure
