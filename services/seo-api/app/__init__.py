@@ -1,1 +1,0 @@
-"""whateverseo SEO API."""

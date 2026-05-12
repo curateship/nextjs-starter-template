@@ -8,11 +8,8 @@
     "dev:custom-shell-ui": "npm run dev --workspace=custom-shell",
     "dev:custom-shell-api": "cd services/custom-shell-api && python3 -m uvicorn app.main:app --reload --port 8002",
     "dev:hub": "npm run dev --workspace=@repo/hub",
-    "dev:seo": "npm run dev --workspace=@repo/seo",
-    "dev:seo-api": "cd services/seo-api && uvicorn app.main:app --reload",
     "build": "turbo build",
     "build:custom-shell": "npm run build --workspace=custom-shell",
-    "build:seo": "npm run build --workspace=@repo/seo",
     "lint": "turbo lint"
   },
   "packageManager": "npm@11.3.0",

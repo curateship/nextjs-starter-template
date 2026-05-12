@@ -5,19 +5,14 @@ This document describes the current local dev server setup for the apps in this 
 ## Local URLs
 
 - Hub: `http://localhost:3000`
-- SEO: `http://localhost:3001`
 - Custom Shell: `http://localhost:3002`
-- Scraper: `http://localhost:3003`
-- Scraper API: `http://localhost:8001`
 
 ## Why These Ports
 
 The local apps now use a simple sequential port layout so they are easier to remember:
 
 - `3000`
-- `3001`
 - `3002`
-- `3003`
 
 This replaces the previous mix of `3000`, `5173`, and `5174`.
 
@@ -27,9 +22,6 @@ The fixed ports are configured in the app-level dev setup:
 
 - `apps/hub/package.json`
   - `next dev --turbopack --port 3000`
-- `apps/seo/vite.config.ts`
-  - `server.port = 3001`
-  - `server.strictPort = true`
 - `apps/custom-shell/vite.config.ts`
   - `server.port = 3002`
   - `server.strictPort = true`
@@ -53,6 +45,5 @@ Running `localapps` should show:
 
 ```text
 hub: http://localhost:3000
-seo: http://localhost:3001
 custom-shell: http://localhost:3002
 ```
