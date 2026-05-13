@@ -3,6 +3,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import { Check } from "lucide-react"
@@ -150,8 +151,10 @@ export function PageListingViewBlock({
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-4">
-              <BlockEditorSection heading="Header Settings" contentClassName="space-y-8">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Header Settings" contentClassName="space-y-8">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,220px)_minmax(0,220px)]">
             <div className="space-y-2">
               <Label htmlFor="title">Title</Label>
@@ -237,9 +240,13 @@ export function PageListingViewBlock({
               </div>
             </div>
           </div>
-      </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-      <BlockEditorSection heading="Content Settings">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Content Settings">
           <div className="flex flex-wrap gap-4">
             <div className="space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
@@ -265,16 +272,20 @@ export function PageListingViewBlock({
             </div>
             
           </div>
-      </BlockEditorSection>
-            </div>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "stylings",
           label: "Stylings",
           content: (
-            <div className="space-y-4">
-              <BlockEditorSection heading="Image Display">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Image Display">
                 <div className="grid grid-cols-2 gap-2 max-w-sm">
                   {Object.entries(IMAGE_FIT_OPTIONS).map(([key, option]) => (
                     <button
@@ -303,9 +314,13 @@ export function PageListingViewBlock({
                     </button>
                   ))}
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Layout">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Layout">
                 <div className="flex flex-wrap gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="displayMode">Display Mode</Label>
@@ -365,16 +380,20 @@ export function PageListingViewBlock({
                     </Select>
                   </div>
                 </div>
-              </BlockEditorSection>
-            </div>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-4">
-              <BlockEditorSection heading="Listing Style">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Listing Style">
                 <div className="grid grid-cols-2 gap-2 max-w-sm">
                   {Object.entries(LISTING_STYLES).map(([key, style]) => (
                     <button
@@ -403,7 +422,9 @@ export function PageListingViewBlock({
                     </button>
                   ))}
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
               {onVisibilityChange && (
                 <VisibilitySettings
@@ -412,6 +433,7 @@ export function PageListingViewBlock({
                   onChange={onVisibilityChange}
                   includeHideBlock={false}
                   helperText={null}
+                  useCard
                   fields={[
                     { key: 'title', label: 'Title' },
                     { key: 'subtitle', label: 'Subtitle' },
@@ -419,7 +441,9 @@ export function PageListingViewBlock({
                 />
               )}
 
-              <BlockEditorSection heading="Display Options">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Display Options">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="showImage"
@@ -506,18 +530,21 @@ export function PageListingViewBlock({
                     </span>
                   </div>
 
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
               {onVisibilityChange && (
                 <VisibilitySettings
                   title="Block Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  useCard
                   fields={[{ key: 'viewAllButton', label: 'Show Header Button' }]}
                 />
               )}
 
-            </div>
+            </CardGroup>
           ),
         },
       ]}

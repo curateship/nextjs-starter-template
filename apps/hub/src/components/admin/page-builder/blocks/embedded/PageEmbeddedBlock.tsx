@@ -2,6 +2,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface SharedEmbeddedBlockProps {
@@ -32,8 +33,10 @@ export function PageEmbeddedBlock({
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-4">
-              <BlockEditorSection heading="Embed Type">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Embed Type">
                   <div className="space-y-2">
                     <Label htmlFor="embedType">Content Type</Label>
                     <Select value={type} onValueChange={onTypeChange}>
@@ -51,9 +54,13 @@ export function PageEmbeddedBlock({
                         : 'Script tags are not executed on public pages. Use HTML or a trusted integration instead.'}
                     </p>
                   </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Embedded Code">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Embedded Code">
                   <div className="space-y-2">
                     <Label htmlFor="embeddedCode">
                       {type === 'html' ? 'HTML Code' : 'Script Code'}
@@ -73,15 +80,17 @@ export function PageEmbeddedBlock({
                       Only sanitized HTML is rendered on public pages. Script tags and event handlers are removed.
                     </p>
                   </div>
-              </BlockEditorSection>
-            </div>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-4">
+            <CardGroup className="grid">
               {onVisibilityChange && (
                 <>
                   <VisibilitySettings
@@ -89,6 +98,7 @@ export function PageEmbeddedBlock({
                     visibility={visibility}
                     onChange={onVisibilityChange}
                     includeHideBlock={false}
+                    useCard
                     fields={[
                       { key: 'embed', label: 'Show on Frontend' },
                     ]}
@@ -97,11 +107,12 @@ export function PageEmbeddedBlock({
                     title="Block Visibility"
                     visibility={visibility}
                     onChange={onVisibilityChange}
+                    useCard
                     fields={[]}
                   />
                 </>
               )}
-            </div>
+            </CardGroup>
           ),
         },
       ]}

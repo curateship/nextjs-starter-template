@@ -1,7 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
@@ -47,24 +46,18 @@ export function AccountPageBlockEditorDialog({
             </>
           }
         >
-          <CardGroup className="grid">
-            <Card>
-              <CardContent className="p-0">
-                {selectedBlock.type === "account-edit-profile" && (
-                  <AccountEditProfileBlock
-                    content={draftContent}
-                    onContentChange={onContentChange}
-                  />
-                )}
-                {selectedBlock.type === "account-claimed-listings" && (
-                  <AccountClaimedListingsBlock
-                    content={draftContent}
-                    onContentChange={onContentChange}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </CardGroup>
+          {selectedBlock.type === "account-edit-profile" && (
+            <AccountEditProfileBlock
+              content={draftContent}
+              onContentChange={onContentChange}
+            />
+          )}
+          {selectedBlock.type === "account-claimed-listings" && (
+            <AccountClaimedListingsBlock
+              content={draftContent}
+              onContentChange={onContentChange}
+            />
+          )}
         </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>

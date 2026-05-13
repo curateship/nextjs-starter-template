@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { ImageIcon, X } from "lucide-react"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
@@ -78,8 +79,10 @@ export function PageDividerBlock({
             value: "styling",
             label: "Styling",
             content: (
-              <div className="space-y-4">
-                <BlockEditorSection heading="Spacing Settings">
+              <CardGroup className="grid">
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection heading="Spacing Settings">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="spacingTop">Top Spacing (px)</Label>
@@ -115,9 +118,13 @@ export function PageDividerBlock({
                         />
                       </div>
                     </div>
-                </BlockEditorSection>
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
 
-                <BlockEditorSection heading="Divider Style">
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection heading="Divider Style">
                     <div className="space-y-4">
                       {dividerStyle === 'line' || dividerStyle === 'line-with-icon' ? (
                         <>
@@ -324,24 +331,27 @@ export function PageDividerBlock({
                         </div>
                       )}
                     </div>
-                </BlockEditorSection>
-              </div>
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
           {
             value: "settings",
             label: "Settings",
             content: (
-              <div className="space-y-4">
+              <CardGroup className="grid">
                 {onVisibilityChange && (
                   <VisibilitySettings
                     title="Block Visibility"
                     visibility={visibility}
                     onChange={onVisibilityChange}
+                    useCard
                     fields={[]}
                   />
                 )}
-              </div>
+              </CardGroup>
             ),
           },
         ]}

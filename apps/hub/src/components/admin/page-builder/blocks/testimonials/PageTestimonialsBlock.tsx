@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical, Check } from "lucide-react"
 import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
@@ -235,8 +236,10 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
             value: "content",
             label: "Content",
             content: (
-              <>
-                <BlockEditorSection heading="Header Settings">
+              <CardGroup className="grid">
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection heading="Header Settings">
                   <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label>Title</Label>
@@ -270,9 +273,13 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                       </Select>
                     </div>
                   </div>
-                </BlockEditorSection>
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
 
-                <BlockEditorSection heading="Testimonial Items">
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection heading="Testimonial Items">
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -309,38 +316,48 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                         Add Item
                       </Button>
                     </div>
-                </BlockEditorSection>
-              </>
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
           {
             value: "styling",
             label: "Styling",
             content: (
-              <BlockEditorSection
-                heading={
-                  <>
-                    {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
-                  </>
-                }
-              >
-                {ActiveAdminPanel ? (
-                  <ActiveAdminPanel
-                    config={currentStyleConfig}
-                    onConfigChange={handleStyleConfigChange}
-                  />
-                ) : (
-                  <p className="text-muted-foreground text-sm">No settings for this style.</p>
-                )}
-              </BlockEditorSection>
+              <CardGroup className="grid">
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection
+                      heading={
+                        <>
+                          {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
+                        </>
+                      }
+                    >
+                      {ActiveAdminPanel ? (
+                        <ActiveAdminPanel
+                          config={currentStyleConfig}
+                          onConfigChange={handleStyleConfigChange}
+                        />
+                      ) : (
+                        <p className="text-muted-foreground text-sm">No settings for this style.</p>
+                      )}
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
+              </CardGroup>
             ),
           },
           {
             value: "settings",
             label: "Settings",
             content: (
-              <div className="space-y-6">
-                <BlockEditorSection heading="Testimonial Style">
+              <CardGroup className="grid">
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection heading="Testimonial Style">
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
                       <button
@@ -371,12 +388,15 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                       </button>
                     ))}
                   </div>
-                </BlockEditorSection>
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
                 <VisibilitySettings
                   title="Element Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
                   includeHideBlock={false}
+                  useCard
                   fields={[
                     { key: 'title', label: 'Title' },
                     { key: 'subtitle', label: 'Subtitle' },
@@ -386,9 +406,10 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                   title="Block Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
+                  useCard
                   fields={[]}
                 />
-              </div>
+              </CardGroup>
             ),
           },
         ]}

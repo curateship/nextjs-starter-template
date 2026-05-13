@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Slider } from "@/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -279,8 +280,10 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
   const backgroundPatternOpacity = config.backgroundPatternOpacity ?? 80
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-4">
+    <CardGroup className="grid">
+      <Card>
+        <CardContent>
+          <section className="space-y-4">
         <div>
           <h3 className="text-base font-medium">Hero Image</h3>
         </div>
@@ -329,7 +332,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
         {heroImage && (
           <div className="space-y-5">
             <div className="space-y-1.5">
-              <Label className="text-xs">Image Alignment</Label>
+              <Label className="text-sm">Image Alignment</Label>
               <div className="flex gap-4">
                 {(['left', 'center', 'right'] as const).map((option) => (
                   <div key={option} className="flex items-center gap-1.5">
@@ -338,24 +341,24 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                       checked={(config.heroImageAlign || 'center') === option}
                       onCheckedChange={() => onConfigChange('heroImageAlign', option)}
                     />
-                    <Label htmlFor={`heroImageAlign-${option}`} className="text-xs capitalize cursor-pointer">{option}</Label>
+                    <Label htmlFor={`heroImageAlign-${option}`} className="text-sm capitalize cursor-pointer">{option}</Label>
                   </div>
                 ))}
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Mobile Visibility</Label>
+              <Label className="text-sm">Mobile Visibility</Label>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="heroImageHideMobile"
                   checked={config.heroImageHideMobile === true}
                   onCheckedChange={(checked) => onConfigChange('heroImageHideMobile', !!checked)}
                 />
-                <Label htmlFor="heroImageHideMobile" className="text-xs cursor-pointer">Hide on mobile</Label>
+                <Label htmlFor="heroImageHideMobile" className="text-sm cursor-pointer">Hide on mobile</Label>
               </div>
               {!config.heroImageHideMobile && (
                 <div className="flex items-center gap-2 mt-2">
-                  <Label className="text-xs whitespace-nowrap">Mobile Opacity</Label>
+                  <Label className="text-sm whitespace-nowrap">Mobile Opacity</Label>
                   <Input
                     type="number"
                     min="0"
@@ -367,21 +370,21 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                         onConfigChange('heroImageMobileOpacity', value);
                       }
                     }}
-                    className="h-auto w-16 px-2 py-1 text-xs"
+                    className="h-auto w-16 px-2 py-1 text-sm"
                   />
-                  <span className="text-xs text-muted-foreground">%</span>
+                  <span className="text-sm text-muted-foreground">%</span>
                 </div>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Image Size</Label>
+              <Label className="text-sm">Image Size</Label>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="heroImageCustomSize"
                   checked={!!config.heroImageSize}
                   onCheckedChange={(checked) => onConfigChange('heroImageSize', checked ? 600 : null)}
                 />
-                <Label htmlFor="heroImageCustomSize" className="text-xs cursor-pointer">Custom size</Label>
+                <Label htmlFor="heroImageCustomSize" className="text-sm cursor-pointer">Custom size</Label>
                 {config.heroImageSize != null && (
                   <>
                     <Input
@@ -405,18 +408,22 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                           onConfigChange('heroImageSize', 2000);
                         }
                       }}
-                      className="h-auto w-20 px-2 py-1 text-xs"
+                      className="h-auto w-20 px-2 py-1 text-sm"
                     />
-                    <span className="text-xs text-muted-foreground">px</span>
+                    <span className="text-sm text-muted-foreground">px</span>
                   </>
                 )}
               </div>
             </div>
           </div>
         )}
-      </section>
+          </section>
+        </CardContent>
+      </Card>
 
-      <section className="space-y-4">
+      <Card>
+        <CardContent>
+          <section className="space-y-4">
         <div>
           <h3 className="text-base font-medium">Background Color</h3>
         </div>
@@ -519,9 +526,13 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
             Extend background under navigation
           </Label>
         </div>
-      </section>
+          </section>
+        </CardContent>
+      </Card>
 
-      <section className="space-y-4">
+      <Card>
+        <CardContent>
+          <section className="space-y-4">
         <div>
           <h3 className="text-base font-medium">Background Pattern</h3>
         </div>
@@ -586,7 +597,9 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
             </>
           )}
         </div>
-      </section>
+          </section>
+        </CardContent>
+      </Card>
 
       {/* Image Picker Modal for Hero Image */}
       <MediaPicker
@@ -598,6 +611,6 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
         }}
         currentMediaUrl={heroImage}
       />
-    </div>
+    </CardGroup>
   )
 }

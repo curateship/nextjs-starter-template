@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface PageAuthBlockProps {
@@ -92,8 +93,10 @@ export function PageAuthBlock({
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-8">
-              <BlockEditorSection heading="Login Form Text">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Login Form Text">
                 <div className="space-y-2">
                   <Label htmlFor="loginTitle">Title</Label>
                   <Input
@@ -123,9 +126,13 @@ export function PageAuthBlock({
                     onChange={(e) => onLoginButtonTextChange(e.target.value)}
                   />
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Register Form Text">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Register Form Text">
                 <div className="space-y-2">
                   <Label htmlFor="registerTitle">Title</Label>
                   <Input
@@ -157,9 +164,13 @@ export function PageAuthBlock({
                     onChange={(e) => onRegisterButtonTextChange(e.target.value)}
                   />
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Password Reset Form Text">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Password Reset Form Text">
                 <div className="space-y-2">
                   <Label htmlFor="resetTitle">Title</Label>
                   <Input
@@ -189,8 +200,10 @@ export function PageAuthBlock({
                     onChange={(e) => onResetButtonTextChange(e.target.value)}
                   />
                 </div>
-              </BlockEditorSection>
-            </div>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
@@ -202,8 +215,10 @@ export function PageAuthBlock({
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-8">
-              <BlockEditorSection heading="Tab Settings">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Tab Settings">
                 <div className="space-y-2">
                   <Label htmlFor="defaultTab">Default Tab</Label>
                   <Select value={defaultTab} onValueChange={onDefaultTabChange}>
@@ -238,9 +253,13 @@ export function PageAuthBlock({
                     Show Register Tab
                   </Label>
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Redirect Settings">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Redirect Settings">
                 <div className="space-y-2">
                   <Label htmlFor="loginRedirectPath">Login Redirect Path</Label>
                   <Input
@@ -293,17 +312,20 @@ export function PageAuthBlock({
                     </p>
                   </div>
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
               {onVisibilityChange && (
                 <VisibilitySettings
                   title="Block Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  useCard
                   fields={[]}
                 />
               )}
-            </div>
+            </CardGroup>
           ),
         },
       ]}

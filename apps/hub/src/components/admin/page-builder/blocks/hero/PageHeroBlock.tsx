@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
 import { useEffect, useCallback, useMemo } from "react"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { HERO_STYLES } from "."
 import { TrustedByBadgeFields } from "./DefaultHeroConfig"
 import { cn } from "@/lib/utils/tailwind"
@@ -116,36 +117,37 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-8">
-              <BlockEditorSection heading="Text Content">
-                <div className="space-y-2">
-                  <Label htmlFor="heroTitle">Hero Title</Label>
-                  <Input
-                    id="heroTitle"
-                    type="text"
-                    value={content.title || ''}
-                    onChange={(e) => onContentChange('title', e.target.value)}
-                    placeholder="Build Exceptional Interfaces with Ease"
-                    required
-                  />
-                </div>
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Text Content">
+                    <div className="space-y-2">
+                      <Label htmlFor="heroTitle">Hero Title</Label>
+                      <Input
+                        id="heroTitle"
+                        type="text"
+                        value={content.title || ''}
+                        onChange={(e) => onContentChange('title', e.target.value)}
+                        placeholder="Build Exceptional Interfaces with Ease"
+                        required
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
-                  <Textarea
-                    id="heroSubtitle"
-                    value={content.subtitle || ''}
-                    onChange={(e) => onContentChange('subtitle', e.target.value)}
-                    placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
-                    rows={2}
-                    required
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
+                      <Textarea
+                        id="heroSubtitle"
+                        value={content.subtitle || ''}
+                        onChange={(e) => onContentChange('subtitle', e.target.value)}
+                        placeholder="Use our component library powered by Shadcn UI & Tailwind CSS to craft beautiful, fast, and accessible UIs."
+                        rows={2}
+                        required
+                      />
+                    </div>
 
-                {/* Primary Button */}
-                <div className="space-y-2">
-                  <Label>Primary Button</Label>
-                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <div className="space-y-2">
+                      <Label>Primary Button</Label>
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <Input
                       type="text"
                       value={content.primaryButton || ''}
@@ -163,13 +165,12 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                       value={content.primaryButtonStyle || 'primary'}
                       onChange={(v) => onContentChange('primaryButtonStyle', v)}
                     />
-                  </div>
-                </div>
+                      </div>
+                    </div>
 
-                {/* Secondary Button */}
-                <div className="space-y-2">
-                  <Label>Secondary Button</Label>
-                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <div className="space-y-2">
+                      <Label>Secondary Button</Label>
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                     <Input
                       type="text"
                       value={content.secondaryButton || ''}
@@ -187,38 +188,45 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                       value={content.secondaryButtonStyle || 'outline'}
                       onChange={(v) => onContentChange('secondaryButtonStyle', v)}
                     />
-                  </div>
-                </div>
-              </BlockEditorSection>
+                      </div>
+                    </div>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <TrustedByBadgeFields
-                config={currentStyleConfig}
-                onConfigChange={handleStyleConfigChange}
-              />
-            </div>
+              <Card>
+                <CardContent>
+                  <TrustedByBadgeFields
+                    config={currentStyleConfig}
+                    onConfigChange={handleStyleConfigChange}
+                  />
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "styling",
           label: "Styling",
           content: (
-            <>
-              {ActivePanel && (
-                <ActivePanel
-                  config={currentStyleConfig}
-                  onConfigChange={handleStyleConfigChange}
-                  siteId={siteId}
-                  blockId={blockId}
-                />
-              )}
-            </>
+            ActivePanel ? (
+              <ActivePanel
+                config={currentStyleConfig}
+                onConfigChange={handleStyleConfigChange}
+                siteId={siteId}
+                blockId={blockId}
+              />
+            ) : null
           ),
         },
         {
           value: "email-form",
           label: "Email Form",
           content: (
-            <BlockEditorSection heading="Email Subscription Form">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Email Subscription Form">
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="emailFormEnabled"
@@ -288,15 +296,20 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                     </div>
                   </>
                 )}
-            </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-6">
-              <BlockEditorSection heading="Hero Style">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Hero Style">
                 <div className="grid grid-cols-2 gap-2 max-w-sm">
                   {Object.entries(HERO_STYLES).map(([key, style]) => (
                     <button
@@ -327,9 +340,13 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                     </button>
                   ))}
                 </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Content Alignment">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Content Alignment">
                   <div className="flex gap-4">
                     {(['left', 'center', 'right'] as const).map((option) => (
                       <div key={option} className="flex items-center gap-2">
@@ -342,9 +359,13 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                       </div>
                     ))}
                   </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="Content Width">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Content Width">
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id="contentWidth"
@@ -382,13 +403,16 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                       </>
                     )}
                   </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
               <VisibilitySettings
                 title="Element Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
                 includeHideBlock={false}
+                useCard
                 fields={[
                   { key: 'title', label: 'Title' },
                   { key: 'subtitle', label: 'Subtitle' },
@@ -401,9 +425,10 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                 title="Block Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
+                useCard
                 fields={[]}
               />
-            </div>
+            </CardGroup>
           ),
         },
       ]}

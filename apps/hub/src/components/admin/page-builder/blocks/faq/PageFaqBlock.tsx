@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, GripVertical } from "lucide-react"
 import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import {
   DndContext,
@@ -272,8 +273,10 @@ export function PageFaqBlock({
           value: "content",
           label: "Content",
           content: (
-            <div className="space-y-6">
-              <BlockEditorSection heading="Header Settings">
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="Header Settings">
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="faq-title">Title</Label>
@@ -308,9 +311,13 @@ export function PageFaqBlock({
                       </Select>
                     </div>
                   </div>
-              </BlockEditorSection>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
 
-              <BlockEditorSection heading="FAQ Items">
+              <Card>
+                <CardContent>
+                  <BlockEditorSection heading="FAQ Items">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -351,15 +358,17 @@ export function PageFaqBlock({
                       Add Item
                     </Button>
                   </div>
-              </BlockEditorSection>
-            </div>
+                  </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
           ),
         },
         {
           value: "settings",
           label: "Settings",
           content: (
-            <div className="space-y-4">
+            <CardGroup className="grid">
               {onVisibilityChange && (
                 <>
                   <VisibilitySettings
@@ -367,6 +376,7 @@ export function PageFaqBlock({
                     visibility={visibility}
                     onChange={onVisibilityChange}
                     includeHideBlock={false}
+                    useCard
                     fields={[
                       { key: 'title', label: 'Title' },
                       { key: 'subtitle', label: 'Subtitle' },
@@ -376,11 +386,12 @@ export function PageFaqBlock({
                     title="Block Visibility"
                     visibility={visibility}
                     onChange={onVisibilityChange}
+                    useCard
                     fields={[]}
                   />
                 </>
               )}
-            </div>
+            </CardGroup>
           ),
         },
       ]}

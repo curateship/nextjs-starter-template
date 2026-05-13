@@ -164,8 +164,8 @@ function NavigationIconField({
         <p className="text-sm font-medium">Icon</p>
         <Button
           type="button"
-          variant="outline"
-          className={cn("h-9 w-full shrink-0 px-3", SelectedIcon ? "w-9 p-0" : "text-muted-foreground")}
+          variant="ghost"
+          className="h-9 w-9 shrink-0 p-0 shadow-none hover:bg-transparent"
           onClick={() => setOpen(true)}
         >
           {SelectedIcon ? (
@@ -173,7 +173,9 @@ function NavigationIconField({
               <SelectedIcon className="h-4 w-4 shrink-0" />
             </span>
           ) : (
-            <span className="text-center text-[10px] leading-tight font-medium">Choose Icon</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-md border border-dashed bg-muted text-muted-foreground">
+              <ImageIcon className="h-4 w-4" />
+            </span>
           )}
         </Button>
       </div>
@@ -310,7 +312,6 @@ function NavigationCompactIconField({
 }) {
   const [open, setOpen] = useState(false)
   const SelectedIcon = getQuickLinkIconOrNull(value)
-  const FallbackIcon = getQuickLinkIcon()
   const currentLabel = value
     ? QUICK_LINK_ICON_OPTIONS.find((option) => option.value === value)?.label || "Custom icon"
     : "No icon"
@@ -329,7 +330,9 @@ function NavigationCompactIconField({
           {SelectedIcon ? (
             <SelectedIcon className="h-4 w-4" />
           ) : (
-            <FallbackIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed bg-muted text-muted-foreground">
+              <ImageIcon className="h-4 w-4" />
+            </span>
           )}
         </Button>
       </PopoverTrigger>
@@ -338,7 +341,7 @@ function NavigationCompactIconField({
           <button
             type="button"
             className={cn(
-              "relative flex aspect-square items-center justify-center rounded-md border text-xs transition-colors hover:bg-muted",
+              "relative flex aspect-square items-center justify-center rounded-md border border-dashed bg-muted transition-colors hover:bg-muted/70",
               !value && "border-primary bg-primary/5"
             )}
             onClick={() => {
@@ -347,7 +350,7 @@ function NavigationCompactIconField({
             }}
             aria-label="Use no icon"
           >
-            None
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
             {!value ? <Check className="absolute right-1 top-1 h-3 w-3" /> : null}
           </button>
           {QUICK_LINK_ICON_OPTIONS.map((option) => {
@@ -390,10 +393,10 @@ function NavigationActionSettingsFields({
   onChange: (nextAction: NavigationActionSettings) => void
 }) {
   return (
-    <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
+    <div className="flex flex-wrap items-end gap-4">
       <NavigationIconField value={action.icon} onChange={(value) => onChange({ ...action, icon: value })} />
 
-      <Field>
+      <Field className="w-full sm:w-[140px]">
         <FieldLabel htmlFor={`${fieldPrefix}-label`}>Name</FieldLabel>
         <Input
           id={`${fieldPrefix}-label`}
@@ -403,7 +406,7 @@ function NavigationActionSettingsFields({
         />
       </Field>
 
-      <Field className="min-w-0">
+      <Field className="min-w-[220px] flex-1">
         <FieldLabel htmlFor={`${fieldPrefix}-url`}>URL</FieldLabel>
         <Input
           id={`${fieldPrefix}-url`}
@@ -413,7 +416,7 @@ function NavigationActionSettingsFields({
         />
       </Field>
 
-      <Field>
+      <Field className="w-full sm:w-[120px]">
         <FieldLabel>Style</FieldLabel>
         <Select
           value={action.style}
@@ -430,9 +433,9 @@ function NavigationActionSettingsFields({
         </Select>
       </Field>
 
-      <Field>
+      <Field className="w-full sm:w-auto">
         <FieldLabel htmlFor={`${fieldPrefix}-mobile`}>Show on mobile</FieldLabel>
-        <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3 shadow-xs">
+        <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3">
           <Checkbox
             checked={action.showOnMobile === true}
             onCheckedChange={(checked) => onChange({ ...action, showOnMobile: checked === true })}
@@ -1923,10 +1926,10 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
           }
         >
           <CardGroup className="grid">
-            <Card>
-              <CardContent>
-                {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? (
-                  <div className="space-y-6">
+            {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? (
+              <>
+                <Card>
+                  <CardContent>
                     <NavigationActionSettingsSection
                       title="Login"
                       description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
@@ -1934,7 +1937,11 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                       fieldPrefix="navigation-account-menu-login"
                       onChange={(nextAction) => updateAccountMenuActionDraft("login", nextAction)}
                     />
+                  </CardContent>
+                </Card>
 
+                <Card>
+                  <CardContent>
                     <NavigationActionSettingsSection
                       title="Register"
                       description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
@@ -1942,8 +1949,12 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                       fieldPrefix="navigation-account-menu-register"
                       onChange={(nextAction) => updateAccountMenuActionDraft("register", nextAction)}
                     />
+                  </CardContent>
+                </Card>
 
-                    <div className="space-y-3 pt-2">
+                <Card>
+                  <CardContent>
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">Child links</p>
@@ -2000,8 +2011,12 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                         </div>
                       )}
                     </div>
-                  </div>
-                ) : (
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center gap-3">
                       <Checkbox
@@ -2029,9 +2044,9 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                       </div>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </CardGroup>
         </DashboardModalContent>
       </Dialog>

@@ -42,7 +42,7 @@ export function PageBlockEditorDialog({
         <DashboardModalContent
           title={`Edit ${selectedBlock.title || getBlockName(selectedBlock.type)}`}
           titleAccessory={<ModalTabs />}
-          className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
+          className="max-w-[960px]"
           footer={
             <>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
