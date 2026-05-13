@@ -67,10 +67,20 @@ export function PageRichTextEditorBlock({
           content: (
             <CardGroup className="grid">
               <VisibilitySettings
+                title="Elements Visibility"
+                visibility={normalizedContent.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                includeHideBlock={false}
+                helperText="Toggle specific Elements on or off"
+                useCard
+                fields={[{ key: "body", label: "Content" }]}
+              />
+              <VisibilitySettings
+                title="Block Visibility"
                 visibility={normalizedContent.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
                 useCard
-                fields={[{ key: "body", label: "Content" }]}
+                fields={[]}
               />
             </CardGroup>
           ),

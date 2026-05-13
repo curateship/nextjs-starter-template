@@ -408,7 +408,7 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
               </Card>
 
               <VisibilitySettings
-                title="Element Visibility"
+                title="Elements Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
                 includeHideBlock={false}

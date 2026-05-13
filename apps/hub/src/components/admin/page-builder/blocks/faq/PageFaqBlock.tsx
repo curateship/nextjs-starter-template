@@ -372,10 +372,11 @@ export function PageFaqBlock({
               {onVisibilityChange && (
                 <>
                   <VisibilitySettings
-                    title="Element Visibility"
+                    title="Elements Visibility"
                     visibility={visibility}
                     onChange={onVisibilityChange}
                     includeHideBlock={false}
+                    helperText="Toggle specific Elements on or off"
                     useCard
                     fields={[
                       { key: 'title', label: 'Title' },

@@ -26,7 +26,7 @@ export function VisibilitySettings({
   title = "Visibility",
   includeHideBlock = true,
   useCard = false,
-  helperText = "Toggle elements on or off, or hide the entire block, without deleting content.",
+  helperText = "Hide the entire block without deleting content.",
 }: VisibilitySettingsProps) {
   const resolvedFields = includeHideBlock && !fields.some((field) => field.key === 'hideBlock')
     ? [...fields, { key: 'hideBlock', label: 'Hide Block', mode: 'hide' as const }]

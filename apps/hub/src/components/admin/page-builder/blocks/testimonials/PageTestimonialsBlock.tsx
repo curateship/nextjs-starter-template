@@ -392,10 +392,11 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                   </CardContent>
                 </Card>
                 <VisibilitySettings
-                  title="Element Visibility"
+                  title="Elements Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
                   includeHideBlock={false}
+                  helperText="Toggle specific Elements on or off"
                   useCard
                   fields={[
                     { key: 'title', label: 'Title' },

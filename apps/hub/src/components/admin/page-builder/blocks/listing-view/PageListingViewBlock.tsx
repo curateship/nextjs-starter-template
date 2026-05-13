@@ -432,18 +432,20 @@ export function PageListingViewBlock({
                   visibility={visibility}
                   onChange={onVisibilityChange}
                   includeHideBlock={false}
-                  helperText={null}
+                  helperText="Toggle header elements on or off"
                   useCard
                   fields={[
                     { key: 'title', label: 'Title' },
                     { key: 'subtitle', label: 'Subtitle' },
+                    { key: 'viewAllButton', label: 'Show Header Button' },
                   ]}
                 />
               )}
 
               <Card>
                 <CardContent>
-                  <BlockEditorSection heading="Display Options">
+                  <BlockEditorSection heading="Element Visibility">
+                  <p className="text-xs text-muted-foreground">Toggle specific Elements on or off</p>
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="showImage"
@@ -540,7 +542,7 @@ export function PageListingViewBlock({
                   visibility={visibility}
                   onChange={onVisibilityChange}
                   useCard
-                  fields={[{ key: 'viewAllButton', label: 'Show Header Button' }]}
+                  fields={[]}
                 />
               )}
 
