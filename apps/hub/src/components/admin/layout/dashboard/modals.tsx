@@ -47,9 +47,9 @@ function DashboardModalContent({
       {...props}
     >
       <DashboardModalHeader>
-        <div className="flex min-w-0 items-center">
+        <div className="flex min-w-0 flex-wrap items-center gap-y-5 sm:flex-nowrap">
           <DashboardModalTitle className="min-w-0">{title}</DashboardModalTitle>
-          {titleAccessory ? <div className="shrink-0">{titleAccessory}</div> : null}
+          {titleAccessory ? <div className="w-full shrink-0 sm:w-auto">{titleAccessory}</div> : null}
         </div>
         {description ? <DashboardModalDescription>{description}</DashboardModalDescription> : null}
         <DashboardModalCloseButton />
@@ -65,7 +65,7 @@ function DashboardModalContent({
 }
 
 function DashboardModalHeader({ className, ...props }: React.ComponentProps<typeof DialogHeader>) {
-  return <DialogHeader className={cn("relative px-6 pt-6 pb-2 text-left", className)} {...props} />
+  return <DialogHeader className={cn("relative px-6 pt-6 pb-0 text-left", className)} {...props} />
 }
 
 function DashboardModalTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {
