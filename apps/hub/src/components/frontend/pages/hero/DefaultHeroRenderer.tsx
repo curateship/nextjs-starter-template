@@ -164,7 +164,7 @@ const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSi
   );
 };
 
-export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps) => {
+export const DefaultHeroRenderer = ({ config, visibility, children }: HeroStyleRendererProps) => {
   const {
     heroImage,
     trustedByText,
@@ -194,7 +194,7 @@ export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0" style={{ backgroundColor: heroBackgroundColor }}>
         <BackgroundPattern
-          pattern={backgroundPattern ?? 'none'}
+          pattern={visibility?.backgroundPattern === false ? 'none' : backgroundPattern ?? 'none'}
           size={backgroundPatternSize ?? 'medium'}
           opacity={backgroundPatternOpacity ?? 80}
         />
@@ -206,7 +206,9 @@ export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps
       </div>
 
       {/* Background image layer - above pattern */}
-      <HeroBackgroundImage heroImage={heroImage} heroImageAlign={heroImageAlign} heroImageSize={heroImageSize} isFixedWidth={isFixedWidth} contentMaxWidth={contentMaxWidth} hideMobile={heroImageHideMobile} mobileOpacity={heroImageMobileOpacity} />
+      {visibility?.heroImage !== false && (
+        <HeroBackgroundImage heroImage={heroImage} heroImageAlign={heroImageAlign} heroImageSize={heroImageSize} isFixedWidth={isFixedWidth} contentMaxWidth={contentMaxWidth} hideMobile={heroImageHideMobile} mobileOpacity={heroImageMobileOpacity} />
+      )}
 
       {/* Content layer above background */}
       <div
@@ -220,7 +222,7 @@ export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps
         <div className={cn("relative z-10 max-w-3xl space-y-6", textAlign)}>
           {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
           {children}
-          {trustedByAvatars && trustedByAvatars.length > 0 && (
+          {visibility?.trustedByBadges !== false && trustedByAvatars && trustedByAvatars.length > 0 && (
             <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} alignment={alignment} />
           )}
         </div>

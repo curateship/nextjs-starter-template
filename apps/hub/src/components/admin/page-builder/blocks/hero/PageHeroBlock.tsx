@@ -413,11 +413,15 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                 onChange={(v) => onContentChange('visibility', v)}
                 includeHideBlock={false}
                 useCard
+                helperText="Toggle specific Elements on or off"
                 fields={[
                   { key: 'title', label: 'Title' },
                   { key: 'subtitle', label: 'Subtitle' },
                   { key: 'ctaButtons', label: 'CTA Buttons' },
                   { key: 'emailForm', label: 'Email Form' },
+                  { key: 'heroImage', label: 'Hero Image' },
+                  { key: 'trustedByBadges', label: 'Trusted By Badges' },
+                  { key: 'backgroundPattern', label: 'Background Pattern' },
                 ]}
               />
 

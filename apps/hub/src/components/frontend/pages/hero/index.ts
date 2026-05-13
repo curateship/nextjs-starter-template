@@ -3,6 +3,7 @@ import { DefaultHeroRenderer } from "./DefaultHeroRenderer"
 
 export interface HeroStyleRendererProps {
   config: Record<string, any>
+  visibility?: Record<string, boolean>
   /** Shared content (title, subtitle, CTAs) for styles that want to integrate them into their layout */
   sharedContent: {
     title?: string

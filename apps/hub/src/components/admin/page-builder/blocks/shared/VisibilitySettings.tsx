@@ -34,6 +34,7 @@ export function VisibilitySettings({
 
   const content = (
     <div className="space-y-4">
+      {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
       {resolvedFields.map((field) => (
         <div key={field.key} className="flex items-center space-x-2">
           <Checkbox
@@ -49,7 +50,6 @@ export function VisibilitySettings({
           <Label htmlFor={`visibility-${field.key}`} className="cursor-pointer">{field.label}</Label>
         </div>
       ))}
-      {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
     </div>
   )
 
