@@ -176,11 +176,11 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
   return (
     <>
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader>
           <DashboardModalCardTitle>Trusted by badge</DashboardModalCardTitle>
           <CardDescription>Manage the social proof avatars and badge text.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 p-4 pt-0">
+        <CardContent>
 
         {trustedByAvatars.length === 0 ? (
           <div className="flex items-center gap-2">
@@ -243,11 +243,11 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
       </Card>
 
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader>
           <DashboardModalCardTitle>Hero image</DashboardModalCardTitle>
           <CardDescription>Choose the image shown in the hero.</CardDescription>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
+        <CardContent>
         <div className="relative">
           {heroImage ? (
             <div
@@ -292,11 +292,11 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
       </Card>
 
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader>
           <DashboardModalCardTitle>Background pattern</DashboardModalCardTitle>
           <CardDescription>Set the optional background texture.</CardDescription>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
+        <CardContent>
         <div className="inline-flex items-end gap-3">
           <Field className="w-[180px]">
             <FieldLabel className="text-xs">Pattern Type</FieldLabel>

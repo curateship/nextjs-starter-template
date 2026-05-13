@@ -234,11 +234,11 @@ export function DirectorySettingsModal({
         <form id="directory-settings-form" onSubmit={handleSubmit} className="contents">
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Directory details</DashboardModalCardTitle>
                 <CardDescription>Name the directory, set its URL, and featured image.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-title">Directory Title *</FieldLabel>
                   <Input
@@ -309,11 +309,11 @@ export function DirectorySettingsModal({
 
             {directory?.site_id && (
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
                   <CardDescription>Organize this directory by topic.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel>Categories</FieldLabel>
                     <CategoryPicker
@@ -332,11 +332,11 @@ export function DirectorySettingsModal({
             )}
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
                 <CardDescription>Set the search description for this directory.</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
                   <Textarea

@@ -30,10 +30,10 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Logo</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div>
                     {content.logoUrl ? (
                       <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
@@ -131,10 +131,10 @@ export function NewsletterHeaderBlock({ content, onContentChange, onBack, siteId
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Layout</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div>
                     <Label>Alignment</Label>
                     <div className="mt-1 flex gap-1">

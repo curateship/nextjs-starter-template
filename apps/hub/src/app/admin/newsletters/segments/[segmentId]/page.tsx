@@ -352,7 +352,7 @@ export default function SegmentDashboardPage() {
           {loading && (
             <CardGroup className="grid">
               <Card>
-                <CardContent className="flex items-center gap-4">
+                <CardContent className="flex items-center">
                   <div className="h-14 w-14 rounded-full bg-muted animate-pulse" />
                   <div className="space-y-2">
                     <div className="h-5 w-48 bg-muted rounded animate-pulse" />
@@ -392,7 +392,7 @@ export default function SegmentDashboardPage() {
             <CardGroup className="grid">
               {/* Segment Header */}
               <Card>
-                <CardContent className="flex items-center gap-4">
+                <CardContent className="flex items-center">
                   {/* Icon circle */}
                   <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                     <Filter className="h-6 w-6" />
@@ -650,10 +650,10 @@ export default function SegmentDashboardPage() {
           >
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Segment details</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="segment-name">Name</FieldLabel>
                     <Input
@@ -682,11 +682,11 @@ export default function SegmentDashboardPage() {
                 </CardContent>
               </Card>
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Membership type</DashboardModalCardTitle>
                   <CardDescription>Choose how contacts are added to this segment.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
                     <label className="flex items-start gap-3 cursor-pointer">
                       <Checkbox

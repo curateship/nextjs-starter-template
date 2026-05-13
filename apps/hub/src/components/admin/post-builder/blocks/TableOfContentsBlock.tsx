@@ -25,10 +25,10 @@ export function TableOfContentsBlock({
     <CardGroup className="grid">
       {activeTab === "content" && (
         <Card>
-          <CardHeader className="p-4 pb-3">
+          <CardHeader>
             <CardTitle className="text-base">Header</CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
+          <CardContent>
             <div className="max-w-sm space-y-2">
               <Label htmlFor="toc-title">Title</Label>
               <Input
@@ -44,10 +44,10 @@ export function TableOfContentsBlock({
 
       {activeTab === "settings" && (
         <Card>
-          <CardHeader className="p-4 pb-3">
+          <CardHeader>
             <CardTitle className="text-base">Behavior</CardTitle>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
+          <CardContent>
             <div className="flex items-center justify-between">
               <Label htmlFor="toc-sticky">Sticky on desktop</Label>
               <Switch

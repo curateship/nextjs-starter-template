@@ -24,10 +24,10 @@ export function NewsletterDividerBlock({ content, onContentChange, onBack }: New
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Divider Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div>
                     <Label htmlFor="divider-color">Color</Label>
                     <div className="mt-1 flex items-center gap-2">
@@ -90,10 +90,10 @@ export function NewsletterDividerBlock({ content, onContentChange, onBack }: New
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Preview</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div style={{ padding: `${content.spacing ?? 20}px 0`, textAlign: "center" }}>
                     <hr
                       style={{

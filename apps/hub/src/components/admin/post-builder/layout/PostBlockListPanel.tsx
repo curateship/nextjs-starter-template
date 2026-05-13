@@ -457,7 +457,7 @@ export function PostBlockListPanel({
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4" />
+              <CardContent />
             </Card>
           </CardGroup>
         </DashboardModalContent>

@@ -112,10 +112,10 @@ export function ProductListingViewBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Header Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="title">Header</Label>
@@ -172,10 +172,10 @@ export function ProductListingViewBlock({
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Content Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="grid grid-cols-5 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="contentType">Content Type</Label>
@@ -247,10 +247,10 @@ export function ProductListingViewBlock({
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Display Options</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="showImage">Show Image</Label>
                     <Switch id="showImage" checked={showImage} onCheckedChange={onShowImageChange} />
@@ -299,10 +299,10 @@ export function ProductListingViewBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Image Display</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     {Object.entries(IMAGE_FIT_OPTIONS).map(([key, option]) => (
                       <button

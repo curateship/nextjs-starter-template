@@ -558,10 +558,10 @@ export function ProductCheckoutBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Header Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pricing-title">Header</Label>
@@ -600,10 +600,10 @@ export function ProductCheckoutBlock({
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Payment Checkout</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="flex gap-6">
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -632,11 +632,11 @@ export function ProductCheckoutBlock({
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Pricing Tiers</DashboardModalCardTitle>
                   <CardDescription>Add, edit, and reorder pricing tiers.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -702,10 +702,10 @@ export function ProductCheckoutBlock({
               )}
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Success Page Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div>
                     <Label htmlFor="success-url">Success URL</Label>
                     <Input

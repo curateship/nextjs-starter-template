@@ -226,10 +226,10 @@ export function PageSettingsModal({
 
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Page setup</DashboardModalCardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-title">Page Title *</FieldLabel>
                   <Input
@@ -273,10 +273,10 @@ export function PageSettingsModal({
             </Card>
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-meta_description">Meta Description</FieldLabel>
                   <Textarea

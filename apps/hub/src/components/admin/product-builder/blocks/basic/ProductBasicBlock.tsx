@@ -56,10 +56,10 @@ export function BasicBlock({
 
   return (
     <Card>
-      <CardHeader className="p-4 pb-3">
+      <CardHeader>
         <DashboardModalCardTitle>Product Information</DashboardModalCardTitle>
       </CardHeader>
-      <CardContent className="grid gap-6 p-4 pt-0">
+      <CardContent className="gap-6">
         <Input
           id="title"
           value={title}

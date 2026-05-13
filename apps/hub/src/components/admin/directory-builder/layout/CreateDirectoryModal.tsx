@@ -217,11 +217,11 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         )}
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
               <CardDescription>Choose a template and set the title and URL for this directory.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
@@ -280,11 +280,11 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
               <CardDescription>Optional featured image for this directory.</CardDescription>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="*:data-[slot=field-label]:w-fit *:data-[slot=field-description]:max-w-md [&>div]:w-fit">
                 {featuredImage ? (
                   <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
@@ -325,10 +325,10 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               {currentSite?.id && (
                 <Field>
                   <FieldLabel>Categories</FieldLabel>

@@ -282,7 +282,7 @@ export function AccountClaimedListingsBlock({
               <CardHeader>
                 <CardTitle>Links</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
+              <CardContent className="md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="claimed-social">Social Links</Label>
                   <Textarea
@@ -313,7 +313,7 @@ export function AccountClaimedListingsBlock({
               <CardHeader>
                 <CardTitle>Location</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 md:grid-cols-2">
+              <CardContent className="md:grid-cols-2">
                 {selectedItem?.google_map && visibility.map !== false ? (
                   <>
                     <div className="space-y-2">

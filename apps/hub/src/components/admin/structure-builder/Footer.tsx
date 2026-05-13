@@ -855,7 +855,7 @@ export function Footer({
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="grid gap-4 md:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
                   <Field>
                     <FieldLabel>Name</FieldLabel>
@@ -918,7 +918,7 @@ export function Footer({
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)]">
                   <Field>
                     <FieldLabel>Platform</FieldLabel>

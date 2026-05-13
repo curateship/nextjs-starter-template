@@ -261,11 +261,11 @@ export function ProductFeaturesBlock({
             content: (
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Header settings</DashboardModalCardTitle>
                     <CardDescription>Set the features heading and alignment.</CardDescription>
                   </CardHeader>
-                  <CardContent className="grid gap-4 p-4 pt-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                  <CardContent className="lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
                     <div className="space-y-2">
                       <Label htmlFor="features-title">Header</Label>
                       <Input
@@ -302,11 +302,11 @@ export function ProductFeaturesBlock({
                 </Card>
 
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Features</DashboardModalCardTitle>
                     <CardDescription>Add, edit, and reorder product features.</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0">
+                  <CardContent>
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}

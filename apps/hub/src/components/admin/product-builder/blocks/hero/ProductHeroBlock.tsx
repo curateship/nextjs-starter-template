@@ -113,11 +113,11 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Text content</DashboardModalCardTitle>
                   <CardDescription>Set the headline, subtitle, and calls to action.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="heroTitle">Hero Title</FieldLabel>
                     <Input
@@ -207,11 +207,11 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Hero style</DashboardModalCardTitle>
                   <CardDescription>Choose the hero layout for this block.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="grid max-w-sm grid-cols-2 gap-2">
                   {Object.entries(HERO_STYLES).map(([key, style]) => (
                     <button

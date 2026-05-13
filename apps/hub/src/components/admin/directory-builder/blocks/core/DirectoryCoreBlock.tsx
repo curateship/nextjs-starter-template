@@ -833,10 +833,10 @@ export function DirectoryCoreBlock({
       content: (
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Directory Details</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               {showDirectoryTitleField ? (
                 <>
                   <Field>
@@ -922,10 +922,10 @@ export function DirectoryCoreBlock({
       content: (
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Social Links</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
           {socialLinks.length === 0 ? (
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
@@ -1003,10 +1003,10 @@ export function DirectoryCoreBlock({
       content: (
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Menu Links</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
           {menuLinks.length === 0 ? (
             <div className="flex items-center gap-2">
               <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
@@ -1084,7 +1084,7 @@ export function DirectoryCoreBlock({
       content: (
         <CardGroup className="grid">
           <Card>
-            <CardContent className="p-4">
+            <CardContent>
               <VisibilitySettings
                 visibility={content.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
@@ -1100,10 +1100,10 @@ export function DirectoryCoreBlock({
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Sticky</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="directory-core-sticky"
@@ -1123,13 +1123,13 @@ export function DirectoryCoreBlock({
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Claim Listing</DashboardModalCardTitle>
               <CardDescription>
                 Let verified business owners request access to edit this listing.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="directory-core-claim-enabled"
@@ -1230,11 +1230,11 @@ export function DirectoryCoreBlock({
         >
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Social link</DashboardModalCardTitle>
                 <CardDescription>Choose a platform and enter the destination URL.</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent>
                 <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)] md:items-end">
                   <div className="space-y-2">
                     <p className="text-sm font-medium">Platform</p>
@@ -1314,11 +1314,11 @@ export function DirectoryCoreBlock({
         >
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Menu link</DashboardModalCardTitle>
                 <CardDescription>Configure the action type, label, value, and optional icon.</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent>
                 <div className="grid gap-4 md:grid-cols-[92px_160px_minmax(0,180px)_minmax(0,1fr)] md:items-end">
                   <CoreMenuIconField
                     value={menuLinkDraft.icon}

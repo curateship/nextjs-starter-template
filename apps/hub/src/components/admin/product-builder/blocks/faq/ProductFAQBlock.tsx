@@ -214,11 +214,11 @@ export function ProductFAQBlock({
             content: (
             <CardGroup className="grid">
               <Card className="shadow-none">
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Header settings</DashboardModalCardTitle>
                   <CardDescription>Set the FAQ heading and alignment.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+                <CardContent className="lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
                   <div className="space-y-2">
                     <Label htmlFor="product-faq-title">Header</Label>
                     <Input
@@ -255,11 +255,11 @@ export function ProductFAQBlock({
               </Card>
 
               <Card className="shadow-none">
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>FAQ items</DashboardModalCardTitle>
                   <CardDescription>Add, edit, and reorder questions.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   {localFaqItems.length === 0 ? (
                     <BlockEditorEmptyState>
                       <p>No FAQ items yet. Click &quot;Add FAQ&quot; to create your first item.</p>

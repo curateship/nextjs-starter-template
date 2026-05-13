@@ -221,7 +221,7 @@ function NavigationIconField({
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="space-y-3 p-4" onWheelCapture={(event) => event.stopPropagation()}>
+              <CardContent className="space-y-3" onWheelCapture={(event) => event.stopPropagation()}>
                 <div className="relative">
                   <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -1741,7 +1741,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
                   <NavigationIconField
                     value={linkDraft.icon}
@@ -1816,7 +1816,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
                   <NavigationIconField
                     value={buttonDraft.icon}
@@ -1924,7 +1924,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 {editingBuiltInActionItem === ACCOUNT_MENU_ACTION_ITEM_ID ? (
                   <div className="space-y-6">
                     <NavigationActionSettingsSection

@@ -83,10 +83,10 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
       {activeTab === "content" && (
         <>
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <CardTitle className="text-base">Post Title</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <Input
                 id="post-title"
                 aria-label="Post title"
@@ -99,10 +99,10 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <CardTitle className="text-base">Post Content</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <InlineRichTextEditor
                 blockId={blockId}
                 content={editorContent}
@@ -129,10 +129,10 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
       {activeTab === "settings" && (
         <>
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <CardTitle className="text-base">Block Style</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="grid grid-cols-2 gap-2 max-w-sm">
                 {Object.entries(CORE_STYLES).map(([key, style]) => (
                   <button
@@ -167,10 +167,10 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <CardTitle className="text-base">Display Options</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 p-4 pt-0">
+            <CardContent className="space-y-4">
             <div className="flex items-start gap-3">
               <Switch
                 id="show-featured-image"

@@ -135,10 +135,10 @@ export function SegmentFormModal({
       >
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Segment details</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="segment-name">Name *</FieldLabel>
                 <Input
@@ -162,11 +162,11 @@ export function SegmentFormModal({
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Membership type</DashboardModalCardTitle>
               <CardDescription>Choose how contacts are added to this segment.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <div className="grid w-fit gap-x-6 gap-y-3 sm:grid-cols-2">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <Checkbox

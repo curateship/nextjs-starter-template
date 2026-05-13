@@ -202,7 +202,7 @@ export function ContactImportModal({
         >
           <CardGroup className="grid">
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
             {importResult ? (
               <div className="text-center space-y-4">
                 <div className="p-4 bg-green-50 text-green-800 rounded-lg">

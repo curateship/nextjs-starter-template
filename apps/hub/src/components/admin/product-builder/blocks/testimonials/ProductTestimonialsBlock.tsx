@@ -239,10 +239,10 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
             content: (
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Header Settings</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0">
+                  <CardContent>
                     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                       <div className="space-y-2">
                         <Label>Title</Label>
@@ -280,11 +280,11 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
                 </Card>
 
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Testimonial Items</DashboardModalCardTitle>
                     <CardDescription>Add, edit, and reorder testimonials.</CardDescription>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0">
+                  <CardContent>
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -332,12 +332,12 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
             content: (
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>
                       {TESTIMONIAL_STYLES[testimonialStyle]?.label ?? 'Default'} Settings
                     </DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0">
+                  <CardContent>
                     {ActiveAdminPanel ? (
                       <ActiveAdminPanel
                         config={currentStyleConfig}
@@ -357,10 +357,10 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
             content: (
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Testimonial Style</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0">
+                  <CardContent>
                     <div className="grid grid-cols-2 gap-2 max-w-sm">
                       {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
                         <button

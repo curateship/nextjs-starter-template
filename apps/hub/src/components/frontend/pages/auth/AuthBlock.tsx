@@ -370,7 +370,7 @@ export function AuthBlock({
             <CardTitle className="text-xl">Check your email</CardTitle>
             <CardDescription>{verificationMessage}</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4">
+          <CardContent>
             {verificationError && <div className="text-sm text-red-500 text-center">{verificationError}</div>}
             <Button className="w-full" onClick={handleResendVerificationEmail} disabled={verificationLoading}>
               {verificationLoading ? "Sending..." : "Resend verification email"}

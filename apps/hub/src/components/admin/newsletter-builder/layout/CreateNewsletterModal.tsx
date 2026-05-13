@@ -228,10 +228,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           <TabsContent value="general" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Template</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="newsletter-template">Start from template</FieldLabel>
                     {templatesLoading ? (
@@ -257,10 +257,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Content</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="newsletter-subject">Subject Line *</FieldLabel>
                     <Input
@@ -275,10 +275,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Audience</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="create-audience-select">Segment</FieldLabel>
                     <Select value={audienceMode} onValueChange={handleAudienceModeChange}>
@@ -325,10 +325,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
           <TabsContent value="drip-options" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Delivery Mode</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Checkbox
@@ -345,10 +345,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               {dripEnabled && (
                 <>
                   <Card>
-                    <CardHeader className="p-4 pb-3">
+                    <CardHeader>
                       <DashboardModalCardTitle>Batch & Timing</DashboardModalCardTitle>
                     </CardHeader>
-                    <CardContent className="grid gap-4 p-4 pt-0">
+                    <CardContent>
                       <div className="grid grid-cols-2 gap-4">
                         <Field>
                           <FieldLabel htmlFor="create-drip-batch-min">Batch size min</FieldLabel>
@@ -397,10 +397,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                   </Card>
 
                   <Card>
-                    <CardHeader className="p-4 pb-3">
+                    <CardHeader>
                       <DashboardModalCardTitle>Safety</DashboardModalCardTitle>
                     </CardHeader>
-                    <CardContent className="grid gap-4 p-4 pt-0">
+                    <CardContent>
                       <Field>
                         <FieldLabel htmlFor="create-drip-bounce-threshold">Bounce threshold (%)</FieldLabel>
                         <Input
@@ -417,10 +417,10 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
                   </Card>
 
                   <Card>
-                    <CardHeader className="p-4 pb-3">
+                    <CardHeader>
                       <DashboardModalCardTitle>Send Windows</DashboardModalCardTitle>
                     </CardHeader>
-                    <CardContent className="grid gap-4 p-4 pt-0">
+                    <CardContent>
                       <Field>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <Checkbox

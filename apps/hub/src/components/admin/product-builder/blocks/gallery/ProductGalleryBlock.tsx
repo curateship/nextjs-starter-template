@@ -64,7 +64,7 @@ export function ProductGalleryBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <div className="flex items-center justify-between">
                     <DashboardModalCardTitle>Product Images</DashboardModalCardTitle>
                     <Button
@@ -79,7 +79,7 @@ export function ProductGalleryBlock({
                   </div>
                   <CardDescription>Upload and manage product gallery images.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="space-y-3">
                     {images.map((image, index) => (
                       <div key={image.id} className="border rounded-lg p-3 space-y-2">
@@ -178,10 +178,10 @@ export function ProductGalleryBlock({
                 />
               )}
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Gallery Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="showThumbnails"

@@ -35,10 +35,10 @@ export function RelatedPostsBlock({
       {activeTab === "content" && (
         <>
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <CardTitle className="text-base">Header Settings</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="rp-title">Title</Label>
@@ -63,10 +63,10 @@ export function RelatedPostsBlock({
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <CardTitle className="text-base">Content Settings</CardTitle>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-2">
                 <Label htmlFor="rp-displayMode">Mode</Label>
@@ -140,10 +140,10 @@ export function RelatedPostsBlock({
 
       {activeTab === "settings" && (
         <Card>
-          <CardHeader className="p-4 pb-3">
+          <CardHeader>
             <CardTitle className="text-base">Display Options</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 p-4 pt-0">
+          <CardContent className="space-y-4">
           <div className="flex items-center gap-3">
             <Label htmlFor="rp-showImage">Show Image</Label>
             <Switch

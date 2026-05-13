@@ -263,10 +263,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
 
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Product setup</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
@@ -335,10 +335,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field className="[&>div]:w-fit">
                 <FieldLabel>Featured Image</FieldLabel>
                 {featuredImage ? (
@@ -382,10 +382,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel>Privacy Settings</FieldLabel>
                 <Field orientation="horizontal" className="items-start gap-3">
@@ -423,10 +423,10 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
                 <Textarea

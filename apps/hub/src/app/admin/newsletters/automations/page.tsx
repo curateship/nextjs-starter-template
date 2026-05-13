@@ -415,10 +415,10 @@ export default function EmailAutomationsPage() {
               >
                 <CardGroup className="grid">
                   <Card>
-                    <CardHeader className="p-4 pb-3">
+                    <CardHeader>
                       <DashboardModalCardTitle>Automation</DashboardModalCardTitle>
                     </CardHeader>
-                    <CardContent className="grid gap-4 p-4 pt-0">
+                    <CardContent>
                       <Field>
                         <FieldLabel>Name *</FieldLabel>
                         <Input

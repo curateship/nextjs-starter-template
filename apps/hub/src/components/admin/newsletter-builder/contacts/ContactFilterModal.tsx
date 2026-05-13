@@ -332,10 +332,10 @@ export function ContactFilterModal({
       >
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Filter rules</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
           <div className="flex items-center gap-3 text-sm font-medium">
             <span>Matching</span>
             <Tabs

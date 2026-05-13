@@ -339,11 +339,11 @@ export function PostSettingsModal({
 
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Post details</DashboardModalCardTitle>
                 <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-title">Post Title *</FieldLabel>
                   <Input
@@ -426,11 +426,11 @@ export function PostSettingsModal({
 
             {post?.site_id && (
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
                   <CardDescription>Organize this post by topic.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel>Categories</FieldLabel>
                     <CategoryPicker
@@ -448,11 +448,11 @@ export function PostSettingsModal({
             )}
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
                 <CardDescription>Set the search description for this post.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-meta_description">Meta Description</FieldLabel>
                   <Input

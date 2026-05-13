@@ -288,10 +288,10 @@ export function NewsletterSettingsModal({
             <TabsContent value="general" className="mt-0 min-h-[340px]">
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Content</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-4 p-4 pt-0">
+                  <CardContent>
                     <Field>
                       <FieldLabel htmlFor="settings-subject">Subject Line *</FieldLabel>
                       <Input
@@ -306,10 +306,10 @@ export function NewsletterSettingsModal({
                 </Card>
 
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Layout</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-4 p-4 pt-0">
+                  <CardContent>
                     <Field>
                       <FieldLabel htmlFor="settings-max-width">Content Max Width (px)</FieldLabel>
                       <Input
@@ -326,10 +326,10 @@ export function NewsletterSettingsModal({
                 </Card>
 
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Audience</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-4 p-4 pt-0">
+                  <CardContent>
                     <Field>
                       <FieldLabel htmlFor="audience-select">Segment</FieldLabel>
                       <Select value={audienceMode} onValueChange={handleAudienceModeChange} disabled={isSent}>
@@ -374,10 +374,10 @@ export function NewsletterSettingsModal({
 
                 {!isSent && (
                   <Card>
-                    <CardHeader className="p-4 pb-3">
+                    <CardHeader>
                       <DashboardModalCardTitle>Test Email</DashboardModalCardTitle>
                     </CardHeader>
-                    <CardContent className="grid gap-4 p-4 pt-0">
+                    <CardContent>
                       <Field>
                         <div className="flex items-end gap-2">
                           <Input
@@ -402,10 +402,10 @@ export function NewsletterSettingsModal({
             <TabsContent value="drip-options" className="mt-0 min-h-[340px]">
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Delivery Mode</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-4 p-4 pt-0">
+                  <CardContent>
                     {isSent && (
                       <p className="text-sm text-muted-foreground">Drip settings are locked after sending starts.</p>
                     )}
@@ -426,10 +426,10 @@ export function NewsletterSettingsModal({
                 {dripEnabled && (
                   <>
                     <Card>
-                      <CardHeader className="p-4 pb-3">
+                      <CardHeader>
                         <DashboardModalCardTitle>Batch & Timing</DashboardModalCardTitle>
                       </CardHeader>
-                      <CardContent className="grid gap-4 p-4 pt-0">
+                      <CardContent>
                         <div className="grid grid-cols-2 gap-4">
                           <Field>
                             <FieldLabel htmlFor="drip-batch-min">Batch size min</FieldLabel>
@@ -454,10 +454,10 @@ export function NewsletterSettingsModal({
                     </Card>
 
                     <Card>
-                      <CardHeader className="p-4 pb-3">
+                      <CardHeader>
                         <DashboardModalCardTitle>Safety</DashboardModalCardTitle>
                       </CardHeader>
-                      <CardContent className="grid gap-4 p-4 pt-0">
+                      <CardContent>
                         <Field>
                           <FieldLabel htmlFor="drip-bounce-threshold">Bounce threshold (%)</FieldLabel>
                           <Input id="drip-bounce-threshold" type="number" value={dripBounceThreshold} onChange={(e) => setDripBounceThreshold(e.target.value)} min={0.1} step="any" disabled={isSent} />
@@ -467,10 +467,10 @@ export function NewsletterSettingsModal({
                     </Card>
 
                     <Card>
-                      <CardHeader className="p-4 pb-3">
+                      <CardHeader>
                         <DashboardModalCardTitle>Send Windows</DashboardModalCardTitle>
                       </CardHeader>
-                      <CardContent className="grid gap-4 p-4 pt-0">
+                      <CardContent>
                         <Field>
                           <label className="flex items-center gap-2 cursor-pointer">
                             <Checkbox id="send-window-toggle" checked={dripSendWindowEnabled} onCheckedChange={(checked) => setDripSendWindowEnabled(checked === true)} disabled={isSent} />

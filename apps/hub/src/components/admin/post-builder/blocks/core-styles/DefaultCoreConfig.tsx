@@ -16,10 +16,10 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
   return (
     <CardGroup className="grid">
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader>
           <CardTitle className="text-base">Content Alignment</CardTitle>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
+        <CardContent>
           <div className="flex gap-4">
             {(['left', 'center'] as const).map((option) => (
               <div key={option} className="flex items-center gap-2">
@@ -36,10 +36,10 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
       </Card>
 
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader>
           <CardTitle className="text-base">Title Size</CardTitle>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
+        <CardContent>
           <div className="flex gap-4">
             {([
               { key: 'medium', label: 'Medium' },
@@ -60,10 +60,10 @@ export function DefaultCoreConfig({ config, onConfigChange }: CoreStyleAdminProp
       </Card>
 
       <Card>
-        <CardHeader className="p-4 pb-3">
+        <CardHeader>
           <CardTitle className="text-base">Content Width</CardTitle>
         </CardHeader>
-        <CardContent className="p-4 pt-0">
+        <CardContent>
           <div className="flex items-center gap-2">
             <Label htmlFor="contentMaxWidth" className="text-sm">Max width</Label>
             <Input

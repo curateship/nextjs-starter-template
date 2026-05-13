@@ -59,11 +59,11 @@ export function ProductDetailsBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Product Details</DashboardModalCardTitle>
                   <CardDescription>Add a description and key specifications.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div>
                     <Label htmlFor="description" className="text-sm font-medium">Product Description</Label>
                     <Textarea

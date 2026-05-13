@@ -26,10 +26,10 @@ export function NewsletterFooterBlock({ content, onContentChange, onBack }: News
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Company Information</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="space-y-2">
                     <Label htmlFor="footer-company-name">Company Name</Label>
                     <Input
@@ -72,10 +72,10 @@ export function NewsletterFooterBlock({ content, onContentChange, onBack }: News
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Display Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="footer-show-unsub">Show Unsubscribe Link</Label>
                     <Switch

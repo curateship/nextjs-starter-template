@@ -398,10 +398,10 @@ export default function TemplatesPage() {
           >
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Template</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="template-name">Name *</FieldLabel>
                     <Input

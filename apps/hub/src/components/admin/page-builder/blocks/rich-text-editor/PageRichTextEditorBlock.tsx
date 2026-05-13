@@ -46,7 +46,7 @@ export function PageRichTextEditorBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardContent className="p-4">
+                <CardContent>
                   <InlineRichTextEditor
                     blockId={blockId}
                     content={editorContent}

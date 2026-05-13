@@ -64,10 +64,10 @@ export function DirectoryCustomBlock({
             content: (
               <CardGroup className="grid">
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Custom Block Missing</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="grid gap-3 p-4 pt-0 text-sm text-muted-foreground">
+                  <CardContent className="gap-3 text-sm text-muted-foreground">
                     <p>This directory block references a custom block template that could not be found.</p>
                     <p>Create or restore the template before editing this block again.</p>
                   </CardContent>
@@ -91,10 +91,10 @@ export function DirectoryCustomBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>{template.name}</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   {template.fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       This custom block has no fields yet.
@@ -118,10 +118,10 @@ export function DirectoryCustomBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Template Info</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-3 p-4 pt-0 text-sm text-muted-foreground">
+                <CardContent className="gap-3 text-sm text-muted-foreground">
                   <div>
                     <span className="font-medium text-foreground">Name:</span> {template.name}
                   </div>

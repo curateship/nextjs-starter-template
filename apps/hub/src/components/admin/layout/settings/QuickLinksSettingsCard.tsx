@@ -139,10 +139,10 @@ function QuickLinkSettingsButton({
         >
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Quick link</DashboardModalCardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
                   <Field>
                     <FieldLabel>Icon</FieldLabel>
@@ -215,7 +215,7 @@ function QuickLinkSettingsButton({
           >
             <CardGroup className="grid" onWheelCapture={(event) => event.stopPropagation()}>
               <Card>
-                <CardContent className="p-4 space-y-3">
+                <CardContent className="space-y-3">
                   <div className="relative">
                     <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input

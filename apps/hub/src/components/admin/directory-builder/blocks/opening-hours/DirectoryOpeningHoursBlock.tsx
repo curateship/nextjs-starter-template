@@ -29,10 +29,10 @@ export function DirectoryOpeningHoursBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Opening Hours</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="directory-opening-hours-title">Title</FieldLabel>
                     <Input
@@ -63,7 +63,7 @@ export function DirectoryOpeningHoursBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardContent className="p-4">
+                <CardContent>
                   <VisibilitySettings
                     visibility={content.visibility}
                     onChange={(visibility) => onContentChange("visibility", visibility)}

@@ -59,7 +59,7 @@ export function DirectoryRichTextEditorBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardContent className="p-4">
+                <CardContent>
                   <VisibilitySettings
                     visibility={content.visibility}
                     onChange={(visibility) => onContentChange("visibility", visibility)}

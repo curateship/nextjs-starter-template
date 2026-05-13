@@ -743,7 +743,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 {[1, 2].map((index) => (
                   <div key={index} className="w-full">
                     <Card className="w-full">
-                      <CardContent className="p-4">
+                      <CardContent>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-center gap-3">
                             <div className="h-9 w-9 animate-pulse rounded-lg bg-muted" />
@@ -775,7 +775,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 {[1, 2, 3].map((index) => (
                   <div key={index} className="w-full">
                     <Card className="w-full">
-                      <CardContent className="p-4">
+                      <CardContent>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-1 items-center gap-3">
                             <div className="h-[52px] w-[52px] animate-pulse rounded-lg bg-muted" />
@@ -1230,10 +1230,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           >
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Trigger</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel>When should this automation start?</FieldLabel>
                     <Select
@@ -1339,10 +1339,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           >
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>End rules</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel>Product bought</FieldLabel>
                     <Combobox
@@ -1424,10 +1424,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           >
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Time delay</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel>Wait for</FieldLabel>
                     <Select value={delayType} onValueChange={setDelayType}>

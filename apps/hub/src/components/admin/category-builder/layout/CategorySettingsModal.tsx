@@ -297,10 +297,10 @@ export function CategorySettingsModal({
           )}
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-title">Category Title *</FieldLabel>
                   <Input
@@ -345,10 +345,10 @@ export function CategorySettingsModal({
             </Card>
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Image</DashboardModalCardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent>
                 <div className="[&>div]:w-fit">
                   {featuredImage ? (
                     <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
@@ -390,10 +390,10 @@ export function CategorySettingsModal({
             </Card>
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <Checkbox

@@ -236,11 +236,11 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
 
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Post details</DashboardModalCardTitle>
               <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="template">Start from Template</FieldLabel>
                 {templatesLoading ? (
@@ -354,11 +354,11 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
 
           {currentSite?.id && (
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
                 <CardDescription>Organize this post by topic.</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel>Categories</FieldLabel>
                   <CategoryPicker
@@ -375,11 +375,11 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           )}
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
               <CardDescription>Set the search description for this post.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
                 <Textarea

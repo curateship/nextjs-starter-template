@@ -53,7 +53,7 @@ export function ProductLeadMagnetBlock({
           label: "Content",
           content: (
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <InlineRichTextEditor
                   blockId={`${blockId}-body`}
                   content={bodyEditorContent}
@@ -74,7 +74,7 @@ export function ProductLeadMagnetBlock({
           label: "Delivery Email",
           content: (
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <InlineRichTextEditor
                   blockId={`${blockId}-delivery-email`}
                   content={deliveryEditorContent}
@@ -95,11 +95,11 @@ export function ProductLeadMagnetBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Email Form</DashboardModalCardTitle>
                   <CardDescription>Customize the form placeholder and submit button.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="lead-magnet-placeholder">Placeholder</Label>
@@ -124,10 +124,10 @@ export function ProductLeadMagnetBlock({
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>After Signup</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="space-y-2">
                     <Label htmlFor="lead-magnet-redirect">Redirect URL</Label>
                     <Input

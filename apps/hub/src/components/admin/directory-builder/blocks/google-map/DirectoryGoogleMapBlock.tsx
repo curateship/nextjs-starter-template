@@ -37,10 +37,10 @@ export function DirectoryGoogleMapBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Map Content</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="directory-google-map-location">Address or Place ID</FieldLabel>
                     <Input
@@ -71,10 +71,10 @@ export function DirectoryGoogleMapBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Map Size</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="directory-google-map-height">Height</FieldLabel>
                     <Input
@@ -91,7 +91,7 @@ export function DirectoryGoogleMapBlock({
               </Card>
 
               <Card>
-                <CardContent className="p-4">
+                <CardContent>
                   <VisibilitySettings
                     visibility={content.visibility}
                     onChange={(visibility) => onContentChange("visibility", visibility)}

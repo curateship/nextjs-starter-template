@@ -64,10 +64,10 @@ export function VisibilitySettings({
 
   return (
     <Card>
-      <CardHeader className="p-4 pb-3">
+      <CardHeader>
         <DashboardModalCardTitle>{title}</DashboardModalCardTitle>
       </CardHeader>
-      <CardContent className="p-4 pt-0">{content}</CardContent>
+      <CardContent>{content}</CardContent>
     </Card>
   )
 }

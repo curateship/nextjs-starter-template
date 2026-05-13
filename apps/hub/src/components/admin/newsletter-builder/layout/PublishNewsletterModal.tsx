@@ -194,10 +194,10 @@ export function PublishNewsletterModal({
 
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Send details</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <div className="space-y-2">
                 <div className="flex items-start justify-between py-1.5">
                   <span className="text-sm text-muted-foreground">Subject</span>

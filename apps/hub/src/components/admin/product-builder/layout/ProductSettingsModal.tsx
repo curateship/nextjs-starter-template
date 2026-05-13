@@ -390,11 +390,11 @@ export function ProductSettingsModal({
 
           <CardGroup className="grid">
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Product details</DashboardModalCardTitle>
                 <CardDescription>Name the product, set its URL, date, and image.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-title">Product Title *</FieldLabel>
                   <Input
@@ -514,11 +514,11 @@ export function ProductSettingsModal({
             </Card>
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>Privacy &amp; Categories</DashboardModalCardTitle>
                 <CardDescription>Control visibility and organize by topic.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <div className="flex items-start gap-3">
                   <Checkbox
                     id="modal-is-private"
@@ -557,11 +557,11 @@ export function ProductSettingsModal({
             </Card>
 
             <Card>
-              <CardHeader className="p-4 pb-3">
+              <CardHeader>
                 <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
                 <CardDescription>Set the search description for this product.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0">
+              <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-meta-description">Meta Description</FieldLabel>
                   <Textarea

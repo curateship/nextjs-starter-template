@@ -120,10 +120,10 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
             )}
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Sponsor details</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field>
                       <FieldLabel htmlFor="sponsor-title">Title</FieldLabel>
@@ -158,10 +158,10 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Image</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="*:data-[slot=field-label]:w-fit [&>div]:w-fit">
                     {safeImageUrl ? (
                       <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
@@ -206,10 +206,10 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="flex items-start gap-3">
                     <Switch id="sponsor-active" checked={isActive} onCheckedChange={setIsActive} />
                     <div>

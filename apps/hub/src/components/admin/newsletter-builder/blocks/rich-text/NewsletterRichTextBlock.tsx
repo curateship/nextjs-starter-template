@@ -38,7 +38,7 @@ export function NewsletterRichTextBlock({
           label: "Content",
           content: (
             <Card>
-              <CardContent className="p-4">
+              <CardContent>
                 <InlineRichTextEditor
                   blockId={blockId}
                   content={content}
@@ -57,10 +57,10 @@ export function NewsletterRichTextBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Background & Spacing</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                 <div>
                   <Label htmlFor="richtext-bg-color">Background Color</Label>
                   <div className="flex items-center gap-2 mt-1">
@@ -106,10 +106,10 @@ export function NewsletterRichTextBlock({
           content: (
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Image Output</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                 <div>
                   <Label htmlFor="newsletter-image-border-size">Border Size (px)</Label>
                   <Input

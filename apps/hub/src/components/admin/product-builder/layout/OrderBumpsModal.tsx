@@ -236,7 +236,7 @@ export function OrderBumpsModal({
       >
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <div className="flex items-center justify-between">
                 <DashboardModalCardTitle>Order Bumps</DashboardModalCardTitle>
                 <Button type="button" variant="outline" size="sm" onClick={addOrderBump}>
@@ -248,7 +248,7 @@ export function OrderBumpsModal({
                 Complementary products that customers can add before checkout.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               {orderBumps.length > 0 ? (
                 <DndContext
                   sensors={sensors}

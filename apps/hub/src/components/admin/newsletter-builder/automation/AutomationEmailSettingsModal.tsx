@@ -109,10 +109,10 @@ export function AutomationEmailSettingsModal({
           <TabsContent value="general" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>General</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <Field>
                     <FieldLabel htmlFor="automation-email-settings-subject">Subject Line *</FieldLabel>
                     <Input
@@ -130,10 +130,10 @@ export function AutomationEmailSettingsModal({
           <TabsContent value="drip-options" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Drip options</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
                   <DripSettingsFields form={drip} idPrefix="automation-settings" />
                 </CardContent>
               </Card>

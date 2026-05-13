@@ -161,11 +161,11 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         )}
         <CardGroup className="grid">
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
               <CardDescription>Set the title and URL for this event.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel htmlFor="title">Event Title *</FieldLabel>
                 <Input
@@ -200,11 +200,11 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
               <CardDescription>Optional featured image for this event.</CardDescription>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="*:data-[slot=field-label]:w-fit *:data-[slot=field-description]:max-w-md [&>div]:w-fit">
                 {featuredImage ? (
                   <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
@@ -245,10 +245,10 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           </Card>
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Settings</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0">
+            <CardContent>
               <Field>
                 <FieldLabel>Privacy</FieldLabel>
                 <label className="flex items-center gap-2 cursor-pointer">

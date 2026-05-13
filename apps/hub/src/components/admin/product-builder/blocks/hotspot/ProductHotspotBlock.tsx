@@ -196,10 +196,10 @@ export function ProductHotspotBlock({
             content: (
               <CardGroup className="grid">
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Header Content</DashboardModalCardTitle>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent>
                   <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="title">Header</Label>
@@ -238,11 +238,11 @@ export function ProductHotspotBlock({
               </Card>
 
               <Card>
-                <CardHeader className="p-4 pb-3">
+                <CardHeader>
                   <DashboardModalCardTitle>Interactive Hotspots</DashboardModalCardTitle>
                   <CardDescription>Click on the image to place hotspot markers.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-4 p-4 pt-0">
+                <CardContent>
               <div className="space-y-4">
               {backgroundImage ? (
                 <div className="relative">
@@ -344,10 +344,10 @@ export function ProductHotspotBlock({
                 )}
 
                 <Card>
-                  <CardHeader className="p-4 pb-3">
+                  <CardHeader>
                     <DashboardModalCardTitle>Display Options</DashboardModalCardTitle>
                   </CardHeader>
-                  <CardContent className="p-4 pt-0">
+                  <CardContent>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="showTooltipsAlways"

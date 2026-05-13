@@ -298,11 +298,11 @@ function MxrouteForm({ siteId, onSaved }: { siteId: string; onSaved: () => Promi
 
   return (
     <Card>
-      <CardHeader className="p-4 pb-3">
+      <CardHeader>
         <DashboardModalCardTitle>MXroute credentials</DashboardModalCardTitle>
         <CardDescription className="text-xs">Credentials are encrypted before storage.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-0">
+      <CardContent className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="mxroute-server">Server</Label>
@@ -357,11 +357,11 @@ function CreateMailboxForm({
 
   return (
     <Card>
-      <CardHeader className="p-4 pb-3">
+      <CardHeader>
         <DashboardModalCardTitle>Create mailbox</DashboardModalCardTitle>
         <CardDescription className="text-xs">Password is stored encrypted for provider-backed management.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3 p-4 pt-0">
+      <CardContent className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="mailbox-name">Mailbox</Label>
@@ -462,11 +462,11 @@ function SettingsModal({
           <MxrouteForm siteId={siteId} onSaved={onRefresh} />
 
           <Card>
-            <CardHeader className="p-4 pb-3">
+            <CardHeader>
               <DashboardModalCardTitle>Mail domain setup</DashboardModalCardTitle>
               <CardDescription className="text-xs">After the MXroute verification TXT record passes, add the custom domain to MXroute.</CardDescription>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <Button onClick={setupDomain} disabled={settingUpDomain || !data?.customDomain || !data.providerConfigured}>
                 {settingUpDomain ? "Setting up..." : "Add domain to MXroute"}
               </Button>
@@ -474,11 +474,11 @@ function SettingsModal({
           </Card>
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
+            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
               <DashboardModalCardTitle>DNS</DashboardModalCardTitle>
               <Button variant="outline" size="sm" onClick={onRefresh}>Refresh DNS</Button>
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="space-y-2">
                 {data?.mailDomain?.dnsRecords.length ? data.mailDomain.dnsRecords.map((record, index) => (
                   <div key={`${record.type}-${record.name}-${index}`} className="grid gap-2 rounded-md border p-3 text-sm md:grid-cols-[80px_1fr_92px] md:items-center">
@@ -501,7 +501,7 @@ function SettingsModal({
           <CreateMailboxForm siteId={siteId} disabled={!data?.customDomain || !data.providerConfigured} onCreated={onRefresh} />
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 p-4 pb-3">
+            <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
               <DashboardModalCardTitle>Mailboxes</DashboardModalCardTitle>
               {data?.webmailUrl ? (
                 <Button asChild variant="outline" size="sm">
@@ -509,7 +509,7 @@ function SettingsModal({
                 </Button>
               ) : null}
             </CardHeader>
-            <CardContent className="p-4 pt-0">
+            <CardContent>
               <div className="space-y-2">
                 {data?.mailboxes.length ? data.mailboxes.map((mailbox) => (
                   <div key={mailbox.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
