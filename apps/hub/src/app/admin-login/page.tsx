@@ -18,8 +18,7 @@ export default async function AdminLoginPage() {
       <div className="w-full max-w-md">
         <AuthBlock
           defaultTab="login"
-          showLoginTab={true}
-          showRegisterTab={false}
+          visibility={{ showLoginTab: true, showRegisterTab: false }}
           loginRedirectPath="/admin"
           registerRedirectPath="/admin"
           loginTitle="Admin sign in"
