@@ -9,7 +9,7 @@ import { Plus, Trash2, GripVertical, Check } from "lucide-react"
 import { BlockEditorEmptyState, BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
@@ -116,13 +116,16 @@ function SortableTestimonialItem({
                 aria-label={item.avatar ? "Change testimonial avatar" : "Select testimonial avatar"}
                 className="rounded-full transition-shadow hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <Avatar className="size-11 rounded-full border border-input bg-muted">
+                <Avatar className={cn("size-9 rounded-full bg-muted flex items-center justify-center", item.avatar ? "border border-input" : "border border-dashed border-muted-foreground/40")}>
                   {item.avatar ? (
                     <AvatarImage src={item.avatar} alt={item.name || `Testimonial ${index + 1}`} />
-                  ) : null}
-                  <AvatarFallback className="bg-muted text-[9px] font-medium lowercase text-muted-foreground">
-                    no icon
-                  </AvatarFallback>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="size-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                  )}
                 </Avatar>
               </button>
             </div>

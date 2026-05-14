@@ -125,7 +125,7 @@ export function ContactFormModal({
   return (
     <>
       <Dialog open={addOpen} onOpenChange={onAddOpenChange}>
-        <form onSubmit={handleAddContact} className="contents">
+        <form id="add-contact-form" onSubmit={handleAddContact} className="contents">
           <DashboardModalContent
             title="Add Contact"
             description="Add a single contact to this site and optionally tag them."
@@ -134,7 +134,7 @@ export function ContactFormModal({
                 <Button type="button" variant="outline" onClick={() => onAddOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={adding || !addForm.email}>
+                <Button type="submit" form="add-contact-form" disabled={adding || !addForm.email}>
                   {adding ? "Adding..." : "Add Contact"}
                 </Button>
               </>
@@ -195,7 +195,7 @@ export function ContactFormModal({
       </Dialog>
 
       <Dialog open={editContact !== null} onOpenChange={(open) => { if (!open) onEditClose() }}>
-        <form onSubmit={handleEditContact} className="contents">
+        <form id="edit-contact-form" onSubmit={handleEditContact} className="contents">
           <DashboardModalContent
             title="Edit Contact"
             description={
@@ -208,7 +208,7 @@ export function ContactFormModal({
                 <Button type="button" variant="outline" onClick={onEditClose}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
+                <Button type="submit" form="edit-contact-form" disabled={saving}>
                   {saving ? "Saving..." : "Save"}
                 </Button>
               </>
