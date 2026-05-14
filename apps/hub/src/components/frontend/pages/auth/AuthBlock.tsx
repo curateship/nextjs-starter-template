@@ -11,8 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface AuthBlockProps {
   defaultTab?: "login" | "register"
-  showLoginTab?: boolean
-  showRegisterTab?: boolean
   loginRedirectPath?: string
   registerRedirectPath?: string
   emailVerificationEnabled?: boolean
@@ -25,6 +23,7 @@ interface AuthBlockProps {
   registerDescription?: string
   resetTitle?: string
   resetDescription?: string
+  visibility?: Record<string, boolean>
 }
 
 type AuthClientError = {
@@ -38,8 +37,6 @@ type AuthClientError = {
 
 export function AuthBlock({
   defaultTab = "login",
-  showLoginTab = true,
-  showRegisterTab = true,
   loginRedirectPath = "/",
   registerRedirectPath = "/",
   emailVerificationEnabled = true,
@@ -51,8 +48,11 @@ export function AuthBlock({
   registerTitle = "Create an account",
   registerDescription = "Enter your details to get started",
   resetTitle = "Reset your password",
-  resetDescription = "Enter your email to receive a reset link"
+  resetDescription = "Enter your email to receive a reset link",
+  visibility,
 }: AuthBlockProps) {
+  const showLoginTab = visibility?.showLoginTab !== false
+  const showRegisterTab = visibility?.showRegisterTab !== false
   const [view, setView] = useState<"auth" | "reset">("auth")
   const pathname = usePathname()
   const searchParams = useSearchParams()

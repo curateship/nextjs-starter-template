@@ -33,9 +33,6 @@ interface ProductListingViewBlockProps {
   columns?: number
   sortBy?: 'date' | 'title' | 'display_order'
   sortOrder?: 'asc' | 'desc'
-  showImage?: boolean
-  showTitle?: boolean
-  showDescription?: boolean
   isPaginated?: boolean
   itemsPerPage?: number
   viewAllText?: string
@@ -50,9 +47,6 @@ interface ProductListingViewBlockProps {
   onColumnsChange: (value: number) => void
   onSortByChange: (value: 'date' | 'title' | 'display_order') => void
   onSortOrderChange: (value: 'asc' | 'desc') => void
-  onShowImageChange: (value: boolean) => void
-  onShowTitleChange: (value: boolean) => void
-  onShowDescriptionChange: (value: boolean) => void
   onIsPaginatedChange: (value: boolean) => void
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
@@ -73,9 +67,6 @@ export function ProductListingViewBlock({
   columns = 3,
   sortBy = 'date',
   sortOrder = 'desc',
-  showImage = true,
-  showTitle = true,
-  showDescription = true,
   isPaginated = false,
   itemsPerPage = 12,
   viewAllText = '',
@@ -90,9 +81,6 @@ export function ProductListingViewBlock({
   onColumnsChange,
   onSortByChange,
   onSortOrderChange,
-  onShowImageChange,
-  onShowTitleChange,
-  onShowDescriptionChange,
   onIsPaginatedChange,
   onItemsPerPageChange,
   onViewAllTextChange,
@@ -246,23 +234,26 @@ export function ProductListingViewBlock({
                 </CardContent>
               </Card>
 
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Element Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  includeHideBlock={false}
+                  useCard
+                  fields={[
+                    { key: 'showImage', label: 'Show Image' },
+                    { key: 'showTitle', label: 'Show Title' },
+                    { key: 'showDescription', label: 'Show Description' },
+                  ]}
+                />
+              )}
+
               <Card>
                 <CardHeader>
-                  <DashboardModalCardTitle>Display Options</DashboardModalCardTitle>
+                  <DashboardModalCardTitle>Pagination</DashboardModalCardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="showImage">Show Image</Label>
-                    <Switch id="showImage" checked={showImage} onCheckedChange={onShowImageChange} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="showTitle">Show Title</Label>
-                    <Switch id="showTitle" checked={showTitle} onCheckedChange={onShowTitleChange} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="showDescription">Show Description</Label>
-                    <Switch id="showDescription" checked={showDescription} onCheckedChange={onShowDescriptionChange} />
-                  </div>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="isPaginated">Enable Pagination</Label>
                     <div className="flex items-center gap-2">
@@ -343,14 +334,25 @@ export function ProductListingViewBlock({
             <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
+                  title="Header Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  includeHideBlock={false}
                   useCard
                   fields={[
                     { key: 'header', label: 'Header' },
                     { key: 'subheader', label: 'Sub Header' },
                     { key: 'viewAllButton', label: 'Show Header Button' },
                   ]}
+                />
+              )}
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  useCard
+                  fields={[]}
                 />
               )}
             </CardGroup>

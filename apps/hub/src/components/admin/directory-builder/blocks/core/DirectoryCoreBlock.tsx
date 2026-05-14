@@ -1086,8 +1086,10 @@ export function DirectoryCoreBlock({
           <Card>
             <CardContent>
               <VisibilitySettings
+                title="Elements Visibility"
                 visibility={content.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
+                includeHideBlock={false}
                 fields={[
                   { key: "image", label: "Image" },
                   { key: "title", label: "Title" },
@@ -1098,6 +1100,13 @@ export function DirectoryCoreBlock({
               />
             </CardContent>
           </Card>
+          <VisibilitySettings
+            title="Block Visibility"
+            visibility={content.visibility}
+            onChange={(visibility) => onContentChange("visibility", visibility)}
+            useCard
+            fields={[]}
+          />
 
           <Card>
             <CardHeader>

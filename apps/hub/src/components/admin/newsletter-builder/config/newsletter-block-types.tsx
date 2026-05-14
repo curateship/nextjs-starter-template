@@ -51,7 +51,6 @@ export const NEWSLETTER_BLOCK_TYPES: BlockTypeDefinition[] = [
     defaultContent: {
       companyName: '',
       companyAddress: '',
-      showUnsubscribe: true,
       socialLinks: [],
       alignment: 'center',
     }

@@ -27,6 +27,7 @@ interface ProductHeroBlockProps {
   styleConfig?: Record<string, Record<string, any>>;
   siteWidth?: 'full' | 'custom';
   customWidth?: number;
+  visibility?: Record<string, boolean>;
   // Legacy fields (for migration fallback)
   trustedByText?: string;
   trustedByCount?: string;
@@ -134,6 +135,7 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
     styleConfig,
     siteWidth,
     customWidth,
+    visibility,
   } = props;
 
   // Resolve the style config: prefer styleConfig[heroStyle], fall back to legacy root-level fields
@@ -172,15 +174,17 @@ const ProductHeroBlock = (props: ProductHeroBlockProps) => {
 
   return (
     <section id="hero" className="relative w-full flex flex-col items-center justify-center -mt-(--site-page-start-offset,0px) pt-[calc(var(--site-page-start-offset,0px)+2rem)] pb-4 md:pb-10 overflow-hidden">
-      <StyleRenderer config={resolvedConfig} sharedContent={sharedContent}>
-        <HeroTitle title={title} />
-        <HeroSubtitle subtitle={subtitle} />
-        <CTAButtons
-          primaryButton={primaryButton}
-          secondaryButton={secondaryButton}
-          primaryButtonLink={primaryButtonLink}
-          secondaryButtonLink={secondaryButtonLink}
-        />
+      <StyleRenderer config={resolvedConfig} visibility={visibility} sharedContent={sharedContent}>
+        {visibility?.title !== false && <HeroTitle title={title} />}
+        {visibility?.subtitle !== false && <HeroSubtitle subtitle={subtitle} />}
+        {(visibility?.primaryButton !== false || visibility?.secondaryButton !== false) && (
+          <CTAButtons
+            primaryButton={visibility?.primaryButton !== false ? primaryButton : undefined}
+            secondaryButton={visibility?.secondaryButton !== false ? secondaryButton : undefined}
+            primaryButtonLink={primaryButtonLink}
+            secondaryButtonLink={secondaryButtonLink}
+          />
+        )}
       </StyleRenderer>
     </section>
   );

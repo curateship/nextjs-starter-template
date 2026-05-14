@@ -136,8 +136,6 @@ export function PageBlockEditorDialog({
                   <PageAuthBlock
                     {...draftContent}
                     onDefaultTabChange={(value) => onContentChange("defaultTab", value)}
-                    onShowLoginTabChange={(value) => onContentChange("showLoginTab", value)}
-                    onShowRegisterTabChange={(value) => onContentChange("showRegisterTab", value)}
                     onLoginRedirectPathChange={(value) => onContentChange("loginRedirectPath", value)}
                     onRegisterRedirectPathChange={(value) => onContentChange("registerRedirectPath", value)}
                     onEmailVerificationEnabledChange={(value) => onContentChange("emailVerificationEnabled", value)}

@@ -16,6 +16,7 @@ interface VisibilitySettingsProps {
   title?: string
   includeHideBlock?: boolean
   useCard?: boolean
+  helperText?: string | null
 }
 
 export function VisibilitySettings({
@@ -25,13 +26,23 @@ export function VisibilitySettings({
   title = "Visibility",
   includeHideBlock = true,
   useCard = false,
+  helperText,
 }: VisibilitySettingsProps) {
+  const resolvedHelperText = helperText === null
+    ? null
+    : helperText ?? (includeHideBlock
+      ? "Hide the entire block without deleting content."
+      : title === "Header Visibility"
+        ? "Toggle header elements on or off"
+        : "Toggle specific Elements on or off")
+
   const resolvedFields = includeHideBlock && !fields.some((field) => field.key === 'hideBlock')
     ? [...fields, { key: 'hideBlock', label: 'Hide Block', mode: 'hide' as const }]
     : fields
 
   const content = (
     <div className="space-y-4">
+      {resolvedHelperText && <p className="text-xs text-muted-foreground">{resolvedHelperText}</p>}
       {resolvedFields.map((field) => (
         <div key={field.key} className="flex items-center space-x-2">
           <Checkbox
@@ -47,9 +58,6 @@ export function VisibilitySettings({
           <Label htmlFor={`visibility-${field.key}`} className="cursor-pointer">{field.label}</Label>
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">
-        Toggle elements on or off, or hide the entire block, without deleting content.
-      </p>
     </div>
   )
 

@@ -190,8 +190,10 @@ export function AccountEditProfileBlock({
           content: (
             <CardGroup className="grid">
               <VisibilitySettings
+                title="Elements Visibility"
                 visibility={content.visibility}
                 onChange={(value) => onContentChange("visibility", value)}
+                includeHideBlock={false}
                 useCard
                 fields={[
                   { key: "title", label: "Title" },
@@ -201,6 +203,13 @@ export function AccountEditProfileBlock({
                   { key: "emailSection", label: "Email Section" },
                   { key: "passwordSection", label: "Password Section" },
                 ]}
+              />
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(value) => onContentChange("visibility", value)}
+                useCard
+                fields={[]}
               />
             </CardGroup>
           ),

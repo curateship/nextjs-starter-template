@@ -4,7 +4,7 @@ import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/component
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
+import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 
 export type RelatedPostsBlockTab = "content" | "styling" | "settings"
 
@@ -26,10 +26,6 @@ export function RelatedPostsBlock({
   const itemsToShow = content.itemsToShow ?? 3
   const sortBy = content.sortBy ?? 'date'
   const sortOrder = content.sortOrder ?? 'desc'
-  const showImage = content.showImage ?? true
-  const showTitle = content.showTitle ?? true
-  const showExcerpt = content.showExcerpt ?? true
-
   return (
     <CardGroup className="grid">
       {activeTab === "content" && (
@@ -139,52 +135,40 @@ export function RelatedPostsBlock({
       )}
 
       {activeTab === "settings" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Display Options</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Label htmlFor="rp-showImage">Show Image</Label>
-            <Switch
-              id="rp-showImage"
-              checked={showImage}
-              onCheckedChange={(v) => onContentChange('showImage', v)}
-            />
-          </div>
+        <>
+          <VisibilitySettings
+            title="Element Visibility"
+            visibility={content.visibility}
+            onChange={(visibility) => onContentChange('visibility', visibility)}
+            includeHideBlock={false}
+            useCard
+            fields={[
+              { key: 'showImage', label: 'Show Image' },
+              { key: 'showTitle', label: 'Show Title' },
+              { key: 'showExcerpt', label: 'Show Excerpt' },
+            ]}
+          />
 
-          <div className="flex items-center gap-3">
-            <Label htmlFor="rp-showTitle">Show Title</Label>
-            <Switch
-              id="rp-showTitle"
-              checked={showTitle}
-              onCheckedChange={(v) => onContentChange('showTitle', v)}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Label htmlFor="rp-showExcerpt">Show Excerpt</Label>
-            <Switch
-              id="rp-showExcerpt"
-              checked={showExcerpt}
-              onCheckedChange={(v) => onContentChange('showExcerpt', v)}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Label htmlFor="rp-itemsToShow">Items to Show</Label>
-            <Input
-              id="rp-itemsToShow"
-              type="number"
-              min="1"
-              max="12"
-              value={itemsToShow}
-              onChange={(e) => onContentChange('itemsToShow', parseInt(e.target.value) || 3)}
-              className="w-20"
-            />
-          </div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Content Count</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <Label htmlFor="rp-itemsToShow">Items to Show</Label>
+                <Input
+                  id="rp-itemsToShow"
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={itemsToShow}
+                  onChange={(e) => onContentChange('itemsToShow', parseInt(e.target.value) || 3)}
+                  className="w-20"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </CardGroup>
   )

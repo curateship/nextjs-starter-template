@@ -6,7 +6,6 @@ import { BlockTabs, BlockEditorEmptyState } from "@/components/ui/tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2, Upload } from "lucide-react"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
-import { Checkbox } from "@/components/ui/checkbox"
 
 interface ProductImage {
   id: string
@@ -16,9 +15,7 @@ interface ProductImage {
 
 interface ProductGalleryBlockProps {
   images: ProductImage[]
-  showThumbnails: boolean
   onImagesChange: (images: ProductImage[]) => void
-  onShowThumbnailsChange: (show: boolean) => void
   onBack?: () => void
   visibility?: Record<string, boolean>
   onVisibilityChange?: (v: Record<string, boolean>) => void
@@ -26,9 +23,7 @@ interface ProductGalleryBlockProps {
 
 export function ProductGalleryBlock({
   images,
-  showThumbnails,
   onImagesChange,
-  onShowThumbnailsChange,
   onBack,
   visibility,
   onVisibilityChange
@@ -169,29 +164,25 @@ export function ProductGalleryBlock({
             <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
+                  title="Elements Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  includeHideBlock={false}
                   useCard
                   fields={[
                     { key: 'thumbnails', label: 'Thumbnails' },
                   ]}
                 />
               )}
-              <Card>
-                <CardHeader>
-                  <DashboardModalCardTitle>Gallery Settings</DashboardModalCardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showThumbnails"
-                      checked={showThumbnails}
-                      onCheckedChange={(checked) => onShowThumbnailsChange(!!checked)}
-                    />
-                    <Label htmlFor="showThumbnails" className="text-sm cursor-pointer">Show thumbnails</Label>
-                  </div>
-                </CardContent>
-              </Card>
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  useCard
+                  fields={[]}
+                />
+              )}
             </CardGroup>
           ),
         },

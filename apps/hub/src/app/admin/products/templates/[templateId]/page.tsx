@@ -459,9 +459,7 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                       {selectedBlock.type === "product-gallery" && (
                         <ProductGalleryBlock
                           images={draftContent.images || []}
-                          showThumbnails={draftContent.showThumbnails || false}
                           onImagesChange={(images) => handleDraftChange("images", images)}
-                          onShowThumbnailsChange={(show) => handleDraftChange("showThumbnails", show)}
                           visibility={draftContent.visibility}
                           onVisibilityChange={(v) => handleDraftChange("visibility", v)}
                         />
@@ -567,9 +565,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                           columns={draftContent.columns ?? 3}
                           sortBy={draftContent.sortBy ?? "date"}
                           sortOrder={draftContent.sortOrder ?? "desc"}
-                          showImage={draftContent.showImage ?? true}
-                          showTitle={draftContent.showTitle ?? true}
-                          showDescription={draftContent.showDescription ?? true}
                           isPaginated={draftContent.isPaginated ?? false}
                           itemsPerPage={draftContent.itemsPerPage ?? 12}
                           viewAllText={draftContent.viewAllText ?? ""}
@@ -584,9 +579,6 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                           onColumnsChange={(value) => handleDraftChange("columns", value)}
                           onSortByChange={(value) => handleDraftChange("sortBy", value)}
                           onSortOrderChange={(value) => handleDraftChange("sortOrder", value)}
-                          onShowImageChange={(value) => handleDraftChange("showImage", value)}
-                          onShowTitleChange={(value) => handleDraftChange("showTitle", value)}
-                          onShowDescriptionChange={(value) => handleDraftChange("showDescription", value)}
                           onIsPaginatedChange={(value) => handleDraftChange("isPaginated", value)}
                           onItemsPerPageChange={(value) => handleDraftChange("itemsPerPage", value)}
                           onViewAllTextChange={(value) => handleDraftChange("viewAllText", value)}

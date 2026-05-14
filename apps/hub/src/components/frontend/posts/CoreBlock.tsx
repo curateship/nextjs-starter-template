@@ -202,6 +202,7 @@ function CoreStyled({ block, post, bodyHtml, sponsorsById, postId, renderCoreBod
 
   const StyleRenderer = CORE_STYLE_RENDERERS[coreStyle] || CORE_STYLE_RENDERERS.default
   const resolvedBodyHtml = bodyHtml ?? block.content.body ?? ''
+  const visibility = block.content.visibility
 
   return (
     <StyleRenderer
@@ -210,12 +211,12 @@ function CoreStyled({ block, post, bodyHtml, sponsorsById, postId, renderCoreBod
         title: post.title,
         excerpt: post.excerpt,
         featuredImage: post.featured_image,
-        showFeaturedImage: block.content.showFeaturedImage ?? post.show_featured_image,
-        showExcerpt: block.content.showExcerpt ?? post.show_excerpt,
+        showFeaturedImage: visibility?.showFeaturedImage !== false,
+        showExcerpt: visibility?.showExcerpt !== false,
         author: post.author,
         createdAt: post.created_at,
-        showAuthor: block.content.showAuthor ?? true,
-        showDate: block.content.showDate ?? true,
+        showAuthor: visibility?.showAuthor !== false,
+        showDate: visibility?.showDate !== false,
         body: resolvedBodyHtml,
       }}
       sponsorsById={sponsorsById}

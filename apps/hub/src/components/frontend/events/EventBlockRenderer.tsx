@@ -53,7 +53,7 @@ function EventContentStyled({
           sharedContent={{
             title: event.title,
             featuredImage: event.featured_image,
-            showFeaturedImage: block.content.showFeaturedImage ?? true,
+            showFeaturedImage: block.content.visibility?.showFeaturedImage !== false,
             body: block.content.body,
           }}
         />

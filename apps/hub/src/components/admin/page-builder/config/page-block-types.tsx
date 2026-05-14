@@ -68,8 +68,6 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Login, registration, and password reset forms',
     defaultContent: {
       defaultTab: 'login',
-      showLoginTab: true,
-      showRegisterTab: true,
       loginRedirectPath: '/account',
       registerRedirectPath: '/account',
       emailVerificationEnabled: true,
@@ -110,9 +108,6 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       listingStyle: 'default',
       imageFit: 'crop',
       categoryIds: [],
-      showAuthor: true,
-      showDate: true,
-      showReadMore: true,
     }
   },
   {

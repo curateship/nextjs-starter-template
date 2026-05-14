@@ -691,13 +691,24 @@ export function ProductCheckoutBlock({
             <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
+                  title="Header Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  includeHideBlock={false}
                   useCard
                   fields={[
                     { key: 'header', label: 'Header' },
                     { key: 'subheader', label: 'Sub Header' },
                   ]}
+                />
+              )}
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  useCard
+                  fields={[]}
                 />
               )}
 

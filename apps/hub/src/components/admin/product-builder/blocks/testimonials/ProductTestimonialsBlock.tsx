@@ -394,7 +394,7 @@ export function ProductTestimonialsBlock({ content, onContentChange, siteId, onB
                   </CardContent>
                 </Card>
                 <VisibilitySettings
-                  title="Element Visibility"
+                  title="Elements Visibility"
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
                   includeHideBlock={false}

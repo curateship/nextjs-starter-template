@@ -187,7 +187,8 @@ export function renderNewsletterBlockHtml(block: NewsletterRenderBlock, options?
     }
 
     case 'newsletter-footer': {
-      const { companyName = '', companyAddress = '', showUnsubscribe = true, alignment = 'center' } = block.content
+      const { companyName = '', companyAddress = '', alignment = 'center' } = block.content
+      const showUnsubscribe = block.content.visibility?.showUnsubscribe !== false
       const align = alignment === 'left' ? 'left' : alignment === 'right' ? 'right' : 'center'
       let inner = ''
 

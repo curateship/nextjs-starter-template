@@ -142,13 +142,24 @@ export function ProductDetailsBlock({
             <CardGroup className="grid">
               {onVisibilityChange && (
                 <VisibilitySettings
+                  title="Elements Visibility"
                   visibility={visibility}
                   onChange={onVisibilityChange}
+                  includeHideBlock={false}
                   useCard
                   fields={[
                     { key: 'description', label: 'Description' },
                     { key: 'specifications', label: 'Specifications' },
                   ]}
+                />
+              )}
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Block Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  useCard
+                  fields={[]}
                 />
               )}
             </CardGroup>

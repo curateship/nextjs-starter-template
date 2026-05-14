@@ -2,11 +2,11 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { BlockTabs } from "@/components/ui/tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 
 interface NewsletterFooterBlockProps {
   content: Record<string, any>
@@ -71,21 +71,16 @@ export function NewsletterFooterBlock({ content, onContentChange, onBack }: News
           label: "Settings",
           content: (
             <CardGroup className="grid">
-              <Card>
-                <CardHeader>
-                  <DashboardModalCardTitle>Display Settings</DashboardModalCardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="footer-show-unsub">Show Unsubscribe Link</Label>
-                    <Switch
-                      id="footer-show-unsub"
-                      checked={content.showUnsubscribe !== false}
-                      onCheckedChange={(checked) => onContentChange("showUnsubscribe", checked)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+              <VisibilitySettings
+                title="Elements Visibility"
+                visibility={content.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                includeHideBlock={false}
+                useCard
+                fields={[
+                  { key: "showUnsubscribe", label: "Show Unsubscribe Link" },
+                ]}
+              />
             </CardGroup>
           ),
         },

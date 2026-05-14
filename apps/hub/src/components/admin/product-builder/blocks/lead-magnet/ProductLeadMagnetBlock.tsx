@@ -141,7 +141,7 @@ export function ProductLeadMagnetBlock({
               </Card>
 
               <VisibilitySettings
-                title="Element Visibility"
+                title="Elements Visibility"
                 visibility={normalizedContent.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
                 includeHideBlock={false}

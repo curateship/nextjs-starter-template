@@ -124,7 +124,7 @@ const HeroImage = ({
   );
 };
 
-export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps) => {
+export const DefaultHeroRenderer = ({ config, visibility, children }: HeroStyleRendererProps) => {
   const {
     heroImage,
     trustedByText,
@@ -141,7 +141,7 @@ export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps
       {/* Background layer with pattern and gradient overlays */}
       <div className="absolute inset-0 z-0">
         <BackgroundPattern
-          pattern={backgroundPattern || 'dots'}
+          pattern={visibility?.backgroundPattern === false ? 'none' : backgroundPattern || 'dots'}
           size={backgroundPatternSize || 'medium'}
           opacity={backgroundPatternOpacity || 80}
         />
@@ -153,11 +153,13 @@ export const DefaultHeroRenderer = ({ config, children }: HeroStyleRendererProps
         <div className="relative z-10 w-full max-w-3xl px-6 text-center space-y-6">
           {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
           {children}
-          {trustedByAvatars && trustedByAvatars.length > 0 && (
+          {visibility?.trustedByBadges !== false && trustedByAvatars && trustedByAvatars.length > 0 && (
             <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} />
           )}
         </div>
-        <HeroImage heroImage={heroImage} siteWidth={siteWidth} contentMaxWidth={contentMaxWidth} />
+        {visibility?.heroImage !== false && (
+          <HeroImage heroImage={heroImage} siteWidth={siteWidth} contentMaxWidth={contentMaxWidth} />
+        )}
       </div>
     </>
   );

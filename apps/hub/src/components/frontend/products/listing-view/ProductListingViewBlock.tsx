@@ -24,9 +24,6 @@ interface ProductListingViewBlockProps {
     columns?: number
     sortBy?: 'date' | 'title' | 'display_order'
     sortOrder?: 'asc' | 'desc'
-    showImage?: boolean
-    showTitle?: boolean
-    showDescription?: boolean
     isPaginated?: boolean
     itemsPerPage?: number
     viewAllText?: string
@@ -64,9 +61,6 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
     columns = 3,
     sortBy = 'date',
     sortOrder = 'desc',
-    showImage = true,
-    showTitle = true,
-    showDescription = true,
     isPaginated = false,
     itemsPerPage = 12,
     viewAllText = '',
@@ -77,6 +71,9 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
   // Get URL prefix from props (passed from parent, no API call needed)
   const urlPrefix = urlPrefixes?.products || ""
   const hasViewAll = Boolean(viewAllText && viewAllLink && visibility?.viewAllButton !== false)
+  const showImageElement = visibility?.showImage !== false
+  const showTitleElement = visibility?.showTitle !== false
+  const showDescriptionElement = visibility?.showDescription !== false
 
   useEffect(() => {
     async function loadData() {
@@ -120,7 +117,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
   const renderProduct = (product: any) => {
     const productContent = (
       <div className={displayMode === 'list' ? 'flex gap-6' : 'flex flex-col gap-2'}>
-        {showImage && (
+        {showImageElement && (
           <div className={displayMode === 'list' ? 'w-48 flex-shrink-0' : ''}>
             {product.featured_image ? (
               <div className={`relative rounded-md aspect-square overflow-hidden ${imageFrameClassName}`}>
@@ -144,10 +141,10 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
           </div>
         )}
         <div className="flex flex-col gap-2">
-          {showTitle && (
+          {showTitleElement && (
             <h3 className="text-xl tracking-tight">{product.title}</h3>
           )}
-          {showDescription && product.richText && (
+          {showDescriptionElement && product.richText && (
             <p className="text-muted-foreground text-base">
               {(() => {
                 // Strip HTML tags from rich text for preview
@@ -271,13 +268,13 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
           <div className={`grid ${gridColumns} gap-8`}>
             {Array.from({ length: itemsToShow }, (_, i) => (
               <div key={i} className="animate-pulse">
-                {showImage && (
+                {showImageElement && (
                   <div className="bg-muted rounded-md aspect-square mb-4"></div>
                 )}
-                {showTitle && (
+                {showTitleElement && (
                   <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
                 )}
-                {showDescription && (
+                {showDescriptionElement && (
                   <div className="h-4 bg-muted rounded w-full"></div>
                 )}
               </div>

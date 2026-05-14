@@ -65,8 +65,10 @@ export function DirectoryOpeningHoursBlock({
               <Card>
                 <CardContent>
                   <VisibilitySettings
+                    title="Elements Visibility"
                     visibility={content.visibility}
                     onChange={(visibility) => onContentChange("visibility", visibility)}
+                    includeHideBlock={false}
                     fields={[
                       { key: "title", label: "Title" },
                       { key: "hours", label: "Hours" },
@@ -76,6 +78,13 @@ export function DirectoryOpeningHoursBlock({
                   />
                 </CardContent>
               </Card>
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                useCard
+                fields={[]}
+              />
             </CardGroup>
           ),
         },

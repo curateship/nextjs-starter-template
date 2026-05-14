@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
+import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -49,8 +49,6 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
   const eventContentStyle = content.eventContentStyle || 'default'
   const styleConfig = content.styleConfig || {}
   const currentStyleConfig = styleConfig[eventContentStyle] || {}
-
-  const showFeaturedImage = content.showFeaturedImage ?? true
 
   // Update local title when event data changes
   useEffect(() => {
@@ -334,19 +332,16 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
             value: "settings",
             label: "Settings",
             content: (
-              <BlockEditorSection heading="Display Options">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="show-featured-image">Show Featured Image</Label>
-                      <p className="text-sm text-muted-foreground">Display the event featured image</p>
-                    </div>
-                    <Switch
-                      id="show-featured-image"
-                      checked={showFeaturedImage}
-                      onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
-                    />
-                  </div>
-              </BlockEditorSection>
+              <VisibilitySettings
+                title="Elements Visibility"
+                visibility={content.visibility}
+                onChange={(visibility) => onContentChange('visibility', visibility)}
+                includeHideBlock={false}
+                useCard
+                fields={[
+                  { key: 'showFeaturedImage', label: 'Show Featured Image' },
+                ]}
+              />
             ),
           },
         ]}

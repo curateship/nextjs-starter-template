@@ -61,12 +61,21 @@ export function DirectoryRichTextEditorBlock({
               <Card>
                 <CardContent>
                   <VisibilitySettings
+                    title="Elements Visibility"
                     visibility={content.visibility}
                     onChange={(visibility) => onContentChange("visibility", visibility)}
+                    includeHideBlock={false}
                     fields={[{ key: "body", label: "Content" }]}
                   />
                 </CardContent>
               </Card>
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                useCard
+                fields={[]}
+              />
             </CardGroup>
           ),
         },

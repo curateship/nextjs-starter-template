@@ -3,12 +3,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { CORE_STYLES } from "./core-styles"
+import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 
 export type CoreBlockTab = "content" | "styling" | "settings"
 
@@ -33,11 +32,6 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
   const coreStyle = content.coreStyle || 'default'
   const styleConfig = content.styleConfig || {}
   const currentStyleConfig = styleConfig[coreStyle] || {}
-
-  const showAuthor = content.showAuthor ?? true
-  const showDate = content.showDate ?? true
-  const showFeaturedImage = content.showFeaturedImage ?? postData?.show_featured_image ?? true
-  const showExcerpt = content.showExcerpt ?? postData?.show_excerpt ?? true
 
   // Update local title when post data changes
   useEffect(() => {
@@ -166,64 +160,19 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Display Options</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-            <div className="flex items-start gap-3">
-              <Switch
-                id="show-featured-image"
-                checked={showFeaturedImage}
-                onCheckedChange={(checked) => onContentChange('showFeaturedImage', checked)}
-                className="mt-0.5"
-              />
-              <div className="space-y-0.5">
-                <Label htmlFor="show-featured-image">Show Featured Image</Label>
-                <p className="text-sm text-muted-foreground">Display the post featured image</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <Switch
-                id="show-excerpt"
-                checked={showExcerpt}
-                onCheckedChange={(checked) => onContentChange('showExcerpt', checked)}
-                className="mt-0.5"
-              />
-              <div className="space-y-0.5">
-                <Label htmlFor="show-excerpt">Show Excerpt</Label>
-                <p className="text-sm text-muted-foreground">Display the post excerpt beneath the title</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <Switch
-                id="show-author"
-                checked={showAuthor}
-                onCheckedChange={(checked) => onContentChange('showAuthor', checked)}
-                className="mt-0.5"
-              />
-              <div className="space-y-0.5">
-                <Label htmlFor="show-author">Show Author</Label>
-                <p className="text-sm text-muted-foreground">Display the post author information</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <Switch
-                id="show-date"
-                checked={showDate}
-                onCheckedChange={(checked) => onContentChange('showDate', checked)}
-                className="mt-0.5"
-              />
-              <div className="space-y-0.5">
-                <Label htmlFor="show-date">Show Date</Label>
-                <p className="text-sm text-muted-foreground">Display the post publication date</p>
-              </div>
-            </div>
-            </CardContent>
-          </Card>
+          <VisibilitySettings
+            title="Elements Visibility"
+            visibility={content.visibility}
+            onChange={(visibility) => onContentChange('visibility', visibility)}
+            includeHideBlock={false}
+            useCard
+            fields={[
+              { key: 'showFeaturedImage', label: 'Show Featured Image' },
+              { key: 'showExcerpt', label: 'Show Excerpt' },
+              { key: 'showAuthor', label: 'Show Author' },
+              { key: 'showDate', label: 'Show Date' },
+            ]}
+          />
         </>
       )}
     </CardGroup>

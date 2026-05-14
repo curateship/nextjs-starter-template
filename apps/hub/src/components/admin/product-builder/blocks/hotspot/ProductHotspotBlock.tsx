@@ -333,8 +333,10 @@ export function ProductHotspotBlock({
               <CardGroup className="grid">
                 {onVisibilityChange && (
                   <VisibilitySettings
+                    title="Header Visibility"
                     visibility={visibility}
                     onChange={onVisibilityChange}
+                    includeHideBlock={false}
                     useCard
                     fields={[
                       { key: 'header', label: 'Header' },
@@ -342,10 +344,19 @@ export function ProductHotspotBlock({
                     ]}
                   />
                 )}
+                {onVisibilityChange && (
+                  <VisibilitySettings
+                    title="Block Visibility"
+                    visibility={visibility}
+                    onChange={onVisibilityChange}
+                    useCard
+                    fields={[]}
+                  />
+                )}
 
                 <Card>
                   <CardHeader>
-                    <DashboardModalCardTitle>Display Options</DashboardModalCardTitle>
+                    <DashboardModalCardTitle>Tooltip Behavior</DashboardModalCardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center space-x-2">

@@ -14,9 +14,7 @@ interface RelatedPostsBlockProps {
     itemsToShow?: number
     sortBy?: 'date' | 'title'
     sortOrder?: 'asc' | 'desc'
-    showImage?: boolean
-    showTitle?: boolean
-    showExcerpt?: boolean
+    visibility?: Record<string, boolean>
   }
   siteId: string
   currentPostId: string
@@ -35,10 +33,11 @@ export function RelatedPostsBlock({ content, siteId, currentPostId, preloadedDat
     itemsToShow = 3,
     sortBy = 'date',
     sortOrder = 'desc',
-    showImage = true,
-    showTitle = true,
-    showExcerpt = true,
+    visibility,
   } = content
+  const showImage = visibility?.showImage !== false
+  const showTitle = visibility?.showTitle !== false
+  const showExcerpt = visibility?.showExcerpt !== false
 
   useEffect(() => {
     if (preloadedData) {

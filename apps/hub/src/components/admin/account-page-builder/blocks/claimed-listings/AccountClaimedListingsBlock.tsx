@@ -95,8 +95,10 @@ export function AccountClaimedListingsBlock({
           content: (
             <CardGroup className="grid">
               <VisibilitySettings
+                title="Elements Visibility"
                 visibility={content.visibility}
                 onChange={(value) => onContentChange("visibility", value)}
+                includeHideBlock={false}
                 useCard
                 fields={[
                   { key: "title", label: "Title" },
@@ -108,6 +110,13 @@ export function AccountClaimedListingsBlock({
                   { key: "map", label: "Map" },
                   { key: "hours", label: "Opening Hours" },
                 ]}
+              />
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(value) => onContentChange("visibility", value)}
+                useCard
+                fields={[]}
               />
             </CardGroup>
           ),

@@ -9,15 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 
 interface PageAuthBlockProps {
   defaultTab?: "login" | "register"
-  showLoginTab?: boolean
-  showRegisterTab?: boolean
   loginRedirectPath?: string
   registerRedirectPath?: string
   emailVerificationEnabled?: boolean
@@ -32,8 +29,6 @@ interface PageAuthBlockProps {
   resetDescription?: string
   visibility?: Record<string, boolean>
   onDefaultTabChange: (value: "login" | "register") => void
-  onShowLoginTabChange: (value: boolean) => void
-  onShowRegisterTabChange: (value: boolean) => void
   onLoginRedirectPathChange: (value: string) => void
   onRegisterRedirectPathChange: (value: string) => void
   onEmailVerificationEnabledChange: (value: boolean) => void
@@ -52,8 +47,6 @@ interface PageAuthBlockProps {
 
 export function PageAuthBlock({
   defaultTab = "login",
-  showLoginTab = true,
-  showRegisterTab = true,
   loginRedirectPath = "/",
   registerRedirectPath = "/",
   emailVerificationEnabled = true,
@@ -68,8 +61,6 @@ export function PageAuthBlock({
   resetDescription = "Enter your email to receive a reset link",
   visibility,
   onDefaultTabChange,
-  onShowLoginTabChange,
-  onShowRegisterTabChange,
   onLoginRedirectPathChange,
   onRegisterRedirectPathChange,
   onEmailVerificationEnabledChange,
@@ -232,27 +223,6 @@ export function PageAuthBlock({
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="showLoginTab"
-                    checked={showLoginTab}
-                    onCheckedChange={onShowLoginTabChange}
-                  />
-                  <Label htmlFor="showLoginTab" className="cursor-pointer">
-                    Show Login Tab
-                  </Label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="showRegisterTab"
-                    checked={showRegisterTab}
-                    onCheckedChange={onShowRegisterTabChange}
-                  />
-                  <Label htmlFor="showRegisterTab" className="cursor-pointer">
-                    Show Register Tab
-                  </Label>
-                </div>
                   </BlockEditorSection>
                 </CardContent>
               </Card>
@@ -315,6 +285,20 @@ export function PageAuthBlock({
                   </BlockEditorSection>
                 </CardContent>
               </Card>
+
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Elements Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  includeHideBlock={false}
+                  useCard
+                  fields={[
+                    { key: "showLoginTab", label: "Show Login Tab" },
+                    { key: "showRegisterTab", label: "Show Register Tab" },
+                  ]}
+                />
+              )}
 
               {onVisibilityChange && (
                 <VisibilitySettings

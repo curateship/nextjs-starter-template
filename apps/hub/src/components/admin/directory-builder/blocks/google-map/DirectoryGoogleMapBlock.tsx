@@ -93,8 +93,10 @@ export function DirectoryGoogleMapBlock({
               <Card>
                 <CardContent>
                   <VisibilitySettings
+                    title="Elements Visibility"
                     visibility={content.visibility}
                     onChange={(visibility) => onContentChange("visibility", visibility)}
+                    includeHideBlock={false}
                     fields={[
                       { key: "map", label: "Map" },
                       { key: "caption", label: "Caption" },
@@ -102,6 +104,13 @@ export function DirectoryGoogleMapBlock({
                   />
                 </CardContent>
               </Card>
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(visibility) => onContentChange("visibility", visibility)}
+                useCard
+                fields={[]}
+              />
             </CardGroup>
           ),
         },

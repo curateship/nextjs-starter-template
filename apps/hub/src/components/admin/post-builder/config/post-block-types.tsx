@@ -11,10 +11,6 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Post title, display options, and rich text content',
     defaultContent: {
       layoutColumn: 'main',
-      showFeaturedImage: true,
-      showExcerpt: true,
-      showAuthor: true,
-      showDate: true,
       body: '',
       format: 'html'
     }
@@ -32,10 +28,7 @@ export const POST_BLOCK_TYPES: BlockTypeDefinition[] = [
       columns: 3,
       itemsToShow: 3,
       sortBy: 'date',
-      sortOrder: 'desc',
-      showImage: true,
-      showTitle: true,
-      showExcerpt: true
+      sortOrder: 'desc'
     }
   },
   {

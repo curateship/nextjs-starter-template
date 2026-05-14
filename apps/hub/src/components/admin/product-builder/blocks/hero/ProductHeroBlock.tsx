@@ -246,16 +246,28 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
               </Card>
 
               <VisibilitySettings
-                title="Element Visibility"
+                title="Elements Visibility"
                 visibility={content.visibility}
                 onChange={(v) => onContentChange('visibility', v)}
+                includeHideBlock={false}
                 useCard
                 fields={[
                   { key: 'title', label: 'Title' },
                   { key: 'subtitle', label: 'Subtitle' },
                   { key: 'primaryButton', label: 'Primary Button' },
                   { key: 'secondaryButton', label: 'Secondary Button' },
+                  { key: 'heroImage', label: 'Hero Image' },
+                  { key: 'trustedByBadges', label: 'Trusted By Badges' },
+                  { key: 'backgroundPattern', label: 'Background Pattern' },
                 ]}
+              />
+
+              <VisibilitySettings
+                title="Block Visibility"
+                visibility={content.visibility}
+                onChange={(v) => onContentChange('visibility', v)}
+                useCard
+                fields={[]}
               />
             </CardGroup>
           ),

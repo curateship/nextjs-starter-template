@@ -10,7 +10,6 @@ export const EVENT_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: FileText,
     description: 'Display event details and information',
     defaultContent: {
-      showFeaturedImage: true,
       body: '',
       format: 'html'
     }
