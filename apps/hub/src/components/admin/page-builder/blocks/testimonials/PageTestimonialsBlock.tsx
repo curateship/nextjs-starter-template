@@ -396,7 +396,6 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                   visibility={content.visibility}
                   onChange={(v) => onContentChange('visibility', v)}
                   includeHideBlock={false}
-                  helperText="Toggle specific Elements on or off"
                   useCard
                   fields={[
                     { key: 'title', label: 'Title' },

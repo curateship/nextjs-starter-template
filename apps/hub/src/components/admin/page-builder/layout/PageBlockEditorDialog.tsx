@@ -103,12 +103,6 @@ export function PageBlockEditorDialog({
                     onColumnsChange={(value) => onContentChange("columns", value)}
                     onSortByChange={(value) => onContentChange("sortBy", value)}
                     onSortOrderChange={(value) => onContentChange("sortOrder", value)}
-                    onShowImageChange={(value) => onContentChange("showImage", value)}
-                    onShowTitleChange={(value) => onContentChange("showTitle", value)}
-                    onShowDescriptionChange={(value) => onContentChange("showDescription", value)}
-                    onShowAuthorChange={(value) => onContentChange("showAuthor", value)}
-                    onShowDateChange={(value) => onContentChange("showDate", value)}
-                    onShowReadMoreChange={(value) => onContentChange("showReadMore", value)}
                     onIsPaginatedChange={(value) => onContentChange("isPaginated", value)}
                     onItemsPerPageChange={(value) => onContentChange("itemsPerPage", value)}
                     onViewAllTextChange={(value) => onContentChange("viewAllText", value)}

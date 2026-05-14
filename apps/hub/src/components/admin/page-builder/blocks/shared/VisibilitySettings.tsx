@@ -26,15 +26,23 @@ export function VisibilitySettings({
   title = "Visibility",
   includeHideBlock = true,
   useCard = false,
-  helperText = "Hide the entire block without deleting content.",
+  helperText,
 }: VisibilitySettingsProps) {
+  const resolvedHelperText = helperText === null
+    ? null
+    : helperText ?? (includeHideBlock
+      ? "Hide the entire block without deleting content."
+      : title === "Header Visibility"
+        ? "Toggle header elements on or off"
+        : "Toggle specific Elements on or off")
+
   const resolvedFields = includeHideBlock && !fields.some((field) => field.key === 'hideBlock')
     ? [...fields, { key: 'hideBlock', label: 'Hide Block', mode: 'hide' as const }]
     : fields
 
   const content = (
     <div className="space-y-4">
-      {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
+      {resolvedHelperText && <p className="text-xs text-muted-foreground">{resolvedHelperText}</p>}
       {resolvedFields.map((field) => (
         <div key={field.key} className="flex items-center space-x-2">
           <Checkbox

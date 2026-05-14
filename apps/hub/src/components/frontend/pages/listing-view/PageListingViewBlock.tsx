@@ -47,12 +47,6 @@ interface ListingViewsBlockProps {
     columns?: number
     sortBy?: "date" | "title" | "display_order"
     sortOrder?: "asc" | "desc"
-    showImage?: boolean
-    showTitle?: boolean
-    showDescription?: boolean
-    showAuthor?: boolean
-    showDate?: boolean
-    showReadMore?: boolean
     isPaginated?: boolean
     itemsPerPage?: number
     viewAllText?: string
@@ -100,12 +94,6 @@ export function ListingViewsBlock({
     columns = 3,
     sortBy = "date",
     sortOrder = "desc",
-    showImage = true,
-    showTitle = true,
-    showDescription = true,
-    showAuthor = true,
-    showDate = true,
-    showReadMore = true,
     isPaginated = false,
     itemsPerPage = 12,
     viewAllText = "",
@@ -117,6 +105,12 @@ export function ListingViewsBlock({
 
   // Extract repeated conditions
   const hasViewAll = Boolean(viewAllText && viewAllLink && visibility?.viewAllButton !== false)
+  const showImageElement = visibility?.showImage !== false
+  const showTitleElement = visibility?.showTitle !== false
+  const showDescriptionElement = visibility?.showDescription !== false
+  const showAuthorElement = visibility?.showAuthor !== false
+  const showDateElement = visibility?.showDate !== false
+  const showReadMoreElement = visibility?.showReadMore !== false
 
   // Create responsive alignment classes
   const getResponsiveAlignmentClass = () => {
@@ -232,9 +226,9 @@ export function ListingViewsBlock({
     if (listingStyle === "blog") {
       const href = `/${urlPrefix ? `${urlPrefix}/` : ""}${item.slug}`
       const summary = getItemSummary(item)
-      const published = showDate ? formatDate(item.created_at) : ""
+      const published = showDateElement ? formatDate(item.created_at) : ""
       const authorName = item.author?.trim() || ""
-      const showAuthorMeta = showAuthor && Boolean(authorName)
+      const showAuthorMeta = showAuthorElement && Boolean(authorName)
 
       return (
         <Link
@@ -244,7 +238,7 @@ export function ListingViewsBlock({
           aria-label={`Read ${item.title || (contentType === "posts" ? "post" : "product")}`}
         >
           <Card className="grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden">
-            {showImage && (
+            {showImageElement && (
               <div className={`aspect-video w-full ${imageFrameClassName}`}>
                 {item.featured_image ? (
                   <Image
@@ -264,8 +258,8 @@ export function ListingViewsBlock({
               </div>
             )}
             <CardHeader>
-              {showTitle && <h3 className="text-xl md:text-xl">{item.title}</h3>}
-              {showDescription && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
+              {showTitleElement && <h3 className="text-xl md:text-xl">{item.title}</h3>}
+              {showDescriptionElement && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
               {(showAuthorMeta || published) && (
                 <div className="mt-3 flex items-center gap-2">
                   {showAuthorMeta && (
@@ -281,7 +275,7 @@ export function ListingViewsBlock({
                 </div>
               )}
             </CardHeader>
-            {showReadMore && (
+            {showReadMoreElement && (
               <CardFooter>
                 <span className="flex items-center text-muted-foreground">
                   Read more
@@ -296,7 +290,7 @@ export function ListingViewsBlock({
 
     const itemContent = (
       <div className={displayMode === "list" ? "flex gap-6" : "flex flex-col gap-2"}>
-        {showImage && (
+        {showImageElement && (
           <div className={displayMode === "list" ? "w-48 shrink-0" : ""}>
             {item.featured_image ? (
               <div className={`relative rounded-md aspect-square overflow-hidden ${imageFrameClassName}`}>
@@ -323,8 +317,8 @@ export function ListingViewsBlock({
           </div>
         )}
         <div className="flex flex-col gap-2">
-          {showTitle && <h3 className="text-xl tracking-tight pt-3">{item.title}</h3>}
-          {showDescription && item.richText && (
+          {showTitleElement && <h3 className="text-xl tracking-tight pt-3">{item.title}</h3>}
+          {showDescriptionElement && item.richText && (
             <p className="text-muted-foreground text-base py-2">{getItemSummary(item)}</p>
           )}
         </div>
@@ -393,9 +387,9 @@ export function ListingViewsBlock({
         <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
           {Array.from({ length: itemsToShow }, (_, i) => (
             <div key={i} className="animate-pulse">
-              {showImage && <div className="bg-muted rounded-md aspect-square mb-4"></div>}
-              {showTitle && <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>}
-              {showDescription && <div className="h-4 bg-muted rounded w-full"></div>}
+              {showImageElement && <div className="bg-muted rounded-md aspect-square mb-4"></div>}
+              {showTitleElement && <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>}
+              {showDescriptionElement && <div className="h-4 bg-muted rounded w-full"></div>}
             </div>
           ))}
         </div>

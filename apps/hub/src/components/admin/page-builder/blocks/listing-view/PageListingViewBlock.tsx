@@ -49,12 +49,6 @@ interface SharedListingViewsBlockProps {
   columns?: number
   sortBy?: 'date' | 'title' | 'display_order'
   sortOrder?: 'asc' | 'desc'
-  showImage?: boolean
-  showTitle?: boolean
-  showDescription?: boolean
-  showAuthor?: boolean
-  showDate?: boolean
-  showReadMore?: boolean
   isPaginated?: boolean
   itemsPerPage?: number
   viewAllText?: string
@@ -74,12 +68,6 @@ interface SharedListingViewsBlockProps {
   onColumnsChange: (value: number) => void
   onSortByChange: (value: 'date' | 'title' | 'display_order') => void
   onSortOrderChange: (value: 'asc' | 'desc') => void
-  onShowImageChange: (value: boolean) => void
-  onShowTitleChange: (value: boolean) => void
-  onShowDescriptionChange: (value: boolean) => void
-  onShowAuthorChange: (value: boolean) => void
-  onShowDateChange: (value: boolean) => void
-  onShowReadMoreChange: (value: boolean) => void
   onIsPaginatedChange: (value: boolean) => void
   onItemsPerPageChange: (value: number) => void
   onViewAllTextChange: (value: string) => void
@@ -102,12 +90,6 @@ export function PageListingViewBlock({
   columns = 3,
   sortBy = 'date',
   sortOrder = 'desc',
-  showImage = true,
-  showTitle = true,
-  showDescription = true,
-  showAuthor = true,
-  showDate = true,
-  showReadMore = true,
   isPaginated = false,
   itemsPerPage = 12,
   viewAllText = '',
@@ -127,12 +109,6 @@ export function PageListingViewBlock({
   onColumnsChange,
   onSortByChange,
   onSortOrderChange,
-  onShowImageChange,
-  onShowTitleChange,
-  onShowDescriptionChange,
-  onShowAuthorChange,
-  onShowDateChange,
-  onShowReadMoreChange,
   onIsPaginatedChange,
   onItemsPerPageChange,
   onViewAllTextChange,
@@ -432,7 +408,6 @@ export function PageListingViewBlock({
                   visibility={visibility}
                   onChange={onVisibilityChange}
                   includeHideBlock={false}
-                  helperText="Toggle header elements on or off"
                   useCard
                   fields={[
                     { key: 'title', label: 'Title' },
@@ -442,68 +417,29 @@ export function PageListingViewBlock({
                 />
               )}
 
+              {onVisibilityChange && (
+                <VisibilitySettings
+                  title="Element Visibility"
+                  visibility={visibility}
+                  onChange={onVisibilityChange}
+                  includeHideBlock={false}
+                  useCard
+                  fields={[
+                    { key: 'showImage', label: 'Show Image' },
+                    { key: 'showTitle', label: 'Show Title' },
+                    { key: 'showDescription', label: 'Show Description' },
+                    ...(listingStyle === 'blog' ? [
+                      { key: 'showAuthor', label: 'Show Author' },
+                      { key: 'showDate', label: 'Show Date' },
+                      { key: 'showReadMore', label: 'Show Read More' },
+                    ] : []),
+                  ]}
+                />
+              )}
+
               <Card>
                 <CardContent>
-                  <BlockEditorSection heading="Element Visibility">
-                  <p className="text-xs text-muted-foreground">Toggle specific Elements on or off</p>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showImage"
-                      checked={showImage}
-                      onCheckedChange={(checked) => onShowImageChange(!!checked)}
-                    />
-                    <Label htmlFor="showImage" className="cursor-pointer">Show Image</Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showTitle"
-                      checked={showTitle}
-                      onCheckedChange={(checked) => onShowTitleChange(!!checked)}
-                    />
-                    <Label htmlFor="showTitle" className="cursor-pointer">Show Title</Label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="showDescription"
-                      checked={showDescription}
-                      onCheckedChange={(checked) => onShowDescriptionChange(!!checked)}
-                    />
-                    <Label htmlFor="showDescription" className="cursor-pointer">Show Description</Label>
-                  </div>
-
-                  {listingStyle === 'blog' && (
-                    <>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="showAuthor"
-                          checked={showAuthor}
-                          onCheckedChange={(checked) => onShowAuthorChange(!!checked)}
-                        />
-                        <Label htmlFor="showAuthor" className="cursor-pointer">Show Author</Label>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="showDate"
-                          checked={showDate}
-                          onCheckedChange={(checked) => onShowDateChange(!!checked)}
-                        />
-                        <Label htmlFor="showDate" className="cursor-pointer">Show Date</Label>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="showReadMore"
-                          checked={showReadMore}
-                          onCheckedChange={(checked) => onShowReadMoreChange(!!checked)}
-                        />
-                        <Label htmlFor="showReadMore" className="cursor-pointer">Show Read More</Label>
-                      </div>
-                    </>
-                  )}
-
+                  <BlockEditorSection heading="Pagination">
                   <div className="flex items-center space-x-2">
                     <Checkbox
                       id="isPaginated"

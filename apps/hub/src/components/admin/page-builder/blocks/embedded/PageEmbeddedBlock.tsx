@@ -98,7 +98,6 @@ export function PageEmbeddedBlock({
                     visibility={visibility}
                     onChange={onVisibilityChange}
                     includeHideBlock={false}
-                    helperText="Toggle specific Elements on or off"
                     useCard
                     fields={[
                       { key: 'embed', label: 'Show on Frontend' },

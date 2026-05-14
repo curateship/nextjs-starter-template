@@ -376,7 +376,6 @@ export function PageFaqBlock({
                     visibility={visibility}
                     onChange={onVisibilityChange}
                     includeHideBlock={false}
-                    helperText="Toggle specific Elements on or off"
                     useCard
                     fields={[
                       { key: 'title', label: 'Title' },

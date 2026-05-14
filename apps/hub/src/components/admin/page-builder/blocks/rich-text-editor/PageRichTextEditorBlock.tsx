@@ -71,7 +71,6 @@ export function PageRichTextEditorBlock({
                 visibility={normalizedContent.visibility}
                 onChange={(visibility) => onContentChange("visibility", visibility)}
                 includeHideBlock={false}
-                helperText="Toggle specific Elements on or off"
                 useCard
                 fields={[{ key: "body", label: "Content" }]}
               />
