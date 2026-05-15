@@ -409,7 +409,7 @@ export async function updateAutomation(
 
     const segmentIds = data.status === 'active'
       ? [...new Set(
-        getAutomationTriggerNodes(data.triggerType, data.triggerConfig)
+        getAutomationTriggerNodes(data.triggerType, data.triggerConfig as Record<string, any> | null | undefined)
           .filter(node => node.type === 'segment_added')
           .flatMap(node => getTriggerSegmentIds(node.config))
           .filter(id => UUID_REGEX.test(id))
