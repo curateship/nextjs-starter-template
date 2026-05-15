@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
 import {
+  getTriggerSegmentIds,
   getAutomationTriggerNodes,
   isAutomationTriggerType,
   matchesAutomationTrigger,
@@ -406,16 +407,22 @@ export async function updateAutomation(
       return { data: null, error: 'Failed to update' }
     }
 
-    const segmentId = data.status === 'active' && data.triggerType === 'segment_added'
-      ? (data.triggerConfig as Record<string, any> | null)?.segment_id
-      : null
-    if (typeof segmentId === 'string' && UUID_REGEX.test(segmentId)) {
+    const segmentIds = data.status === 'active'
+      ? [...new Set(
+        getAutomationTriggerNodes(data.triggerType, data.triggerConfig)
+          .filter(node => node.type === 'segment_added')
+          .flatMap(node => getTriggerSegmentIds(node.config))
+          .filter(id => UUID_REGEX.test(id))
+      )]
+      : []
+    if (segmentIds.length) {
+      const segmentSql = sql.join(segmentIds.map(id => sql`${id}`), sql`, `)
       await db.execute(sql`
         insert into email_automation_enrollments (automation_id, contact_id, status, current_step_order, metadata)
-        select ${automationId}, nsc.contact_id, 'active', 0, jsonb_build_object('source', 'segment_added', 'segment_id', ${segmentId})
+        select distinct ${automationId}, nsc.contact_id, 'active', 0, jsonb_build_object('source', 'segment_added', 'segment_ids', ${JSON.stringify(segmentIds)}::jsonb)
         from newsletter_segment_contacts nsc
         join newsletter_contacts nc on nc.id = nsc.contact_id
-        where nsc.segment_id = ${segmentId}
+        where nsc.segment_id in (${segmentSql})
           and nc.site_id = ${automation.siteId}
           and nc.status = 'active'
         on conflict do nothing

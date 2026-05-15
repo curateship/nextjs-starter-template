@@ -48,9 +48,10 @@ import type {
 } from "@/lib/actions/newsletters/automation-actions"
 import { getSiteProductsAction } from "@/lib/actions/products/product-actions"
 import type { Product } from "@/lib/actions/products/product-actions"
-import { getSegmentsBySite } from "@/lib/actions/newsletters/segment-actions"
+import { getSegmentsWithCounts } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import {
+  getTriggerSegmentIds,
   getAutomationTriggerNodes,
   isAutomationTriggerConfigured,
   serializeAutomationTriggerNodes,
@@ -80,6 +81,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [segments, setSegments] = useState<Segment[]>([])
+  const [segmentCounts, setSegmentCounts] = useState<Record<string, number>>({})
   const [loadingSegments, setLoadingSegments] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(false)
@@ -88,7 +90,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [triggerEditorOpen, setTriggerEditorOpen] = useState(false)
   const [editingTriggerIndex, setEditingTriggerIndex] = useState<number | null>(null)
   const [draftTriggerType, setDraftTriggerType] = useState<AutomationTriggerType>("none")
-  const [draftSegmentId, setDraftSegmentId] = useState("")
+  const [draftSegmentIds, setDraftSegmentIds] = useState<string[]>([])
   const [draftProductId, setDraftProductId] = useState("")
   const [savingTrigger, setSavingTrigger] = useState(false)
   const [addAfterIndex, setAddAfterIndex] = useState<number | null>(null)
@@ -109,6 +111,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [pendingDeleteNodeId, setPendingDeleteNodeId] = useState<string | null>(null)
   const siteId = automation?.site_id ?? null
   const endRulesProductAnchor = useComboboxAnchor()
+  const segmentTriggerAnchor = useComboboxAnchor()
 
   const loadJourneyIndicators = useCallback(async () => {
     const { data } = await getAutomationJourneyIndicators(automationId)
@@ -168,6 +171,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   useEffect(() => {
     if (!siteId) {
       setSegments([])
+      setSegmentCounts({})
       setLoadingSegments(false)
       return
     }
@@ -177,12 +181,13 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     async function loadSegments() {
       setLoadingSegments(true)
-      const { data } = await getSegmentsBySite(currentSiteId, {
+      const { data, counts } = await getSegmentsWithCounts(currentSiteId, {
         page: 1,
         pageSize: 100
       })
       if (cancelled) return
       setSegments(data || [])
+      setSegmentCounts(counts || {})
       setLoadingSegments(false)
     }
 
@@ -227,6 +232,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const purchaseProducts = products.filter((product) => Boolean(product.content_blocks?.["product-checkout"]))
   const productTriggerOptions = purchaseProducts
   const productTriggerLabel = "Product"
+  const segmentTriggerItems = segments.map((segment) => ({
+    value: segment.id,
+    label: segment.name
+  }))
   const endRulesProductItems = products.map((product) => ({
     value: product.id,
     label: product.title
@@ -448,14 +457,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSelectedTriggerIndex(index)
     setEditingTriggerIndex(index)
     setDraftTriggerType(triggerNode.type)
-    setDraftSegmentId(typeof triggerNode.config?.segment_id === "string" ? triggerNode.config.segment_id : "")
+    setDraftSegmentIds(getTriggerSegmentIds(triggerNode.config))
     setDraftProductId(typeof triggerNode.config?.product_id === "string" ? triggerNode.config.product_id : "")
     setTriggerEditorOpen(true)
   }
 
   const buildTriggerConfig = (triggerType: AutomationTriggerType) => {
     if (triggerType === "segment_added") {
-      return { segment_id: draftSegmentId }
+      return { segment_ids: draftSegmentIds }
     }
 
     if (triggerType === "lead_magnet_signup" || triggerType === "paid_purchase") {
@@ -490,8 +499,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const saveTrigger = async () => {
-    if (draftTriggerType === "segment_added" && !draftSegmentId) {
-      setError("Choose a segment before saving this trigger.")
+    if (draftTriggerType === "segment_added" && !draftSegmentIds.length) {
+      setError("Choose at least one segment before saving this trigger.")
       return
     }
     if (draftTriggerType === "paid_purchase" && !draftProductId) {
@@ -640,11 +649,20 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const getTriggerChip = (triggerNode: AutomationTriggerNode) => {
     if (triggerNode.type === "segment_added") {
-      const segmentId = typeof triggerNode.config?.segment_id === "string" ? triggerNode.config.segment_id : ""
-      const segmentName = segments.find((segment) => segment.id === segmentId)?.name
+      const segmentIds = getTriggerSegmentIds(triggerNode.config)
+      const segmentNames = segmentIds
+        .map((id) => segments.find((segment) => segment.id === id)?.name)
+        .filter(Boolean)
+      const segmentTotal = segmentIds.reduce((sum, id) => sum + (segmentCounts[id] ?? 0), 0)
+      const segmentLabel =
+        segmentNames.length === 0
+          ? "Choose segment"
+          : segmentNames.length === 1
+            ? segmentNames[0]
+            : `${segmentNames.length} segments`
 
       return {
-        label: segmentName || "Choose segment",
+        label: `${segmentLabel} - ${segmentTotal.toLocaleString()} contacts`,
         className: "border-zinc-300 bg-zinc-100 text-zinc-900 hover:bg-zinc-100"
       }
     }
@@ -1218,7 +1236,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   onClick={saveTrigger}
                   disabled={
                     savingTrigger ||
-                    (draftTriggerType === "segment_added" && (!draftSegmentId || segments.length === 0)) ||
+                    (draftTriggerType === "segment_added" && (!draftSegmentIds.length || segments.length === 0)) ||
                     (draftTriggerType === "paid_purchase" && (!draftProductId || productTriggerOptions.length === 0))
                   }
                 >
@@ -1241,7 +1259,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       onValueChange={(value) => {
                         const nextTriggerType = value as AutomationTriggerType
                         setDraftTriggerType(nextTriggerType)
-                        if (nextTriggerType !== "segment_added") setDraftSegmentId("")
+                        if (nextTriggerType !== "segment_added") setDraftSegmentIds([])
                         if (nextTriggerType !== "paid_purchase") {
                           setDraftProductId("")
                         }
@@ -1261,19 +1279,58 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   {draftTriggerType === "segment_added" && (
                     <div className="space-y-2">
                       <Field>
-                        <FieldLabel>Segment</FieldLabel>
-                        <Select value={draftSegmentId} onValueChange={setDraftSegmentId}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder={loadingSegments ? "Loading segments..." : "Choose a segment"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {segments.map((segment) => (
-                              <SelectItem key={segment.id} value={segment.id}>
-                                {segment.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FieldLabel>Segments</FieldLabel>
+                        <Combobox
+                          items={segmentTriggerItems}
+                          value={draftSegmentIds}
+                          onValueChange={setDraftSegmentIds}
+                          multiple
+                        >
+                          <ComboboxChips ref={segmentTriggerAnchor} className="w-full">
+                            <ComboboxValue>
+                              {(values) => (
+                                <>
+                                  {values.map((segmentId) => {
+                                    const segmentName =
+                                      segments.find((segment) => segment.id === segmentId)?.name || "Missing segment"
+                                    return (
+                                      <ComboboxChip key={segmentId} value={segmentId}>
+                                        {segmentName}
+                                      </ComboboxChip>
+                                    )
+                                  })}
+                                  <ComboboxChipsInput
+                                    placeholder={
+                                      values.length
+                                        ? ""
+                                        : loadingSegments
+                                          ? "Loading segments..."
+                                          : "Search segments"
+                                    }
+                                  />
+                                </>
+                              )}
+                            </ComboboxValue>
+                          </ComboboxChips>
+                          <ComboboxContent anchor={segmentTriggerAnchor}>
+                            <ComboboxEmpty>{loadingSegments ? "Loading segments..." : "No segments found."}</ComboboxEmpty>
+                            <ComboboxList>
+                              {(item) => {
+                                const value = typeof item === "string" ? item : item.value
+                                const label = typeof item === "string" ? item : item.label
+
+                                return (
+                                  <ComboboxItem key={value} value={value}>
+                                    <span className="flex-1">{label}</span>
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      {(segmentCounts[value] ?? 0).toLocaleString()}
+                                    </span>
+                                  </ComboboxItem>
+                                )
+                              }}
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
                       </Field>
                       {!loadingSegments && segments.length === 0 && (
                         <p className="text-sm text-muted-foreground">

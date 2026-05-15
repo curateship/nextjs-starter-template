@@ -42,12 +42,23 @@ export function isAutomationTriggerConfigured(
 ) {
   if (triggerType === 'none') return false
   if (triggerType === 'segment_added') {
-    return typeof triggerConfig?.segment_id === 'string' && triggerConfig.segment_id.length > 0
+    return getTriggerSegmentIds(triggerConfig).length > 0
   }
   if (triggerType === 'lead_magnet_signup' || triggerType === 'paid_purchase') {
     return typeof triggerConfig?.product_id === 'string' && triggerConfig.product_id.length > 0
   }
   return true
+}
+
+export function getTriggerSegmentIds(triggerConfig: Record<string, any> | null | undefined) {
+  const segmentIds = Array.isArray(triggerConfig?.segment_ids)
+    ? triggerConfig.segment_ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : []
+  if (segmentIds.length) return segmentIds
+
+  return typeof triggerConfig?.segment_id === 'string' && triggerConfig.segment_id.length > 0
+    ? [triggerConfig.segment_id]
+    : []
 }
 
 export function getAutomationTriggerNodes(
@@ -120,8 +131,7 @@ export function matchesAutomationTrigger(
   if (!filterId) return false
 
   if (triggerType === 'segment_added') {
-    const segmentId = triggerNode.config?.segment_id
-    return segmentId === filterId
+    return getTriggerSegmentIds(triggerNode.config).includes(filterId)
   }
 
   const productId = triggerNode.config?.product_id
