@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { updateStep, type AutomationStep } from "@/lib/actions/newsletters/automation-actions"
 import { DripSettingsFields, useDripSettings } from "../layout/DripSettingsFields"
 
@@ -166,14 +166,7 @@ export function AutomationEmailSettingsModal({
 
           <TabsContent value="drip-options" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
-              <Card>
-                <CardHeader>
-                  <DashboardModalCardTitle>Drip options</DashboardModalCardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DripSettingsFields form={drip} idPrefix="automation-settings" />
-                </CardContent>
-              </Card>
+              <DripSettingsFields form={drip} idPrefix="automation-settings" variant="cards" />
             </CardGroup>
           </TabsContent>
         </DashboardModalContent>

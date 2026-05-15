@@ -28,6 +28,7 @@ import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingS
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
 import { checkDomainHealth, type DomainHealth } from "@/lib/actions/newsletters/deliverability-actions"
 import { SiteHealthTab } from "@/components/admin/seo-settings/SiteHealthTab"
+import { DripSettingsFields, useDripSettings } from "@/components/admin/newsletter-builder/layout/DripSettingsFields"
 
 // --- IntegrationCard ---
 
@@ -437,6 +438,7 @@ const TABS = [
   { id: "general", label: "General Settings" },
   { id: "style", label: "Style" },
   { id: "payments", label: "Payments" },
+  { id: "newsletters", label: "Newsletters" },
   { id: "email", label: "Email" },
   { id: "integrations", label: "Integrations" },
   { id: "cron-jobs", label: "Cron Jobs" },
@@ -484,6 +486,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [welcomeEmailEnabled, setWelcomeEmailEnabled] = useState<boolean>(
     contextSite?.settings?.welcome_email_enabled !== false
   )
+  const newsletterDripDefaults = useDripSettings(false, false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -502,6 +505,12 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
+
+  useEffect(() => {
+    if (site?.settings?.newsletter_drip_defaults) {
+      newsletterDripDefaults.loadFromConfig(site.settings.newsletter_drip_defaults)
+    }
+  }, [newsletterDripDefaults.loadFromConfig, site?.settings?.newsletter_drip_defaults])
 
   const showSuccess = useCallback((message: string) => {
     setSaveMessage(message)
@@ -571,6 +580,32 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             setCurrentSite({ ...currentSite, ...data })
           }
           showSuccess("Settings saved successfully")
+        }
+      } else if (activeTab === "newsletters") {
+        const dripError = newsletterDripDefaults.validate()
+        if (dripError) {
+          setError(dripError)
+          return
+        }
+
+        const { data, error } = await updateSiteAction(siteId, {
+          settings: {
+            ...site?.settings,
+            newsletter_drip_defaults: newsletterDripDefaults.buildConfig()
+          }
+        })
+
+        if (error) {
+          setError(error)
+          return
+        }
+
+        if (data) {
+          setSite((prev) => (prev ? { ...prev, ...data } : null))
+          if (currentSite?.id === siteId) {
+            setCurrentSite({ ...currentSite, ...data })
+          }
+          showSuccess("Newsletter settings saved")
         }
       } else if (activeTab === "email") {
         const { data, error } = await updateSiteAction(siteId, {
@@ -751,6 +786,22 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                   onSuccess={showSuccess}
                   onError={showError}
                 />
+              )}
+
+              {activeTab === "newsletters" && (
+                <CardGroup className="grid">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Default Drip Sending</CardTitle>
+                      <CardDescription>
+                        Used when creating new newsletters and automation emails.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <DripSettingsFields form={newsletterDripDefaults} idPrefix="newsletter-defaults" />
+                    </CardContent>
+                  </Card>
+                </CardGroup>
               )}
 
               {activeTab === "email" && (

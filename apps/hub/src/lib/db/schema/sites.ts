@@ -50,6 +50,7 @@ export interface SiteSettings extends SiteSeoSettings {
   breadcrumbs?: Record<string, boolean>
   maintenance?: { enabled?: boolean }
   welcome_email_enabled?: boolean
+  newsletter_drip_defaults?: Record<string, any>
   tracking_scripts?: string
   custom_analytics_enabled?: boolean
   [key: string]: any  // Allow other dynamic settings

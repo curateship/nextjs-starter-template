@@ -8,6 +8,21 @@ export const DEFAULT_NEWSLETTER_SEND_WINDOWS: NewsletterSendWindow[] = [
   { start: '19:00', end: '21:00' },
 ]
 
+export const DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE = 'America/New_York'
+
+export const DEFAULT_NEWSLETTER_DRIP_CONFIG = {
+  enabled: true,
+  batch_size_min: 400,
+  batch_size_max: 500,
+  interval_min_minutes: 30,
+  interval_max_minutes: 60,
+  bounce_threshold_percent: 5,
+  send_windows: DEFAULT_NEWSLETTER_SEND_WINDOWS,
+  send_window_start: DEFAULT_NEWSLETTER_SEND_WINDOWS[0].start,
+  send_window_end: DEFAULT_NEWSLETTER_SEND_WINDOWS[0].end,
+  send_window_timezone: DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE,
+}
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/
 
 function isValidTime(value: unknown): value is string {
@@ -74,7 +89,7 @@ export function isWithinNewsletterSendWindow(dripConfig: Record<string, unknown>
 
   const timezone = typeof dripConfig?.send_window_timezone === 'string'
     ? dripConfig.send_window_timezone
-    : 'America/New_York'
+    : DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE
   const currentMinutes = currentMinutesInTimezone(timezone, now)
 
   return windows.some((window) => isMinuteInWindow(currentMinutes, window))

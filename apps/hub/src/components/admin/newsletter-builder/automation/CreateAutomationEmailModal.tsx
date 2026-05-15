@@ -18,6 +18,7 @@ import { DashboardModalContent, DashboardModalCardTitle } from "@/components/adm
 import { getTemplatesBySite, type NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { ChevronDown } from "lucide-react"
 import { DripSettingsFields, useDripSettings } from "../layout/DripSettingsFields"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 export interface CreateAutomationEmailInput {
   subject: string
@@ -63,6 +64,7 @@ function withBodyBlock(contentBlocks: Record<string, any>, body: string) {
 }
 
 export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: CreateAutomationEmailModalProps) {
+  const { currentSite } = useSiteSwitcher()
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
@@ -70,7 +72,13 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
   const [selectedTemplateId, setSelectedTemplateId] = useState("blank")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const drip = useDripSettings(true, true)
+  const drip = useDripSettings(false, false)
+
+  useEffect(() => {
+    if (currentSite?.id === siteId && currentSite.settings?.newsletter_drip_defaults) {
+      drip.loadFromConfig(currentSite.settings.newsletter_drip_defaults)
+    }
+  }, [currentSite?.id, currentSite?.settings?.newsletter_drip_defaults, drip.loadFromConfig, siteId])
 
   useEffect(() => {
     if (!siteId) return
@@ -204,14 +212,7 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
 
         <TabsContent value="drip-options" className="mt-0 min-h-[320px]">
           <CardGroup className="grid">
-            <Card>
-              <CardHeader>
-                <DashboardModalCardTitle>Drip options</DashboardModalCardTitle>
-              </CardHeader>
-              <CardContent>
-                <DripSettingsFields form={drip} idPrefix="automation-create" />
-              </CardContent>
-            </Card>
+            <DripSettingsFields form={drip} idPrefix="automation-create" variant="cards" />
           </CardGroup>
         </TabsContent>
 

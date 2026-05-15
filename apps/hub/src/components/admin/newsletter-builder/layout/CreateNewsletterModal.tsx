@@ -23,10 +23,9 @@ import { getAudienceCount } from "@/lib/actions/newsletters/audience-sync-action
 import { getTemplatesBySite } from "@/lib/actions/newsletters/template-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
-import { Checkbox } from "@/components/ui/checkbox"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { ChevronDown, Users } from "lucide-react"
-import { DEFAULT_NEWSLETTER_SEND_WINDOWS, formatNewsletterSendWindows } from "@/lib/actions/newsletters/send-windows"
+import { DripSettingsFields, useDripSettings } from "./DripSettingsFields"
 
 interface CreateNewsletterModalProps {
   onSuccess: (newsletter: Newsletter) => void
@@ -51,19 +50,12 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
   const [filterTags, setFilterTags] = useState('')
   const [audienceCount, setAudienceCount] = useState<number | null>(null)
 
-  // Drip config state
-  const [dripEnabled, setDripEnabled] = useState(true)
-  const [dripBatchMin, setDripBatchMin] = useState('400')
-  const [dripBatchMax, setDripBatchMax] = useState('500')
-  const [dripIntervalMin, setDripIntervalMin] = useState('30')
-  const [dripIntervalMax, setDripIntervalMax] = useState('60')
-  const [dripBounceThreshold, setDripBounceThreshold] = useState('5')
-  const [dripSendWindowEnabled, setDripSendWindowEnabled] = useState(true)
-  const [dripSendWindowOneStart, setDripSendWindowOneStart] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[0].start)
-  const [dripSendWindowOneEnd, setDripSendWindowOneEnd] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[0].end)
-  const [dripSendWindowTwoStart, setDripSendWindowTwoStart] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[1].start)
-  const [dripSendWindowTwoEnd, setDripSendWindowTwoEnd] = useState(DEFAULT_NEWSLETTER_SEND_WINDOWS[1].end)
-  const [dripSendWindowTimezone, setDripSendWindowTimezone] = useState('America/New_York')
+  const drip = useDripSettings(false, false)
+
+  useEffect(() => {
+    const defaults = currentSite?.settings?.newsletter_drip_defaults
+    if (defaults) drip.loadFromConfig(defaults)
+  }, [currentSite?.id, currentSite?.settings?.newsletter_drip_defaults, drip.loadFromConfig])
 
   // Load segments and templates
   useEffect(() => {
@@ -132,12 +124,9 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
       return
     }
 
-    const sendWindows = [
-      { start: dripSendWindowOneStart, end: dripSendWindowOneEnd },
-      { start: dripSendWindowTwoStart, end: dripSendWindowTwoEnd },
-    ]
-    if (dripEnabled && dripSendWindowEnabled && sendWindows.some((window) => !window.start || !window.end)) {
-      setError('Both send windows need a start and end time')
+    const dripError = drip.validate()
+    if (dripError) {
+      setError(dripError)
       return
     }
 
@@ -147,27 +136,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
     const selectedTemplate = selectedTemplateId !== 'blank'
       ? templates.find(t => t.id === selectedTemplateId)
       : null
-    const metadata = dripEnabled ? {
-      drip_config: {
-        enabled: true,
-        batch_size_min: parseInt(dripBatchMin) || 400,
-        batch_size_max: parseInt(dripBatchMax) || 500,
-        interval_min_minutes: parseInt(dripIntervalMin) || 30,
-        interval_max_minutes: parseInt(dripIntervalMax) || 60,
-        bounce_threshold_percent: parseFloat(dripBounceThreshold) || 5,
-        ...(dripSendWindowEnabled ? {
-          send_windows: sendWindows,
-          send_window_start: sendWindows[0].start,
-          send_window_end: sendWindows[0].end,
-          send_window_timezone: dripSendWindowTimezone,
-        } : {
-          send_windows: [],
-          send_window_start: null,
-          send_window_end: null,
-          send_window_timezone: null,
-        }),
-      },
-    } : undefined
+    const metadata = drip.enabled ? { drip_config: drip.buildConfig() } : undefined
 
     const { data, error: createError } = await createNewsletter({
       siteId: currentSite.id,
@@ -324,184 +293,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
           <TabsContent value="drip-options" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
-              <Card>
-                <CardHeader>
-                  <DashboardModalCardTitle>Delivery Mode</DashboardModalCardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Field>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox
-                        id="create-drip-toggle"
-                        checked={dripEnabled}
-                        onCheckedChange={(checked) => setDripEnabled(checked === true)}
-                      />
-                      <span className="text-sm font-medium">Enable drip sending</span>
-                    </label>
-                  </Field>
-                </CardContent>
-              </Card>
-
-              {dripEnabled && (
-                <>
-                  <Card>
-                    <CardHeader>
-                      <DashboardModalCardTitle>Batch & Timing</DashboardModalCardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        <Field>
-                          <FieldLabel htmlFor="create-drip-batch-min">Batch size min</FieldLabel>
-                          <Input
-                            id="create-drip-batch-min"
-                            type="number"
-                            value={dripBatchMin}
-                            onChange={(e) => setDripBatchMin(e.target.value)}
-                            min={1}
-                          />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="create-drip-batch-max">Batch size max</FieldLabel>
-                          <Input
-                            id="create-drip-batch-max"
-                            type="number"
-                            value={dripBatchMax}
-                            onChange={(e) => setDripBatchMax(e.target.value)}
-                            min={1}
-                          />
-                        </Field>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <Field>
-                          <FieldLabel htmlFor="create-drip-interval-min">Interval min (minutes)</FieldLabel>
-                          <Input
-                            id="create-drip-interval-min"
-                            type="number"
-                            value={dripIntervalMin}
-                            onChange={(e) => setDripIntervalMin(e.target.value)}
-                            min={1}
-                          />
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor="create-drip-interval-max">Interval max (minutes)</FieldLabel>
-                          <Input
-                            id="create-drip-interval-max"
-                            type="number"
-                            value={dripIntervalMax}
-                            onChange={(e) => setDripIntervalMax(e.target.value)}
-                            min={1}
-                          />
-                        </Field>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <DashboardModalCardTitle>Safety</DashboardModalCardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Field>
-                        <FieldLabel htmlFor="create-drip-bounce-threshold">Bounce threshold (%)</FieldLabel>
-                        <Input
-                          id="create-drip-bounce-threshold"
-                          type="number"
-                          value={dripBounceThreshold}
-                          onChange={(e) => setDripBounceThreshold(e.target.value)}
-                          min={0.1}
-                          step="any"
-                        />
-                        <FieldDescription>Auto-pause and notify you if bounce rate exceeds this percentage</FieldDescription>
-                      </Field>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <DashboardModalCardTitle>Send Windows</DashboardModalCardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <Field>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            id="create-send-window-toggle"
-                            checked={dripSendWindowEnabled}
-                            onCheckedChange={(checked) => setDripSendWindowEnabled(checked === true)}
-                          />
-                          <span className="text-sm font-medium">Limit sending to specific hours</span>
-                        </label>
-                      </Field>
-                      {dripSendWindowEnabled && (
-                        <>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="grid grid-cols-2 gap-3">
-                              <Field>
-                                <FieldLabel htmlFor="create-send-window-one-start">Start 1</FieldLabel>
-                                <Input
-                                  id="create-send-window-one-start"
-                                  type="time"
-                                  value={dripSendWindowOneStart}
-                                  onChange={(e) => setDripSendWindowOneStart(e.target.value)}
-                                />
-                              </Field>
-                              <Field>
-                                <FieldLabel htmlFor="create-send-window-one-end">End 1</FieldLabel>
-                                <Input
-                                  id="create-send-window-one-end"
-                                  type="time"
-                                  value={dripSendWindowOneEnd}
-                                  onChange={(e) => setDripSendWindowOneEnd(e.target.value)}
-                                />
-                              </Field>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <Field>
-                                <FieldLabel htmlFor="create-send-window-two-start">Start 2</FieldLabel>
-                                <Input
-                                  id="create-send-window-two-start"
-                                  type="time"
-                                  value={dripSendWindowTwoStart}
-                                  onChange={(e) => setDripSendWindowTwoStart(e.target.value)}
-                                />
-                              </Field>
-                              <Field>
-                                <FieldLabel htmlFor="create-send-window-two-end">End 2</FieldLabel>
-                                <Input
-                                  id="create-send-window-two-end"
-                                  type="time"
-                                  value={dripSendWindowTwoEnd}
-                                  onChange={(e) => setDripSendWindowTwoEnd(e.target.value)}
-                                />
-                              </Field>
-                            </div>
-                          </div>
-                          <Field>
-                            <FieldLabel htmlFor="create-send-window-tz">Timezone</FieldLabel>
-                            <Select value={dripSendWindowTimezone} onValueChange={setDripSendWindowTimezone}>
-                              <SelectTrigger id="create-send-window-tz" size="button">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="z-60">
-                                <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                                <SelectItem value="America/Chicago">Central Time</SelectItem>
-                                <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                                <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                                <SelectItem value="UTC">UTC</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </Field>
-                          <p className="text-xs text-muted-foreground">
-                            Emails will only be sent during {formatNewsletterSendWindows({ send_windows: [
-                              { start: dripSendWindowOneStart, end: dripSendWindowOneEnd },
-                              { start: dripSendWindowTwoStart, end: dripSendWindowTwoEnd },
-                            ] })} in the selected timezone
-                          </p>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                </>
-              )}
+              <DripSettingsFields form={drip} idPrefix="create-newsletter" variant="cards" />
             </CardGroup>
           </TabsContent>
         </DashboardModalContent>

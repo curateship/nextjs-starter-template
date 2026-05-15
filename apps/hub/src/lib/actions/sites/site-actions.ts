@@ -9,6 +9,7 @@ import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { sanitizeFooterSettings, sanitizeNavigationSettings } from '@/lib/utils/site-structure'
 import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions'
+import { DEFAULT_NEWSLETTER_DRIP_CONFIG } from '@/lib/actions/newsletters/send-windows'
 
 export interface Site {
   id: string
@@ -322,6 +323,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
         analytics_enabled: false,
         seo_enabled: true
       }),
+      newsletter_drip_defaults: siteData.settings?.newsletter_drip_defaults || DEFAULT_NEWSLETTER_DRIP_CONFIG,
       font_family: siteData.font_family || 'playfair-display',
       font_weights: siteData.font_weights || ['400', '500', '600', '700', '800', '900'],
       secondary_font_family: siteData.secondary_font_family || 'inter',
@@ -379,6 +381,7 @@ export async function cloneSiteAction(
         site_title: name,
         analytics_enabled: false,
         seo_enabled: true,
+        newsletter_drip_defaults: DEFAULT_NEWSLETTER_DRIP_CONFIG,
         font_family: 'playfair-display',
         font_weights: ['400', '500', '600', '700', '800', '900'],
         secondary_font_family: 'inter',
