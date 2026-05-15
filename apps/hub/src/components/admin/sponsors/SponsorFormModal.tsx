@@ -96,7 +96,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <form onSubmit={handleSave} className="contents">
+        <form id="sponsor-form" onSubmit={handleSave} className="contents">
           <DashboardModalContent
             title={sponsor ? "Edit Sponsor" : "Create Sponsor"}
             description="Add the sponsor details used by post embeds."
@@ -105,7 +105,7 @@ export function SponsorFormModal({ open, onOpenChange, siteId, sponsor, onSaved 
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
+                <Button form="sponsor-form" type="submit" disabled={saving}>
                   {saving ? "Saving..." : "Save Sponsor"}
                 </Button>
               </>

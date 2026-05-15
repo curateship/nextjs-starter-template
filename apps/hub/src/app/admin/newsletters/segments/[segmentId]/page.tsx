@@ -633,7 +633,7 @@ export default function SegmentDashboardPage() {
 
       {/* Settings Modal */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <form onSubmit={handleSave} className="contents">
+        <form id="segment-settings-form" onSubmit={handleSave} className="contents">
           <DashboardModalContent
             title="Segment Settings"
             description="Update the segment name, description, and membership rules."
@@ -642,7 +642,7 @@ export default function SegmentDashboardPage() {
                 <Button variant="outline" type="button" onClick={() => setSettingsOpen(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
+                <Button form="segment-settings-form" type="submit" disabled={saving || !editForm.name.trim() || invalidDynamicConditions}>
                   {saving ? "Saving..." : "Save Changes"}
                 </Button>
               </>

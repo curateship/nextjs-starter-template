@@ -165,7 +165,7 @@ export function CreateAccountPageModal({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
+    <form id="create-account-page-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
         title="Create New Account Page"
         description="Add a new account page to your site. You can customize the content after creation."
@@ -175,7 +175,7 @@ export function CreateAccountPageModal({
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              <Button type="submit" variant="outline" disabled={loading}>
+              <Button form="create-account-page-form" type="submit" variant="outline" disabled={loading}>
                 {loading ? "Saving..." : "Save as Draft"}
               </Button>
               <Button type="button" onClick={handlePublish} disabled={loading}>

@@ -197,7 +197,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
 
   return (
     <Tabs value={createActiveTab} onValueChange={setCreateActiveTab}>
-      <form onSubmit={handleSubmit} className="contents">
+      <form id="create-newsletter-form" onSubmit={handleSubmit} className="contents">
         <DashboardModalContent
           title="Create New Newsletter"
           titleAccessory={
@@ -211,7 +211,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
               <Button type="button" variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button form="create-newsletter-form" type="submit" disabled={loading}>
                 {loading ? 'Creating...' : 'Continue'}
               </Button>
             </>

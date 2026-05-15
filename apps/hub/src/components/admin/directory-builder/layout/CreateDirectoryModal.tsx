@@ -187,7 +187,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
+    <form id="create-directory-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
         title="Create New Directory Item"
         description="Add a new item to your directory. You can customize the content after creation."
@@ -197,7 +197,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              <Button type="submit" variant="outline" disabled={loading}>
+              <Button form="create-directory-form" type="submit" variant="outline" disabled={loading}>
                 {loading ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>

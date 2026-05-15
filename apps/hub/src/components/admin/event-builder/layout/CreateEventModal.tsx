@@ -131,7 +131,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
+    <form id="create-event-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
         title="Create New Event Item"
         description="Add a new item to your events. You can customize the content after creation."
@@ -141,7 +141,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              <Button type="submit" variant="outline" disabled={loading}>
+              <Button form="create-event-form" type="submit" variant="outline" disabled={loading}>
                 {loading ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>

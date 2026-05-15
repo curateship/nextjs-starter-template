@@ -131,7 +131,7 @@ export function CreateCategoryModal({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <form onSubmit={handleSubmit} className="contents">
+      <form id="create-category-form" onSubmit={handleSubmit} className="contents">
         <DashboardModalContent
           title="Create Category"
           description="Add a new category to organize your content."
@@ -141,7 +141,7 @@ export function CreateCategoryModal({
                 Cancel
               </Button>
               <div className="flex items-center space-x-2">
-                <Button type="submit" variant="outline" disabled={isSubmitting}>
+                <Button form="create-category-form" type="submit" variant="outline" disabled={isSubmitting}>
                   {isSubmitting ? 'Saving...' : 'Save as Draft'}
                 </Button>
                 <Button type="button" onClick={() => handleSave(true)} disabled={isSubmitting}>

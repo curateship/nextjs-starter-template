@@ -77,9 +77,6 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
       {activeTab === "content" && (
         <>
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Post Title</CardTitle>
-            </CardHeader>
             <CardContent>
               <Input
                 id="post-title"
@@ -93,9 +90,6 @@ export function CoreBlock({ content, onContentChange, siteId, blockId, postData,
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Post Content</CardTitle>
-            </CardHeader>
             <CardContent>
               <InlineRichTextEditor
                 blockId={blockId}

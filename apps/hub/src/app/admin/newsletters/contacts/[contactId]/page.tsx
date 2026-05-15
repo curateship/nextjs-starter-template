@@ -345,7 +345,7 @@ export default function ContactDashboardPage() {
                     </Button>
                   </DialogTrigger>
                   {contact && (
-                    <form onSubmit={handleSave} className="contents">
+                    <form id="contact-settings-form" onSubmit={handleSave} className="contents">
                       <DashboardModalContent
                         title="Settings"
                         description="Update this contact's name, status, and tags."
@@ -359,7 +359,7 @@ export default function ContactDashboardPage() {
                             >
                               Cancel
                             </Button>
-                            <Button type="submit" disabled={saving}>
+                            <Button form="contact-settings-form" type="submit" disabled={saving}>
                               {saving ? "Saving..." : saveSuccess ? "Saved!" : "Save Changes"}
                             </Button>
                           </>

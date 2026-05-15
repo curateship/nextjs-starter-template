@@ -188,7 +188,7 @@ export function AccountPageSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <form onSubmit={handleSubmit} className="contents">
+      <form id="account-page-settings-form" onSubmit={handleSubmit} className="contents">
         <DashboardModalContent
           title={
             <span className="flex items-center gap-3">
@@ -213,7 +213,7 @@ export function AccountPageSettingsModal({
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="outline" disabled={saving}>
+                <Button form="account-page-settings-form" type="submit" variant="outline" disabled={saving}>
                   {saving ? "Saving..." : "Save as Draft"}
                 </Button>
                 <Button type="button" onClick={handlePublish} disabled={saving}>

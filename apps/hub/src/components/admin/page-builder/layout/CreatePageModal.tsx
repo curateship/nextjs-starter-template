@@ -161,7 +161,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
+    <form id="create-page-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
         title="Create New Page"
         description="Add a new page to your site. You can customize the content after creation."
@@ -171,7 +171,7 @@ export function CreatePageModal({ siteId, onSuccess, onCancel }: CreatePageModal
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              <Button type="submit" variant="outline" disabled={loading}>
+              <Button form="create-page-form" type="submit" variant="outline" disabled={loading}>
                 {loading ? "Saving..." : "Save as Draft"}
               </Button>
               <Button type="button" onClick={handlePublish} disabled={loading}>

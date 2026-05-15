@@ -247,7 +247,7 @@ export function CategorySettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <form onSubmit={handleSubmit} className="contents">
+      <form id="category-settings-form" onSubmit={handleSubmit} className="contents">
         <DashboardModalContent
           title={
             <span className="flex items-center gap-3">
@@ -270,7 +270,7 @@ export function CategorySettingsModal({
                     <span className="text-sm font-medium">Saved!</span>
                   </div>
                 )}
-                <Button type="submit" variant="outline" disabled={saving}>
+                <Button form="category-settings-form" type="submit" variant="outline" disabled={saving}>
                   {saving ? "Saving..." : "Save as Draft"}
                 </Button>
                 <Button type="button" onClick={handlePublish} disabled={saving}>

@@ -100,7 +100,7 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
 
   return (
     <Tabs defaultValue="general">
-      <form onSubmit={handleSubmit} className="contents">
+      <form id="create-automation-email-form" onSubmit={handleSubmit} className="contents">
         <DashboardModalContent
           title="Create Email"
           titleAccessory={
@@ -116,7 +116,7 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
               <Button type="button" variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button form="create-automation-email-form" type="submit" disabled={loading}>
                 {loading ? "Creating..." : "Continue"}
               </Button>
             </>

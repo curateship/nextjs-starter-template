@@ -398,7 +398,7 @@ export default function EmailAutomationsPage() {
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <form onSubmit={handleCreate} className="contents">
+            <form id="create-automation-form" onSubmit={handleCreate} className="contents">
               <DashboardModalContent
                 title="Create Email Automation"
                 description="Create the automation shell, then configure triggers and steps in the builder."
@@ -407,7 +407,7 @@ export default function EmailAutomationsPage() {
                     <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={creating || !createName.trim()}>
+                    <Button form="create-automation-form" type="submit" disabled={creating || !createName.trim()}>
                       {creating ? "Creating..." : "Create Automation"}
                     </Button>
                   </>

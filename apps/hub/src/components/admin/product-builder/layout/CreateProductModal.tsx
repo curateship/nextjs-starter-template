@@ -224,7 +224,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   return (
-    <form onSubmit={handleSubmit} className="contents">
+    <form id="create-product-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
         title="Create New Product"
         description="Add a new product to your catalog. You can customize the content after creation."
@@ -235,6 +235,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
             </Button>
             <div className="flex items-center space-x-2">
               <Button
+                form="create-product-form"
                 type="submit"
                 variant="outline"
                 disabled={loading}

@@ -376,6 +376,7 @@ export default function TemplatesPage() {
       {/* Create Template Modal */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
         <form
+          id="create-template-form"
           onSubmit={(event) => {
             event.preventDefault()
             handleCreate()
@@ -390,7 +391,7 @@ export default function TemplatesPage() {
                 <Button type="button" variant="outline" onClick={() => setCreateModalOpen(false)} disabled={creating}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={creating || !formName.trim()}>
+                <Button form="create-template-form" type="submit" disabled={creating || !formName.trim()}>
                   {creating ? "Creating..." : "Create Template"}
                 </Button>
               </>
