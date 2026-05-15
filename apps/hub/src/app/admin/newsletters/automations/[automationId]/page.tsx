@@ -1171,6 +1171,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             if (!open) setEditingEmailSettings(null)
           }}
           step={editingEmailSettings}
+          siteId={siteId || ""}
           onSuccess={(step) => {
             setNodes((prev) => prev.map((node) => (node.id === step.id ? step : node)))
             flash("Saved")

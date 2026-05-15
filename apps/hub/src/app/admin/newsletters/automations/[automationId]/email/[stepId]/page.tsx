@@ -47,6 +47,7 @@ export default function AutomationEmailEditorPage({ params }: PageProps) {
           open={show}
           onOpenChange={setShow}
           step={builder.step}
+          siteId={currentSite?.id || ""}
           onSuccess={builder.applyStepUpdate}
         />
       )}
