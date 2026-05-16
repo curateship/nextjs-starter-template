@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { XIcon } from "lucide-react"
 
 function Dialog({
@@ -50,9 +51,11 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  variant = "default",
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  variant?: "default" | "admin"
   showCloseButton?: boolean
 }) {
   return (
@@ -60,8 +63,9 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-variant={variant}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[min(600px,80vh)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -71,7 +75,7 @@ function DialogContent({
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-2 right-2"
+              className="absolute top-4 right-5"
               size="icon-sm"
             >
               <XIcon
@@ -89,25 +93,40 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex flex-col gap-1 px-6 py-5 text-left", className)}
       {...props}
     />
   )
 }
 
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <ScrollArea className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div
+        data-slot="dialog-body"
+        className={cn("px-6 py-6", className)}
+        {...props}
+      />
+    </ScrollArea>
+  )
+}
+
 function DialogFooter({
   className,
+  variant = "default",
   showCloseButton = false,
   children,
   ...props
 }: React.ComponentProps<"div"> & {
+  variant?: "default" | "plain"
   showCloseButton?: boolean
 }) {
   return (
     <div
       data-slot="dialog-footer"
+      data-variant={variant}
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        "flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-6 py-5 sm:flex-row sm:justify-end [&_[data-slot=button]]:h-9 data-[variant=plain]:items-center data-[variant=plain]:rounded-none data-[variant=plain]:border-t-0 data-[variant=plain]:bg-transparent",
         className
       )}
       {...props}
@@ -156,6 +175,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
