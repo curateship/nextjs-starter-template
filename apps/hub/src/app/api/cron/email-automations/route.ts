@@ -6,7 +6,7 @@ import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
-import { recordNewsletterDeliverySent, recordNewsletterUnsubscribe } from '@/lib/actions/newsletters/event-stats'
+import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
 
 const NON_DRIP_BATCH_SIZE = 50
 const ENROLLMENT_SCAN_LIMIT = 500
@@ -32,6 +32,16 @@ function getDripConfig(nodeConfig: Record<string, any>) {
   const dripConfig = nodeConfig.drip_config
   if (!dripConfig || typeof dripConfig !== 'object' || Array.isArray(dripConfig)) return null
   return dripConfig as Record<string, any>
+}
+
+function getEndRuleProductIds(nodeConfig: Record<string, any>) {
+  return Array.isArray(nodeConfig.product_ids)
+    ? nodeConfig.product_ids.filter((id): id is string => typeof id === 'string')
+    : []
+}
+
+function getPositiveRuleValue(value: unknown, fallback = 1) {
+  return Math.max(1, Math.floor(Number(value) || fallback))
 }
 
 function getRandomBetween(minValue: unknown, maxValue: unknown, fallbackMin: number, fallbackMax: number) {
@@ -185,26 +195,22 @@ export async function GET(request: NextRequest) {
           }
 
           const nodeConfig = getNodeConfig(step)
-          const productIds = Array.isArray(nodeConfig.product_ids)
-            ? nodeConfig.product_ids.filter((id): id is string => typeof id === 'string')
-            : typeof nodeConfig.product_id === 'string'
-              ? [nodeConfig.product_id]
-              : []
-          if (!productIds.length) continue
+          const productIds = getEndRuleProductIds(nodeConfig)
+          const purchaseRows = productIds.length
+            ? await db
+              .select({ id: productOrders.id })
+              .from(productOrders)
+              .where(and(
+                eq(productOrders.siteId, siteId),
+                inArray(productOrders.productId, productIds),
+                eq(productOrders.customerEmail, contact.email.toLowerCase()),
+                eq(productOrders.orderType, 'paid_purchase'),
+                eq(productOrders.paymentStatus, 'succeeded'),
+              ))
+              .limit(1)
+            : []
 
-          const [purchase] = await db
-            .select({ id: productOrders.id })
-            .from(productOrders)
-            .where(and(
-              eq(productOrders.siteId, siteId),
-              inArray(productOrders.productId, productIds),
-              eq(productOrders.customerEmail, contact.email.toLowerCase()),
-              eq(productOrders.orderType, 'paid_purchase'),
-              eq(productOrders.paymentStatus, 'succeeded'),
-            ))
-            .limit(1)
-
-          if (purchase) {
+          if (purchaseRows.length) {
             await db
               .update(emailAutomationEnrollments)
               .set({
@@ -218,19 +224,23 @@ export async function GET(request: NextRequest) {
             continue
           }
 
-          const openedRows = await db.execute<{ count: number }>(sql`
-            select count(*)::int as count
+          const engagementRows = await db.execute<{ opened_count: number; clicked_count: number }>(sql`
+            select
+              count(distinct step_order) filter (where first_opened_at is not null)::int as opened_count,
+              count(distinct step_order) filter (where first_clicked_at is not null)::int as clicked_count
             from newsletter_deliveries
             where site_id = ${siteId}
               and contact_id = ${contact.id}
               and source_type = 'automation'
               and source_id = ${enrollment.automationId}
-              and first_opened_at is not null
+              and step_order < ${nextStepOrder}
           `)
-          const openedCount = Number(openedRows.rows[0]?.count ?? 0)
-          const minimumOpens = Math.max(1, Math.floor(Number(nodeConfig.minimum_opens) || 1))
+          const openedCount = Number(engagementRows.rows[0]?.opened_count ?? 0)
+          const clickedCount = Number(engagementRows.rows[0]?.clicked_count ?? 0)
+          const minimumOpens = getPositiveRuleValue(nodeConfig.minimum_opens)
+          const minimumClicks = getPositiveRuleValue(nodeConfig.minimum_clicks)
 
-          if (openedCount >= minimumOpens) {
+          if (openedCount >= minimumOpens || clickedCount >= minimumClicks) {
             await db
               .update(emailAutomationEnrollments)
               .set({
@@ -239,20 +249,6 @@ export async function GET(request: NextRequest) {
               })
               .where(eq(emailAutomationEnrollments.id, enrollment.id))
           } else {
-            await db
-              .update(newsletterContacts)
-              .set({ status: 'unsubscribed', updatedAt: now })
-              .where(eq(newsletterContacts.id, contact.id))
-
-            await recordNewsletterUnsubscribe(db, {
-              siteId,
-              contactId: contact.id,
-              sourceType: 'automation',
-              sourceId: enrollment.automationId,
-              stepOrder: nextStepOrder,
-              occurredAt: now,
-            })
-
             await db
               .update(emailAutomationEnrollments)
               .set({

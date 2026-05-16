@@ -68,6 +68,16 @@ interface PageProps {
 const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
 type EmailStepStats = { sent: number; opened: number; clicked: number }
 
+function getEndRulesProductIds(config: AutomationStep["node_config"] | undefined) {
+  return Array.isArray(config?.product_ids)
+    ? config.product_ids.filter((id): id is string => typeof id === "string")
+    : []
+}
+
+function getPositiveRuleValue(value: unknown, fallback = 1) {
+  return Math.max(1, Math.floor(Number(value) || fallback))
+}
+
 export default function AutomationBuilderPage({ params }: PageProps) {
   const { automationId } = use(params)
   const router = useRouter()
@@ -103,6 +113,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [editingEndRules, setEditingEndRules] = useState<AutomationStep | null>(null)
   const [endRulesProductIds, setEndRulesProductIds] = useState<string[]>([])
   const [endRulesMinimumOpens, setEndRulesMinimumOpens] = useState("1")
+  const [endRulesMinimumClicks, setEndRulesMinimumClicks] = useState("1")
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
@@ -276,6 +287,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       setEditingEndRules({ id: "__new__" } as AutomationStep)
       setEndRulesProductIds([])
       setEndRulesMinimumOpens("1")
+      setEndRulesMinimumClicks("1")
       return
     }
 
@@ -394,14 +406,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const openEndRulesEditor = (node: AutomationStep) => {
     setEditingEndRules(node)
-    setEndRulesProductIds(
-      Array.isArray(node.node_config?.product_ids)
-        ? node.node_config.product_ids.filter((id): id is string => typeof id === "string")
-        : typeof node.node_config?.product_id === "string"
-          ? [node.node_config.product_id]
-          : []
-    )
-    setEndRulesMinimumOpens(String(node.node_config?.minimum_opens || 1))
+    setEndRulesProductIds(getEndRulesProductIds(node.node_config))
+    setEndRulesMinimumOpens(String(getPositiveRuleValue(node.node_config?.minimum_opens)))
+    setEndRulesMinimumClicks(String(getPositiveRuleValue(node.node_config?.minimum_clicks)))
   }
 
   const saveEndRulesNode = async () => {
@@ -414,7 +421,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setSavingNode(true)
     const node_config = {
       product_ids: endRulesProductIds,
-      minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1)
+      minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1),
+      minimum_clicks: Math.max(1, parseInt(endRulesMinimumClicks) || 1)
     }
 
     if (editingEndRules.id === "__new__") {
@@ -610,11 +618,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const getEndRulesProductLabel = (node: AutomationStep) => {
-    const ids = Array.isArray(node.node_config?.product_ids)
-      ? node.node_config.product_ids.filter((id): id is string => typeof id === "string")
-      : typeof node.node_config?.product_id === "string"
-        ? [node.node_config.product_id]
-        : []
+    const ids = getEndRulesProductIds(node.node_config)
     const names = ids.map((id) => products.find((product) => product.id === id)?.title).filter(Boolean)
     return names.length ? names.join(", ") : "Choose products"
   }
@@ -1041,16 +1045,22 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               <Badge
                                 variant="outline"
-                                className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50"
+                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
                               >
-                                Bought: {getEndRulesProductLabel(node)}
+                                Goal: bought {getEndRulesProductLabel(node)}
                               </Badge>
                               <Badge
                                 variant="outline"
-                                className="h-6 shrink-0 border-green-200 bg-green-50 px-2 text-xs font-normal text-green-800 hover:bg-green-50"
+                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
                               >
-                                Opened fewer than {Math.max(1, Number(node.node_config?.minimum_opens) || 1)}:
-                                unsubscribe
+                                Continue: opened {getPositiveRuleValue(node.node_config?.minimum_opens)} OR clicked{" "}
+                                {getPositiveRuleValue(node.node_config?.minimum_clicks)} before this point
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
+                              >
+                                Fail: exit automation
                               </Badge>
                             </div>
                           </div>
@@ -1383,7 +1393,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         >
           <DashboardModalContent
             title="End Rules"
-            description="Decide what happens when a contact reaches this point."
+            description="Bought product: goal met. Opened or clicked this many before this point: continue. If not engaged: exit automation."
             footer={
               <>
                 <Button variant="outline" onClick={() => setEditingEndRules(null)}>
@@ -1402,7 +1412,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 </CardHeader>
                 <CardContent>
                   <Field>
-                    <FieldLabel>Product bought</FieldLabel>
+                    <FieldLabel>Goal product bought</FieldLabel>
                     <Combobox
                       multiple
                       autoHighlight
@@ -1442,7 +1452,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   </Field>
 
                   <Field>
-                    <FieldLabel>Unsubscribe if opened fewer than</FieldLabel>
+                    <FieldLabel>Continue if opened at least</FieldLabel>
                     <Input
                       type="number"
                       min="1"
@@ -1451,9 +1461,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                     />
                   </Field>
 
-                  <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                    Bought product: remove. Opened this many or more: continue. Opened fewer: unsubscribe.
-                  </div>
+                  <Field>
+                    <FieldLabel>Continue if clicked at least</FieldLabel>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={endRulesMinimumClicks}
+                      onChange={(event) => setEndRulesMinimumClicks(event.target.value)}
+                    />
+                  </Field>
                 </CardContent>
               </Card>
             </CardGroup>
