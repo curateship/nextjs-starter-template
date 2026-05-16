@@ -2,6 +2,8 @@ import * as React from "react"
 
 import { Dashboard2Content } from "@/components/dashboard2"
 import { DashboardContent } from "@/components/demo/dashboard-content"
+import { FeedbackModal } from "@/components/feedback-modal"
+import { FeedbackPage } from "@/components/feedback-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -138,6 +140,8 @@ export function App() {
   const [loginEmail, setLoginEmail] = React.useState("")
   const [loginPassword, setLoginPassword] = React.useState("")
   const [loginLoading, setLoginLoading] = React.useState(false)
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false)
+  const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
 
   React.useEffect(() => {
     let active = true
@@ -258,6 +262,10 @@ export function App() {
     }
   }, [])
 
+  const handleFeedbackCreated = React.useCallback(() => {
+    setFeedbackRefreshToken((current) => current + 1)
+  }, [])
+
   const navLinks = getStickyHeaderNavLinks(config, currentPath)
   const dashboardPaths = getDashboardPaths(config)
 
@@ -266,6 +274,7 @@ export function App() {
   const isSettingsRoute =
     currentPath === "/admin/settings" ||
     currentPath.startsWith("/admin/settings/")
+  const isFeedbackRoute = currentPath === "/admin/feedback"
 
   if (authStatus === "loading") {
     return <div className="min-h-screen bg-background" />
@@ -324,7 +333,10 @@ export function App() {
       <SidebarProvider className="h-screen">
         <AppSidebar config={config} user={authUser} onLogout={handleLogout} />
         <SidebarInset>
-          <StickyHeader navLinks={navLinks} />
+          <StickyHeader
+            navLinks={navLinks}
+            onOpenFeedback={() => setFeedbackOpen(true)}
+          />
           {isDashboardRoute ? (
             <Dashboard2Content />
           ) : (
@@ -339,10 +351,21 @@ export function App() {
                   onSaveConfig={handleSaveConfig}
                 />
               ) : null}
+              {isFeedbackRoute ? (
+                <FeedbackPage
+                  refreshToken={feedbackRefreshToken}
+                  onOpenFeedback={() => setFeedbackOpen(true)}
+                />
+              ) : null}
             </DashboardContent>
           )}
         </SidebarInset>
       </SidebarProvider>
+      <FeedbackModal
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        onCreated={handleFeedbackCreated}
+      />
     </div>
   )
 }

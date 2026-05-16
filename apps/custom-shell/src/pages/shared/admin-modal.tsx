@@ -40,16 +40,17 @@ export function AdminModalContent({
         className
       )}
     >
-      <DialogHeader className="relative h-14 space-y-0 text-left">
-        <DialogTitle className="flex h-full items-center truncate px-6 pr-14">
-          {title}
-        </DialogTitle>
+      <DialogHeader className="relative space-y-1 px-6 py-5 text-left">
+        <DialogTitle className="truncate">{title}</DialogTitle>
+        {description ? (
+          <DialogDescription>{description}</DialogDescription>
+        ) : null}
         <DialogClose asChild>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="absolute top-1/2 right-3 -translate-y-1/2"
+            className="absolute top-4 right-5"
           >
             <XIcon className="h-4 w-4" />
             <span className="sr-only">Close</span>
@@ -58,10 +59,7 @@ export function AdminModalContent({
       </DialogHeader>
 
       <ScrollArea className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="p-6">
-          {description ? (
-            <DialogDescription className="mb-4">{description}</DialogDescription>
-          ) : null}
+        <div className="px-6 py-6">
           <div className={cn("space-y-8", bodyClassName)}>{children}</div>
         </div>
       </ScrollArea>
@@ -69,7 +67,7 @@ export function AdminModalContent({
       {footer ? (
         <DialogFooter
           className={cn(
-            "mx-0 mb-0 flex-row items-center justify-end rounded-none border-t-0 bg-transparent px-6 pt-2 pb-5",
+            "mx-0 mb-0 flex-row items-center justify-end rounded-none border-t-0 bg-transparent px-6 py-5",
             footerClassName
           )}
         >

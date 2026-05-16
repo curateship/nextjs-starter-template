@@ -16,12 +16,14 @@ type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
+  onOpenFeedback?: () => void
 }
 
 export function StickyHeader({
   className,
   navLinks,
   navContent,
+  onOpenFeedback,
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const isMobile = useIsMobile()
@@ -51,7 +53,7 @@ export function StickyHeader({
             <StickyHeaderLeftNav navLinks={headerNavLinks} />
           )}
         </div>
-        <StickyHeaderRightNav />
+        <StickyHeaderRightNav onOpenFeedback={onOpenFeedback} />
       </div>
     </header>
   )

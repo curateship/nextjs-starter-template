@@ -30,7 +30,10 @@ IconKey = Literal[
     "slidersHorizontal",
     "shieldCheck",
     "sparkles",
+    "messageSquarePlus",
 ]
+
+FeedbackType = Literal["suggestion", "bug_report", "question", "praise"]
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -104,3 +107,23 @@ class CustomShellUserOut(BaseModel):
 
 class AuthMeOut(BaseModel):
     user: CustomShellUserOut
+
+
+class FeedbackCreateIn(StrictModel):
+    type: FeedbackType
+    message: str = Field(min_length=1, max_length=5000)
+
+
+class FeedbackOut(BaseModel):
+    id: str
+    type: FeedbackType
+    message: str
+    author_name: str
+    created_at: str
+    updated_at: str
+    vote_count: int
+    has_voted: bool
+
+
+class FeedbackListOut(BaseModel):
+    feedback: list[FeedbackOut]

@@ -13,6 +13,7 @@ import {
   LayoutDashboardIcon,
   LibraryIcon,
   MailIcon,
+  MessageSquarePlusIcon,
   PackageIcon,
   PaletteIcon,
   PanelsTopLeftIcon,
@@ -128,6 +129,10 @@ export const iconMeta = {
     label: "Sparkles",
     icon: SparklesIcon,
   },
+  messageSquarePlus: {
+    label: "Feedback",
+    icon: MessageSquarePlusIcon,
+  },
 } satisfies Record<string, { label: string; icon: LucideIcon }>
 
 export type IconKey = keyof typeof iconMeta
@@ -202,6 +207,14 @@ export function createDefaultShellConfig(): ShellConfig {
         id: "section-starter",
         title: "Navigation",
         entries: [
+          {
+            type: "item",
+            id: "item-feedback",
+            label: "Feedback",
+            href: "/admin/feedback",
+            icon: "messageSquarePlus",
+            visible: true,
+          },
           {
             type: "item",
             id: "item-settings",

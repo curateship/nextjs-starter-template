@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
@@ -56,3 +56,41 @@ class CustomShellSettings(Base):
     settings: Mapped[dict] = mapped_column(JSONType)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CustomShellFeedback(Base):
+    __tablename__ = "custom_shell_feedback"
+    __table_args__ = (
+        CheckConstraint(
+            "type in ('suggestion', 'bug_report', 'question', 'praise')",
+            name="custom_shell_feedback_type_check",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("custom_shell_users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    feedback_type: Mapped[str] = mapped_column("type", String(50), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CustomShellFeedbackVote(Base):
+    __tablename__ = "custom_shell_feedback_votes"
+    __table_args__ = (
+        UniqueConstraint("feedback_id", "user_id", name="custom_shell_feedback_votes_unique_user"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    feedback_id: Mapped[str] = mapped_column(
+        ForeignKey("custom_shell_feedback.id", ondelete="CASCADE"),
+        index=True,
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("custom_shell_users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

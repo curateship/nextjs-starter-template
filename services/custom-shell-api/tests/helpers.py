@@ -4,7 +4,13 @@ from unittest.mock import patch
 
 from app.config import get_settings
 from app.db import Base, get_engine, get_session_factory
-from app.models import CustomShellSession, CustomShellSettings, CustomShellUser
+from app.models import (
+    CustomShellFeedback,
+    CustomShellFeedbackVote,
+    CustomShellSession,
+    CustomShellSettings,
+    CustomShellUser,
+)
 from app.routes.auth import _login_failures
 from app.security import hash_password
 
@@ -46,6 +52,8 @@ def reset_settings() -> None:
 def clear_settings() -> None:
     db = get_session_factory()()
     try:
+        db.query(CustomShellFeedbackVote).delete()
+        db.query(CustomShellFeedback).delete()
         db.query(CustomShellSession).delete()
         db.query(CustomShellUser).delete()
         db.query(CustomShellSettings).delete()

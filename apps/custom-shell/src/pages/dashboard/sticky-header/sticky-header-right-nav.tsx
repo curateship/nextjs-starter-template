@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Moon, PanelRightIcon, Sun } from "lucide-react"
+import { MessageSquarePlusIcon, Moon, Sun } from "lucide-react"
 
 import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
 import { Button } from "@/components/ui/button"
@@ -53,19 +53,28 @@ function ThemeToggle() {
   )
 }
 
-export function StickyHeaderRightNav() {
+type StickyHeaderRightNavProps = {
+  onOpenFeedback?: () => void
+}
+
+export function StickyHeaderRightNav({
+  onOpenFeedback,
+}: StickyHeaderRightNavProps) {
   return (
     <div className="flex items-center gap-2 pr-1">
-      <Button
-        variant="outline"
-        size="sm"
-        className="cursor-pointer"
-        data-icon="inline-start"
-        aria-label="Right nav"
-      >
-        <PanelRightIcon className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Right nav</span>
-      </Button>
+      {onOpenFeedback ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-icon="inline-start"
+          aria-label="Send feedback"
+          onClick={onOpenFeedback}
+        >
+          <MessageSquarePlusIcon className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Feedback</span>
+        </Button>
+      ) : null}
       <ThemeToggle />
     </div>
   )
