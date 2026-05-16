@@ -13,6 +13,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FeedbackTableSkeleton } from "@/components/loading-skeleton"
 import {
   Card,
   CardContent,
@@ -258,17 +259,7 @@ export function FeedbackPage({
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-sm text-muted-foreground"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2Icon className="h-4 w-4 animate-spin" />
-                      Loading feedback
-                    </span>
-                  </TableCell>
-                </TableRow>
+                <FeedbackTableSkeleton />
               ) : paginatedFeedback.length === 0 ? (
                 <TableRow>
                   <TableCell

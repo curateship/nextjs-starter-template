@@ -9,6 +9,7 @@ import {
   XIcon,
 } from "lucide-react"
 
+import { MediaGridSkeleton } from "@/components/loading-skeleton"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -286,12 +287,7 @@ export function MediaPicker({
 
           <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
             {loading ? (
-              <div className="grid h-56 place-items-center text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <Loader2Icon className="size-4 animate-spin" />
-                  Loading media
-                </span>
-              </div>
+              <MediaGridSkeleton count={8} />
             ) : mediaItems.length === 0 ? (
               <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
                 <div>

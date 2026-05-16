@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { MediaGridSkeleton } from "@/components/loading-skeleton"
 import {
   Dialog,
   DialogContent,
@@ -325,12 +326,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
         <CardContent className="min-h-[340px]">
           {loading ? (
-            <div className="grid h-72 place-items-center text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-2">
-                <Loader2Icon className="size-4 animate-spin" />
-                Loading media
-              </span>
-            </div>
+            <MediaGridSkeleton />
           ) : visibleMedia.length === 0 ? (
             <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
               <div>
