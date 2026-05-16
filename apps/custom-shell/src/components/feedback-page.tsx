@@ -14,11 +14,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FeedbackTableSkeleton } from "@/components/loading-skeleton"
-import {
-  Card,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -27,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Table,
   TableBody,
@@ -198,17 +194,12 @@ export function FeedbackPage({
         </div>
       ) : null}
 
-      <Card>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+      <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-7 shrink-0 sm:size-8"
-              aria-label="Feedback"
-            >
+            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
               <MessageSquarePlusIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-            </Button>
+            </span>
             <span className="text-sm font-medium sm:text-base">Feedback</span>
             <Badge variant="secondary">{filteredFeedback.length}</Badge>
           </div>
@@ -249,12 +240,12 @@ export function FeedbackPage({
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
+        </div>
 
-        <CardContent className="overflow-x-auto">
-          <Table className="[&_tr]:border-0">
-            <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
+        <ScrollArea className="w-full">
+          <Table className="[&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:hover]:bg-transparent [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 [&_tr]:border-0">
+            <TableHeader className="[&_tr]:border-b-0">
+              <TableRow className="bg-muted/50">
                 <TableHead className="min-w-[260px] text-xs font-medium text-muted-foreground sm:text-sm">
                   Feedback
                 </TableHead>
@@ -286,9 +277,9 @@ export function FeedbackPage({
                 </TableRow>
               ) : (
                 paginatedFeedback.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} className="group">
                     <TableCell className="max-w-[360px]">
-                      <div className="truncate text-xs font-medium sm:text-sm">
+                      <div className="truncate text-xs font-medium group-hover:underline sm:text-sm">
                         {item.message}
                       </div>
                     </TableCell>
@@ -339,9 +330,10 @@ export function FeedbackPage({
               )}
             </TableBody>
           </Table>
-        </CardContent>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
 
-        <CardFooter className="flex-col justify-between gap-3 border-t-0 sm:flex-row">
+        <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
           <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <span className="hidden sm:inline">Rows per page:</span>
             <Select
@@ -412,8 +404,8 @@ export function FeedbackPage({
               <ChevronsRightIcon className="size-4" />
             </Button>
           </div>
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
