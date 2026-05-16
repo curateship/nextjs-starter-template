@@ -63,6 +63,14 @@ const feedbackTypeBadgeVariants: Record<
 
 const pageSizeOptions = [10, 25, 50]
 
+type FeedbackPeriod = "1year" | "3months" | "30days"
+
+const feedbackPeriodLabels: Record<FeedbackPeriod, string> = {
+  "1year": "1 Year",
+  "3months": "3 Months",
+  "30days": "30 Days",
+}
+
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -81,6 +89,8 @@ export function FeedbackPage({
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
+  const [periodFilter, setPeriodFilter] =
+    React.useState<FeedbackPeriod>("1year")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
   const [loading, setLoading] = React.useState(true)
@@ -113,15 +123,17 @@ export function FeedbackPage({
 
   const filteredFeedback = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const periodStart = getPeriodStart(periodFilter)
     return feedback.filter((item) => {
       const matchesSearch =
         !query ||
         item.message.toLowerCase().includes(query) ||
         item.author_name.toLowerCase().includes(query)
       const matchesType = typeFilter === "all" || item.type === typeFilter
-      return matchesSearch && matchesType
+      const matchesPeriod = new Date(item.created_at) >= periodStart
+      return matchesSearch && matchesType && matchesPeriod
     })
-  }, [feedback, searchQuery, typeFilter])
+  }, [feedback, periodFilter, searchQuery, typeFilter])
 
   const totalPages = Math.ceil(filteredFeedback.length / pageSize)
   const paginatedFeedback = React.useMemo(() => {
@@ -131,7 +143,7 @@ export function FeedbackPage({
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, typeFilter, pageSize])
+  }, [searchQuery, periodFilter, typeFilter, pageSize])
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
@@ -161,14 +173,17 @@ export function FeedbackPage({
   return (
     <div className="w-full pb-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Feedback</h1>
-          <p className="text-sm text-muted-foreground">
-            Review requests, reports, questions, and praise from the team.
-          </p>
-        </div>
-        <Button type="button" size="sm" onClick={onOpenFeedback}>
-          <MessageSquarePlusIcon className="h-4 w-4" />
+        <PeriodTabs
+          activePeriod={periodFilter}
+          onPeriodChange={setPeriodFilter}
+        />
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 w-fit gap-2 self-start sm:h-9 sm:self-auto"
+          onClick={onOpenFeedback}
+        >
+          <MessageSquarePlusIcon className="size-4" />
           New feedback
         </Button>
       </div>
@@ -401,4 +416,49 @@ export function FeedbackPage({
       </Card>
     </div>
   )
+}
+
+function PeriodTabs({
+  activePeriod,
+  onPeriodChange,
+}: {
+  activePeriod: FeedbackPeriod
+  onPeriodChange: (period: FeedbackPeriod) => void
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+      {(Object.keys(feedbackPeriodLabels) as FeedbackPeriod[]).map((key) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onPeriodChange(key)}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
+            activePeriod === key
+              ? "bg-card text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {feedbackPeriodLabels[key]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function getPeriodStart(period: FeedbackPeriod) {
+  const date = new Date()
+
+  if (period === "30days") {
+    date.setDate(date.getDate() - 30)
+    return date
+  }
+
+  if (period === "3months") {
+    date.setMonth(date.getMonth() - 3)
+    return date
+  }
+
+  date.setFullYear(date.getFullYear() - 1)
+  return date
 }

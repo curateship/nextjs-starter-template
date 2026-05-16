@@ -258,8 +258,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             <Button
               type="button"
               variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon-sm"
-              className="rounded-r-none"
+              size="sm"
+              className="h-8 rounded-r-none sm:h-9"
               onClick={() => setViewMode("list")}
               aria-label="List view"
             >
@@ -268,15 +268,21 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             <Button
               type="button"
               variant={viewMode === "gallery" ? "secondary" : "ghost"}
-              size="icon-sm"
-              className="rounded-l-none"
+              size="sm"
+              className="h-8 rounded-l-none sm:h-9"
               onClick={() => setViewMode("gallery")}
               aria-label="Gallery view"
             >
               <GridIcon className="size-4" />
             </Button>
           </div>
-          <Button type="button" size="sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 gap-2 sm:h-9"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
             {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
             {uploading ? "Uploading" : "Upload Media"}
           </Button>

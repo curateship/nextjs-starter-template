@@ -57,6 +57,7 @@ export function SettingsPage({
           <Button
             type="button"
             size="sm"
+            className="h-8 gap-2 sm:h-9"
             onClick={onSaveConfig}
             disabled={isSaving}
           >

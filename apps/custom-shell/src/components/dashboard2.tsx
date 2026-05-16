@@ -23,9 +23,9 @@ import {
   Filter,
   LayoutDashboard,
   LogOut,
+  MessageSquarePlus,
   MoreHorizontal,
   Pencil,
-  Plus,
   Receipt,
   RotateCcw,
   Search,
@@ -69,18 +69,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useShellRuntime } from "@/components/shell-layout";
 import {
   Select,
   SelectContent,
@@ -1280,7 +1270,7 @@ const PeriodTabs = ({
           key={key}
           onClick={() => onPeriodChange(key)}
           className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
+            "inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all sm:h-9 sm:text-sm",
             activePeriod === key
               ? "bg-card text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
@@ -1802,11 +1792,11 @@ const TransactionsTable = () => {
         <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
           <Button
             variant="outline"
-            size="icon"
-            className="size-7 shrink-0 sm:size-8"
+            size="sm"
+            className="h-8 shrink-0 gap-2 sm:h-9"
             aria-label="Transactions"
           >
-            <ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />
+            <ShoppingCart className="size-4 text-muted-foreground" />
           </Button>
           <span className="text-sm font-medium sm:text-base">Transactions</span>
           <span className="ml-1 inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-[10px] font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset sm:text-xs dark:bg-gray-800/50 dark:text-gray-400 dark:ring-gray-400/20">
@@ -1857,7 +1847,7 @@ const TransactionsTable = () => {
                 variant="outline"
                 size="sm"
                 className={cn(
-                  "h-8 gap-1.5 sm:h-9 sm:gap-2",
+                  "h-8 gap-2 sm:h-9",
                   statusFilter !== "all" && "border-primary",
                 )}
                 aria-label="Filter by status"
@@ -1895,7 +1885,7 @@ const TransactionsTable = () => {
                 variant="outline"
                 size="sm"
                 className={cn(
-                  "h-8 gap-1.5 sm:h-9 sm:gap-2",
+                  "h-8 gap-2 sm:h-9",
                   paymentMethodFilter !== "all" && "border-primary",
                 )}
                 aria-label="Filter by payment method"
@@ -2066,11 +2056,11 @@ const TransactionsTable = () => {
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground hover:text-foreground sm:size-8"
+                            size="sm"
+                            className="h-8 gap-2 text-muted-foreground hover:text-foreground sm:h-9"
                             aria-label={`Open actions for ${txn.txnId}`}
                           >
-                            <MoreHorizontal className="size-3.5 sm:size-4" />
+                            <MoreHorizontal className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
@@ -2146,8 +2136,8 @@ const TransactionsTable = () => {
         <div className="flex items-center gap-1">
           <Button
             variant="outline"
-            size="icon"
-            className="size-8"
+            size="sm"
+            className="h-8 gap-2 sm:h-9"
             onClick={() => goToPage(1)}
             disabled={currentPage === 1}
             aria-label="Go to first page"
@@ -2156,8 +2146,8 @@ const TransactionsTable = () => {
           </Button>
           <Button
             variant="outline"
-            size="icon"
-            className="size-8"
+            size="sm"
+            className="h-8 gap-2 sm:h-9"
             onClick={() => goToPage(currentPage - 1)}
             disabled={currentPage === 1}
             aria-label="Go to previous page"
@@ -2182,8 +2172,8 @@ const TransactionsTable = () => {
                 <Button
                   key={pageNum}
                   variant={currentPage === pageNum ? "default" : "ghost"}
-                  size="icon"
-                  className="size-8"
+                  size="sm"
+                  className="h-8 gap-2 sm:h-9"
                   onClick={() => goToPage(pageNum)}
                 >
                   {pageNum}
@@ -2194,8 +2184,8 @@ const TransactionsTable = () => {
 
           <Button
             variant="outline"
-            size="icon"
-            className="size-8"
+            size="sm"
+            className="h-8 gap-2 sm:h-9"
             onClick={() => goToPage(currentPage + 1)}
             disabled={currentPage === totalPages || totalPages === 0}
             aria-label="Go to next page"
@@ -2204,8 +2194,8 @@ const TransactionsTable = () => {
           </Button>
           <Button
             variant="outline"
-            size="icon"
-            className="size-8"
+            size="sm"
+            className="h-8 gap-2 sm:h-9"
             onClick={() => goToPage(totalPages)}
             disabled={currentPage === totalPages || totalPages === 0}
             aria-label="Go to last page"
@@ -2220,8 +2210,7 @@ const TransactionsTable = () => {
 
 const DashboardContent = () => {
   const [period, setPeriod] = React.useState<PeriodKey>("1year");
-  const [newTxnOpen, setNewTxnOpen] = React.useState(false);
-  const [txnNote, setTxnNote] = React.useState("");
+  const { onOpenFeedback } = useShellRuntime();
 
   return (
     <div
@@ -2242,57 +2231,15 @@ const DashboardContent = () => {
             <Download className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Dialog open={newTxnOpen} onOpenChange={setNewTxnOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="h-8 gap-2 sm:h-9"
-                aria-label="New transaction"
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                <span className="hidden sm:inline">New transaction</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Record a transaction</DialogTitle>
-                <DialogDescription>
-                  Capture a quick note for your close checklist. This demo does
-                  not persist data.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="dashboard2-txn-note">Description</Label>
-                  <Input
-                    id="dashboard2-txn-note"
-                    name="txn-note"
-                    value={txnNote}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setTxnNote(e.target.value)
-                    }
-                    placeholder="e.g. Wire - Q1 tax payment"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setNewTxnOpen(false);
-                    setTxnNote("");
-                  }}
-                >
-                  Save draft
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button
+            size="sm"
+            className="h-8 gap-2 sm:h-9"
+            aria-label="New feedback"
+            onClick={onOpenFeedback}
+          >
+            <MessageSquarePlus className="size-4" aria-hidden="true" />
+            <span className="hidden sm:inline">New feedback</span>
+          </Button>
         </div>
       </div>
 
