@@ -13,21 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 function ThemeToggle() {
-  const [mounted, setMounted] = React.useState(false)
   const { setTheme } = useTheme()
-
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" disabled>
-        <Sun className="h-[1.2rem] w-[1.2rem]" />
-        <span className="sr-only">Toggle theme</span>
-      </Button>
-    )
-  }
 
   return (
     <DropdownMenu>

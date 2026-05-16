@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
@@ -12,12 +13,6 @@ const settingsTabs = [
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
 type SaveStatus = "idle" | "saving" | "saved"
-
-function getSettingsTabHref(tabId: SettingsTabId) {
-  return tabId === "sidebar"
-    ? "#/admin/settings"
-    : `#/admin/settings/${tabId}`
-}
 
 export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
@@ -88,18 +83,12 @@ export function SettingsPage({
       <div className="flex flex-col items-start gap-6 lg:flex-row">
         <nav className="flex w-full shrink-0 flex-col lg:w-48">
           {settingsTabs.map((tab) => (
-            <a
+            <SettingsTabLink
               key={tab.id}
-              href={getSettingsTabHref(tab.id)}
-              className={cn(
-                "rounded-md px-4 py-2.5 text-left text-sm font-medium transition-colors",
-                activeTab === tab.id
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </a>
+              tabId={tab.id}
+              label={tab.label}
+              active={activeTab === tab.id}
+            />
           ))}
         </nav>
 
@@ -123,5 +112,40 @@ export function SettingsPage({
         </div>
       </div>
     </div>
+  )
+}
+
+function SettingsTabLink({
+  tabId,
+  label,
+  active,
+}: {
+  tabId: SettingsTabId
+  label: string
+  active: boolean
+}) {
+  const className = cn(
+    "rounded-md px-4 py-2.5 text-left text-sm font-medium transition-colors",
+    active
+      ? "bg-muted text-foreground"
+      : "text-muted-foreground hover:text-foreground"
+  )
+
+  if (tabId === "sidebar") {
+    return (
+      <Link to="/admin/settings" className={className}>
+        {label}
+      </Link>
+    )
+  }
+
+  return (
+    <Link
+      to="/admin/settings/$tab"
+      params={{ tab: tabId }}
+      className={className}
+    >
+      {label}
+    </Link>
   )
 }

@@ -481,6 +481,7 @@ function SortableSidebarItem({
 
             {children.length ? (
               <DndContext
+                id={`custom-shell-sidebar-children-${item.id}`}
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
@@ -595,6 +596,7 @@ function SortableSectionCard({
         </div>
 
         <DndContext
+          id={`custom-shell-sidebar-items-${section.id}`}
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={(event) => onItemDragEnd(section.id, event)}
@@ -858,6 +860,7 @@ export function SidebarSettings({
   return (
     <>
       <DndContext
+        id="custom-shell-sidebar-sections"
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragEnd={handleSectionDragEnd}

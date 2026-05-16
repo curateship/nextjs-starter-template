@@ -403,6 +403,7 @@ export function TopNavigationSettings({
         </div>
 
         <DndContext
+          id="custom-shell-top-navigation"
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useNavigate, useRouterState } from "@tanstack/react-router"
 
 import { UserDropdown } from "@/pages/dashboard/sidebar/user-dropdown"
 import {
@@ -27,15 +28,6 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
   user: AuthUser
   onLogout: () => void
-}
-
-function getCurrentHashPath() {
-  if (typeof window === "undefined") {
-    return "/"
-  }
-
-  const hash = window.location.hash
-  return hash.startsWith("#") ? hash.slice(1) || "/" : hash || "/"
 }
 
 function isActivePath(href: string, currentPath: string) {
@@ -90,34 +82,27 @@ function mapSectionEntries(
 }
 
 export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps) {
-  const [currentPath, setCurrentPath] = React.useState(getCurrentHashPath)
+  const navigate = useNavigate()
+  const currentPath = useRouterState({
+    select: (state) => state.location.pathname,
+  })
 
   const handleNavigate = React.useCallback((href: string) => {
-    window.location.hash = href
-    setCurrentPath(href)
-  }, [])
-
-  React.useEffect(() => {
-    const handleHashChange = () => {
-      setCurrentPath(getCurrentHashPath())
-    }
-
-    window.addEventListener("hashchange", handleHashChange)
-    return () => window.removeEventListener("hashchange", handleHashChange)
-  }, [])
+    navigate({ href })
+  }, [navigate])
 
   const teams = [
     {
       name: config.workspaceName,
       logo: renderShellIcon("briefcaseBusiness"),
       plan: config.workspacePlan,
-      href: "#/",
+      href: "/",
     },
     {
       name: "Hub baseline",
       logo: renderShellIcon("globe"),
       plan: "Reference",
-      href: "#/",
+      href: "/",
     },
   ]
 

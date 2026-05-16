@@ -54,13 +54,6 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardGroup,
-  CardHeader,
-} from "@/components/ui/card";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import {
   Collapsible,
@@ -76,9 +69,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import DialogStickyHeaderDemo from "@/components/shadcn-studio/dialog/dialog-06";
 import {
   Select,
   SelectContent,
@@ -1187,7 +1189,7 @@ const AppSidebar = ({ ...props }: React.ComponentProps<typeof Sidebar>) => {
 
 const DashboardHeader = () => {
   return (
-    <header className="flex w-full items-center gap-3 border-b bg-background px-4 py-4 sm:px-6">
+    <header className="flex w-full items-center gap-3 border-b border-border bg-background px-4 py-4 sm:px-6">
       <LayoutDashboard className="size-5" aria-hidden="true" />
       <h1 className="text-base font-medium">Dashboard</h1>
 
@@ -1206,7 +1208,7 @@ const DashboardHeader = () => {
             placeholder="Search users, workspaces…"
             className="h-9 w-full pr-14 pl-9 text-sm"
           />
-          <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-md border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
+          <kbd className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline-flex">
             {"\u2318"}
             {"\u00a0"}K
           </kbd>
@@ -1263,22 +1265,6 @@ const periodLabels: Record<PeriodKey, string> = {
   "3months": "3 Months",
   "30days": "30 Days",
 };
-
-function getDashboard2SearchParams() {
-  if (typeof window === "undefined") {
-    return new URLSearchParams();
-  }
-
-  return new URLSearchParams(window.location.search);
-}
-
-function replaceDashboard2SearchParams(params: URLSearchParams) {
-  if (typeof window === "undefined") return;
-
-  const nextQuery = params.toString();
-  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${window.location.hash}`;
-  window.history.replaceState(null, "", nextUrl);
-}
 
 const PeriodTabs = ({
   activePeriod,
@@ -1339,8 +1325,8 @@ const RevenueChart = ({ period }: { period: PeriodKey }) => {
   const summary = revenueSummary[period];
 
   return (
-    <Card className="min-w-0 flex-1">
-      <CardHeader>
+    <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:gap-5 sm:p-5">
+      <div className="flex flex-col gap-1">
         <p className="text-xs text-muted-foreground sm:text-sm">
           Revenue Overview
         </p>
@@ -1371,9 +1357,9 @@ const RevenueChart = ({ period }: { period: PeriodKey }) => {
             </span>
           </div>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="h-[180px] w-full min-w-0 sm:h-[220px]">
+      <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
         <ChartContainer config={revenueChartConfig} className="h-full w-full">
           <AreaChart data={data}>
             <defs>
@@ -1419,8 +1405,8 @@ const RevenueChart = ({ period }: { period: PeriodKey }) => {
             />
           </AreaChart>
         </ChartContainer>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
@@ -1484,8 +1470,8 @@ const CostsChart = ({ period }: { period: PeriodKey }) => {
   const summary = costsSummary[period];
 
   return (
-    <Card className="min-w-0 flex-1">
-      <CardHeader>
+    <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:gap-5 sm:p-5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground sm:text-sm">
             Costs Breakdown
@@ -1538,9 +1524,9 @@ const CostsChart = ({ period }: { period: PeriodKey }) => {
             </span>
           </div>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="h-[180px] w-full min-w-0 sm:h-[220px]">
+      <div className="h-[180px] w-full min-w-0 sm:h-[220px]">
         <ChartContainer config={costsChartConfig} className="h-full w-full">
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="0" vertical={false} />
@@ -1584,15 +1570,14 @@ const CostsChart = ({ period }: { period: PeriodKey }) => {
             />
           </BarChart>
         </ChartContainer>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
 const StatsCards = () => {
   return (
-    <Card>
-      <CardContent className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
+    <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4 sm:gap-4 sm:p-5 lg:grid-cols-4 lg:gap-6 lg:p-6">
         {statsData.map((stat, index) => {
           const formatter =
             stat.format === "currency" ? currencyFormatter : percentFormatter;
@@ -1647,8 +1632,7 @@ const StatsCards = () => {
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+    </div>
   );
 };
 
@@ -1741,7 +1725,6 @@ const TransactionsTable = () => {
     React.useState<string>("all");
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
-  const [isHydrated, setIsHydrated] = React.useState(false);
 
   const hasActiveFilters =
     statusFilter !== "all" ||
@@ -1753,54 +1736,6 @@ const TransactionsTable = () => {
     setDateFilter("all");
     setPaymentMethodFilter("all");
   };
-
-  React.useEffect(() => {
-    const params = getDashboard2SearchParams();
-    setSearchQuery(params.get("q") ?? "");
-
-    const nextStatus = params.get("status");
-    if (
-      nextStatus &&
-      (nextStatus === "all" ||
-        allTransactionStatuses.includes(nextStatus as TransactionStatus))
-    ) {
-      setStatusFilter(nextStatus);
-    }
-
-    const nextDate = params.get("date");
-    if (
-      nextDate &&
-      dateFilterOptions.some((option) => option.value === nextDate)
-    ) {
-      setDateFilter(nextDate);
-    }
-
-    const nextPayment = params.get("payment");
-    if (
-      nextPayment &&
-      (nextPayment === "all" ||
-        allPaymentMethods.includes(
-          nextPayment as (typeof allPaymentMethods)[number],
-        ))
-    ) {
-      setPaymentMethodFilter(nextPayment);
-    }
-
-    const nextPage = Number(params.get("page"));
-    if (!Number.isNaN(nextPage) && nextPage > 0) {
-      setCurrentPage(nextPage);
-    }
-
-    const nextPageSize = Number(params.get("pageSize"));
-    if (
-      !Number.isNaN(nextPageSize) &&
-      PAGE_SIZE_OPTIONS.includes(nextPageSize)
-    ) {
-      setPageSize(nextPageSize);
-    }
-
-    setIsHydrated(true);
-  }, []);
 
   const filteredTransactions = React.useMemo(() => {
     const query = searchQuery.toLowerCase();
@@ -1857,64 +1792,13 @@ const TransactionsTable = () => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, dateFilter, paymentMethodFilter, pageSize]);
 
-  React.useEffect(() => {
-    if (!isHydrated || typeof window === "undefined") return;
-    const params = getDashboard2SearchParams();
-
-    if (searchQuery) {
-      params.set("q", searchQuery);
-    } else {
-      params.delete("q");
-    }
-
-    if (statusFilter !== "all") {
-      params.set("status", statusFilter);
-    } else {
-      params.delete("status");
-    }
-
-    if (dateFilter !== "all") {
-      params.set("date", dateFilter);
-    } else {
-      params.delete("date");
-    }
-
-    if (paymentMethodFilter !== "all") {
-      params.set("payment", paymentMethodFilter);
-    } else {
-      params.delete("payment");
-    }
-
-    if (currentPage > 1) {
-      params.set("page", String(currentPage));
-    } else {
-      params.delete("page");
-    }
-
-    if (pageSize !== PAGE_SIZE_OPTIONS[0]) {
-      params.set("pageSize", String(pageSize));
-    } else {
-      params.delete("pageSize");
-    }
-
-    replaceDashboard2SearchParams(params);
-  }, [
-    searchQuery,
-    statusFilter,
-    dateFilter,
-    paymentMethodFilter,
-    currentPage,
-    pageSize,
-    isHydrated,
-  ]);
-
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+    <div className="rounded-xl border border-border bg-card">
+      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-3.5">
         <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
           <Button
             variant="outline"
@@ -2043,10 +1927,10 @@ const TransactionsTable = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </CardContent>
+      </div>
 
       {hasActiveFilters && (
-        <CardContent className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-3 sm:px-6">
           <span className="text-[10px] text-muted-foreground sm:text-xs">
             Filters:
           </span>
@@ -2089,10 +1973,10 @@ const TransactionsTable = () => {
           >
             Clear all
           </button>
-        </CardContent>
+        </div>
       )}
 
-      <CardContent className="overflow-x-auto">
+      <div className="overflow-x-auto px-3 pb-3 sm:px-6 sm:pb-4">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -2154,12 +2038,12 @@ const TransactionsTable = () => {
                       {currencyFormatter.format(txn.amount)}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
+                      <span className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
                         {txn.type}
                       </span>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <span className="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
+                      <span className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
                         {txn.paymentMethod}
                       </span>
                     </TableCell>
@@ -2228,9 +2112,9 @@ const TransactionsTable = () => {
             )}
           </TableBody>
         </Table>
-      </CardContent>
+      </div>
 
-      <CardFooter className="flex-col justify-between gap-3 sm:flex-row">
+      <div className="flex flex-col items-center justify-between gap-3 border-t border-border px-3 py-3 sm:flex-row sm:px-6">
         <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
           <span className="hidden sm:inline">Rows per page:</span>
           <Select
@@ -2329,41 +2213,21 @@ const TransactionsTable = () => {
             <ChevronsRight className="size-4" />
           </Button>
         </div>
-      </CardFooter>
-    </Card>
+      </div>
+    </div>
   );
 };
 
-const Dashboard2Content = () => {
+const DashboardContent = () => {
   const [period, setPeriod] = React.useState<PeriodKey>("1year");
-
-  React.useEffect(() => {
-    const params = getDashboard2SearchParams();
-    const nextPeriod = params.get("period");
-    if (
-      nextPeriod === "1year" ||
-      nextPeriod === "3months" ||
-      nextPeriod === "30days"
-    ) {
-      setPeriod(nextPeriod);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    const params = getDashboard2SearchParams();
-    if (period !== "1year") {
-      params.set("period", period);
-    } else {
-      params.delete("period");
-    }
-    replaceDashboard2SearchParams(params);
-  }, [period]);
+  const [newTxnOpen, setNewTxnOpen] = React.useState(false);
+  const [txnNote, setTxnNote] = React.useState("");
 
   return (
     <div
       id="dashboard-main"
       tabIndex={-1}
-      className="w-full flex-1 overflow-auto bg-background p-3 sm:p-4 md:p-6"
+      className="w-full flex-1 space-y-4 overflow-auto bg-background p-3 sm:space-y-6 sm:p-4 md:p-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <PeriodTabs activePeriod={period} onPeriodChange={setPeriod} />
@@ -2378,8 +2242,8 @@ const Dashboard2Content = () => {
             <Download className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <DialogStickyHeaderDemo
-            trigger={
+          <Dialog open={newTxnOpen} onOpenChange={setNewTxnOpen}>
+            <DialogTrigger asChild>
               <Button
                 size="sm"
                 className="h-8 gap-2 sm:h-9"
@@ -2388,21 +2252,58 @@ const Dashboard2Content = () => {
                 <Plus className="size-4" aria-hidden="true" />
                 <span className="hidden sm:inline">New transaction</span>
               </Button>
-            }
-          />
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Record a transaction</DialogTitle>
+                <DialogDescription>
+                  Capture a quick note for your close checklist. This demo does
+                  not persist data.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="dashboard2-txn-note">Description</Label>
+                  <Input
+                    id="dashboard2-txn-note"
+                    name="txn-note"
+                    value={txnNote}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setTxnNote(e.target.value)
+                    }
+                    placeholder="e.g. Wire - Q1 tax payment"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setNewTxnOpen(false);
+                    setTxnNote("");
+                  }}
+                >
+                  Save draft
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <CardGroup className="mt-4 sm:mt-6">
-        <CardGroup className="lg:flex-row">
-          <RevenueChart period={period} />
-          <CostsChart period={period} />
-        </CardGroup>
+      <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row">
+        <RevenueChart period={period} />
+        <CostsChart period={period} />
+      </div>
 
-        <StatsCards />
+      <StatsCards />
 
-        <TransactionsTable />
-      </CardGroup>
+      <TransactionsTable />
     </div>
   );
 };
@@ -2421,7 +2322,7 @@ const Dashboard2 = ({ className }: { className?: string }) => {
         <div className="h-svh w-full overflow-hidden lg:p-2">
           <div className="flex h-full w-full flex-col items-center justify-start overflow-hidden bg-background lg:rounded-xl lg:border">
             <DashboardHeader />
-            <Dashboard2Content />
+            <DashboardContent />
           </div>
         </div>
       </SidebarProvider>
@@ -2429,4 +2330,4 @@ const Dashboard2 = ({ className }: { className?: string }) => {
   );
 };
 
-export { Dashboard2, Dashboard2Content };
+export { Dashboard2, DashboardContent as Dashboard2Content };

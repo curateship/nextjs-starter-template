@@ -1,32 +1,50 @@
-const mediaApiUrl = `${
-  import.meta.env.VITE_CUSTOM_SHELL_API_URL ?? ""
-}`.replace(/\/$/, "")
+import { createServerFn } from "@tanstack/react-start"
+import { and, eq, inArray } from "drizzle-orm"
+import { z } from "zod"
 
-export type MediaFileType = "image" | "video"
+import { db } from "@/server/db"
+import {
+  cleanAltText,
+  cleanOriginalName,
+  getMediaFileType,
+  getOwnedMedia,
+  listOwnedMedia,
+  serializeMedia,
+  storedFilename,
+  validateMediaFile,
+  type MediaFileType,
+  type MediaItem,
+  type MediaListResponse,
+} from "@/server/media"
+import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
+import { requireAppOrigin } from "@/server/origin"
+import { customShellMedia } from "@/server/schema"
+import { findCurrentUser, now } from "@/server/security"
+import { uuid } from "@/server/security"
 
-export type MediaItem = {
-  id: string
-  filename: string
-  original_name: string
-  alt_text: string | null
-  file_size: number
-  mime_type: string
-  file_type: MediaFileType
-  url: string
-  created_at: string
-  updated_at: string
-}
+export type { MediaFileType, MediaItem, MediaListResponse }
 
-export type MediaListResponse = {
-  media: MediaItem[]
-  total: number
-  page: number
-  page_size: number
-  total_pages: number
-}
+const listMediaSchema = z
+  .object({
+    page: z.number().int().optional(),
+    pageSize: z.number().int().optional(),
+    fileType: z.enum(["image", "video"]).optional(),
+  })
+  .optional()
+
+const mediaIdSchema = z.object({ mediaId: z.string().min(1) })
+
+const updateMediaSchema = z.object({
+  mediaId: z.string().min(1),
+  altText: z.string(),
+})
+
+const bulkDeleteMediaSchema = z.object({
+  mediaIds: z.array(z.string().min(1)).min(1).max(100),
+})
 
 export function resolveMediaUrl(url: string) {
-  return url.startsWith("/") ? `${mediaApiUrl}${url}` : url
+  return url
 }
 
 export function getMediaFileUrl(mediaId: string) {
@@ -34,39 +52,165 @@ export function getMediaFileUrl(mediaId: string) {
 }
 
 export function getMediaErrorMessage(error: unknown) {
-  if (error instanceof TypeError && error.message === "Failed to fetch") {
-    const apiTarget = mediaApiUrl || "the same-origin custom-shell API"
-    return `Could not reach ${apiTarget}. Run npm run dev:custom-shell.`
-  }
-
   return error instanceof Error ? error.message : "Media request failed."
 }
 
-async function readMediaResponse<T>(response: Response) {
-  if (!response.ok) {
-    let detail = `Media request failed (${response.status}).`
-    try {
-      const data = (await response.json()) as { detail?: unknown }
-      if (typeof data.detail === "string") {
-        detail = data.detail
-      }
-    } catch {
-      // Keep the status-based message.
+const listMediaFn = createServerFn({ method: "GET" })
+  .inputValidator(listMediaSchema)
+  .handler(async ({ data }) => {
+    const user = await requireUser()
+    return listOwnedMedia({
+      userId: user.id,
+      page: data?.page ?? 1,
+      pageSize: data?.pageSize ?? 20,
+      fileType: data?.fileType,
+    })
+  })
+
+const uploadMediaFn = createServerFn({ method: "POST" })
+  .inputValidator((data) => {
+    if (!(data instanceof FormData)) {
+      throw new Error("Expected form data")
     }
-    throw new Error(detail)
-  }
 
-  return (await response.json()) as T
-}
+    const file = data.get("file")
+    if (!(file instanceof File)) {
+      throw new Error("File is required")
+    }
 
-function normalizeMediaItem(item: MediaItem): MediaItem {
-  return {
-    ...item,
-    url: resolveMediaUrl(item.url),
-  }
-}
+    return {
+      file,
+      altText: data.get("alt_text")?.toString(),
+    }
+  })
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const mimeType = data.file.type || "application/octet-stream"
+    validateMediaFile(mimeType, data.file.size)
 
-export async function listMedia({
+    const fileData = new Uint8Array(await data.file.arrayBuffer())
+    if (!fileData.byteLength) {
+      throw new Error("File is empty")
+    }
+
+    const originalName = cleanOriginalName(data.file.name)
+    const filename = storedFilename(originalName, mimeType)
+    const storagePath = `${user.id}/${filename}`
+
+    try {
+      await uploadToR2(storagePath, fileData, mimeType)
+    } catch (error) {
+      if (error instanceof R2StorageNotConfiguredError) {
+        throw new Error(
+          "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables for custom-shell."
+        )
+      }
+      throw new Error("Upload failed")
+    }
+
+    const createdAt = now()
+    const row = {
+      id: uuid(),
+      userId: user.id,
+      filename,
+      originalName,
+      altText: cleanAltText(data.altText),
+      fileSize: fileData.byteLength,
+      mimeType,
+      fileType: getMediaFileType(mimeType),
+      storagePath,
+      createdAt,
+      updatedAt: createdAt,
+    }
+
+    try {
+      await db.insert(customShellMedia).values(row)
+    } catch (error) {
+      await deleteFromR2(storagePath).catch(() => undefined)
+      throw error
+    }
+
+    return serializeMedia(row)
+  })
+
+const updateMediaFn = createServerFn({ method: "POST" })
+  .inputValidator(updateMediaSchema)
+  .handler(async ({ data }): Promise<MediaItem> => {
+    requireAppOrigin()
+    const user = await requireUser()
+    await getOwnedMedia(user.id, data.mediaId)
+
+    const updatedAt = now()
+    await db
+      .update(customShellMedia)
+      .set({ altText: cleanAltText(data.altText), updatedAt })
+      .where(
+        and(
+          eq(customShellMedia.id, data.mediaId),
+          eq(customShellMedia.userId, user.id)
+        )
+      )
+
+    const row = await getOwnedMedia(user.id, data.mediaId)
+    return serializeMedia(row)
+  })
+
+const deleteMediaFn = createServerFn({ method: "POST" })
+  .inputValidator(mediaIdSchema)
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const row = await getOwnedMedia(user.id, data.mediaId)
+    await deleteFromR2(row.storagePath)
+    await db
+      .delete(customShellMedia)
+      .where(
+        and(
+          eq(customShellMedia.id, data.mediaId),
+          eq(customShellMedia.userId, user.id)
+        )
+      )
+  })
+
+const bulkDeleteMediaFn = createServerFn({ method: "POST" })
+  .inputValidator(bulkDeleteMediaSchema)
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const user = await requireUser()
+    const uniqueIds = Array.from(new Set(data.mediaIds))
+    const rows = await db
+      .select()
+      .from(customShellMedia)
+      .where(
+        and(
+          eq(customShellMedia.userId, user.id),
+          inArray(customShellMedia.id, uniqueIds)
+        )
+      )
+
+    for (const row of rows) {
+      await deleteFromR2(row.storagePath)
+    }
+
+    if (rows.length) {
+      await db
+        .delete(customShellMedia)
+        .where(
+          and(
+            eq(customShellMedia.userId, user.id),
+            inArray(
+              customShellMedia.id,
+              rows.map((row) => row.id)
+            )
+          )
+        )
+    }
+
+    return { deleted_count: rows.length }
+  })
+
+export function listMedia({
   page = 1,
   pageSize = 20,
   fileType,
@@ -75,70 +219,34 @@ export async function listMedia({
   pageSize?: number
   fileType?: MediaFileType
 } = {}) {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    page_size: pageSize.toString(),
-  })
-  if (fileType) {
-    params.set("file_type", fileType)
-  }
-
-  const response = await fetch(`${mediaApiUrl}/api/v1/media?${params}`, {
-    credentials: "include",
-  })
-  const data = await readMediaResponse<MediaListResponse>(response)
-
-  return {
-    ...data,
-    media: data.media.map(normalizeMediaItem),
-  }
+  return listMediaFn({ data: { page, pageSize, fileType } })
 }
 
-export async function uploadMedia(file: File, altText?: string) {
+export function uploadMedia(file: File, altText?: string) {
   const formData = new FormData()
   formData.append("file", file)
   if (altText?.trim()) {
     formData.append("alt_text", altText.trim())
   }
-
-  const response = await fetch(`${mediaApiUrl}/api/v1/media`, {
-    method: "POST",
-    credentials: "include",
-    body: formData,
-  })
-  const item = await readMediaResponse<MediaItem>(response)
-  return normalizeMediaItem(item)
+  return uploadMediaFn({ data: formData })
 }
 
-export async function updateMedia(mediaId: string, altText: string) {
-  const response = await fetch(`${mediaApiUrl}/api/v1/media/${mediaId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ alt_text: altText }),
-  })
-  const item = await readMediaResponse<MediaItem>(response)
-  return normalizeMediaItem(item)
+export function updateMedia(mediaId: string, altText: string) {
+  return updateMediaFn({ data: { mediaId, altText } })
 }
 
-export async function deleteMedia(mediaId: string) {
-  const response = await fetch(`${mediaApiUrl}/api/v1/media/${mediaId}`, {
-    method: "DELETE",
-    credentials: "include",
-  })
+export function deleteMedia(mediaId: string) {
+  return deleteMediaFn({ data: { mediaId } })
+}
 
-  if (!response.ok) {
-    await readMediaResponse<never>(response)
+export function bulkDeleteMedia(mediaIds: string[]) {
+  return bulkDeleteMediaFn({ data: { mediaIds } })
+}
+
+async function requireUser() {
+  const user = await findCurrentUser()
+  if (!user) {
+    throw new Error("Missing Custom Shell session")
   }
-}
-
-export async function bulkDeleteMedia(mediaIds: string[]) {
-  const response = await fetch(`${mediaApiUrl}/api/v1/media/bulk-delete`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ ids: mediaIds }),
-  })
-
-  return readMediaResponse<{ deleted_count: number }>(response)
+  return user
 }

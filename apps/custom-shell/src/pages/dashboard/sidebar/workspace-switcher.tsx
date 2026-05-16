@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { ChevronsUpDownIcon, PlusIcon } from "lucide-react"
 
 import {
@@ -38,22 +39,22 @@ export function WorkspaceSwitcher({
     <SidebarMenu>
       <SidebarMenuItem>
         <div className="relative flex min-h-8 items-center py-2">
-          <a
-            href={activeTeam.href || "#/"}
+          <Link
+            to={activeTeam.href || "/"}
             className="flex size-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
           >
             {activeTeam.logo}
-          </a>
+          </Link>
           <div className="absolute left-10 right-0 flex min-w-0 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
-            <a
-              href={activeTeam.href || "#/"}
+            <Link
+              to={activeTeam.href || "/"}
               className="grid min-w-0 flex-1 text-left text-sm leading-tight"
             >
               <span className="truncate font-medium">{activeTeam.name}</span>
               <span className="truncate text-xs text-muted-foreground">
                 {activeTeam.plan}
               </span>
-            </a>
+            </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -79,7 +80,7 @@ export function WorkspaceSwitcher({
                     onClick={() => setActiveTeam(team)}
                     className="gap-2 p-2"
                   >
-                    <div className="flex size-6 items-center justify-center rounded-md border">
+                    <div className="flex size-6 items-center justify-center rounded-md border border-border">
                       {team.logo}
                     </div>
                     <div className="flex-1">
@@ -92,7 +93,7 @@ export function WorkspaceSwitcher({
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="gap-2 p-2">
-                  <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                  <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
                     <PlusIcon className="size-4" />
                   </div>
                   <div className="font-medium text-muted-foreground">

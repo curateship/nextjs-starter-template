@@ -26,7 +26,7 @@ The fixed ports are configured in the app-level dev setup:
   - `server.port = 3002`
   - `server.strictPort = true`
 
-`strictPort: true` is enabled for the Vite apps so they fail instead of silently moving to another port.
+`strictPort: true` is enabled for Custom Shell so it fails instead of silently moving to another port. Custom Shell uses TanStack Start for its UI and backend, so there is no separate Python API dev server.
 
 ## Local Helper Commands
 

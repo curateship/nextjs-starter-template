@@ -59,14 +59,13 @@ function getNavLinkProps(
     href.startsWith("http://") ||
     href.startsWith("https://") ||
     href.startsWith("mailto:")
-  const usesRealNavigation = isExternal || href.startsWith("#")
 
   return {
-    href: usesRealNavigation ? href : "#",
+    href,
     target: isExternal ? "_blank" : undefined,
     rel: isExternal ? "noreferrer" : undefined,
     onClick: (event: React.MouseEvent<HTMLAnchorElement>) => {
-      if (!usesRealNavigation) {
+      if (!isExternal) {
         event.preventDefault()
         onNavigate?.(href)
       }

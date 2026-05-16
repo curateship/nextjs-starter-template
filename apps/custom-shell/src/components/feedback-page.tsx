@@ -236,7 +236,7 @@ export function FeedbackPage({
         </CardContent>
 
         <CardContent className="overflow-x-auto">
-          <Table>
+          <Table className="[&_tr]:border-0">
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
                 <TableHead className="min-w-[260px] text-xs font-medium text-muted-foreground sm:text-sm">
@@ -335,7 +335,7 @@ export function FeedbackPage({
           </Table>
         </CardContent>
 
-        <CardFooter className="flex-col justify-between gap-3 sm:flex-row">
+        <CardFooter className="flex-col justify-between gap-3 border-t-0 sm:flex-row">
           <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <span className="hidden sm:inline">Rows per page:</span>
             <Select

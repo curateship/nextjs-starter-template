@@ -1,12 +1,20 @@
-# React + TypeScript + Vite + shadcn/ui
+# Custom Shell
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
+Custom Shell is a TanStack Start app with React, TypeScript, shadcn/ui, server functions, and server routes in one workspace.
+
+## Development
+
+```bash
+npm run dev --workspace=custom-shell
+```
+
+The local app runs at `http://localhost:3002`.
 
 ## Media Library Storage
 
-Media uploads are stored by `custom-shell-api` in a private Cloudflare R2 bucket.
+Media uploads are stored by the TanStack server runtime in a private Cloudflare R2 bucket.
 
-Set these in `services/custom-shell-api/.env`:
+Set these in the app's server environment:
 
 ```bash
 CUSTOM_SHELL_R2_ACCOUNT_ID=""
@@ -15,7 +23,7 @@ CUSTOM_SHELL_R2_SECRET_ACCESS_KEY=""
 CUSTOM_SHELL_R2_BUCKET_NAME="custom-shell-media"
 ```
 
-Do not put R2 secrets in `apps/custom-shell/.env`; that file is for browser-visible Vite settings.
+These are server-only secrets. Do not expose them with a `VITE_` prefix.
 
 ## Adding components
 

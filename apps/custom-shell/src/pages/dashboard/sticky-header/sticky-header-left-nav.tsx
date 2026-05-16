@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useNavigate } from "@tanstack/react-router"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -18,13 +19,12 @@ type StickyHeaderLeftNavProps = {
   navLinks: StickyHeaderLeftNavLink[]
 }
 
-function shouldUseAnchor(href?: string) {
+function isExternalHref(href?: string) {
   if (!href) {
     return false
   }
 
   return (
-    href.startsWith("#") ||
     href.startsWith("http://") ||
     href.startsWith("https://") ||
     href.startsWith("mailto:")
@@ -35,6 +35,7 @@ export function StickyHeaderLeftNav({
   navLinks,
 }: StickyHeaderLeftNavProps) {
   const isMobile = useIsMobile()
+  const navigate = useNavigate()
 
   if (!navLinks.length) {
     return null
@@ -43,14 +44,20 @@ export function StickyHeaderLeftNav({
   return (
     <div className="inline-flex h-8 items-center rounded-md gap-1">
       {navLinks.map((link) =>
-        shouldUseAnchor(link.href) ? (
+        link.href ? (
           <a
             key={`${link.href}-${link.label}`}
             href={link.href}
-            target={link.external ? "_blank" : undefined}
-            rel={link.external ? "noreferrer" : undefined}
+            target={link.external || isExternalHref(link.href) ? "_blank" : undefined}
+            rel={link.external || isExternalHref(link.href) ? "noreferrer" : undefined}
             aria-label={isMobile ? link.label : undefined}
-            onClick={link.onClick as React.MouseEventHandler<HTMLAnchorElement> | undefined}
+            onClick={(event) => {
+              link.onClick?.(event)
+              if (!isExternalHref(link.href)) {
+                event.preventDefault()
+                navigate({ href: link.href })
+              }
+            }}
             title={isMobile ? link.label : undefined}
             className={cn(
               "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
