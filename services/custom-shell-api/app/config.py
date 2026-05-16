@@ -23,6 +23,10 @@ class RawSettings(BaseSettings):
     database_url: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_DATABASE_URL")
     app_origins: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_APP_ORIGINS")
     session_ttl_hours: int = Field(default=12, validation_alias="CUSTOM_SHELL_SESSION_TTL_HOURS")
+    r2_account_id: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_R2_ACCOUNT_ID")
+    r2_access_key_id: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_R2_ACCESS_KEY_ID")
+    r2_secret_access_key: Optional[str] = Field(default=None, validation_alias="CUSTOM_SHELL_R2_SECRET_ACCESS_KEY")
+    r2_bucket_name: str = Field(default="custom-shell-media", validation_alias="CUSTOM_SHELL_R2_BUCKET_NAME")
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,10 @@ class Settings:
     database_url: str
     app_origins: tuple[str, ...]
     session_ttl_hours: int
+    r2_account_id: Optional[str]
+    r2_access_key_id: Optional[str]
+    r2_secret_access_key: Optional[str]
+    r2_bucket_name: str
 
 
 @lru_cache
@@ -51,6 +59,10 @@ def get_settings() -> Settings:
         ),
         app_origins=_resolve_app_origins(raw.environment, app_origins),
         session_ttl_hours=raw.session_ttl_hours,
+        r2_account_id=raw.r2_account_id,
+        r2_access_key_id=raw.r2_access_key_id,
+        r2_secret_access_key=raw.r2_secret_access_key,
+        r2_bucket_name=raw.r2_bucket_name,
     )
 
 

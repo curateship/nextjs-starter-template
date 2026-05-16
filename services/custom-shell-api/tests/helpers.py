@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ from app.db import Base, get_engine, get_session_factory
 from app.models import (
     CustomShellFeedback,
     CustomShellFeedbackVote,
+    CustomShellMedia,
     CustomShellSession,
     CustomShellSettings,
     CustomShellUser,
@@ -19,12 +21,18 @@ APP_ORIGIN = "http://127.0.0.1:3002"
 
 class DatabaseTestCase(unittest.TestCase):
     def setUp(self):
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.temp_db.close()
         self.env_patch = patch.dict(
             os.environ,
             {
                 "CUSTOM_SHELL_API_ENV": "development",
-                "CUSTOM_SHELL_DATABASE_URL": "postgresql+psycopg://postgres:localdev@localhost:54320/postgres",
+                "CUSTOM_SHELL_DATABASE_URL": f"sqlite:///{self.temp_db.name}",
                 "CUSTOM_SHELL_APP_ORIGINS": "http://127.0.0.1:3002,http://localhost:3002",
+                "CUSTOM_SHELL_R2_ACCOUNT_ID": "test-account",
+                "CUSTOM_SHELL_R2_ACCESS_KEY_ID": "test-key",
+                "CUSTOM_SHELL_R2_SECRET_ACCESS_KEY": "test-secret",
+                "CUSTOM_SHELL_R2_BUCKET_NAME": "test-bucket",
             },
             clear=True,
         )
@@ -39,6 +47,7 @@ class DatabaseTestCase(unittest.TestCase):
         _login_failures.clear()
         reset_settings()
         self.env_patch.stop()
+        os.unlink(self.temp_db.name)
 
 
 def reset_settings() -> None:
@@ -54,6 +63,7 @@ def clear_settings() -> None:
     try:
         db.query(CustomShellFeedbackVote).delete()
         db.query(CustomShellFeedback).delete()
+        db.query(CustomShellMedia).delete()
         db.query(CustomShellSession).delete()
         db.query(CustomShellUser).delete()
         db.query(CustomShellSettings).delete()

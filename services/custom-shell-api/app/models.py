@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
@@ -94,3 +95,26 @@ class CustomShellFeedbackVote(Base):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CustomShellMedia(Base):
+    __tablename__ = "custom_shell_media"
+    __table_args__ = (
+        CheckConstraint("file_type in ('image', 'video')", name="custom_shell_media_file_type_check"),
+        Index("ix_custom_shell_media_user_type_created", "user_id", "file_type", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("custom_shell_users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    original_name: Mapped[str] = mapped_column(String(255))
+    alt_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_size: Mapped[int] = mapped_column(BigInteger)
+    mime_type: Mapped[str] = mapped_column(String(255))
+    file_type: Mapped[str] = mapped_column(String(20), index=True)
+    storage_path: Mapped[str] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

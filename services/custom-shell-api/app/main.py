@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import Base, get_engine
-from app.routes import auth, feedback, shell_settings
+from app.routes import auth, feedback, media, shell_settings
 
 
 @asynccontextmanager
@@ -27,8 +27,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=list(settings.app_origins),
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Range"],
     )
 
     @app.get("/healthz")
@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(feedback.router)
+    app.include_router(media.router)
     app.include_router(shell_settings.router)
 
     return app

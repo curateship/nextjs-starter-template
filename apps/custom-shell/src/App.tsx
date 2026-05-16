@@ -4,6 +4,10 @@ import { Dashboard2Content } from "@/components/dashboard2"
 import { DashboardContent } from "@/components/demo/dashboard-content"
 import { FeedbackModal } from "@/components/feedback-modal"
 import { FeedbackPage } from "@/components/feedback-page"
+import {
+  getMediaTabFromPath,
+  MediaLibraryPage,
+} from "@/components/media-library-page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,6 +20,7 @@ import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import {
   createDefaultShellConfig,
+  ensureDefaultShellNavigation,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
@@ -176,7 +181,7 @@ export function App() {
         setSettingsError(null)
         if (settings) {
           const fallback = createDefaultShellConfig()
-          setConfig({
+          setConfig(ensureDefaultShellNavigation({
             appName: settings.appName ?? fallback.appName,
             workspaceName: settings.workspaceName ?? fallback.workspaceName,
             workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
@@ -186,7 +191,7 @@ export function App() {
             sections: Array.isArray(settings.sections)
               ? settings.sections
               : fallback.sections,
-          })
+          }))
         }
       })
       .catch((error) => {
@@ -275,6 +280,8 @@ export function App() {
     currentPath === "/admin/settings" ||
     currentPath.startsWith("/admin/settings/")
   const isFeedbackRoute = currentPath === "/admin/feedback"
+  const isMediaRoute =
+    currentPath === "/admin/media" || currentPath.startsWith("/admin/media/")
 
   if (authStatus === "loading") {
     return <div className="min-h-screen bg-background" />
@@ -356,6 +363,9 @@ export function App() {
                   refreshToken={feedbackRefreshToken}
                   onOpenFeedback={() => setFeedbackOpen(true)}
                 />
+              ) : null}
+              {isMediaRoute ? (
+                <MediaLibraryPage activeTab={getMediaTabFromPath(currentPath)} />
               ) : null}
             </DashboardContent>
           )}

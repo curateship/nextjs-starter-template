@@ -34,6 +34,7 @@ IconKey = Literal[
 ]
 
 FeedbackType = Literal["suggestion", "bug_report", "question", "praise"]
+MediaFileType = Literal["image", "video"]
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -127,3 +128,36 @@ class FeedbackOut(BaseModel):
 
 class FeedbackListOut(BaseModel):
     feedback: list[FeedbackOut]
+
+
+class MediaOut(BaseModel):
+    id: str
+    filename: str
+    original_name: str
+    alt_text: Optional[str]
+    file_size: int
+    mime_type: str
+    file_type: MediaFileType
+    url: str
+    created_at: str
+    updated_at: str
+
+
+class MediaListOut(BaseModel):
+    media: list[MediaOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class MediaUpdateIn(StrictModel):
+    alt_text: Optional[str] = None
+
+
+class MediaBulkDeleteIn(StrictModel):
+    ids: list[str] = Field(min_length=1, max_length=100)
+
+
+class MediaBulkDeleteOut(BaseModel):
+    deleted_count: int
