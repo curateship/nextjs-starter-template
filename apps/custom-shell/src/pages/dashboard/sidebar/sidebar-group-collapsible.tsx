@@ -143,7 +143,7 @@ export function SidebarCollapsible({
                     <CollapsibleTrigger asChild>
                       <button
                         type="button"
-                        className="rounded-md p-2 transition-colors hover:bg-transparent"
+                        className="rounded-md p-2 opacity-0 transition-[opacity,color] hover:bg-transparent group-hover/collapsible:opacity-100 focus-visible:opacity-100"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <ChevronRight className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
