@@ -4,6 +4,7 @@ import * as React from "react"
 import { MessageSquarePlusIcon, Moon, Sun } from "lucide-react"
 
 import { useTheme } from "@/pages/dashboard/sticky-header/light-dark-switcher"
+import { NotificationCenter } from "@/pages/dashboard/sticky-header/notification-center"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -62,6 +63,7 @@ export function StickyHeaderRightNav({
         </Button>
       ) : null}
       <ThemeToggle />
+      <NotificationCenter />
     </div>
   )
 }
