@@ -57,6 +57,10 @@ function normalizeSteps(steps: unknown): StepItem[] {
   })
 }
 
+function isVideoUrl(url: string) {
+  return /\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i.test(url)
+}
+
 function StepLine({ number }: { number: number }) {
   return (
     <div className="relative flex w-10 shrink-0 justify-center self-stretch">
@@ -110,11 +114,23 @@ export function Product3StepsFeatureBlock({
               </div>
 
               {showImage ? (
-                <img
-                  src={step.image}
-                  alt={step.title}
-                  className="z-10 h-72 w-full rounded-xl border object-cover min-[960px]:h-80"
-                />
+                isVideoUrl(step.image) ? (
+                  <video
+                    src={`/api/media/proxy?url=${encodeURIComponent(step.image)}`}
+                    className="z-10 h-72 w-full rounded-xl border object-cover min-[960px]:h-80"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="auto"
+                  />
+                ) : (
+                  <img
+                    src={step.image}
+                    alt={step.title}
+                    className="z-10 h-72 w-full rounded-xl border object-cover min-[960px]:h-80"
+                  />
+                )
               ) : null}
             </div>
           )

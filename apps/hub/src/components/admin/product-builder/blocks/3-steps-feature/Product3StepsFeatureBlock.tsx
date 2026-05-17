@@ -4,7 +4,7 @@ import { useState } from "react"
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, ImageIcon } from "lucide-react"
+import { GripVertical, ImageIcon, Play } from "lucide-react"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -68,6 +68,10 @@ function normalizeSteps(steps: unknown): StepItem[] {
   })
 }
 
+function isVideoUrl(url: string) {
+  return /\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i.test(url)
+}
+
 function SortableStepItem({
   step,
   index,
@@ -116,7 +120,23 @@ function SortableStepItem({
               className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-dashed bg-muted/30 transition-colors hover:border-muted-foreground/60"
             >
               {step.image ? (
-                <img src={step.image} alt={step.title} className="h-full w-full object-cover" />
+                isVideoUrl(step.image) ? (
+                  <div className="relative h-full w-full bg-black">
+                    <video
+                      src={`/api/media/proxy?url=${encodeURIComponent(step.image)}`}
+                      className="h-full w-full object-cover"
+                      muted
+                      preload="metadata"
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="rounded-full bg-black/60 p-2">
+                        <Play className="h-3 w-3 fill-white text-white" />
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <img src={step.image} alt={step.title} className="h-full w-full object-cover" />
+                )
               ) : (
                 <ImageIcon className="h-5 w-5 text-muted-foreground" />
               )}
@@ -316,7 +336,7 @@ export function Product3StepsFeatureBlock({
           setImagePickerIndex(null)
         }}
         currentMediaUrl={imagePickerIndex !== null ? steps[imagePickerIndex]?.image : undefined}
-        showVideos={false}
+        showVideos={true}
         site_id={siteId}
       />
     </>
