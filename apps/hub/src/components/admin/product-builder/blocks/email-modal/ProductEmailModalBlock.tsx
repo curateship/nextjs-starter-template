@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,15 +15,27 @@ import { normalizeProductEmailModalContent } from "@/lib/actions/products/email-
 interface ProductEmailModalBlockProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
+  siteId: string
+  blockId: string
   onBack?: () => void
 }
 
 export function ProductEmailModalBlock({
   content,
   onContentChange,
+  siteId,
+  blockId,
   onBack,
 }: ProductEmailModalBlockProps) {
   const normalizedContent = useMemo(() => normalizeProductEmailModalContent(content), [content])
+  const deliveryEditorContent = useMemo(() => ({
+    ...normalizedContent,
+    htmlContent: normalizedContent.deliveryEmailBody,
+  }), [normalizedContent])
+
+  const handleDeliveryBodyChange = useCallback((htmlContent: string) => {
+    onContentChange("deliveryEmailBody", htmlContent)
+  }, [onContentChange])
 
   return (
     <BlockTabs
@@ -106,6 +119,26 @@ export function ProductEmailModalBlock({
                     placeholder="Thanks for subscribing."
                   />
                 </div>
+              </CardContent>
+            </Card>
+          ),
+        },
+        {
+          value: "delivery-email",
+          label: "Delivery Email",
+          content: (
+            <Card>
+              <CardContent>
+                <InlineRichTextEditor
+                  blockId={`${blockId}-delivery-email`}
+                  content={deliveryEditorContent}
+                  onContentChange={handleDeliveryBodyChange}
+                  siteId={siteId}
+                  isActive
+                  editorPadding={0}
+                  variant="product"
+                  placeholder="Enter email delivery text"
+                />
               </CardContent>
             </Card>
           ),

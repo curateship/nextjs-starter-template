@@ -9,6 +9,7 @@ export type SystemEmailTemplateKey =
   | 'email_verification'
   | 'email_change_confirmation'
   | 'lead_magnet_delivery'
+  | 'product_email_modal_delivery'
   | 'paid_purchase_delivery'
   | 'welcome_email'
 
@@ -55,6 +56,7 @@ export const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'email_verification',
   'email_change_confirmation',
   'lead_magnet_delivery',
+  'product_email_modal_delivery',
   'paid_purchase_delivery',
   'welcome_email',
 ]
@@ -122,6 +124,17 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
       subject: 'Your {{product_name}} is ready',
       bodyHtml: '<p>Your {{product_name}} is ready.</p>{{product_delivery_email}}',
       tokens: ['{{product_name}}', '{{product_delivery_email}}', '{{site_name}}', '{{site_url}}', '{{product_url}}'],
+    }
+  }
+
+  if (templateKey === 'product_email_modal_delivery') {
+    return {
+      name: 'Product Email Modal Delivery',
+      description: 'Sent after someone subscribes through a product email modal.',
+      scopeLabel: 'Current Site',
+      subject: 'Here is {{product_name}}',
+      bodyHtml: '<p>Thanks for your interest in {{product_name}}.</p>{{product_delivery_email}}',
+      tokens: ['{{product_name}}', '{{product_delivery_email}}', '{{site_name}}', '{{site_url}}', '{{product_url}}', '{{subscriber_email}}'],
     }
   }
 
@@ -225,16 +238,17 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, paidPurchase, welcomeEmail] = await Promise.all([
+  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, welcomeEmail] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('email_change_confirmation'),
     getSystemEmailTemplate('lead_magnet_delivery', siteId),
+    getSystemEmailTemplate('product_email_modal_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
     getSystemEmailTemplate('welcome_email', siteId),
   ])
 
-  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, paidPurchase, welcomeEmail].map((template) => {
+  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, welcomeEmail].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,

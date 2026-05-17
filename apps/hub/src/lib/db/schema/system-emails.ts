@@ -7,6 +7,7 @@ export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum
   'email_verification',
   'email_change_confirmation',
   'lead_magnet_delivery',
+  'product_email_modal_delivery',
   'paid_purchase_delivery',
   'welcome_email',
 ])

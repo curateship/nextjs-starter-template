@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 
+import { getEmailProvider } from '@/lib/actions/email/provider'
+import {
+  buildSystemEmailTokens,
+  getSystemEmailTemplate,
+  renderSystemEmailContent,
+  renderSystemEmailSubject,
+} from '@/lib/actions/email/system-email'
+import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { upsertSystemNewsletterContact } from '@/lib/actions/newsletters/system-contact-sync'
-import { PRODUCT_EMAIL_MODAL_CONTACT_SOURCE } from '@/lib/actions/products/email-modal'
+import {
+  normalizeProductEmailModalContent,
+  PRODUCT_EMAIL_MODAL_CONTACT_SOURCE,
+  renderProductEmailModalTokens,
+} from '@/lib/actions/products/email-modal'
 import { db } from '@/lib/db'
 import { products, sites } from '@/lib/db/schema'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
+import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
 import { getClientIp } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
@@ -100,6 +113,7 @@ export async function POST(request: NextRequest) {
         id: products.id,
         siteId: products.siteId,
         title: products.title,
+        slug: products.slug,
         contentBlocks: products.contentBlocks,
       })
       .from(products)
@@ -123,6 +137,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Email modal not found' }, { status: 404 })
     }
 
+    const blockContent = normalizeProductEmailModalContent(emailModalBlock.content)
+
     const result = await upsertSystemNewsletterContact({
       siteId,
       email,
@@ -138,6 +154,39 @@ export async function POST(request: NextRequest) {
 
     if (result.error) {
       return NextResponse.json({ success: false, error: 'Failed to subscribe' }, { status: 500 })
+    }
+
+    const config = await getEmailConfig(siteId)
+    if (!config?.apiKey || !config.fromEmail) {
+      console.error('Skipping product email modal delivery email: email is not configured for site', siteId)
+      return NextResponse.json({ success: false, error: 'Delivery email unavailable' }, { status: 500 })
+    }
+
+    const productDeliveryEmail = sanitizeRichMediaHtml(
+      renderProductEmailModalTokens(blockContent.deliveryEmailBody, product.title, { html: true })
+    ).trim()
+    const template = await getSystemEmailTemplate('product_email_modal_delivery', siteId)
+    const tokens = await buildSystemEmailTokens({
+      siteId,
+      productId: product.id,
+      productName: product.title,
+      productSlug: product.slug,
+      productDeliveryEmail,
+      subscriberEmail: email,
+    })
+    const fromName = template.from_name || config.fromName
+    const provider = getEmailProvider(config.apiKey, config.providerType)
+    const emailResult = await provider.send({
+      from: fromName ? `${fromName} <${config.fromEmail}>` : config.fromEmail,
+      to: email,
+      subject: renderSystemEmailSubject(template.subject, tokens),
+      html: renderSystemEmailContent(template, tokens),
+      replyTo: template.reply_to || undefined,
+    })
+
+    if (!emailResult.success) {
+      console.error('Product email modal delivery email failed:', emailResult.error)
+      return NextResponse.json({ success: false, error: 'Delivery email failed' }, { status: 502 })
     }
 
     return NextResponse.json({ success: true })

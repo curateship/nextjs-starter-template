@@ -534,6 +534,8 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                         <ProductEmailModalBlock
                           content={draftContent}
                           onContentChange={handleDraftChange}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
                         />
                       )}
 

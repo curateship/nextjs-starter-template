@@ -442,6 +442,8 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                         <ProductEmailModalBlock
                           content={draftContent}
                           onContentChange={handleDraftChange}
+                          siteId={siteId}
+                          blockId={selectedBlock.id}
                         />
                       )}
 

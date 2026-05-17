@@ -10,6 +10,7 @@ export const PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT = {
   submitButtonText: 'Subscribe',
   dismissButtonText: 'Maybe Later',
   successMessage: 'Thanks for subscribing.',
+  deliveryEmailBody: '',
   openOnScroll: true,
   visibility: {},
 }
@@ -30,7 +31,30 @@ export function normalizeProductEmailModalContent(content?: Record<string, any> 
     submitButtonText: typeof source.submitButtonText === 'string' ? source.submitButtonText : PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT.submitButtonText,
     dismissButtonText: typeof source.dismissButtonText === 'string' ? source.dismissButtonText : PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT.dismissButtonText,
     successMessage: typeof source.successMessage === 'string' ? source.successMessage : PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT.successMessage,
+    deliveryEmailBody: typeof source.deliveryEmailBody === 'string' ? source.deliveryEmailBody : PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT.deliveryEmailBody,
     openOnScroll: typeof source.openOnScroll === 'boolean' ? source.openOnScroll : PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT.openOnScroll,
     visibility,
   }
+}
+
+function escapeHtml(value: string) {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  }
+  return value.replace(/[&<>"']/g, (char) => map[char])
+}
+
+export function renderProductEmailModalTokens(
+  value: string | undefined,
+  productTitle: string,
+  options: { html?: boolean } = {},
+) {
+  if (!value) return ''
+
+  const title = options.html ? escapeHtml(productTitle) : productTitle
+  return value.replaceAll('{{product_name}}', title)
 }
