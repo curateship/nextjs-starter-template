@@ -65,23 +65,37 @@ export function PostBlockRenderer({
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
+  const isBlockHidden = (block: PostRendererBlock) => block.content?.visibility?.hideBlock === true
+  const getBlockContent = (block: PostRendererBlock) => {
+    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+
+    return {
+      ...block.content,
+      visibility: {
+        ...block.content.visibility,
+        hideBlock: false,
+      },
+    }
+  }
   
   // Sort post blocks by display_order (force numerical sorting)
   const sortedBlocks = [...postBlocks]
     .sort((a, b) => Number(a.display_order) - Number(b.display_order))
     .filter((block) => SUPPORTED_POST_BLOCK_TYPES.includes(block.type))
+  const visibleBlocks = (isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block)))
+    .map((block) => ({ ...block, content: getBlockContent(block) }))
   
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom'
   const customWidth = site.settings?.custom_width
   const publicSite = toPublicSiteClientProps(site)
-  const mainBlocks = sortedBlocks.filter((block) => getPostLayoutColumn(block) === 'main')
-  const sidebarBlocks = sortedBlocks.filter((block) => getPostLayoutColumn(block) === 'sidebar')
+  const mainBlocks = visibleBlocks.filter((block) => getPostLayoutColumn(block) === 'main')
+  const sidebarBlocks = visibleBlocks.filter((block) => getPostLayoutColumn(block) === 'sidebar')
   const isStickyBlock = (block: typeof sortedBlocks[number]) =>
     block.type === 'table-of-contents' && block.content?.sticky !== false
   const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
   const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
-  const tableOfContents = preparePostTableOfContents(sortedBlocks)
+  const tableOfContents = preparePostTableOfContents(visibleBlocks)
   const outerContainerStyle = siteWidth === 'custom'
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined

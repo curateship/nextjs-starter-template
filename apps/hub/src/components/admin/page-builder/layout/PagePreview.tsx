@@ -50,9 +50,8 @@ export function PagePreview({
   const previewSite = createPreviewSite(blocks, site)
   const siteChrome = resolveSiteChrome(site?.settings)
   const hasRenderablePreview = blocks.length > 0 || !!siteChrome.navigation || !!siteChrome.footer
-  const visibleBlocks = blocks.filter((block) => block.content?.visibility?.hideBlock !== true)
   const navigationBackgroundColor = siteChrome.navigation
-    ? getHeroNavigationBackgroundColor(visibleBlocks)
+    ? getHeroNavigationBackgroundColor(blocks)
     : undefined
   const canInlineEdit = Boolean(onUpdateRichTextBody && onSelectBlock)
 

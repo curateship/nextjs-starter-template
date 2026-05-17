@@ -65,9 +65,22 @@ function EventContentStyled({
 export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
   const siteChrome = resolveSiteChrome(site.settings)
+  const isBlockHidden = (block: typeof eventBlocks[number]) => block.content?.visibility?.hideBlock === true
+  const getBlockContent = (block: typeof eventBlocks[number]) => {
+    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+
+    return {
+      ...block.content,
+      visibility: {
+        ...block.content.visibility,
+        hideBlock: false,
+      },
+    }
+  }
 
   // Sort event blocks by display_order
   const sortedBlocks = eventBlocks.sort((a, b) => a.display_order - b.display_order)
+  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
@@ -78,12 +91,14 @@ export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = 
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
         <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {/* Event Blocks */}
-        {sortedBlocks.map((block) => {
+        {visibleBlocks.map((block) => {
+          const blockContent = getBlockContent(block)
+
           if (block.type === 'event-content') {
             return (
               <div key={`event-content-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
               <EventContentStyled
-                block={block}
+                block={{ ...block, content: blockContent }}
                 event={event}
                 siteWidth={siteWidth}
                 customWidth={customWidth}

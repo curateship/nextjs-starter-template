@@ -38,6 +38,17 @@ export function BlockRenderer({
   const siteChrome = resolveSiteChrome(site.settings)
 
   const isBlockHidden = (block: typeof blocks[number]) => block.content?.visibility?.hideBlock === true
+  const getBlockContent = (block: typeof blocks[number]) => {
+    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+
+    return {
+      ...block.content,
+      visibility: {
+        ...block.content.visibility,
+        hideBlock: false,
+      },
+    }
+  }
 
   // Sort blocks by display_order with proper type handling
   const sortedBlocks = [...blocks].sort((a, b) => {
@@ -46,7 +57,7 @@ export function BlockRenderer({
     return orderA - orderB
   })
 
-  const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
+  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
   const navigationBackgroundColor = getHeroNavigationBackgroundColor(visibleBlocks)
   const navigation = siteChrome.navigation || undefined
   const footer = siteChrome.footer || undefined
@@ -71,11 +82,13 @@ export function BlockRenderer({
         navigationBackgroundColor={navigationBackgroundColor}
       >
       {visibleBlocks.map((block) => {
+        const blockContent = getBlockContent(block)
+
         if (block.type === 'hero') {
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <PageHeroBlock
-                {...block.content}
+                {...blockContent}
                 siteId={site.id}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
@@ -85,13 +98,13 @@ export function BlockRenderer({
         }
 
         if (block.type === 'rich-text') {
-          const bodyHtml = typeof block.content.body === 'string'
-            ? block.content.body
-            : typeof block.content.content === 'string'
-              ? block.content.content
+          const bodyHtml = typeof blockContent.body === 'string'
+            ? blockContent.body
+            : typeof blockContent.content === 'string'
+              ? blockContent.content
               : ''
-          const visibility = block.content?.visibility && typeof block.content.visibility === 'object'
-            ? block.content.visibility as Record<string, boolean>
+          const visibility = blockContent?.visibility && typeof blockContent.visibility === 'object'
+            ? blockContent.visibility as Record<string, boolean>
             : {}
 
           if (visibility.body === false || (!renderRichTextBody && !bodyHtml.trim())) {
@@ -109,7 +122,7 @@ export function BlockRenderer({
             >
               {renderBlockOverlay?.(block)}
               <RichTextBlock
-                content={block.content}
+                content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               >
@@ -123,7 +136,7 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <FaqBlock
-                content={block.content}
+                content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
@@ -136,7 +149,7 @@ export function BlockRenderer({
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <Suspense>
                 <ListingViewsBlock
-                  content={block.content}
+                  content={blockContent}
                   siteId={site.id}
                   urlPrefixes={{
                     products: 'products',
@@ -155,7 +168,7 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <DividerBlock
-                content={block.content}
+                content={blockContent}
               />
             </div>
           )
@@ -166,7 +179,7 @@ export function BlockRenderer({
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <Suspense>
                 <AuthBlock
-                  {...block.content}
+                  {...blockContent}
                 />
               </Suspense>
             </div>
@@ -177,7 +190,7 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <TestimonialsBlock
-                content={block.content}
+                content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
@@ -189,7 +202,7 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <EmbeddedBlock
-                content={block.content}
+                content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />
@@ -203,7 +216,7 @@ export function BlockRenderer({
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <AccountEditProfileBlock
-                content={block.content}
+                content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
                 isPreview={isPreview}
@@ -219,7 +232,7 @@ export function BlockRenderer({
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <AccountClaimedListingsBlock
                 siteId={site.id}
-                content={block.content}
+                content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
                 isPreview={isPreview}

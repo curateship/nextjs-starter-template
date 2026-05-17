@@ -64,6 +64,18 @@ export function DirectoryBlockRenderer({
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
+  const isBlockHidden = (block: DirectoryWithBlocks["blocks"][number]) => block.content?.visibility?.hideBlock === true
+  const getBlockContent = (block: DirectoryWithBlocks["blocks"][number]) => {
+    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+
+    return {
+      ...block.content,
+      visibility: {
+        ...block.content.visibility,
+        hideBlock: false,
+      },
+    }
+  }
 
   // Sort directory blocks by display_order
   const sortedBlocks = [...directoryBlocks]
@@ -83,13 +95,14 @@ export function DirectoryBlockRenderer({
           }
         : block
     ))
+  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
   const publicSite = toPublicSiteClientProps(site)
-  const mainBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main')
-  const sidebarBlocks = sortedBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar')
+  const mainBlocks = visibleBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main')
+  const sidebarBlocks = visibleBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar')
   const outerContainerStyle = siteWidth === 'custom'
     ? { maxWidth: `${customWidth || 1152}px` }
     : undefined
@@ -118,15 +131,13 @@ export function DirectoryBlockRenderer({
   }
 
   function renderDirectoryBlock(block: DirectoryWithBlocks["blocks"][number]) {
-    if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
-      if (block.content?.visibility?.hideBlock === true) {
-        return null
-      }
+    const blockContent = getBlockContent(block)
 
+    if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
       return (
         <DirectoryCoreBlock
           key={`directory-core-${block.id}`}
-          content={block.content}
+          content={blockContent}
           directory={directory}
           claimAuthPath={claimAuthPath}
           cardProps={getBlockCardProps(block, "overflow-hidden")}
@@ -135,12 +146,12 @@ export function DirectoryBlockRenderer({
     }
 
     if (block.type === 'directory-rich-text') {
-      const bodyHtml = typeof block.content?.body === 'string' ? block.content.body : ''
-      const visibility = block.content?.visibility && typeof block.content.visibility === 'object'
-        ? block.content.visibility as Record<string, boolean>
+      const bodyHtml = typeof blockContent?.body === 'string' ? blockContent.body : ''
+      const visibility = blockContent?.visibility && typeof blockContent.visibility === 'object'
+        ? blockContent.visibility as Record<string, boolean>
         : {}
 
-      if (!renderRichTextBody && (visibility.hideBlock === true || visibility.body === false || !bodyHtml.trim())) {
+      if (!renderRichTextBody && (visibility.body === false || !bodyHtml.trim())) {
         return null
       }
 
@@ -149,7 +160,7 @@ export function DirectoryBlockRenderer({
       return (
         <DirectoryRichTextBlock
           key={`directory-rich-text-${block.id}`}
-          content={block.content}
+          content={blockContent}
           cardOverlay={renderBlockOverlay?.(block)}
           cardProps={getBlockCardProps(block, "relative group/directory-preview-block")}
         >
@@ -159,7 +170,7 @@ export function DirectoryBlockRenderer({
     }
 
     if (block.type === 'directory-custom') {
-      const templateId = block.content?.templateId
+      const templateId = blockContent?.templateId
       const template = typeof templateId === 'string' ? customBlockTemplates[templateId] : undefined
 
       if (!template) {
@@ -170,7 +181,7 @@ export function DirectoryBlockRenderer({
         <DirectoryCustomBlockSection
           key={`directory-custom-${block.id}`}
           template={template}
-          values={block.content?.values && typeof block.content.values === 'object' ? block.content.values : {}}
+          values={blockContent?.values && typeof blockContent.values === 'object' ? blockContent.values : {}}
           cardProps={getBlockCardProps(block)}
         />
       )
@@ -180,7 +191,7 @@ export function DirectoryBlockRenderer({
       return (
         <DirectoryGoogleMapBlock
           key={`directory-google-map-${block.id}`}
-          content={block.content}
+          content={blockContent}
           isPreview={isPreview}
           apiKey={googleMapsEmbedApiKey}
           cardProps={getBlockCardProps(block)}
@@ -192,7 +203,7 @@ export function DirectoryBlockRenderer({
       return (
         <DirectoryOpeningHoursBlock
           key={`directory-opening-hours-${block.id}`}
-          content={block.content}
+          content={blockContent}
           isPreview={isPreview}
           siteId={isPreview ? site.id : undefined}
           cardProps={getBlockCardProps(block)}

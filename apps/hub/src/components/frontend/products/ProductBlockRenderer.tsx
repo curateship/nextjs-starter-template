@@ -41,10 +41,21 @@ export function ProductBlockRenderer({
   const siteChrome = resolveSiteChrome(site.settings)
   
   const isBlockHidden = (block: typeof productBlocks[number]) => block.content?.visibility?.hideBlock === true
+  const getBlockContent = (block: typeof productBlocks[number]) => {
+    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+
+    return {
+      ...block.content,
+      visibility: {
+        ...block.content.visibility,
+        hideBlock: false,
+      },
+    }
+  }
   
   // Sort product blocks by display_order
   const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
-  const visibleBlocks = sortedBlocks.filter((block) => !isBlockHidden(block))
+  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
   
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
@@ -57,11 +68,13 @@ export function ProductBlockRenderer({
       <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth as 'full' | 'custom'} customWidth={customWidth} />
       
       {visibleBlocks.map((block) => {
+        const blockContent = getBlockContent(block)
+
         if (block.type === 'product-hero') {
           return (
             <div key={`product-hero-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductHeroBlock
-              {...block.content}
+              {...blockContent}
               siteWidth={siteWidth as 'full' | 'custom'}
               customWidth={customWidth}
             />
@@ -73,7 +86,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-features-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductFeaturesBlock
-              {...block.content}
+              {...blockContent}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
@@ -85,7 +98,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-3-steps-feature-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <Product3StepsFeatureBlock
-              content={block.content as any}
+              content={blockContent as any}
               siteWidth={siteWidth as 'full' | 'custom'}
               customWidth={customWidth}
             />
@@ -97,7 +110,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-hotspot-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductHotspotBlock
-              {...block.content}
+              {...blockContent}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
@@ -106,7 +119,7 @@ export function ProductBlockRenderer({
         }
 
         if (block.type === 'product-checkout') {
-          const tiers = block.content.productPricingTiers || []
+          const tiers = blockContent.productPricingTiers || []
 
           // Transform admin tier structure to frontend tier structure
           const transformedTiers = tiers.map((tier: any) => ({
@@ -128,13 +141,13 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-checkout-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductCheckoutBlock
-              header={block.content.header}
-              subheader={block.content.subheader}
-              headerAlign={block.content.headerAlign}
+              header={blockContent.header}
+              subheader={blockContent.subheader}
+              headerAlign={blockContent.headerAlign}
               pricingTiers={transformedTiers}
-              checkoutSettings={block.content.checkoutSettings}
+              checkoutSettings={blockContent.checkoutSettings}
               productSlug={product.slug}
-              visibility={block.content.visibility}
+              visibility={blockContent.visibility}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
@@ -143,10 +156,10 @@ export function ProductBlockRenderer({
         }
 
         if (block.type === 'product-lead-magnet') {
-          const bodyHtml = typeof block.content.body === 'string'
-            ? block.content.body
-            : typeof block.content.content === 'string'
-              ? block.content.content
+          const bodyHtml = typeof blockContent.body === 'string'
+            ? blockContent.body
+            : typeof blockContent.content === 'string'
+              ? blockContent.content
               : ''
           const inlineBody = renderLeadMagnetBody?.(block, bodyHtml)
 
@@ -159,7 +172,7 @@ export function ProductBlockRenderer({
             >
             {renderBlockOverlay?.(block)}
             <ProductLeadMagnetBlock
-              content={block.content as any}
+              content={blockContent as any}
               siteId={site.id}
               productId={product.id}
               blockId={block.id}
@@ -180,7 +193,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-email-modal-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
               <ProductEmailModalBlock
-                content={block.content as any}
+                content={blockContent as any}
                 siteId={site.id}
                 productId={product.id}
                 blockId={block.id}
@@ -194,7 +207,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-just-bought-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
               <ProductJustBoughtBlock
-                content={block.content as any}
+                content={blockContent as any}
                 productTitle={product.title}
               />
             </div>
@@ -205,7 +218,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-faq-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductFAQBlock
-              content={block.content as any}
+              content={blockContent as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
@@ -217,7 +230,7 @@ export function ProductBlockRenderer({
           return (
             <div key={`product-testimonials-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <ProductTestimonialsBlock
-              content={block.content as any}
+              content={blockContent as any}
               siteWidth={siteWidth}
               customWidth={customWidth}
             />
@@ -230,7 +243,7 @@ export function ProductBlockRenderer({
             <div key={`listing-views-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
             <Suspense>
               <ProductListingViewBlock
-                content={block.content as any}
+                content={blockContent as any}
                 siteId={site.id}
                 urlPrefixes={{
                   products: 'products',
