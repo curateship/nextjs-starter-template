@@ -8,6 +8,7 @@ import { ProductTestimonialsBlock } from "@/components/frontend/products/testimo
 import { ProductListingViewBlock } from "@/components/frontend/products/listing-view/ProductListingViewBlock"
 import { ProductLeadMagnetBlock } from "@/components/frontend/products/lead-magnet/ProductLeadMagnetBlock"
 import { ProductEmailModalBlock } from "@/components/frontend/products/email-modal/ProductEmailModalBlock"
+import { ProductJustBoughtBlock } from "@/components/frontend/products/just-bought/ProductJustBoughtBlock"
 import { SiteLayout } from "@/components/frontend/layout/site-layout"
 import { FrontendBreadcrumbs } from "@/components/frontend/layout/FrontendBreadcrumbs"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -171,6 +172,17 @@ export function ProductBlockRenderer({
                 productId={product.id}
                 blockId={block.id}
                 isPreview={isPreview}
+              />
+            </div>
+          )
+        }
+
+        if (block.type === 'product-just-bought') {
+          return (
+            <div key={`product-just-bought-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
+              <ProductJustBoughtBlock
+                content={block.content as any}
+                productTitle={product.title}
               />
             </div>
           )

@@ -1,7 +1,8 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet, Mail } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet, Mail, ShoppingBag } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/actions/products/lead-magnet"
 import { PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT } from "@/lib/actions/products/email-modal"
+import { PRODUCT_JUST_BOUGHT_DEFAULT_CONTENT } from "@/lib/actions/products/just-bought"
 
 export type { BlockTypeDefinition }
 
@@ -94,6 +95,13 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Mail,
     description: 'Open an email capture modal from an invisible product block',
     defaultContent: PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT,
+  },
+  {
+    type: 'product-just-bought',
+    name: 'Just Bought',
+    icon: ShoppingBag,
+    description: 'Show rotating recent purchase notifications when visitors scroll past this block',
+    defaultContent: PRODUCT_JUST_BOUGHT_DEFAULT_CONTENT,
   },
   {
     type: 'product-faq',

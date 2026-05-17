@@ -33,6 +33,7 @@ import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/h
 import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/checkout/ProductCheckoutBlock"
 import { ProductLeadMagnetBlock } from "@/components/admin/product-builder/blocks/lead-magnet/ProductLeadMagnetBlock"
 import { ProductEmailModalBlock } from "@/components/admin/product-builder/blocks/email-modal/ProductEmailModalBlock"
+import { ProductJustBoughtBlock } from "@/components/admin/product-builder/blocks/just-bought/ProductJustBoughtBlock"
 import { ProductFAQBlock } from "@/components/admin/product-builder/blocks/faq/ProductFAQBlock"
 import { ProductTestimonialsBlock } from "@/components/admin/product-builder/blocks/testimonials/ProductTestimonialsBlock"
 import { ProductListingViewBlock } from "@/components/admin/product-builder/blocks/listing-view/ProductListingViewBlock"
@@ -532,6 +533,15 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
 
                       {selectedBlock.type === "product-email-modal" && (
                         <ProductEmailModalBlock
+                          content={draftContent}
+                          onContentChange={handleDraftChange}
+                          siteId={template?.site_id || currentSite?.id || ""}
+                          blockId={selectedBlock.id}
+                        />
+                      )}
+
+                      {selectedBlock.type === "product-just-bought" && (
+                        <ProductJustBoughtBlock
                           content={draftContent}
                           onContentChange={handleDraftChange}
                           siteId={template?.site_id || currentSite?.id || ""}
