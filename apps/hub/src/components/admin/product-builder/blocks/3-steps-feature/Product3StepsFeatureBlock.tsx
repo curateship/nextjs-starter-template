@@ -1,17 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, ImageIcon, Play } from "lucide-react"
+import { ImageIcon, Play } from "lucide-react"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 
@@ -30,137 +27,82 @@ interface Product3StepsFeatureBlockProps {
   onBack?: () => void
 }
 
-const DEFAULT_STEPS: StepItem[] = [
-  {
-    id: "step-monitor-deployments",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
-    title: "Monitor Deployments Live",
-    description: "Track your deployments with clarity, seeing updates take place as they happen.",
-  },
-  {
-    id: "step-detect-issues",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-2.svg",
-    title: "Immediate Issue Detection",
-    description: "Spot issues instantly and address them with precise metrics for optimized performance.",
-  },
-  {
-    id: "step-stable-version",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-3.svg",
-    title: "Revert to a Stable Version",
-    description: "Restore system health swiftly by returning to a previous stable version.",
-  },
-]
-
-function normalizeSteps(steps: unknown): StepItem[] {
-  const source = Array.isArray(steps) ? steps : []
-
-  return DEFAULT_STEPS.map((defaultStep, index) => {
-    const step = source[index] && typeof source[index] === "object"
-      ? source[index] as Partial<StepItem>
-      : {}
-
-    return {
-      id: typeof step.id === "string" && step.id ? step.id : defaultStep.id,
-      image: typeof step.image === "string" ? step.image : defaultStep.image,
-      title: typeof step.title === "string" ? step.title : defaultStep.title,
-      description: typeof step.description === "string" ? step.description : defaultStep.description,
-    }
-  })
-}
-
 function isVideoUrl(url: string) {
   return /\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i.test(url)
 }
 
-function SortableStepItem({
+function StepItemEditor({
   step,
   index,
   updateStep,
   onPickImage,
+  siteId,
+  blockId,
 }: {
   step: StepItem
   index: number
   updateStep: (index: number, field: keyof StepItem, value: string) => void
   onPickImage: (index: number) => void
+  siteId: string
+  blockId: string
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: step.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
   return (
-    <div ref={setNodeRef} style={style} className="rounded-lg border bg-background p-4 transition-colors hover:border-muted-foreground/50">
-      <div className="flex gap-3">
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="mt-9 shrink-0 cursor-grab text-muted-foreground transition-colors hover:text-foreground active:cursor-grabbing"
-          aria-label={`Reorder step ${index + 1}`}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-
-        <div className="grid flex-1 gap-4 md:grid-cols-[96px_minmax(0,1fr)]">
-          <div className="space-y-2">
-            <Label>Image</Label>
-            <button
-              type="button"
-              onClick={() => onPickImage(index)}
-              className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-dashed bg-muted/30 transition-colors hover:border-muted-foreground/60"
-            >
-              {step.image ? (
-                isVideoUrl(step.image) ? (
-                  <div className="relative h-full w-full bg-black">
-                    <video
-                      src={`/api/media/proxy?url=${encodeURIComponent(step.image)}`}
-                      className="h-full w-full object-cover"
-                      muted
-                      preload="metadata"
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="rounded-full bg-black/60 p-2">
-                        <Play className="h-3 w-3 fill-white text-white" />
-                      </span>
+    <div className="rounded-lg border bg-background p-4">
+      <div className="grid gap-4 md:grid-cols-[96px_minmax(0,1fr)]">
+        <div className="space-y-2">
+          <Label>Image</Label>
+          <button
+            type="button"
+            onClick={() => onPickImage(index)}
+            className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg border border-dashed bg-muted/30 transition-colors hover:border-muted-foreground/60"
+          >
+            {step.image ? (
+              isVideoUrl(step.image) ? (
+                <div className="relative h-full w-full bg-black">
+                  <video
+                    src={`/api/media/proxy?url=${encodeURIComponent(step.image)}`}
+                    className="h-full w-full object-cover"
+                    muted
+                    preload="metadata"
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className="rounded-full bg-black/60 p-2">
+                      <Play className="h-3 w-3 fill-white text-white" />
                     </span>
-                  </div>
-                ) : (
-                  <img src={step.image} alt={step.title} className="h-full w-full object-cover" />
-                )
+                  </span>
+                </div>
               ) : (
-                <ImageIcon className="h-5 w-5 text-muted-foreground" />
-              )}
-            </button>
+                <img src={step.image} alt={step.title} className="h-full w-full object-cover" />
+              )
+            ) : (
+              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`step-title-${step.id}`}>Step {index + 1} Title</Label>
+            <Input
+              id={`step-title-${step.id}`}
+              value={step.title}
+              onChange={(event) => updateStep(index, "title", event.target.value)}
+              placeholder="Step title"
+            />
           </div>
 
-          <div className="grid gap-3">
-            <div className="space-y-2">
-              <Label htmlFor={`step-title-${step.id}`}>Step {index + 1} Title</Label>
-              <Input
-                id={`step-title-${step.id}`}
-                value={step.title}
-                onChange={(event) => updateStep(index, "title", event.target.value)}
-                placeholder="Step title"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor={`step-description-${step.id}`}>Step {index + 1} Description</Label>
-              <Textarea
-                id={`step-description-${step.id}`}
-                value={step.description}
-                onChange={(event) => updateStep(index, "description", event.target.value)}
+          <div className="space-y-2">
+            <Label htmlFor={`step-description-${step.id}`}>Step {index + 1} Description</Label>
+            <div className="min-h-24 rounded-md border bg-background p-3 [&_.ProseMirror]:text-sm [&_.ProseMirror]:leading-6">
+              <InlineRichTextEditor
+                blockId={`${blockId}-${step.id}-description`}
+                content={{ htmlContent: step.description }}
+                onContentChange={(htmlContent) => updateStep(index, "description", htmlContent)}
+                siteId={siteId}
+                isActive
+                variant="product"
                 placeholder="Describe this step"
+                hidePlaceholderOnFocus
               />
             </div>
           </div>
@@ -174,14 +116,11 @@ export function Product3StepsFeatureBlock({
   content,
   onContentChange,
   siteId,
+  blockId,
   onBack,
 }: Product3StepsFeatureBlockProps) {
   const [imagePickerIndex, setImagePickerIndex] = useState<number | null>(null)
-  const steps = normalizeSteps(content.steps)
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const steps = Array.isArray(content.steps) ? content.steps.slice(0, 3) as StepItem[] : []
 
   const updateSteps = (nextSteps: StepItem[]) => {
     onContentChange("steps", nextSteps.slice(0, 3))
@@ -191,17 +130,6 @@ export function Product3StepsFeatureBlock({
     const nextSteps = [...steps]
     nextSteps[index] = { ...nextSteps[index], [field]: value }
     updateSteps(nextSteps)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = steps.findIndex((step) => step.id === active.id)
-    const newIndex = steps.findIndex((step) => step.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    updateSteps(arrayMove(steps, oldIndex, newIndex))
   }
 
   const stepVisibilityFields = steps.flatMap((step, index) => [
@@ -268,22 +196,20 @@ export function Product3StepsFeatureBlock({
 
                 <Card>
                   <CardContent>
-                    <BlockEditorSection heading="Steps" description="Edit and reorder the three fixed steps.">
-                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        <SortableContext items={steps.map((step) => step.id)} strategy={verticalListSortingStrategy}>
-                          <div className="space-y-3">
-                            {steps.map((step, index) => (
-                              <SortableStepItem
-                                key={step.id}
-                                step={step}
-                                index={index}
-                                updateStep={updateStep}
-                                onPickImage={setImagePickerIndex}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
+                    <BlockEditorSection heading="Steps" description="Edit the three fixed steps.">
+                      <div className="space-y-3">
+                        {steps.map((step, index) => (
+                          <StepItemEditor
+                            key={step.id}
+                            step={step}
+                            index={index}
+                            updateStep={updateStep}
+                            onPickImage={setImagePickerIndex}
+                            siteId={siteId}
+                            blockId={blockId}
+                          />
+                        ))}
+                      </div>
                     </BlockEditorSection>
                   </CardContent>
                 </Card>

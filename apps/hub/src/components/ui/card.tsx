@@ -67,7 +67,7 @@ const CardTableHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HT
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("grid gap-4 border-b bg-muted/30 p-6 text-sm font-medium text-muted-foreground", className)}
+      className={cn("grid gap-4 border-b bg-muted/30 px-6 py-4 text-sm font-medium text-muted-foreground", className)}
       {...props}
     />
   )

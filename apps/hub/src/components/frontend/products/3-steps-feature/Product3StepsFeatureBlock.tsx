@@ -1,4 +1,5 @@
 import { BlockContainer } from "@/components/frontend/layout/block-container"
+import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
 
 interface StepItem {
   id: string
@@ -17,44 +18,6 @@ interface Product3StepsFeatureBlockProps {
   }
   siteWidth?: "full" | "custom"
   customWidth?: number
-}
-
-const DEFAULT_STEPS: StepItem[] = [
-  {
-    id: "step-monitor-deployments",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
-    title: "Monitor Deployments Live",
-    description: "Track your deployments with clarity, seeing updates take place as they happen.",
-  },
-  {
-    id: "step-detect-issues",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-2.svg",
-    title: "Immediate Issue Detection",
-    description: "Spot issues instantly and address them with precise metrics for optimized performance.",
-  },
-  {
-    id: "step-stable-version",
-    image: "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-3.svg",
-    title: "Revert to a Stable Version",
-    description: "Restore system health swiftly by returning to a previous stable version.",
-  },
-]
-
-function normalizeSteps(steps: unknown): StepItem[] {
-  const source = Array.isArray(steps) ? steps : []
-
-  return DEFAULT_STEPS.map((defaultStep, index) => {
-    const step = source[index] && typeof source[index] === "object"
-      ? source[index] as Partial<StepItem>
-      : {}
-
-    return {
-      id: typeof step.id === "string" && step.id ? step.id : defaultStep.id,
-      image: typeof step.image === "string" ? step.image : defaultStep.image,
-      title: typeof step.title === "string" ? step.title : defaultStep.title,
-      description: typeof step.description === "string" ? step.description : defaultStep.description,
-    }
-  })
 }
 
 function isVideoUrl(url: string) {
@@ -79,24 +42,25 @@ export function Product3StepsFeatureBlock({
   const visibility = content?.visibility ?? {}
   if (visibility.hideBlock === true) return null
 
-  const steps = normalizeSteps(content?.steps)
-  const headerAlign = content?.headerAlign ?? "center"
+  const steps = Array.isArray(content?.steps) ? content.steps.slice(0, 3) : []
+  const headerAlign = content?.headerAlign
 
   return (
     <BlockContainer
       siteWidth={siteWidth}
       customWidth={customWidth}
       header={{
-        title: visibility.header !== false ? content?.header ?? "Launch with Assurance" : "",
-        subtitle: visibility.subheader !== false ? content?.subheader ?? "Simplify your workflow with clear insights and a guided process." : "",
+        title: visibility.header !== false ? content?.header : "",
+        subtitle: visibility.subheader !== false ? content?.subheader : "",
         align: headerAlign,
       }}
     >
-      <div className="relative flex flex-col gap-8">
+      <div className="relative mt-20 flex flex-col gap-8">
         <span className="pointer-events-none absolute bottom-5 left-5 top-5 w-[3px] bg-linear-to-b from-transparent via-primary to-transparent opacity-70" />
         {steps.map((step, index) => {
           const showTitle = visibility[`${step.id}Title`] !== false
-          const showDescription = visibility[`${step.id}Description`] !== false
+          const safeDescription = sanitizeRichHtml(step.description)
+          const showDescription = visibility[`${step.id}Description`] !== false && Boolean(safeDescription.trim())
           const showImage = visibility[`${step.id}Image`] !== false && step.image
 
           return (
@@ -108,7 +72,10 @@ export function Product3StepsFeatureBlock({
                     <h3 className="text-xl min-[960px]:text-2xl">{step.title}</h3>
                   ) : null}
                   {showDescription ? (
-                    <p className="text-sm text-muted-foreground min-[960px]:text-base">{step.description}</p>
+                    <div
+                      className="prose prose-sm max-w-none text-muted-foreground dark:prose-invert prose-p:my-0 prose-p:text-muted-foreground prose-strong:text-foreground min-[960px]:prose-base"
+                      dangerouslySetInnerHTML={{ __html: safeDescription }}
+                    />
                   ) : null}
                 </div>
               </div>
