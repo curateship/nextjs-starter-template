@@ -314,11 +314,12 @@ export function ProductJustBoughtBlock({
                 />
 
                 <VisibilitySettings
-                  title="Block Visibility"
+                  title="Popup Trigger"
                   visibility={normalizedContent.visibility}
                   onChange={(visibility) => onContentChange("visibility", visibility)}
+                  helperText="Disable this popup without deleting its messages."
                   useCard
-                  fields={[]}
+                  fields={[{ key: "hideBlock", label: "Disable Popup", mode: "hide" }]}
                 />
               </CardGroup>
             ),
