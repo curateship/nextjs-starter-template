@@ -83,7 +83,7 @@ function CardGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-group"
-      className={cn("flex flex-col gap-4 sm:gap-6", className)}
+      className={cn("flex flex-col gap-4", className)}
       {...props}
     />
   )

@@ -65,7 +65,7 @@ function DialogContent({
         data-slot="dialog-content"
         data-variant={variant}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[min(600px,80vh)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-2rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -101,7 +101,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <ScrollArea className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <ScrollArea className="min-h-0">
       <div
         data-slot="dialog-body"
         className={cn("px-6 py-6", className)}
@@ -126,7 +126,7 @@ function DialogFooter({
       data-slot="dialog-footer"
       data-variant={variant}
       className={cn(
-        "flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-6 py-5 sm:flex-row sm:justify-end [&_[data-slot=button]]:h-9 data-[variant=plain]:items-center data-[variant=plain]:rounded-none data-[variant=plain]:border-t-0 data-[variant=plain]:bg-transparent",
+        "flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-6 py-5 sm:flex-row sm:justify-end **:data-[slot=button]:h-9 data-[variant=plain]:items-center data-[variant=plain]:rounded-none data-[variant=plain]:border-t-0 data-[variant=plain]:bg-transparent",
         className
       )}
       {...props}

@@ -10,7 +10,6 @@ import {
   MessageSquarePlusIcon,
   SettingsIcon,
   SearchIcon,
-  ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -19,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FeedbackTableSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -43,7 +43,6 @@ import {
   deleteFeedbackMany,
   getFeedbackErrorMessage,
   listFeedback,
-  toggleFeedbackVote,
   updateFeedback,
   type FeedbackItem,
   type FeedbackType,
@@ -101,7 +100,6 @@ export function FeedbackPage({
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [votingId, setVotingId] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =
     React.useState<FeedbackItem | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
@@ -171,27 +169,6 @@ export function FeedbackPage({
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
-  }
-
-  const handleVote = async (item: FeedbackItem) => {
-    if (item.type !== "suggestion") {
-      return
-    }
-
-    setVotingId(item.id)
-    setError(null)
-    try {
-      const updated = await toggleFeedbackVote(item.id)
-      setFeedback((current) =>
-        current.map((currentItem) =>
-          currentItem.id === updated.id ? updated : currentItem
-        )
-      )
-    } catch (voteError) {
-      setError(getFeedbackErrorMessage(voteError))
-    } finally {
-      setVotingId(null)
-    }
   }
 
   const handleUpdated = (updated: FeedbackItem) => {
@@ -385,9 +362,6 @@ export function FeedbackPage({
                 <TableHead className="hidden min-w-[120px] text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
                   Created
                 </TableHead>
-                <TableHead className="min-w-[100px] text-xs font-medium text-muted-foreground sm:text-sm">
-                  Votes
-                </TableHead>
                 <TableHead className="min-w-[90px] text-xs font-medium text-muted-foreground sm:text-sm">
                   Actions
                 </TableHead>
@@ -399,7 +373,7 @@ export function FeedbackPage({
               ) : paginatedFeedback.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={7}
+                    colSpan={6}
                     className="h-24 text-center text-sm text-muted-foreground"
                   >
                     No feedback found matching your filters.
@@ -434,37 +408,6 @@ export function FeedbackPage({
                     </TableCell>
                     <TableCell className="hidden text-xs text-muted-foreground sm:text-sm lg:table-cell">
                       {dateFormatter.format(new Date(item.created_at))}
-                    </TableCell>
-                    <TableCell>
-                      {item.type === "suggestion" ? (
-                        <Button
-                          type="button"
-                          variant={item.has_voted ? "default" : "outline"}
-                          size="sm"
-                          className={cn(
-                            "h-8 gap-1.5",
-                            item.has_voted && "text-primary-foreground"
-                          )}
-                          onClick={() => handleVote(item)}
-                          disabled={votingId === item.id}
-                          aria-label={
-                            item.has_voted
-                              ? "Remove suggestion vote"
-                              : "Upvote suggestion"
-                          }
-                        >
-                          {votingId === item.id ? (
-                            <Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <ThumbsUpIcon className="h-3.5 w-3.5" />
-                          )}
-                          {item.vote_count}
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground sm:text-sm">
-                          -
-                        </span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -725,7 +668,6 @@ function EditFeedbackModal({
       <AdminModalContent
         title="Edit Feedback"
         description="Update the message and feedback type."
-        bodyClassName="space-y-5"
         footer={
           <>
             <Button
@@ -752,30 +694,37 @@ function EditFeedbackModal({
           </>
         }
       >
-        <Select
-          value={feedbackType}
-          onValueChange={(value) => setFeedbackType(value as FeedbackType)}
-          disabled={busy}
-        >
-          <SelectTrigger className="h-9 w-[180px]" aria-label="Feedback type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-              <SelectItem key={type} value={type}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="space-y-2">
+          <Label htmlFor="feedback-message">Feedback</Label>
+          <Textarea
+            id="feedback-message"
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            className="min-h-40 resize-none text-base"
+            disabled={busy}
+            autoFocus
+          />
+        </div>
 
-        <Textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          className="min-h-40 resize-none text-base"
-          disabled={busy}
-          autoFocus
-        />
+        <div className="space-y-2">
+          <Label htmlFor="feedback-type">Type</Label>
+          <Select
+            value={feedbackType}
+            onValueChange={(value) => setFeedbackType(value as FeedbackType)}
+            disabled={busy}
+          >
+            <SelectTrigger id="feedback-type" className="h-9 w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(feedbackTypeLabels).map(([type, label]) => (
+                <SelectItem key={type} value={type}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {error ? (
           <div

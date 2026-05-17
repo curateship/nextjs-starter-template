@@ -167,10 +167,6 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
     if (!row) {
       throw new Error("Feedback not found")
     }
-    if (row.type !== "suggestion") {
-      throw new Error("Only suggestions can be upvoted")
-    }
-
     const [existingVote] = await db
       .select()
       .from(customShellFeedbackVotes)
