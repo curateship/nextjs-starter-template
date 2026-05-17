@@ -210,13 +210,13 @@ export function CreateCategoryModal({
                 <DashboardModalCardTitle>Image</DashboardModalCardTitle>
               </CardHeader>
               <CardContent>
-                <div className="[&>div]:w-fit">
+                <div className="w-48">
                   {featuredImage ? (
-                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                    <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
                       <img
                         src={featuredImage}
                         alt="Featured image preview"
-                        className="w-full h-full object-contain"
+                        className="h-full w-full object-cover"
                       />
                       <button
                         type="button"
@@ -236,7 +236,7 @@ export function CreateCategoryModal({
                     </div>
                   ) : (
                     <div
-                      className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
+                      className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                       onClick={() => setShowImagePicker(true)}
                     >
                       <div className="text-center">
@@ -272,7 +272,8 @@ export function CreateCategoryModal({
                     value={metaDescription}
                     onChange={(e) => setMetaDescription(e.target.value)}
                     placeholder="SEO meta description"
-                    rows={3}
+                    rows={1}
+                    className="min-h-10 [field-sizing:content]"
                   />
                   <FieldDescription>
                     Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160

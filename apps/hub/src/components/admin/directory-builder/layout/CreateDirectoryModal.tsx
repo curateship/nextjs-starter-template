@@ -285,13 +285,13 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
               <CardDescription>Optional featured image for this directory.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="*:data-[slot=field-label]:w-fit *:data-[slot=field-description]:max-w-md [&>div]:w-fit">
+              <div className="w-48">
                 {featuredImage ? (
-                  <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                  <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
                     <img
                       src={featuredImage}
                       alt="Featured image preview"
-                      className="w-full h-full object-contain"
+                      className="h-full w-full object-cover"
                     />
                     <button
                       type="button"
@@ -311,7 +311,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                   </div>
                 ) : (
                   <div
-                    className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all p-4"
+                    className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                     onClick={() => setShowImagePicker(true)}
                   >
                     <div className="text-center">
@@ -352,7 +352,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                   value={formData.meta_description}
                   onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                   placeholder="SEO meta description"
-                  rows={3}
+                  rows={1}
+                  className="min-h-10 [field-sizing:content]"
                 />
                 <FieldDescription>
                   Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160

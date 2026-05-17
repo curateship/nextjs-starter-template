@@ -276,11 +276,11 @@ export function EventSettingsModal({
             <Label htmlFor="featured_image">Featured Image</Label>
             <div className="mt-2">
               {featuredImage ? (
-                <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
                   <img
                     src={featuredImage}
                     alt="Featured image preview"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                   />
                   <button
                     type="button"
@@ -300,7 +300,7 @@ export function EventSettingsModal({
                 </div>
               ) : (
                 <div
-                  className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                  className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                   onClick={() => setShowImagePicker(true)}
                 >
                   <div className="text-center">
@@ -354,14 +354,14 @@ export function EventSettingsModal({
           <div>
             <Label htmlFor="meta_description">Meta Description</Label>
             <textarea
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-10 w-full [field-sizing:content] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               id="meta_description"
               value={formData.meta_description}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                 setFormData(prev => ({ ...prev, meta_description: e.target.value }))
               }}
               placeholder="SEO meta description"
-              rows={3}
+              rows={1}
             />
             <p className="text-xs text-muted-foreground mt-1">
               Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160

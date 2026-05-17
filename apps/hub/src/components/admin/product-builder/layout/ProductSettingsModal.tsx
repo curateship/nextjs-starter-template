@@ -473,11 +473,11 @@ export function ProductSettingsModal({
                   <FieldLabel>Featured Image</FieldLabel>
                   <div>
                     {featuredImage ? (
-                      <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
+                      <div className="relative aspect-square w-48 overflow-hidden rounded-lg bg-muted">
                         <img
                           src={featuredImage}
                           alt="Featured image preview"
-                          className="h-full w-full object-contain"
+                          className="h-full w-full object-cover"
                         />
                         <button
                           type="button"
@@ -498,7 +498,7 @@ export function ProductSettingsModal({
                       </div>
                     ) : (
                       <div
-                        className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                         onClick={() => setShowImagePicker(true)}
                       >
                         <div className="text-center">
@@ -572,7 +572,8 @@ export function ProductSettingsModal({
                       setFormData(prev => ({ ...prev, meta_description: e.target.value }))
                     }}
                     placeholder="SEO meta description"
-                    rows={3}
+                    rows={1}
+                    className="min-h-10 [field-sizing:content]"
                   />
                   <FieldDescription>
                     Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160

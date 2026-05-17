@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
@@ -374,11 +375,11 @@ export function PostSettingsModal({
                   <FieldLabel>Featured Image</FieldLabel>
                   <div>
                     {formData.featured_image ? (
-                      <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-muted">
+                      <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
                         <img
                           src={formData.featured_image}
                           alt="Featured image preview"
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-cover"
                         />
                         <button
                           type="button"
@@ -399,7 +400,7 @@ export function PostSettingsModal({
                       </div>
                     ) : (
                       <div
-                        className="flex items-center justify-center w-48 h-48 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 cursor-pointer hover:bg-muted/70 hover:border-muted-foreground/40 transition-all"
+                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                         onClick={() => setShowImagePicker(true)}
                       >
                         <div className="text-center">
@@ -455,11 +456,13 @@ export function PostSettingsModal({
               <CardContent>
                 <Field>
                   <FieldLabel htmlFor="modal-meta_description">Meta Description</FieldLabel>
-                  <Input
+                  <Textarea
                     id="modal-meta_description"
                     value={formData.meta_description || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                     placeholder="A brief description of this post for search engines"
+                    rows={1}
+                    className="min-h-10 [field-sizing:content]"
                   />
                   <FieldDescription>
                     Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)

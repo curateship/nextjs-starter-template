@@ -298,14 +298,14 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                 )}
               </Field>
 
-              <Field className="[&>div]:w-fit">
+              <Field className="w-48">
                 <FieldLabel htmlFor="featured_image">Featured Image</FieldLabel>
                 {formData.featured_image ? (
-                  <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
+                  <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
                     <img
                       src={formData.featured_image}
                       alt="Featured image preview"
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover"
                     />
                     <button
                       type="button"
@@ -326,7 +326,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                   </div>
                 ) : (
                   <div
-                    className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                    className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                     onClick={() => setShowImagePicker(true)}
                   >
                     <div className="text-center">
@@ -388,7 +388,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                   onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
                   placeholder="A brief description of this post for search engines"
                   rows={1}
-                  className="h-10 min-h-10 resize-none overflow-hidden"
+                  className="min-h-10 [field-sizing:content]"
                 />
                 <FieldDescription>Recommended length: 150-160 characters</FieldDescription>
               </Field>

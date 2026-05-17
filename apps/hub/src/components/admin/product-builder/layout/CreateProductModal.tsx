@@ -340,14 +340,14 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
             </CardHeader>
             <CardContent>
-              <Field className="[&>div]:w-fit">
+              <Field className="w-48">
                 <FieldLabel>Featured Image</FieldLabel>
                 {featuredImage ? (
-                  <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
+                  <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
                     <img
                       src={featuredImage}
                       alt="Featured image preview"
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover"
                     />
                     <button
                       type="button"
@@ -368,7 +368,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                   </div>
                 ) : (
                   <div
-                    className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                    className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                     onClick={() => setShowImagePicker(true)}
                   >
                     <div className="text-center">
@@ -435,7 +435,8 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                   value={formData.meta_description || ''}
                   onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                   placeholder="SEO meta description"
-                  rows={3}
+                  rows={1}
+                  className="min-h-10 [field-sizing:content]"
                 />
                 <FieldDescription>
                   Used for SEO. Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160
