@@ -20,6 +20,7 @@ const ALLOWED_PRODUCT_BLOCK_TYPES = [
   'product-details',
   'product-gallery',
   'product-features',
+  'product-3-steps-feature',
   'product-hotspot',
   'product-checkout',
   'product-lead-magnet',

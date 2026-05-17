@@ -1,4 +1,4 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet, Mail, ShoppingBag } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet, Mail, ShoppingBag, ListChecks } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/actions/products/lead-magnet"
 import { PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT } from "@/lib/actions/products/email-modal"
@@ -57,6 +57,38 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
           description: 'Description of feature 1'
         }
       ]
+    }
+  },
+  {
+    type: 'product-3-steps-feature',
+    name: '3 Steps Feature',
+    icon: ListChecks,
+    description: 'Showcase a three-step process with images',
+    defaultContent: {
+      header: 'Launch with Assurance',
+      subheader: 'Simplify your workflow with clear insights and a guided process.',
+      headerAlign: 'center',
+      steps: [
+        {
+          id: 'step-monitor-deployments',
+          image: 'https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg',
+          title: 'Monitor Deployments Live',
+          description: 'Track your deployments with clarity, seeing updates take place as they happen.',
+        },
+        {
+          id: 'step-detect-issues',
+          image: 'https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-2.svg',
+          title: 'Immediate Issue Detection',
+          description: 'Spot issues instantly and address them with precise metrics for optimized performance.',
+        },
+        {
+          id: 'step-stable-version',
+          image: 'https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-3.svg',
+          title: 'Revert to a Stable Version',
+          description: 'Restore system health swiftly by returning to a previous stable version.',
+        },
+      ],
+      visibility: {},
     }
   },
   {

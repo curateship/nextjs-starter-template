@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react"
 import { ProductHeroBlock } from "@/components/frontend/products/hero/ProductHeroBlock"
 import { ProductFeaturesBlock } from "@/components/frontend/products/features/ProductFeaturesBlock"
+import { Product3StepsFeatureBlock } from "@/components/frontend/products/3-steps-feature/Product3StepsFeatureBlock"
 import { ProductHotspotBlock } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/frontend/products/checkout/ProductCheckoutBlock"
 import { ProductFAQBlock } from "@/components/frontend/products/faq/ProductFAQBlock"
@@ -74,6 +75,18 @@ export function ProductBlockRenderer({
             <ProductFeaturesBlock
               {...block.content}
               siteWidth={siteWidth}
+              customWidth={customWidth}
+            />
+            </div>
+          )
+        }
+
+        if (block.type === 'product-3-steps-feature') {
+          return (
+            <div key={`product-3-steps-feature-${block.id}`} data-block-id={block.id} data-block-type={block.type}>
+            <Product3StepsFeatureBlock
+              content={block.content as any}
+              siteWidth={siteWidth as 'full' | 'custom'}
               customWidth={customWidth}
             />
             </div>

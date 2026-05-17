@@ -16,6 +16,7 @@ import { ProductHeroBlock } from "@/components/admin/product-builder/blocks/hero
 import { ProductDetailsBlock } from "@/components/admin/product-builder/blocks/details/ProductDetailsBlock"
 import { ProductGalleryBlock } from "@/components/admin/product-builder/blocks/gallery/ProductGalleryBlock"
 import { ProductFeaturesBlock } from "@/components/admin/product-builder/blocks/features/ProductFeaturesBlock"
+import { Product3StepsFeatureBlock } from "@/components/admin/product-builder/blocks/3-steps-feature/Product3StepsFeatureBlock"
 import { ProductHotspotBlock } from "@/components/admin/product-builder/blocks/hotspot/ProductHotspotBlock"
 import { ProductCheckoutBlock } from "@/components/admin/product-builder/blocks/checkout/ProductCheckoutBlock"
 import { ProductLeadMagnetBlock } from "@/components/admin/product-builder/blocks/lead-magnet/ProductLeadMagnetBlock"
@@ -389,6 +390,15 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                           blockId={selectedBlock.id}
                           visibility={draftContent.visibility}
                           onVisibilityChange={(v) => handleDraftChange("visibility", v)}
+                        />
+                      )}
+
+                      {selectedBlock.type === "product-3-steps-feature" && (
+                        <Product3StepsFeatureBlock
+                          content={draftContent}
+                          onContentChange={handleDraftChange}
+                          siteId={siteId}
+                          blockId={selectedBlock.id}
                         />
                       )}
 
