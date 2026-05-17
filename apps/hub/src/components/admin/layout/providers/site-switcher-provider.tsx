@@ -30,22 +30,12 @@ function resolveCurrentSite(availableSites: SiteWithTheme[], preferredSiteId?: s
     }
   }
 
-  if (typeof window === 'undefined') {
-    return availableSites[0]
-  }
-
-  const savedId = localStorage.getItem('selectedSiteId')
-  if (savedId && SITE_ID_PATTERN.test(savedId)) {
-    const savedSite = availableSites.find((site) => site.id === savedId)
-    if (savedSite) {
-      return savedSite
-    }
-  }
-
   return availableSites[0]
 }
 
 function persistResolvedSite(site: SiteWithTheme | null) {
+  if (typeof window === 'undefined') return
+
   if (site) {
     localStorage.setItem('selectedSiteId', site.id)
   } else {
@@ -66,9 +56,11 @@ export function SiteSwitcherProvider({
 }: SiteSwitcherProviderProps) {
   const pathname = usePathname()
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
-  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(null)
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
-  const [loading, setLoading] = useState(true)
+  const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() =>
+    resolveCurrentSite(initialSites ?? [], routeSiteId)
+  )
+  const [loading, setLoading] = useState(initialSites === undefined)
   const [error, setError] = useState<string | null>(null)
   const [pageSize] = useState(initialPageSize ?? 50)
 
