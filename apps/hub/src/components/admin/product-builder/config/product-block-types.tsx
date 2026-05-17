@@ -1,6 +1,7 @@
-import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet } from "lucide-react"
+import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet, Mail } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/actions/products/lead-magnet"
+import { PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT } from "@/lib/actions/products/email-modal"
 
 export type { BlockTypeDefinition }
 
@@ -86,6 +87,13 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Magnet,
     description: 'Capture emails and deliver product-specific lead magnet content',
     defaultContent: PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT,
+  },
+  {
+    type: 'product-email-modal',
+    name: 'Product Email Modal',
+    icon: Mail,
+    description: 'Open an email capture modal from an invisible product block',
+    defaultContent: PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT,
   },
   {
     type: 'product-faq',

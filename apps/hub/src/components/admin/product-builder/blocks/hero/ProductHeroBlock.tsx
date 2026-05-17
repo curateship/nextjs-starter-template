@@ -12,6 +12,7 @@ import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { PRODUCT_EMAIL_MODAL_HREF } from "@/lib/actions/products/email-modal"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
@@ -153,10 +154,10 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                         required
                       />
                       <Input
-                        type="url"
+                        type="text"
                         value={content.primaryButtonLink || ''}
                         onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('primaryButtonLink', v))}
-                        placeholder="https://example.com or /page"
+                        placeholder={`https://example.com, /page, #section, or ${PRODUCT_EMAIL_MODAL_HREF}`}
                       />
                       <ButtonStyleSelect
                         value={content.primaryButtonStyle || 'primary'}
@@ -176,10 +177,10 @@ export function ProductHeroBlock({ content, onContentChange, siteId, blockId, on
                         required
                       />
                       <Input
-                        type="url"
+                        type="text"
                         value={content.secondaryButtonLink || ''}
                         onChange={(e) => validateUrl(e.target.value, (v) => onContentChange('secondaryButtonLink', v))}
-                        placeholder="https://example.com or /page"
+                        placeholder={`https://example.com, /page, #section, or ${PRODUCT_EMAIL_MODAL_HREF}`}
                       />
                       <ButtonStyleSelect
                         value={content.secondaryButtonStyle || 'outline'}

@@ -1,5 +1,6 @@
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
 import { normalizeProductLeadMagnetContent } from "@/lib/actions/products/lead-magnet"
+import { normalizeProductEmailModalContent } from "@/lib/actions/products/email-modal"
 import { getBlockName, PRODUCT_BLOCK_TYPES } from "./product-block-types"
 
 export interface ProductBuilderBlock {
@@ -15,6 +16,10 @@ const SUPPORTED_PRODUCT_BLOCK_TYPES = PRODUCT_BLOCK_TYPES.map((blockType) => blo
 function normalizeProductBlockContent(type: string, content?: Record<string, any> | null): Record<string, any> {
   if (type === "product-lead-magnet") {
     return normalizeProductLeadMagnetContent(content)
+  }
+
+  if (type === "product-email-modal") {
+    return normalizeProductEmailModalContent(content)
   }
 
   return content && typeof content === "object" ? content : {}

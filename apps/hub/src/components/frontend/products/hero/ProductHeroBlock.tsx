@@ -4,6 +4,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { HERO_STYLE_RENDERERS } from ".";
+import { PRODUCT_EMAIL_MODAL_HREF, PRODUCT_EMAIL_MODAL_OPEN_EVENT } from "@/lib/actions/products/email-modal";
 
 // Fields that were previously at the content root before the styleConfig migration
 const LEGACY_STYLE_FIELDS = [
@@ -62,7 +63,14 @@ const HeroSubtitle = ({ subtitle }: { subtitle?: string }) => {
   );
 };
 
-// Call-to-action buttons component with scroll target support
+const normalizeButtonLink = (link?: string) => link?.trim() || "";
+
+const isProductEmailModalLink = (link?: string) => {
+  const normalizedLink = normalizeButtonLink(link).toLowerCase();
+  return normalizedLink === PRODUCT_EMAIL_MODAL_HREF || normalizedLink === "product-email-modal";
+}
+
+// Call-to-action buttons component with scroll target and modal support
 const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, secondaryButtonLink }: { primaryButton?: string; secondaryButton?: string; primaryButtonLink?: string; secondaryButtonLink?: string }) => {
   const hasPrimaryButton = primaryButton && primaryButton.trim()
   const hasSecondaryButton = secondaryButton && secondaryButton.trim()
@@ -70,49 +78,66 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
   if (!hasPrimaryButton && !hasSecondaryButton) return null
 
   const scrollToTarget = (targetId: string) => {
-    const targetElement = document.querySelector(targetId)
+    let targetElement: Element | null = null
+    try {
+      targetElement = document.querySelector(targetId)
+    } catch {
+      return
+    }
+
     if (!targetElement) return
     const scrollOffset = 80
     const elementTop = targetElement.getBoundingClientRect().top + window.pageYOffset
     window.scrollTo({ top: elementTop - scrollOffset, behavior: 'smooth' })
   }
 
-  const handlePrimaryClick = () => {
-    if (primaryButtonLink && primaryButtonLink.startsWith('#')) {
-      if (document.querySelector(primaryButtonLink)) {
-        scrollToTarget(primaryButtonLink)
-      }
+  const openProductEmailModal = () => {
+    const target = document.querySelector<HTMLElement>('[data-product-email-modal-block="true"]')
+    window.dispatchEvent(new CustomEvent(PRODUCT_EMAIL_MODAL_OPEN_EVENT, {
+      detail: {
+        blockId: target?.dataset.productEmailModalBlockId,
+      },
+    }))
+  }
+
+  const handleButtonClick = (link?: string) => {
+    const normalizedLink = normalizeButtonLink(link)
+
+    if (isProductEmailModalLink(normalizedLink)) {
+      openProductEmailModal()
+      return
+    }
+
+    if (normalizedLink.startsWith('#')) {
+      scrollToTarget(normalizedLink)
     }
   }
 
-  const handleSecondaryClick = () => {
-    if (secondaryButtonLink && secondaryButtonLink.startsWith('#')) {
-      if (document.querySelector(secondaryButtonLink)) {
-        scrollToTarget(secondaryButtonLink)
-      }
-    }
+  const shouldUseLink = (link?: string) => {
+    const normalizedLink = normalizeButtonLink(link)
+    return normalizedLink && !normalizedLink.startsWith('#') && !isProductEmailModalLink(normalizedLink)
   }
 
   return (
     <div className="mt-8 flex justify-center gap-4 flex-wrap">
       {hasPrimaryButton && (
-        primaryButtonLink && !primaryButtonLink.startsWith('#') ? (
-          <Link href={primaryButtonLink}>
+        shouldUseLink(primaryButtonLink) ? (
+          <Link href={normalizeButtonLink(primaryButtonLink)}>
             <Button size="lg">{primaryButton}</Button>
           </Link>
         ) : (
-          <Button size="lg" onClick={handlePrimaryClick}>
+          <Button size="lg" onClick={() => handleButtonClick(primaryButtonLink)}>
             {primaryButton}
           </Button>
         )
       )}
       {hasSecondaryButton && (
-        secondaryButtonLink && !secondaryButtonLink.startsWith('#') ? (
-          <Link href={secondaryButtonLink}>
+        shouldUseLink(secondaryButtonLink) ? (
+          <Link href={normalizeButtonLink(secondaryButtonLink)}>
             <Button size="lg" variant="outline">{secondaryButton}</Button>
           </Link>
         ) : (
-          <Button size="lg" variant="outline" onClick={handleSecondaryClick}>
+          <Button size="lg" variant="outline" onClick={() => handleButtonClick(secondaryButtonLink)}>
             {secondaryButton}
           </Button>
         )
