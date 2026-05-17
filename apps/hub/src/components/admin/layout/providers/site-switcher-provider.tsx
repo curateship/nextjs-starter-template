@@ -18,15 +18,30 @@ interface SiteSwitcherState {
 const SiteSwitcherContext = createContext<SiteSwitcherState | undefined>(undefined)
 const SITE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function resolveRouteSite(availableSites: SiteWithTheme[], preferredSiteId?: string | null) {
+  if (preferredSiteId) {
+    const preferredSite = availableSites.find((site) => site.id === preferredSiteId)
+    if (preferredSite) {
+      return preferredSite
+    }
+  }
+
+  return null
+}
+
 function resolveCurrentSite(availableSites: SiteWithTheme[], preferredSiteId?: string | null) {
   if (!availableSites.length) {
     return null
   }
 
-  if (preferredSiteId) {
-    const preferredSite = availableSites.find((site) => site.id === preferredSiteId)
-    if (preferredSite) {
-      return preferredSite
+  const routeSite = resolveRouteSite(availableSites, preferredSiteId)
+  if (routeSite) return routeSite
+
+  const savedId = localStorage.getItem('selectedSiteId')
+  if (savedId && SITE_ID_PATTERN.test(savedId)) {
+    const savedSite = availableSites.find((site) => site.id === savedId)
+    if (savedSite) {
+      return savedSite
     }
   }
 
@@ -58,7 +73,7 @@ export function SiteSwitcherProvider({
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() =>
-    resolveCurrentSite(initialSites ?? [], routeSiteId)
+    resolveRouteSite(initialSites ?? [], routeSiteId)
   )
   const [loading, setLoading] = useState(initialSites === undefined)
   const [error, setError] = useState<string | null>(null)
