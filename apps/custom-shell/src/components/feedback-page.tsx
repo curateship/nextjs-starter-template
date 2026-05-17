@@ -5,14 +5,18 @@ import {
   ChevronRightIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
+  SaveIcon,
   Loader2Icon,
   MessageSquarePlusIcon,
+  SettingsIcon,
   SearchIcon,
   ThumbsUpIcon,
+  Trash2Icon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FeedbackTableSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
 import {
@@ -23,6 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Dialog } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Table,
   TableBody,
@@ -31,10 +37,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
+  deleteFeedback,
+  deleteFeedbackMany,
   getFeedbackErrorMessage,
   listFeedback,
   toggleFeedbackVote,
+  updateFeedback,
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/feedback-api"
@@ -92,6 +102,11 @@ export function FeedbackPage({
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [votingId, setVotingId] = React.useState<string | null>(null)
+  const [editingFeedback, setEditingFeedback] =
+    React.useState<FeedbackItem | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
+  const [massDeleting, setMassDeleting] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -136,6 +151,19 @@ export function FeedbackPage({
     const startIndex = (currentPage - 1) * pageSize
     return filteredFeedback.slice(startIndex, startIndex + pageSize)
   }, [filteredFeedback, currentPage, pageSize])
+  const paginatedFeedbackIds = React.useMemo(
+    () => paginatedFeedback.map((item) => item.id),
+    [paginatedFeedback]
+  )
+  const filteredFeedbackIds = React.useMemo(
+    () => filteredFeedback.map((item) => item.id),
+    [filteredFeedback]
+  )
+  const visibleSelected =
+    paginatedFeedbackIds.length > 0 &&
+    paginatedFeedbackIds.every((id) => selectedIds.has(id))
+  const visiblePartiallySelected =
+    !visibleSelected && paginatedFeedbackIds.some((id) => selectedIds.has(id))
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -166,6 +194,64 @@ export function FeedbackPage({
     }
   }
 
+  const handleUpdated = (updated: FeedbackItem) => {
+    setFeedback((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item))
+    )
+  }
+
+  const handleDeleted = (feedbackId: string) => {
+    setFeedback((current) => current.filter((item) => item.id !== feedbackId))
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      next.delete(feedbackId)
+      return next
+    })
+  }
+
+  const toggleFeedbackSelection = (feedbackId: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(feedbackId)) {
+        next.delete(feedbackId)
+      } else {
+        next.add(feedbackId)
+      }
+      return next
+    })
+  }
+
+  const toggleVisibleSelection = () => {
+    setSelectedIds((current) => {
+      if (visibleSelected) {
+        const next = new Set(current)
+        paginatedFeedbackIds.forEach((id) => next.delete(id))
+        return next
+      }
+
+      return new Set([...current, ...paginatedFeedbackIds])
+    })
+  }
+
+  const handleMassDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (!ids.length) return
+
+    setMassDeleting(true)
+    setError(null)
+    try {
+      const result = await deleteFeedbackMany(ids)
+      const deletedIds = new Set(result.feedbackIds)
+      setFeedback((current) => current.filter((item) => !deletedIds.has(item.id)))
+      setSelectedIds(new Set())
+      setMassDeleteOpen(false)
+    } catch (deleteError) {
+      setError(getFeedbackErrorMessage(deleteError))
+    } finally {
+      setMassDeleting(false)
+    }
+  }
+
   return (
     <div className="w-full pb-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -173,15 +259,34 @@ export function FeedbackPage({
           activePeriod={periodFilter}
           onPeriodChange={setPeriodFilter}
         />
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 w-fit gap-2 self-start sm:h-9 sm:self-auto"
-          onClick={onOpenFeedback}
-        >
-          <MessageSquarePlusIcon className="size-4" />
-          New feedback
-        </Button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {selectedIds.size ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="h-8 w-fit gap-2 sm:h-9"
+              onClick={() => setMassDeleteOpen(true)}
+              disabled={massDeleting}
+            >
+              {massDeleting ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <Trash2Icon className="size-4" />
+              )}
+              Delete ({selectedIds.size})
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 w-fit gap-2 sm:h-9"
+            onClick={onOpenFeedback}
+          >
+            <MessageSquarePlusIcon className="size-4" />
+            New feedback
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -202,6 +307,15 @@ export function FeedbackPage({
             </span>
             <span className="text-sm font-medium sm:text-base">Feedback</span>
             <Badge variant="secondary">{filteredFeedback.length}</Badge>
+            {selectedIds.size ? (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                Clear {selectedIds.size} selected
+              </button>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -246,6 +360,19 @@ export function FeedbackPage({
           <Table className="[&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:hover]:bg-transparent [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 [&_tr]:border-0">
             <TableHeader className="[&_tr]:border-b-0">
               <TableRow className="bg-muted/50">
+                <TableHead className="w-12 min-w-12">
+                  <Checkbox
+                    checked={
+                      visibleSelected
+                        ? true
+                        : visiblePartiallySelected
+                          ? "indeterminate"
+                          : false
+                    }
+                    onCheckedChange={toggleVisibleSelection}
+                    aria-label="Select visible feedback"
+                  />
+                </TableHead>
                 <TableHead className="min-w-[260px] text-xs font-medium text-muted-foreground sm:text-sm">
                   Feedback
                 </TableHead>
@@ -261,6 +388,9 @@ export function FeedbackPage({
                 <TableHead className="min-w-[100px] text-xs font-medium text-muted-foreground sm:text-sm">
                   Votes
                 </TableHead>
+                <TableHead className="min-w-[90px] text-xs font-medium text-muted-foreground sm:text-sm">
+                  Actions
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -269,7 +399,7 @@ export function FeedbackPage({
               ) : paginatedFeedback.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={5}
+                    colSpan={7}
                     className="h-24 text-center text-sm text-muted-foreground"
                   >
                     No feedback found matching your filters.
@@ -278,10 +408,21 @@ export function FeedbackPage({
               ) : (
                 paginatedFeedback.map((item) => (
                   <TableRow key={item.id} className="group">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(item.id)}
+                        onCheckedChange={() => toggleFeedbackSelection(item.id)}
+                        aria-label={`Select feedback ${item.message}`}
+                      />
+                    </TableCell>
                     <TableCell className="max-w-[360px]">
-                      <div className="truncate text-xs font-medium group-hover:underline sm:text-sm">
+                      <button
+                        type="button"
+                        className="block max-w-full truncate text-left text-xs font-medium group-hover:underline sm:text-sm"
+                        onClick={() => setEditingFeedback(item)}
+                      >
                         {item.message}
-                      </div>
+                      </button>
                     </TableCell>
                     <TableCell>
                       <Badge variant={feedbackTypeBadgeVariants[item.type]}>
@@ -324,6 +465,20 @@ export function FeedbackPage({
                           -
                         </span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setEditingFeedback(item)}
+                        title="Feedback settings"
+                        aria-label="Feedback settings"
+                      >
+                        <SettingsIcon className="h-4 w-4" />
+                        <span className="sr-only">Feedback settings</span>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -406,7 +561,233 @@ export function FeedbackPage({
           </div>
         </div>
       </div>
+      {visibleSelected &&
+      filteredFeedbackIds.length > paginatedFeedbackIds.length ? (
+        <div className="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          {paginatedFeedbackIds.length} feedback item
+          {paginatedFeedbackIds.length === 1 ? "" : "s"} on this page are
+          selected.{" "}
+          <button
+            type="button"
+            className="font-medium text-foreground underline underline-offset-2"
+            onClick={() => setSelectedIds(new Set(filteredFeedbackIds))}
+          >
+            Select all {filteredFeedbackIds.length}
+          </button>
+        </div>
+      ) : null}
+      <EditFeedbackModal
+        feedback={editingFeedback}
+        open={Boolean(editingFeedback)}
+        onOpenChange={(open) => {
+          if (!open) setEditingFeedback(null)
+        }}
+        onUpdated={handleUpdated}
+        onDeleted={handleDeleted}
+      />
+      <MassDeleteFeedbackModal
+        count={selectedIds.size}
+        deleting={massDeleting}
+        open={massDeleteOpen}
+        onOpenChange={setMassDeleteOpen}
+        onConfirm={handleMassDelete}
+      />
     </div>
+  )
+}
+
+function MassDeleteFeedbackModal({
+  count,
+  deleting,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  count: number
+  deleting: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <AdminModalContent
+        title={`Delete ${count} Feedback Item${count === 1 ? "" : "s"}`}
+        description="This action cannot be undone."
+        bodyClassName="space-y-3"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onConfirm}
+              disabled={deleting || count === 0}
+            >
+              {deleting ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2Icon className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Are you sure you want to delete {count} feedback item
+          {count === 1 ? "" : "s"}?
+        </p>
+      </AdminModalContent>
+    </Dialog>
+  )
+}
+
+function EditFeedbackModal({
+  feedback,
+  open,
+  onOpenChange,
+  onUpdated,
+  onDeleted,
+}: {
+  feedback: FeedbackItem | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onUpdated: (feedback: FeedbackItem) => void
+  onDeleted: (feedbackId: string) => void
+}) {
+  const [feedbackType, setFeedbackType] =
+    React.useState<FeedbackType>("suggestion")
+  const [message, setMessage] = React.useState("")
+  const [error, setError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [deleting, setDeleting] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!feedback) return
+    setFeedbackType(feedback.type)
+    setMessage(feedback.message)
+    setError(null)
+  }, [feedback])
+
+  const handleSave = async () => {
+    if (!feedback) return
+    const trimmedMessage = message.trim()
+    if (!trimmedMessage) {
+      setError("Feedback message is required.")
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateFeedback({
+        feedbackId: feedback.id,
+        type: feedbackType,
+        message: trimmedMessage,
+      })
+      onUpdated(updated)
+      onOpenChange(false)
+    } catch (saveError) {
+      setError(getFeedbackErrorMessage(saveError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!feedback) return
+
+    setDeleting(true)
+    setError(null)
+    try {
+      await deleteFeedback(feedback.id)
+      onDeleted(feedback.id)
+      onOpenChange(false)
+    } catch (deleteError) {
+      setError(getFeedbackErrorMessage(deleteError))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const busy = saving || deleting
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <AdminModalContent
+        title="Edit Feedback"
+        description="Update the message and feedback type."
+        bodyClassName="space-y-5"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={busy}
+            >
+              {deleting ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2Icon className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+            <Button type="button" onClick={handleSave} disabled={busy}>
+              {saving ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <SaveIcon className="h-4 w-4" />
+              )}
+              Save
+            </Button>
+          </>
+        }
+      >
+        <Select
+          value={feedbackType}
+          onValueChange={(value) => setFeedbackType(value as FeedbackType)}
+          disabled={busy}
+        >
+          <SelectTrigger className="h-9 w-[180px]" aria-label="Feedback type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(feedbackTypeLabels).map(([type, label]) => (
+              <SelectItem key={type} value={type}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Textarea
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+          className="min-h-40 resize-none text-base"
+          disabled={busy}
+          autoFocus
+        />
+
+        {error ? (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : null}
+      </AdminModalContent>
+    </Dialog>
   )
 }
 

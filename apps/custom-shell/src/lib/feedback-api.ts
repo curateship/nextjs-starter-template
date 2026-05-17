@@ -34,13 +34,25 @@ type FeedbackCreatePayload = {
   message: string
 }
 
+type FeedbackUpdatePayload = FeedbackCreatePayload & {
+  feedbackId: string
+}
+
 const createFeedbackSchema = z.object({
   type: z.enum(["suggestion", "bug_report", "question", "praise"]),
   message: z.string().min(1).max(5000),
 })
 
+const updateFeedbackSchema = createFeedbackSchema.extend({
+  feedbackId: z.string().min(1),
+})
+
 const feedbackIdSchema = z.object({
   feedbackId: z.string().min(1),
+})
+
+const feedbackIdsSchema = z.object({
+  feedbackIds: z.array(z.string().min(1)).min(1),
 })
 
 export function getFeedbackErrorMessage(error: unknown) {
@@ -82,6 +94,62 @@ const createFeedbackFn = createServerFn({ method: "POST" })
 
     await db.insert(customShellFeedback).values(row)
     return serializeFeedbackRow(row, user.name, 0, false)
+  })
+
+const updateFeedbackFn = createServerFn({ method: "POST" })
+  .inputValidator(updateFeedbackSchema)
+  .handler(async ({ data }): Promise<FeedbackItem> => {
+    requireAppOrigin()
+    const user = await requireAdminUser()
+    const message = data.message.trim()
+
+    if (!message) {
+      throw new Error("Message is required")
+    }
+
+    const [row] = await db
+      .update(customShellFeedback)
+      .set({ type: data.type, message, updatedAt: now() })
+      .where(eq(customShellFeedback.id, data.feedbackId))
+      .returning()
+
+    if (!row) {
+      throw new Error("Feedback not found")
+    }
+
+    return serializeFeedbackWithMeta(row, user.id)
+  })
+
+const deleteFeedbackFn = createServerFn({ method: "POST" })
+  .inputValidator(feedbackIdSchema)
+  .handler(async ({ data }): Promise<{ feedbackId: string }> => {
+    requireAppOrigin()
+    await requireAdminUser()
+
+    const [row] = await db
+      .delete(customShellFeedback)
+      .where(eq(customShellFeedback.id, data.feedbackId))
+      .returning({ id: customShellFeedback.id })
+
+    if (!row) {
+      throw new Error("Feedback not found")
+    }
+
+    return { feedbackId: row.id }
+  })
+
+const deleteFeedbackManyFn = createServerFn({ method: "POST" })
+  .inputValidator(feedbackIdsSchema)
+  .handler(async ({ data }): Promise<{ feedbackIds: string[] }> => {
+    requireAppOrigin()
+    await requireAdminUser()
+
+    const rows = await db
+      .delete(customShellFeedback)
+      .where(inArray(customShellFeedback.id, data.feedbackIds))
+      .returning({ id: customShellFeedback.id })
+
+    return { feedbackIds: rows.map((row) => row.id) }
   })
 
 const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
@@ -154,6 +222,18 @@ export function createFeedback(payload: FeedbackCreatePayload) {
   return createFeedbackFn({ data: payload })
 }
 
+export function updateFeedback(payload: FeedbackUpdatePayload) {
+  return updateFeedbackFn({ data: payload })
+}
+
+export function deleteFeedback(feedbackId: string) {
+  return deleteFeedbackFn({ data: { feedbackId } })
+}
+
+export function deleteFeedbackMany(feedbackIds: string[]) {
+  return deleteFeedbackManyFn({ data: { feedbackIds } })
+}
+
 export function toggleFeedbackVote(feedbackId: string) {
   return toggleFeedbackVoteFn({ data: { feedbackId } })
 }
@@ -162,6 +242,14 @@ async function requireUser() {
   const user = await findCurrentUser()
   if (!user) {
     throw new Error("Missing Custom Shell session")
+  }
+  return user
+}
+
+async function requireAdminUser() {
+  const user = await requireUser()
+  if (user.role !== "admin") {
+    throw new Error("Not authorized")
   }
   return user
 }
@@ -213,6 +301,38 @@ async function serializeFeedbackRows(
       voteCounts.get(row.id) ?? 0,
       votedIds.has(row.id)
     )
+  )
+}
+
+async function serializeFeedbackWithMeta(
+  row: CustomShellFeedback,
+  currentUserId: string
+) {
+  const [voteCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(customShellFeedbackVotes)
+    .where(eq(customShellFeedbackVotes.feedbackId, row.id))
+  const [vote] = await db
+    .select({ id: customShellFeedbackVotes.id })
+    .from(customShellFeedbackVotes)
+    .where(
+      and(
+        eq(customShellFeedbackVotes.feedbackId, row.id),
+        eq(customShellFeedbackVotes.userId, currentUserId)
+      )
+    )
+    .limit(1)
+  const [author] = await db
+    .select({ name: customShellUsers.name })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, row.userId))
+    .limit(1)
+
+  return serializeFeedbackRow(
+    row,
+    author?.name ?? "Unknown",
+    voteCount?.count ?? 0,
+    Boolean(vote)
   )
 }
 
