@@ -340,7 +340,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return nextNodes[pendingInsertIndex] || data
   }
 
-  const createEmailNode = async (input: CreateAutomationEmailInput) => {
+  const createEmailNode = async (input: CreateAutomationEmailInput, openEditor: boolean) => {
     const data = await createAndInsertNode("email", {
       subject: input.subject,
       node_config: input.node_config,
@@ -350,7 +350,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (!data) return false
 
     setEmailCreateOpen(false)
-    router.push(`/admin/newsletters/automations/${automationId}/email/${data.id}`)
+    if (openEditor) {
+      router.push(`/admin/newsletters/automations/${automationId}/email/${data.id}`)
+    } else {
+      flash("Saved")
+    }
     return true
   }
 
@@ -1241,7 +1245,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           <CreateAutomationEmailModal
             siteId={siteId || ""}
             onCreate={createEmailNode}
-            onCancel={() => setEmailCreateOpen(false)}
           />
         </Dialog>
 

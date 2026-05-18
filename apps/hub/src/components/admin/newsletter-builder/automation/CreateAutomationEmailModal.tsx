@@ -28,8 +28,7 @@ export interface CreateAutomationEmailInput {
 
 interface CreateAutomationEmailModalProps {
   siteId: string
-  onCreate: (input: CreateAutomationEmailInput) => Promise<boolean>
-  onCancel: () => void
+  onCreate: (input: CreateAutomationEmailInput, openEditor: boolean) => Promise<boolean>
 }
 
 function getBodyFromBlocks(contentBlocks: Record<string, any>) {
@@ -63,14 +62,14 @@ function withBodyBlock(contentBlocks: Record<string, any>, body: string) {
   }
 }
 
-export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: CreateAutomationEmailModalProps) {
+export function CreateAutomationEmailModal({ siteId, onCreate }: CreateAutomationEmailModalProps) {
   const { currentSite } = useSiteSwitcher()
   const [subject, setSubject] = useState("")
   const [body, setBody] = useState("")
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState("blank")
-  const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"save" | "continue" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const drip = useDripSettings(false, false)
 
@@ -112,9 +111,7 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
     setBody(selectedTemplate ? getBodyFromBlocks(selectedTemplate.content_blocks || {}) : "")
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-
+  const handleCreate = async (openEditor: boolean) => {
     if (!subject.trim()) {
       setError("Subject line is required")
       return
@@ -130,23 +127,34 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
       return
     }
 
-    setLoading(true)
+    const loadingKey = openEditor ? "continue" : "save"
+    setLoadingAction(loadingKey)
     setError(null)
 
     const selectedTemplate = selectedTemplateId !== "blank"
       ? templates.find(template => template.id === selectedTemplateId)
       : null
 
-    const success = await onCreate({
-      subject: subject.trim(),
-      content_blocks: withBodyBlock(selectedTemplate?.content_blocks || {}, body),
-      node_config: {
-        drip_config: drip.buildConfig(),
+    const success = await onCreate(
+      {
+        subject: subject.trim(),
+        content_blocks: withBodyBlock(selectedTemplate?.content_blocks || {}, body),
+        node_config: {
+          drip_config: drip.buildConfig(),
+        },
       },
-    })
+      openEditor
+    )
 
-    if (!success) setLoading(false)
+    if (!success) setLoadingAction(null)
   }
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    await handleCreate(true)
+  }
+
+  const loading = loadingAction !== null
 
   return (
     <Tabs defaultValue="content">
@@ -164,11 +172,11 @@ export function CreateAutomationEmailModal({ siteId, onCreate, onCancel }: Creat
           }
           footer={
             <>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
+              <Button type="button" variant="outline" onClick={() => handleCreate(false)} disabled={loading}>
+                {loadingAction === "save" ? "Saving..." : "Save"}
               </Button>
               <Button form="create-automation-email-form" type="submit" disabled={loading}>
-                {loading ? "Creating..." : "Continue"}
+                {loadingAction === "continue" ? "Creating..." : "Continue to Editor"}
               </Button>
             </>
           }
