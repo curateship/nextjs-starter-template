@@ -5,6 +5,7 @@ Custom Shell is a TanStack Start app with React, TypeScript, shadcn/ui, server f
 ## Development
 
 ```bash
+npm run db:up --workspace=custom-shell
 npm run dev --workspace=custom-shell
 ```
 

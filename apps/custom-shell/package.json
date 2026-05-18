@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "db:up": "docker compose up -d postgres",
     "dev": "vite dev",
     "build": "vite build",
     "lint": "eslint .",
