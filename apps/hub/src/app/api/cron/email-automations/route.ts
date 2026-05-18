@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, productOrders } from '@/lib/db/schema'
-import { eq, and, inArray, sql } from 'drizzle-orm'
+import { eq, and, inArray, sql, asc } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
@@ -9,7 +9,8 @@ import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-win
 import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
 
 const NON_DRIP_BATCH_SIZE = 50
-const ENROLLMENT_SCAN_LIMIT = 500
+const BASE_ENROLLMENT_SCAN_LIMIT = 500
+const DEFAULT_DRIP_BATCH_MAX = 500
 
 type AutomationStepRow = typeof emailAutomationSteps.$inferSelect
 type EmailConfig = Awaited<ReturnType<typeof getEmailConfig>>
@@ -66,6 +67,25 @@ function getNextBatchAt(dripConfig: Record<string, any>) {
   return new Date(Date.now() + intervalMinutes * 60 * 1000).toISOString()
 }
 
+async function getEnrollmentScanLimit() {
+  const result = await db.execute<{ max_batch_size: number | string | null }>(sql`
+    select coalesce(max(
+      case
+        when s.node_config->'drip_config'->>'batch_size_max' ~ '^[0-9]+$'
+          then greatest((s.node_config->'drip_config'->>'batch_size_max')::int, 1)
+        else ${DEFAULT_DRIP_BATCH_MAX}
+      end
+    ), 0)::int as max_batch_size
+    from email_automation_steps s
+    join email_automations a on a.id = s.automation_id
+    where a.status = 'active'
+      and s.node_type = 'email'
+      and s.node_config->'drip_config'->>'enabled' = 'true'
+  `)
+
+  return BASE_ENROLLMENT_SCAN_LIMIT + Number(result.rows[0]?.max_batch_size || 0)
+}
+
 async function saveDripState(state: DripState, now: Date) {
   if (state.sent === 0) return
 
@@ -103,6 +123,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const now = new Date()
+    const enrollmentScanLimit = await getEnrollmentScanLimit()
 
     // Scan active enrollments; non-drip sends are still capped below.
     const enrollments = await db
@@ -122,7 +143,11 @@ export async function GET(request: NextRequest) {
         eq(emailAutomationEnrollments.status, 'active'),
         eq(emailAutomations.status, 'active'),
       ))
-      .limit(ENROLLMENT_SCAN_LIMIT)
+      .orderBy(
+        asc(emailAutomationEnrollments.currentStepOrder),
+        asc(emailAutomationEnrollments.enrolledAt),
+      )
+      .limit(enrollmentScanLimit)
 
     if (!enrollments.length) {
       return NextResponse.json({ message: 'No active enrollments', processed: 0 })
