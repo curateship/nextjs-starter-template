@@ -58,6 +58,11 @@ import {
   type AutomationTriggerNode,
   type AutomationTriggerType
 } from "@/lib/actions/newsletters/automation-triggers"
+import {
+  DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE,
+  getNewsletterSendWindows,
+  isWithinNewsletterSendWindow
+} from "@/lib/actions/newsletters/send-windows"
 import { cn } from "@/lib/utils/tailwind"
 import { BarChart3, CheckCircle2, Clock, Mail, PencilLine, Plus, Trash2, Zap } from "lucide-react"
 
@@ -602,6 +607,65 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     })}`
   }
 
+  const formatNextDripDate = (date: Date) => `Next drip: ${date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  })}`
+
+  const getNextCronTime = (from = new Date()) => {
+    const next = new Date(from)
+    next.setSeconds(0, 0)
+    const remainder = next.getMinutes() % 5
+    next.setMinutes(next.getMinutes() + (remainder === 0 ? 5 : 5 - remainder))
+    return next
+  }
+
+  const getCurrentTimezoneMinutes = (timezone: string, now: Date) => {
+    try {
+      const localizedNow = new Date(now.toLocaleString("en-US", { timeZone: timezone }))
+      return localizedNow.getHours() * 60 + localizedNow.getMinutes()
+    } catch {
+      return now.getHours() * 60 + now.getMinutes()
+    }
+  }
+
+  const getNextDripLabel = (dripConfig: Record<string, any>) => {
+    const nextBatch = formatNextTriggerTime(dripConfig.next_batch_at)?.replace("Next trigger", "Next drip")
+    if (nextBatch) return nextBatch
+
+    const now = new Date()
+    if (isWithinNewsletterSendWindow(dripConfig, now)) return formatNextDripDate(getNextCronTime(now))
+
+    const windows = getNewsletterSendWindows(dripConfig)
+    const nextWindowStart = windows
+      .map(window => window.start)
+      .sort()
+      .find(start => {
+        const [hours, minutes] = start.split(":").map(Number)
+        const timezone = typeof dripConfig.send_window_timezone === "string"
+          ? dripConfig.send_window_timezone
+          : DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE
+        return hours * 60 + minutes > getCurrentTimezoneMinutes(timezone, now)
+      }) || windows[0]?.start
+
+    if (!nextWindowStart) return formatNextDripDate(getNextCronTime(now))
+
+    const [hours, minutes] = nextWindowStart.split(":").map(Number)
+    const nextWindowDate = new Date(now)
+    if (hours * 60 + minutes <= getCurrentTimezoneMinutes(
+      typeof dripConfig.send_window_timezone === "string"
+        ? dripConfig.send_window_timezone
+        : DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE,
+      now
+    )) {
+      nextWindowDate.setDate(nextWindowDate.getDate() + 1)
+    }
+    nextWindowDate.setHours(hours, minutes, 0, 0)
+    return formatNextDripDate(nextWindowDate)
+  }
+
   const delayChipClass =
     "h-6 whitespace-nowrap rounded-full border-yellow-200 bg-yellow-50 px-2 text-xs font-normal text-yellow-800 hover:bg-yellow-50"
   const emailChipClass =
@@ -609,10 +673,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const getEmailStatusLabel = (node: AutomationStep) => {
     if (!node.subject?.trim()) return "Needs subject"
-    if (automation?.status === "active" && (emailStepStats[node.step_order]?.sent ?? 0) <= 0)
-      return "Waiting for trigger"
-    if (automation?.status === "active" && node.node_config?.drip_config?.enabled === true) return "Drip sending"
-    if (automation?.status === "active") return "Sending"
+    if (automation?.status === "active") {
+      const dripConfig = node.node_config?.drip_config
+      if (dripConfig?.enabled === true) {
+        if (dripConfig.next_batch_at) return getNextDripLabel(dripConfig)
+        if (!nodes.some(candidate => candidate.step_order < node.step_order)) return getNextDripLabel(dripConfig)
+        return (emailStepStats[node.step_order]?.sent ?? 0) > 0 ? "Drip sending" : "Waiting for trigger"
+      }
+      if ((emailStepStats[node.step_order]?.sent ?? 0) <= 0) return "Waiting for contact"
+      return "Sending"
+    }
     if (automation?.status === "paused") return "Paused"
     return "Draft"
   }

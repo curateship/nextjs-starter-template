@@ -416,14 +416,14 @@ export async function updateAutomation(
       )]
       : []
     if (segmentIds.length) {
-      const segmentSql = sql.join(segmentIds.map(id => sql`${id}`), sql`, `)
+      const segmentSql = sql.join(segmentIds.map(id => sql`${id}::uuid`), sql`, `)
       await db.execute(sql`
         insert into email_automation_enrollments (automation_id, contact_id, status, current_step_order, metadata)
-        select distinct ${automationId}, nsc.contact_id, 'active', 0, jsonb_build_object('source', 'segment_added', 'segment_ids', ${JSON.stringify(segmentIds)}::jsonb)
+        select distinct ${automationId}::uuid, nsc.contact_id, 'active', 0, jsonb_build_object('source', 'segment_added', 'segment_ids', ${JSON.stringify(segmentIds)}::jsonb)
         from newsletter_segment_contacts nsc
         join newsletter_contacts nc on nc.id = nsc.contact_id
         where nsc.segment_id in (${segmentSql})
-          and nc.site_id = ${automation.siteId}
+          and nc.site_id = ${automation.siteId}::uuid
           and nc.status = 'active'
         on conflict do nothing
       `)
