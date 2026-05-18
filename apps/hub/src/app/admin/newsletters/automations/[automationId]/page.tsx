@@ -72,10 +72,17 @@ interface PageProps {
 
 const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
 type EmailStepStats = { sent: number; duplicateSends: number; opened: number; clicked: number }
-type CheckpointAction = "continue" | "end"
+type CheckpointAction = "continue" | "pause" | "end"
 
 function getCheckpointAction(config: AutomationStep["node_config"] | undefined): CheckpointAction {
+  if (config?.checkpoint_action === "pause" || config?.keep_active_when_no_next_node === true) return "pause"
   return config?.checkpoint_action === "end" ? "end" : "continue"
+}
+
+function getCheckpointActionLabel(action: CheckpointAction) {
+  if (action === "end") return "End automation"
+  if (action === "pause") return "Pause here"
+  return "Continue"
 }
 
 export default function AutomationBuilderPage({ params }: PageProps) {
@@ -115,6 +122,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
+  const [emailCreateKey, setEmailCreateKey] = useState(0)
   const [editingEmailSettings, setEditingEmailSettings] = useState<AutomationStep | null>(null)
   const [statusEventsStep, setStatusEventsStep] = useState<AutomationStep | null>(null)
   const [pendingDeleteNodeId, setPendingDeleteNodeId] = useState<string | null>(null)
@@ -280,6 +288,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setPendingInsertIndex(afterIndex)
 
     if (nodeType === "email") {
+      setEmailCreateKey((key) => key + 1)
       setEmailCreateOpen(true)
       return
     }
@@ -1101,7 +1110,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                                 variant="outline"
                                 className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
                               >
-                                {getCheckpointAction(node.node_config) === "end" ? "End automation" : "Continue"}
+                                {getCheckpointActionLabel(getCheckpointAction(node.node_config))}
                               </Badge>
                             </div>
                           </div>
@@ -1211,6 +1220,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
         <Dialog open={emailCreateOpen} onOpenChange={setEmailCreateOpen}>
           <CreateAutomationEmailModal
+            key={emailCreateKey}
             siteId={siteId || ""}
             onCreate={createEmailNode}
           />
@@ -1460,6 +1470,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="continue">Continue</SelectItem>
+                        <SelectItem value="pause">Pause here</SelectItem>
                         <SelectItem value="end">End automation</SelectItem>
                       </SelectContent>
                     </Select>

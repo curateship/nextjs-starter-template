@@ -27,8 +27,8 @@ type DripState = {
   lockToken: string
 }
 
-function getNodeConfig(step: { nodeConfig: unknown }) {
-  if (!step.nodeConfig || typeof step.nodeConfig !== 'object' || Array.isArray(step.nodeConfig)) return {}
+function getNodeConfig(step: { nodeConfig: unknown } | undefined) {
+  if (!step?.nodeConfig || typeof step.nodeConfig !== 'object' || Array.isArray(step.nodeConfig)) return {}
   return step.nodeConfig as Record<string, any>
 }
 
@@ -228,6 +228,22 @@ export async function GET(request: NextRequest) {
         }
 
         if (!step) {
+          const [currentStep] = await db
+            .select({ nodeType: emailAutomationSteps.nodeType, nodeConfig: emailAutomationSteps.nodeConfig })
+            .from(emailAutomationSteps)
+            .where(and(
+              eq(emailAutomationSteps.automationId, enrollment.automationId),
+              eq(emailAutomationSteps.stepOrder, enrollment.currentStepOrder ?? 0),
+            ))
+
+          const currentNodeConfig = getNodeConfig(currentStep)
+          if (
+            currentStep?.nodeType === 'end_rules' &&
+            (currentNodeConfig.checkpoint_action === 'pause' || currentNodeConfig.keep_active_when_no_next_node === true)
+          ) {
+            continue
+          }
+
           // No more steps — mark completed
           await db
             .update(emailAutomationEnrollments)
@@ -276,6 +292,18 @@ export async function GET(request: NextRequest) {
                 status: 'completed',
                 currentStepOrder: nextStepOrder,
                 completedAt: now,
+                lastStepSentAt: now,
+              })
+              .where(eq(emailAutomationEnrollments.id, enrollment.id))
+            processed++
+            continue
+          }
+
+          if (nodeConfig.checkpoint_action === 'pause' || nodeConfig.keep_active_when_no_next_node === true) {
+            await db
+              .update(emailAutomationEnrollments)
+              .set({
+                currentStepOrder: nextStepOrder,
                 lastStepSentAt: now,
               })
               .where(eq(emailAutomationEnrollments.id, enrollment.id))
