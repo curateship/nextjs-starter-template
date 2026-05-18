@@ -17,6 +17,7 @@ export const DEFAULT_NEWSLETTER_DRIP_CONFIG = {
   interval_min_minutes: 30,
   interval_max_minutes: 60,
   bounce_threshold_percent: 5,
+  skip_weekends: false,
   send_windows: DEFAULT_NEWSLETTER_SEND_WINDOWS,
   send_window_start: DEFAULT_NEWSLETTER_SEND_WINDOWS[0].start,
   send_window_end: DEFAULT_NEWSLETTER_SEND_WINDOWS[0].end,
@@ -55,6 +56,20 @@ function currentMinutesInTimezone(timezone: string, now: Date) {
   }
 }
 
+function currentDayInTimezone(timezone: string, now: Date) {
+  try {
+    const localizedNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }))
+    return localizedNow.getDay()
+  } catch {
+    return now.getDay()
+  }
+}
+
+function isWeekendInTimezone(timezone: string, now: Date) {
+  const day = currentDayInTimezone(timezone, now)
+  return day === 0 || day === 6
+}
+
 function isMinuteInWindow(currentMinutes: number, window: NewsletterSendWindow) {
   const start = timeToMinutes(window.start)
   const end = timeToMinutes(window.end)
@@ -84,12 +99,15 @@ export function getNewsletterSendWindows(dripConfig: Record<string, unknown> | n
 }
 
 export function isWithinNewsletterSendWindow(dripConfig: Record<string, unknown> | null | undefined, now = new Date()) {
-  const windows = getNewsletterSendWindows(dripConfig)
-  if (windows.length === 0) return true
-
   const timezone = typeof dripConfig?.send_window_timezone === 'string'
     ? dripConfig.send_window_timezone
     : DEFAULT_NEWSLETTER_SEND_WINDOW_TIMEZONE
+
+  if (dripConfig?.skip_weekends === true && isWeekendInTimezone(timezone, now)) return false
+
+  const windows = getNewsletterSendWindows(dripConfig)
+  if (windows.length === 0) return true
+
   const currentMinutes = currentMinutesInTimezone(timezone, now)
 
   return windows.some((window) => isMinuteInWindow(currentMinutes, window))
@@ -97,7 +115,8 @@ export function isWithinNewsletterSendWindow(dripConfig: Record<string, unknown>
 
 export function formatNewsletterSendWindows(dripConfig: Record<string, unknown> | null | undefined, fallback = 'window') {
   const windows = getNewsletterSendWindows(dripConfig)
-  if (windows.length === 0) return fallback
+  const weekendsLabel = dripConfig?.skip_weekends === true ? ' on weekdays' : ''
+  if (windows.length === 0) return dripConfig?.skip_weekends === true ? 'weekdays' : fallback
 
   const formatTime = (value: string) => {
     const [hours, minutes] = value.split(':').map(Number)
@@ -108,5 +127,5 @@ export function formatNewsletterSendWindows(dripConfig: Record<string, unknown> 
     return `${displayHour}:${String(minutes).padStart(2, '0')}${period}`
   }
 
-  return windows.map((window) => `${formatTime(window.start)} - ${formatTime(window.end)}`).join(' and ')
+  return `${windows.map((window) => `${formatTime(window.start)} - ${formatTime(window.end)}`).join(' and ')}${weekendsLabel}`
 }

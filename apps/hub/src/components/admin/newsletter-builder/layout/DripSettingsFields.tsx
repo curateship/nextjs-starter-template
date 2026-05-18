@@ -32,6 +32,7 @@ export function useDripSettings(defaultEnabled = false, defaultSendWindowEnabled
   const [sendWindowTwoStart, setSendWindowTwoStart] = useState("")
   const [sendWindowTwoEnd, setSendWindowTwoEnd] = useState("")
   const [sendWindowTimezone, setSendWindowTimezone] = useState("")
+  const [skipWeekends, setSkipWeekends] = useState(false)
 
   const loadFromConfig = useCallback((config: Record<string, any> | null | undefined) => {
     setEnabled(config?.enabled === true)
@@ -48,6 +49,7 @@ export function useDripSettings(defaultEnabled = false, defaultSendWindowEnabled
     setSendWindowTwoStart(sendWindows[1]?.start || "")
     setSendWindowTwoEnd(sendWindows[1]?.end || "")
     setSendWindowTimezone(config?.send_window_timezone || "")
+    setSkipWeekends(config?.skip_weekends === true)
   }, [])
 
   function validate() {
@@ -93,6 +95,7 @@ export function useDripSettings(defaultEnabled = false, defaultSendWindowEnabled
       interval_min_minutes: Number(intervalMin),
       interval_max_minutes: Number(intervalMax),
       bounce_threshold_percent: Number(bounceThreshold),
+      skip_weekends: skipWeekends,
       ...(sendWindowEnabled ? {
         send_windows: sendWindows,
         send_window_start: sendWindows[0].start,
@@ -132,6 +135,8 @@ export function useDripSettings(defaultEnabled = false, defaultSendWindowEnabled
     setSendWindowTwoEnd,
     sendWindowTimezone,
     setSendWindowTimezone,
+    skipWeekends,
+    setSkipWeekends,
     loadFromConfig,
     validate,
     buildConfig,
@@ -240,6 +245,16 @@ function DripSafetyField({ form, idPrefix, disabled }: DripSettingsFieldsProps) 
 function DripSendWindowFields({ form, idPrefix, disabled }: DripSettingsFieldsProps) {
   return (
     <div className="grid gap-4">
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id={`${idPrefix}-skip-weekends`}
+          checked={form.skipWeekends}
+          onCheckedChange={(checked) => form.setSkipWeekends(checked === true)}
+          disabled={disabled}
+        />
+        <Label htmlFor={`${idPrefix}-skip-weekends`}>Skip weekends</Label>
+      </div>
+
       <div className="flex items-center gap-2">
         <Checkbox
           id={`${idPrefix}-send-window-toggle`}
