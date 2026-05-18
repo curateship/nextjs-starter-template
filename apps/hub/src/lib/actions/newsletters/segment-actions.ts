@@ -87,7 +87,7 @@ function validateSegmentInput(
 function dynamicRuleExcludesSegment(dynamicRule: unknown, segmentId: string) {
   const normalizedRule = normalizeSegmentDynamicRule(dynamicRule)
   return normalizedRule?.conditions.some((condition) => (
-    condition.type === 'segment_exclusion' && condition.segment_id === segmentId
+    condition.type === 'segment_exclusion' && condition.segment_ids.includes(segmentId)
   )) ?? false
 }
 
@@ -146,10 +146,12 @@ function buildDynamicSegmentCondition(condition: SegmentDynamicCondition) {
   }
 
   if (condition.type === 'segment_exclusion') {
+    const segmentIds = condition.segment_ids.map((id) => sql`${id}::uuid`)
+
     return sql`not exists (
       select 1
       from ${newsletterSegmentContacts}
-      where ${newsletterSegmentContacts.segmentId} = ${condition.segment_id}
+      where ${newsletterSegmentContacts.segmentId} in (${sql.join(segmentIds, sql`, `)})
         and ${newsletterSegmentContacts.contactId} = ${newsletterContacts.id}
     )`
   }

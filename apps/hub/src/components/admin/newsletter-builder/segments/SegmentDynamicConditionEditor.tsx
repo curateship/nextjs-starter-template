@@ -6,6 +6,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -36,7 +48,7 @@ export type DynamicConditionForm =
   | { id: string; type: "email_open_count"; operator: SegmentOpenCountRuleOperator; times: string }
   | { id: string; type: "tag_match"; operator: SegmentTagRuleOperator; tags: string[] }
   | { id: string; type: "status_match"; operator: SegmentDynamicRuleOperator; status: SegmentContactStatus }
-  | { id: string; type: "segment_exclusion"; segmentId: string }
+  | { id: string; type: "segment_exclusion"; segmentIds: string[] }
 
 type SegmentDynamicConditionEditorProps = {
   availableTags: string[]
@@ -84,7 +96,7 @@ export function mapDynamicRuleToForm(rule: SegmentDynamicRule | null | undefined
       return {
         id: makeConditionId(),
         type: "segment_exclusion",
-        segmentId: condition.segment_id,
+        segmentIds: condition.segment_ids,
       }
     }
 
@@ -134,10 +146,11 @@ export function buildDynamicRuleFromForm(conditions: DynamicConditionForm[]): Se
     }
 
     if (condition.type === "segment_exclusion") {
-      if (!condition.segmentId) return null
+      const segmentIds = [...new Set(condition.segmentIds.filter(Boolean))]
+      if (!segmentIds.length) return null
       normalizedConditions.push({
         type: "segment_exclusion",
-        segment_id: condition.segmentId,
+        segment_ids: segmentIds,
       })
       continue
     }
@@ -160,6 +173,58 @@ function formatDynamicConditionLabel(condition: DynamicConditionForm) {
   if (condition.type === "status_match") return "Status"
   if (condition.type === "segment_exclusion") return "Segment exclusion"
   return "Tags"
+}
+
+function SegmentExclusionCombobox({
+  condition,
+  segmentOptions,
+  onChange,
+}: {
+  condition: Extract<DynamicConditionForm, { type: "segment_exclusion" }>
+  segmentOptions: Segment[]
+  onChange: (segmentIds: string[]) => void
+}) {
+  const anchor = useComboboxAnchor()
+  const items = [
+    ...segmentOptions.map((segment) => ({ value: segment.id, label: segment.name })),
+    ...condition.segmentIds
+      .filter((segmentId) => !segmentOptions.some((segment) => segment.id === segmentId))
+      .map((segmentId) => ({ value: segmentId, label: "Missing segment" })),
+  ]
+
+  return (
+    <Combobox items={items} value={condition.segmentIds} onValueChange={onChange} multiple>
+      <ComboboxChips ref={anchor} className="w-full">
+        <ComboboxValue>
+          {(values) => (
+            <>
+              {values.map((segmentId) => (
+                <ComboboxChip key={segmentId} value={segmentId}>
+                  {segmentOptions.find((segment) => segment.id === segmentId)?.name || "Missing segment"}
+                </ComboboxChip>
+              ))}
+              <ComboboxChipsInput placeholder={values.length ? "" : "Search segments"} />
+            </>
+          )}
+        </ComboboxValue>
+      </ComboboxChips>
+      <ComboboxContent anchor={anchor}>
+        <ComboboxEmpty>No segments found.</ComboboxEmpty>
+        <ComboboxList>
+          {(item) => {
+            const value = typeof item === "string" ? item : item.value
+            const label = typeof item === "string" ? item : item.label
+
+            return (
+              <ComboboxItem key={value} value={value}>
+                {label}
+              </ComboboxItem>
+            )
+          }}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
 }
 
 export function SegmentDynamicConditionEditor({
@@ -185,7 +250,7 @@ export function SegmentDynamicConditionEditor({
     }
 
     if (type === "segment_exclusion") {
-      onChange([...conditions, { id: makeConditionId(), type, segmentId: "" }])
+      onChange([...conditions, { id: makeConditionId(), type, segmentIds: [] }])
       return
     }
 
@@ -345,30 +410,15 @@ export function SegmentDynamicConditionEditor({
 
             {condition.type === "segment_exclusion" && (
               <div className="space-y-2">
-                <Select
-                  value={condition.segmentId}
-                  onValueChange={(value) => updateCondition(condition.id, (current) => (
-                    current.type === "segment_exclusion" ? { ...current, segmentId: value } : current
+                <SegmentExclusionCombobox
+                  condition={condition}
+                  segmentOptions={segmentOptions}
+                  onChange={(segmentIds) => updateCondition(condition.id, (current) => (
+                    current.type === "segment_exclusion" ? { ...current, segmentIds } : current
                   ))}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Choose segment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {segmentOptions.map((segment) => (
-                      <SelectItem key={segment.id} value={segment.id}>
-                        {segment.name}
-                      </SelectItem>
-                    ))}
-                    {condition.segmentId && !segmentOptions.some((segment) => segment.id === condition.segmentId) && (
-                      <SelectItem value={condition.segmentId}>
-                        Missing segment
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+                />
                 <p className="text-xs text-muted-foreground">
-                  Contacts already in this segment will be excluded.
+                  Contacts already in these segments will be excluded.
                 </p>
               </div>
             )}

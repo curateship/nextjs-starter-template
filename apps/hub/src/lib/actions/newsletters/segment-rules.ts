@@ -35,7 +35,7 @@ export interface StatusMatchRule {
 
 export interface SegmentExclusionRule {
   type: 'segment_exclusion'
-  segment_id: string
+  segment_ids: string[]
 }
 
 export type SegmentDynamicCondition =
@@ -135,15 +135,25 @@ function normalizeSegmentExclusionRule(value: unknown): SegmentExclusionRule | n
   if (!value || typeof value !== 'object') return null
 
   const type = (value as { type?: unknown }).type
-  const segmentId = (value as { segment_id?: unknown; segmentId?: unknown }).segment_id
-    ?? (value as { segmentId?: unknown }).segmentId
+  const rawSegmentIds = (value as { segment_ids?: unknown; segmentIds?: unknown }).segment_ids
+    ?? (value as { segmentIds?: unknown }).segmentIds
+  const rawIds = Array.isArray(rawSegmentIds)
+    ? rawSegmentIds
+    : [
+        (value as { segment_id?: unknown; segmentId?: unknown }).segment_id
+          ?? (value as { segmentId?: unknown }).segmentId,
+      ]
+  const segmentIds = [...new Set(rawIds
+    .filter((id): id is string => typeof id === 'string')
+    .map((id) => id.trim())
+    .filter((id) => UUID_REGEX.test(id)))]
 
   if (type !== 'segment_exclusion') return null
-  if (typeof segmentId !== 'string' || !UUID_REGEX.test(segmentId.trim())) return null
+  if (!segmentIds.length) return null
 
   return {
     type: 'segment_exclusion',
-    segment_id: segmentId.trim(),
+    segment_ids: segmentIds,
   }
 }
 
@@ -211,7 +221,7 @@ export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition
   }
 
   if (condition.type === 'segment_exclusion') {
-    return 'Excludes selected segment'
+    return `Excludes ${condition.segment_ids.length} selected segment${condition.segment_ids.length === 1 ? '' : 's'}`
   }
 
   return `Tags ${condition.operator === 'includes' ? 'includes' : 'excludes'} ${condition.tags.join(', ')}`
