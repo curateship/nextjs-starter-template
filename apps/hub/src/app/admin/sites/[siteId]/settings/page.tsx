@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils/tailwind"
 import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import { SiteAdminSettingsTab } from "@/components/admin/layout/settings/SiteAdminSettingsTab"
 import { checkDomainHealth, type DomainHealth } from "@/lib/actions/newsletters/deliverability-actions"
+import { normalizeContactColdEmailThreshold } from "@/lib/actions/newsletters/contact-filters"
 import { SiteHealthTab } from "@/components/admin/seo-settings/SiteHealthTab"
 import { DripSettingsFields, useDripSettings } from "@/components/admin/newsletter-builder/layout/DripSettingsFields"
 
@@ -484,6 +485,9 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   )
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
   const newsletterDripDefaults = useDripSettings(false, false)
+  const [coldThresholdEmails, setColdThresholdEmails] = useState(
+    String(normalizeContactColdEmailThreshold(contextSite?.settings?.newsletter_cold_threshold_emails))
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -508,6 +512,10 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
       newsletterDripDefaults.loadFromConfig(site.settings.newsletter_drip_defaults)
     }
   }, [newsletterDripDefaults.loadFromConfig, site?.settings?.newsletter_drip_defaults])
+
+  useEffect(() => {
+    setColdThresholdEmails(String(normalizeContactColdEmailThreshold(site?.settings?.newsletter_cold_threshold_emails)))
+  }, [site?.settings?.newsletter_cold_threshold_emails])
 
   const showSuccess = useCallback((message: string) => {
     setSaveMessage(message)
@@ -584,11 +592,13 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           setError(dripError)
           return
         }
+        const coldThreshold = normalizeContactColdEmailThreshold(coldThresholdEmails)
 
         const { data, error } = await updateSiteAction(siteId, {
           settings: {
             ...site?.settings,
-            newsletter_drip_defaults: newsletterDripDefaults.buildConfig()
+            newsletter_drip_defaults: newsletterDripDefaults.buildConfig(),
+            newsletter_cold_threshold_emails: coldThreshold
           }
         })
 
@@ -776,6 +786,28 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     </CardHeader>
                     <CardContent>
                       <DripSettingsFields form={newsletterDripDefaults} idPrefix="newsletter-defaults" />
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Cold Contact Threshold</CardTitle>
+                      <CardDescription>
+                        Contacts are marked cold when they have not opened this many recent emails.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="max-w-xs space-y-2">
+                        <Label htmlFor="newsletter-cold-threshold">Emails without an open</Label>
+                        <Input
+                          id="newsletter-cold-threshold"
+                          type="number"
+                          min="1"
+                          max="50"
+                          step="1"
+                          value={coldThresholdEmails}
+                          onChange={(event) => setColdThresholdEmails(event.target.value)}
+                        />
+                      </div>
                     </CardContent>
                   </Card>
                 </CardGroup>

@@ -98,10 +98,17 @@ export const CONTACT_EMAIL_OPEN_OPERATOR_OPTIONS: Array<{ value: ContactEmailOpe
 
 export const CONTACT_STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
+  { value: 'cold', label: 'Cold' },
   { value: 'unsubscribed', label: 'Unsubscribed' },
   { value: 'bounced', label: 'Bounced' },
   { value: 'complained', label: 'Complained' },
 ] as const
+
+export const DEFAULT_COLD_EMAIL_THRESHOLD = 7
+
+export function normalizeContactColdEmailThreshold(value: unknown) {
+  return Math.min(50, Math.max(1, Math.floor(Number(value) || DEFAULT_COLD_EMAIL_THRESHOLD)))
+}
 
 export const CONTACT_SOURCE_OPTIONS = [
   { value: 'site_registration', label: 'Site Registration' },

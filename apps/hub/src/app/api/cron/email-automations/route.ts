@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterDeliveries, productOrders } from '@/lib/db/schema'
-import { eq, and, inArray, sql, asc } from 'drizzle-orm'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterDeliveries } from '@/lib/db/schema'
+import { eq, and, sql, asc } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
@@ -36,20 +36,6 @@ function getDripConfig(nodeConfig: Record<string, any>) {
   const dripConfig = nodeConfig.drip_config
   if (!dripConfig || typeof dripConfig !== 'object' || Array.isArray(dripConfig)) return null
   return dripConfig as Record<string, any>
-}
-
-function getEndRuleProductIds(nodeConfig: Record<string, any>) {
-  return Array.isArray(nodeConfig.product_ids)
-    ? nodeConfig.product_ids.filter((id): id is string => typeof id === 'string')
-    : []
-}
-
-function getPositiveRuleValue(value: unknown, fallback = 1) {
-  return Math.max(1, Math.floor(Number(value) || fallback))
-}
-
-function keepsActiveWhenNoNextNode(step: AutomationStepRow | null | undefined) {
-  return step?.nodeType === 'end_rules' && getNodeConfig(step).keep_active_when_no_next_node === true
 }
 
 function getRandomBetween(minValue: unknown, maxValue: unknown, fallbackMin: number, fallbackMax: number) {
@@ -242,24 +228,6 @@ export async function GET(request: NextRequest) {
         }
 
         if (!step) {
-          const currentStepOrder = enrollment.currentStepOrder ?? 0
-          const previousStepCacheKey = `${enrollment.automationId}:${currentStepOrder}`
-          let previousStep = stepCache.get(previousStepCacheKey)
-
-          if (currentStepOrder > 0 && !stepCache.has(previousStepCacheKey)) {
-            const [loadedPreviousStep] = await db
-              .select()
-              .from(emailAutomationSteps)
-              .where(and(
-                eq(emailAutomationSteps.automationId, enrollment.automationId),
-                eq(emailAutomationSteps.stepOrder, currentStepOrder),
-              ))
-            previousStep = loadedPreviousStep ?? null
-            stepCache.set(previousStepCacheKey, previousStep)
-          }
-
-          if (keepsActiveWhenNoNextNode(previousStep)) continue
-
           // No more steps — mark completed
           await db
             .update(emailAutomationEnrollments)
@@ -288,7 +256,7 @@ export async function GET(request: NextRequest) {
 
         if (step.nodeType === 'end_rules') {
           const [contact] = await db
-            .select({ id: newsletterContacts.id, email: newsletterContacts.email, status: newsletterContacts.status })
+            .select({ id: newsletterContacts.id, status: newsletterContacts.status })
             .from(newsletterContacts)
             .where(eq(newsletterContacts.id, enrollment.contactId))
 
@@ -301,28 +269,13 @@ export async function GET(request: NextRequest) {
           }
 
           const nodeConfig = getNodeConfig(step)
-          const productIds = getEndRuleProductIds(nodeConfig)
-          const purchaseRows = productIds.length
-            ? await db
-              .select({ id: productOrders.id })
-              .from(productOrders)
-              .where(and(
-                eq(productOrders.siteId, siteId),
-                inArray(productOrders.productId, productIds),
-                eq(productOrders.customerEmail, contact.email.toLowerCase()),
-                eq(productOrders.orderType, 'paid_purchase'),
-                eq(productOrders.paymentStatus, 'succeeded'),
-              ))
-              .limit(1)
-            : []
-
-          if (purchaseRows.length) {
+          if (nodeConfig.checkpoint_action === 'end') {
             await db
               .update(emailAutomationEnrollments)
               .set({
-                status: 'goal_met',
+                status: 'completed',
                 currentStepOrder: nextStepOrder,
-                goalMetAt: now,
+                completedAt: now,
                 lastStepSentAt: now,
               })
               .where(eq(emailAutomationEnrollments.id, enrollment.id))
@@ -330,40 +283,13 @@ export async function GET(request: NextRequest) {
             continue
           }
 
-          const engagementRows = await db.execute<{ opened_count: number; clicked_count: number }>(sql`
-            select
-              count(distinct step_order) filter (where first_opened_at is not null)::int as opened_count,
-              count(distinct step_order) filter (where first_clicked_at is not null)::int as clicked_count
-            from newsletter_deliveries
-            where site_id = ${siteId}
-              and contact_id = ${contact.id}
-              and source_type = 'automation'
-              and source_id = ${enrollment.automationId}
-              and step_order < ${nextStepOrder}
-          `)
-          const openedCount = Number(engagementRows.rows[0]?.opened_count ?? 0)
-          const clickedCount = Number(engagementRows.rows[0]?.clicked_count ?? 0)
-          const minimumOpens = getPositiveRuleValue(nodeConfig.minimum_opens)
-          const minimumClicks = getPositiveRuleValue(nodeConfig.minimum_clicks)
-
-          if (openedCount >= minimumOpens || clickedCount >= minimumClicks) {
-            await db
-              .update(emailAutomationEnrollments)
-              .set({
-                currentStepOrder: nextStepOrder,
-                lastStepSentAt: now,
-              })
-              .where(eq(emailAutomationEnrollments.id, enrollment.id))
-          } else {
-            await db
-              .update(emailAutomationEnrollments)
-              .set({
-                status: 'cancelled',
-                currentStepOrder: nextStepOrder,
-                lastStepSentAt: now,
-              })
-              .where(eq(emailAutomationEnrollments.id, enrollment.id))
-          }
+          await db
+            .update(emailAutomationEnrollments)
+            .set({
+              currentStepOrder: nextStepOrder,
+              lastStepSentAt: now,
+            })
+            .where(eq(emailAutomationEnrollments.id, enrollment.id))
 
           processed++
           continue

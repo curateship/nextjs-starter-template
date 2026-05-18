@@ -1,7 +1,8 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { newsletterContacts, newsletterDeliveries } from '@/lib/db/schema'
+import { newsletterContacts, newsletterDeliveries, sites } from '@/lib/db/schema'
+import { normalizeContactColdEmailThreshold } from '@/lib/actions/newsletters/contact-filters'
 
 export type NewsletterSourceType = 'broadcast' | 'automation'
 export type NewsletterDeliveryEventType = 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained'
@@ -112,6 +113,51 @@ async function recordRecentEmailSent(
 
     return [next, ...activity.filter((entry) => entry.key !== key)]
   })
+}
+
+async function markContactColdIfNeeded(
+  executor: DbExecutor,
+  input: {
+    siteId: string
+    contactId: string
+  },
+) {
+  const [site] = await executor
+    .select({ settings: sites.settings })
+    .from(sites)
+    .where(eq(sites.id, input.siteId))
+    .limit(1)
+
+  const threshold = normalizeContactColdEmailThreshold((site?.settings as Record<string, any> | undefined)?.newsletter_cold_threshold_emails)
+  const activity = sql`
+    case
+      when jsonb_typeof(${newsletterContacts.metadata}->'recent_email_activity') = 'array'
+      then ${newsletterContacts.metadata}->'recent_email_activity'
+      else '[]'::jsonb
+    end
+  `
+
+  await executor
+    .update(newsletterContacts)
+    .set({ status: 'cold', updatedAt: new Date() })
+    .where(and(
+      eq(newsletterContacts.id, input.contactId),
+      eq(newsletterContacts.siteId, input.siteId),
+      eq(newsletterContacts.status, 'active'),
+      sql`(
+        select count(*)::int
+        from jsonb_array_elements(${activity}) with ordinality as recent_email(entry, position)
+        where recent_email.position > 1
+          and recent_email.position <= ${threshold + 1}
+      ) >= ${threshold}`,
+      sql`not exists (
+        select 1
+        from jsonb_array_elements(${activity}) with ordinality as recent_email(entry, position)
+        where recent_email.position > 1
+          and recent_email.position <= ${threshold + 1}
+          and nullif(recent_email.entry->>'opened_at', '') is not null
+      )`,
+    ))
 }
 
 async function markRecentEmailActivity(
@@ -316,6 +362,10 @@ async function recordNewsletterDeliverySentLocked(
       sourceId: input.sourceId,
       stepOrder,
       sentAt,
+    })
+    await markContactColdIfNeeded(executor, {
+      siteId: input.siteId,
+      contactId: input.contactId,
     })
   }
 

@@ -7,7 +7,6 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AdminConfirmDialog } from "@/components/admin/layout/list/components"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
@@ -73,15 +72,10 @@ interface PageProps {
 
 const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
 type EmailStepStats = { sent: number; duplicateSends: number; opened: number; clicked: number }
+type CheckpointAction = "continue" | "end"
 
-function getEndRulesProductIds(config: AutomationStep["node_config"] | undefined) {
-  return Array.isArray(config?.product_ids)
-    ? config.product_ids.filter((id): id is string => typeof id === "string")
-    : []
-}
-
-function getPositiveRuleValue(value: unknown, fallback = 1) {
-  return Math.max(1, Math.floor(Number(value) || fallback))
+function getCheckpointAction(config: AutomationStep["node_config"] | undefined): CheckpointAction {
+  return config?.checkpoint_action === "end" ? "end" : "continue"
 }
 
 export default function AutomationBuilderPage({ params }: PageProps) {
@@ -117,10 +111,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDay, setDelayDay] = useState("1")
   const [delayDate, setDelayDate] = useState("")
   const [editingEndRules, setEditingEndRules] = useState<AutomationStep | null>(null)
-  const [endRulesProductIds, setEndRulesProductIds] = useState<string[]>([])
-  const [endRulesMinimumOpens, setEndRulesMinimumOpens] = useState("1")
-  const [endRulesMinimumClicks, setEndRulesMinimumClicks] = useState("1")
-  const [endRulesKeepActiveWhenNoNextNode, setEndRulesKeepActiveWhenNoNextNode] = useState(false)
+  const [checkpointAction, setCheckpointAction] = useState<CheckpointAction>("continue")
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
@@ -128,7 +119,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [statusEventsStep, setStatusEventsStep] = useState<AutomationStep | null>(null)
   const [pendingDeleteNodeId, setPendingDeleteNodeId] = useState<string | null>(null)
   const siteId = automation?.site_id ?? null
-  const endRulesProductAnchor = useComboboxAnchor()
   const segmentTriggerAnchor = useComboboxAnchor()
 
   const loadJourneyIndicators = useCallback(async () => {
@@ -262,10 +252,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     value: segment.id,
     label: segment.name
   }))
-  const endRulesProductItems = products.map((product) => ({
-    value: product.id,
-    label: product.title
-  }))
   const centerAxisStyle = { transform: "translateX(1.5px)" }
 
   const flash = (message: string) => {
@@ -300,10 +286,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     if (nodeType === "end_rules") {
       setEditingEndRules({ id: "__new__" } as AutomationStep)
-      setEndRulesProductIds([])
-      setEndRulesMinimumOpens("1")
-      setEndRulesMinimumClicks("1")
-      setEndRulesKeepActiveWhenNoNextNode(false)
+      setCheckpointAction("continue")
       return
     }
 
@@ -426,25 +409,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const openEndRulesEditor = (node: AutomationStep) => {
     setEditingEndRules(node)
-    setEndRulesProductIds(getEndRulesProductIds(node.node_config))
-    setEndRulesMinimumOpens(String(getPositiveRuleValue(node.node_config?.minimum_opens)))
-    setEndRulesMinimumClicks(String(getPositiveRuleValue(node.node_config?.minimum_clicks)))
-    setEndRulesKeepActiveWhenNoNextNode(node.node_config?.keep_active_when_no_next_node === true)
+    setCheckpointAction(getCheckpointAction(node.node_config))
   }
 
   const saveEndRulesNode = async () => {
     if (!editingEndRules) return
-    if (!endRulesProductIds.length) {
-      setError("Choose a product before saving end rules.")
-      return
-    }
 
     setSavingNode(true)
     const node_config = {
-      product_ids: endRulesProductIds,
-      minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1),
-      minimum_clicks: Math.max(1, parseInt(endRulesMinimumClicks) || 1),
-      keep_active_when_no_next_node: endRulesKeepActiveWhenNoNextNode
+      checkpoint_action: checkpointAction
     }
 
     if (editingEndRules.id === "__new__") {
@@ -704,12 +677,6 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return "Draft"
   }
 
-  const getEndRulesProductLabel = (node: AutomationStep) => {
-    const ids = getEndRulesProductIds(node.node_config)
-    const names = ids.map((id) => products.find((product) => product.id === id)?.title).filter(Boolean)
-    return names.length ? names.join(", ") : "Choose products"
-  }
-
   const getTriggerDetails = (triggerNode: AutomationTriggerNode) => {
     if (triggerNode.type === "segment_added") {
       return {
@@ -792,7 +759,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             <Mail className="mr-1 h-3 w-3" /> Email
           </Button>
           <Button size="sm" variant="outline" onClick={() => handleAddNode("end_rules", afterIndex)}>
-            <CheckCircle2 className="mr-1 h-3 w-3" /> End Rules
+            <CheckCircle2 className="mr-1 h-3 w-3" /> Checkpoint
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setAddAfterIndex(null)}>
             ✕
@@ -1125,29 +1092,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                                 <CheckCircle2 className="h-5 w-5 text-green-700" />
                               </div>
                             </TooltipTrigger>
-                            <TooltipContent side="top">End Rules</TooltipContent>
+                            <TooltipContent side="top">Checkpoint</TooltipContent>
                           </Tooltip>
                           <div>
-                            <p className="text-sm font-medium">End Rules</p>
+                            <p className="text-sm font-medium">Checkpoint</p>
                             <div className="mt-2 flex flex-wrap gap-1.5">
                               <Badge
                                 variant="outline"
                                 className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
                               >
-                                Goal: bought {getEndRulesProductLabel(node)}
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
-                              >
-                                Continue: opened {getPositiveRuleValue(node.node_config?.minimum_opens)} OR clicked{" "}
-                                {getPositiveRuleValue(node.node_config?.minimum_clicks)} before this point
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className="h-auto min-h-6 max-w-full shrink justify-start whitespace-normal border-green-200 bg-green-50 px-2 text-left text-xs font-normal text-green-800 hover:bg-green-50"
-                              >
-                                Fail: exit automation
+                                {getCheckpointAction(node.node_config) === "end" ? "End automation" : "Continue"}
                               </Badge>
                             </div>
                           </div>
@@ -1479,14 +1433,14 @@ export default function AutomationBuilderPage({ params }: PageProps) {
           }}
         >
           <DashboardModalContent
-            title="End Rules"
-            description="Bought product: goal met. Opened or clicked this many before this point: continue. If not engaged: exit automation."
+            title="Checkpoint"
+            description="Choose what happens when a contact reaches this point."
             footer={
               <>
                 <Button variant="outline" onClick={() => setEditingEndRules(null)}>
                   Cancel
                 </Button>
-                <Button onClick={saveEndRulesNode} disabled={savingNode || !endRulesProductIds.length}>
+                <Button onClick={saveEndRulesNode} disabled={savingNode}>
                   {savingNode ? "Saving..." : "Save"}
                 </Button>
               </>
@@ -1495,84 +1449,21 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             <CardGroup className="grid">
               <Card>
                 <CardHeader>
-                  <DashboardModalCardTitle>End rules</DashboardModalCardTitle>
+                  <DashboardModalCardTitle>Checkpoint</DashboardModalCardTitle>
                 </CardHeader>
                 <CardContent>
                   <Field>
-                    <FieldLabel>Goal product bought</FieldLabel>
-                    <Combobox
-                      multiple
-                      autoHighlight
-                      items={endRulesProductItems}
-                      value={endRulesProductIds}
-                      onValueChange={setEndRulesProductIds}
-                    >
-                      <ComboboxChips ref={endRulesProductAnchor} className="w-full">
-                        <ComboboxValue>
-                          {(values) => (
-                            <>
-                              {values.map((productId) => (
-                                <ComboboxChip key={productId} value={productId}>
-                                  {products.find((product) => product.id === productId)?.title || productId}
-                                </ComboboxChip>
-                              ))}
-                              <ComboboxChipsInput placeholder={values.length ? "" : "Search products"} />
-                            </>
-                          )}
-                        </ComboboxValue>
-                      </ComboboxChips>
-                      <ComboboxContent anchor={endRulesProductAnchor}>
-                        <ComboboxEmpty>{loadingProducts ? "Loading products..." : "No products found."}</ComboboxEmpty>
-                        <ComboboxList>
-                          {(item) => {
-                            const value = typeof item === "string" ? item : item.value
-                            const label = typeof item === "string" ? item : item.label
-                            return (
-                              <ComboboxItem key={value} value={value}>
-                                {label}
-                              </ComboboxItem>
-                            )
-                          }}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
+                    <FieldLabel>Action</FieldLabel>
+                    <Select value={checkpointAction} onValueChange={(value: CheckpointAction) => setCheckpointAction(value)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="continue">Continue</SelectItem>
+                        <SelectItem value="end">End automation</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </Field>
-
-                  <Field>
-                    <FieldLabel>Continue if opened at least</FieldLabel>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={endRulesMinimumOpens}
-                      onChange={(event) => setEndRulesMinimumOpens(event.target.value)}
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>Continue if clicked at least</FieldLabel>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={endRulesMinimumClicks}
-                      onChange={(event) => setEndRulesMinimumClicks(event.target.value)}
-                    />
-                  </Field>
-
-                  <label className="flex cursor-pointer items-start gap-3">
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={endRulesKeepActiveWhenNoNextNode}
-                      onCheckedChange={(checked) => setEndRulesKeepActiveWhenNoNextNode(checked === true)}
-                    />
-                    <div className="space-y-1 pt-0.5">
-                      <span className="block text-sm font-medium leading-none">
-                        Keep qualified subscribers waiting if this is the last node
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        They stay active and continue when another node is added after this.
-                      </p>
-                    </div>
-                  </label>
                 </CardContent>
               </Card>
             </CardGroup>

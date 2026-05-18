@@ -222,6 +222,8 @@ export default function ContactDashboardPage() {
     switch (status) {
       case "active":
         return <Badge className="bg-green-100 text-green-800">Active</Badge>
+      case "cold":
+        return <Badge className="bg-yellow-100 text-yellow-800">Cold</Badge>
       case "unsubscribed":
         return <Badge variant="secondary">Unsubscribed</Badge>
       case "bounced":
@@ -408,6 +410,7 @@ export default function ContactDashboardPage() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="cold">Cold</SelectItem>
                                     <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
                                     <SelectItem value="bounced">Bounced</SelectItem>
                                     <SelectItem value="complained">Complained</SelectItem>

@@ -21,7 +21,7 @@ export interface CrmContact {
   id: string
   site_id: string
   email: string
-  status: 'active' | 'unsubscribed' | 'bounced' | 'complained'
+  status: 'active' | 'cold' | 'unsubscribed' | 'bounced' | 'complained'
   last_engaged_at: string | null
   metadata: {
     first_name?: string
@@ -36,7 +36,7 @@ export interface CrmContact {
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const VALID_STATUSES = ['active', 'unsubscribed', 'bounced', 'complained'] as const
+const VALID_STATUSES = ['active', 'cold', 'unsubscribed', 'bounced', 'complained'] as const
 const MAX_IMPORT_SIZE = 50000
 const VALID_SOURCES = CONTACT_SOURCE_OPTIONS.map((option) => option.value)
 const VALID_STATUS_VALUES = CONTACT_STATUS_OPTIONS.map((option) => option.value)
@@ -666,7 +666,7 @@ export async function getContactsWithStats(
 ): Promise<{
   data: CrmContact[] | null
   total: number
-  stats: { total: number; active: number; unsubscribed: number; bounced: number; bySource: Record<string, number> } | null
+  stats: { total: number; active: number; cold: number; unsubscribed: number; bounced: number; bySource: Record<string, number> } | null
   error: string | null
 }> {
   try {
@@ -713,12 +713,14 @@ export async function getContactsWithStats(
       stats = {
         total: statsResult.length,
         active: 0,
+        cold: 0,
         unsubscribed: 0,
         bounced: 0,
         bySource: {} as Record<string, number>,
       }
       for (const c of statsResult) {
         if (c.status === 'active') stats.active++
+        else if (c.status === 'cold') stats.cold++
         else if (c.status === 'unsubscribed') stats.unsubscribed++
         else if (c.status === 'bounced' || c.status === 'complained') stats.bounced++
         const meta = c.metadata as Record<string, any> | null

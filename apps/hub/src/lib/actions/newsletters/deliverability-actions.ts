@@ -32,7 +32,7 @@ export interface DeliverabilityReport {
     unsubscribed: number
     bounced: number
     complained: number
-    cold: number  // no engagement in 90 days
+    cold: number
   }
   emailMetrics: {
     totalSent: number
@@ -128,18 +128,11 @@ export async function getDeliverabilityReport(siteId: string): Promise<{ data: D
       .from(newsletterContacts)
       .where(eq(newsletterContacts.siteId, siteId))
 
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-
     const contactHealth = { active: 0, unsubscribed: 0, bounced: 0, complained: 0, cold: 0 }
 
     for (const c of contacts) {
-      if (c.status === 'active') {
-        contactHealth.active++
-        // Cold = active but no engagement in 90 days
-        if (!c.lastEngagedAt || c.lastEngagedAt < ninetyDaysAgo) {
-          contactHealth.cold++
-        }
-      }
+      if (c.status === 'active') contactHealth.active++
+      else if (c.status === 'cold') contactHealth.cold++
       else if (c.status === 'unsubscribed') contactHealth.unsubscribed++
       else if (c.status === 'bounced') contactHealth.bounced++
       else if (c.status === 'complained') contactHealth.complained++

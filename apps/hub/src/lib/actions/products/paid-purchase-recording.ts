@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
 import { and, eq, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { newsletterContacts, productOrders, products } from '@/lib/db/schema'
+import { emailAutomationEnrollments, emailAutomations, emailAutomationSteps, newsletterContacts, productOrders, products } from '@/lib/db/schema'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { emailService } from '@/lib/actions/email/email-service'
 import {
@@ -14,6 +14,56 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 
 function generateAccessToken() {
   return randomBytes(32).toString('base64url')
+}
+
+async function markMatchingAutomationGoalsMet(params: {
+  siteId: string
+  productId: string
+  customerEmail: string
+  orderId?: string
+}) {
+  const email = params.customerEmail.toLowerCase().trim()
+  const [contact] = await db
+    .select({ id: newsletterContacts.id })
+    .from(newsletterContacts)
+    .where(and(
+      eq(newsletterContacts.siteId, params.siteId),
+      eq(newsletterContacts.email, email),
+    ))
+    .limit(1)
+
+  if (!contact) return
+
+  await db
+    .update(emailAutomationEnrollments)
+    .set({
+      status: 'goal_met',
+      goalMetAt: new Date(),
+      lastStepSentAt: new Date(),
+      metadata: sql`coalesce(${emailAutomationEnrollments.metadata}, '{}'::jsonb) || ${JSON.stringify({
+        source: 'paid_purchase',
+        goal_product_id: params.productId,
+        ...(params.orderId ? { goal_order_id: params.orderId } : {}),
+      })}::jsonb`,
+    })
+    .from(emailAutomations)
+    .where(and(
+      eq(emailAutomationEnrollments.automationId, emailAutomations.id),
+      eq(emailAutomationEnrollments.contactId, contact.id),
+      eq(emailAutomationEnrollments.status, 'active'),
+      eq(emailAutomations.siteId, params.siteId),
+      sql`(
+        coalesce(${emailAutomations.goalConfig}->'product_ids', '[]'::jsonb) ? ${params.productId}
+        or ${emailAutomations.goalConfig}->>'product_id' = ${params.productId}
+        or exists (
+          select 1
+          from ${emailAutomationSteps}
+          where ${emailAutomationSteps.automationId} = ${emailAutomations.id}
+            and ${emailAutomationSteps.nodeType} = 'end_rules'
+            and coalesce(${emailAutomationSteps.nodeConfig}->'product_ids', '[]'::jsonb) ? ${params.productId}
+        )
+      )`,
+    ))
 }
 
 export async function getProductIdFromPurchaseMetadata(
@@ -81,6 +131,14 @@ export async function recordPaidPurchase(params: {
       .limit(1)
 
     if (existingOrder) {
+      if (params.paymentStatus === 'succeeded') {
+        await markMatchingAutomationGoalsMet({
+          siteId,
+          productId,
+          customerEmail,
+          orderId: existingOrder.id,
+        })
+      }
       if (!existingOrder.emailSentAt) {
         await sendPaidProductEmail({
           siteId,
@@ -136,6 +194,15 @@ export async function recordPaidPurchase(params: {
       })
   } catch (error) {
     console.error('Failed to record paid purchase contact:', error)
+  }
+
+  if (params.paymentStatus === 'succeeded') {
+    await markMatchingAutomationGoalsMet({
+      siteId,
+      productId,
+      customerEmail,
+      orderId: order?.id,
+    })
   }
 
   if (order) {

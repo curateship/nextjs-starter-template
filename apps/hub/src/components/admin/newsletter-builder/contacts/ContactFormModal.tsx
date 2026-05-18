@@ -259,6 +259,7 @@ export function ContactFormModal({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="cold">Cold</SelectItem>
                         <SelectItem value="unsubscribed">Unsubscribed</SelectItem>
                         <SelectItem value="bounced">Bounced</SelectItem>
                         <SelectItem value="complained">Complained</SelectItem>

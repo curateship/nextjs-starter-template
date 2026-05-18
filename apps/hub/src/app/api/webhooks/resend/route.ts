@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { siteIntegrations, newsletterContacts } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { syncDynamicSegmentsForContacts } from '@/lib/actions/newsletters/segment-actions'
 import { recordNewsletterDeliveryEvent } from '@/lib/actions/newsletters/event-stats'
@@ -137,7 +137,10 @@ export async function POST(request: NextRequest) {
           if (result.counted && result.delivery.contactId && (eventType === 'opened' || eventType === 'clicked')) {
             await db
               .update(newsletterContacts)
-              .set({ lastEngagedAt: new Date() })
+              .set({
+                lastEngagedAt: new Date(),
+                status: sql`case when ${newsletterContacts.status} = 'cold' then 'active' else ${newsletterContacts.status} end`,
+              })
               .where(eq(newsletterContacts.id, result.delivery.contactId))
 
             await syncDynamicSegmentsForContacts([result.delivery.contactId])
