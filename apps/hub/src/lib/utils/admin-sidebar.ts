@@ -120,6 +120,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
           ], ["/admin/directories/builder", "/admin/directories/claims"]),
           item("item-newsletters", "Newsletters", "/admin/newsletters", "newsletters", [
             child("child-newsletter-contacts", "Contacts", "/admin/newsletters/contacts", "users"),
+            child("child-newsletter-tags", "Tags", "/admin/newsletters/tags", "categories"),
             child("child-newsletter-segments", "Segments", "/admin/newsletters/segments", "clipboard"),
             child("child-newsletter-automations", "Automations", "/admin/newsletters/automations", "zap"),
             child("child-newsletter-templates", "Templates", "/admin/newsletters/templates", "file"),
@@ -227,6 +228,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "directory-claims": "child-directory-claims",
   "directory-templates": "child-directory-templates",
   "newsletter-contacts": "child-newsletter-contacts",
+  "newsletter-tags": "child-newsletter-tags",
   "newsletter-segments": "child-newsletter-segments",
   "newsletter-automations": "child-newsletter-automations",
   "newsletter-templates": "child-newsletter-templates",
