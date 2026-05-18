@@ -13,6 +13,8 @@ interface Hotspot {
 }
 
 interface ProductHotspotBlockProps {
+  header?: string
+  subheader?: string
   title?: string
   subtitle?: string
   headerAlign?: 'left' | 'center'
@@ -26,8 +28,10 @@ interface ProductHotspotBlockProps {
 }
 
 const ProductHotspotBlock = ({
-  title = "Interactive Product Overview",
-  subtitle = "Hover over the blinking dots to discover more about our features",
+  header,
+  subheader,
+  title,
+  subtitle,
   headerAlign = "center",
   backgroundImage = "https://deifkwefumgah.cloudfront.net/shadcnblocks/block/placeholder-1.svg",
   productHotspots = [],
@@ -39,6 +43,8 @@ const ProductHotspotBlock = ({
 }: ProductHotspotBlockProps) => {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [activeHotspotId, setActiveHotspotId] = useState<string | null>(null)
+  const heading = header ?? title ?? "Interactive Product Overview"
+  const supportingText = subheader ?? subtitle ?? "Hover over the blinking dots to discover more about our features"
 
   return (
     <BlockContainer
@@ -47,8 +53,8 @@ const ProductHotspotBlock = ({
       siteWidth={siteWidth}
       customWidth={customWidth}
       header={{
-        title: visibility?.header !== false ? title : '',
-        subtitle: visibility?.subheader !== false ? subtitle : '',
+        title: visibility?.header !== false ? heading : '',
+        subtitle: visibility?.subheader !== false ? supportingText : '',
         align: headerAlign
       }}
     >
@@ -57,7 +63,7 @@ const ProductHotspotBlock = ({
           {backgroundImage && (
             <Image
               src={backgroundImage}
-              alt={title}
+              alt={heading}
               width={1200}
               height={800}
               className="w-full h-auto rounded-lg border shadow-lg transition-opacity duration-300"

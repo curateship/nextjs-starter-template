@@ -27,7 +27,19 @@ function normalizeProductBlockContent(type: string, content?: Record<string, any
     return normalizeProductJustBoughtContent(content)
   }
 
-  return content && typeof content === "object" ? content : {}
+  if (!content || typeof content !== "object") {
+    return {}
+  }
+
+  if (type === "product-hotspot") {
+    return {
+      ...content,
+      header: content.header ?? content.title,
+      subheader: content.subheader ?? content.subtitle,
+    }
+  }
+
+  return content
 }
 
 export function parseProductBlocksFromJson(contentBlocks: Record<string, any>): ProductBuilderBlock[] {
