@@ -7,6 +7,7 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AdminConfirmDialog } from "@/components/admin/layout/list/components"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
@@ -119,6 +120,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [endRulesProductIds, setEndRulesProductIds] = useState<string[]>([])
   const [endRulesMinimumOpens, setEndRulesMinimumOpens] = useState("1")
   const [endRulesMinimumClicks, setEndRulesMinimumClicks] = useState("1")
+  const [endRulesKeepActiveWhenNoNextNode, setEndRulesKeepActiveWhenNoNextNode] = useState(false)
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
@@ -301,6 +303,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
       setEndRulesProductIds([])
       setEndRulesMinimumOpens("1")
       setEndRulesMinimumClicks("1")
+      setEndRulesKeepActiveWhenNoNextNode(false)
       return
     }
 
@@ -426,6 +429,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     setEndRulesProductIds(getEndRulesProductIds(node.node_config))
     setEndRulesMinimumOpens(String(getPositiveRuleValue(node.node_config?.minimum_opens)))
     setEndRulesMinimumClicks(String(getPositiveRuleValue(node.node_config?.minimum_clicks)))
+    setEndRulesKeepActiveWhenNoNextNode(node.node_config?.keep_active_when_no_next_node === true)
   }
 
   const saveEndRulesNode = async () => {
@@ -439,7 +443,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     const node_config = {
       product_ids: endRulesProductIds,
       minimum_opens: Math.max(1, parseInt(endRulesMinimumOpens) || 1),
-      minimum_clicks: Math.max(1, parseInt(endRulesMinimumClicks) || 1)
+      minimum_clicks: Math.max(1, parseInt(endRulesMinimumClicks) || 1),
+      keep_active_when_no_next_node: endRulesKeepActiveWhenNoNextNode
     }
 
     if (editingEndRules.id === "__new__") {
@@ -1552,6 +1557,22 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                       onChange={(event) => setEndRulesMinimumClicks(event.target.value)}
                     />
                   </Field>
+
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={endRulesKeepActiveWhenNoNextNode}
+                      onCheckedChange={(checked) => setEndRulesKeepActiveWhenNoNextNode(checked === true)}
+                    />
+                    <div className="space-y-1 pt-0.5">
+                      <span className="block text-sm font-medium leading-none">
+                        Keep qualified subscribers waiting if this is the last node
+                      </span>
+                      <p className="text-xs text-muted-foreground">
+                        They stay active and continue when another node is added after this.
+                      </p>
+                    </div>
+                  </label>
                 </CardContent>
               </Card>
             </CardGroup>

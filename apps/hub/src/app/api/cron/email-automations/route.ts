@@ -48,6 +48,10 @@ function getPositiveRuleValue(value: unknown, fallback = 1) {
   return Math.max(1, Math.floor(Number(value) || fallback))
 }
 
+function keepsActiveWhenNoNextNode(step: AutomationStepRow | null | undefined) {
+  return step?.nodeType === 'end_rules' && getNodeConfig(step).keep_active_when_no_next_node === true
+}
+
 function getRandomBetween(minValue: unknown, maxValue: unknown, fallbackMin: number, fallbackMax: number) {
   const min = Math.max(1, Math.floor(Number(minValue) || fallbackMin))
   const max = Math.max(min, Math.floor(Number(maxValue) || fallbackMax))
@@ -238,6 +242,24 @@ export async function GET(request: NextRequest) {
         }
 
         if (!step) {
+          const currentStepOrder = enrollment.currentStepOrder ?? 0
+          const previousStepCacheKey = `${enrollment.automationId}:${currentStepOrder}`
+          let previousStep = stepCache.get(previousStepCacheKey)
+
+          if (currentStepOrder > 0 && !stepCache.has(previousStepCacheKey)) {
+            const [loadedPreviousStep] = await db
+              .select()
+              .from(emailAutomationSteps)
+              .where(and(
+                eq(emailAutomationSteps.automationId, enrollment.automationId),
+                eq(emailAutomationSteps.stepOrder, currentStepOrder),
+              ))
+            previousStep = loadedPreviousStep ?? null
+            stepCache.set(previousStepCacheKey, previousStep)
+          }
+
+          if (keepsActiveWhenNoNextNode(previousStep)) continue
+
           // No more steps — mark completed
           await db
             .update(emailAutomationEnrollments)
