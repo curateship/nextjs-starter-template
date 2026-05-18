@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, productOrders } from '@/lib/db/schema'
+import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, newsletterContacts, newsletterDeliveries, productOrders } from '@/lib/db/schema'
 import { eq, and, inArray, sql, asc } from 'drizzle-orm'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
 import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
+import { randomUUID } from 'crypto'
 
 const NON_DRIP_BATCH_SIZE = 50
 const BASE_ENROLLMENT_SCAN_LIMIT = 500
 const DEFAULT_DRIP_BATCH_MAX = 500
+const DRIP_LOCK_TIMEOUT_MS = 10 * 60 * 1000
 
 type AutomationStepRow = typeof emailAutomationSteps.$inferSelect
 type EmailConfig = Awaited<ReturnType<typeof getEmailConfig>>
@@ -22,6 +24,7 @@ type DripState = {
   limit: number
   sent: number
   reachedLimit: boolean
+  lockToken: string
 }
 
 function getNodeConfig(step: { nodeConfig: unknown }) {
@@ -86,8 +89,61 @@ async function getEnrollmentScanLimit() {
   return BASE_ENROLLMENT_SCAN_LIMIT + Number(result.rows[0]?.max_batch_size || 0)
 }
 
+async function acquireDripStepLock(stepId: string) {
+  const token = randomUUID()
+  const startedAt = new Date().toISOString()
+  const staleBefore = new Date(Date.now() - DRIP_LOCK_TIMEOUT_MS).toISOString()
+  const [row] = await db
+    .update(emailAutomationSteps)
+    .set({
+      nodeConfig: sql`
+        jsonb_set(
+          jsonb_set(coalesce(${emailAutomationSteps.nodeConfig}, '{}'::jsonb), '{drip_lock_token}', to_jsonb(${token}::text), true),
+          '{drip_lock_started_at}',
+          to_jsonb(${startedAt}::text),
+          true
+        )
+      `,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(emailAutomationSteps.id, stepId),
+      sql`(
+        ${emailAutomationSteps.nodeConfig}->>'drip_lock_token' is null
+        or ${emailAutomationSteps.nodeConfig}->>'drip_lock_started_at' is null
+        or (${emailAutomationSteps.nodeConfig}->>'drip_lock_started_at')::timestamptz < ${staleBefore}::timestamptz
+      )`,
+    ))
+    .returning({ id: emailAutomationSteps.id })
+
+  return row ? token : null
+}
+
+async function releaseDripStepLock(stepId: string, token: string) {
+  await db
+    .update(emailAutomationSteps)
+    .set({
+      nodeConfig: sql`coalesce(${emailAutomationSteps.nodeConfig}, '{}'::jsonb) - 'drip_lock_token' - 'drip_lock_started_at'`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(emailAutomationSteps.id, stepId),
+      sql`${emailAutomationSteps.nodeConfig}->>'drip_lock_token' = ${token}`,
+    ))
+}
+
+function clearDripStepLock(nodeConfig: Record<string, any>) {
+  const next = { ...nodeConfig }
+  delete next.drip_lock_token
+  delete next.drip_lock_started_at
+  return next
+}
+
 async function saveDripState(state: DripState, now: Date) {
-  if (state.sent === 0) return
+  if (state.sent === 0) {
+    await releaseDripStepLock(state.stepId, state.lockToken)
+    return
+  }
 
   const nextDripConfig: Record<string, any> = {
     ...state.dripConfig,
@@ -106,12 +162,15 @@ async function saveDripState(state: DripState, now: Date) {
     .update(emailAutomationSteps)
     .set({
       nodeConfig: {
-        ...state.nodeConfig,
+        ...clearDripStepLock(state.nodeConfig),
         drip_config: nextDripConfig,
       },
       updatedAt: now,
     })
-    .where(eq(emailAutomationSteps.id, state.stepId))
+    .where(and(
+      eq(emailAutomationSteps.id, state.stepId),
+      sql`${emailAutomationSteps.nodeConfig}->>'drip_lock_token' = ${state.lockToken}`,
+    ))
 }
 
 export async function GET(request: NextRequest) {
@@ -302,15 +361,22 @@ export async function GET(request: NextRequest) {
           if (isFutureDate(dripConfig.next_batch_at, now)) continue
           if (!isWithinNewsletterSendWindow(dripConfig, now)) continue
 
-          dripState = dripStates.get(step.id) || {
-            stepId: step.id,
-            nodeConfig,
-            dripConfig,
-            limit: getRandomBetween(dripConfig.batch_size_min, dripConfig.batch_size_max, 400, 500),
-            sent: 0,
-            reachedLimit: false,
+          dripState = dripStates.get(step.id) || null
+          if (!dripState) {
+            const lockToken = await acquireDripStepLock(step.id)
+            if (!lockToken) continue
+
+            dripState = {
+              stepId: step.id,
+              nodeConfig,
+              dripConfig,
+              limit: getRandomBetween(dripConfig.batch_size_min, dripConfig.batch_size_max, 400, 500),
+              sent: 0,
+              reachedLimit: false,
+              lockToken,
+            }
+            dripStates.set(step.id, dripState)
           }
-          dripStates.set(step.id, dripState)
 
           if (dripState.sent >= dripState.limit) {
             dripState.reachedLimit = true
@@ -340,6 +406,29 @@ export async function GET(request: NextRequest) {
           emailConfigCache.set(siteId, config)
         }
         if (!config?.apiKey || !config?.fromEmail) continue
+
+        const [existingDelivery] = await db
+          .select({ id: newsletterDeliveries.id })
+          .from(newsletterDeliveries)
+          .where(and(
+            eq(newsletterDeliveries.siteId, siteId),
+            eq(newsletterDeliveries.contactId, contact.id),
+            eq(newsletterDeliveries.sourceType, 'automation'),
+            eq(newsletterDeliveries.sourceId, enrollment.automationId),
+            eq(newsletterDeliveries.stepOrder, nextStepOrder),
+          ))
+          .limit(1)
+
+        if (existingDelivery) {
+          await db
+            .update(emailAutomationEnrollments)
+            .set({
+              currentStepOrder: nextStepOrder,
+              lastStepSentAt: now,
+            })
+            .where(eq(emailAutomationEnrollments.id, enrollment.id))
+          continue
+        }
 
         const provider = getEmailProvider(config.apiKey, config.providerType)
         const from = config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail
@@ -410,7 +499,15 @@ export async function GET(request: NextRequest) {
     }
 
     for (const state of dripStates.values()) {
-      await saveDripState(state, now)
+      let lockReleased = false
+      try {
+        await saveDripState(state, now)
+        lockReleased = true
+      } finally {
+        if (!lockReleased) {
+          await releaseDripStepLock(state.stepId, state.lockToken)
+        }
+      }
     }
 
     return NextResponse.json({ message: `Processed ${processed} steps`, processed })
