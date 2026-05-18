@@ -819,7 +819,7 @@ export async function cancelEnrollment(enrollmentId: string): Promise<{ success:
 }
 
 export async function getAutomationReport(automationId: string): Promise<{
-  data: { totalEnrolled: number; completed: number; goalMet: number; cancelled: number; stepStats: { step_order: number; subject: string; sent: number; opened: number; clicked: number }[] } | null
+  data: { totalEnrolled: number; completed: number; goalMet: number; cancelled: number; stepStats: { step_order: number; subject: string; sent: number; unique_sent: number; duplicate_sends: number; opened: number; clicked: number }[] } | null
   error: string | null
 }> {
   try {
@@ -869,6 +869,8 @@ export async function getAutomationReport(automationId: string): Promise<{
         step_order: s.stepOrder,
         subject: s.subject ?? '',
         sent: result.stats.sent,
+        unique_sent: result.stats.uniqueSent,
+        duplicate_sends: result.stats.duplicateSends,
         opened: result.stats.opened,
         clicked: result.stats.clicked,
       }

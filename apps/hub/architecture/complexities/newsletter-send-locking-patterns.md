@@ -67,7 +67,14 @@ Delivery recording:
 - normalizes automation step order to `>= 1`
 - checks whether the same contact/source/step was already recorded
 - marks later rows as duplicate sends
-- increments source stats only for non-duplicate sends
+- stores non-duplicate sends in `newsletter_source_stats.sent`
+- stores duplicate sends in `newsletter_source_stats.duplicate_sends`
+
+Reporting rule:
+
+- user-facing "sent" should mean actual provider sends
+- actual sends are `sent + duplicate_sends`
+- unique sends can still be shown separately when needed
 
 Important limit:
 
@@ -369,6 +376,7 @@ Any code path that can call the email provider for a broadcast or automation bat
 - Do not move automation locks to the automation row unless all steps must become mutually exclusive.
 - Do not remove pre-send delivery checks from automation; they protect partial state-update failures.
 - Keep delivery recording duplicate detection as a reporting backstop, not the primary safety mechanism.
+- Do not make user-facing "sent" hide duplicate sends. Show actual sends and expose duplicates separately.
 - If cron frequency or batch size changes, keep the lock. Longer intervals reduce overlap risk but do not remove it.
 - If automation batch sizing changes, keep the enrollment scan size tied to configured drip batch sizes.
 - If automation step progression changes, preserve `current_step_order + 1` as the core next-step model unless the enrollment schema is redesigned.

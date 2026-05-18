@@ -19,6 +19,8 @@ export type NewsletterStatusEventFilter =
 
 export interface NewsletterStatusEventStats {
   sent: number
+  uniqueSent: number
+  duplicateSends: number
   opened: number
   clicked: number
   unsubscribed: number
@@ -29,6 +31,8 @@ export interface NewsletterStatusEventStats {
 
 export const emptyNewsletterStatusEventStats: NewsletterStatusEventStats = {
   sent: 0,
+  uniqueSent: 0,
+  duplicateSends: 0,
   opened: 0,
   clicked: 0,
   unsubscribed: 0,
@@ -120,9 +124,10 @@ export async function queryNewsletterStatusEvents({
       select count(*)::int as count
       ${baseDeliveries}
     `),
-    db.execute<{ sent: number; opened: number; clicked: number; unsubscribed: number }>(sql`
+    db.execute<{ sent: number; duplicate_sends: number; opened: number; clicked: number; unsubscribed: number }>(sql`
       select
         coalesce(sent, 0)::int as sent,
+        coalesce(duplicate_sends, 0)::int as duplicate_sends,
         coalesce(opened, 0)::int as opened,
         coalesce(clicked, 0)::int as clicked,
         coalesce(unsubscribed, 0)::int as unsubscribed
@@ -135,11 +140,13 @@ export async function queryNewsletterStatusEvents({
     `),
   ])
 
-  const statsRow = statsResult.rows[0] ?? emptyNewsletterStatusEventStats
-  const sent = Number(statsRow.sent ?? 0)
-  const opened = Number(statsRow.opened ?? 0)
-  const clicked = Number(statsRow.clicked ?? 0)
-  const unsubscribed = Number(statsRow.unsubscribed ?? 0)
+  const statsRow = statsResult.rows[0]
+  const uniqueSent = Number(statsRow?.sent ?? 0)
+  const duplicateSends = Number(statsRow?.duplicate_sends ?? 0)
+  const sent = uniqueSent + duplicateSends
+  const opened = Number(statsRow?.opened ?? 0)
+  const clicked = Number(statsRow?.clicked ?? 0)
+  const unsubscribed = Number(statsRow?.unsubscribed ?? 0)
 
   return {
     data: rows.rows.map((row) => ({
@@ -151,6 +158,8 @@ export async function queryNewsletterStatusEvents({
     total: countResult.rows[0]?.count ?? 0,
     stats: {
       sent,
+      uniqueSent,
+      duplicateSends,
       opened,
       clicked,
       unsubscribed,

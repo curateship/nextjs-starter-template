@@ -71,7 +71,7 @@ interface PageProps {
 }
 
 const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
-type EmailStepStats = { sent: number; opened: number; clicked: number }
+type EmailStepStats = { sent: number; duplicateSends: number; opened: number; clicked: number }
 
 function getEndRulesProductIds(config: AutomationStep["node_config"] | undefined) {
   return Array.isArray(config?.product_ids)
@@ -140,7 +140,15 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     if (!data) return
     setEmailStepStats(
       Object.fromEntries(
-        data.stepStats.map((step) => [step.step_order, { sent: step.sent, opened: step.opened, clicked: step.clicked }])
+        data.stepStats.map((step) => [
+          step.step_order,
+          {
+            sent: step.sent,
+            duplicateSends: step.duplicate_sends,
+            opened: step.opened,
+            clicked: step.clicked,
+          },
+        ])
       )
     )
   }, [automationId])
@@ -1176,9 +1184,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                               {(emailStepStats[node.step_order]?.sent ?? 0) > 0 &&
                                 [
                                   ["sent", emailStepStats[node.step_order]?.sent ?? 0],
+                                  ["duplicates", emailStepStats[node.step_order]?.duplicateSends ?? 0],
                                   ["opened", emailStepStats[node.step_order]?.opened ?? 0],
                                   ["clicked", emailStepStats[node.step_order]?.clicked ?? 0]
-                                ].map(([label, count]) => (
+                                ].filter(([, count]) => Number(count) > 0).map(([label, count]) => (
                                   <Badge key={label} variant="outline" className={emailChipClass}>
                                     {Number(count).toLocaleString()} {label}
                                   </Badge>
