@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 
 import { cn } from "@/lib/utils/tailwind"
 import { Button } from "@/components/ui/button"
+import { CardGroup } from "@/components/ui/card"
 
 type CarouselApi = UseEmblaCarouselType[1]
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
@@ -132,19 +133,26 @@ function Carousel({
   )
 }
 
-function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
+function CarouselContent({
+  className,
+  useCardGroup,
+  ...props
+}: React.ComponentProps<"div"> & { useCardGroup?: boolean }) {
   const { carouselRef, orientation } = useCarousel()
+  const Track = useCardGroup ? CardGroup : "div"
 
   return (
     <div
       ref={carouselRef}
-      className="overflow-hidden"
+      className={cn("overflow-hidden", useCardGroup && "py-px")}
       data-slot="carousel-content"
     >
-      <div
+      <Track
         className={cn(
           "flex",
-          orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col",
+          !useCardGroup && (orientation === "horizontal" ? "-ml-4" : "-mt-4 flex-col"),
+          useCardGroup && (orientation === "horizontal" ? "px-6" : "py-6"),
+          useCardGroup && orientation === "vertical" && "flex-col",
           className
         )}
         {...props}
@@ -153,7 +161,11 @@ function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
+function CarouselItem({
+  className,
+  useCardGroup,
+  ...props
+}: React.ComponentProps<"div"> & { useCardGroup?: boolean }) {
   const { orientation } = useCarousel()
 
   return (
@@ -163,7 +175,7 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="carousel-item"
       className={cn(
         "min-w-0 shrink-0 grow-0 basis-full",
-        orientation === "horizontal" ? "pl-4" : "pt-4",
+        !useCardGroup && (orientation === "horizontal" ? "pl-4" : "pt-4"),
         className
       )}
       {...props}
