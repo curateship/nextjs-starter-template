@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
-import { sites } from '@/lib/db/schema'
+import { pages, sites } from '@/lib/db/schema'
 import { getEmailConfig } from '@/lib/actions/email/integration-actions'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import {
@@ -16,12 +16,14 @@ import {
   EMAIL_FORM_CONTACT_TAG,
   upsertSystemNewsletterContact,
 } from '@/lib/actions/newsletters/system-contact-sync'
+import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 5
 const MAX_IDENTIFIER_LENGTH = 100
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const BLOCK_ID_REGEX = /^[A-Za-z0-9_-]{1,180}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const subscribeRateLimitStore = new Map<string, number[]>()
@@ -67,10 +69,27 @@ function hasAllowedOrigin(request: NextRequest, siteUrl: string) {
   return false
 }
 
+async function getPagesHeroContent(siteId: string, blockId: string) {
+  const pageRows = await db
+    .select({ contentBlocks: pages.contentBlocks })
+    .from(pages)
+    .where(and(eq(pages.siteId, siteId), eq(pages.isPublished, true)))
+
+  for (const page of pageRows) {
+    const block = (page.contentBlocks as Record<string, any> | null)?.[blockId]
+    if (block?.type === 'hero' && typeof block.content?.emailTemplateBody === 'string') {
+      return block.content.emailTemplateBody
+    }
+  }
+
+  return ''
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null)
     const siteId = typeof body?.siteId === 'string' ? body.siteId.trim() : ''
+    const blockId = typeof body?.blockId === 'string' ? body.blockId.trim() : ''
     const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
     const identifier = typeof body?.identifier === 'string'
       ? body.identifier.trim().replace(/\s+/g, ' ')
@@ -78,6 +97,7 @@ export async function POST(request: NextRequest) {
 
     if (
       !UUID_REGEX.test(siteId)
+      || (blockId && !BLOCK_ID_REGEX.test(blockId))
       || !email
       || email.length > 255
       || !EMAIL_REGEX.test(email)
@@ -103,7 +123,6 @@ export async function POST(request: NextRequest) {
         name: sites.name,
         subdomain: sites.subdomain,
         customDomain: sites.customDomain,
-        settings: sites.settings,
       })
       .from(sites)
       .where(eq(sites.id, siteId))
@@ -135,6 +154,7 @@ export async function POST(request: NextRequest) {
       tags: [EMAIL_FORM_CONTACT_TAG, identifier].filter(Boolean),
       extraMetadata: {
         ...(identifier ? { email_form_identifier: identifier } : {}),
+        ...(blockId ? { page_hero_block_id: blockId } : {}),
         last_email_form_signup_at: new Date().toISOString(),
       },
     })
@@ -146,37 +166,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const siteSettings = (site.settings || {}) as Record<string, any>
-    if (siteSettings.welcome_email_enabled !== false) {
-      try {
-        const emailConfig = await getEmailConfig(siteId)
-        if (emailConfig?.apiKey && emailConfig.fromEmail) {
-          const template = await getSystemEmailTemplate('welcome_email', siteId)
-          if (template.is_enabled) {
-            const tokens = await buildSystemEmailTokens({
-              siteId,
-              subscriberEmail: email,
-              emailFormIdentifier: identifier,
-            })
-            const provider = getEmailProvider(emailConfig.apiKey, emailConfig.providerType)
-            const fromName = template.from_name || emailConfig.fromName || site.name || 'Your Company'
+    try {
+      const emailConfig = await getEmailConfig(siteId)
+      if (emailConfig?.apiKey && emailConfig.fromEmail) {
+        const template = await getSystemEmailTemplate('pages_hero_email', siteId)
+        if (template.is_enabled) {
+          const pagesHeroContent = blockId
+            ? sanitizeRichMediaHtml(await getPagesHeroContent(siteId, blockId)).trim()
+            : ''
+          const tokens = await buildSystemEmailTokens({
+            siteId,
+            subscriberEmail: email,
+            emailFormIdentifier: identifier,
+            pagesHeroContent,
+          })
+          const provider = getEmailProvider(emailConfig.apiKey, emailConfig.providerType)
+          const fromName = template.from_name || emailConfig.fromName || site.name || 'Your Company'
 
-            const sendResult = await provider.send({
-              from: `${fromName} <${emailConfig.fromEmail}>`,
-              to: email,
-              subject: renderSystemEmailSubject(template.subject, tokens),
-              html: renderSystemEmailContent(template, tokens),
-              replyTo: template.reply_to || undefined,
-            })
+          const sendResult = await provider.send({
+            from: `${fromName} <${emailConfig.fromEmail}>`,
+            to: email,
+            subject: renderSystemEmailSubject(template.subject, tokens),
+            html: renderSystemEmailContent(template, tokens),
+            replyTo: template.reply_to || undefined,
+          })
 
-            if (!sendResult.success) {
-              console.error('Welcome email send failed:', sendResult.error)
-            }
+          if (!sendResult.success) {
+            console.error('Pages hero email send failed:', sendResult.error)
           }
         }
-      } catch (error) {
-        console.error('Welcome email error:', error)
       }
+    } catch (error) {
+      console.error('Pages hero email error:', error)
     }
 
     return NextResponse.json({ success: true })

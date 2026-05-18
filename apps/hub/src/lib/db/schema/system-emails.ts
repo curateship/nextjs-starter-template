@@ -9,7 +9,7 @@ export const systemEmailTemplateKeyEnum = pgEnum('system_email_template_key_enum
   'lead_magnet_delivery',
   'product_email_modal_delivery',
   'paid_purchase_delivery',
-  'welcome_email',
+  'pages_hero_email',
 ])
 
 export const emailSystemTemplates = pgTable('email_system_templates', {

@@ -11,7 +11,7 @@ export type SystemEmailTemplateKey =
   | 'lead_magnet_delivery'
   | 'product_email_modal_delivery'
   | 'paid_purchase_delivery'
-  | 'welcome_email'
+  | 'pages_hero_email'
 
 export interface SystemEmailTemplateRecord {
   id: string | null
@@ -58,7 +58,7 @@ export const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'lead_magnet_delivery',
   'product_email_modal_delivery',
   'paid_purchase_delivery',
-  'welcome_email',
+  'pages_hero_email',
 ]
 
 export function isGlobalSystemEmailTemplate(templateKey: SystemEmailTemplateKey) {
@@ -138,14 +138,14 @@ function getDefaultTemplateDefinition(templateKey: SystemEmailTemplateKey): Defa
     }
   }
 
-  if (templateKey === 'welcome_email') {
+  if (templateKey === 'pages_hero_email') {
     return {
-      name: 'Welcome Email',
-      description: 'Sent after someone subscribes through a page email form.',
+      name: 'Pages Hero Email',
+      description: 'Sent after someone subscribes through a Pages hero email form.',
       scopeLabel: 'Current Site',
       subject: 'Welcome to {{site_name}}',
-      bodyHtml: '<p>Thanks for subscribing to {{site_name}}.</p><p>You are on the list.</p><p><a href="{{site_url}}">Visit {{site_name}}</a></p>',
-      tokens: ['{{site_name}}', '{{site_url}}', '{{subscriber_email}}', '{{email_form_identifier}}'],
+      bodyHtml: '<p>Thanks for subscribing to {{site_name}}.</p>{{pages_hero_content}}',
+      tokens: ['{{pages_hero_content}}', '{{site_name}}', '{{site_url}}', '{{subscriber_email}}', '{{email_form_identifier}}'],
     }
   }
 
@@ -238,17 +238,17 @@ export async function getSystemEmailTemplate(templateKey: SystemEmailTemplateKey
 }
 
 export async function getSystemEmailList(siteId: string, canEditAuth: boolean) {
-  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, welcomeEmail] = await Promise.all([
+  const [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail] = await Promise.all([
     getSystemEmailTemplate('password_reset'),
     getSystemEmailTemplate('email_verification'),
     getSystemEmailTemplate('email_change_confirmation'),
     getSystemEmailTemplate('lead_magnet_delivery', siteId),
     getSystemEmailTemplate('product_email_modal_delivery', siteId),
     getSystemEmailTemplate('paid_purchase_delivery', siteId),
-    getSystemEmailTemplate('welcome_email', siteId),
+    getSystemEmailTemplate('pages_hero_email', siteId),
   ])
 
-  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, welcomeEmail].map((template) => {
+  return [passwordReset, emailVerification, emailChangeConfirmation, leadMagnet, productEmailModal, paidPurchase, pagesHeroEmail].map((template) => {
     const definition = getDefaultTemplateDefinition(template.template_key)
     return {
       ...template,
@@ -341,6 +341,7 @@ export async function buildSystemEmailTokens(params: {
   downloadPageContent?: string | null
   subscriberEmail?: string | null
   emailFormIdentifier?: string | null
+  pagesHeroContent?: string | null
 }) {
   const tokens: Record<string, string> = {
     app_name: 'System Everything',
@@ -358,6 +359,7 @@ export async function buildSystemEmailTokens(params: {
     download_page_content: params.downloadPageContent || '',
     subscriber_email: params.subscriberEmail || '',
     email_form_identifier: params.emailFormIdentifier || '',
+    pages_hero_content: params.pagesHeroContent || '',
   }
 
   if (params.siteId) {

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Check } from "lucide-react"
 import { useEffect, useCallback, useMemo } from "react"
+import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { HERO_STYLES } from "."
@@ -94,6 +95,9 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
   const heroStyle = content.heroStyle || 'default'
   const styleConfig = useMemo(() => content.styleConfig || {}, [content.styleConfig])
   const currentStyleConfig = useMemo(() => styleConfig[heroStyle] || {}, [styleConfig, heroStyle])
+  const emailTemplateEditorContent = useMemo(() => ({
+    htmlContent: typeof content.emailTemplateBody === 'string' ? content.emailTemplateBody : '',
+  }), [content.emailTemplateBody])
 
   const handleStyleConfigChange = useCallback((field: string, value: any) => {
     const updated = {
@@ -105,6 +109,10 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
     }
     onContentChange('styleConfig', updated)
   }, [styleConfig, heroStyle, currentStyleConfig, onContentChange])
+
+  const handleEmailTemplateChange = useCallback((htmlContent: string) => {
+    onContentChange('emailTemplateBody', htmlContent)
+  }, [onContentChange])
 
   const ActivePanel = HERO_STYLES[heroStyle]?.AdminPanel
 
@@ -297,6 +305,28 @@ export function PageHeroBlock({ content, onContentChange, siteId, blockId, onBac
                   </>
                 )}
                   </BlockEditorSection>
+                </CardContent>
+              </Card>
+            </CardGroup>
+          ),
+        },
+        {
+          value: "email-template",
+          label: "Email Template",
+          content: (
+            <CardGroup className="grid">
+              <Card>
+                <CardContent>
+                  <InlineRichTextEditor
+                    blockId={`${blockId}-email-template`}
+                    content={emailTemplateEditorContent}
+                    onContentChange={handleEmailTemplateChange}
+                    siteId={siteId}
+                    isActive
+                    editorPadding={0}
+                    variant="page"
+                    placeholder="Enter email body content"
+                  />
                 </CardContent>
               </Card>
             </CardGroup>

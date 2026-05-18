@@ -38,6 +38,7 @@ interface PageHeroBlockProps {
   heroStyle?: string;
   styleConfig?: Record<string, Record<string, any>>;
   siteId?: string;
+  blockId?: string;
   siteWidth?: string;
   customWidth?: number;
   emailForm?: EmailFormConfig;
@@ -147,7 +148,7 @@ const CTAButtons = ({ primaryButton, secondaryButton, primaryButtonLink, seconda
 };
 
 // Email subscription form component
-const EmailSubscriptionForm = ({ config, alignment, siteId }: { config: EmailFormConfig; alignment?: string; siteId?: string }) => {
+const EmailSubscriptionForm = ({ config, alignment, siteId, blockId }: { config: EmailFormConfig; alignment?: string; siteId?: string; blockId?: string }) => {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -180,7 +181,7 @@ const EmailSubscriptionForm = ({ config, alignment, siteId }: { config: EmailFor
       const res = await fetch('/api/newsletters/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, siteId, identifier: config.identifier }),
+        body: JSON.stringify({ email, siteId, blockId, identifier: config.identifier }),
       });
 
       if (!res.ok) throw new Error('Subscription failed');
@@ -236,6 +237,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
     heroStyle = 'default',
     styleConfig,
     siteId,
+    blockId,
     customWidth,
     emailForm,
     visibility,
@@ -289,7 +291,7 @@ const PageHeroBlock = (props: PageHeroBlockProps) => {
           />
         )}
         {visibility?.emailForm !== false && emailForm?.enabled && (
-          <EmailSubscriptionForm config={emailForm} alignment={alignment} siteId={siteId} />
+          <EmailSubscriptionForm config={emailForm} alignment={alignment} siteId={siteId} blockId={blockId} />
         )}
       </StyleRenderer>
     </section>

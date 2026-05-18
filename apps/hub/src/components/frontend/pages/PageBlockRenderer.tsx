@@ -89,6 +89,7 @@ export function BlockRenderer({
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
               <PageHeroBlock
                 {...blockContent}
+                blockId={block.id}
                 siteId={site.id}
                 siteWidth={siteWidth}
                 customWidth={customWidth}

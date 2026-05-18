@@ -483,9 +483,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     contextSite?.settings?.default_theme || "system"
   )
   const [maintenanceEnabled, setMaintenanceEnabled] = useState<boolean>(!!contextSite?.settings?.maintenance?.enabled)
-  const [welcomeEmailEnabled, setWelcomeEmailEnabled] = useState<boolean>(
-    contextSite?.settings?.welcome_email_enabled !== false
-  )
   const newsletterDripDefaults = useDripSettings(false, false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loading] = useState(false)
@@ -608,26 +605,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
           showSuccess("Newsletter settings saved")
         }
       } else if (activeTab === "email") {
-        const { data, error } = await updateSiteAction(siteId, {
-          settings: {
-            ...site?.settings,
-            welcome_email_enabled: welcomeEmailEnabled
-          }
-        })
-
-        if (error) {
-          setError(error)
-          return
-        }
-
-        if (data) {
-          setSite((prev) => (prev ? { ...prev, ...data } : null))
-          if (currentSite?.id === siteId) {
-            setCurrentSite({ ...currentSite, ...data })
-          }
-          showSuccess("Email settings saved")
-        }
-
         setIntegrationSaveTrigger((prev) => prev + 1)
       } else {
         setIntegrationSaveTrigger((prev) => prev + 1)
@@ -806,26 +783,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
               {activeTab === "email" && (
                 <CardGroup className="grid">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Welcome Email</CardTitle>
-                      <CardDescription>
-                        Send the Welcome Email template when someone subscribes through a page email form.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex h-10 items-center gap-2">
-                        <Checkbox
-                          id="welcome-email-enabled"
-                          checked={welcomeEmailEnabled}
-                          onCheckedChange={(checked) => setWelcomeEmailEnabled(checked === true)}
-                        />
-                        <Label htmlFor="welcome-email-enabled" className="cursor-pointer font-normal">
-                          Enable welcome email
-                        </Label>
-                      </div>
-                    </CardContent>
-                  </Card>
                   <IntegrationTab
                     siteId={siteId}
                     category="email"

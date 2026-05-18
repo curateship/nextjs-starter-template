@@ -26,6 +26,7 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
         identifier: '',
         layout: 'inline',
       },
+      emailTemplateBody: '',
       heroStyle: 'default',
       styleConfig: {
         default: {
