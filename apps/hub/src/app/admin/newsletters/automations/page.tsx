@@ -29,6 +29,7 @@ import { Trash2, Settings, Zap, Mail, Plus, List, Play, Pause, FileEdit } from "
 import {
   getAutomationsBySite,
   createAutomation,
+  updateAutomation,
   deleteAutomations,
   getAutomationIdsAction
 } from "@/lib/actions/newsletters/automation-actions"
@@ -56,6 +57,9 @@ export default function EmailAutomationsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createName, setCreateName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [settingsAutomation, setSettingsAutomation] = useState<EmailAutomation | null>(null)
+  const [settingsName, setSettingsName] = useState("")
+  const [savingSettings, setSavingSettings] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
@@ -149,6 +153,30 @@ export default function EmailAutomationsPage() {
       router.push(`/admin/newsletters/automations/${data.id}`)
     }
     setCreating(false)
+  }
+
+  const openSettings = (automation: EmailAutomation) => {
+    setSettingsAutomation(automation)
+    setSettingsName(automation.name)
+  }
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!settingsAutomation || !settingsName.trim()) return
+
+    setSavingSettings(true)
+    const { data, error } = await updateAutomation(settingsAutomation.id, {
+      name: settingsName.trim()
+    })
+    if (error) {
+      setErrorMessage(error)
+      setErrorDialogOpen(true)
+    }
+    if (data) {
+      setAutomations((current) => current.map((automation) => automation.id === data.id ? data : automation))
+      setSettingsAutomation(null)
+    }
+    setSavingSettings(false)
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
@@ -366,8 +394,8 @@ export default function EmailAutomationsPage() {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          onClick={() => router.push(`/admin/newsletters/automations/${automation.id}`)}
-                          title="Edit"
+                          onClick={() => openSettings(automation)}
+                          title="Settings"
                         >
                           <Settings className="h-4 w-4" />
                         </Button>
@@ -431,6 +459,48 @@ export default function EmailAutomationsPage() {
                       <p className="text-sm text-muted-foreground">
                         Create the automation first, then choose one or more triggers in the builder.
                       </p>
+                    </CardContent>
+                  </Card>
+                </CardGroup>
+              </DashboardModalContent>
+            </form>
+          </Dialog>
+
+          <Dialog open={settingsAutomation !== null} onOpenChange={(open) => !open && setSettingsAutomation(null)}>
+            <form id="automation-settings-form" onSubmit={handleSaveSettings} className="contents">
+              <DashboardModalContent
+                title="Automation Settings"
+                description="Update the automation title."
+                footer={
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setSettingsAutomation(null)}>
+                      Cancel
+                    </Button>
+                    <Button
+                      form="automation-settings-form"
+                      type="submit"
+                      disabled={savingSettings || !settingsName.trim()}
+                    >
+                      {savingSettings ? "Saving..." : "Save Settings"}
+                    </Button>
+                  </>
+                }
+              >
+                <CardGroup className="grid">
+                  <Card>
+                    <CardHeader>
+                      <DashboardModalCardTitle>Automation</DashboardModalCardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Field>
+                        <FieldLabel>Title *</FieldLabel>
+                        <Input
+                          value={settingsName}
+                          onChange={(e) => setSettingsName(e.target.value)}
+                          placeholder="e.g. Fitness Lead Magnet Sequence"
+                          required
+                        />
+                      </Field>
                     </CardContent>
                   </Card>
                 </CardGroup>
