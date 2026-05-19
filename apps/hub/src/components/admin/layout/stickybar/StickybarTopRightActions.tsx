@@ -1,10 +1,11 @@
 "use client"
 
 import { createContext, useContext, useState } from "react"
-import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown, Search } from "lucide-react"
+import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown, Search, ListFilter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DashboardHeaderActionsSlotContextValue {
@@ -138,7 +139,7 @@ export function StickybarTopRightActions({
 
   return (
     <>
-      <div className={cn("flex items-center gap-2", className)}>
+      <div className={cn("flex items-center gap-2 [&_[data-slot=button]]:h-8", className)}>
         {saveMessage ? (
           <div className="hidden sm:block">
             <SaveStatusBadge message={saveMessage} />
@@ -148,24 +149,48 @@ export function StickybarTopRightActions({
         {preActions}
 
         {search ? (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search.value}
-              onChange={(event) => search.onValueChange(event.target.value)}
-              placeholder={search.placeholder ?? "Search"}
-              className="h-9 w-44 pl-8 sm:w-56"
-            />
-          </div>
+          <>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="sm:hidden" aria-label="Search" title="Search">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-3">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={search.value}
+                    onChange={(event) => search.onValueChange(event.target.value)}
+                    placeholder={search.placeholder ?? "Search"}
+                    className="h-9 pl-8"
+                  />
+                </div>
+              </PopoverContent>
+            </Popover>
+            <div className="relative hidden sm:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search.value}
+                onChange={(event) => search.onValueChange(event.target.value)}
+                placeholder={search.placeholder ?? "Search"}
+                className="h-9 w-44 pl-8 sm:w-56"
+              />
+            </div>
+          </>
         ) : null}
 
         {filterMenu && activeItem ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" aria-label="Change dashboard view">
-                {activeItem.icon ? <activeItem.icon className="h-4 w-4 text-muted-foreground" /> : null}
-                <span>{activeItem.label}</span>
-                <ChevronDown className="h-4 w-4 opacity-60" />
+              <Button variant="outline" size="sm" aria-label="Change dashboard view" title={activeItem.label}>
+                {activeItem.icon ? (
+                  <activeItem.icon className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ListFilter className="h-4 w-4 text-muted-foreground" />
+                )}
+                <span className="hidden sm:inline">{activeItem.label}</span>
+                <ChevronDown className="hidden h-4 w-4 opacity-60 sm:block" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-40 space-y-1">

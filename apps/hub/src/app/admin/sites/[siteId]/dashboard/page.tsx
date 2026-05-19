@@ -112,22 +112,22 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
           <>
             {siteUrl ? (
               <Button asChild variant="outline" size="sm">
-                <a href={siteUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View Site
+                <a href={siteUrl} target="_blank" rel="noopener noreferrer" aria-label="View Site" title="View Site">
+                  <ExternalLink className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">View Site</span>
                 </a>
               </Button>
             ) : null}
             <Button asChild variant="outline" size="sm">
-              <Link href={`/admin/sites/${siteId}/settings`}>
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
+              <Link href={`/admin/sites/${siteId}/settings`} aria-label="Settings" title="Settings">
+                <Settings className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Settings</span>
               </Link>
             </Button>
             <Button asChild size="sm">
-              <Link href={`/admin/pages/${siteId}`}>
-                <Edit3 className="mr-2 h-4 w-4" />
-                Site Builder
+              <Link href={`/admin/pages/${siteId}`} aria-label="Site Builder" title="Site Builder">
+                <Edit3 className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Site Builder</span>
               </Link>
             </Button>
           </>

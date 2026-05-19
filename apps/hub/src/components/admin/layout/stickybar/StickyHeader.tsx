@@ -3,17 +3,19 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { ChevronDown, PanelLeft, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   getAdminSidebarSiteIdFromPathname,
   getAdminSidebarStickyNavLinks,
   sanitizeAdminSidebarHref,
 } from "@/lib/utils/admin-sidebar"
-import { PanelLeft, type LucideIcon } from "lucide-react"
-import { getQuickLinkIcon, getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
+import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
 
 interface NavLink {
   label: string
@@ -65,25 +67,62 @@ export function StickyHeader({
   const resolvedNavLinks = sidebarNavLinks.length > 0
     ? sidebarNavLinks
     : navLinks
-  const headerNavItems: HeaderNavItem[] = [
-    ...(isMobile
-      ? [
-          {
-            key: "toggle-sidebar",
-            label: "Toggle sidebar",
-            icon: PanelLeft,
-            onClick: () => toggleSidebar(),
-          },
-        ]
-      : []),
-    ...(resolvedNavLinks?.map((link) => ({
-      ...link,
-      key: `${link.href}-${link.label}`,
-    })) ?? []),
-  ]
+  const navItems: HeaderNavItem[] = resolvedNavLinks?.map((link) => ({
+    ...link,
+    key: `${link.href}-${link.label}`,
+  })) ?? []
   const actionsSlotRef = React.useCallback((node: HTMLDivElement | null) => {
     setSlot(node)
   }, [setSlot])
+  const renderNavIcon = (item: HeaderNavItem, className?: string) => {
+    const Icon = item.icon ?? (item.iconName ? getQuickLinkIconOrNull(item.iconName) : null)
+
+    return Icon ? <Icon className={className ?? "h-3.5 w-3.5"} /> : null
+  }
+  const renderNavItem = (item: HeaderNavItem, showLabel: boolean) => {
+    const safeHref = item.href ? sanitizeAdminSidebarHref(item.href) : ""
+    const itemClassName = cn(
+      "inline-flex items-center justify-center px-2.5 text-sm font-medium transition-all",
+      isMobile ? "h-8" : "h-full",
+      !isMobile && "px-3",
+      isMobile && "bg-muted",
+      item.active
+        ? "bg-muted text-foreground rounded-md"
+        : "hover:bg-muted rounded-md"
+    )
+    const icon = renderNavIcon(item)
+
+    if (item.external && safeHref) {
+      return (
+        <a
+          key={item.key}
+          href={safeHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={!showLabel ? item.label : undefined}
+          title={!showLabel ? item.label : undefined}
+          className={itemClassName}
+        >
+          {icon ? <span className={cn("flex h-3.5 w-3.5 items-center justify-center", showLabel && "mr-1.5")}>{icon}</span> : null}
+          {showLabel ? item.label : null}
+        </a>
+      )
+    }
+
+    return safeHref ? (
+      <Link
+        key={item.key}
+        href={safeHref}
+        aria-label={!showLabel ? item.label : undefined}
+        title={!showLabel ? item.label : undefined}
+        className={itemClassName}
+      >
+        {icon ? <span className={cn("flex h-3.5 w-3.5 items-center justify-center", showLabel && "mr-1.5")}>{icon}</span> : null}
+        {showLabel ? item.label : null}
+      </Link>
+    ) : null
+  }
+  const activeNavItem = navItems.find((item) => item.active) ?? navItems[0]
 
   return (
     <header className={cn(
@@ -92,89 +131,64 @@ export function StickyHeader({
     )}>
       <div className="flex items-center justify-between flex-1 px-4 h-full">
         <div className="flex items-center gap-2">
-          {headerNavItems.length > 0 && (
+          {isMobile ? (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="Toggle sidebar"
+              title="Toggle sidebar"
+              className="inline-flex h-8 items-center justify-center rounded-md bg-muted px-2.5 text-sm font-medium transition-all hover:bg-muted"
+            >
+              <span className="flex h-3.5 w-3.5 items-center justify-center">
+                <PanelLeft className="h-3.5 w-3.5" />
+              </span>
+            </button>
+          ) : null}
+
+          {isMobile && navItems.length === 1 ? renderNavItem(navItems[0], true) : null}
+
+          {isMobile && navItems.length > 1 && activeNavItem ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5">
+                  {renderNavIcon(activeNavItem) ? (
+                    <span className="flex h-3.5 w-3.5 items-center justify-center">
+                      {renderNavIcon(activeNavItem)}
+                    </span>
+                  ) : null}
+                  <span className="text-sm">{activeNavItem.label}</span>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {navItems.map((item) => {
+                  const safeHref = item.href ? sanitizeAdminSidebarHref(item.href) : ""
+                  const content = (
+                    <>
+                      {renderNavIcon(item) ? <span>{renderNavIcon(item, "h-4 w-4")}</span> : null}
+                      {item.label}
+                    </>
+                  )
+
+                  return item.external && safeHref ? (
+                    <DropdownMenuItem key={item.key} asChild className={cn(item.active && "bg-accent text-accent-foreground")}>
+                      <a href={safeHref} target="_blank" rel="noopener noreferrer">
+                        {content}
+                      </a>
+                    </DropdownMenuItem>
+                  ) : safeHref ? (
+                    <DropdownMenuItem key={item.key} asChild className={cn(item.active && "bg-accent text-accent-foreground")}>
+                      <Link href={safeHref}>{content}</Link>
+                    </DropdownMenuItem>
+                  ) : null
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+
+          {!isMobile && navItems.length > 0 && (
             <div className="inline-flex h-8 items-center rounded-md gap-1">
-              {headerNavItems.map((item) => {
-                const safeHref = item.href ? sanitizeAdminSidebarHref(item.href) : ""
-                const Icon =
-                  item.icon ?? (
-                    item.iconName
-                      ? getQuickLinkIconOrNull(item.iconName)
-                      : isMobile
-                        ? getQuickLinkIcon()
-                        : null
-                  )
-                const showItemLabel = !isMobile && item.key !== "toggle-sidebar"
-                const itemClassName = cn(
-                  "inline-flex h-full items-center justify-center px-2.5 text-sm font-medium transition-all",
-                  !isMobile && "px-3",
-                  isMobile && "bg-muted",
-                  item.active
-                    ? "bg-muted text-foreground rounded-md"
-                    : "hover:bg-muted rounded-md"
-                )
-                const iconClassName = cn(
-                  "flex h-3.5 w-3.5 items-center justify-center",
-                  showItemLabel && "mr-1.5"
-                )
-
-                if (item.onClick) {
-                  return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={item.onClick}
-                      aria-label={item.label}
-                      title={item.label}
-                      className={itemClassName}
-                    >
-                      {Icon ? (
-                        <span className={iconClassName}>
-                          <Icon className="h-3.5 w-3.5" />
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                }
-
-                if (item.external && safeHref) {
-                  return (
-                    <a
-                      key={item.key}
-                      href={safeHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={!showItemLabel ? item.label : undefined}
-                      title={!showItemLabel ? item.label : undefined}
-                      className={itemClassName}
-                    >
-                      {Icon && (
-                        <span className={iconClassName}>
-                          <Icon className="h-3.5 w-3.5" />
-                        </span>
-                      )}
-                      {showItemLabel ? item.label : null}
-                    </a>
-                  )
-                }
-
-                return safeHref ? (
-                  <Link
-                    key={item.key}
-                    href={safeHref}
-                    aria-label={!showItemLabel ? item.label : undefined}
-                    title={!showItemLabel ? item.label : undefined}
-                    className={itemClassName}
-                  >
-                    {Icon && (
-                      <span className={iconClassName}>
-                        <Icon className="h-3.5 w-3.5" />
-                      </span>
-                    )}
-                    {showItemLabel ? item.label : null}
-                  </Link>
-                ) : null
-              })}
+              {navItems.map((item) => renderNavItem(item, true))}
             </div>
           )}
         </div>

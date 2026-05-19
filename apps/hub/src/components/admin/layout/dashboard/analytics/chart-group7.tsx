@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { DollarSign, Eye, ShoppingCart, TrendingDown, TrendingUp, Users } from "lucide-react"
 import Link from "next/link"
 import { CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
@@ -124,8 +124,11 @@ const fallbackPoint: DashboardChartPoint = {
 
 const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTotals, totals }: ChartGroup7Props) => {
   const [activeMetric, setActiveMetric] = useState<DashboardMetric>("visitors")
+  const [isMobile, setIsMobile] = useState(false)
   const activeOption = metricOptions.find((option) => option.metric === activeMetric) ?? metricOptions[0]
   const displayData = chartData.length > 0 ? chartData : [fallbackPoint]
+  const chartDisplayData = isMobile ? displayData.slice(-7) : displayData
+  const chartDescription = isMobile && chartRange === "30d" ? rangeDescriptions["7d"] : rangeDescriptions[chartRange]
   const stats = useMemo(
     () =>
       metricOptions.map((option) => ({
@@ -136,8 +139,18 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
     [previousTotals, totals]
   )
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 639px)")
+    const updateIsMobile = () => setIsMobile(mediaQuery.matches)
+
+    updateIsMobile()
+    mediaQuery.addEventListener("change", updateIsMobile)
+
+    return () => mediaQuery.removeEventListener("change", updateIsMobile)
+  }, [])
+
   return (
-    <section className={className ? `grid gap-6 ${className}` : "grid gap-6"}>
+    <section className={className ? `grid min-w-0 gap-6 ${className}` : "grid min-w-0 gap-6"}>
       <CardGroup className="grid sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon
@@ -181,11 +194,11 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
         })}
       </CardGroup>
 
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="gap-4 space-y-0 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
             <CardTitle>{activeOption.label}</CardTitle>
-            <CardDescription>{rangeDescriptions[chartRange]}</CardDescription>
+            <CardDescription>{chartDescription}</CardDescription>
           </div>
           <Tabs value={activeMetric} onValueChange={(value) => setActiveMetric(value as DashboardMetric)}>
             <TabsList className="h-9 max-w-full justify-start overflow-x-auto">
@@ -197,9 +210,9 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
             </TabsList>
           </Tabs>
         </CardHeader>
-        <CardContent>
-          <ChartContainer config={chartConfig} className="h-[360px] w-full">
-            <LineChart accessibilityLayer data={displayData} margin={{ top: 44, right: 16, left: 0, bottom: 16 }}>
+        <CardContent className="min-w-0">
+          <ChartContainer config={chartConfig} className="h-[360px] min-w-0 w-full">
+            <LineChart accessibilityLayer data={chartDisplayData} margin={{ top: 44, right: 16, left: 0, bottom: 16 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={8} fontSize={12} />
               <YAxis
