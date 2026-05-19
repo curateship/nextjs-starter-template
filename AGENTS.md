@@ -25,6 +25,12 @@ Do not expand a small request into broad cleanup, scoring changes, helper abstra
 
 ## Rules
 
+### Communication
+- Explain things in plain human language first. Avoid dense technical wording unless the user asks for details.
+- If technical details matter, lead with the simple answer, then add the technical reason in short follow-up sentences.
+- Do not use vague words like "scan", "process", "read", or "handle" without saying exactly who is doing it: the app, the database, the browser, or the server.
+- If the user asks a direct question, answer that exact question first before adding context.
+
 ### App-Specific Instructions
 - Before working in a specific app or service directory, check for a local `AGENTS.md` in that directory and follow it for that scope.
 - App-specific `AGENTS.md` files override root-level guidance when the instructions are more specific to that app.
