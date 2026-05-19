@@ -61,14 +61,14 @@ function getNextBatchAt(dripConfig: Record<string, any>) {
 }
 
 async function getEnrollmentScanLimit() {
-  const result = await db.execute<{ max_batch_size: number | string | null }>(sql`
-    select coalesce(max(
+  const result = await db.execute<{ total_batch_size: number | string | null }>(sql`
+    select coalesce(sum(
       case
         when s.node_config->'drip_config'->>'batch_size_max' ~ '^[0-9]+$'
           then greatest((s.node_config->'drip_config'->>'batch_size_max')::int, 1)
         else ${DEFAULT_DRIP_BATCH_MAX}
       end
-    ), 0)::int as max_batch_size
+    ), 0)::int as total_batch_size
     from email_automation_steps s
     join email_automations a on a.id = s.automation_id
     where a.status = 'active'
@@ -76,7 +76,7 @@ async function getEnrollmentScanLimit() {
       and s.node_config->'drip_config'->>'enabled' = 'true'
   `)
 
-  return BASE_ENROLLMENT_SCAN_LIMIT + Number(result.rows[0]?.max_batch_size || 0)
+  return BASE_ENROLLMENT_SCAN_LIMIT + Number(result.rows[0]?.total_batch_size || 0)
 }
 
 async function acquireDripStepLock(stepId: string) {
@@ -193,6 +193,10 @@ export async function GET(request: NextRequest) {
         eq(emailAutomations.status, 'active'),
       ))
       .orderBy(
+        sql`row_number() over (
+          partition by ${emailAutomationEnrollments.automationId}, coalesce(${emailAutomationEnrollments.currentStepOrder}, 0)
+          order by ${emailAutomationEnrollments.enrolledAt}
+        )`,
         asc(emailAutomationEnrollments.currentStepOrder),
         asc(emailAutomationEnrollments.enrolledAt),
       )
