@@ -4,169 +4,85 @@ import * as React from "react"
 import {
   BellIcon,
   CheckCheckIcon,
-  DownloadIcon,
-  FileTextIcon,
-  SettingsIcon,
+  Loader2Icon,
+  MessageSquareIcon,
+  ThumbsUpIcon,
 } from "lucide-react"
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarGroup,
-} from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import {
+  getNotificationErrorMessage,
+  listNotificationPage,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type NotificationItem,
+} from "@/lib/notification-api"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"
+const NOTIFICATION_PAGE_SIZE = 20
 
-type NotificationItem = {
-  id: string
-  actor: string
-  actorInitials: string
-  actorClassName: string
-  message: React.ReactNode
-  meta: string
-  unread?: boolean
-  secondActor?: {
-    initials: string
-    className: string
-  }
-  actions?: {
-    primary: string
-    secondary: string
-  }
-  attachment?: {
-    name: string
-    size: string
-  }
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+function getInitial(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "?"
 }
 
-const notifications: NotificationItem[] = [
-  {
-    id: "dashboard-comment",
-    actor: "Alena King",
-    actorInitials: "AK",
-    actorClassName: "bg-rose-100 text-rose-700",
-    secondActor: {
-      initials: "TP",
-      className: "bg-orange-100 text-orange-700",
-    },
-    message: (
-      <>
-        <strong>Alena King</strong> and <strong>Thomas Partey</strong>{" "}
-        commented in <strong>Dashboard V2</strong>
-      </>
-    ),
-    meta: "Apr 14 · 21 comments",
-    unread: true,
-  },
-  {
-    id: "project-invite",
-    actor: "Thomas Partey",
-    actorInitials: "TP",
-    actorClassName: "bg-orange-100 text-orange-700",
-    message: (
-      <>
-        <strong>Thomas Partey</strong> invited you to a project{" "}
-        <strong>NetNest</strong>
-      </>
-    ),
-    meta: "Apr 14 · Design",
-    actions: {
-      primary: "Accept",
-      secondary: "Decline",
-    },
-  },
-  {
-    id: "project-added",
-    actor: "Thomas Partey",
-    actorInitials: "TP",
-    actorClassName: "bg-orange-100 text-orange-700",
-    message: (
-      <>
-        <strong>Thomas Partey</strong> added new project <strong>NetNest</strong>
-      </>
-    ),
-    meta: "Apr 13 · Design",
-    unread: true,
-  },
-  {
-    id: "signature-spark",
-    actor: "Justin Keith",
-    actorInitials: "JK",
-    actorClassName: "bg-amber-100 text-amber-800",
-    message: (
-      <>
-        <strong>Justin Keith</strong> added new project{" "}
-        <strong>Signature Spark</strong>
-      </>
-    ),
-    meta: "Apr 10 · Testing",
-  },
-  {
-    id: "pixel-pulse",
-    actor: "Maria Joyce",
-    actorInitials: "MJ",
-    actorClassName: "bg-violet-100 text-violet-700",
-    message: (
-      <>
-        <strong>Maria Joyce</strong> mentioned you in{" "}
-        <strong>Pixel Pulse</strong>
-      </>
-    ),
-    meta: "Apr 02 · 3 comments",
-  },
-  {
-    id: "design-requirements",
-    actor: "Adam Maccall",
-    actorInitials: "AM",
-    actorClassName: "bg-pink-100 text-pink-700",
-    message: (
-      <>
-        <strong>Adam Maccall</strong> shared a file{" "}
-        <strong>Design Requirements</strong>
-      </>
-    ),
-    meta: "Mar 31 · Design",
-    attachment: {
-      name: "Design_requirements_D2361.pdf",
-      size: "4.2MB",
-    },
-  },
-]
+function getFeedbackPreview(message: string) {
+  return message.length > 90 ? `${message.slice(0, 90)}...` : message
+}
 
 function NotificationAvatar({ item }: { item: NotificationItem }) {
-  if (!item.secondActor) {
+  const isVote = item.type === "feedback_vote"
+
+  return (
+    <Avatar size="lg">
+      <AvatarFallback
+        className={
+          isVote
+            ? "bg-green-100 text-green-800"
+            : "bg-blue-100 text-blue-800"
+        }
+      >
+        {getInitial(item.actor_name)}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
+function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "feedback_vote") {
     return (
-      <Avatar size="lg">
-        <AvatarFallback className={item.actorClassName}>
-          {item.actorInitials}
-        </AvatarFallback>
-      </Avatar>
+      <>
+        <strong>{item.actor_name}</strong> gave your feedback a thumbs up
+      </>
     )
   }
 
   return (
-    <AvatarGroup className="pt-1">
-      <Avatar size="sm">
-        <AvatarFallback className={item.secondActor.className}>
-          {item.secondActor.initials}
-        </AvatarFallback>
-      </Avatar>
-      <Avatar size="default">
-        <AvatarFallback className={item.actorClassName}>
-          {item.actorInitials}
-        </AvatarFallback>
-      </Avatar>
-    </AvatarGroup>
+    <>
+      <strong>{item.actor_name}</strong> commented on your feedback
+    </>
+  )
+}
+
+function NotificationIcon({ item }: { item: NotificationItem }) {
+  return item.type === "feedback_vote" ? (
+    <ThumbsUpIcon className="h-3.5 w-3.5" />
+  ) : (
+    <MessageSquareIcon className="h-3.5 w-3.5" />
   )
 }
 
@@ -205,20 +121,112 @@ function NotificationTabs({
   )
 }
 
-export function NotificationCenter() {
+type NotificationCenterProps = {
+  onOpenFeedback?: (feedbackId: string) => void
+}
+
+export function NotificationCenter({
+  onOpenFeedback,
+}: NotificationCenterProps) {
   const [open, setOpen] = React.useState(false)
   const [filter, setFilter] = React.useState<NotificationFilter>("all")
-  const [readIds, setReadIds] = React.useState<Set<string>>(() => new Set())
-  const unreadCount = notifications.filter(
-    (item) => item.unread && !readIds.has(item.id)
-  ).length
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>(
+    []
+  )
+  const [unreadCount, setUnreadCount] = React.useState(0)
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
+  const [loading, setLoading] = React.useState(false)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
   const visibleNotifications =
     filter === "unread"
-      ? notifications.filter((item) => item.unread && !readIds.has(item.id))
+      ? notifications.filter((item) => !item.read_at)
       : notifications
 
-  function markAllAsRead() {
-    setReadIds(new Set(notifications.map((item) => item.id)))
+  const loadNotificationRows = React.useCallback(async (cursor?: string) => {
+    if (cursor) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+    }
+    setError(null)
+
+    try {
+      const data = await listNotificationPage({
+        cursor,
+        limit: NOTIFICATION_PAGE_SIZE,
+      })
+      setNotifications((current) =>
+        cursor ? [...current, ...data.notifications] : data.notifications
+      )
+      setUnreadCount(data.unread_count)
+      setNextCursor(data.next_cursor)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    if (!open) return
+    void loadNotificationRows()
+  }, [loadNotificationRows, open])
+
+  function loadMoreOnScroll(event: React.UIEvent<HTMLDivElement>) {
+    const element = event.currentTarget
+    const distanceFromBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight
+
+    if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
+      return
+    }
+
+    void loadNotificationRows(nextCursor)
+  }
+
+  async function markAllAsRead() {
+    if (unreadCount === 0) return
+
+    setError(null)
+    try {
+      const result = await markAllNotificationsRead()
+      const readIds = new Set(result.notificationIds)
+      setNotifications((current) =>
+        current.map((item) =>
+          readIds.has(item.id) ? { ...item, read_at: result.readAt } : item
+        )
+      )
+      setUnreadCount(0)
+    } catch (readError) {
+      setError(getNotificationErrorMessage(readError))
+    }
+  }
+
+  async function openNotification(item: NotificationItem) {
+    setError(null)
+
+    if (!item.read_at) {
+      try {
+        const result = await markNotificationRead(item.id)
+        setNotifications((current) =>
+          current.map((currentItem) =>
+            currentItem.id === result.notificationId
+              ? { ...currentItem, read_at: result.readAt }
+              : currentItem
+          )
+        )
+        setUnreadCount((current) => Math.max(0, current - 1))
+      } catch (readError) {
+        setError(getNotificationErrorMessage(readError))
+        return
+      }
+    }
+
+    setOpen(false)
+    onOpenFeedback?.(item.feedback_id)
   }
 
   return (
@@ -251,63 +259,45 @@ export function NotificationCenter() {
         </div>
         <Separator />
 
-        <ScrollArea className="h-[28rem] px-4 py-4">
-          {visibleNotifications.length > 0 ? (
-            <div className="space-y-5">
+        <div
+          className="h-[28rem] overflow-y-auto px-4 py-4"
+          onScroll={loadMoreOnScroll}
+        >
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+              Loading notifications
+            </div>
+          ) : visibleNotifications.length > 0 ? (
+            <div className="space-y-3">
               {visibleNotifications.map((item) => (
-                <div
+                <button
                   key={item.id}
-                  className="grid grid-cols-[0.25rem_3rem_1fr] gap-2"
+                  type="button"
+                  className="grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
+                  onClick={() => void openNotification(item)}
                 >
                   <div className="pt-5">
-                    {item.unread && !readIds.has(item.id) ? (
+                    {!item.read_at ? (
                       <span className="block size-2 rounded-full bg-primary" />
                     ) : null}
                   </div>
                   <NotificationAvatar item={item} />
                   <div className="min-w-0">
-                    <p className="text-sm leading-snug text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
-                      {item.message}
+                    <p className="flex items-center gap-1.5 text-sm leading-snug text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
+                      <NotificationIcon item={item} />
+                      <span>
+                        <NotificationMessage item={item} />
+                      </span>
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {getFeedbackPreview(item.feedback_message)}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {item.meta}
+                      {dateFormatter.format(new Date(item.created_at))}
                     </p>
-                    {item.actions ? (
-                      <div className="mt-4 flex gap-2">
-                        <Button type="button" variant="outline" size="sm" className="px-5">
-                          {item.actions.secondary}
-                        </Button>
-                        <Button type="button" size="sm" className="px-5">
-                          {item.actions.primary}
-                        </Button>
-                      </div>
-                    ) : null}
-                    {item.attachment ? (
-                      <div className="mt-4 flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
-                        <Badge variant="destructive" className="h-10 rounded-md px-2">
-                          <FileTextIcon className="h-4 w-4" />
-                          PDF
-                        </Badge>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {item.attachment.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.attachment.size}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Download attachment"
-                        >
-                          <DownloadIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : null}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           ) : (
@@ -315,18 +305,21 @@ export function NotificationCenter() {
               No notifications
             </div>
           )}
-        </ScrollArea>
+          {error ? (
+            <p className="mt-4 text-sm text-destructive">{error}</p>
+          ) : null}
+          {loadingMore ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2Icon className="h-4 w-4 animate-spin" />
+              Loading more
+            </div>
+          ) : null}
+        </div>
         <Separator />
         <div className="flex flex-wrap items-center gap-2 p-4">
-          <Button type="button" variant="ghost" size="icon" aria-label="Settings">
-            <SettingsIcon className="h-5 w-5" />
-          </Button>
           <Button type="button" variant="ghost" onClick={markAllAsRead}>
             <CheckCheckIcon className="h-4 w-4" />
             Mark all as read
-          </Button>
-          <Button type="button" className="ml-auto">
-            View all notifications
           </Button>
         </div>
       </DropdownMenuContent>

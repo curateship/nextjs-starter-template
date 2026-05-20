@@ -30,6 +30,7 @@ type ShellRuntime = {
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
   onOpenFeedback: () => void
+  onOpenFeedbackThread: (feedbackId: string) => void
 }
 
 const ShellRuntimeContext = React.createContext<ShellRuntime | null>(null)
@@ -56,6 +57,9 @@ export function ShellLayout({
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle")
   const [feedbackOpen, setFeedbackOpen] = React.useState(false)
+  const [targetFeedbackId, setTargetFeedbackId] = React.useState<string | null>(
+    null
+  )
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
   const lastSettingsRef = React.useRef(settings)
 
@@ -117,6 +121,18 @@ export function ShellLayout({
     }
   }, [config])
 
+  const openFeedback = React.useCallback((feedbackId?: string) => {
+    setTargetFeedbackId(feedbackId ?? null)
+    setFeedbackOpen(true)
+  }, [])
+
+  const handleFeedbackOpenChange = React.useCallback((open: boolean) => {
+    setFeedbackOpen(open)
+    if (!open) {
+      setTargetFeedbackId(null)
+    }
+  }, [])
+
   const handleLogout = React.useCallback(async () => {
     await logout()
     window.location.href = "/login"
@@ -130,13 +146,15 @@ export function ShellLayout({
       feedbackRefreshToken,
       onConfigChange: handleConfigChange,
       onSaveConfig: handleSaveConfig,
-      onOpenFeedback: () => setFeedbackOpen(true),
+      onOpenFeedback: () => openFeedback(),
+      onOpenFeedbackThread: openFeedback,
     }),
     [
       config,
       feedbackRefreshToken,
       handleConfigChange,
       handleSaveConfig,
+      openFeedback,
       saveStatus,
       settingsError,
     ]
@@ -150,7 +168,8 @@ export function ShellLayout({
           <SidebarInset>
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath)}
-              onOpenFeedback={() => setFeedbackOpen(true)}
+              onOpenFeedback={() => openFeedback()}
+              onOpenFeedbackThread={openFeedback}
             />
             {isDashboardPath(config, currentPath) ? (
               <Outlet />
@@ -163,7 +182,8 @@ export function ShellLayout({
         </SidebarProvider>
         <FeedbackModal
           open={feedbackOpen}
-          onOpenChange={setFeedbackOpen}
+          onOpenChange={handleFeedbackOpenChange}
+          targetFeedbackId={targetFeedbackId}
           onCreated={() => setFeedbackRefreshToken((current) => current + 1)}
         />
       </div>

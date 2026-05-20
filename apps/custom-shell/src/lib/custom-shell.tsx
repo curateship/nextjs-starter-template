@@ -1,6 +1,7 @@
 import {
   AppWindowIcon,
   BarChart3Icon,
+  BellIcon,
   BookOpenIcon,
   BriefcaseBusinessIcon,
   CalendarIcon,
@@ -48,6 +49,10 @@ export const iconMeta = {
   mail: {
     label: "Mail",
     icon: MailIcon,
+  },
+  bell: {
+    label: "Notifications",
+    icon: BellIcon,
   },
   calendar: {
     label: "Calendar",

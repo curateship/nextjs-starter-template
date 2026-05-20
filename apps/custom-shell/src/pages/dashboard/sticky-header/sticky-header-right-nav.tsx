@@ -42,10 +42,12 @@ function ThemeToggle() {
 
 type StickyHeaderRightNavProps = {
   onOpenFeedback?: () => void
+  onOpenFeedbackThread?: (feedbackId: string) => void
 }
 
 export function StickyHeaderRightNav({
   onOpenFeedback,
+  onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
   return (
     <div className="flex items-center gap-2 pr-1">
@@ -63,7 +65,7 @@ export function StickyHeaderRightNav({
         </Button>
       ) : null}
       <ThemeToggle />
-      <NotificationCenter />
+      <NotificationCenter onOpenFeedback={onOpenFeedbackThread} />
     </div>
   )
 }

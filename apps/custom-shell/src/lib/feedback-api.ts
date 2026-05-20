@@ -7,6 +7,7 @@ import { requireAppOrigin } from "@/server/origin"
 import {
   customShellFeedback,
   customShellFeedbackComments,
+  customShellNotifications,
   customShellFeedbackVotes,
   customShellUsers,
   type CustomShellFeedback,
@@ -233,11 +234,33 @@ const toggleFeedbackVoteFn = createServerFn({ method: "POST" })
         .delete(customShellFeedbackVotes)
         .where(eq(customShellFeedbackVotes.id, existingVote.id))
     } else {
-      await db.insert(customShellFeedbackVotes).values({
-        id: uuid(),
-        feedbackId: data.feedbackId,
-        userId: user.id,
-        createdAt: now(),
+      await db.transaction(async (tx) => {
+        const createdAt = now()
+        const [vote] = await tx
+          .insert(customShellFeedbackVotes)
+          .values({
+            id: uuid(),
+            feedbackId: data.feedbackId,
+            userId: user.id,
+            createdAt,
+          })
+          .returning({ id: customShellFeedbackVotes.id })
+
+        if (!vote) {
+          throw new Error("Vote was not created")
+        }
+
+        if (shouldNotifyFeedbackAuthor(row, user)) {
+          await tx.insert(customShellNotifications).values({
+            id: uuid(),
+            recipientUserId: row.userId,
+            actorUserId: user.id,
+            feedbackId: row.id,
+            type: "feedback_vote",
+            feedbackVoteId: vote.id,
+            createdAt,
+          })
+        }
       })
     }
 
@@ -296,19 +319,41 @@ const createFeedbackCommentFn = createServerFn({ method: "POST" })
       throw new Error("Comment is required")
     }
 
-    await requireFeedback(data.feedbackId)
+    const feedback = await requireFeedback(data.feedbackId)
 
     const createdAt = now()
-    const row = {
-      id: uuid(),
-      feedbackId: data.feedbackId,
-      userId: user.id,
-      message,
-      createdAt,
-      updatedAt: createdAt,
-    }
+    const row = await db.transaction(async (tx) => {
+      const [comment] = await tx
+        .insert(customShellFeedbackComments)
+        .values({
+          id: uuid(),
+          feedbackId: data.feedbackId,
+          userId: user.id,
+          message,
+          createdAt,
+          updatedAt: createdAt,
+        })
+        .returning()
 
-    await db.insert(customShellFeedbackComments).values(row)
+      if (!comment) {
+        throw new Error("Comment was not created")
+      }
+
+      if (shouldNotifyFeedbackAuthor(feedback, user)) {
+        await tx.insert(customShellNotifications).values({
+          id: uuid(),
+          recipientUserId: feedback.userId,
+          actorUserId: user.id,
+          feedbackId: feedback.id,
+          type: "feedback_comment",
+          feedbackCommentId: comment.id,
+          createdAt,
+        })
+      }
+
+      return comment
+    })
+
     return serializeFeedbackCommentWithMeta(row, user)
   })
 
@@ -480,6 +525,13 @@ export function canManageFeedbackComment(
   user: Pick<CustomShellUser, "id" | "role">
 ) {
   return user.role === "admin" || comment.userId === user.id
+}
+
+export function shouldNotifyFeedbackAuthor(
+  feedback: Pick<CustomShellFeedback, "userId">,
+  actor: Pick<CustomShellUser, "id">
+) {
+  return feedback.userId !== actor.id
 }
 
 async function serializeFeedbackRows(

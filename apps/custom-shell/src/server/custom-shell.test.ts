@@ -20,10 +20,19 @@ import {
   customShellMedia,
   customShellFeedback,
   customShellFeedbackComments,
+  customShellFeedbackVotes,
+  customShellNotifications,
   customShellSessions,
   customShellUsers,
 } from "@/server/schema"
-import { canManageFeedbackComment } from "@/lib/feedback-api"
+import {
+  canManageFeedbackComment,
+  shouldNotifyFeedbackAuthor,
+} from "@/lib/feedback-api"
+import {
+  canViewAllNotifications,
+  getNotificationPage,
+} from "@/server/notifications"
 import {
   createSessionExpiresAt,
   findUserBySessionToken,
@@ -180,6 +189,303 @@ describe("custom shell feedback comments", () => {
     expect(canManageFeedbackComment(comment, { id: otherId, role: "admin" })).toBe(
       true
     )
+  })
+})
+
+describe("custom shell feedback notifications", () => {
+  it("tracks feedback activity, marks read, and cascades source rows", async () => {
+    const createdAt = now()
+    const ownerId = uuid()
+    const actorId = uuid()
+    const feedbackId = uuid()
+    const voteId = uuid()
+    const commentId = uuid()
+    const voteNotificationId = uuid()
+    const commentNotificationId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: ownerId,
+        email: "feedback-owner@internal.dev",
+        name: "Owner",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: actorId,
+        email: "feedback-actor@internal.dev",
+        name: "Actor",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+    await database.insert(customShellFeedback).values({
+      id: feedbackId,
+      userId: ownerId,
+      type: "suggestion",
+      message: "Notify me",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellFeedbackVotes).values({
+      id: voteId,
+      feedbackId,
+      userId: actorId,
+      createdAt,
+    })
+    await database.insert(customShellFeedbackComments).values({
+      id: commentId,
+      feedbackId,
+      userId: actorId,
+      message: "I agree",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellNotifications).values([
+      {
+        id: voteNotificationId,
+        recipientUserId: ownerId,
+        actorUserId: actorId,
+        feedbackId,
+        type: "feedback_vote",
+        feedbackVoteId: voteId,
+        createdAt,
+      },
+      {
+        id: commentNotificationId,
+        recipientUserId: ownerId,
+        actorUserId: actorId,
+        feedbackId,
+        type: "feedback_comment",
+        feedbackCommentId: commentId,
+        createdAt,
+      },
+    ])
+
+    const readAt = new Date(createdAt.getTime() + 1000)
+    const [readNotification] = await database
+      .update(customShellNotifications)
+      .set({ readAt })
+      .where(eq(customShellNotifications.id, voteNotificationId))
+      .returning()
+    expect(readNotification.readAt).toEqual(readAt)
+
+    await database
+      .delete(customShellFeedbackVotes)
+      .where(eq(customShellFeedbackVotes.id, voteId))
+    let remaining = await database.select().from(customShellNotifications)
+    expect(remaining.map((row) => row.id)).toEqual([commentNotificationId])
+
+    await database
+      .delete(customShellFeedbackComments)
+      .where(eq(customShellFeedbackComments.id, commentId))
+    remaining = await database.select().from(customShellNotifications)
+    expect(remaining).toHaveLength(0)
+  })
+
+  it("skips notifications for the feedback author acting on their own item", () => {
+    const ownerId = uuid()
+    const actorId = uuid()
+    const feedback = { userId: ownerId }
+
+    expect(shouldNotifyFeedbackAuthor(feedback, { id: actorId })).toBe(true)
+    expect(shouldNotifyFeedbackAuthor(feedback, { id: ownerId })).toBe(false)
+  })
+
+  it("paginates only the current user's notifications", async () => {
+    const createdAt = now()
+    const actorId = uuid()
+    const ownerId = uuid()
+    const otherOwnerId = uuid()
+    const ownerFeedbackId = uuid()
+    const otherFeedbackId = uuid()
+    const newestOwnerNotificationId = uuid()
+    const olderOwnerNotificationId = uuid()
+    const otherNotificationId = uuid()
+
+    await database.insert(customShellUsers).values([
+      {
+        id: actorId,
+        email: "pager-actor@internal.dev",
+        name: "Actor",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: ownerId,
+        email: "pager-owner@internal.dev",
+        name: "Owner",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: otherOwnerId,
+        email: "pager-other@internal.dev",
+        name: "Other",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+    await database.insert(customShellFeedback).values([
+      {
+        id: ownerFeedbackId,
+        userId: ownerId,
+        type: "suggestion",
+        message: "Owner feedback",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: otherFeedbackId,
+        userId: otherOwnerId,
+        type: "suggestion",
+        message: "Other feedback",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+    await database.insert(customShellNotifications).values([
+      {
+        id: newestOwnerNotificationId,
+        recipientUserId: ownerId,
+        actorUserId: actorId,
+        feedbackId: ownerFeedbackId,
+        type: "feedback_vote",
+        createdAt: new Date(createdAt.getTime() + 3000),
+      },
+      {
+        id: otherNotificationId,
+        recipientUserId: otherOwnerId,
+        actorUserId: actorId,
+        feedbackId: otherFeedbackId,
+        type: "feedback_vote",
+        createdAt: new Date(createdAt.getTime() + 2000),
+      },
+      {
+        id: olderOwnerNotificationId,
+        recipientUserId: ownerId,
+        actorUserId: actorId,
+        feedbackId: ownerFeedbackId,
+        type: "feedback_comment",
+        createdAt: new Date(createdAt.getTime() + 1000),
+      },
+    ])
+
+    const firstPage = await getNotificationPage({
+      currentUser: { id: ownerId, role: "user" },
+      limit: 1,
+      database: database as unknown as CustomShellDb,
+    })
+    expect(firstPage.notifications.map((item) => item.id)).toEqual([
+      newestOwnerNotificationId,
+    ])
+    expect(firstPage.unread_count).toBe(2)
+    expect(firstPage.next_cursor).toBeTruthy()
+
+    const secondPage = await getNotificationPage({
+      currentUser: { id: ownerId, role: "user" },
+      cursor: firstPage.next_cursor ?? undefined,
+      limit: 1,
+      database: database as unknown as CustomShellDb,
+    })
+    expect(secondPage.notifications.map((item) => item.id)).toEqual([
+      olderOwnerNotificationId,
+    ])
+  })
+
+  it("allows only admins to list all notifications", async () => {
+    const createdAt = now()
+    const adminId = uuid()
+    const ownerId = uuid()
+    const actorId = uuid()
+    const feedbackId = uuid()
+    const notificationId = uuid()
+
+    expect(canViewAllNotifications({ role: "admin" })).toBe(true)
+    expect(canViewAllNotifications({ role: "user" })).toBe(false)
+
+    await database.insert(customShellUsers).values([
+      {
+        id: adminId,
+        email: "notification-admin@internal.dev",
+        name: "Admin",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: ownerId,
+        email: "notification-owner@internal.dev",
+        name: "Owner",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: actorId,
+        email: "notification-actor@internal.dev",
+        name: "Actor",
+        role: "user",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+    await database.insert(customShellFeedback).values({
+      id: feedbackId,
+      userId: ownerId,
+      type: "suggestion",
+      message: "Admin visible feedback",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellNotifications).values({
+      id: notificationId,
+      recipientUserId: ownerId,
+      actorUserId: actorId,
+      feedbackId,
+      type: "feedback_comment",
+      createdAt,
+    })
+
+    await expect(
+      getNotificationPage({
+        currentUser: { id: ownerId, role: "user" },
+        includeAll: true,
+        database: database as unknown as CustomShellDb,
+      })
+    ).rejects.toThrow("Not authorized")
+
+    const adminPage = await getNotificationPage({
+      currentUser: { id: adminId, role: "admin" },
+      includeAll: true,
+      database: database as unknown as CustomShellDb,
+    })
+    expect(adminPage.notifications).toMatchObject([
+      {
+        id: notificationId,
+        actor_name: "Actor",
+        recipient_name: "Owner",
+      },
+    ])
+
+    const [notification] = await database
+      .select()
+      .from(customShellNotifications)
+      .where(eq(customShellNotifications.id, notificationId))
+    expect(notification.readAt).toBeNull()
   })
 })
 

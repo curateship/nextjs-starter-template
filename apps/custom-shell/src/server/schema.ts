@@ -117,6 +117,49 @@ export const customShellFeedbackComments = pgTable(
   ]
 )
 
+export const customShellNotifications = pgTable(
+  "custom_shell_notifications",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    recipientUserId: varchar("recipient_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    actorUserId: varchar("actor_user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    feedbackId: varchar("feedback_id", { length: 36 })
+      .notNull()
+      .references(() => customShellFeedback.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 50 }).notNull(),
+    feedbackVoteId: varchar("feedback_vote_id", { length: 36 }).references(
+      () => customShellFeedbackVotes.id,
+      { onDelete: "cascade" }
+    ),
+    feedbackCommentId: varchar("feedback_comment_id", {
+      length: 36,
+    }).references(() => customShellFeedbackComments.id, {
+      onDelete: "cascade",
+    }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "custom_shell_notifications_type_check",
+      sql`${table.type} in ('feedback_vote', 'feedback_comment')`
+    ),
+    index("ix_custom_shell_notifications_recipient_created").on(
+      table.recipientUserId,
+      table.createdAt
+    ),
+    index("ix_custom_shell_notifications_feedback_id").on(table.feedbackId),
+    index("ix_custom_shell_notifications_vote_id").on(table.feedbackVoteId),
+    index("ix_custom_shell_notifications_comment_id").on(
+      table.feedbackCommentId
+    ),
+  ]
+)
+
 export const customShellMedia = pgTable(
   "custom_shell_media",
   {
@@ -155,3 +198,5 @@ export type CustomShellMedia = typeof customShellMedia.$inferSelect
 export type CustomShellFeedback = typeof customShellFeedback.$inferSelect
 export type CustomShellFeedbackComment =
   typeof customShellFeedbackComments.$inferSelect
+export type CustomShellNotification =
+  typeof customShellNotifications.$inferSelect

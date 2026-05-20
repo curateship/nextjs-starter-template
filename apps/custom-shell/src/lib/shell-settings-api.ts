@@ -16,6 +16,7 @@ const iconSchema = z.enum([
   "package",
   "folderOpen",
   "mail",
+  "bell",
   "calendar",
   "tag",
   "image",

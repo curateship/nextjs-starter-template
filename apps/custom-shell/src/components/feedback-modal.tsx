@@ -100,12 +100,14 @@ const feedbackSortLabels: Record<FeedbackSort, string> = {
 type FeedbackModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  targetFeedbackId?: string | null
   onCreated?: (feedback: FeedbackItem) => void
 }
 
 export function FeedbackModal({
   open,
   onOpenChange,
+  targetFeedbackId,
   onCreated,
 }: FeedbackModalProps) {
   const [feedbackType, setFeedbackType] =
@@ -146,33 +148,48 @@ export function FeedbackModal({
     if (!open) return
 
     let active = true
+    const targetId = targetFeedbackId ?? null
+
     setError(null)
-    setExpandedIds(new Set())
-    setOpenThreadIds(new Set())
+    setExpandedIds(new Set(targetId ? [targetId] : []))
+    setOpenThreadIds(new Set(targetId ? [targetId] : []))
     setCommentThreads({})
     setCommentInputs({})
     setEditingCommentId(null)
     setEditingCommentMessage("")
     setLoadingFeedback(true)
+    setLoadingThreadId(targetId)
+    if (targetId) {
+      setFeedbackFilter("all")
+      setFeedbackSort("recent")
+    }
 
-    listFeedback()
-      .then((data) => {
+    const loadFeedback = async () => {
+      try {
+        const data = await listFeedback()
         if (!active) return
         setFeedback(data.feedback)
-      })
-      .catch((loadError) => {
+        if (!targetId) return
+
+        const comments = await listFeedbackComments(targetId)
+        if (!active) return
+        setCommentThreads({ [targetId]: comments.comments })
+      } catch (loadError) {
         if (!active) return
         setError(getFeedbackErrorMessage(loadError))
-      })
-      .finally(() => {
+      } finally {
         if (!active) return
         setLoadingFeedback(false)
-      })
+        setLoadingThreadId(null)
+      }
+    }
+
+    void loadFeedback()
 
     return () => {
       active = false
     }
-  }, [open])
+  }, [open, targetFeedbackId])
 
   const filteredFeedback = React.useMemo(() => {
     const matches =
@@ -180,7 +197,7 @@ export function FeedbackModal({
         ? feedback
         : feedback.filter((item) => item.type === feedbackFilter)
 
-    return [...matches].sort((a, b) => {
+    const sorted = [...matches].sort((a, b) => {
       if (feedbackSort === "most_votes") {
         return b.vote_count - a.vote_count
       }
@@ -191,7 +208,24 @@ export function FeedbackModal({
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
     })
-  }, [feedback, feedbackFilter, feedbackSort])
+
+    if (!targetFeedbackId) {
+      return sorted
+    }
+
+    const targetIndex = sorted.findIndex((item) => item.id === targetFeedbackId)
+    if (targetIndex < 1) {
+      return sorted
+    }
+
+    const target = sorted[targetIndex]
+    if (!target) {
+      return sorted
+    }
+
+    sorted.splice(targetIndex, 1)
+    return [target, ...sorted]
+  }, [feedback, feedbackFilter, feedbackSort, targetFeedbackId])
   const feedbackListTitle =
     feedbackFilter === "all"
       ? "Feedback"
@@ -382,7 +416,7 @@ export function FeedbackModal({
             placeholder="What's on your mind?"
             className="min-h-32 resize-none border-0 text-base shadow-none focus-visible:border-transparent focus-visible:ring-0"
             disabled={isSubmitting}
-            autoFocus
+            autoFocus={!targetFeedbackId}
           />
 
           <div className="flex flex-col gap-2 p-3 pt-0 sm:flex-row sm:items-center sm:justify-between">

@@ -10,7 +10,6 @@ import {
   MessageSquareIcon,
   MessageSquarePlusIcon,
   SettingsIcon,
-  SearchIcon,
   ThumbsUpIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -18,6 +17,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DashboardToolbar,
+  DashboardToolbarControls,
+  DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
+  DashboardToolbarTitle,
+} from "@/components/dashboard-toolbar"
 import { TableRowsSkeleton } from "@/components/loading-skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -87,22 +93,22 @@ const pageSizeOptions = [10, 25, 50]
 const feedbackSkeletonColumns = [
   { skeletonClassName: "h-4 w-4" },
   { skeletonClassName: "h-4 w-56" },
-  { skeletonClassName: "ml-auto h-5 w-20" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "ml-auto h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "ml-auto h-4 w-20" },
-  { skeletonClassName: "ml-auto h-5 w-14" },
-  { skeletonClassName: "ml-auto h-5 w-14" },
-  { skeletonClassName: "ml-auto h-8 w-8" },
+  { skeletonClassName: "h-5 w-20" },
+  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-24" },
+  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
+  { skeletonClassName: "h-5 w-14" },
+  { skeletonClassName: "h-5 w-14" },
+  { skeletonClassName: "h-8 w-8" },
 ]
 
 const commentSkeletonColumns = [
   { skeletonClassName: "h-4 w-4" },
   { skeletonClassName: "h-4 w-64" },
   { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-32" },
-  { skeletonClassName: "ml-auto h-5 w-20" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "ml-auto h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "ml-auto h-4 w-20" },
-  { skeletonClassName: "ml-auto h-8 w-8" },
+  { skeletonClassName: "h-5 w-20" },
+  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-24" },
+  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
+  { skeletonClassName: "h-8 w-8" },
 ]
 
 type FeedbackPeriod = "1year" | "3months" | "30days"
@@ -345,8 +351,8 @@ export function FeedbackPage({
           ) : null}
 
       <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
-        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+        <DashboardToolbar>
+          <DashboardToolbarTitle>
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
               <MessageSquarePlusIcon className="size-4 text-muted-foreground sm:size-[18px]" />
             </span>
@@ -361,34 +367,24 @@ export function FeedbackPage({
                 Clear {selectedIds.size} selected
               </button>
             ) : null}
-          </div>
+          </DashboardToolbarTitle>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 sm:flex-none">
-              <SearchIcon
-                className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground sm:size-5"
-                aria-hidden="true"
-              />
-              <Input
-                type="search"
-                name="feedback-search"
-                inputMode="search"
-                autoComplete="off"
-                aria-label="Search feedback"
-                placeholder="Search feedback..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="h-8 w-full pl-9 text-sm sm:h-9 sm:w-[180px] sm:pl-10 lg:w-[240px]"
-              />
-            </div>
+          <DashboardToolbarControls>
+            <DashboardToolbarSearch
+              name="feedback-search"
+              aria-label="Search feedback"
+              placeholder="Search feedback..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger
-                className="h-8 w-[150px] text-xs sm:h-9 sm:text-sm"
+              <DashboardToolbarSelectTrigger
                 aria-label="Filter by type"
+                labels={["All Types", ...Object.values(feedbackTypeLabels)]}
               >
                 <SelectValue placeholder="Type" />
-              </SelectTrigger>
+              </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {Object.entries(feedbackTypeLabels).map(([type, label]) => (
@@ -403,12 +399,12 @@ export function FeedbackPage({
               value={sortFilter}
               onValueChange={(value) => setSortFilter(value as FeedbackSort)}
             >
-              <SelectTrigger
-                className="h-8 w-[170px] text-xs sm:h-9 sm:text-sm"
+              <DashboardToolbarSelectTrigger
                 aria-label="Sort feedback"
+                labels={Object.values(feedbackSortLabels)}
               >
                 <SelectValue placeholder="Sort" />
-              </SelectTrigger>
+              </DashboardToolbarSelectTrigger>
               <SelectContent>
                 {Object.entries(feedbackSortLabels).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
@@ -417,13 +413,13 @@ export function FeedbackPage({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
+          </DashboardToolbarControls>
+        </DashboardToolbar>
 
         <ScrollArea className="w-full">
-          <Table className="[&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:hover]:bg-transparent [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 [&_tr]:border-0">
-            <TableHeader className="[&_tr]:border-b-0">
-              <TableRow className="bg-muted/50">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 <TableHead className="w-12 min-w-12">
                   <Checkbox
                     checked={
@@ -437,25 +433,25 @@ export function FeedbackPage({
                     aria-label="Select visible feedback"
                   />
                 </TableHead>
-                <TableHead className="w-full min-w-[260px] text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="main">
                   Feedback
                 </TableHead>
-                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="meta">
                   Type
                 </TableHead>
-                <TableHead className="hidden w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm md:table-cell">
+                <TableHead column="meta" className="hidden md:table-cell">
                   Author
                 </TableHead>
-                <TableHead className="hidden w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
+                <TableHead column="meta" className="hidden lg:table-cell">
                   Created
                 </TableHead>
-                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="meta">
                   Comments
                 </TableHead>
-                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="meta">
                   Votes
                 </TableHead>
-                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="meta">
                   Actions
                 </TableHead>
               </TableRow>
@@ -482,7 +478,7 @@ export function FeedbackPage({
                         aria-label={`Select feedback ${item.message}`}
                       />
                     </TableCell>
-                    <TableCell className="min-w-[260px]">
+                    <TableCell column="main">
                       <button
                         type="button"
                         className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
@@ -492,7 +488,7 @@ export function FeedbackPage({
                         {item.message}
                       </button>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-right">
+                    <TableCell column="meta">
                       <Badge
                         variant={feedbackTypeBadgeVariants[item.type]}
                         className={feedbackTypeClassNames[item.type]}
@@ -500,25 +496,25 @@ export function FeedbackPage({
                         {feedbackTypeLabels[item.type]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:text-sm md:table-cell">
+                    <TableCell column="mutedMeta" className="hidden md:table-cell">
                       {item.author_name}
                     </TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:text-sm lg:table-cell">
+                    <TableCell column="mutedMeta" className="hidden lg:table-cell">
                       {dateFormatter.format(new Date(item.created_at))}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-right">
+                    <TableCell column="meta">
                       <Badge variant="secondary">
                         <MessageSquareIcon className="h-3.5 w-3.5" />
                         {item.comment_count}
                       </Badge>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-right">
+                    <TableCell column="meta">
                       <Badge variant="secondary">
                         <ThumbsUpIcon className="h-3.5 w-3.5" />
                         {item.vote_count}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell column="meta">
                       <Button
                         type="button"
                         variant="ghost"
@@ -832,8 +828,8 @@ function FeedbackCommentsDashboard() {
       ) : null}
 
       <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
-        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-          <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+        <DashboardToolbar>
+          <DashboardToolbarTitle>
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
               <MessageSquareIcon className="size-4 text-muted-foreground sm:size-[18px]" />
             </span>
@@ -848,34 +844,24 @@ function FeedbackCommentsDashboard() {
                 Clear {selectedIds.size} selected
               </button>
             ) : null}
-          </div>
+          </DashboardToolbarTitle>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 sm:flex-none">
-              <SearchIcon
-                className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground sm:size-5"
-                aria-hidden="true"
-              />
-              <Input
-                type="search"
-                name="comment-search"
-                inputMode="search"
-                autoComplete="off"
-                aria-label="Search comments"
-                placeholder="Search comments..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="h-8 w-full pl-9 text-sm sm:h-9 sm:w-[180px] sm:pl-10 lg:w-[240px]"
-              />
-            </div>
+          <DashboardToolbarControls>
+            <DashboardToolbarSearch
+              name="comment-search"
+              aria-label="Search comments"
+              placeholder="Search comments..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
 
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger
-                className="h-8 w-[150px] text-xs sm:h-9 sm:text-sm"
+              <DashboardToolbarSelectTrigger
                 aria-label="Filter by feedback type"
+                labels={["All Types", ...Object.values(feedbackTypeLabels)]}
               >
                 <SelectValue placeholder="Type" />
-              </SelectTrigger>
+              </DashboardToolbarSelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {Object.entries(feedbackTypeLabels).map(([type, label]) => (
@@ -885,13 +871,13 @@ function FeedbackCommentsDashboard() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        </div>
+          </DashboardToolbarControls>
+        </DashboardToolbar>
 
         <ScrollArea className="w-full">
-          <Table className="[&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:hover]:bg-transparent [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 [&_tr]:border-0">
-            <TableHeader className="[&_tr]:border-b-0">
-              <TableRow className="bg-muted/50">
+          <Table>
+            <TableHeader>
+              <TableRow>
                 <TableHead className="w-12 min-w-12">
                   <Checkbox
                     checked={
@@ -905,22 +891,22 @@ function FeedbackCommentsDashboard() {
                     aria-label="Select visible comments"
                   />
                 </TableHead>
-                <TableHead className="w-full min-w-[320px] text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="main">
                   Comment
                 </TableHead>
-                <TableHead className="hidden w-44 max-w-44 text-xs font-medium text-muted-foreground sm:text-sm md:table-cell">
+                <TableHead column="preview">
                   Feedback
                 </TableHead>
-                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="meta">
                   Type
                 </TableHead>
-                <TableHead className="hidden w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
+                <TableHead column="meta" className="hidden lg:table-cell">
                   Author
                 </TableHead>
-                <TableHead className="hidden w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
+                <TableHead column="meta" className="hidden lg:table-cell">
                   Created
                 </TableHead>
-                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead column="meta">
                   Actions
                 </TableHead>
               </TableRow>
@@ -947,7 +933,7 @@ function FeedbackCommentsDashboard() {
                         aria-label={`Select comment ${comment.message}`}
                       />
                     </TableCell>
-                    <TableCell className="min-w-[320px]">
+                    <TableCell column="main">
                       <button
                         type="button"
                         className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
@@ -957,12 +943,12 @@ function FeedbackCommentsDashboard() {
                         {comment.message}
                       </button>
                     </TableCell>
-                    <TableCell className="hidden w-44 max-w-44 text-xs text-muted-foreground sm:text-sm md:table-cell">
+                    <TableCell column="preview">
                       <span className="line-clamp-1 max-w-44">
                         {comment.feedback_message}
                       </span>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-right">
+                    <TableCell column="meta">
                       <Badge
                         variant={feedbackTypeBadgeVariants[comment.feedback_type]}
                         className={
@@ -972,13 +958,13 @@ function FeedbackCommentsDashboard() {
                         {feedbackTypeLabels[comment.feedback_type]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:text-sm lg:table-cell">
+                    <TableCell column="mutedMeta" className="hidden lg:table-cell">
                       {comment.author_name}
                     </TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:text-sm lg:table-cell">
+                    <TableCell column="mutedMeta" className="hidden lg:table-cell">
                       {dateFormatter.format(new Date(comment.created_at))}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell column="meta">
                       <Button
                         type="button"
                         variant="ghost"

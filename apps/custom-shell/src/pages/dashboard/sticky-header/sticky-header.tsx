@@ -18,6 +18,7 @@ type StickyHeaderProps = {
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
   onOpenFeedback?: () => void
+  onOpenFeedbackThread?: (feedbackId: string) => void
 }
 
 export function StickyHeader({
@@ -25,6 +26,7 @@ export function StickyHeader({
   navLinks,
   navContent,
   onOpenFeedback,
+  onOpenFeedbackThread,
 }: StickyHeaderProps) {
   const { toggleSidebar } = useSidebar()
   const isMobile = useIsMobile()
@@ -57,7 +59,10 @@ export function StickyHeader({
             <StickyHeaderLeftNav navLinks={navLinks} />
           )}
         </div>
-        <StickyHeaderRightNav onOpenFeedback={onOpenFeedback} />
+        <StickyHeaderRightNav
+          onOpenFeedback={onOpenFeedback}
+          onOpenFeedbackThread={onOpenFeedbackThread}
+        />
       </div>
     </header>
   )

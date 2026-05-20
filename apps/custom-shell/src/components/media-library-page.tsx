@@ -364,7 +364,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
                       checked={allVisibleSelected}
@@ -372,11 +372,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                       aria-label="Select visible media"
                     />
                   </TableHead>
-                  <TableHead className="min-w-[240px]">File</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="hidden md:table-cell">Size</TableHead>
-                  <TableHead className="hidden lg:table-cell">Added</TableHead>
-                  <TableHead className="w-[110px] text-right">Actions</TableHead>
+                  <TableHead column="main">File</TableHead>
+                  <TableHead column="meta">Type</TableHead>
+                  <TableHead column="meta" className="hidden md:table-cell">Size</TableHead>
+                  <TableHead column="meta" className="hidden lg:table-cell">Added</TableHead>
+                  <TableHead column="meta">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -499,7 +499,7 @@ function MediaTableRow({
       <TableCell>
         <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${item.original_name}`} />
       </TableCell>
-      <TableCell>
+      <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
           <MediaPreview item={item} className="size-12 shrink-0 rounded-md border bg-muted" />
           <div className="min-w-0">
@@ -510,13 +510,13 @@ function MediaTableRow({
           </div>
         </div>
       </TableCell>
-      <TableCell className="capitalize text-muted-foreground">{item.file_type}</TableCell>
-      <TableCell className="hidden text-muted-foreground md:table-cell">{formatFileSize(item.file_size)}</TableCell>
-      <TableCell className="hidden text-muted-foreground lg:table-cell">
+      <TableCell column="mutedMeta" className="capitalize">{item.file_type}</TableCell>
+      <TableCell column="mutedMeta" className="hidden md:table-cell">{formatFileSize(item.file_size)}</TableCell>
+      <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {dateFormatter.format(new Date(item.created_at))}
       </TableCell>
-      <TableCell>
-        <div className="flex justify-end gap-1">
+      <TableCell column="meta">
+        <div className="flex justify-start gap-1">
           <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
             <EditIcon className="size-4" />
           </Button>
