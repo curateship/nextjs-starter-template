@@ -6,7 +6,6 @@ import { loadCurrentUser } from "@/lib/auth-api"
 import { loadShellSettings } from "@/lib/shell-settings-api"
 
 export const Route = createFileRoute("/_authenticated")({
-  shouldReload: false,
   loader: async () => {
     const user = await loadCurrentUser()
     if (!user) {

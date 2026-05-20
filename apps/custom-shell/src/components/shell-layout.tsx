@@ -15,7 +15,7 @@ import {
   type ShellItem,
 } from "@/lib/custom-shell"
 import type { AuthUser } from "@/lib/auth-api"
-import { logout } from "@/lib/auth-api"
+import { loadCurrentUser, logout } from "@/lib/auth-api"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
@@ -70,6 +70,32 @@ export function ShellLayout({
     setSettingsError(null)
     setSaveStatus("idle")
   }, [settings])
+
+  React.useEffect(() => {
+    let active = true
+
+    const redirectIfSignedOut = async () => {
+      const currentUser = await loadCurrentUser().catch(() => null)
+      if (active && !currentUser) {
+        window.location.href = "/login"
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void redirectIfSignedOut()
+      }
+    }
+
+    window.addEventListener("focus", redirectIfSignedOut)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      active = false
+      window.removeEventListener("focus", redirectIfSignedOut)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [])
 
   const handleConfigChange = React.useCallback((nextConfig: ShellConfig) => {
     setConfig(nextConfig)
