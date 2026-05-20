@@ -9,6 +9,7 @@ import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
   isShellItem,
+  normalizeTopRightNavigation,
   renderShellIcon,
   type ShellConfig,
   type ShellItem,
@@ -168,6 +169,7 @@ export function ShellLayout({
           <SidebarInset>
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath)}
+              rightNavItems={config.topRightNavigation}
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
@@ -204,6 +206,9 @@ function normalizeConfig(settings: ShellConfig | null) {
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
+    topRightNavigation: normalizeTopRightNavigation(
+      settings.topRightNavigation
+    ),
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,

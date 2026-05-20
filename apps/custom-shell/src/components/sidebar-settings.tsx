@@ -20,6 +20,7 @@ import {
   CheckIcon,
   GripVertical,
   ImageIcon,
+  MinusIcon,
   PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
@@ -102,6 +103,7 @@ type SortableSectionProps = {
   section: ShellSection
   isSaving: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
+  onSectionDelete: (sectionId: string) => void
   onReset: () => void
   onItemAdd: (sectionId: string) => void
   onItemChange: (
@@ -522,6 +524,7 @@ function SortableSectionCard({
   section,
   isSaving,
   onSectionTitleChange,
+  onSectionDelete,
   onReset,
   onItemAdd,
   onItemChange,
@@ -592,6 +595,17 @@ function SortableSectionCard({
               <PlusIcon className="h-4 w-4" />
               Add Link
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hover:bg-red-50"
+              onClick={() => onSectionDelete(section.id)}
+              aria-label={`Delete ${section.title || "sidebar section"}`}
+            >
+              <MinusIcon className="h-4 w-4" />
+              Delete Section
+            </Button>
           </div>
         </div>
 
@@ -659,8 +673,8 @@ export function SidebarSettings({
     const item: ShellItem = {
       type: "item",
       id: createShellId("item"),
-      label: "New Link",
-      href: "/admin/new-link",
+      label: "",
+      href: "",
       icon: "appWindow",
       visible: true,
     }
@@ -694,6 +708,13 @@ export function SidebarSettings({
         title,
       }))
     )
+  }
+
+  const handleSectionDelete = (sectionId: string) => {
+    onConfigChange({
+      ...config,
+      sections: config.sections.filter((section) => section.id !== sectionId),
+    })
   }
 
   const handleItemChange = (
@@ -876,6 +897,7 @@ export function SidebarSettings({
                 section={section}
                 isSaving={isSaving}
                 onSectionTitleChange={handleSectionTitleChange}
+                onSectionDelete={handleSectionDelete}
                 onReset={() => onConfigChange(createDefaultShellConfig())}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}

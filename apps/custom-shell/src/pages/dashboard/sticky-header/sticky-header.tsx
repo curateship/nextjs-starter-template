@@ -12,11 +12,13 @@ import {
 } from "@/pages/dashboard/sticky-header/sticky-header-left-nav"
 import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import type { ShellTopRightNavigationItem } from "@/lib/custom-shell"
 
 type StickyHeaderProps = {
   className?: string
   navLinks?: StickyHeaderLeftNavLink[]
   navContent?: React.ReactNode
+  rightNavItems?: ShellTopRightNavigationItem[]
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
@@ -25,6 +27,7 @@ export function StickyHeader({
   className,
   navLinks,
   navContent,
+  rightNavItems,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderProps) {
@@ -60,6 +63,7 @@ export function StickyHeader({
           )}
         </div>
         <StickyHeaderRightNav
+          items={rightNavItems}
           onOpenFeedback={onOpenFeedback}
           onOpenFeedbackThread={onOpenFeedbackThread}
         />

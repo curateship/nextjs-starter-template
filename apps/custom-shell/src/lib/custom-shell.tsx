@@ -181,12 +181,34 @@ export type ShellTopNavigationItem = {
   visible: boolean
 }
 
+export const TOP_RIGHT_NAVIGATION_ITEM_IDS = [
+  "feedback",
+  "theme",
+  "notifications",
+] as const
+
+export type ShellTopRightNavigationItemId =
+  (typeof TOP_RIGHT_NAVIGATION_ITEM_IDS)[number]
+
+export type ShellTopRightNavigationItem = {
+  id: ShellTopRightNavigationItemId
+  visible: boolean
+}
+
 export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
   topNavigation: ShellTopNavigationItem[]
+  topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
+}
+
+export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
+  return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
+    id,
+    visible: true,
+  }))
 }
 
 export function createDefaultShellConfig(): ShellConfig {
@@ -195,8 +217,27 @@ export function createDefaultShellConfig(): ShellConfig {
     workspaceName: "",
     workspacePlan: "",
     topNavigation: [],
+    topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],
   }
+}
+
+export function normalizeTopRightNavigation(
+  items: ShellTopRightNavigationItem[] | undefined
+) {
+  const fallback = createDefaultTopRightNavigation()
+  if (!Array.isArray(items)) {
+    return fallback
+  }
+
+  const validIds = new Set<ShellTopRightNavigationItemId>(
+    TOP_RIGHT_NAVIGATION_ITEM_IDS
+  )
+  const savedItems = items.filter((item) => validIds.has(item.id))
+  const savedIds = new Set(savedItems.map((item) => item.id))
+  const missingItems = fallback.filter((item) => !savedIds.has(item.id))
+
+  return [...savedItems, ...missingItems]
 }
 
 export function isShellItem(entry: ShellEntry): entry is ShellItem {

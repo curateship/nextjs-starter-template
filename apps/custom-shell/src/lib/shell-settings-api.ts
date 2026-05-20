@@ -77,6 +77,12 @@ const shellConfigSchema = z.object({
       visible: z.boolean(),
     })
   ),
+  topRightNavigation: z.array(
+    z.object({
+      id: z.enum(["feedback", "theme", "notifications"]),
+      visible: z.boolean(),
+    })
+  ),
   sections: z.array(
     z.object({
       id: z.string().min(1),

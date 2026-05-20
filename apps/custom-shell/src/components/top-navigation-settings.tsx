@@ -11,18 +11,22 @@ import {
 import {
   SortableContext,
   arrayMove,
+  horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
-  verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
+  BellIcon,
   CheckIcon,
   GripVertical,
   ImageIcon,
+  MessageSquarePlusIcon,
   PlusIcon,
   RotateCcwIcon,
+  SunIcon,
   Trash2Icon,
+  type LucideIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -38,10 +42,14 @@ import {
 import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { cn } from "@/lib/utils"
 import {
+  createDefaultTopRightNavigation,
   iconMeta,
+  normalizeTopRightNavigation,
   renderShellIcon,
   type IconKey,
   type ShellConfig,
+  type ShellTopRightNavigationItem,
+  type ShellTopRightNavigationItemId,
   type ShellTopNavigationItem,
 } from "@/lib/custom-shell"
 
@@ -66,6 +74,32 @@ type SortableTopNavigationItemProps = {
   ) => void
   onItemDelete: (itemId: string) => void
   onSaveConfig: () => Promise<boolean>
+}
+
+type SortableTopRightNavigationItemProps = {
+  item: ShellTopRightNavigationItem
+  onItemChange: (
+    itemId: ShellTopRightNavigationItemId,
+    patch: Partial<ShellTopRightNavigationItem>
+  ) => void
+}
+
+const topRightNavigationMeta: Record<
+  ShellTopRightNavigationItemId,
+  { label: string; icon: LucideIcon }
+> = {
+  feedback: {
+    label: "Feedback",
+    icon: MessageSquarePlusIcon,
+  },
+  theme: {
+    label: "Theme Switcher",
+    icon: SunIcon,
+  },
+  notifications: {
+    label: "Bell Notification",
+    icon: BellIcon,
+  },
 }
 
 function createTopNavigationId() {
@@ -183,48 +217,38 @@ function SortableTopNavigationItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="group rounded-lg bg-background transition-colors hover:bg-muted/40"
+      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
     >
-      <div className="flex items-center">
+      <div className="flex max-w-full flex-wrap items-center gap-1">
         <button
           type="button"
           {...attributes}
           {...listeners}
-          className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           aria-label={`Reorder ${item.label || "top navigation link"}`}
         >
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <button
+        <Button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-1.5 text-left"
+          variant="ghost"
+          className="h-9 max-w-[240px] justify-start gap-2 px-3 text-sm font-medium"
           onClick={() => setDialogOpen(true)}
+          aria-label={`Edit settings for ${item.label || "top navigation link"}`}
         >
-          <span
-            className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center text-foreground",
-              !item.icon &&
-                "rounded-md border border-dotted border-muted-foreground/30 bg-muted/40"
-            )}
-          >
-            {item.icon ? (
-              renderShellIcon(item.icon, "h-4 w-4")
-            ) : (
-              <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
-            )}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">
-              {item.label || "Untitled link"}
-            </span>
-          </span>
+          {item.icon ? (
+            renderShellIcon(item.icon, "h-4 w-4 shrink-0")
+          ) : (
+            <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+          )}
+          <span className="truncate">{item.label || "Untitled link"}</span>
           {!item.visible ? (
-            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               Hidden
             </span>
           ) : null}
-        </button>
+        </Button>
 
         <label
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
@@ -245,7 +269,7 @@ function SortableTopNavigationItem({
           type="button"
           variant="ghost"
           size="icon"
-          className="hover:bg-transparent"
+          className="hover:bg-red-50"
           onClick={() => onItemDelete(item.id)}
           aria-label={`Delete ${item.label || "top navigation link"}`}
         >
@@ -300,12 +324,78 @@ function SortableTopNavigationItem({
   )
 }
 
+function SortableTopRightNavigationItem({
+  item,
+  onItemChange,
+}: SortableTopRightNavigationItemProps) {
+  const meta = topRightNavigationMeta[item.id]
+  const Icon = meta.icon
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50"
+    >
+      <div className="flex max-w-full flex-wrap items-center gap-1">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={`Reorder ${meta.label}`}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div className="flex h-9 max-w-[240px] items-center gap-2 px-3 text-sm font-medium">
+          <Icon className="h-4 w-4 shrink-0" />
+          <span className="truncate">{meta.label}</span>
+          {!item.visible ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              Hidden
+            </span>
+          ) : null}
+        </div>
+        <label
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md"
+          title={item.visible ? "Visible" : "Hidden"}
+        >
+          <Checkbox
+            checked={item.visible}
+            onCheckedChange={(checked) =>
+              onItemChange(item.id, { visible: checked === true })
+            }
+          />
+          <span className="sr-only">Show {meta.label}</span>
+        </label>
+      </div>
+    </div>
+  )
+}
+
 export function TopNavigationSettings({
   config,
   isSaving,
   onConfigChange,
   onSaveConfig,
 }: TopNavigationSettingsProps) {
+  const topRightNavigation = normalizeTopRightNavigation(
+    config.topRightNavigation
+  )
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -364,17 +454,116 @@ export function TopNavigationSettings({
     })
   }
 
+  const handleTopRightItemChange = (
+    itemId: ShellTopRightNavigationItemId,
+    patch: Partial<ShellTopRightNavigationItem>
+  ) => {
+    onConfigChange({
+      ...config,
+      topRightNavigation: topRightNavigation.map((item) =>
+        item.id === itemId ? { ...item, ...patch } : item
+      ),
+    })
+  }
+
+  const handleTopRightDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = topRightNavigation.findIndex(
+      (item) => item.id === active.id
+    )
+    const newIndex = topRightNavigation.findIndex((item) => item.id === over.id)
+
+    if (oldIndex === -1 || newIndex === -1) return
+
+    onConfigChange({
+      ...config,
+      topRightNavigation: arrayMove(topRightNavigation, oldIndex, newIndex),
+    })
+  }
+
   return (
-    <Card>
-      <CardContent className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold">Top Navigation</h2>
-            <p className="text-xs text-muted-foreground">
-              Dashboard links shown in the sticky header.
-            </p>
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold">Top Left Navigation</h2>
+              <p className="text-xs text-muted-foreground">
+                Dashboard links shown in the sticky header.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onConfigChange({
+                    ...config,
+                    topNavigation: [],
+                  })
+                }
+              >
+                <RotateCcwIcon className="h-4 w-4" />
+                Reset
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddItem}
+              >
+                <PlusIcon className="h-4 w-4" />
+                Add Link
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <DndContext
+            id="custom-shell-top-navigation"
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={config.topNavigation.map((item) => item.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {config.topNavigation.map((item) => (
+                  <SortableTopNavigationItem
+                    key={item.id}
+                    item={item}
+                    isSaving={isSaving}
+                    onItemChange={handleItemChange}
+                    onItemDelete={handleItemDelete}
+                    onSaveConfig={onSaveConfig}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {!config.topNavigation.length ? (
+            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+              No top navigation links.
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold">Top Right Navigation</h2>
+              <p className="text-xs text-muted-foreground">
+                Feedback, theme, and notification controls shown in the sticky
+                header.
+              </p>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -382,56 +571,38 @@ export function TopNavigationSettings({
               onClick={() =>
                 onConfigChange({
                   ...config,
-                  topNavigation: [],
+                  topRightNavigation: createDefaultTopRightNavigation(),
                 })
               }
             >
               <RotateCcwIcon className="h-4 w-4" />
               Reset
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddItem}
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add Link
-            </Button>
           </div>
-        </div>
 
-        <DndContext
-          id="custom-shell-top-navigation"
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={config.topNavigation.map((item) => item.id)}
-            strategy={verticalListSortingStrategy}
+          <DndContext
+            id="custom-shell-top-right-navigation"
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleTopRightDragEnd}
           >
-            <div>
-              {config.topNavigation.map((item) => (
-                <SortableTopNavigationItem
-                  key={item.id}
-                  item={item}
-                  isSaving={isSaving}
-                  onItemChange={handleItemChange}
-                  onItemDelete={handleItemDelete}
-                  onSaveConfig={onSaveConfig}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-
-        {!config.topNavigation.length ? (
-          <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-            No top navigation links.
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+            <SortableContext
+              items={topRightNavigation.map((item) => item.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {topRightNavigation.map((item) => (
+                  <SortableTopRightNavigationItem
+                    key={item.id}
+                    item={item}
+                    onItemChange={handleTopRightItemChange}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

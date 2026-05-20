@@ -12,6 +12,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  normalizeTopRightNavigation,
+  type ShellTopRightNavigationItem,
+} from "@/lib/custom-shell"
 
 function ThemeToggle() {
   const { setTheme } = useTheme()
@@ -41,31 +45,51 @@ function ThemeToggle() {
 }
 
 type StickyHeaderRightNavProps = {
+  items?: ShellTopRightNavigationItem[]
   onOpenFeedback?: () => void
   onOpenFeedbackThread?: (feedbackId: string) => void
 }
 
 export function StickyHeaderRightNav({
+  items,
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
+  const navItems = normalizeTopRightNavigation(items)
+
   return (
     <div className="flex items-center gap-2 pr-1">
-      {onOpenFeedback ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          data-icon="inline-start"
-          aria-label="Send feedback"
-          onClick={onOpenFeedback}
-        >
-          <MessageSquarePlusIcon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Feedback</span>
-        </Button>
-      ) : null}
-      <ThemeToggle />
-      <NotificationCenter onOpenFeedback={onOpenFeedbackThread} />
+      {navItems.map((item) => {
+        if (!item.visible) return null
+
+        if (item.id === "feedback") {
+          return onOpenFeedback ? (
+            <Button
+              key={item.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              data-icon="inline-start"
+              aria-label="Send feedback"
+              onClick={onOpenFeedback}
+            >
+              <MessageSquarePlusIcon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Feedback</span>
+            </Button>
+          ) : null
+        }
+
+        if (item.id === "theme") {
+          return <ThemeToggle key={item.id} />
+        }
+
+        return (
+          <NotificationCenter
+            key={item.id}
+            onOpenFeedback={onOpenFeedbackThread}
+          />
+        )
+      })}
     </div>
   )
 }
