@@ -250,7 +250,7 @@ export function StickybarTopRightActions({
           </Button>
         ) : null}
 
-        {onPublish ? (
+        {onPublish && !isPublished ? (
           <Button
             size="sm"
             onClick={onPublish}

@@ -150,7 +150,7 @@ export function StickyHeader({
           {isMobile && navItems.length > 1 && activeNavItem ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 gap-1.5">
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 bg-muted hover:bg-muted">
                   {renderNavIcon(activeNavItem) ? (
                     <span className="flex h-3.5 w-3.5 items-center justify-center">
                       {renderNavIcon(activeNavItem)}
