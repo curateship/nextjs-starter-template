@@ -257,9 +257,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           <div className="flex rounded-lg border">
             <Button
               type="button"
-              variant={viewMode === "list" ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
-              className="h-8 rounded-r-none sm:h-9"
+              className={cn(
+                "h-8 rounded-r-none sm:h-9",
+                viewMode === "list" &&
+                  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+              )}
               onClick={() => setViewMode("list")}
               aria-label="List view"
             >
@@ -267,9 +271,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             </Button>
             <Button
               type="button"
-              variant={viewMode === "gallery" ? "secondary" : "ghost"}
+              variant="ghost"
               size="sm"
-              className="h-8 rounded-l-none sm:h-9"
+              className={cn(
+                "h-8 rounded-l-none sm:h-9",
+                viewMode === "gallery" &&
+                  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+              )}
               onClick={() => setViewMode("gallery")}
               aria-label="Gallery view"
             >

@@ -231,7 +231,7 @@ export function FeedbackPage({
 
   return (
     <div className="w-full pb-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
         <PeriodTabs
           activePeriod={periodFilter}
           onPeriodChange={setPeriodFilter}
@@ -350,19 +350,19 @@ export function FeedbackPage({
                     aria-label="Select visible feedback"
                   />
                 </TableHead>
-                <TableHead className="min-w-[260px] text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead className="w-full min-w-[260px] text-xs font-medium text-muted-foreground sm:text-sm">
                   Feedback
                 </TableHead>
-                <TableHead className="min-w-[120px] text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
                   Type
                 </TableHead>
-                <TableHead className="hidden min-w-[140px] text-xs font-medium text-muted-foreground sm:text-sm md:table-cell">
+                <TableHead className="hidden w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm md:table-cell">
                   Author
                 </TableHead>
-                <TableHead className="hidden min-w-[120px] text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
+                <TableHead className="hidden w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
                   Created
                 </TableHead>
-                <TableHead className="min-w-[90px] text-xs font-medium text-muted-foreground sm:text-sm">
+                <TableHead className="w-px whitespace-nowrap text-right text-xs font-medium text-muted-foreground sm:text-sm">
                   Actions
                 </TableHead>
               </TableRow>
@@ -389,27 +389,28 @@ export function FeedbackPage({
                         aria-label={`Select feedback ${item.message}`}
                       />
                     </TableCell>
-                    <TableCell className="max-w-[360px]">
+                    <TableCell className="min-w-[260px]">
                       <button
                         type="button"
-                        className="block max-w-full truncate text-left text-xs font-medium group-hover:underline sm:text-sm"
+                        className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
                         onClick={() => setEditingFeedback(item)}
+                        title={item.message}
                       >
                         {item.message}
                       </button>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap text-right">
                       <Badge variant={feedbackTypeBadgeVariants[item.type]}>
                         {feedbackTypeLabels[item.type]}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden text-xs text-muted-foreground sm:text-sm md:table-cell">
+                    <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:text-sm md:table-cell">
                       {item.author_name}
                     </TableCell>
-                    <TableCell className="hidden text-xs text-muted-foreground sm:text-sm lg:table-cell">
+                    <TableCell className="hidden whitespace-nowrap text-right text-xs text-muted-foreground sm:text-sm lg:table-cell">
                       {dateFormatter.format(new Date(item.created_at))}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <Button
                         type="button"
                         variant="ghost"
