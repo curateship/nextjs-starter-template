@@ -118,9 +118,12 @@ export function FeedbackCommentsDashboard() {
   const [error, setError] = React.useState<string | null>(null)
   const [editingComment, setEditingComment] =
     React.useState<FeedbackCommentItem | null>(null)
+  const [deletingComment, setDeletingComment] =
+    React.useState<FeedbackCommentItem | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
+  const [quickDeleting, setQuickDeleting] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -246,6 +249,22 @@ export function FeedbackCommentsDashboard() {
       setError(getFeedbackErrorMessage(deleteError))
     } finally {
       setMassDeleting(false)
+    }
+  }
+
+  const handleQuickDelete = async () => {
+    if (!deletingComment) return
+
+    setQuickDeleting(true)
+    setError(null)
+    try {
+      await deleteFeedbackComment(deletingComment.id)
+      handleDeleted(deletingComment)
+      setDeletingComment(null)
+    } catch (deleteError) {
+      setError(getFeedbackErrorMessage(deleteError))
+    } finally {
+      setQuickDeleting(false)
     }
   }
 
@@ -413,18 +432,32 @@ export function FeedbackCommentsDashboard() {
                       {dateFormatter.format(new Date(comment.created_at))}
                     </TableCell>
                     <TableCell column="meta">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setEditingComment(comment)}
-                        title="Comment settings"
-                        aria-label="Comment settings"
-                      >
-                        <SettingsIcon className="h-4 w-4" />
-                        <span className="sr-only">Comment settings</span>
-                      </Button>
+                      <div className="flex items-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setEditingComment(comment)}
+                          title="Comment settings"
+                          aria-label="Comment settings"
+                        >
+                          <SettingsIcon className="h-4 w-4" />
+                          <span className="sr-only">Comment settings</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => setDeletingComment(comment)}
+                          title="Delete comment"
+                          aria-label="Delete comment"
+                        >
+                          <Trash2Icon className="h-4 w-4" />
+                          <span className="sr-only">Delete comment</span>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -540,7 +573,69 @@ export function FeedbackCommentsDashboard() {
         onOpenChange={setMassDeleteOpen}
         onConfirm={handleMassDelete}
       />
+      <DeleteFeedbackCommentModal
+        comment={deletingComment}
+        deleting={quickDeleting}
+        open={Boolean(deletingComment)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingComment(null)
+        }}
+        onConfirm={handleQuickDelete}
+      />
     </div>
+  )
+}
+
+function DeleteFeedbackCommentModal({
+  comment,
+  deleting,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  comment: FeedbackCommentItem | null
+  deleting: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <AdminModalContent
+        title="Delete Comment"
+        description="This action cannot be undone."
+        bodyClassName="space-y-3"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onConfirm}
+              disabled={deleting || !comment}
+            >
+              {deleting ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2Icon className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Are you sure you want to delete this comment?
+        </p>
+      </AdminModalContent>
+    </Dialog>
   )
 }
 

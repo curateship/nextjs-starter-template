@@ -147,9 +147,12 @@ export function FeedbackDashboard({
   const [error, setError] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =
     React.useState<FeedbackItem | null>(null)
+  const [deletingFeedback, setDeletingFeedback] =
+    React.useState<FeedbackItem | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
+  const [quickDeleting, setQuickDeleting] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -283,6 +286,22 @@ export function FeedbackDashboard({
       setError(getFeedbackErrorMessage(deleteError))
     } finally {
       setMassDeleting(false)
+    }
+  }
+
+  const handleQuickDelete = async () => {
+    if (!deletingFeedback) return
+
+    setQuickDeleting(true)
+    setError(null)
+    try {
+      await deleteFeedback(deletingFeedback.id)
+      handleDeleted(deletingFeedback.id)
+      setDeletingFeedback(null)
+    } catch (deleteError) {
+      setError(getFeedbackErrorMessage(deleteError))
+    } finally {
+      setQuickDeleting(false)
     }
   }
 
@@ -497,18 +516,32 @@ export function FeedbackDashboard({
                       </Badge>
                     </TableCell>
                     <TableCell column="meta">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setEditingFeedback(item)}
-                        title="Feedback settings"
-                        aria-label="Feedback settings"
-                      >
-                        <SettingsIcon className="h-4 w-4" />
-                        <span className="sr-only">Feedback settings</span>
-                      </Button>
+                      <div className="flex items-center">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setEditingFeedback(item)}
+                          title="Feedback settings"
+                          aria-label="Feedback settings"
+                        >
+                          <SettingsIcon className="h-4 w-4" />
+                          <span className="sr-only">Feedback settings</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => setDeletingFeedback(item)}
+                          title="Delete feedback"
+                          aria-label="Delete feedback"
+                        >
+                          <Trash2Icon className="h-4 w-4" />
+                          <span className="sr-only">Delete feedback</span>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -622,7 +655,69 @@ export function FeedbackDashboard({
         onOpenChange={setMassDeleteOpen}
         onConfirm={handleMassDelete}
       />
+      <DeleteFeedbackModal
+        feedback={deletingFeedback}
+        deleting={quickDeleting}
+        open={Boolean(deletingFeedback)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingFeedback(null)
+        }}
+        onConfirm={handleQuickDelete}
+      />
     </div>
+  )
+}
+
+function DeleteFeedbackModal({
+  feedback,
+  deleting,
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  feedback: FeedbackItem | null
+  deleting: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <AdminModalContent
+        title="Delete Feedback Item"
+        description="This action cannot be undone."
+        bodyClassName="space-y-3"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={onConfirm}
+              disabled={deleting || !feedback}
+            >
+              {deleting ? (
+                <Loader2Icon className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2Icon className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Are you sure you want to delete this feedback item?
+        </p>
+      </AdminModalContent>
+    </Dialog>
   )
 }
 
