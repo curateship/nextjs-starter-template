@@ -22,9 +22,16 @@ import {
   feedbackComments,
   feedbackVotes,
   notifications,
+  proxies,
   sessions,
   users,
 } from "@/server/schema"
+import {
+  decryptProxyPassword,
+  encryptProxyPassword,
+  parseProxyImportLines,
+  serializeProxy,
+} from "@/server/proxies"
 import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
@@ -486,6 +493,107 @@ describe("core feedback notifications", () => {
       .from(notifications)
       .where(eq(notifications.id, notificationId))
     expect(notification.readAt).toBeNull()
+  })
+})
+
+describe("core proxies", () => {
+  it("parses host:port:user:pass import lines and reports invalid rows", () => {
+    const parsed = parseProxyImportLines([
+      "PROXY.EXAMPLE.COM:8080:user:pass",
+      "bad-line",
+      "proxy-2.example.com:65535:user-2:pass:with:colon",
+      "127.0.0.1:8080:user:pass",
+    ].join("\n"))
+
+    expect(parsed.proxies).toEqual([
+      {
+        line: 1,
+        host: "proxy.example.com",
+        port: 8080,
+        username: "user",
+        password: "pass",
+      },
+      {
+        line: 3,
+        host: "proxy-2.example.com",
+        port: 65535,
+        username: "user-2",
+        password: "pass:with:colon",
+      },
+    ])
+    expect(parsed.errors).toEqual([
+      {
+        line: 2,
+        value: "bad-line",
+        error: "Use host:port:user:pass.",
+      },
+      {
+        line: 4,
+        value: "127.0.0.1:8080:user:pass",
+        error: "Use host:port:user:pass.",
+      },
+    ])
+  })
+
+  it("encrypts proxy passwords and serializes rows without exposing them", async () => {
+    const previousKey = process.env.CORE_PROXY_ENCRYPTION_KEY
+    process.env.CORE_PROXY_ENCRYPTION_KEY = "test proxy encryption key with enough length"
+
+    try {
+      const createdAt = now()
+      const passwordEncrypted = encryptProxyPassword("secret-pass")
+      expect(passwordEncrypted).not.toContain("secret-pass")
+      expect(decryptProxyPassword(passwordEncrypted)).toBe("secret-pass")
+
+      const [row] = await database
+        .insert(proxies)
+        .values({
+          id: uuid(),
+          name: "US residential",
+          protocol: "http",
+          host: "proxy.example.com",
+          port: 8080,
+          username: "user",
+          passwordEncrypted,
+          connectionType: "residential",
+          country: "United States",
+          enabled: true,
+          lastStatus: "untested",
+          createdAt,
+          updatedAt: createdAt,
+        })
+        .returning()
+
+      expect(serializeProxy(row)).toMatchObject({
+        name: "US residential",
+        username: "user",
+        has_password: true,
+      })
+      expect(JSON.stringify(serializeProxy(row))).not.toContain(passwordEncrypted)
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.CORE_PROXY_ENCRYPTION_KEY
+      } else {
+        process.env.CORE_PROXY_ENCRYPTION_KEY = previousKey
+      }
+    }
+  })
+
+  it("rejects weak proxy encryption keys", () => {
+    const previousKey = process.env.CORE_PROXY_ENCRYPTION_KEY
+    process.env.CORE_PROXY_ENCRYPTION_KEY = "too-short"
+
+    try {
+      expect(() => encryptProxyPassword("secret-pass")).toThrow(
+        "CORE_PROXY_ENCRYPTION_KEY must be at least 32 characters."
+      )
+    } finally {
+      if (previousKey === undefined) {
+        delete process.env.CORE_PROXY_ENCRYPTION_KEY
+      } else {
+        process.env.CORE_PROXY_ENCRYPTION_KEY = previousKey
+      }
+    }
   })
 })
 

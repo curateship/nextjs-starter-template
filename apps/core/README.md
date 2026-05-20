@@ -26,6 +26,16 @@ CORE_R2_BUCKET_NAME="core-media"
 
 These are server-only secrets. Do not expose them with a `VITE_` prefix.
 
+## Proxy Password Encryption
+
+Proxy passwords are encrypted before storage.
+
+```bash
+CORE_PROXY_ENCRYPTION_KEY=""
+```
+
+Use a random server-only value with at least 32 characters. Do not expose it with a `VITE_` prefix.
+
 ## Adding components
 
 To add components to your app, run the following command:

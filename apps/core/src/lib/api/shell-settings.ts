@@ -35,6 +35,7 @@ const iconSchema = z.enum([
   "panelsTopLeft",
   "library",
   "slidersHorizontal",
+  "proxy",
   "shieldCheck",
   "sparkles",
   "messageSquarePlus",

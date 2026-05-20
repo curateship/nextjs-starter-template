@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
@@ -40,6 +41,12 @@ const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
     path: '/admin/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminProxiesRoute =
+  AuthenticatedAdminProxiesRouteImport.update({
+    id: '/admin/proxies',
+    path: '/admin/proxies',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminNotificationsRoute =
@@ -95,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
@@ -108,6 +116,7 @@ export interface FileRoutesByTo {
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
@@ -123,6 +132,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
+  '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
+    | '/admin/proxies'
     | '/admin/settings'
     | '/admin/feedback/comments'
     | '/admin/media/images'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
+    | '/admin/proxies'
     | '/admin/settings'
     | '/admin/feedback/comments'
     | '/admin/media/images'
@@ -165,6 +177,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
+    | '/_authenticated/admin/proxies'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/media/images'
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/proxies': {
+      id: '/_authenticated/admin/proxies'
+      path: '/admin/proxies'
+      fullPath: '/admin/proxies'
+      preLoaderRoute: typeof AuthenticatedAdminProxiesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/notifications': {
@@ -318,6 +338,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRouteWithChildren
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
+  AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
 }
 
@@ -326,6 +347,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRouteWithChildren,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
+  AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
 }
 

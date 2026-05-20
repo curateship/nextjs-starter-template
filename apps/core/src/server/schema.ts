@@ -1,8 +1,10 @@
 import { sql } from "drizzle-orm"
 import {
   bigint,
+  boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -193,8 +195,58 @@ export const media = pgTable(
   ]
 )
 
+export const proxies = pgTable(
+  "proxies",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    name: varchar("name", { length: 255 }).notNull(),
+    protocol: varchar("protocol", { length: 10 }).notNull(),
+    host: varchar("host", { length: 255 }).notNull(),
+    port: integer("port").notNull(),
+    username: text("username").notNull().default(""),
+    passwordEncrypted: text("password_encrypted"),
+    connectionType: varchar("connection_type", { length: 20 }),
+    country: varchar("country", { length: 100 }),
+    enabled: boolean("enabled").notNull().default(true),
+    lastStatus: varchar("last_status", { length: 20 }).notNull().default("untested"),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastResponseMs: integer("last_response_ms"),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("proxies_unique_endpoint").on(
+      table.host,
+      table.port,
+      table.username
+    ),
+    check(
+      "proxies_protocol_check",
+      sql`${table.protocol} in ('http', 'https')`
+    ),
+    check(
+      "proxies_port_check",
+      sql`${table.port} between 1 and 65535`
+    ),
+    check(
+      "proxies_connection_type_check",
+      sql`${table.connectionType} is null or ${table.connectionType} in ('residential', 'mobile', 'datacenter')`
+    ),
+    check(
+      "proxies_last_status_check",
+      sql`${table.lastStatus} in ('untested', 'online', 'offline')`
+    ),
+    index("ix_proxies_enabled").on(table.enabled),
+    index("ix_proxies_last_status").on(table.lastStatus),
+    index("ix_proxies_country").on(table.country),
+    index("ix_proxies_connection_type").on(table.connectionType),
+  ]
+)
+
 export type CoreUser = typeof users.$inferSelect
 export type CoreMedia = typeof media.$inferSelect
+export type CoreProxy = typeof proxies.$inferSelect
 export type CoreFeedback = typeof feedback.$inferSelect
 export type CoreFeedbackComment =
   typeof feedbackComments.$inferSelect

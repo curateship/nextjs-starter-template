@@ -25,6 +25,7 @@ import {
   TagIcon,
   TypeIcon,
   UsersIcon,
+  WifiIcon,
   WorkflowIcon,
   type LucideIcon,
 } from "lucide-react"
@@ -125,6 +126,10 @@ export const iconMeta = {
   slidersHorizontal: {
     label: "Sliders",
     icon: SlidersHorizontalIcon,
+  },
+  proxy: {
+    label: "Proxy",
+    icon: WifiIcon,
   },
   shieldCheck: {
     label: "Shield",

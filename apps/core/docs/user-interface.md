@@ -21,6 +21,7 @@
 - Small secondary snippets use `TableHead column="preview"` and `TableCell column="preview"`.
 - Supporting columns stay compact, left-aligned, and should not compete with the primary column.
 - Do not create two wide text columns in the same table.
+- In top-level toolbar action groups, destructive delete buttons must be the first action button, before import, add, or other secondary actions.
 
 ## Dashboard Filters
 
