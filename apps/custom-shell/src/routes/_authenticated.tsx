@@ -2,8 +2,8 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { ShellLoadingSkeleton } from "@/components/loading-skeleton"
 import { ShellLayout } from "@/components/shell-layout"
-import { loadCurrentUser } from "@/lib/auth-api"
-import { loadShellSettings } from "@/lib/shell-settings-api"
+import { loadCurrentUser } from "@/lib/api/auth"
+import { loadShellSettings } from "@/lib/api/shell-settings"
 
 export const Route = createFileRoute("/_authenticated")({
   loader: async () => {

@@ -22,7 +22,7 @@ import {
   type ShellConfig,
   type ShellSection,
 } from "@/lib/custom-shell"
-import type { AuthUser } from "@/lib/auth-api"
+import type { AuthUser } from "@/lib/api/auth"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig

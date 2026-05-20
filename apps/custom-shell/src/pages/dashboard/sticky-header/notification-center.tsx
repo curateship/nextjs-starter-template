@@ -23,7 +23,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationItem,
-} from "@/lib/notification-api"
+} from "@/lib/api/notification"
 import { cn } from "@/lib/utils"
 
 type NotificationFilter = "all" | "unread"

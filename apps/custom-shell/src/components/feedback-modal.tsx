@@ -42,7 +42,7 @@ import {
   type FeedbackCommentItem,
   type FeedbackItem,
   type FeedbackType,
-} from "@/lib/feedback-api"
+} from "@/lib/api/feedback"
 import { cn } from "@/lib/utils"
 
 const feedbackTypes: Array<{ type: FeedbackType; label: string }> = [

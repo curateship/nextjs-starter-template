@@ -34,7 +34,7 @@ import {
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
-} from "@/lib/media-api"
+} from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]

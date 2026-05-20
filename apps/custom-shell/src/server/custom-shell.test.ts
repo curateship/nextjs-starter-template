@@ -28,7 +28,7 @@ import {
 import {
   canManageFeedbackComment,
   shouldNotifyFeedbackAuthor,
-} from "@/lib/feedback-api"
+} from "@/lib/api/feedback"
 import {
   canViewAllNotifications,
   getNotificationPage,

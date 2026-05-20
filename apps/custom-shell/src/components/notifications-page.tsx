@@ -36,7 +36,7 @@ import {
   listAllNotifications,
   type NotificationItem,
   type NotificationType,
-} from "@/lib/notification-api"
+} from "@/lib/api/notification"
 import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"

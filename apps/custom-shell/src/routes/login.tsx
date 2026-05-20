@@ -5,7 +5,7 @@ import { LoginLoadingSkeleton } from "@/components/loading-skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getAuthErrorMessage, loadCurrentUser, login } from "@/lib/auth-api"
+import { getAuthErrorMessage, loadCurrentUser, login } from "@/lib/api/auth"
 
 export const Route = createFileRoute("/login")({
   loader: async () => {

@@ -14,12 +14,12 @@ import {
   type ShellConfig,
   type ShellItem,
 } from "@/lib/custom-shell"
-import type { AuthUser } from "@/lib/auth-api"
-import { loadCurrentUser, logout } from "@/lib/auth-api"
+import type { AuthUser } from "@/lib/api/auth"
+import { loadCurrentUser, logout } from "@/lib/api/auth"
 import {
   getShellSettingsErrorMessage,
   saveShellSettings,
-} from "@/lib/shell-settings-api"
+} from "@/lib/api/shell-settings"
 
 type SaveStatus = "idle" | "saving" | "saved"
 

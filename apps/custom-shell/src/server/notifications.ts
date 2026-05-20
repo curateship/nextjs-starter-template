@@ -20,7 +20,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
-import type { NotificationItem } from "@/lib/notification-api"
+import type { NotificationItem } from "@/lib/api/notification"
 
 type NotificationListResponse = {
   notifications: NotificationItem[]
