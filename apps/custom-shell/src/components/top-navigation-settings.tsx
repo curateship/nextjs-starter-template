@@ -38,7 +38,6 @@ import {
 import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { cn } from "@/lib/utils"
 import {
-  createDefaultTopNavigation,
   iconMeta,
   renderShellIcon,
   type IconKey,
@@ -383,7 +382,7 @@ export function TopNavigationSettings({
               onClick={() =>
                 onConfigChange({
                   ...config,
-                  topNavigation: createDefaultTopNavigation(),
+                  topNavigation: [],
                 })
               }
             >

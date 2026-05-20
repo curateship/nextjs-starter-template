@@ -96,6 +96,27 @@ export const customShellFeedbackVotes = pgTable(
   ]
 )
 
+export const customShellFeedbackComments = pgTable(
+  "custom_shell_feedback_comments",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    feedbackId: varchar("feedback_id", { length: 36 })
+      .notNull()
+      .references(() => customShellFeedback.id, { onDelete: "cascade" }),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    message: text("message").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_custom_shell_feedback_comments_feedback_id").on(table.feedbackId),
+    index("ix_custom_shell_feedback_comments_user_id").on(table.userId),
+    index("ix_custom_shell_feedback_comments_created_at").on(table.createdAt),
+  ]
+)
+
 export const customShellMedia = pgTable(
   "custom_shell_media",
   {
@@ -132,3 +153,5 @@ export const customShellMedia = pgTable(
 export type CustomShellUser = typeof customShellUsers.$inferSelect
 export type CustomShellMedia = typeof customShellMedia.$inferSelect
 export type CustomShellFeedback = typeof customShellFeedback.$inferSelect
+export type CustomShellFeedbackComment =
+  typeof customShellFeedbackComments.$inferSelect

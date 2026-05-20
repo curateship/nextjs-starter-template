@@ -184,119 +184,13 @@ export type ShellConfig = {
   sections: ShellSection[]
 }
 
-export function createDefaultTopNavigation(): ShellTopNavigationItem[] {
-  return [
-    {
-      id: "top-nav-dashboard",
-      label: "Dashboard 1",
-      href: "/",
-      icon: "panelsTopLeft",
-      visible: true,
-    },
-  ]
-}
-
-function createMediaLibraryItem(): ShellItem {
-  return {
-    type: "item",
-    id: "item-media-library",
-    label: "Media Library",
-    href: "/admin/media",
-    icon: "image",
-    visible: true,
-    children: [
-      {
-        id: "item-media-library-all",
-        label: "All",
-        href: "/admin/media",
-      },
-      {
-        id: "item-media-library-images",
-        label: "Images",
-        href: "/admin/media/images",
-        icon: "image",
-      },
-      {
-        id: "item-media-library-videos",
-        label: "Videos",
-        href: "/admin/media/videos",
-        icon: "library",
-      },
-    ],
-  }
-}
-
 export function createDefaultShellConfig(): ShellConfig {
   return {
-    appName: "custom-shell",
-    workspaceName: "custom-shell",
-    workspacePlan: "Internal",
-    topNavigation: createDefaultTopNavigation(),
-    sections: [
-      {
-        id: "section-starter",
-        title: "Navigation",
-        entries: [
-          createMediaLibraryItem(),
-          {
-            type: "item",
-            id: "item-feedback",
-            label: "Feedback",
-            href: "/admin/feedback",
-            icon: "messageSquarePlus",
-            visible: true,
-          },
-          {
-            type: "item",
-            id: "item-settings",
-            label: "Settings",
-            href: "/admin/settings",
-            icon: "settings",
-            visible: true,
-          },
-        ],
-      },
-    ],
-  }
-}
-
-export function ensureDefaultShellNavigation(config: ShellConfig): ShellConfig {
-  const hasMediaLibrary = config.sections.some((section) =>
-    section.entries.some(
-      (entry) =>
-        isShellItem(entry) &&
-        (entry.id === "item-media-library" || entry.href === "/admin/media")
-    )
-  )
-
-  if (hasMediaLibrary) {
-    return config
-  }
-
-  const mediaLibraryItem = createMediaLibraryItem()
-  if (config.sections.length === 0) {
-    return {
-      ...config,
-      sections: [
-        {
-          id: "section-starter",
-          title: "Navigation",
-          entries: [mediaLibraryItem],
-        },
-      ],
-    }
-  }
-
-  return {
-    ...config,
-    sections: config.sections.map((section, index) =>
-      index === 0
-        ? {
-            ...section,
-            entries: [mediaLibraryItem, ...section.entries],
-          }
-        : section
-    ),
+    appName: "",
+    workspaceName: "",
+    workspacePlan: "",
+    topNavigation: [],
+    sections: [],
   }
 }
 

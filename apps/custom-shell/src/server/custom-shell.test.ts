@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
+import { eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -17,9 +18,12 @@ import {
 } from "@/server/media"
 import {
   customShellMedia,
+  customShellFeedback,
+  customShellFeedbackComments,
   customShellSessions,
   customShellUsers,
 } from "@/server/schema"
+import { canManageFeedbackComment } from "@/lib/feedback-api"
 import {
   createSessionExpiresAt,
   findUserBySessionToken,
@@ -90,6 +94,92 @@ describe("custom shell auth helpers", () => {
 
     await database.delete(customShellSessions)
     await expect(findUserBySessionToken(token, database as unknown as CustomShellDb)).resolves.toBeNull()
+  })
+})
+
+describe("custom shell feedback comments", () => {
+  it("creates, updates, deletes, counts, and cascades comments", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const feedbackId = uuid()
+    const commentId = uuid()
+    const cascadeCommentId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "commenter@internal.dev",
+      name: "Commenter",
+      role: "user",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellFeedback).values({
+      id: feedbackId,
+      userId,
+      type: "suggestion",
+      message: "Add comments",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database.insert(customShellFeedbackComments).values({
+      id: commentId,
+      feedbackId,
+      userId,
+      message: "First comment",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const [commentCount] = await database
+      .select({ count: sql<number>`count(*)::int` })
+      .from(customShellFeedbackComments)
+      .where(eq(customShellFeedbackComments.feedbackId, feedbackId))
+    expect(commentCount?.count).toBe(1)
+
+    const updatedAt = new Date(createdAt.getTime() + 1000)
+    const [updated] = await database
+      .update(customShellFeedbackComments)
+      .set({ message: "Updated comment", updatedAt })
+      .where(eq(customShellFeedbackComments.id, commentId))
+      .returning()
+    expect(updated.message).toBe("Updated comment")
+
+    const [deleted] = await database
+      .delete(customShellFeedbackComments)
+      .where(eq(customShellFeedbackComments.id, commentId))
+      .returning()
+    expect(deleted.id).toBe(commentId)
+
+    await database.insert(customShellFeedbackComments).values({
+      id: cascadeCommentId,
+      feedbackId,
+      userId,
+      message: "Cascade me",
+      createdAt,
+      updatedAt: createdAt,
+    })
+    await database
+      .delete(customShellFeedback)
+      .where(eq(customShellFeedback.id, feedbackId))
+    const remaining = await database.select().from(customShellFeedbackComments)
+    expect(remaining).toHaveLength(0)
+  })
+
+  it("allows comment owners and admins to manage comments", () => {
+    const ownerId = uuid()
+    const otherId = uuid()
+    const comment = { userId: ownerId }
+
+    expect(canManageFeedbackComment(comment, { id: ownerId, role: "user" })).toBe(
+      true
+    )
+    expect(canManageFeedbackComment(comment, { id: otherId, role: "user" })).toBe(
+      false
+    )
+    expect(canManageFeedbackComment(comment, { id: otherId, role: "admin" })).toBe(
+      true
+    )
   })
 })
 

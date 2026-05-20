@@ -42,26 +42,27 @@ export function LoginLoadingSkeleton() {
   )
 }
 
-export function FeedbackTableSkeleton() {
+type TableRowsSkeletonColumn = {
+  cellClassName?: string
+  skeletonClassName: string
+}
+
+export function TableRowsSkeleton({
+  columns,
+  rows = 6,
+}: {
+  columns: TableRowsSkeletonColumn[]
+  rows?: number
+}) {
   return (
     <>
-      {Array.from({ length: 6 }).map((_, index) => (
+      {Array.from({ length: rows }).map((_, index) => (
         <TableRow key={index}>
-          <TableCell>
-            <Skeleton className="h-4 w-56" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-6 w-20" />
-          </TableCell>
-          <TableCell className="hidden md:table-cell">
-            <Skeleton className="h-4 w-24" />
-          </TableCell>
-          <TableCell className="hidden lg:table-cell">
-            <Skeleton className="h-4 w-20" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-4 w-10" />
-          </TableCell>
+          {columns.map((column, columnIndex) => (
+            <TableCell key={columnIndex} className={column.cellClassName}>
+              <Skeleton className={column.skeletonClassName} />
+            </TableCell>
+          ))}
         </TableRow>
       ))}
     </>

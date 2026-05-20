@@ -8,7 +8,6 @@ import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
-  ensureDefaultShellNavigation,
   isShellItem,
   renderShellIcon,
   type ShellConfig,
@@ -178,7 +177,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     return fallback
   }
 
-  return ensureDefaultShellNavigation({
+  return {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
@@ -188,7 +187,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     sections: Array.isArray(settings.sections)
       ? settings.sections
       : fallback.sections,
-  })
+  }
 }
 
 function getShellItems(config: ShellConfig) {
