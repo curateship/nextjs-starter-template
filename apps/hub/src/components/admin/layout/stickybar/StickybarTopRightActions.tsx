@@ -174,7 +174,7 @@ export function StickybarTopRightActions({
                 value={search.value}
                 onChange={(event) => search.onValueChange(event.target.value)}
                 placeholder={search.placeholder ?? "Search"}
-                className="h-9 w-44 pl-8 sm:w-56"
+                className="h-8 w-44 pl-8 sm:w-56"
               />
             </div>
           </>

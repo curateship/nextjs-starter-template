@@ -22,10 +22,10 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(({ className, variant, 
 ))
 Card.displayName = "Card"
 
-// CardGroup — wraps a grid or flex of Card elements and applies consistent 1.5rem gap between them
+// CardGroup — wraps a grid or flex of Card elements and applies consistent responsive gap between them
 const CardGroup = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("gap-6", className)} {...props} />
+    <div ref={ref} className={cn("gap-3 lg:gap-6", className)} {...props} />
   )
 )
 CardGroup.displayName = "CardGroup"

@@ -150,7 +150,7 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
   }, [])
 
   return (
-    <section className={className ? `grid min-w-0 gap-6 ${className}` : "grid min-w-0 gap-6"}>
+    <CardGroup className={className ? `grid min-w-0 ${className}` : "grid min-w-0"}>
       <CardGroup className="grid sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon
@@ -290,7 +290,7 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
           </ChartContainer>
         </CardContent>
       </Card>
-    </section>
+    </CardGroup>
   )
 }
 

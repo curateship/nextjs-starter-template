@@ -135,11 +135,11 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
       />
       <AdminLayout>
         <div className="w-full">
-          <div className="mb-7 flex max-w-full overflow-x-auto">
-            <DashboardRangeTabs siteId={siteId} value={selectedRange} />
-          </div>
-
           <CardGroup className="grid">
+            <div className="flex max-w-full overflow-x-auto">
+              <DashboardRangeTabs siteId={siteId} value={selectedRange} />
+            </div>
+
             <ChartGroup7
               cardRange={selectedRange}
               chartData={chartMetrics.chartData}
