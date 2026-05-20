@@ -68,29 +68,13 @@ function DashboardToolbarSearch({
 
 function DashboardToolbarSelectTrigger({
   className,
-  labels = [],
-  style,
   ...props
 }: React.ComponentProps<typeof SelectTrigger> & {
   labels?: readonly string[]
 }) {
-  const longestLabelLength = labels.reduce(
-    (longest, label) => Math.max(longest, label.length),
-    0
-  )
-
   return (
     <SelectTrigger
-      className={cn(
-        "h-8 w-fit text-xs sm:h-9 sm:text-sm",
-        className
-      )}
-      style={{
-        width: longestLabelLength
-          ? `calc(${longestLabelLength}ch + 2.75rem)`
-          : undefined,
-        ...style,
-      }}
+      className={cn("h-8 w-fit text-xs sm:h-9 sm:text-sm", className)}
       {...props}
     />
   )

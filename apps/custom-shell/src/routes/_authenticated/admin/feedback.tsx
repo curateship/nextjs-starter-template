@@ -1,6 +1,6 @@
-import { createFileRoute, useRouterState } from "@tanstack/react-router"
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 
-import { FeedbackPage } from "@/components/feedback-page"
+import { FeedbackDashboard } from "@/components/feedback-dashboard"
 import { useShellRuntime } from "@/components/shell-layout"
 
 export const Route = createFileRoute("/_authenticated/admin/feedback")({
@@ -13,11 +13,14 @@ function FeedbackRoute() {
     select: (state) => state.location.pathname,
   })
 
+  if (pathname.endsWith("/comments")) {
+    return <Outlet />
+  }
+
   return (
-    <FeedbackPage
+    <FeedbackDashboard
       refreshToken={runtime.feedbackRefreshToken}
       onOpenFeedback={runtime.onOpenFeedback}
-      view={pathname.endsWith("/comments") ? "comments" : "feedback"}
     />
   )
 }
