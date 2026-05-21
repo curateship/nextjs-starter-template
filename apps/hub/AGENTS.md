@@ -7,7 +7,7 @@ These instructions apply to all work in `apps/hub/`.
 Before planning or coding in `apps/hub/`:
 
 1. Read `apps/hub/README.md`
-2. Read `apps/hub/architecture/architecture-overview.md`
+2. Read `apps/hub/docs/architecture-overview.md`
 4. Summarize the relevant architecture in 3-5 bullets
 7. If a change alters HUB architecture or working conventions, update the relevant HUB docs in the same change
 
@@ -27,7 +27,7 @@ Before planning or coding in `apps/hub/`:
 
 ## Documentation Rule
 
-If a task changes HUB architecture or working conventions, update `apps/hub/architecture/architecture-overview.md`
+If a task changes HUB architecture or working conventions, update `apps/hub/docs/architecture-overview.md`
 
 ## Conversation Rules
 

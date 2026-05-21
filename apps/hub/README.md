@@ -7,7 +7,7 @@ HUB is the main `apps/hub` Next.js app. It is a multi-tenant website builder whe
 Read these files in this order before changing HUB code:
 
 1. `apps/hub/AGENTS.md`
-2. `apps/hub/architecture/architecture-overview.md`
+2. `apps/hub/docs/architecture-overview.md`
 3. DO NOT run test or build after making changes
 
 ## Task Preflight
