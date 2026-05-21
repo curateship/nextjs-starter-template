@@ -1,11 +1,16 @@
 import { createServerFn } from "@tanstack/react-start"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import { iconMeta, type IconKey, type ShellConfig } from "@/lib/core"
+import {
+  createDefaultShellConfig,
+  iconMeta,
+  type IconKey,
+  type ShellConfig,
+} from "@/lib/core"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
-import { settings } from "@/server/schema"
+import { settings, workspaces } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
@@ -73,7 +78,7 @@ export function getShellSettingsErrorMessage(error: unknown) {
 
 const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
   async () => {
-    await requireUser()
+    const user = await requireUser()
 
     const [row] = await db
       .select()
@@ -81,7 +86,19 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       .where(eq(settings.key, DEFAULT_SETTINGS_KEY))
       .limit(1)
 
-    return { settings: (row?.settings as ShellConfig | undefined) ?? null }
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+
+    return {
+      settings: {
+        ...parseShellGlobals(row?.settings),
+        topNavigation: workspaceSettings.topNavigation,
+        topRightNavigation: workspaceSettings.topRightNavigation,
+        sections: workspaceSettings.sections,
+      },
+    }
   }
 )
 
@@ -89,24 +106,45 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(shellConfigSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    await requireAdminUser()
+    const user = await requireAdminUser()
 
     const updatedAt = now()
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+
+    await db
+      .update(workspaces)
+      .set({
+        settings: {
+          ...workspaceSettings,
+          topNavigation: data.topNavigation,
+          topRightNavigation: data.topRightNavigation,
+          sections: data.sections,
+        },
+        updatedAt,
+      })
+      .where(
+        and(eq(workspaces.id, workspace.id), eq(workspaces.userId, user.id))
+      )
+
     const [existing] = await db
       .select({ key: settings.key })
       .from(settings)
       .where(eq(settings.key, DEFAULT_SETTINGS_KEY))
       .limit(1)
 
+    const globalSettings = pickShellGlobals(data)
     if (existing) {
       await db
         .update(settings)
-        .set({ settings: data, updatedAt })
+        .set({ settings: globalSettings, updatedAt })
         .where(eq(settings.key, DEFAULT_SETTINGS_KEY))
     } else {
       await db.insert(settings).values({
         key: DEFAULT_SETTINGS_KEY,
-        settings: data,
+        settings: globalSettings,
         createdAt: updatedAt,
         updatedAt,
       })
@@ -137,4 +175,26 @@ async function requireAdminUser() {
     throw new Error("Not authorized")
   }
   return user
+}
+
+function parseShellGlobals(value: unknown) {
+  const fallback = createDefaultShellConfig()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return pickShellGlobals(fallback)
+  }
+
+  const settings = value as Partial<ShellConfig>
+  return {
+    appName: settings.appName ?? fallback.appName,
+    workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+  }
+}
+
+function pickShellGlobals(settings: ShellConfig) {
+  return {
+    appName: settings.appName,
+    workspaceName: settings.workspaceName,
+    workspacePlan: settings.workspacePlan,
+  }
 }

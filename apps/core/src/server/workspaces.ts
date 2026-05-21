@@ -6,12 +6,22 @@ import {
   type CoreWorkspace,
 } from "@/server/schema"
 import { now, uuid } from "@/server/security"
-import { iconMeta, type IconKey } from "@/lib/core"
+import {
+  createDefaultTopRightNavigation,
+  iconMeta,
+  type IconKey,
+  type ShellSection,
+  type ShellTopNavigationItem,
+  type ShellTopRightNavigationItem,
+} from "@/lib/core"
 
 const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
+  topNavigation: ShellTopNavigationItem[]
+  topRightNavigation: ShellTopRightNavigationItem[]
+  sections: ShellSection[]
 }
 
 export async function getOrCreateCurrentWorkspace(
@@ -116,11 +126,24 @@ export async function updateUserWorkspace(
     throw new Error("Workspace name is required")
   }
 
+  const [existing] = await database
+    .select({ settings: workspaces.settings })
+    .from(workspaces)
+    .where(and(eq(workspaces.id, workspaceId), eq(workspaces.userId, userId)))
+    .limit(1)
+
+  if (!existing) {
+    throw new Error("Workspace not found")
+  }
+
   const [workspace] = await database
     .update(workspaces)
     .set({
       name: trimmedName.slice(0, 255),
-      settings: cleanWorkspaceSettings(data.settings),
+      settings: cleanWorkspaceSettings({
+        ...parseWorkspaceSettings(existing.settings),
+        ...data.settings,
+      }),
       updatedAt: now(),
     })
     .where(and(eq(workspaces.id, workspaceId), eq(workspaces.userId, userId)))
@@ -249,14 +272,24 @@ export function serializeWorkspace(
 }
 
 export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
+  const fallback = defaultWorkspaceSettings()
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    const icon = (value as { icon?: unknown }).icon
-    if (isWorkspaceIcon(icon)) {
-      return { icon }
+    const settings = value as Partial<WorkspaceSettings>
+    return {
+      icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
+      topNavigation: Array.isArray(settings.topNavigation)
+        ? settings.topNavigation
+        : fallback.topNavigation,
+      topRightNavigation: Array.isArray(settings.topRightNavigation)
+        ? settings.topRightNavigation
+        : fallback.topRightNavigation,
+      sections: Array.isArray(settings.sections)
+        ? settings.sections
+        : fallback.sections,
     }
   }
 
-  return defaultWorkspaceSettings()
+  return fallback
 }
 
 function cleanWorkspaceSettings(
@@ -266,11 +299,23 @@ function cleanWorkspaceSettings(
     icon: isWorkspaceIcon(settings.icon)
       ? settings.icon
       : DEFAULT_WORKSPACE_ICON,
+    topNavigation: Array.isArray(settings.topNavigation)
+      ? settings.topNavigation
+      : [],
+    topRightNavigation: Array.isArray(settings.topRightNavigation)
+      ? settings.topRightNavigation
+      : createDefaultTopRightNavigation(),
+    sections: Array.isArray(settings.sections) ? settings.sections : [],
   }
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
-  return { icon: DEFAULT_WORKSPACE_ICON }
+  return {
+    icon: DEFAULT_WORKSPACE_ICON,
+    topNavigation: [],
+    topRightNavigation: createDefaultTopRightNavigation(),
+    sections: [],
+  }
 }
 
 function isWorkspaceIcon(value: unknown): value is IconKey {
