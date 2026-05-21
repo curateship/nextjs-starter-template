@@ -13,15 +13,19 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
+import { Route as AuthenticatedAdminScrapersRouteImport } from './routes/_authenticated/admin/scrapers'
 import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminScrapersSettingsRouteImport } from './routes/_authenticated/admin/scrapers/settings'
+import { Route as AuthenticatedAdminScrapersGoogleMapsRouteImport } from './routes/_authenticated/admin/scrapers/google-maps'
 import { Route as AuthenticatedAdminMediaVideosRouteImport } from './routes/_authenticated/admin/media/videos'
 import { Route as AuthenticatedAdminMediaImagesRouteImport } from './routes/_authenticated/admin/media/images'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as AuthenticatedAdminScrapersGoogleMapsRunsRunIdRouteImport } from './routes/_authenticated/admin/scrapers/google-maps/runs/$runId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -41,6 +45,12 @@ const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
     path: '/admin/settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminScrapersRoute =
+  AuthenticatedAdminScrapersRouteImport.update({
+    id: '/admin/scrapers',
+    path: '/admin/scrapers',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminProxiesRoute =
@@ -72,6 +82,18 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
+const AuthenticatedAdminScrapersSettingsRoute =
+  AuthenticatedAdminScrapersSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminScrapersRoute,
+  } as any)
+const AuthenticatedAdminScrapersGoogleMapsRoute =
+  AuthenticatedAdminScrapersGoogleMapsRouteImport.update({
+    id: '/google-maps',
+    path: '/google-maps',
+    getParentRoute: () => AuthenticatedAdminScrapersRoute,
+  } as any)
 const AuthenticatedAdminMediaVideosRoute =
   AuthenticatedAdminMediaVideosRouteImport.update({
     id: '/videos',
@@ -95,6 +117,12 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute =
+  AuthenticatedAdminScrapersGoogleMapsRunsRunIdRouteImport.update({
+    id: '/runs/$runId',
+    path: '/runs/$runId',
+    getParentRoute: () => AuthenticatedAdminScrapersGoogleMapsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -103,12 +131,16 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
+  '/admin/scrapers': typeof AuthenticatedAdminScrapersRouteWithChildren
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
   '/admin/media/videos': typeof AuthenticatedAdminMediaVideosRoute
+  '/admin/scrapers/google-maps': typeof AuthenticatedAdminScrapersGoogleMapsRouteWithChildren
+  '/admin/scrapers/settings': typeof AuthenticatedAdminScrapersSettingsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/admin/scrapers/google-maps/runs/$runId': typeof AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -117,12 +149,16 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
+  '/admin/scrapers': typeof AuthenticatedAdminScrapersRouteWithChildren
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
   '/admin/media/videos': typeof AuthenticatedAdminMediaVideosRoute
+  '/admin/scrapers/google-maps': typeof AuthenticatedAdminScrapersGoogleMapsRouteWithChildren
+  '/admin/scrapers/settings': typeof AuthenticatedAdminScrapersSettingsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/admin/scrapers/google-maps/runs/$runId': typeof AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,12 +169,16 @@ export interface FileRoutesById {
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
+  '/_authenticated/admin/scrapers': typeof AuthenticatedAdminScrapersRouteWithChildren
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
   '/_authenticated/admin/media/videos': typeof AuthenticatedAdminMediaVideosRoute
+  '/_authenticated/admin/scrapers/google-maps': typeof AuthenticatedAdminScrapersGoogleMapsRouteWithChildren
+  '/_authenticated/admin/scrapers/settings': typeof AuthenticatedAdminScrapersSettingsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/_authenticated/admin/scrapers/google-maps/runs/$runId': typeof AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,12 +189,16 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/proxies'
+    | '/admin/scrapers'
     | '/admin/settings'
     | '/admin/feedback/comments'
     | '/admin/media/images'
     | '/admin/media/videos'
+    | '/admin/scrapers/google-maps'
+    | '/admin/scrapers/settings'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
+    | '/admin/scrapers/google-maps/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -163,12 +207,16 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/proxies'
+    | '/admin/scrapers'
     | '/admin/settings'
     | '/admin/feedback/comments'
     | '/admin/media/images'
     | '/admin/media/videos'
+    | '/admin/scrapers/google-maps'
+    | '/admin/scrapers/settings'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
+    | '/admin/scrapers/google-maps/runs/$runId'
   id:
     | '__root__'
     | '/_authenticated'
@@ -178,12 +226,16 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/proxies'
+    | '/_authenticated/admin/scrapers'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/media/images'
     | '/_authenticated/admin/media/videos'
+    | '/_authenticated/admin/scrapers/google-maps'
+    | '/_authenticated/admin/scrapers/settings'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
+    | '/_authenticated/admin/scrapers/google-maps/runs/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/scrapers': {
+      id: '/_authenticated/admin/scrapers'
+      path: '/admin/scrapers'
+      fullPath: '/admin/scrapers'
+      preLoaderRoute: typeof AuthenticatedAdminScrapersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/proxies': {
       id: '/_authenticated/admin/proxies'
       path: '/admin/proxies'
@@ -257,6 +316,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
+    '/_authenticated/admin/scrapers/settings': {
+      id: '/_authenticated/admin/scrapers/settings'
+      path: '/settings'
+      fullPath: '/admin/scrapers/settings'
+      preLoaderRoute: typeof AuthenticatedAdminScrapersSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminScrapersRoute
+    }
+    '/_authenticated/admin/scrapers/google-maps': {
+      id: '/_authenticated/admin/scrapers/google-maps'
+      path: '/google-maps'
+      fullPath: '/admin/scrapers/google-maps'
+      preLoaderRoute: typeof AuthenticatedAdminScrapersGoogleMapsRouteImport
+      parentRoute: typeof AuthenticatedAdminScrapersRoute
+    }
     '/_authenticated/admin/media/videos': {
       id: '/_authenticated/admin/media/videos'
       path: '/videos'
@@ -284,6 +357,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/media/$mediaId/file'
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/scrapers/google-maps/runs/$runId': {
+      id: '/_authenticated/admin/scrapers/google-maps/runs/$runId'
+      path: '/runs/$runId'
+      fullPath: '/admin/scrapers/google-maps/runs/$runId'
+      preLoaderRoute: typeof AuthenticatedAdminScrapersGoogleMapsRunsRunIdRouteImport
+      parentRoute: typeof AuthenticatedAdminScrapersGoogleMapsRoute
     }
   }
 }
@@ -319,6 +399,39 @@ const AuthenticatedAdminMediaRouteWithChildren =
     AuthenticatedAdminMediaRouteChildren,
   )
 
+interface AuthenticatedAdminScrapersGoogleMapsRouteChildren {
+  AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute: typeof AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute
+}
+
+const AuthenticatedAdminScrapersGoogleMapsRouteChildren: AuthenticatedAdminScrapersGoogleMapsRouteChildren =
+  {
+    AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute:
+      AuthenticatedAdminScrapersGoogleMapsRunsRunIdRoute,
+  }
+
+const AuthenticatedAdminScrapersGoogleMapsRouteWithChildren =
+  AuthenticatedAdminScrapersGoogleMapsRoute._addFileChildren(
+    AuthenticatedAdminScrapersGoogleMapsRouteChildren,
+  )
+
+interface AuthenticatedAdminScrapersRouteChildren {
+  AuthenticatedAdminScrapersGoogleMapsRoute: typeof AuthenticatedAdminScrapersGoogleMapsRouteWithChildren
+  AuthenticatedAdminScrapersSettingsRoute: typeof AuthenticatedAdminScrapersSettingsRoute
+}
+
+const AuthenticatedAdminScrapersRouteChildren: AuthenticatedAdminScrapersRouteChildren =
+  {
+    AuthenticatedAdminScrapersGoogleMapsRoute:
+      AuthenticatedAdminScrapersGoogleMapsRouteWithChildren,
+    AuthenticatedAdminScrapersSettingsRoute:
+      AuthenticatedAdminScrapersSettingsRoute,
+  }
+
+const AuthenticatedAdminScrapersRouteWithChildren =
+  AuthenticatedAdminScrapersRoute._addFileChildren(
+    AuthenticatedAdminScrapersRouteChildren,
+  )
+
 interface AuthenticatedAdminSettingsRouteChildren {
   AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
 }
@@ -339,6 +452,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRouteWithChildren
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
+  AuthenticatedAdminScrapersRoute: typeof AuthenticatedAdminScrapersRouteWithChildren
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
 }
 
@@ -348,6 +462,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRouteWithChildren,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
+  AuthenticatedAdminScrapersRoute: AuthenticatedAdminScrapersRouteWithChildren,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
 }
 

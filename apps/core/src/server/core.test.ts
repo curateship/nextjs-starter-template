@@ -23,6 +23,7 @@ import {
   feedbackVotes,
   notifications,
   proxies,
+  scraperProviderSettings,
   sessions,
   users,
 } from "@/server/schema"
@@ -48,6 +49,16 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
+import {
+  buildActorInput,
+  mapApifyStatus,
+  normalizeResult,
+} from "@/scrapers/google-maps/adapter"
+import { serializeSettings } from "@/scrapers/google-maps/schema"
+import {
+  decryptScraperSecret,
+  encryptScraperSecret,
+} from "@/scrapers/secrets"
 import * as schema from "@/server/schema"
 
 let client: PGlite
@@ -59,7 +70,12 @@ beforeEach(async () => {
     new URL("../../drizzle/0000_core_baseline.sql", import.meta.url),
     "utf8"
   )
+  const scraperMigration = await readFile(
+    new URL("../../drizzle/0004_core_scrapers.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(migration)
+  await client.exec(scraperMigration)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CoreDb)
 })
@@ -594,6 +610,97 @@ describe("core proxies", () => {
         process.env.CORE_PROXY_ENCRYPTION_KEY = previousKey
       }
     }
+  })
+})
+
+describe("core scrapers", () => {
+  it("uses generic JSON columns for scraper data", async () => {
+    const result = await client.query<{ table_name: string; column_name: string }>(`
+      select table_name, column_name
+      from information_schema.columns
+      where table_schema = 'public' and table_name like 'scraper_%'
+    `)
+    const columns = result.rows.map((row) => `${row.table_name}.${row.column_name}`)
+
+    expect(columns).toEqual(expect.arrayContaining([
+      "scraper_provider_settings.config",
+      "scraper_runs.input",
+      "scraper_runs.metadata",
+      "scraper_executions.stats",
+      "scraper_results.data",
+    ]))
+    expect(columns).not.toEqual(expect.arrayContaining([
+      "scraper_runs.keyword",
+      "scraper_runs.location",
+      "scraper_results.rating",
+      "scraper_results.phone",
+    ]))
+  })
+
+  it("encrypts scraper tokens and serializes only connection state", async () => {
+    const previousKey = process.env.CORE_SCRAPER_ENCRYPTION_KEY
+    process.env.CORE_SCRAPER_ENCRYPTION_KEY = "test scraper encryption key with enough length"
+
+    try {
+      const createdAt = now()
+      const encrypted = encryptScraperSecret("apify-secret")
+      expect(decryptScraperSecret(encrypted)).toBe("apify-secret")
+
+      const [row] = await database.insert(scraperProviderSettings).values({
+        providerKey: "apify",
+        config: { actorId: "compass/crawler-google-places", defaultMaxResults: 25 },
+        secretEncrypted: encrypted,
+        createdAt,
+        updatedAt: createdAt,
+      }).returning()
+
+      const serialized = serializeSettings(row)
+      expect(serialized).toMatchObject({ has_token: true, default_max_results: 25 })
+      expect(JSON.stringify(serialized)).not.toContain("apify-secret")
+      expect(JSON.stringify(serialized)).not.toContain(encrypted)
+    } finally {
+      if (previousKey === undefined) delete process.env.CORE_SCRAPER_ENCRYPTION_KEY
+      else process.env.CORE_SCRAPER_ENCRYPTION_KEY = previousKey
+    }
+  })
+
+  it("maps Apify input, statuses, and Google Maps result data", () => {
+    expect(buildActorInput({
+      keyword: "Dentists",
+      location: "Austin, TX",
+      language: "en",
+      maxResults: 25,
+    })).toEqual({
+      searchStringsArray: ["Dentists"],
+      locationQuery: "Austin, TX",
+      maxCrawledPlacesPerSearch: 25,
+      language: "en",
+    })
+
+    expect(mapApifyStatus("READY")).toBe("queued")
+    expect(mapApifyStatus("RUNNING")).toBe("running")
+    expect(mapApifyStatus("SUCCEEDED")).toBe("succeeded")
+    expect(mapApifyStatus("TIMED-OUT")).toBe("failed")
+
+    expect(normalizeResult({
+      title: "Austin Dental",
+      categories: ["Dentist", "Health"],
+      totalScore: "4.8",
+      reviewsCount: "42",
+      website: "javascript:alert(1)",
+      placeId: "place-123",
+      location: { lat: 30.2, lng: -97.7 },
+    })).toMatchObject({
+      externalId: "place-123",
+      title: "Austin Dental",
+      data: {
+        category: "Dentist, Health",
+        rating: 4.8,
+        reviewCount: 42,
+        website: null,
+        latitude: 30.2,
+      },
+    })
   })
 })
 

@@ -1,6 +1,9 @@
+/* eslint-disable react-refresh/only-export-components */
+import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { SidebarSettings } from "@/components/sidebar-settings"
+import { ScraperSettings } from "@/scrapers/google-maps/settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/core"
@@ -9,6 +12,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
+  { id: "scrapers", label: "Scrapers" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -37,6 +41,11 @@ export function SettingsPage({
   onSaveConfig: () => Promise<boolean>
 }) {
   const isSaving = saveStatus === "saving"
+  const shellTab = activeTab !== "scrapers"
+  const [scraperAction, setScraperAction] = React.useState<React.ReactNode>(null)
+  const handleScraperActionChange = React.useCallback((action: React.ReactNode) => {
+    setScraperAction(action)
+  }, [])
 
   return (
     <div className="w-full pb-8">
@@ -47,7 +56,7 @@ export function SettingsPage({
             Configure the shell defaults for this workspace.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {shellTab ? <div className="flex items-center gap-3">
           {saveStatus === "saved" ? (
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <CheckIcon className="h-4 w-4" />
@@ -68,10 +77,10 @@ export function SettingsPage({
             )}
             {isSaving ? "Saving" : "Save"}
           </Button>
-        </div>
+        </div> : scraperAction}
       </div>
 
-      {settingsError ? (
+      {settingsError && shellTab ? (
         <div
           role="alert"
           className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -109,6 +118,9 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
             />
+          ) : null}
+          {activeTab === "scrapers" ? (
+            <ScraperSettings onHeaderActionChange={handleScraperActionChange} />
           ) : null}
         </div>
       </div>
