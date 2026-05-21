@@ -25,7 +25,7 @@ export const users = pgTable("users", {
 })
 
 export const sessions = pgTable(
-  "sessions",
+  "user_sessions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 })
@@ -36,9 +36,9 @@ export const sessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_sessions_user_id").on(table.userId),
-    index("ix_sessions_token_hash").on(table.tokenHash),
-    index("ix_sessions_expires_at").on(table.expiresAt),
+    index("ix_user_sessions_user_id").on(table.userId),
+    index("ix_user_sessions_token_hash").on(table.tokenHash),
+    index("ix_user_sessions_expires_at").on(table.expiresAt),
   ]
 )
 

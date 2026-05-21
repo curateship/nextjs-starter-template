@@ -11,18 +11,18 @@ CREATE TABLE IF NOT EXISTS "users" (
 
 CREATE INDEX IF NOT EXISTS "ix_users_email" ON "users" ("email");
 
-CREATE TABLE IF NOT EXISTS "sessions" (
+CREATE TABLE IF NOT EXISTS "user_sessions" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
   "user_id" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
   "token_hash" varchar(64) NOT NULL,
   "expires_at" timestamp with time zone NOT NULL,
   "created_at" timestamp with time zone NOT NULL,
-  CONSTRAINT "sessions_token_hash_unique" UNIQUE("token_hash")
+  CONSTRAINT "user_sessions_token_hash_unique" UNIQUE("token_hash")
 );
 
-CREATE INDEX IF NOT EXISTS "ix_sessions_user_id" ON "sessions" ("user_id");
-CREATE INDEX IF NOT EXISTS "ix_sessions_token_hash" ON "sessions" ("token_hash");
-CREATE INDEX IF NOT EXISTS "ix_sessions_expires_at" ON "sessions" ("expires_at");
+CREATE INDEX IF NOT EXISTS "ix_user_sessions_user_id" ON "user_sessions" ("user_id");
+CREATE INDEX IF NOT EXISTS "ix_user_sessions_token_hash" ON "user_sessions" ("token_hash");
+CREATE INDEX IF NOT EXISTS "ix_user_sessions_expires_at" ON "user_sessions" ("expires_at");
 
 CREATE TABLE IF NOT EXISTS "settings" (
   "key" text PRIMARY KEY NOT NULL,
