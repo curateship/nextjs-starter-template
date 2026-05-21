@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MediaGridSkeleton } from "@/components/loading-skeleton"
 import {
   Dialog,
   DialogContent,
@@ -68,7 +67,6 @@ export function getMediaTabFromPath(path: string): MediaTabId {
 
 export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -85,14 +83,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const fileType = activeTabToFileType(activeTab)
 
   const loadCurrentPage = React.useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
       setData(await listMedia({ page: currentPage, pageSize, fileType }))
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
-    } finally {
-      setLoading(false)
     }
   }, [currentPage, fileType])
 
@@ -339,9 +334,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </CardHeader>
 
         <CardContent className="min-h-[340px]">
-          {loading ? (
-            <MediaGridSkeleton />
-          ) : visibleMedia.length === 0 ? (
+          {visibleMedia.length === 0 ? (
             <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
               <div>
                 <ImageIcon className="mx-auto mb-3 size-10" />

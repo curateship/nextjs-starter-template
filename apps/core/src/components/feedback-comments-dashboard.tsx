@@ -19,7 +19,6 @@ import {
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
-import { TableRowsSkeleton } from "@/components/loading-skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -90,31 +89,24 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
     "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
 }
 
-const commentSkeletonColumns = [
-  { skeletonClassName: "h-4 w-4" },
-  { skeletonClassName: "h-4 w-64" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-32" },
-  { skeletonClassName: "h-5 w-20" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
-  { skeletonClassName: "h-8 w-8" },
-]
-
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
 })
 
-export function FeedbackCommentsDashboard() {
-  const [comments, setComments] = React.useState<FeedbackCommentItem[]>([])
+export function FeedbackCommentsDashboard({
+  initialComments,
+}: {
+  initialComments: FeedbackCommentItem[]
+}) {
+  const [comments, setComments] = React.useState<FeedbackCommentItem[]>(initialComments)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [periodFilter, setPeriodFilter] =
     React.useState<FeedbackPeriod>("1year")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingComment, setEditingComment] =
     React.useState<FeedbackCommentItem | null>(null)
@@ -124,30 +116,6 @@ export function FeedbackCommentsDashboard() {
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
   const [quickDeleting, setQuickDeleting] = React.useState(false)
-
-  React.useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError(null)
-
-    listFeedbackCommentDashboard()
-      .then((data) => {
-        if (!active) return
-        setComments(data.comments)
-      })
-      .catch((loadError) => {
-        if (!active) return
-        setError(getFeedbackErrorMessage(loadError))
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
 
   const filteredComments = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -381,9 +349,7 @@ export function FeedbackCommentsDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRowsSkeleton columns={commentSkeletonColumns} />
-              ) : paginatedComments.length === 0 ? (
+              {paginatedComments.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={7}

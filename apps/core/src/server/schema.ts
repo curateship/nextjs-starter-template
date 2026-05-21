@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  primaryKey,
   pgTable,
   text,
   timestamp,
@@ -51,6 +52,24 @@ export const settings = pgTable(
   },
   (table) => [
     check("settings_default_key", sql`${table.key} = 'default'`),
+  ]
+)
+
+export const workspaces = pgTable(
+  "workspaces",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    settings: jsonb("settings").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_workspaces_user_id").on(table.userId),
   ]
 )
 
@@ -247,13 +266,20 @@ export const proxies = pgTable(
 export const scraperProviderSettings = pgTable(
   "scraper_provider_settings",
   {
-    providerKey: varchar("provider_key", { length: 50 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    providerKey: varchar("provider_key", { length: 50 }).notNull(),
     config: jsonb("config").notNull(),
     secretEncrypted: text("secret_encrypted"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    primaryKey({
+      columns: [table.workspaceId, table.providerKey],
+      name: "scraper_provider_settings_pkey",
+    }),
     check("scraper_provider_settings_provider_check", sql`${table.providerKey} in ('apify')`),
   ]
 )
@@ -262,6 +288,9 @@ export const scraperRuns = pgTable(
   "scraper_runs",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
     scraperKey: varchar("scraper_key", { length: 50 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
@@ -273,7 +302,11 @@ export const scraperRuns = pgTable(
   (table) => [
     check("scraper_runs_key_check", sql`${table.scraperKey} in ('google-maps')`),
     check("scraper_runs_status_check", sql`${table.status} in ('draft', 'active', 'inactive')`),
-    index("ix_scraper_runs_scraper_status").on(table.scraperKey, table.status),
+    index("ix_scraper_runs_workspace_scraper_status").on(
+      table.workspaceId,
+      table.scraperKey,
+      table.status
+    ),
   ]
 )
 
@@ -319,6 +352,7 @@ export const scraperResults = pgTable(
 )
 
 export type CoreUser = typeof users.$inferSelect
+export type CoreWorkspace = typeof workspaces.$inferSelect
 export type CoreMedia = typeof media.$inferSelect
 export type CoreProxy = typeof proxies.$inferSelect
 export type CoreScraperProviderSettings = typeof scraperProviderSettings.$inferSelect

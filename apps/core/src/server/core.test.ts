@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises"
 
 import { PGlite } from "@electric-sql/pglite"
 import { hash } from "argon2"
-import { eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
@@ -24,9 +24,19 @@ import {
   notifications,
   proxies,
   scraperProviderSettings,
+  scraperRuns,
   sessions,
   users,
 } from "@/server/schema"
+import {
+  createUserWorkspace,
+  deleteUserWorkspace,
+  getOrCreateCurrentWorkspace,
+  listUserWorkspaces,
+  parseWorkspaceSettings,
+  switchUserWorkspace,
+  updateUserWorkspace,
+} from "@/server/workspaces"
 import {
   decryptProxyPassword,
   encryptProxyPassword,
@@ -74,8 +84,13 @@ beforeEach(async () => {
     new URL("../../drizzle/0004_core_scrapers.sql", import.meta.url),
     "utf8"
   )
+  const workspaceMigration = await readFile(
+    new URL("../../drizzle/0005_core_workspaces.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(migration)
   await client.exec(scraperMigration)
+  await client.exec(workspaceMigration)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CoreDb)
 })
@@ -126,6 +141,102 @@ describe("core auth helpers", () => {
 
     await database.delete(sessions)
     await expect(findUserBySessionToken(token, database as unknown as CoreDb)).resolves.toBeNull()
+  })
+})
+
+describe("core workspaces", () => {
+  it("creates a default workspace and switches the active workspace", async () => {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(users).values({
+      id: userId,
+      email: "workspace-owner@internal.dev",
+      name: "Workspace Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    expect(
+      await listUserWorkspaces(userId, database as unknown as CoreDb)
+    ).toEqual({ workspaces: [], currentWorkspaceId: null })
+
+    const defaultWorkspace = await getOrCreateCurrentWorkspace(
+      userId,
+      database as unknown as CoreDb
+    )
+    expect(defaultWorkspace).toMatchObject({
+      userId,
+      name: "My project",
+    })
+    expect(parseWorkspaceSettings(defaultWorkspace.settings).icon).toBe(
+      "briefcaseBusiness"
+    )
+
+    const secondWorkspace = await createUserWorkspace(
+      userId,
+      "Client leads",
+      { icon: "globe" },
+      database as unknown as CoreDb
+    )
+    expect(secondWorkspace).toMatchObject({
+      userId,
+      name: "Client leads",
+    })
+    expect(parseWorkspaceSettings(secondWorkspace.settings).icon).toBe("globe")
+
+    const updatedWorkspace = await updateUserWorkspace(
+      userId,
+      secondWorkspace.id,
+      { name: "Client leads updated", settings: { icon: "sparkles" } },
+      database as unknown as CoreDb
+    )
+    expect(updatedWorkspace.name).toBe("Client leads updated")
+    expect(parseWorkspaceSettings(updatedWorkspace.settings).icon).toBe(
+      "sparkles"
+    )
+
+    const listed = await listUserWorkspaces(
+      userId,
+      database as unknown as CoreDb
+    )
+    expect(listed.currentWorkspaceId).toBe(secondWorkspace.id)
+    expect(listed.workspaces.map((workspace) => workspace.id)).toEqual(
+      expect.arrayContaining([defaultWorkspace.id, secondWorkspace.id])
+    )
+
+    await switchUserWorkspace(
+      userId,
+      defaultWorkspace.id,
+      database as unknown as CoreDb
+    )
+    await expect(
+      listUserWorkspaces(userId, database as unknown as CoreDb)
+    ).resolves.toMatchObject({
+      currentWorkspaceId: defaultWorkspace.id,
+    })
+
+    await expect(
+      switchUserWorkspace(userId, uuid(), database as unknown as CoreDb)
+    ).rejects.toThrow("Workspace not found")
+
+    await deleteUserWorkspace(
+      userId,
+      secondWorkspace.id,
+      database as unknown as CoreDb
+    )
+    const afterDelete = await listUserWorkspaces(
+      userId,
+      database as unknown as CoreDb
+    )
+    expect(afterDelete.workspaces.map((workspace) => workspace.id)).toEqual([
+      defaultWorkspace.id,
+    ])
+    await expect(
+      deleteUserWorkspace(userId, defaultWorkspace.id, database as unknown as CoreDb)
+    ).rejects.toThrow("At least one workspace is required")
   })
 })
 
@@ -637,16 +748,134 @@ describe("core scrapers", () => {
     ]))
   })
 
+  it("scopes scraper settings and runs by workspace", async () => {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(users).values({
+      id: userId,
+      email: "scraper-workspaces@internal.dev",
+      name: "Scraper Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    const firstWorkspace = await createUserWorkspace(
+      userId,
+      "First project",
+      {},
+      database as unknown as CoreDb
+    )
+    const secondWorkspace = await createUserWorkspace(
+      userId,
+      "Second project",
+      {},
+      database as unknown as CoreDb
+    )
+
+    await database.insert(scraperProviderSettings).values([
+      {
+        workspaceId: firstWorkspace.id,
+        providerKey: "apify",
+        config: { actorId: "actor-one", defaultMaxResults: 25 },
+        secretEncrypted: null,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        workspaceId: secondWorkspace.id,
+        providerKey: "apify",
+        config: { actorId: "actor-two", defaultMaxResults: 50 },
+        secretEncrypted: null,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const settingsRows = await database
+      .select()
+      .from(scraperProviderSettings)
+      .where(eq(scraperProviderSettings.providerKey, "apify"))
+    expect(settingsRows).toHaveLength(2)
+
+    await database.insert(scraperRuns).values([
+      {
+        id: uuid(),
+        workspaceId: firstWorkspace.id,
+        scraperKey: "google-maps",
+        name: "First run",
+        status: "active",
+        input: {
+          keyword: "Dentists",
+          location: "Austin, TX",
+          language: "en",
+          maxResults: 25,
+        },
+        metadata: {},
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: uuid(),
+        workspaceId: secondWorkspace.id,
+        scraperKey: "google-maps",
+        name: "Second run",
+        status: "active",
+        input: {
+          keyword: "Restaurants",
+          location: "Denver, CO",
+          language: "en",
+          maxResults: 25,
+        },
+        metadata: {},
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    const firstRuns = await database
+      .select()
+      .from(scraperRuns)
+      .where(
+        and(
+          eq(scraperRuns.workspaceId, firstWorkspace.id),
+          eq(scraperRuns.scraperKey, "google-maps")
+        )
+      )
+    expect(firstRuns).toHaveLength(1)
+    expect(firstRuns[0].name).toBe("First run")
+  })
+
   it("encrypts scraper tokens and serializes only connection state", async () => {
     const previousKey = process.env.CORE_SCRAPER_ENCRYPTION_KEY
     process.env.CORE_SCRAPER_ENCRYPTION_KEY = "test scraper encryption key with enough length"
 
     try {
       const createdAt = now()
+      const userId = uuid()
+
+      await database.insert(users).values({
+        id: userId,
+        email: "scraper-token@internal.dev",
+        name: "Scraper Token Owner",
+        role: "admin",
+        passwordHash: "hash",
+        createdAt,
+        updatedAt: createdAt,
+      })
+      const workspace = await createUserWorkspace(
+        userId,
+        "Token project",
+        {},
+        database as unknown as CoreDb
+      )
       const encrypted = encryptScraperSecret("apify-secret")
       expect(decryptScraperSecret(encrypted)).toBe("apify-secret")
 
       const [row] = await database.insert(scraperProviderSettings).values({
+        workspaceId: workspace.id,
         providerKey: "apify",
         config: { actorId: "compass/crawler-google-places", defaultMaxResults: 25 },
         secretEncrypted: encrypted,

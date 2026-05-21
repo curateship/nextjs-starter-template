@@ -24,7 +24,6 @@ import {
   DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
-import { TableRowsSkeleton } from "@/components/loading-skeleton"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -84,27 +83,6 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
 
 const pageSizeOptions = [10, 25, 50]
 
-const feedbackSkeletonColumns = [
-  { skeletonClassName: "h-4 w-4" },
-  { skeletonClassName: "h-4 w-56" },
-  { skeletonClassName: "h-5 w-20" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
-  { skeletonClassName: "h-5 w-14" },
-  { skeletonClassName: "h-5 w-14" },
-  { skeletonClassName: "h-8 w-8" },
-]
-
-const commentSkeletonColumns = [
-  { skeletonClassName: "h-4 w-4" },
-  { skeletonClassName: "h-4 w-64" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-32" },
-  { skeletonClassName: "h-5 w-20" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
-  { skeletonClassName: "h-8 w-8" },
-]
-
 type FeedbackPeriod = "1year" | "3months" | "30days"
 type FeedbackSort = "recent" | "most_votes" | "most_comments"
 
@@ -127,15 +105,17 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 })
 
 type FeedbackDashboardProps = {
+  initialFeedback: FeedbackItem[]
   refreshToken: number
   onOpenFeedback: () => void
 }
 
 export function FeedbackDashboard({
+  initialFeedback,
   refreshToken,
   onOpenFeedback,
 }: FeedbackDashboardProps) {
-  const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
+  const [feedback, setFeedback] = React.useState<FeedbackItem[]>(initialFeedback)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [sortFilter, setSortFilter] = React.useState<FeedbackSort>("recent")
@@ -143,7 +123,6 @@ export function FeedbackDashboard({
     React.useState<FeedbackPeriod>("1year")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =
     React.useState<FeedbackItem | null>(null)
@@ -155,8 +134,9 @@ export function FeedbackDashboard({
   const [quickDeleting, setQuickDeleting] = React.useState(false)
 
   React.useEffect(() => {
+    if (refreshToken === 0) return
+
     let active = true
-    setLoading(true)
     setError(null)
 
     listFeedback()
@@ -167,10 +147,6 @@ export function FeedbackDashboard({
       .catch((loadError) => {
         if (!active) return
         setError(getFeedbackErrorMessage(loadError))
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
       })
 
     return () => {
@@ -458,9 +434,7 @@ export function FeedbackDashboard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRowsSkeleton columns={feedbackSkeletonColumns} />
-              ) : paginatedFeedback.length === 0 ? (
+              {paginatedFeedback.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={8}

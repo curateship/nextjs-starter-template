@@ -78,7 +78,6 @@ export function GoogleMapsDashboard() {
   const [status, setStatus] = React.useState<keyof typeof statusLabels>("all")
   const [page, setPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(10)
-  const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(false)
   const [message, setMessage] = React.useState<{ tone: "error" | "success"; text: string } | null>(null)
   const [editing, setEditing] = React.useState<ScraperRunItem | null>(null)
@@ -93,7 +92,6 @@ export function GoogleMapsDashboard() {
         setDefaultMax(settings.default_max_results)
       })
       .catch((error) => setMessage({ tone: "error", text: scraperError(error) }))
-      .finally(() => setLoading(false))
   }, [])
 
   const filtered = runs.filter((run) => {
@@ -193,7 +191,7 @@ export function GoogleMapsDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? <EmptyRow colSpan={5} text="Loading runs..." /> : visible.length ? visible.map((run) => {
+              {visible.length ? visible.map((run) => {
                 const input = parseRunInput(run.input)
                 return (
                   <TableRow key={run.id}>
@@ -255,16 +253,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [data, setData] = React.useState<Awaited<ReturnType<typeof loadGoogleMapsRun>> | null>(null)
   const [query, setQuery] = React.useState("")
   const [message, setMessage] = React.useState<{ tone: "error" | "success"; text: string } | null>(null)
-  const [busy, setBusy] = React.useState(true)
 
   const load = React.useCallback(async () => {
-    setBusy(true)
     try {
       setData(await loadGoogleMapsRun(runId))
     } catch (error) {
       setMessage({ tone: "error", text: scraperError(error) })
-    } finally {
-      setBusy(false)
     }
   }, [runId])
 
@@ -302,11 +296,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           <Button asChild variant="link" size="sm" className="h-auto p-0"><Link to="/admin/scrapers/google-maps">Google Maps</Link></Button>
           <h1 className="text-xl font-semibold tracking-tight">{data?.run.name ?? "Run"}</h1>
           <p className="text-sm text-muted-foreground">
-            {runInput ? `${runInput.keyword} in ${runInput.location}` : "Loading..."}
+            {runInput ? `${runInput.keyword} in ${runInput.location}` : ""}
             {data?.latest_execution ? ` · ${data.latest_execution.status} · ${importedCount(data.latest_execution.stats)} results` : ""}
           </p>
         </div>
-        <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={busy || !data || data.run.status !== "active"} onClick={() => void startOrRefresh()}>
+        <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={!data || data.run.status !== "active"} onClick={() => void startOrRefresh()}>
           {data?.latest_execution && ["queued", "running"].includes(data.latest_execution.status) ? <RefreshCwIcon className="size-4" /> : <PlayIcon className="size-4" />}
           {data?.latest_execution && ["queued", "running"].includes(data.latest_execution.status) ? "Refresh" : "Run now"}
         </Button>
@@ -325,7 +319,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {busy ? <EmptyRow colSpan={5} text="Loading results..." /> : results.length ? results.map((result) => (
+              {results.length ? results.map((result) => (
                 <TableRow key={result.id}>
                   <TableCell column="main">
                     <ResultLink href={text(result.data.mapsUrl)}>{result.title}</ResultLink>

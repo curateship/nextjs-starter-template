@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { eq } from "drizzle-orm"
 import { z } from "zod"
 
-import type { ShellConfig } from "@/lib/core"
+import { iconMeta, type IconKey, type ShellConfig } from "@/lib/core"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { settings } from "@/server/schema"
@@ -10,36 +10,10 @@ import { findCurrentUser, now } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
 
-const iconSchema = z.enum([
-  "layoutDashboard",
-  "bookOpen",
-  "package",
-  "folderOpen",
-  "mail",
-  "bell",
-  "calendar",
-  "tag",
-  "image",
-  "settings",
-  "barChart3",
-  "clipboardCheck",
-  "creditCard",
-  "heartPulse",
-  "globe",
-  "users",
-  "workflow",
-  "appWindow",
-  "briefcaseBusiness",
-  "palette",
-  "type",
-  "panelsTopLeft",
-  "library",
-  "slidersHorizontal",
-  "proxy",
-  "shieldCheck",
-  "sparkles",
-  "messageSquarePlus",
-])
+const iconSchema = z.custom<IconKey>(
+  (value) => typeof value === "string" && value in iconMeta,
+  { message: "Invalid icon." }
+)
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),

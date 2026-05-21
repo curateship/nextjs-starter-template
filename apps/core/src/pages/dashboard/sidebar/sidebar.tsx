@@ -23,10 +23,12 @@ import {
   type ShellSection,
 } from "@/lib/core"
 import type { AuthUser } from "@/lib/api/auth"
+import type { WorkspaceItem } from "@/lib/api/workspaces"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
   user: AuthUser
+  workspaces: WorkspaceItem[]
   onLogout: () => void
 }
 
@@ -81,7 +83,13 @@ function mapSectionEntries(
   return entries
 }
 
-export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps) {
+export function AppSidebar({
+  config,
+  user,
+  workspaces,
+  onLogout,
+  ...props
+}: AppSidebarProps) {
   const navigate = useNavigate()
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -91,25 +99,10 @@ export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps
     navigate({ href })
   }, [navigate])
 
-  const teams = [
-    {
-      name: config.workspaceName,
-      logo: renderShellIcon("briefcaseBusiness"),
-      plan: config.workspacePlan,
-      href: "/",
-    },
-    {
-      name: "Hub baseline",
-      logo: renderShellIcon("globe"),
-      plan: "Reference",
-      href: "/",
-    },
-  ]
-
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <WorkspaceSwitcher teams={teams} />
+        <WorkspaceSwitcher workspaces={workspaces} />
       </SidebarHeader>
       <SidebarContent>
         {config.sections.map((section) => (

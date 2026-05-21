@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { ProxiesDashboard } from "@/components/proxies-dashboard"
 import { loadCurrentUser } from "@/lib/api/auth"
+import { listProxies } from "@/lib/api/proxies"
 
 export const Route = createFileRoute("/_authenticated/admin/proxies")({
   loader: async () => {
@@ -9,6 +10,13 @@ export const Route = createFileRoute("/_authenticated/admin/proxies")({
     if (user?.role !== "admin") {
       throw redirect({ to: "/" })
     }
+
+    return listProxies()
   },
-  component: ProxiesDashboard,
+  component: ProxiesRoute,
 })
+
+function ProxiesRoute() {
+  const { proxies } = Route.useLoaderData()
+  return <ProxiesDashboard initialProxies={proxies} />
+}

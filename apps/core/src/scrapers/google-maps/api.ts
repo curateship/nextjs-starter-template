@@ -13,6 +13,10 @@ import {
   type CoreScraperRun,
 } from "@/server/schema"
 import { findCurrentUser, now, uuid } from "@/server/security"
+import {
+  getOrCreateCurrentWorkspace,
+  listUserWorkspaces,
+} from "@/server/workspaces"
 import { decryptScraperSecret, encryptScraperSecret } from "@/scrapers/secrets"
 import {
   getDatasetItems,
@@ -45,16 +49,17 @@ export function scraperError(error: unknown) {
 }
 
 const loadSettingsFn = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin()
-  return { settings: serializeSettings(await settingsRow()) }
+  const workspace = await findWorkspace()
+  if (!workspace) return { settings: serializeSettings(null) }
+  return { settings: serializeSettings(await settingsRow(workspace.id)) }
 })
 
 const saveSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(settingsPayloadSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    await requireAdmin()
-    const existing = await settingsRow()
+    const workspace = await requireWorkspace()
+    const existing = await settingsRow(workspace.id)
     const updatedAt = now()
     const token = data.token?.trim()
     const values = {
@@ -64,23 +69,26 @@ const saveSettingsFn = createServerFn({ method: "POST" })
     }
 
     const [row] = existing
-      ? await db.update(scraperProviderSettings).set(values).where(eq(scraperProviderSettings.providerKey, apifyProviderKey)).returning()
-      : await db.insert(scraperProviderSettings).values({ providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
+      ? await db.update(scraperProviderSettings).set(values).where(and(eq(scraperProviderSettings.workspaceId, workspace.id), eq(scraperProviderSettings.providerKey, apifyProviderKey))).returning()
+      : await db.insert(scraperProviderSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
 
     return { settings: serializeSettings(row) }
   })
 
 const loadRunsFn = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin()
-  const runs = await db.select().from(scraperRuns).where(eq(scraperRuns.scraperKey, googleMapsScraperKey)).orderBy(desc(scraperRuns.createdAt))
-  return { settings: serializeSettings(await settingsRow()), runs: runs.map(serializeRun) }
+  const workspace = await findWorkspace()
+  if (!workspace) {
+    return { settings: serializeSettings(null), runs: [] }
+  }
+  const runs = await db.select().from(scraperRuns).where(and(eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey))).orderBy(desc(scraperRuns.createdAt))
+  return { settings: serializeSettings(await settingsRow(workspace.id)), runs: runs.map(serializeRun) }
 })
 
 const saveRunFn = createServerFn({ method: "POST" })
   .inputValidator(updateRunSchema.partial({ runId: true }))
   .handler(async ({ data }) => {
     requireAppOrigin()
-    await requireAdmin()
+    const workspace = await requireWorkspace()
     const updatedAt = now()
     const values = {
       name: data.name.trim(),
@@ -91,8 +99,8 @@ const saveRunFn = createServerFn({ method: "POST" })
     }
 
     const [row] = data.runId
-      ? await db.update(scraperRuns).set(values).where(and(eq(scraperRuns.id, data.runId), eq(scraperRuns.scraperKey, googleMapsScraperKey))).returning()
-      : await db.insert(scraperRuns).values({ id: uuid(), scraperKey: googleMapsScraperKey, createdAt: updatedAt, ...values }).returning()
+      ? await db.update(scraperRuns).set(values).where(and(eq(scraperRuns.id, data.runId), eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey))).returning()
+      : await db.insert(scraperRuns).values({ id: uuid(), workspaceId: workspace.id, scraperKey: googleMapsScraperKey, createdAt: updatedAt, ...values }).returning()
 
     if (!row) throw new Error("Run not found.")
     return { run: serializeRun(row) }
@@ -102,11 +110,11 @@ const startRunFn = createServerFn({ method: "POST" })
   .inputValidator(runIdSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    await requireAdmin()
-    const run = await getGoogleMapsRun(data.runId)
+    const workspace = await requireWorkspace()
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
     if (run.status !== "active") throw new Error("Only active runs can be started.")
 
-    const settings = await requiredSettings()
+    const settings = await requiredSettings(workspace.id)
     const token = requiredToken(settings.secretEncrypted)
     const actorRun = await startActor({
       token,
@@ -137,12 +145,18 @@ const refreshExecutionFn = createServerFn({ method: "POST" })
   .inputValidator(executionIdSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    await requireAdmin()
-    const [execution] = await db.select().from(scraperExecutions).where(eq(scraperExecutions.id, data.executionId)).limit(1)
+    const workspace = await requireWorkspace()
+    const [row] = await db
+      .select({ execution: scraperExecutions })
+      .from(scraperExecutions)
+      .innerJoin(scraperRuns, eq(scraperExecutions.runId, scraperRuns.id))
+      .where(and(eq(scraperExecutions.id, data.executionId), eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey)))
+      .limit(1)
+    const execution = row?.execution
     if (!execution?.providerRunId) throw new Error("Execution not found.")
 
-    const run = await getGoogleMapsRun(execution.runId)
-    const token = requiredToken((await requiredSettings()).secretEncrypted)
+    const run = await getGoogleMapsRun(execution.runId, workspace.id)
+    const token = requiredToken((await requiredSettings(workspace.id)).secretEncrypted)
     const actorRun = await getRun(token, execution.providerRunId)
     const status = mapApifyStatus(actorRun.status)
     const [updated] = await db.update(scraperExecutions).set({
@@ -161,8 +175,9 @@ const refreshExecutionFn = createServerFn({ method: "POST" })
 const loadRunFn = createServerFn({ method: "GET" })
   .inputValidator(runIdSchema)
   .handler(async ({ data }) => {
-    await requireAdmin()
-    const run = await getGoogleMapsRun(data.runId)
+    const workspace = await findWorkspace()
+    if (!workspace) throw new Error("Run not found.")
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
     const executions = await db.select().from(scraperExecutions).where(eq(scraperExecutions.runId, run.id)).orderBy(desc(scraperExecutions.createdAt)).limit(1)
     const latest = executions[0] ?? null
     const results = latest
@@ -184,13 +199,13 @@ export const startGoogleMapsRun = (runId: string) => startRunFn({ data: { runId 
 export const refreshGoogleMapsExecution = (executionId: string) => refreshExecutionFn({ data: { executionId } })
 export const loadGoogleMapsRun = (runId: string) => loadRunFn({ data: { runId } })
 
-async function settingsRow() {
-  const [row] = await db.select().from(scraperProviderSettings).where(eq(scraperProviderSettings.providerKey, apifyProviderKey)).limit(1)
+async function settingsRow(workspaceId: string) {
+  const [row] = await db.select().from(scraperProviderSettings).where(and(eq(scraperProviderSettings.workspaceId, workspaceId), eq(scraperProviderSettings.providerKey, apifyProviderKey))).limit(1)
   return row ?? null
 }
 
-async function requiredSettings() {
-  const row = await settingsRow()
+async function requiredSettings(workspaceId: string) {
+  const row = await settingsRow(workspaceId)
   return {
     config: parseConfig(row?.config ?? { actorId: defaultApifyActorId, defaultMaxResults }),
     secretEncrypted: row?.secretEncrypted ?? null,
@@ -202,8 +217,8 @@ function requiredToken(encrypted: string | null) {
   return decryptScraperSecret(encrypted)
 }
 
-async function getGoogleMapsRun(runId: string) {
-  const [run] = await db.select().from(scraperRuns).where(and(eq(scraperRuns.id, runId), eq(scraperRuns.scraperKey, googleMapsScraperKey))).limit(1)
+async function getGoogleMapsRun(runId: string, workspaceId: string) {
+  const [run] = await db.select().from(scraperRuns).where(and(eq(scraperRuns.id, runId), eq(scraperRuns.workspaceId, workspaceId), eq(scraperRuns.scraperKey, googleMapsScraperKey))).limit(1)
   if (!run) throw new Error("Run not found.")
   return run
 }
@@ -242,4 +257,16 @@ async function requireAdmin() {
   const user = await findCurrentUser()
   if (!user) throw new Error("Missing Core session.")
   if (user.role !== "admin") throw new Error("Not authorized.")
+  return user
+}
+
+async function requireWorkspace() {
+  const user = await requireAdmin()
+  return getOrCreateCurrentWorkspace(user.id)
+}
+
+async function findWorkspace() {
+  const user = await requireAdmin()
+  const listed = await listUserWorkspaces(user.id)
+  return listed.workspaces.find(({ id }) => id === listed.currentWorkspaceId) ?? null
 }

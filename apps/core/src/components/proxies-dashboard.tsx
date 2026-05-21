@@ -118,9 +118,12 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 })
 
-export function ProxiesDashboard() {
-  const [proxies, setProxies] = React.useState<ProxyItem[]>([])
-  const [loading, setLoading] = React.useState(true)
+export function ProxiesDashboard({
+  initialProxies,
+}: {
+  initialProxies: ProxyItem[]
+}) {
+  const [proxies, setProxies] = React.useState<ProxyItem[]>(initialProxies)
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [query, setQuery] = React.useState("")
@@ -142,21 +145,14 @@ export function ProxiesDashboard() {
   const [massDeleting, setMassDeleting] = React.useState(false)
 
   const loadCurrentProxies = React.useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
       const result = await listProxies()
       setProxies(result.proxies)
     } catch (loadError) {
       setError(getProxyErrorMessage(loadError))
-    } finally {
-      setLoading(false)
     }
   }, [])
-
-  React.useEffect(() => {
-    void loadCurrentProxies()
-  }, [loadCurrentProxies])
 
   const countries = React.useMemo(
     () =>
@@ -578,16 +574,7 @@ export function ProxiesDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="h-24 text-center text-sm text-muted-foreground"
-                  >
-                    Loading proxies...
-                  </TableCell>
-                </TableRow>
-              ) : visibleProxies.length ? (
+              {visibleProxies.length ? (
                 visibleProxies.map((proxy) => (
                   <TableRow key={proxy.id} className="group">
                     <TableCell>

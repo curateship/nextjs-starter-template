@@ -20,6 +20,7 @@ import {
   getShellSettingsErrorMessage,
   saveShellSettings,
 } from "@/lib/api/shell-settings"
+import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 
 type SaveStatus = "idle" | "saving" | "saved"
 
@@ -47,9 +48,11 @@ export function useShellRuntime() {
 export function ShellLayout({
   user,
   settings,
+  workspaces,
 }: {
   user: AuthUser
   settings: ShellConfig | null
+  workspaces: WorkspaceListResponse
 }) {
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -165,7 +168,12 @@ export function ShellLayout({
     <ShellRuntimeContext.Provider value={runtime}>
       <div className="min-h-screen bg-background">
         <SidebarProvider className="h-screen">
-          <AppSidebar config={config} user={user} onLogout={handleLogout} />
+          <AppSidebar
+            config={config}
+            user={user}
+            workspaces={workspaces.workspaces}
+            onLogout={handleLogout}
+          />
           <SidebarInset>
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath)}

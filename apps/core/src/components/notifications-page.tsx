@@ -68,7 +68,6 @@ export function NotificationsPage({
     []
   )
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
-  const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
@@ -78,8 +77,6 @@ export function NotificationsPage({
   const loadNotifications = React.useCallback(async (cursor?: string) => {
     if (cursor) {
       setLoadingMore(true)
-    } else {
-      setLoading(true)
     }
     setError(null)
 
@@ -95,7 +92,6 @@ export function NotificationsPage({
     } catch (loadError) {
       setError(getNotificationErrorMessage(loadError))
     } finally {
-      setLoading(false)
       setLoadingMore(false)
     }
   }, [])
@@ -226,16 +222,7 @@ export function NotificationsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6}>
-                    <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
-                      <Loader2Icon className="size-4 animate-spin" />
-                      Loading notifications
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : filteredNotifications.length === 0 ? (
+              {filteredNotifications.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={6}
