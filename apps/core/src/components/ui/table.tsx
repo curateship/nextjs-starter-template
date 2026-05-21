@@ -12,6 +12,11 @@ type TableCellProps = React.ComponentProps<"td"> & {
   column?: "main" | "meta" | "mutedMeta" | "preview"
 }
 
+type TableStatusIndicatorProps = {
+  tone: "error" | "success"
+  children: React.ReactNode
+}
+
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
@@ -40,6 +45,25 @@ function TableSurface({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
+  )
+}
+
+function TableStatusIndicator({
+  tone,
+  children,
+}: TableStatusIndicatorProps) {
+  return (
+    <span
+      role={tone === "error" ? "alert" : "status"}
+      className={cn(
+        "rounded-md border px-2 py-1 text-xs",
+        tone === "error"
+          ? "border-destructive/30 bg-destructive/10 text-destructive"
+          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      )}
+    >
+      {children}
+    </span>
   )
 }
 
@@ -148,6 +172,7 @@ function TableCaption({
 export {
   Table,
   TableSurface,
+  TableStatusIndicator,
   TableHeader,
   TableBody,
   TableFooter,

@@ -31,6 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableStatusIndicator,
 } from "@/components/ui/table"
 import {
   bulkDeleteMedia,
@@ -305,11 +306,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         onChange={handleUploadSelect}
       />
 
-      {error ? (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
       {notice ? (
         <div className="mb-4 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
           {notice}
@@ -324,6 +320,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 {data.total}
               </span>
+            ) : null}
+            {error ? (
+              <TableStatusIndicator tone="error">
+                {error}
+              </TableStatusIndicator>
             ) : null}
           </div>
           <div className="relative w-full sm:w-72">

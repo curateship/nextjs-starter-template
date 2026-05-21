@@ -41,6 +41,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSurface,
+  TableStatusIndicator,
 } from "@/components/ui/table"
 import {
   loadGoogleMapsRun,
@@ -140,10 +142,10 @@ export function GoogleMapsDashboard() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Google Maps</h1>
+    <div className="w-full pb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="font-heading text-xl font-semibold">Google Maps</h1>
           <p className="text-sm text-muted-foreground">Saved Apify searches.</p>
         </div>
         <div className="flex gap-2">
@@ -290,11 +292,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+    <div className="w-full pb-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
           <Button asChild variant="link" size="sm" className="h-auto p-0"><Link to="/admin/scrapers/google-maps">Google Maps</Link></Button>
-          <h1 className="text-xl font-semibold tracking-tight">{data?.run.name ?? "Run"}</h1>
+          <h1 className="font-heading text-xl font-semibold">{data?.run.name ?? "Run"}</h1>
           <p className="text-sm text-muted-foreground">
             {runInput ? `${runInput.keyword} in ${runInput.location}` : ""}
             {data?.latest_execution ? ` · ${data.latest_execution.status} · ${importedCount(data.latest_execution.stats)} results` : ""}
@@ -341,7 +343,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
 }
 
 function TableShell({ title, icon, count, message, controls, children }: { title: string; icon?: React.ReactNode; count: number; message?: { tone: "error" | "success"; text: string } | null; controls?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10"><DashboardToolbar><DashboardToolbarTitle>{icon}<span className="text-sm font-medium sm:text-base">{title}</span><Badge variant="secondary">{count}</Badge>{message ? <span role={message.tone === "error" ? "alert" : "status"} className={message.tone === "error" ? "rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive" : "rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300"}>{message.text}</span> : null}</DashboardToolbarTitle>{controls ? <DashboardToolbarControls>{controls}</DashboardToolbarControls> : null}</DashboardToolbar>{children}</div>
+  return <TableSurface><DashboardToolbar><DashboardToolbarTitle>{icon}<span className="text-sm font-medium sm:text-base">{title}</span><Badge variant="secondary">{count}</Badge>{message ? <TableStatusIndicator tone={message.tone}>{message.text}</TableStatusIndicator> : null}</DashboardToolbarTitle>{controls ? <DashboardToolbarControls>{controls}</DashboardToolbarControls> : null}</DashboardToolbar>{children}</TableSurface>
 }
 
 function Pager({ page, pageSize, total, totalPages, setPage, setPageSize }: { page: number; pageSize: number; total: number; totalPages: number; setPage: (page: number) => void; setPageSize: (size: number) => void }) {

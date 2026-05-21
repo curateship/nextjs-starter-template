@@ -46,9 +46,13 @@ function ScrapersRoute() {
 
   return (
     <div className="w-full pb-8">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Scrapers</h1>
-        <p className="text-sm text-muted-foreground">Registered scraper modules.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="font-heading text-xl font-semibold">Scrapers</h1>
+          <p className="text-sm text-muted-foreground">
+            Registered scraper modules.
+          </p>
+        </div>
       </div>
       <TableSurface>
         <DashboardToolbar>
