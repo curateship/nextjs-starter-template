@@ -30,6 +30,19 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   )
 }
 
+function TableSurface({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="table-surface"
+      className={cn(
+        "mt-4 overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 sm:mt-6",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
@@ -134,6 +147,7 @@ function TableCaption({
 
 export {
   Table,
+  TableSurface,
   TableHeader,
   TableBody,
   TableFooter,

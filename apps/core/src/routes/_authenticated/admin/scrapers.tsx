@@ -22,6 +22,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSurface,
 } from "@/components/ui/table"
 import { loadCurrentUser } from "@/lib/api/auth"
 import { scraperModules } from "@/scrapers"
@@ -44,12 +45,12 @@ function ScrapersRoute() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="w-full pb-8">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Scrapers</h1>
         <p className="text-sm text-muted-foreground">Registered scraper modules.</p>
       </div>
-      <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+      <TableSurface>
         <DashboardToolbar>
           <DashboardToolbarTitle>
             <BotIcon className="size-4 text-muted-foreground" />
@@ -90,7 +91,7 @@ function ScrapersRoute() {
           </Table>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-      </div>
+      </TableSurface>
     </div>
   )
 }

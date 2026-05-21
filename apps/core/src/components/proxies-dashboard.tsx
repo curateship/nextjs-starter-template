@@ -42,6 +42,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSurface,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { AdminModalContent } from "@/pages/shared/admin-modal"
@@ -388,7 +389,7 @@ export function ProxiesDashboard({
 
   return (
     <div className="w-full pb-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h1 className="font-heading text-xl font-semibold">Proxies</h1>
           <p className="text-sm text-muted-foreground">
@@ -451,7 +452,7 @@ export function ProxiesDashboard({
         </Message>
       ) : null}
 
-      <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+      <TableSurface>
         <DashboardToolbar>
           <DashboardToolbarTitle>
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
@@ -673,7 +674,7 @@ export function ProxiesDashboard({
           </Table>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
-      </div>
+      </TableSurface>
 
       <ProxyFormDialog
         open={formOpen}
@@ -1128,7 +1129,7 @@ function Message({
     <div
       role={tone === "error" ? "alert" : "status"}
       className={cn(
-        "mb-4 rounded-md border px-3 py-2 text-sm",
+        "mt-4 rounded-md border px-3 py-2 text-sm",
         tone === "error"
           ? "border-destructive/30 bg-destructive/10 text-destructive"
           : "border-border bg-muted/40 text-muted-foreground"

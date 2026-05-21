@@ -29,6 +29,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSurface,
 } from "@/components/ui/table"
 import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
@@ -117,7 +118,7 @@ export function WorkspacesDashboard({
 
   return (
     <div className="w-full pb-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h1 className="font-heading text-xl font-semibold">Workspaces</h1>
           <p className="text-sm text-muted-foreground">
@@ -137,7 +138,7 @@ export function WorkspacesDashboard({
 
       {error ? <Message>{error}</Message> : null}
 
-      <div className="overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10">
+      <TableSurface>
         <DashboardToolbar>
           <DashboardToolbarTitle>
             <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
@@ -209,7 +210,7 @@ export function WorkspacesDashboard({
             ))}
           </TableBody>
         </Table>
-      </div>
+      </TableSurface>
 
       <WorkspaceFormDialog
         open={formOpen}
@@ -373,7 +374,7 @@ function Message({
   children: React.ReactNode
 }) {
   return (
-    <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
       {children}
     </div>
   )
