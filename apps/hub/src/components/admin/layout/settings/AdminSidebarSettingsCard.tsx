@@ -6,9 +6,14 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  pointerWithin,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
   useSensor,
-  useSensors
+  useSensors,
+  useDroppable
 } from "@dnd-kit/core"
 import {
   SortableContext,
@@ -70,12 +75,12 @@ type SortableChildProps = {
 
 type SortableSectionProps = {
   section: AdminSidebarSection
+  isDraggingItem: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
   onReset: () => void
   onItemAdd: (sectionId: string) => void
   onItemChange: (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => void
   onItemDelete: (sectionId: string, itemId: string) => void
-  onItemDragEnd: (sectionId: string, event: DragEndEvent) => void
   onChildAdd: (sectionId: string, itemId: string) => void
   onChildChange: (sectionId: string, itemId: string, childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onChildDelete: (sectionId: string, itemId: string, childId: string) => void
@@ -86,6 +91,16 @@ const iconOptions = ADMIN_SIDEBAR_ICON_OPTIONS.map((option) => ({
   value: option.value,
   label: option.label
 }))
+
+const sectionDropPrefix = "section-drop:"
+
+function getSectionDropId(sectionId: string) {
+  return `${sectionDropPrefix}${sectionId}`
+}
+
+function getSectionIdFromDropId(id: string) {
+  return id.startsWith(sectionDropPrefix) ? id.slice(sectionDropPrefix.length) : null
+}
 
 function createSidebarId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -414,24 +429,22 @@ function SortableSidebarItem({
 
 function SortableSectionCard({
   section,
+  isDraggingItem,
   onSectionTitleChange,
   onReset,
   onItemAdd,
   onItemChange,
   onItemDelete,
-  onItemDragEnd,
   onChildAdd,
   onChildChange,
   onChildDelete,
   onChildDragEnd
 }: SortableSectionProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id })
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates
-    })
-  )
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
+    id: getSectionDropId(section.id),
+    disabled: !isDraggingItem
+  })
   const sortableItemIds = section.entries.map((entry) => entry.id)
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -473,46 +486,91 @@ function SortableSectionCard({
           </div>
         </div>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={(event) => onItemDragEnd(section.id, event)}
-        >
-          <SortableContext items={sortableItemIds} strategy={verticalListSortingStrategy}>
-            <div>
-              {section.entries.map((entry) => (
-                <SortableSidebarItem
-                  key={entry.id}
-                  sectionId={section.id}
-                  item={entry}
-                  onItemChange={onItemChange}
-                  onItemDelete={onItemDelete}
-                  onChildAdd={onChildAdd}
-                  onChildChange={onChildChange}
-                  onChildDelete={onChildDelete}
-                  onChildDragEnd={onChildDragEnd}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-
-        {!sortableItemIds.length ? (
-          <div className={cn("rounded-lg border border-dashed p-4 text-center text-sm", "text-muted-foreground")}>
-            No sidebar links in this section.
+        <SortableContext items={sortableItemIds} strategy={verticalListSortingStrategy}>
+          <div
+            ref={setDropNodeRef}
+            className={cn("-m-1 min-h-11 rounded-lg p-1 transition-colors", isOver && "bg-primary/5")}
+          >
+            {section.entries.map((entry) => (
+              <SortableSidebarItem
+                key={entry.id}
+                sectionId={section.id}
+                item={entry}
+                onItemChange={onItemChange}
+                onItemDelete={onItemDelete}
+                onChildAdd={onChildAdd}
+                onChildChange={onChildChange}
+                onChildDelete={onChildDelete}
+                onChildDragEnd={onChildDragEnd}
+              />
+            ))}
+            {!sortableItemIds.length ? (
+              <div className={cn("rounded-lg border border-dashed p-4 text-center text-sm", "text-muted-foreground")}>
+                No sidebar links in this section.
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </SortableContext>
       </CardContent>
     </Card>
   )
 }
 
 export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: AdminSidebarSettingsCardProps) {
+  const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates
     })
+  )
+  const sectionIds = React.useMemo(
+    () => new Set(config.sections.map((section) => section.id)),
+    [config.sections]
+  )
+  const emptySectionIds = React.useMemo(
+    () => new Set(config.sections.filter((section) => !section.entries.length).map((section) => section.id)),
+    [config.sections]
+  )
+  const itemIds = React.useMemo(
+    () => new Set(config.sections.flatMap((section) => section.entries.map((entry) => entry.id))),
+    [config.sections]
+  )
+  const collisionDetection = React.useCallback<CollisionDetection>(
+    (args) => {
+      if (sectionIds.has(String(args.active.id))) {
+        return closestCenter({
+          ...args,
+          droppableContainers: args.droppableContainers.filter((container) => sectionIds.has(String(container.id)))
+        })
+      }
+
+      const pointerCollisions = pointerWithin(args)
+      const itemCollisions = pointerCollisions.filter((collision) => itemIds.has(String(collision.id)))
+
+      if (itemCollisions.length) return itemCollisions
+
+      const sectionCollisions = pointerCollisions.filter((collision) => {
+        const id = String(collision.id)
+        const sectionId = getSectionIdFromDropId(id) ?? id
+        return emptySectionIds.has(sectionId)
+      })
+
+      if (sectionCollisions.length) return sectionCollisions
+
+      const centerCollisions = closestCenter({
+        ...args,
+        droppableContainers: args.droppableContainers.filter((container) => {
+          const id = String(container.id)
+          const sectionId = getSectionIdFromDropId(id) ?? id
+          return itemIds.has(id) || emptySectionIds.has(sectionId)
+        })
+      })
+      const centerItemCollisions = centerCollisions.filter((collision) => itemIds.has(String(collision.id)))
+
+      return centerItemCollisions.length ? centerItemCollisions : centerCollisions
+    },
+    [emptySectionIds, itemIds, sectionIds]
   )
 
   const handleAddItem = (sectionId: string) => {
@@ -574,25 +632,6 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
     )
   }
 
-  const handleParentDragEnd = (sectionId: string, event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    onConfigChange(
-      updateSection(config, sectionId, (section) => {
-        const oldIndex = section.entries.findIndex((entry) => entry.id === active.id)
-        const newIndex = section.entries.findIndex((entry) => entry.id === over.id)
-
-        if (oldIndex === -1 || newIndex === -1) return section
-
-        return {
-          ...section,
-          entries: arrayMove(section.entries, oldIndex, newIndex)
-        }
-      })
-    )
-  }
-
   const handleSectionDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -606,6 +645,125 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
       ...config,
       sections: arrayMove(config.sections, oldIndex, newIndex)
     })
+  }
+
+  const findItemLocation = (itemId: string) => {
+    for (const section of config.sections) {
+      const itemIndex = section.entries.findIndex((entry) => entry.id === itemId)
+
+      if (itemIndex !== -1) return { section, itemIndex }
+    }
+
+    return null
+  }
+
+  const handleItemDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const activeLocation = findItemLocation(activeId)
+    const overLocation = findItemLocation(overId)
+    const dropSectionId = getSectionIdFromDropId(overId)
+    const overSection =
+      overLocation?.section ?? config.sections.find((section) => section.id === (dropSectionId ?? overId))
+
+    if (!activeLocation || !overSection) return
+
+    const activeItem = activeLocation.section.entries[activeLocation.itemIndex]
+
+    if (activeLocation.section.id === overSection.id && overLocation) {
+      onConfigChange(
+        updateSection(config, activeLocation.section.id, (section) => ({
+          ...section,
+          entries: arrayMove(section.entries, activeLocation.itemIndex, overLocation.itemIndex)
+        }))
+      )
+      return
+    }
+
+    const nextSections = config.sections.map((section) => {
+      const entries =
+        section.id === activeLocation.section.id
+          ? section.entries.filter((entry) => entry.id !== activeId)
+          : section.entries
+
+      if (section.id !== overSection.id) return { ...section, entries }
+
+      const insertIndex = overLocation ? entries.findIndex((entry) => entry.id === overId) : entries.length
+
+      return {
+        ...section,
+        entries: [...entries.slice(0, insertIndex), activeItem, ...entries.slice(insertIndex)]
+      }
+    })
+
+    onConfigChange({ ...config, sections: nextSections })
+  }
+
+  const handleItemDragOver = (event: DragOverEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    const activeLocation = findItemLocation(activeId)
+    const overLocation = findItemLocation(overId)
+    const dropSectionId = getSectionIdFromDropId(overId)
+    const overSection =
+      overLocation?.section ?? config.sections.find((section) => section.id === (dropSectionId ?? overId))
+
+    if (!overLocation) return
+
+    if (!activeLocation || !overSection || activeLocation.section.id === overSection.id) {
+      return
+    }
+
+    const activeItem = activeLocation.section.entries[activeLocation.itemIndex]
+
+    const nextSections = config.sections.map((section) => {
+      const entries =
+        section.id === activeLocation.section.id
+          ? section.entries.filter((entry) => entry.id !== activeId)
+          : section.entries
+
+      if (section.id !== overSection.id) return { ...section, entries }
+
+      const insertIndex = entries.findIndex((entry) => entry.id === overId)
+
+      return {
+        ...section,
+        entries: [...entries.slice(0, insertIndex), activeItem, ...entries.slice(insertIndex)]
+      }
+    })
+
+    onConfigChange({ ...config, sections: nextSections })
+  }
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id))
+  }
+
+  const handleDragOver = (event: DragOverEvent) => {
+    if (!itemIds.has(String(event.active.id))) return
+
+    handleItemDragOver(event)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null)
+
+    if (config.sections.some((section) => section.id === event.active.id)) {
+      handleSectionDragEnd(event)
+      return
+    }
+
+    handleItemDragEnd(event)
+  }
+
+  const handleDragCancel = () => {
+    setActiveDragId(null)
   }
 
   const handleChildAdd = (sectionId: string, itemId: string) => {
@@ -687,21 +845,30 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
     )
   }
 
+  const isDraggingItem = activeDragId ? itemIds.has(activeDragId) : false
+
   return (
     <>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
         <SortableContext items={config.sections.map((section) => section.id)} strategy={verticalListSortingStrategy}>
           <CardGroup className="grid">
             {config.sections.map((section) => (
               <SortableSectionCard
                 key={section.id}
                 section={section}
+                isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
                 onReset={() => onConfigChange(createDefaultAdminSidebarSettings(siteId))}
                 onItemAdd={handleAddItem}
                 onItemChange={handleItemChange}
                 onItemDelete={handleItemDelete}
-                onItemDragEnd={handleParentDragEnd}
                 onChildAdd={handleChildAdd}
                 onChildChange={handleChildChange}
                 onChildDelete={handleChildDelete}

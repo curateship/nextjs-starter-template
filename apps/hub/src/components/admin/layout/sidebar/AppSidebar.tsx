@@ -29,7 +29,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const { currentSite, sites } = useSiteSwitcher()
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
   const routeSite = routeSiteId
-    ? sites.find((site) => site.id === routeSiteId) ?? null
+    ? currentSite?.id === routeSiteId
+      ? currentSite
+      : sites.find((site) => site.id === routeSiteId) ?? null
     : null
   const sidebarSite = routeSite ?? currentSite
   const config = resolveAdminSidebarSettings(sidebarSite?.settings?.admin_sidebar, {
