@@ -492,32 +492,8 @@ export async function getSiteDashboardMetrics(
   }
 }
 
-export async function getSiteDashboardData(siteId: string, range: DashboardRange) {
-  const emptyMetrics: SiteDashboardMetrics = {
-    totals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
-    previousTotals: { visitors: 0, contacts: 0, orders: 0, revenue: 0 },
-    chartData: [],
-  }
-
-  const [site, cardMetrics, chartMetrics, topPages, topReferrers] = await Promise.all([
-    getSiteForDashboard(siteId),
-    getSiteDashboardMetrics(siteId, range).catch(() => emptyMetrics),
-    getSiteDashboardMetrics(siteId, '30d').catch(() => emptyMetrics),
-    getTopPages(siteId, range).catch(() => []),
-    getTopReferrers(siteId, range).catch(() => []),
-  ])
-
-  return {
-    site,
-    cardMetrics,
-    chartMetrics,
-    topPages,
-    topReferrers,
-  }
-}
-
 /**
- * Lightweight site fetch for dashboard — skips auth since admin layout already verified.
+ * Lightweight site fetch for dashboard.
  * Only fetches fields needed for display.
  */
 export async function getSiteForDashboard(siteId: string) {
