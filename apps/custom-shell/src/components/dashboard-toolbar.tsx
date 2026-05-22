@@ -1,6 +1,7 @@
 import * as React from "react"
-import { SearchIcon } from "lucide-react"
+import { SearchIcon, XIcon } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { SelectTrigger } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
@@ -46,6 +47,8 @@ function DashboardToolbarSearch({
   inputClassName,
   ...props
 }: React.ComponentProps<typeof Input> & { inputClassName?: string }) {
+  const hasValue = props.value != null && String(props.value).length > 0
+
   return (
     <div className={cn("relative flex-1 sm:flex-none", className)}>
       <SearchIcon
@@ -53,15 +56,32 @@ function DashboardToolbarSearch({
         aria-hidden="true"
       />
       <Input
-        type="search"
+        type="text"
         inputMode="search"
         autoComplete="off"
         className={cn(
-          "h-8 w-full pl-9 text-sm sm:h-9 sm:w-[180px] sm:pl-10 lg:w-[240px]",
+          "h-8 w-full pr-8 pl-9 text-sm sm:h-9 sm:w-[180px] sm:pl-10 lg:w-[240px]",
           inputClassName
         )}
         {...props}
       />
+      {hasValue ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          onClick={() =>
+            props.onChange?.({
+              target: { value: "" },
+              currentTarget: { value: "" },
+            } as React.ChangeEvent<HTMLInputElement>)
+          }
+          aria-label="Clear search"
+        >
+          <XIcon aria-hidden="true" />
+        </Button>
+      ) : null}
     </div>
   )
 }

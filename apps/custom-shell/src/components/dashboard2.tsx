@@ -1811,7 +1811,7 @@ const TransactionsTable = () => {
               aria-hidden="true"
             />
             <Input
-              type="search"
+              type="text"
               name="transactions-search"
               inputMode="search"
               autoComplete="off"
@@ -1821,8 +1821,20 @@ const TransactionsTable = () => {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setSearchQuery(e.target.value)
               }
-              className="h-8 w-full pl-9 text-sm sm:h-9 sm:w-[160px] sm:pl-10 lg:w-[200px]"
+              className="h-8 w-full pr-8 pl-9 text-sm sm:h-9 sm:w-[160px] sm:pl-10 lg:w-[200px]"
             />
+            {searchQuery ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+              >
+                <X aria-hidden="true" />
+              </Button>
+            ) : null}
           </div>
 
           <Select value={dateFilter} onValueChange={setDateFilter}>
