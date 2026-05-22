@@ -11,7 +11,6 @@ import {
   deletePageAction,
   deletePagesAction,
   duplicatePageAction,
-  getPageIdsAction,
   getSitePagesAction,
   type Page,
 } from "@/lib/actions/pages/page-actions"
@@ -55,7 +54,6 @@ export default function SitePagesPage({ params }: { params: Promise<{ siteId: st
       }
       getBuilderHref={(page) => `/admin/pages/${siteId}?page=${page.slug}`}
       getDisplayPath={(page) => `/${page.slug}`}
-      getIds={getPageIdsAction}
       getItems={getPages}
       getPreviewHref={(page, previewSite) => (previewSite ? `${getSiteUrl(previewSite)}/${page.slug}` : "#")}
       getRowIcon={(page) =>

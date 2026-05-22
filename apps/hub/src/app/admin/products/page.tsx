@@ -10,7 +10,6 @@ import {
   deleteProductAction,
   deleteProductsAction,
   duplicateProductAction,
-  getProductIdsAction,
   getSiteProductsWithCategoriesAction,
   type Product,
 } from "@/lib/actions/products/product-actions"
@@ -46,7 +45,6 @@ export default function ProductsPage() {
       emptyTitle={(products, filterStatus) =>
         products.length === 0 || filterStatus === "all" ? "No products found" : `No ${filterStatus} products found`
       }
-      getIds={getProductIdsAction}
       getItems={getSiteProductsWithCategoriesAction}
       icon={Package}
       itemLabel="Product"

@@ -180,7 +180,6 @@ export default function DirectoriesPage() {
       searchPlaceholder="Search directories"
       showClearSortAction
       showEmptyButtonWhenFiltered
-      showSelectAllBanner={false}
       sortableColumns={{ category: false, status: false }}
     />
   )

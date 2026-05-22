@@ -8,7 +8,6 @@ import {
   deletePostAction,
   deletePostsAction,
   duplicatePostAction,
-  getPostIdsAction,
   getSitePostsWithCategoriesAction,
   type Post,
 } from "@/lib/actions/posts/post-actions"
@@ -39,7 +38,6 @@ export default function PostsPage() {
       emptyTitle={(posts, filterStatus) =>
         posts.length === 0 || filterStatus === "all" ? "No posts found" : `No ${filterStatus} posts found`
       }
-      getIds={getPostIdsAction}
       getItems={getSitePostsWithCategoriesAction}
       getSearchText={(post, categories) =>
         `${post.title} ${post.slug} ${post.excerpt ?? ""} ${post.meta_description ?? ""} ${categories

@@ -1,7 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { ArrowDown, ArrowUp, ChevronsUpDown, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronsUpDown, Loader2, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { CardSection } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog"
-import { Pagination, PaginationInfo } from "@/components/ui/pagination"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils/tailwind"
 import type { AdminSortDirection } from "./hooks"
 
@@ -35,18 +35,18 @@ export function AdminSortButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex cursor-pointer items-center gap-1.5 text-[0.8125rem] text-muted-foreground outline-none transition-colors hover:text-foreground",
+        "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-foreground outline-none transition-colors hover:text-foreground sm:text-sm",
         className
       )}
     >
       <span>{children}</span>
-      <span className="ml-2 flex h-3.5 w-3.5 items-center justify-center">
+      <span className="flex h-3.5 w-3.5 items-center justify-center">
         {!active ? (
-          <ChevronsUpDown className="h-3 w-3 opacity-70" />
+          <ChevronsUpDown className="size-3 opacity-50" />
         ) : direction === "asc" ? (
-          <ArrowUp className="h-3 w-3" />
+          <ArrowUp className="size-3" />
         ) : (
-          <ArrowDown className="h-3 w-3" />
+          <ArrowDown className="size-3" />
         )}
       </span>
     </button>
@@ -65,18 +65,16 @@ export function AdminBulkDeleteButton({
   if (selectedCount === 0) return null
 
   return (
-    <Button variant="destructive" onClick={onClick} disabled={deleting}>
-      {deleting ? (
-        <>
-          <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
-          <span className="hidden sm:inline">Deleting...</span>
-        </>
-      ) : (
-        <>
-          <Trash2 className="h-4 w-4" />
-          <span className="hidden sm:inline">Delete ({selectedCount})</span>
-        </>
-      )}
+    <Button
+      type="button"
+      variant="destructive"
+      size="sm"
+      className="h-8 w-fit gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40"
+      onClick={onClick}
+      disabled={deleting}
+    >
+      {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+      Delete ({selectedCount})
     </Button>
   )
 }
@@ -204,26 +202,91 @@ export function AdminListSkeleton({
 export function AdminListFooter({
   currentPage,
   onPageChange,
+  onPageSizeChange,
   pageSize,
   total
 }: {
   currentPage: number
   onPageChange: (page: number) => void
+  onPageSizeChange?: (pageSize: number) => void
   pageSize: number
   total: number
 }) {
   if (total <= 0) return null
 
+  const totalPages = Math.ceil(total / pageSize)
+  const start = (currentPage - 1) * pageSize + 1
+  const end = Math.min(currentPage * pageSize, total)
+  const pageSizeOptions = [10, 25, 50].includes(pageSize)
+    ? [10, 25, 50]
+    : [pageSize, 10, 25, 50].sort((a, b) => a - b)
+
   return (
-    <CardSection className="flex items-center justify-between border-t">
-      <PaginationInfo currentPage={currentPage} pageSize={pageSize} total={total} />
-      <Pagination
-        currentPage={currentPage}
-        totalPages={Math.ceil(total / pageSize)}
-        onPageChange={onPageChange}
-        showFirstLast={false}
-      />
-    </CardSection>
+    <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+        <span className="hidden sm:inline">Rows per page:</span>
+        <Select
+          value={pageSize.toString()}
+          onValueChange={(value) => onPageSizeChange?.(Number(value))}
+          disabled={!onPageSizeChange}
+        >
+          <SelectTrigger className="h-8 w-[70px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {pageSizeOptions.map((size) => (
+              <SelectItem key={size} value={size.toString()}>
+                {size}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span>{start}-{end} of {total}</span>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          aria-label="Go to first page"
+        >
+          <ChevronsLeft className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8"
+          onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
+          disabled={currentPage === 1}
+          aria-label="Go to previous page"
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8"
+          onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
+          disabled={currentPage === totalPages || totalPages === 0}
+          aria-label="Go to next page"
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-8"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          aria-label="Go to last page"
+        >
+          <ChevronsRight className="size-4" />
+        </Button>
+      </div>
+    </div>
   )
 }
 

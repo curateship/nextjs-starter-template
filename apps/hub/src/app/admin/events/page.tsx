@@ -8,7 +8,6 @@ import {
   deleteEventAction,
   deleteEventsAction,
   duplicateEventAction,
-  getEventIdsAction,
   getSiteEventsWithCategoriesAction,
   type Event,
 } from "@/lib/actions/events/event-actions"
@@ -42,7 +41,6 @@ export default function EventsPage() {
       }
       emptyTitle={(events) => (events.length === 0 ? "No events yet" : "No events match your filters")}
       formatModified={(event) => new Date(event.updated_at).toLocaleDateString()}
-      getIds={getEventIdsAction}
       getItems={getSiteEventsWithCategoriesAction}
       icon={Calendar}
       itemLabel="Event"

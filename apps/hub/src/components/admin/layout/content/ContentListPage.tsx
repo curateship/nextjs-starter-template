@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import type { LucideIcon } from "lucide-react"
-import { AlertCircle, Copy, Eye, FileEdit, Globe, List, Plus, Settings, Trash2 } from "lucide-react"
+import { AlertCircle, Copy, Eye, Plus, Settings, Trash2 } from "lucide-react"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -12,8 +12,6 @@ import {
   AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
-  AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatRelativeDate,
   useAdminBulkSelection,
@@ -22,16 +20,31 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger,
+} from "@/components/admin/layout/content/table-right-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CursorPagination } from "@/components/ui/cursor-pagination"
 import { Dialog } from "@/components/ui/dialog"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface,
+} from "@/components/ui/table"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { cn } from "@/lib/utils/tailwind"
 
 export type ContentSortColumn = "title" | "category" | "status" | "modified"
 export type ContentStatusFilter = "all" | "published" | "draft"
@@ -82,7 +95,6 @@ interface ContentListPageProps<TItem extends ContentListItem> {
   getBuilderHref?: (item: TItem) => string
   getCursorItems?: (params: ContentCursorListParams) => Promise<{ data: ContentCursorListData<TItem> | null; error: string | null }>
   getDisplayPath?: (item: TItem) => string
-  getIds?: (siteId: string) => Promise<{ ids: string[]; error: string | null }>
   getIsPublished?: (item: TItem) => boolean
   getItems?: (
     siteId: string,
@@ -116,7 +128,6 @@ interface ContentListPageProps<TItem extends ContentListItem> {
   showEmptyButtonWhenFiltered?: boolean
   showNoSiteMessage?: boolean
   showPrivateBadge?: boolean
-  showSelectAllBanner?: boolean
   refreshAfterCreate?: boolean
   refreshAfterDelete?: boolean
   refreshAfterDuplicate?: boolean
@@ -147,7 +158,6 @@ export function ContentListPage<TItem extends ContentListItem>({
   getBuilderHref,
   getCursorItems,
   getDisplayPath,
-  getIds,
   getIsPublished,
   getItems,
   getPreviewHref,
@@ -168,7 +178,6 @@ export function ContentListPage<TItem extends ContentListItem>({
   showEmptyButtonWhenFiltered = false,
   showNoSiteMessage = false,
   showPrivateBadge = false,
-  showSelectAllBanner = true,
   refreshAfterCreate = false,
   refreshAfterDelete = false,
   refreshAfterDuplicate = false,
@@ -194,6 +203,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
+  const [tablePageSize, setTablePageSize] = useState(contextPageSize)
   const [total, setTotal] = useState(0)
   const [remoteStatusCounts, setRemoteStatusCounts] = useState<ContentStatusCounts | null>(null)
   const [activeCursor, setActiveCursor] = useState<string | null>(null)
@@ -204,12 +214,12 @@ export function ContentListPage<TItem extends ContentListItem>({
   const itemSelection = useAdminBulkSelection()
   const clearItemSelection = itemSelection.clearSelection
   const itemSort = useAdminSort<ContentSortColumn>()
-  const pageSize = contextPageSize
+  const pageSize = tablePageSize
   const effectiveSiteId = siteId || currentSite?.id
   const effectiveSite = previewSite === undefined ? currentSite : previewSite
   const usesCursorPagination = Boolean(getCursorItems)
   const renderCategoryColumn = showCategoryColumn || !hydrated
-  const gridClassName = columnCount === 5 && !renderCategoryColumn ? "grid-cols-5" : "grid-cols-6"
+  const tableColumnCount = renderCategoryColumn ? 6 : 5
   const canSort = {
     title: true,
     category: renderCategoryColumn,
@@ -225,6 +235,11 @@ export function ContentListPage<TItem extends ContentListItem>({
   useEffect(() => {
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    setTablePageSize(contextPageSize)
+    setCurrentPage(1)
+  }, [contextPageSize])
 
   useEffect(() => {
     if (!usesCursorPagination) return
@@ -434,16 +449,6 @@ export function ContentListPage<TItem extends ContentListItem>({
   }
   const statusCounts = remoteStatusCounts || localStatusCounts
 
-  async function handleSelectAll() {
-    if (!effectiveSiteId || total === 0 || !getIds) return
-    const { ids, error: idsError } = await getIds(effectiveSiteId)
-    if (idsError) {
-      setErrorMessage(idsError)
-      return
-    }
-    itemSelection.selectAll(ids)
-  }
-
   async function confirmDeleteItem() {
     if (!pendingDeleteId) return
 
@@ -590,123 +595,159 @@ export function ContentListPage<TItem extends ContentListItem>({
         <div className="w-full">
           <DashboardSubheader
             items={breadcrumbs || [{ label: listLabel }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: searchPlaceholder,
-            }}
-            filterMenu={{
-              value: filterStatus,
-              onValueChange: (value) => {
-                setFilterStatus(value as ContentStatusFilter)
-                itemSelection.clearSelection()
-                setCurrentPage(1)
-              },
-              items: [
-                { value: "all", label: "All", icon: List, count: statusCounts.all },
-                { value: "published", label: "Published", icon: Globe, count: statusCounts.published },
-                { value: "draft", label: "Draft", icon: FileEdit, count: statusCounts.draft },
-              ],
-            }}
-            preActions={
-              showClearSortAction && itemSort.sortColumn ? (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={itemSort.resetSort}>
-                    Clear Sort
-                  </Button>
+          />
+
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">{listLabel}</span>
+                <Badge variant="secondary">{usesCursorPagination ? total : filteredItems.length}</Badge>
+                {itemSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={itemSelection.clearSelection}
+                  >
+                    Clear {itemSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
                   <AdminBulkDeleteButton
                     deleting={massDeleting}
                     onClick={() => setMassDeleteConfirmOpen(true)}
                     selectedCount={itemSelection.selectedCount}
                   />
                 </div>
-              ) : (
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={itemSelection.selectedCount}
-                />
-              )
-            }
-            actions={
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{createButtonLabel}</span>
-              </Button>
-            }
-          />
-
-          <Card>
-            <CardTableHeader className={gridClassName}>
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={itemSelection.isPageSelected(visibleItemIds)}
-                  onCheckedChange={() => itemSelection.togglePage(visibleItemIds)}
-                  aria-label={`Select all ${itemLabelPlural.toLowerCase()}`}
-                />
-                {renderSortHeader("title", itemLabel)}
               </div>
-              {renderCategoryColumn && renderSortHeader("category", "Category")}
-              {renderSortHeader("status", "Status")}
-              {renderSortHeader("modified", "Modified")}
-              <div>Actions</div>
-            </CardTableHeader>
-
-            {showSelectAllBanner && getIds && (
-              <AdminSelectionBanner
-                allSelected={itemSelection.allSelected}
-                onClearSelection={itemSelection.clearSelection}
-                onSelectAll={handleSelectAll}
-                selectedCount={itemSelection.selectedCount}
-                total={total}
-                visibleCount={visibleItemIds.length}
-              />
-            )}
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton
-                  columns={gridClassName === "grid-cols-5" ? 5 : 6}
-                  rowCount={columnCount === 5 ? 4 : 5}
+              <TableRightActions>
+                {showClearSortAction && itemSort.sortColumn ? (
+                  <TableRightActionsButton variant="outline" onClick={itemSort.resetSort}>
+                    Clear Sort
+                  </TableRightActionsButton>
+                ) : null}
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={searchPlaceholder}
                 />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-                  <h3 className="mt-4 text-lg font-semibold text-red-900">Error Loading {itemLabelPlural}</h3>
-                  <p className="text-red-700">{error}</p>
-                </div>
-              ) : filteredItems.length === 0 ? (
-                <div className="p-12 text-center">
-                  <EmptyIcon className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <h3 className="mt-4 text-lg font-semibold">{emptyTitle(items, filterStatus)}</h3>
-                  {emptyDescription && (
-                    <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
-                  )}
-                  {(items.length === 0 || showEmptyButtonWhenFiltered) && (
-                    <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
-                      {emptyButtonLabel}
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                sortedItems.map((item) => {
-                  const itemCategories = categoriesByItemId[item.id] || []
-                  const previewHref = getPreviewHref
-                    ? getPreviewHref(item, effectiveSite)
-                    : effectiveSite
-                      ? `${getSiteUrl(effectiveSite)}/${pathPrefix}/${item.slug}`
-                      : "#"
-                  const previewDisabled = previewPublishedOnly && !isPublished(item)
-                  const rowIcon = getRowIcon?.(item)
+                <Select
+                  value={filterStatus}
+                  onValueChange={(value) => {
+                    setFilterStatus(value as ContentStatusFilter)
+                    itemSelection.clearSelection()
+                    setCurrentPage(1)
+                  }}
+                >
+                  <TableRightActionsSelectTrigger aria-label={`${itemLabel} status filter`}>
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({statusCounts.all})</SelectItem>
+                    <SelectItem value="published">Published ({statusCounts.published})</SelectItem>
+                    <SelectItem value="draft">Draft ({statusCounts.draft})</SelectItem>
+                  </SelectContent>
+                </Select>
+                <TableRightActionsButton onClick={() => setShowCreateDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">{createButtonLabel}</span>
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={cn("p-6 transition-colors", itemSelection.selectedIds.has(item.id) && "bg-accent/50")}
-                    >
-                      <div className={cn("grid items-center gap-4", gridClassName)}>
-                        <div className="col-span-2">
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={itemSelection.isPageSelected(visibleItemIds)}
+                        onCheckedChange={() => itemSelection.togglePage(visibleItemIds)}
+                        aria-label={`Select all ${itemLabelPlural.toLowerCase()}`}
+                      />
+                    </TableHead>
+                    <TableHead column="main">{renderSortHeader("title", itemLabel)}</TableHead>
+                    {renderCategoryColumn && <TableHead column="content">{renderSortHeader("category", "Category")}</TableHead>}
+                    <TableHead column="meta">{renderSortHeader("status", "Status")}</TableHead>
+                    <TableHead column="meta">{renderSortHeader("modified", "Modified")}</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    Array.from({ length: columnCount === 5 ? 4 : 5 }, (_, index) => (
+                      <TableRow key={index}>
+                        <TableCell column="select">
+                          <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                        </TableCell>
+                        <TableCell column="main">
                           <div className="flex items-center space-x-4">
+                            <div className="h-10 w-10 animate-pulse rounded bg-muted" />
+                            <div>
+                              <div className="mb-2 h-4 w-36 animate-pulse rounded bg-muted" />
+                              <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
+                            </div>
+                          </div>
+                        </TableCell>
+                        {renderCategoryColumn && (
+                          <TableCell column="content">
+                            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                          </TableCell>
+                        )}
+                        <TableCell column="mutedMeta">
+                          <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                        </TableCell>
+                        <TableCell column="mutedMeta">
+                          <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                        </TableCell>
+                        <TableCell column="meta">
+                          <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={tableColumnCount} className="h-32 text-center">
+                        <AlertCircle className="mx-auto h-10 w-10 text-red-500" />
+                        <h3 className="mt-4 text-lg font-semibold text-red-900">Error Loading {itemLabelPlural}</h3>
+                        <p className="text-red-700">{error}</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={tableColumnCount} className="h-32 text-center">
+                        <EmptyIcon className="mx-auto h-10 w-10 text-muted-foreground" />
+                        <h3 className="mt-4 text-lg font-semibold">{emptyTitle(items, filterStatus)}</h3>
+                        {emptyDescription && (
+                          <p className="mt-2 text-muted-foreground">{emptyDescription(items, filterStatus)}</p>
+                        )}
+                        {(items.length === 0 || showEmptyButtonWhenFiltered) && (
+                          <Button onClick={() => setShowCreateDialog(true)} className="mt-4" variant="outline">
+                            {emptyButtonLabel}
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedItems.map((item) => {
+                      const itemCategories = categoriesByItemId[item.id] || []
+                      const previewHref = getPreviewHref
+                        ? getPreviewHref(item, effectiveSite)
+                        : effectiveSite
+                          ? `${getSiteUrl(effectiveSite)}/${pathPrefix}/${item.slug}`
+                          : "#"
+                      const previewDisabled = previewPublishedOnly && !isPublished(item)
+                      const rowIcon = getRowIcon?.(item)
+
+                      return (
+                        <TableRow
+                          key={item.id}
+                          data-state={itemSelection.selectedIds.has(item.id) ? "selected" : undefined}
+                          className="group"
+                        >
+                          <TableCell column="select">
                             {isSelectable(item) ? (
                               <Checkbox
                                 checked={itemSelection.selectedIds.has(item.id)}
@@ -716,11 +757,13 @@ export function ContentListPage<TItem extends ContentListItem>({
                             ) : (
                               <div className="w-4" />
                             )}
+                          </TableCell>
+                          <TableCell column="main">
                             <Link
                               href={getBuilderHref?.(item) || `${builderPath}/${item.site_id}?${itemLabel.toLowerCase()}=${item.slug}`}
-                              className="flex items-center space-x-4 transition-opacity hover:opacity-80"
+                              className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
                             >
-                              <div className="ml-2 flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
                                 {item.featured_image ? (
                                   <img
                                     src={item.featured_image}
@@ -733,89 +776,92 @@ export function ContentListPage<TItem extends ContentListItem>({
                                   <EmptyIcon className="h-6 w-6 text-muted-foreground" />
                                 )}
                               </div>
-                              <div>
-                                <h4 className="font-medium hover:underline">{item.title}</h4>
-                                <p className="text-sm text-muted-foreground">
+                              <div className="min-w-0">
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{item.title}</h4>
+                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
                                   {getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
                                 </p>
                               </div>
                             </Link>
-                          </div>
-                        </div>
-                        {renderCategoryColumn && (
-                          <div className="flex flex-wrap gap-1">
-                            {itemCategories.length ? (
-                              itemCategories.map((category) => (
-                                <Badge key={category.id} variant="outline" className="text-xs">
-                                  {category.title}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-sm text-muted-foreground">-</span>
-                            )}
-                          </div>
-                        )}
-                        <div>{renderStatusBadge ? renderStatusBadge(item) : getDefaultStatusBadge(item)}</div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">
+                          </TableCell>
+                          {renderCategoryColumn && (
+                            <TableCell column="content">
+                              <div className="flex flex-wrap gap-1">
+                                {itemCategories.length ? (
+                                  itemCategories.map((category) => (
+                                    <Badge key={category.id} variant="outline" className="text-xs">
+                                      {category.title}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          <TableCell column="meta">{renderStatusBadge ? renderStatusBadge(item) : getDefaultStatusBadge(item)}</TableCell>
+                          <TableCell column="mutedMeta">
                             {formatModified ? formatModified(item) : formatRelativeDate(item.updated_at)}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => setSettingsItem(item)}
-                            title={`${itemLabel} Settings`}
-                          >
-                            <Settings className="h-4 w-4" />
-                            <span className="sr-only">{itemLabel} Settings</span>
-                          </Button>
-                          {previewDisabled ? (
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled title={`Publish ${itemLabel.toLowerCase()} to preview`}>
-                              <Eye className="h-4 w-4" />
-                              <span className="sr-only">Publish {itemLabel.toLowerCase()} to preview</span>
-                            </Button>
-                          ) : (
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <a href={previewHref} target="_blank" rel="noopener noreferrer" title="Preview">
-                                <Eye className="h-4 w-4" />
-                                <span className="sr-only">Preview</span>
-                              </a>
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleDuplicate(item)}
-                            disabled={duplicatingItemId === item.id}
-                            title="Duplicate"
-                          >
-                            <Copy className="h-4 w-4" />
-                            <span className="sr-only">Duplicate</span>
-                          </Button>
-                          {isDeletable(item) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                              onClick={() => setPendingDeleteId(item.id)}
-                              disabled={deletingItemId === item.id}
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+                          </TableCell>
+                          <TableCell column="meta">
+                            <div className="flex items-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => setSettingsItem(item)}
+                                title={`${itemLabel} Settings`}
+                              >
+                                <Settings className="h-4 w-4" />
+                                <span className="sr-only">{itemLabel} Settings</span>
+                              </Button>
+                              {previewDisabled ? (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled title={`Publish ${itemLabel.toLowerCase()} to preview`}>
+                                  <Eye className="h-4 w-4" />
+                                  <span className="sr-only">Publish {itemLabel.toLowerCase()} to preview</span>
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                                  <a href={previewHref} target="_blank" rel="noopener noreferrer" title="Preview">
+                                    <Eye className="h-4 w-4" />
+                                    <span className="sr-only">Preview</span>
+                                  </a>
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleDuplicate(item)}
+                                disabled={duplicatingItemId === item.id}
+                                title="Duplicate"
+                              >
+                                <Copy className="h-4 w-4" />
+                                <span className="sr-only">Duplicate</span>
+                              </Button>
+                              {isDeletable(item) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => setPendingDeleteId(item.id)}
+                                  disabled={deletingItemId === item.id}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Delete</span>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
 
             {!loading && usesCursorPagination && total > 0 && (
               <div className="flex items-center justify-between border-t px-6 py-4">
@@ -837,9 +883,14 @@ export function ContentListPage<TItem extends ContentListItem>({
                 pageSize={pageSize}
                 total={total}
                 onPageChange={setCurrentPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setTablePageSize(nextPageSize)
+                  setCurrentPage(1)
+                  itemSelection.clearSelection()
+                }}
               />
             )}
-          </Card>
+          </TableSurface>
         </div>
 
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

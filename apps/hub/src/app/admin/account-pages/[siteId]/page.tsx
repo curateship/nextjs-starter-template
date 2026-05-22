@@ -11,7 +11,6 @@ import {
   deleteAccountPageAction,
   deleteAccountPagesAction,
   duplicateAccountPageAction,
-  getAccountPageIdsAction,
   getAccountPagesAction,
   type AccountPage,
 } from "@/lib/actions/account-pages/account-pages-actions"
@@ -62,7 +61,6 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
       }
       getBuilderHref={(page) => `/admin/account-pages/builder/${siteId}?page=${page.slug}`}
       getDisplayPath={(page) => getAccountPagePath(page.slug)}
-      getIds={getAccountPageIdsAction}
       getItems={getPages}
       getPreviewHref={(page, previewSite) =>
         previewSite ? `${getSiteUrl(previewSite)}${getAccountPagePath(page.slug)}` : "#"
