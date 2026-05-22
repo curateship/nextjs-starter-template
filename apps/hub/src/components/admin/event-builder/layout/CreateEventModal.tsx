@@ -286,7 +286,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
                   onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                   placeholder="SEO meta description"
                   rows={1}
-                  className="min-h-10 [field-sizing:content]"
+                  className="min-h-10 field-sizing-content"
                 />
                 <FieldDescription>
                   Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160

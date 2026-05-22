@@ -88,6 +88,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 4. Page/content rows store only their own content blocks as JSON
 5. Each content type (products, posts, pages, categories, directories, events, sponsors) belongs to a site via `site_id`
 6. Site-facing users are global Better Auth users linked to sites through `site_memberships`; site role/status/activity live on that join table, not on the global user row
+7. Admin notifications are stored per `super_admin` recipient in `hub_notifications`; event creators insert one row per current super admin so read state stays per account.
 
 **Frontend slug resolution:**
 - Public page-builder pages own the normal frontend root slug space.

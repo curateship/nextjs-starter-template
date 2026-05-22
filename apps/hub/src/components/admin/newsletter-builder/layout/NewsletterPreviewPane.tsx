@@ -7,7 +7,6 @@ import type { NewsletterBlock } from "../config/useNewsletterBuilder"
 interface NewsletterPreviewPaneProps {
   selectedBlock: NewsletterBlock | null
   blocks: NewsletterBlock[]
-  previewWidth: number
   emailWidth?: number
   siteId: string
   subject?: string
@@ -20,7 +19,6 @@ interface NewsletterPreviewPaneProps {
 export function NewsletterPreviewPane({
   selectedBlock,
   blocks,
-  previewWidth,
   emailWidth = 600,
   siteId,
   subject,
@@ -82,7 +80,6 @@ export function NewsletterPreviewPane({
     <div className="flex-1 overflow-hidden border-r bg-background">
       <NewsletterCanvas
         blocks={blocks}
-        previewWidth={previewWidth}
         emailWidth={emailWidth}
         siteId={siteId}
         onSelectBlock={(block) => onSelectBlock(block)}

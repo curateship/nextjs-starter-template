@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils/tailwind"
 
 interface NewsletterCanvasProps {
   blocks: NewsletterBlock[]
-  previewWidth: number
   emailWidth?: number
   siteId: string
   onSelectBlock: (block: NewsletterBlock) => void
@@ -28,7 +27,6 @@ interface NewsletterCanvasProps {
 
 export function NewsletterCanvas({
   blocks,
-  previewWidth,
   emailWidth = 600,
   siteId,
   onSelectBlock,
@@ -41,7 +39,6 @@ export function NewsletterCanvas({
   onUpdateInlineRichText,
   onOpenBlockSettings,
 }: NewsletterCanvasProps) {
-  const effectiveWidth = Math.min(previewWidth, emailWidth)
   const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null)
   const [isSubjectFocused, setIsSubjectFocused] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
@@ -87,7 +84,7 @@ export function NewsletterCanvas({
         }
       `}</style>
       <div className="p-8">
-        <div className="mx-auto bg-white shadow-sm overflow-hidden transition-all duration-300" style={{ maxWidth: effectiveWidth }}>
+        <div className="mx-auto bg-white shadow-sm overflow-hidden" style={{ maxWidth: emailWidth }}>
           {/* Email subject */}
           {onSubjectChange ? (
             <div

@@ -935,7 +935,7 @@ function StatusMetric({
   return (
     <div className={cn("space-y-1", className)}>
       <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className="break-words text-sm">{children}</div>
+      <div className="wrap-break-word text-sm">{children}</div>
     </div>
   )
 }

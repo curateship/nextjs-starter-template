@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { emailAutomationEnrollments, emailAutomations, emailAutomationSteps, newsletterContacts, productOrders, products } from '@/lib/db/schema'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { emailService } from '@/lib/actions/email/email-service'
+import { createHubNotificationForSuperAdmins } from '@/lib/actions/notifications/notification-service'
 import {
   buildSystemEmailTokens,
   getSystemEmailTemplate,
@@ -170,6 +171,28 @@ export async function recordPaidPurchase(params: {
     id: productOrders.id,
     accessToken: productOrders.accessToken,
   })
+
+  if (order) {
+    const [product] = await db
+      .select({ title: products.title })
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.siteId, siteId)))
+      .limit(1)
+
+    await createHubNotificationForSuperAdmins({
+      type: 'product_order',
+      siteId,
+      sourceId: order.id,
+      title: 'New paid purchase',
+      message: `${customerEmail.toLowerCase().trim()} purchased ${product?.title ?? 'a product'}.`,
+      targetHref: '/admin/orders?type=paid_purchase',
+      metadata: {
+        product_id: productId,
+        order_type: 'paid_purchase',
+        payment_status: params.paymentStatus,
+      },
+    })
+  }
 
   try {
     await db

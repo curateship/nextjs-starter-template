@@ -1,0 +1,319 @@
+"use client"
+
+import { useCallback, useEffect, useState, type UIEvent } from "react"
+import { useRouter } from "next/navigation"
+import {
+  AlertTriangle,
+  Bell,
+  CheckCheck,
+  Loader2,
+  ShieldCheck,
+  ShoppingCart,
+  type LucideIcon,
+} from "lucide-react"
+
+import {
+  listHubNotificationPage,
+  markAllHubNotificationsRead,
+  markHubNotificationRead,
+  type HubNotificationItem,
+} from "@/lib/actions/notifications/notification-actions"
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Separator } from "@/components/ui/separator"
+import { cn } from "@/lib/utils/tailwind"
+
+type NotificationFilter = "all" | "unread"
+
+const NOTIFICATION_PAGE_SIZE = 20
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+const notificationIcons: Record<HubNotificationItem["type"], LucideIcon> = {
+  product_order: ShoppingCart,
+  directory_claim: ShieldCheck,
+  newsletter_paused: AlertTriangle,
+}
+
+function getHubNotificationErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Notification request failed."
+}
+
+function NotificationTabs({
+  activeFilter,
+  unreadCount,
+  onFilterChange,
+}: {
+  activeFilter: NotificationFilter
+  unreadCount: number
+  onFilterChange: (filter: NotificationFilter) => void
+}) {
+  const tabs: { label: string; value: NotificationFilter }[] = [
+    { label: "View all", value: "all" },
+    { label: `Unread (${unreadCount})`, value: "unread" },
+  ]
+
+  return (
+    <div className="flex rounded-lg bg-muted p-1">
+      {tabs.map((tab) => (
+        <Button
+          key={tab.value}
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "h-8 rounded-md border border-transparent px-3",
+            activeFilter === tab.value && "border-border bg-background shadow-sm hover:bg-background"
+          )}
+          onClick={() => onFilterChange(tab.value)}
+        >
+          {tab.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+function NotificationRow({
+  item,
+  onOpen,
+}: {
+  item: HubNotificationItem
+  onOpen: (item: HubNotificationItem) => void
+}) {
+  const Icon = notificationIcons[item.type]
+
+  return (
+    <button
+      type="button"
+      className="grid w-full grid-cols-[0.25rem_2.5rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
+      onClick={() => onOpen(item)}
+    >
+      <div className="pt-5">
+        {!item.read_at ? (
+          <span className="block size-2 rounded-full bg-primary" />
+        ) : null}
+      </div>
+      <div className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium leading-snug">{item.title}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+          {item.message}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {item.site_name} - {dateFormatter.format(new Date(item.created_at))}
+        </p>
+      </div>
+    </button>
+  )
+}
+
+export function NotificationCenter() {
+  const router = useRouter()
+  const { sites, setCurrentSite } = useSiteSwitcher()
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState<NotificationFilter>("all")
+  const [notifications, setNotifications] = useState<HubNotificationItem[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const visibleNotifications = filter === "unread"
+    ? notifications.filter((item) => !item.read_at)
+    : notifications
+
+  const loadNotificationRows = useCallback(async (cursor?: string) => {
+    if (cursor) {
+      setLoadingMore(true)
+    } else {
+      setLoading(true)
+    }
+    setError(null)
+
+    try {
+      const data = await listHubNotificationPage({
+        cursor,
+        limit: NOTIFICATION_PAGE_SIZE,
+      })
+      setNotifications((current) =>
+        cursor ? [...current, ...data.notifications] : data.notifications
+      )
+      setUnreadCount(data.unread_count)
+      setNextCursor(data.next_cursor)
+    } catch (loadError) {
+      setError(getHubNotificationErrorMessage(loadError))
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadNotificationRows()
+  }, [loadNotificationRows])
+
+  useEffect(() => {
+    if (!open) return
+    void loadNotificationRows()
+  }, [loadNotificationRows, open])
+
+  function loadMoreOnScroll(event: UIEvent<HTMLDivElement>) {
+    const element = event.currentTarget
+    const distanceFromBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight
+
+    if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
+      return
+    }
+
+    void loadNotificationRows(nextCursor)
+  }
+
+  async function markAllAsRead() {
+    if (unreadCount === 0) return
+
+    setError(null)
+    try {
+      const result = await markAllHubNotificationsRead()
+      const readIds = new Set(result.notificationIds)
+      setNotifications((current) =>
+        current.map((item) =>
+          readIds.has(item.id) ? { ...item, read_at: result.readAt } : item
+        )
+      )
+      setUnreadCount(0)
+    } catch (readError) {
+      setError(getHubNotificationErrorMessage(readError))
+    }
+  }
+
+  async function openNotification(item: HubNotificationItem) {
+    setError(null)
+
+    if (!item.read_at) {
+      try {
+        const result = await markHubNotificationRead(item.id)
+        setNotifications((current) =>
+          current.map((currentItem) =>
+            currentItem.id === result.notificationId
+              ? { ...currentItem, read_at: result.readAt }
+              : currentItem
+          )
+        )
+        setUnreadCount((current) => Math.max(0, current - 1))
+      } catch (readError) {
+        setError(getHubNotificationErrorMessage(readError))
+        return
+      }
+    }
+
+    const targetSite = sites.find((site) => site.id === item.site_id)
+    if (targetSite) setCurrentSite(targetSite)
+
+    setOpen(false)
+    const safeTarget =
+      (item.target_href === "/admin" ||
+        item.target_href.startsWith("/admin/") ||
+        item.target_href.startsWith("/admin?")) &&
+      !item.target_href.includes("\\")
+
+    if (safeTarget) {
+      router.push(item.target_href)
+    }
+  }
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="relative"
+          aria-label="Notifications"
+          title="Notifications"
+        >
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 ? (
+            <span className="absolute right-1.5 top-1.5 size-2 rounded-full border border-background bg-primary" />
+          ) : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={12}
+        className="w-[calc(100vw-2rem)] max-w-104 overflow-hidden p-0 sm:w-104"
+      >
+        <div className="flex flex-wrap items-center gap-3 p-4">
+          <h2 className="mr-auto text-xl font-semibold">Notifications</h2>
+          <NotificationTabs
+            activeFilter={filter}
+            unreadCount={unreadCount}
+            onFilterChange={setFilter}
+          />
+        </div>
+        <Separator />
+
+        <div
+          className="h-112 overflow-y-auto px-4 py-4"
+          onScroll={loadMoreOnScroll}
+        >
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading notifications
+            </div>
+          ) : visibleNotifications.length > 0 ? (
+            <div className="space-y-3">
+              {visibleNotifications.map((item) => (
+                <NotificationRow
+                  key={item.id}
+                  item={item}
+                  onOpen={(row) => void openNotification(row)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              No notifications
+            </div>
+          )}
+          {error ? (
+            <p className="mt-4 text-sm text-destructive">{error}</p>
+          ) : null}
+          {loadingMore ? (
+            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading more
+            </div>
+          ) : null}
+        </div>
+        <Separator />
+        <div className="flex flex-wrap items-center gap-2 p-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={markAllAsRead}
+            disabled={unreadCount === 0}
+          >
+            <CheckCheck className="h-4 w-4" />
+            Mark all as read
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}

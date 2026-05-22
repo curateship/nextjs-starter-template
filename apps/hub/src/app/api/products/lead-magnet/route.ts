@@ -14,6 +14,7 @@ import {
   renderSystemEmailSubject,
 } from '@/lib/actions/email/system-email'
 import { upsertSystemNewsletterContact } from '@/lib/actions/newsletters/system-contact-sync'
+import { createHubNotificationForSuperAdmins } from '@/lib/actions/notifications/notification-service'
 import {
   normalizeProductLeadMagnetContent,
   renderProductLeadMagnetTokens,
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
         ))
         .limit(1)
 
-      if (existingOrder) return existingOrder
+      if (existingOrder) return { ...existingOrder, created: false }
 
       const [createdOrder] = await tx
         .insert(productOrders)
@@ -188,11 +189,27 @@ export async function POST(request: NextRequest) {
           accessToken: productOrders.accessToken,
         })
 
-      return createdOrder
+      return createdOrder ? { ...createdOrder, created: true } : null
     })
 
     if (!order) {
       return NextResponse.json({ success: false, error: 'Failed to save signup' }, { status: 500 })
+    }
+
+    if (order.created) {
+      await createHubNotificationForSuperAdmins({
+        type: 'product_order',
+        siteId,
+        sourceId: order.id,
+        title: 'New lead magnet signup',
+        message: `${email} signed up for ${product.title}.`,
+        targetHref: '/admin/orders?type=lead_magnet',
+        metadata: {
+          product_id: product.id,
+          order_type: 'lead_magnet',
+          block_id: blockId,
+        },
+      })
     }
 
     const contactResult = await upsertSystemNewsletterContact({

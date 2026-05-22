@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, type ReactNode } from "react"
-import { Monitor, Smartphone, Tablet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
@@ -15,14 +14,6 @@ import { NEWSLETTER_BLOCK_TYPES } from "../config/newsletter-block-types"
 import type { BlockSelection, NewsletterBlock } from "../config/useBlockEditor"
 import { NewsletterBlockEditor } from "./NewsletterBlockEditor"
 import { NewsletterPreviewPane } from "./NewsletterPreviewPane"
-
-const PREVIEW_WIDTHS = {
-  desktop: 600,
-  tablet: 480,
-  mobile: 320,
-} as const
-
-type PreviewWidth = keyof typeof PREVIEW_WIDTHS
 
 interface NewsletterEditorShellProps {
   blocks: NewsletterBlock[]
@@ -54,46 +45,6 @@ interface NewsletterEditorShellProps {
   onPublish?: () => void | Promise<void>
   renderSettingsModal?: (show: boolean, setShow: (show: boolean) => void) => ReactNode
   settingsDisabled?: boolean
-}
-
-function PreviewWidthControls({
-  previewWidth,
-  onPreviewWidthChange,
-}: {
-  previewWidth: PreviewWidth
-  onPreviewWidthChange: (width: PreviewWidth) => void
-}) {
-  return (
-    <div className="flex h-8 items-center overflow-hidden rounded-md border">
-      <Button
-        variant={previewWidth === "desktop" ? "default" : "ghost"}
-        size="sm"
-        className="h-8 w-8 rounded-r-none p-0"
-        onClick={() => onPreviewWidthChange("desktop")}
-        title="Desktop (600px)"
-      >
-        <Monitor className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant={previewWidth === "tablet" ? "default" : "ghost"}
-        size="sm"
-        className="h-8 w-8 rounded-none border-x p-0"
-        onClick={() => onPreviewWidthChange("tablet")}
-        title="Tablet (480px)"
-      >
-        <Tablet className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant={previewWidth === "mobile" ? "default" : "ghost"}
-        size="sm"
-        className="h-8 w-8 rounded-l-none p-0"
-        onClick={() => onPreviewWidthChange("mobile")}
-        title="Mobile (320px)"
-      >
-        <Smartphone className="h-3.5 w-3.5" />
-      </Button>
-    </div>
-  )
 }
 
 function NewsletterEditorLoading({
@@ -220,7 +171,6 @@ export function NewsletterEditorShell({
   renderSettingsModal,
   settingsDisabled,
 }: NewsletterEditorShellProps) {
-  const [previewWidth, setPreviewWidth] = useState<PreviewWidth>("desktop")
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
@@ -290,7 +240,6 @@ export function NewsletterEditorShell({
             rightActions={(
               <div className="flex items-center gap-2">
                 {headerActions}
-                <PreviewWidthControls previewWidth={previewWidth} onPreviewWidthChange={setPreviewWidth} />
               </div>
             )}
             saveMessage={saveMessage}
@@ -311,7 +260,6 @@ export function NewsletterEditorShell({
         <NewsletterPreviewPane
           selectedBlock={selectedBlock}
           blocks={blocks}
-          previewWidth={PREVIEW_WIDTHS[previewWidth]}
           emailWidth={emailWidth}
           updateBlockContent={updateBlockContent}
           onSelectBlock={onSelectBlock}

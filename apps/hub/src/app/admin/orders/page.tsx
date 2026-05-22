@@ -97,6 +97,12 @@ function OrdersContent() {
   const pageSize = contextPageSize
 
   useEffect(() => {
+    const nextTab = typeParam === "lead_magnet" || typeParam === "paid_purchase" ? typeParam : "all"
+    setActiveTab(nextTab)
+    setCurrentPage(1)
+  }, [typeParam])
+
+  useEffect(() => {
     if (!currentSite?.id) return
 
     const fetchData = async () => {

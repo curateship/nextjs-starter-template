@@ -7,6 +7,7 @@ import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions'
+import { createHubNotificationForSuperAdmins } from '@/lib/actions/notifications/notification-service'
 import { db } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { authUsers, directories, directoryClaims, sites } from '@/lib/db/schema'
@@ -620,6 +621,7 @@ export async function verifyDirectoryClaimEmailToken(token: string): Promise<{
     .select({
       claim: directoryClaims,
       directorySlug: directories.slug,
+      directoryTitle: directories.title,
     })
     .from(directoryClaims)
     .innerJoin(directories, eq(directories.id, directoryClaims.directoryId))
@@ -643,6 +645,19 @@ export async function verifyDirectoryClaimEmailToken(token: string): Promise<{
       updatedAt: new Date(),
     })
     .where(eq(directoryClaims.id, row.claim.id))
+
+  await createHubNotificationForSuperAdmins({
+    type: 'directory_claim',
+    siteId: row.claim.siteId,
+    sourceId: row.claim.id,
+    title: 'Directory claim ready for review',
+    message: `${row.claim.businessEmail} verified a claim for ${row.directoryTitle}.`,
+    targetHref: '/admin/directories/claims',
+    metadata: {
+      directory_id: row.claim.directoryId,
+      directory_slug: row.directorySlug,
+    },
+  })
 
   return { success: true, directorySlug: row.directorySlug }
 }

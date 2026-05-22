@@ -3,9 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDown, Monitor, Moon, PanelLeft, Sun, SunMoon, type LucideIcon } from "lucide-react"
+import { ChevronDown, Monitor, Moon, MoreVertical, PanelLeft, Sun, SunMoon, type LucideIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils/tailwind"
+import { NotificationCenter } from "@/components/admin/layout/stickybar/NotificationCenter"
 import { useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -53,7 +54,7 @@ export function StickyHeader({
   const pathname = usePathname()
   const { setTheme } = useTheme()
   const { currentSite, sites } = useSiteSwitcher()
-  const { setSlot } = useDashboardHeaderActionsSlot()
+  const { setSlot, setMobileOverflowSlot } = useDashboardHeaderActionsSlot()
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
   const routeSite = routeSiteId
     ? sites.find((site) => site.id === routeSiteId) ?? null
@@ -76,6 +77,9 @@ export function StickyHeader({
   const actionsSlotRef = React.useCallback((node: HTMLDivElement | null) => {
     setSlot(node)
   }, [setSlot])
+  const mobileOverflowSlotRef = React.useCallback((node: HTMLDivElement | null) => {
+    setMobileOverflowSlot(node)
+  }, [setMobileOverflowSlot])
   const renderNavIcon = (item: HeaderNavItem, className?: string) => {
     const Icon = item.icon ?? (item.iconName ? getQuickLinkIconOrNull(item.iconName) : null)
 
@@ -199,6 +203,7 @@ export function StickyHeader({
         <div className="flex items-center gap-1 pr-1">
           <div ref={actionsSlotRef} className="flex items-center gap-2" />
           {rightActions}
+          <NotificationCenter />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -207,11 +212,41 @@ export function StickyHeader({
                 size="sm"
                 aria-label="Theme"
                 title="Theme"
+                className="hidden sm:inline-flex"
               >
                 <SunMoon className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme("light")}>
+                <Sun />
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")}>
+                <Moon />
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")}>
+                <Monitor />
+                System
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="More actions"
+                title="More actions"
+                className="sm:hidden"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div ref={mobileOverflowSlotRef} />
               <DropdownMenuItem onClick={() => setTheme("light")}>
                 <Sun />
                 Light

@@ -462,7 +462,7 @@ export function PostSettingsModal({
                     onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                     placeholder="A brief description of this post for search engines"
                     rows={1}
-                    className="min-h-10 [field-sizing:content]"
+                    className="min-h-10 field-sizing-content"
                   />
                   <FieldDescription>
                     Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)

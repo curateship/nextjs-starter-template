@@ -38,7 +38,7 @@ function TableRightActionsSearch({
         inputMode="search"
         autoComplete="off"
         className={cn(
-          "h-8 w-full pr-8 pl-9 text-sm sm:w-[180px] sm:pl-10 lg:w-[240px]",
+          "h-8 w-full pr-8 pl-9 text-sm shadow-none sm:w-[180px] sm:pl-10 lg:w-[240px]",
           inputClassName
         )}
         {...props}
@@ -72,7 +72,7 @@ function TableRightActionsSelectTrigger({
   return (
     <SelectTrigger
       size={size}
-      className={cn("h-8 w-fit text-xs sm:text-sm", className)}
+      className={cn("h-8 w-fit text-xs shadow-none sm:text-sm", className)}
       {...props}
     />
   )

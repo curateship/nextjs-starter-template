@@ -7,6 +7,7 @@ import { generateUnsubscribeToken } from '@/lib/utils/unsubscribe-token'
 import { getEmailProvider, type EmailProvider } from '@/lib/actions/email/provider'
 import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-windows'
 import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
+import { createHubNotificationForSuperAdmins } from '@/lib/actions/notifications/notification-service'
 import { randomUUID } from 'crypto'
 
 const BATCH_SIZE = 50
@@ -346,6 +347,21 @@ export async function GET(request: NextRequest) {
               })
               .where(eq(newsletters.id, newsletter.id))
             lockReleased = true
+
+            await createHubNotificationForSuperAdmins({
+              type: 'newsletter_paused',
+              siteId: newsletter.siteId,
+              sourceId: newsletter.id,
+              title: 'Newsletter auto-paused',
+              message: `${newsletter.name} paused after bounce rate reached ${bounceRate.toFixed(1)}%.`,
+              targetHref: `/admin/newsletters/${newsletter.id}`,
+              metadata: {
+                bounce_rate: bounceRate,
+                bounce_threshold: threshold,
+                total_bounced: totalBounced,
+                total_sent: newTotalSent,
+              },
+            })
 
             // Send admin email notification
             await sendBounceAlertEmail(newsletter, config, provider, bounceRate, threshold, totalBounced, newTotalSent)

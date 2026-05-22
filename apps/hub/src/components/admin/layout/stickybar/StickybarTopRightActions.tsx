@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState } from "react"
+import { createPortal } from "react-dom"
 import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown, Search, ListFilter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,8 @@ import { cn } from "@/lib/utils/tailwind"
 interface DashboardHeaderActionsSlotContextValue {
   slot: HTMLDivElement | null
   setSlot: (slot: HTMLDivElement | null) => void
+  mobileOverflowSlot: HTMLDivElement | null
+  setMobileOverflowSlot: (slot: HTMLDivElement | null) => void
 }
 
 interface SaveStatusBadgeProps {
@@ -44,9 +47,10 @@ export function DashboardHeaderActionsSlotProvider({
   children: React.ReactNode
 }) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null)
+  const [mobileOverflowSlot, setMobileOverflowSlot] = useState<HTMLDivElement | null>(null)
 
   return (
-    <DashboardHeaderActionsSlotContext.Provider value={{ slot, setSlot }}>
+    <DashboardHeaderActionsSlotContext.Provider value={{ slot, setSlot, mobileOverflowSlot, setMobileOverflowSlot }}>
       {children}
     </DashboardHeaderActionsSlotContext.Provider>
   )
@@ -103,7 +107,6 @@ interface StickybarTopRightActionsProps {
   isPublishing?: boolean
   publishLabel?: string
   publishingLabel?: string
-  publishedLabel?: string
   isPublished?: boolean
   blockListOpen?: boolean
   onToggleBlockList?: () => void
@@ -129,17 +132,19 @@ export function StickybarTopRightActions({
   isPublishing = false,
   publishLabel = "Publish",
   publishingLabel = "Publishing...",
-  publishedLabel = "Published",
   isPublished = false,
   blockListOpen,
   onToggleBlockList,
 }: StickybarTopRightActionsProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const activeItem = filterMenu?.items.find((item) => item.value === filterMenu.value) ?? filterMenu?.items[0]
+  const { mobileOverflowSlot } = useDashboardHeaderActionsSlot()
+  const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || viewPageHref || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
+  const mobileMenuItemClassName = "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
 
   return (
     <>
-      <div className={cn("flex items-center gap-2 [&_[data-slot=button]]:h-8", className)}>
+      <div className={cn("hidden items-center gap-2 [&_[data-slot=button]]:h-8 sm:flex", className)}>
         {saveMessage ? (
           <div className="hidden sm:block">
             <SaveStatusBadge message={saveMessage} />
@@ -149,35 +154,15 @@ export function StickybarTopRightActions({
         {preActions}
 
         {search ? (
-          <>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="sm:hidden" aria-label="Search" title="Search">
-                  <Search className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 p-3">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search.value}
-                    onChange={(event) => search.onValueChange(event.target.value)}
-                    placeholder={search.placeholder ?? "Search"}
-                    className="h-9 pl-8"
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-            <div className="relative hidden sm:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search.value}
-                onChange={(event) => search.onValueChange(event.target.value)}
-                placeholder={search.placeholder ?? "Search"}
-                className="h-8 w-44 pl-8 sm:w-56"
-              />
-            </div>
-          </>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search.value}
+              onChange={(event) => search.onValueChange(event.target.value)}
+              placeholder={search.placeholder ?? "Search"}
+              className="h-8 w-44 pl-8 sm:w-56"
+            />
+          </div>
         ) : null}
 
         {filterMenu && activeItem ? (
@@ -258,12 +243,7 @@ export function StickybarTopRightActions({
             aria-label={publishLabel}
             title={publishLabel}
           >
-            <span className="hidden sm:inline">
-              {isPublishing ? publishingLabel : isPublished ? publishedLabel : publishLabel}
-            </span>
-            <span className="sm:hidden">
-              {isPublishing ? "..." : isPublished ? "On" : "Go"}
-            </span>
+            {isPublishing ? publishingLabel : publishLabel}
           </Button>
         ) : null}
 
@@ -280,6 +260,141 @@ export function StickybarTopRightActions({
           </Button>
         ) : null}
       </div>
+
+      <div className="flex items-center gap-1 sm:hidden">
+        {onSave ? (
+          <Button
+            size="sm"
+            variant={saveVariant}
+            onClick={onSave}
+            disabled={isSaving}
+            aria-label={saveLabel}
+            title={saveLabel}
+          >
+            <Save className="h-4 w-4" />
+          </Button>
+        ) : null}
+      </div>
+
+      {mobileOverflowSlot && hasMobileOverflow ? createPortal(
+        <div className="space-y-1">
+          {preActions ? <div className="px-1 py-1 [&_[data-slot=button]]:h-8">{preActions}</div> : null}
+
+          {search ? (
+            <div className="px-1 py-1">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-start" aria-label="Search" title="Search">
+                    <Search className="h-4 w-4" />
+                    Search
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-3">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search.value}
+                      onChange={(event) => search.onValueChange(event.target.value)}
+                      placeholder={search.placeholder ?? "Search"}
+                      className="h-9 pl-8"
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : null}
+
+          {filterMenu && activeItem ? (
+            <div className="px-1 py-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="w-full justify-start" aria-label="Change dashboard view" title={activeItem.label}>
+                    {activeItem.icon ? (
+                      <activeItem.icon className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ListFilter className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    {activeItem.label}
+                    <ChevronDown className="ml-auto h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-40 space-y-1">
+                  {filterMenu.items.map((item) => (
+                    <DropdownMenuItem
+                      key={item.value}
+                      onSelect={() => filterMenu.onValueChange(item.value)}
+                      className={cn(item.value === filterMenu.value && "bg-accent text-accent-foreground")}
+                    >
+                      {item.icon ? <item.icon className="h-4 w-4 text-muted-foreground" /> : null}
+                      <span>{item.label}</span>
+                      {item.count !== undefined ? (
+                        <span className="ml-auto text-muted-foreground">{item.count}</span>
+                      ) : null}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
+
+          {rightActions ? <div className="px-1 py-1 [&_[data-slot=button]]:h-8">{rightActions}</div> : null}
+
+          {viewPageHref ? (
+            <a
+              href={viewPageHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={mobileMenuItemClassName}
+            >
+              <ExternalLink className="h-4 w-4" />
+              View Page
+            </a>
+          ) : null}
+
+          {renderSettingsModal ? (
+            <button
+              type="button"
+              className={mobileMenuItemClassName}
+              disabled={settingsDisabled}
+              onClick={() => {
+                setSettingsOpen(true)
+              }}
+            >
+              <Settings className="h-4 w-4" />
+              {settingsLabel}
+            </button>
+          ) : null}
+
+          {onPublish && !isPublished ? (
+            <button
+              type="button"
+              className={mobileMenuItemClassName}
+              disabled={isPublishing || isSaving}
+              onClick={() => {
+                void onPublish()
+              }}
+            >
+              {isPublishing ? publishingLabel : publishLabel}
+            </button>
+          ) : null}
+
+          {onToggleBlockList ? (
+            <button
+              type="button"
+              className={mobileMenuItemClassName}
+              onClick={() => {
+                onToggleBlockList()
+              }}
+            >
+              {blockListOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
+              {blockListOpen ? "Hide block list" : "Show block list"}
+            </button>
+          ) : null}
+
+          <div className="-mx-1 my-1 h-px bg-muted" />
+        </div>,
+        mobileOverflowSlot
+      ) : null}
 
       {renderSettingsModal?.(settingsOpen, setSettingsOpen)}
     </>
