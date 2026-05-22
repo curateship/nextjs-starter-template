@@ -7,6 +7,12 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { SponsorFormModal } from "@/components/admin/sponsors/SponsorFormModal"
 import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminListSkeleton,
@@ -17,8 +23,18 @@ import {
 } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import {
   deleteSponsorAction,
   deleteSponsorsAction,
@@ -27,7 +43,7 @@ import {
 } from "@/lib/actions/sponsors/sponsor-actions"
 import { cn } from "@/lib/utils/tailwind"
 import { sanitizeUrl } from "@/lib/utils/url-validator"
-import { CheckCircle2, CircleOff, ExternalLink, Handshake, List, Pencil, Plus, Trash2 } from "lucide-react"
+import { ExternalLink, Handshake, Pencil, Plus, Trash2 } from "lucide-react"
 
 type SponsorFilter = "all" | "active" | "inactive"
 type SortColumn = "title" | "status" | "url" | "modified"
@@ -109,6 +125,8 @@ export default function SponsorsPage() {
     })
   }, [filteredSponsors, sponsorSort.sortColumn, sponsorSort.sortDirection])
 
+  const visibleSponsorIds = sortedSponsors.map((sponsor) => sponsor.id)
+
   const counts = {
     all: sponsors.length,
     active: sponsors.filter((sponsor) => sponsor.is_active).length,
@@ -175,197 +193,224 @@ export default function SponsorsPage() {
       <AdminLayout>
         <DashboardSubheader
           items={[{ label: "Sponsors" }]}
-          search={{
-            value: searchQuery,
-            onValueChange: setSearchQuery,
-            placeholder: "Search sponsors"
-          }}
-          filterMenu={{
-            value: filter,
-            onValueChange: (value) => {
-              setFilter(value as SponsorFilter)
-              sponsorSelection.clearSelection()
-            },
-            items: [
-              { value: "all", label: "All", icon: List, count: counts.all },
-              {
-                value: "active",
-                label: "Active",
-                icon: CheckCircle2,
-                count: counts.active
-              },
-              {
-                value: "inactive",
-                label: "Inactive",
-                icon: CircleOff,
-                count: counts.inactive
-              }
-            ]
-          }}
-          preActions={
-            <AdminBulkDeleteButton
-              deleting={massDeleting}
-              onClick={() => setMassDeleteConfirmOpen(true)}
-              selectedCount={sponsorSelection.selectedCount}
-            />
-          }
-          actions={
-            <Button onClick={openCreate} disabled={!currentSite?.id}>
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Create Sponsor</span>
-            </Button>
-          }
         />
 
-        <Card>
-          <CardTableHeader className="grid-cols-6">
-            <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
-              <Checkbox
-                checked={sponsorSelection.isPageSelected(filteredSponsors.map((sponsor) => sponsor.id))}
-                onCheckedChange={() => sponsorSelection.togglePage(filteredSponsors.map((sponsor) => sponsor.id))}
-                aria-label="Select all sponsors"
-              />
-              <AdminSortButton
-                active={sponsorSort.sortColumn === "title"}
-                direction={sponsorSort.sortDirection}
-                onClick={() => sponsorSort.toggleSort("title")}
-              >
-                Sponsor
-              </AdminSortButton>
+        <TableSurface>
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+              <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                <Handshake className="size-4 text-muted-foreground sm:size-[18px]" />
+              </span>
+              <span className="text-sm font-medium sm:text-base">Sponsors</span>
+              <Badge variant="secondary">{filteredSponsors.length}</Badge>
+              {sponsorSelection.selectedCount ? (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={sponsorSelection.clearSelection}
+                >
+                  Clear {sponsorSelection.selectedCount} selected
+                </button>
+              ) : null}
+              <div className="ml-auto">
+                <AdminBulkDeleteButton
+                  deleting={massDeleting}
+                  onClick={() => setMassDeleteConfirmOpen(true)}
+                  selectedCount={sponsorSelection.selectedCount}
+                />
+              </div>
             </div>
-            <AdminSortButton
-              active={sponsorSort.sortColumn === "status"}
-              direction={sponsorSort.sortDirection}
-              onClick={() => sponsorSort.toggleSort("status")}
-            >
-              Status
-            </AdminSortButton>
-            <AdminSortButton
-              active={sponsorSort.sortColumn === "url"}
-              direction={sponsorSort.sortDirection}
-              onClick={() => sponsorSort.toggleSort("url")}
-            >
-              URL
-            </AdminSortButton>
-            <AdminSortButton
-              active={sponsorSort.sortColumn === "modified"}
-              direction={sponsorSort.sortDirection}
-              onClick={() => sponsorSort.toggleSort("modified")}
-            >
-              Modified
-            </AdminSortButton>
-            <div>Actions</div>
-          </CardTableHeader>
+            <TableRightActions>
+              <TableRightActionsSearch
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search sponsors"
+              />
+              <Select
+                value={filter}
+                onValueChange={(value) => {
+                  setFilter(value as SponsorFilter)
+                  sponsorSelection.clearSelection()
+                }}
+              >
+                <TableRightActionsSelectTrigger aria-label="Sponsor status filter">
+                  <SelectValue />
+                </TableRightActionsSelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All ({counts.all})</SelectItem>
+                  <SelectItem value="active">Active ({counts.active})</SelectItem>
+                  <SelectItem value="inactive">Inactive ({counts.inactive})</SelectItem>
+                </SelectContent>
+              </Select>
+              <TableRightActionsButton onClick={openCreate} disabled={!currentSite?.id}>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Create Sponsor</span>
+              </TableRightActionsButton>
+            </TableRightActions>
+          </div>
 
-          <div className="divide-y divide-muted/80">
-            {loading ? (
-              <AdminListSkeleton firstColumnClassName="pl-[3px]" />
-            ) : error ? (
-              <div className="p-8 text-center">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            ) : filteredSponsors.length === 0 ? (
-              <div className="p-10 text-center">
-                <Handshake className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-4 text-sm text-muted-foreground">
-                  {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
-                </p>
-                <Button onClick={openCreate} variant="outline" className="mt-4" disabled={!currentSite?.id}>
-                  Create Sponsor
-                </Button>
-              </div>
-            ) : (
-              sortedSponsors.map((sponsor) => {
-                const imageSrc = sanitizeUrl(sponsor.image_url, "")
-                const sponsorHref = sanitizeUrl(sponsor.url, "#")
+          <ScrollArea className="w-full">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead column="select">
+                    <Checkbox
+                      checked={sponsorSelection.isPageSelected(visibleSponsorIds)}
+                      onCheckedChange={() => sponsorSelection.togglePage(visibleSponsorIds)}
+                      aria-label="Select all sponsors"
+                    />
+                  </TableHead>
+                  <TableHead column="main">
+                    <AdminSortButton
+                      active={sponsorSort.sortColumn === "title"}
+                      direction={sponsorSort.sortDirection}
+                      onClick={() => sponsorSort.toggleSort("title")}
+                    >
+                      Sponsor
+                    </AdminSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <AdminSortButton
+                      active={sponsorSort.sortColumn === "status"}
+                      direction={sponsorSort.sortDirection}
+                      onClick={() => sponsorSort.toggleSort("status")}
+                    >
+                      Status
+                    </AdminSortButton>
+                  </TableHead>
+                  <TableHead column="content">
+                    <AdminSortButton
+                      active={sponsorSort.sortColumn === "url"}
+                      direction={sponsorSort.sortDirection}
+                      onClick={() => sponsorSort.toggleSort("url")}
+                    >
+                      URL
+                    </AdminSortButton>
+                  </TableHead>
+                  <TableHead column="meta">
+                    <AdminSortButton
+                      active={sponsorSort.sortColumn === "modified"}
+                      direction={sponsorSort.sortDirection}
+                      onClick={() => sponsorSort.toggleSort("modified")}
+                    >
+                      Modified
+                    </AdminSortButton>
+                  </TableHead>
+                  <TableHead column="meta">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <AdminListSkeleton columns={6} rowCount={5} actionCount={2} />
+                ) : error ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center">
+                      <p className="text-sm text-red-600">{error}</p>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredSponsors.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center">
+                      <Handshake className="mx-auto h-10 w-10 text-muted-foreground" />
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        {sponsors.length === 0 ? "No sponsors yet." : "No sponsors match your filters."}
+                      </p>
+                      <Button onClick={openCreate} variant="outline" className="mt-4" disabled={!currentSite?.id}>
+                        Create Sponsor
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  sortedSponsors.map((sponsor) => {
+                    const imageSrc = sanitizeUrl(sponsor.image_url, "")
+                    const sponsorHref = sanitizeUrl(sponsor.url, "#")
 
-                return (
-                  <div
-                    key={sponsor.id}
-                    className={cn(
-                      "p-6 transition-colors",
-                      sponsorSelection.selectedIds.has(sponsor.id) && "bg-accent/50"
-                    )}
-                  >
-                    <div className="grid grid-cols-6 items-center gap-4">
-                      <div className="col-span-2">
-                        <div className="flex items-center space-x-4 pl-[3px]">
+                    return (
+                      <TableRow
+                        key={sponsor.id}
+                        data-state={sponsorSelection.selectedIds.has(sponsor.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
                           <Checkbox
                             checked={sponsorSelection.selectedIds.has(sponsor.id)}
                             onCheckedChange={() => sponsorSelection.toggleOne(sponsor.id)}
                             aria-label={`Select ${sponsor.title}`}
                           />
-                          <div className="flex items-center space-x-4">
-                            <div className="ml-2 flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted">
+                        </TableCell>
+                        <TableCell column="main">
+                          <div className="flex min-w-0 items-center space-x-4">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
                               {imageSrc ? (
                                 <img src={imageSrc} alt={sponsor.title} className="h-full w-full object-contain" />
                               ) : (
-                                <Handshake className="h-6 w-6 text-muted-foreground" />
+                                <Handshake className="h-5 w-5 text-muted-foreground" />
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-medium">{sponsor.title}</h4>
+                              <h4 className="truncate text-sm font-medium sm:text-base">{sponsor.title}</h4>
                               {sponsor.description && (
-                                <p className="max-w-sm truncate text-sm text-muted-foreground">{sponsor.description}</p>
+                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                  {sponsor.description}
+                                </p>
                               )}
                             </div>
                           </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Badge
-                          className={cn(
-                            sponsor.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {sponsor.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
-                      <div>
-                        <a
-                          href={sponsorHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex max-w-64 items-center gap-1 truncate text-sm text-muted-foreground hover:text-foreground"
-                        >
-                          <span className="truncate">{sponsor.url}</span>
-                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-                        </a>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(sponsor.updated_at)}</span>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => openEdit(sponsor)}
-                            title="Edit sponsor"
+                        </TableCell>
+                        <TableCell column="meta">
+                          <Badge
+                            className={cn(
+                              sponsor.is_active ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
+                            )}
                           >
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Edit sponsor</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => setDeleteSponsor(sponsor)}
-                            title="Delete sponsor"
+                            {sponsor.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell column="content">
+                          <a
+                            href={sponsorHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex max-w-64 items-center gap-1 truncate text-sm text-muted-foreground hover:text-foreground"
                           >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete sponsor</span>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </Card>
+                            <span className="truncate">{sponsor.url}</span>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                          </a>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{formatDate(sponsor.updated_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openEdit(sponsor)}
+                              title="Edit sponsor"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              <span className="sr-only">Edit sponsor</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => setDeleteSponsor(sponsor)}
+                              title="Delete sponsor"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete sponsor</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </TableSurface>
       </AdminLayout>
 
       {currentSite?.id && (

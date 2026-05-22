@@ -1,29 +1,46 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
-import Link from "next/link"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { AdminListSkeleton } from "@/components/admin/layout/list"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
-import { getSiteIntegration, type SiteIntegration } from "@/lib/actions/integrations/integration-actions"
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { AdminLayout } from "@/components/admin/layout/admin-layout";
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
+import { AdminListSkeleton } from "@/components/admin/layout/list";
+import {
+  TableRightActions,
+  TableRightActionsSearch,
+} from "@/components/admin/layout/content/table-right-actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface,
+} from "@/components/ui/table";
+import {
+  getSiteIntegration,
+  type SiteIntegration,
+} from "@/lib/actions/integrations/integration-actions";
+import { Mail } from "lucide-react";
 
 interface SenderRow {
-  name: string
-  email: string
-  provider: string
-  status: "Connected"
-  updatedAt: string | null
+  name: string;
+  email: string;
+  provider: string;
+  status: "Connected";
+  updatedAt: string | null;
 }
 
 function buildSenderRows(integration: SiteIntegration | null): SenderRow[] {
-  const fromEmail = integration?.config?.from_email?.trim()
+  const fromEmail = integration?.config?.from_email?.trim();
   if (!fromEmail) {
-    return []
+    return [];
   }
 
   return [
@@ -32,57 +49,69 @@ function buildSenderRows(integration: SiteIntegration | null): SenderRow[] {
       email: fromEmail,
       provider: "Resend",
       status: "Connected",
-      updatedAt: integration?.updatedAt?.toISOString?.() ?? null
-    }
-  ]
+      updatedAt: integration?.updatedAt?.toISOString?.() ?? null,
+    },
+  ];
 }
 
 export default function PlatformSenderEmailsPage() {
-  const { currentSite } = useSiteSwitcher()
-  const [loading, setLoading] = useState(true)
-  const [message, setMessage] = useState<string | null>(null)
-  const [senders, setSenders] = useState<SenderRow[]>([])
-  const [searchQuery, setSearchQuery] = useState("")
+  const { currentSite } = useSiteSwitcher();
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState<string | null>(null);
+  const [senders, setSenders] = useState<SenderRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
 
-    setLoading(true)
-    setMessage(null)
+    setLoading(true);
+    setMessage(null);
 
-    const resendIntegration = await getSiteIntegration(currentSite.id, "resend")
-    const rows = buildSenderRows(resendIntegration)
+    const resendIntegration = await getSiteIntegration(
+      currentSite.id,
+      "resend",
+    );
+    const rows = buildSenderRows(resendIntegration);
 
-    setSenders(rows)
+    setSenders(rows);
     if (rows.length === 0) {
-      setMessage("No sender email is configured for this site.")
+      setMessage("No sender email is configured for this site.");
     }
 
-    setLoading(false)
-  }, [currentSite?.id])
+    setLoading(false);
+  }, [currentSite?.id]);
 
   useEffect(() => {
-    void loadPage()
-  }, [loadPage])
+    void loadPage();
+  }, [loadPage]);
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredSenders = normalizedSearchQuery
     ? senders.filter((sender) => {
-        const searchText = [sender.name, sender.email, sender.provider, sender.status].join(" ").toLowerCase()
+        const searchText = [
+          sender.name,
+          sender.email,
+          sender.provider,
+          sender.status,
+        ]
+          .join(" ")
+          .toLowerCase();
 
-        return searchText.includes(normalizedSearchQuery)
+        return searchText.includes(normalizedSearchQuery);
       })
-    : senders
+    : senders;
 
   if (!currentSite) {
     return (
       <AdminLayout>
-        <div className="p-8 text-sm text-muted-foreground">Choose a site to manage emails.</div>
+        <div className="p-8 text-sm text-muted-foreground">
+          Choose a site to manage emails.
+        </div>
       </AdminLayout>
-    )
+    );
   }
 
   return (
@@ -90,67 +119,110 @@ export default function PlatformSenderEmailsPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
-          <DashboardSubheader
-            items={[{ label: "Email Accounts" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search email accounts"
-            }}
-          />
+          <DashboardSubheader items={[{ label: "Email Accounts" }]} />
 
-          {message && <div className="mb-6 rounded-md border px-4 py-3 text-sm">{message}</div>}
-
-          <Card>
-            <CardTableHeader className="grid-cols-12">
-              <div className="col-span-6">Sender</div>
-              <div className="col-span-2">Provider</div>
-              <div className="col-span-2">Status</div>
-              <div className="col-span-2" />
-            </CardTableHeader>
-
-            <div className="divide-y">
-              {loading && (
-                <AdminListSkeleton columns={12} firstColumnSpan={6} rowCount={1} showCheckbox={false} showThumbnail={false} />
-              )}
-
-              {!loading && filteredSenders.length === 0 && (
-                <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-                  {normalizedSearchQuery ? "No email accounts match your search." : "No email accounts found."}
-                </div>
-              )}
-
-              {!loading &&
-                filteredSenders.map((sender) => (
-                  <div key={sender.email} className="px-6 py-4">
-                    <div className="grid grid-cols-12 gap-4 items-center">
-                      <div className="col-span-6 min-w-0">
-                        <Link
-                          href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}
-                          className="block hover:underline"
-                        >
-                          <p className="font-medium">{sender.name}</p>
-                          <p className="text-sm text-muted-foreground">{sender.email}</p>
-                        </Link>
-                      </div>
-                      <div className="col-span-2 text-sm">{sender.provider}</div>
-                      <div className="col-span-2">
-                        <Badge variant={sender.status === "Connected" ? "default" : "secondary"}>{sender.status}</Badge>
-                      </div>
-                      <div className="col-span-2 flex justify-end">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}>
-                            View Health
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+          {message && (
+            <div className="mb-6 rounded-md border px-4 py-3 text-sm">
+              {message}
             </div>
-          </Card>
+          )}
+
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Mail className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">
+                  Email Accounts
+                </span>
+                <Badge variant="secondary">{filteredSenders.length}</Badge>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search email accounts"
+                />
+              </TableRightActions>
+            </div>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">Sender</TableHead>
+                    <TableHead column="meta">Provider</TableHead>
+                    <TableHead column="meta">Status</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton
+                      columns={4}
+                      rowCount={1}
+                      showCheckbox={false}
+                      showThumbnail={false}
+                    />
+                  ) : filteredSenders.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="h-32 text-center text-sm text-muted-foreground"
+                      >
+                        {normalizedSearchQuery
+                          ? "No email accounts match your search."
+                          : "No email accounts found."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredSenders.map((sender) => (
+                      <TableRow key={sender.email} className="group">
+                        <TableCell column="main">
+                          <Link
+                            href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}
+                            className="block hover:underline"
+                          >
+                            <p className="truncate text-sm font-medium sm:text-base">
+                              {sender.name}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                              {sender.email}
+                            </p>
+                          </Link>
+                        </TableCell>
+                        <TableCell column="meta">{sender.provider}</TableCell>
+                        <TableCell column="meta">
+                          <Badge
+                            variant={
+                              sender.status === "Connected"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {sender.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={`/admin/site-health/email?sender=${encodeURIComponent(sender.email)}`}
+                            >
+                              View Health
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
         </div>
       </AdminLayout>
     </>
-  )
+  );
 }

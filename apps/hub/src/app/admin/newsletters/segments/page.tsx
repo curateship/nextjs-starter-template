@@ -4,28 +4,41 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch
+} from "@/components/admin/layout/content/table-right-actions"
+import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
 import { Trash2, Settings, Users } from "lucide-react"
-import { getSegmentsWithCounts, deleteSegments, getSegmentIdsAction } from "@/lib/actions/newsletters/segment-actions"
+import { getSegmentsWithCounts, deleteSegments } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
 import { SegmentFormModal } from "@/components/admin/newsletter-builder/segments/SegmentFormModal"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 
 type SegmentSortColumn = "name" | "contacts" | "modified"
 
@@ -111,15 +124,6 @@ export default function SegmentsPage() {
     loadSegments()
   }
 
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    if (!currentSite?.id || total === 0) return
-    const { ids } = await getSegmentIdsAction(currentSite.id)
-    if (ids) {
-      segmentSelection.selectAll(ids)
-    }
-  }
-
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSegments = segments.filter((segment) => {
     if (!normalizedSearchQuery) return true
@@ -141,168 +145,197 @@ export default function SegmentsPage() {
       return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
-  const filteredSegmentIds = filteredSegments.map((segment) => segment.id)
+  const visibleSegmentIds = sortedSegments.map((segment) => segment.id)
 
   return (
     <>
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Segments" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search segments"
-            }}
-            actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={segmentSelection.selectedCount}
-                />
-                <Button onClick={openCreateModal}>Create Segment</Button>
-              </div>
-            }
           />
 
-          <Card>
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-5">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={segmentSelection.isPageSelected(filteredSegmentIds)}
-                  onCheckedChange={() => segmentSelection.togglePage(filteredSegmentIds)}
-                  aria-label="Select all segments"
-                />
-                <AdminSortButton
-                  active={segmentSort.sortColumn === "name"}
-                  direction={segmentSort.sortDirection}
-                  onClick={() => segmentSort.toggleSort("name")}
-                >
-                  Name
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={segmentSort.sortColumn === "contacts"}
-                direction={segmentSort.sortDirection}
-                onClick={() => segmentSort.toggleSort("contacts")}
-              >
-                Contacts
-              </AdminSortButton>
-              <AdminSortButton
-                active={segmentSort.sortColumn === "modified"}
-                direction={segmentSort.sortDirection}
-                onClick={() => segmentSort.toggleSort("modified")}
-              >
-                Modified
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            <AdminSelectionBanner
-              allSelected={segmentSelection.allSelected}
-              onClearSelection={segmentSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={segmentSelection.selectedCount}
-              total={total}
-              visibleCount={filteredSegments.length}
-            />
-
-            {/* Table Body */}
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={5} showThumbnail={false} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadSegments()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : filteredSegments.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    No segments yet. Create one to save reusable audience filters.
-                  </p>
-                  <Button onClick={openCreateModal} variant="outline">
-                    Create Segment
-                  </Button>
-                </div>
-              ) : (
-                sortedSegments.map((segment) => (
-                  <div
-                    key={segment.id}
-                    className={`p-6 transition-colors ${segmentSelection.selectedIds.has(segment.id) ? "bg-accent/50" : ""}`}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Users className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Segments</span>
+                <Badge variant="secondary">{filteredSegments.length}</Badge>
+                {segmentSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={segmentSelection.clearSelection}
                   >
-                    <div className="grid grid-cols-5 gap-4 items-center">
-                      <div className="col-span-2 flex items-center space-x-4">
-                        <Checkbox
-                          checked={segmentSelection.selectedIds.has(segment.id)}
-                          onCheckedChange={() => segmentSelection.toggleOne(segment.id)}
-                          aria-label={`Select ${segment.name}`}
-                        />
-                        <Link
-                          href={`/admin/newsletters/segments/${segment.id}`}
-                          className="hover:opacity-80 transition-opacity"
-                        >
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-medium text-sm hover:underline">{segment.name}</h4>
-                            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-                              {segment.segment_type}
-                            </Badge>
-                          </div>
-                          {segment.description && (
-                            <p className="text-xs text-muted-foreground">{segment.description}</p>
-                          )}
-                          {segment.segment_type === "dynamic" && segment.dynamic_rule && (
-                            <p className="text-xs text-muted-foreground">
-                              {formatSegmentDynamicRule(segment.dynamic_rule)}
-                            </p>
-                          )}
-                        </Link>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <Users className="h-3.5 w-3.5" />
-                        {contactCounts[segment.id] !== undefined ? contactCounts[segment.id].toLocaleString() : "—"}
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(segment.updated_at)}</span>
-                      </div>
-                      <div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => openEditModal(segment)}
-                          title="Edit Segment"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Edit Segment</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => {
-                            segmentSelection.selectOnly([segment.id])
-                            setMassDeleteConfirmOpen(true)
-                          }}
-                          title="Delete Segment"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete Segment</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+                    Clear {segmentSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={segmentSelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search segments"
+                />
+                <TableRightActionsButton onClick={openCreateModal}>
+                  Create Segment
+                </TableRightActionsButton>
+              </TableRightActions>
             </div>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={segmentSelection.isPageSelected(visibleSegmentIds)}
+                        onCheckedChange={() => segmentSelection.togglePage(visibleSegmentIds)}
+                        aria-label="Select all segments"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={segmentSort.sortColumn === "name"}
+                        direction={segmentSort.sortDirection}
+                        onClick={() => segmentSort.toggleSort("name")}
+                      >
+                        Name
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={segmentSort.sortColumn === "contacts"}
+                        direction={segmentSort.sortDirection}
+                        onClick={() => segmentSort.toggleSort("contacts")}
+                      >
+                        Contacts
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={segmentSort.sortColumn === "modified"}
+                        direction={segmentSort.sortDirection}
+                        onClick={() => segmentSort.toggleSort("modified")}
+                      >
+                        Modified
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} actionCount={2} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={() => loadSegments()} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredSegments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          No segments yet. Create one to save reusable audience filters.
+                        </p>
+                        <Button onClick={openCreateModal} variant="outline">
+                          Create Segment
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedSegments.map((segment) => (
+                      <TableRow
+                        key={segment.id}
+                        data-state={segmentSelection.selectedIds.has(segment.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={segmentSelection.selectedIds.has(segment.id)}
+                            onCheckedChange={() => segmentSelection.toggleOne(segment.id)}
+                            aria-label={`Select ${segment.name}`}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <Link
+                            href={`/admin/newsletters/segments/${segment.id}`}
+                            className="block min-w-0 transition-opacity hover:opacity-80"
+                          >
+                            <div className="flex items-center gap-2">
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                                {segment.name}
+                              </h4>
+                              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                                {segment.segment_type}
+                              </Badge>
+                            </div>
+                            {segment.description && (
+                              <p className="truncate text-xs text-muted-foreground">{segment.description}</p>
+                            )}
+                            {segment.segment_type === "dynamic" && segment.dynamic_rule && (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {formatSegmentDynamicRule(segment.dynamic_rule, { maxTags: 3 })}
+                              </p>
+                            )}
+                          </Link>
+                        </TableCell>
+                        <TableCell column="mutedMeta">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Users className="h-3.5 w-3.5" />
+                            {contactCounts[segment.id] !== undefined ? contactCounts[segment.id].toLocaleString() : "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{formatDate(segment.updated_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openEditModal(segment)}
+                              title="Edit Segment"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span className="sr-only">Edit Segment</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                segmentSelection.selectOnly([segment.id])
+                                setMassDeleteConfirmOpen(true)
+                              }}
+                              title="Delete Segment"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete Segment</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
             {!loading && (
               <AdminListFooter
                 currentPage={currentPage}
@@ -314,7 +347,7 @@ export default function SegmentsPage() {
                 }}
               />
             )}
-          </Card>
+          </TableSurface>
         </div>
       </AdminLayout>
 

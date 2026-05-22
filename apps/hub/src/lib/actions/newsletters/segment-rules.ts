@@ -49,6 +49,10 @@ export interface SegmentDynamicRule {
   conditions: SegmentDynamicCondition[]
 }
 
+type FormatSegmentDynamicRuleOptions = {
+  maxTags?: number
+}
+
 export function isSegmentType(value: unknown): value is SegmentType {
   return value === 'static' || value === 'dynamic'
 }
@@ -204,7 +208,10 @@ function formatStatusLabel(status: SegmentContactStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
-export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition): string {
+export function formatSegmentDynamicCondition(
+  condition: SegmentDynamicCondition,
+  options: FormatSegmentDynamicRuleOptions = {}
+): string {
   if (condition.type === 'last_engaged_within_days') {
     return `Last engaged ${condition.operator === 'is' ? 'is' : "isn't"} within ${condition.days} day${condition.days === 1 ? '' : 's'}`
   }
@@ -224,11 +231,18 @@ export function formatSegmentDynamicCondition(condition: SegmentDynamicCondition
     return `Excludes ${condition.segment_ids.length} selected segment${condition.segment_ids.length === 1 ? '' : 's'}`
   }
 
-  return `Tags ${condition.operator === 'includes' ? 'includes' : 'excludes'} ${condition.tags.join(', ')}`
+  const tags = options.maxTags ? condition.tags.slice(0, options.maxTags) : condition.tags
+  const remainingTagCount = condition.tags.length - tags.length
+  const remainingLabel = remainingTagCount > 0 ? `, +${remainingTagCount} more` : ''
+
+  return `Tags ${condition.operator === 'includes' ? 'includes' : 'excludes'} ${tags.join(', ')}${remainingLabel}`
 }
 
-export function formatSegmentDynamicRule(rule: SegmentDynamicRule | null | undefined): string {
+export function formatSegmentDynamicRule(
+  rule: SegmentDynamicRule | null | undefined,
+  options: FormatSegmentDynamicRuleOptions = {}
+): string {
   if (!rule) return ''
 
-  return rule.conditions.map(formatSegmentDynamicCondition).join(' AND ')
+  return rule.conditions.map((condition) => formatSegmentDynamicCondition(condition, options)).join(' AND ')
 }

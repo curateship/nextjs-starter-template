@@ -231,29 +231,6 @@ export async function getNewslettersBySite(
   }
 }
 
-/** Returns only newsletter IDs for bulk selection — lightweight alternative to full record fetch */
-export async function getNewsletterIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
-  try {
-    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { ids: [], error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { ids: [], error: 'Access denied' }
-    }
-
-    const rows = await db
-      .select({ id: newsletters.id })
-      .from(newsletters)
-      .where(eq(newsletters.siteId, siteId))
-
-    return { ids: rows.map(r => r.id), error: null }
-  } catch (err) {
-    return { ids: [], error: 'Server error' }
-  }
-}
-
 export async function getNewsletterById(
   newsletterId: string
 ): Promise<{ data: Newsletter | null; error: string | null }> {

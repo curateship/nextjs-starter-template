@@ -3,27 +3,41 @@
 import { useState, useEffect, useRef, useDeferredValue, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card, CardSection, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import { Trash2, Settings, Users, Upload, X, Plus, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { getContactsWithStats, deleteContacts, getContactIdsAction } from "@/lib/actions/newsletters/contact-actions"
+import { getContactsWithStats, deleteContacts } from "@/lib/actions/newsletters/contact-actions"
 import type { CrmContact } from "@/lib/actions/newsletters/contact-actions"
 import { getSegmentsBySite, addContactsToSegment } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
@@ -158,19 +172,7 @@ export default function ContactsPage() {
     }
     return 0
   })
-  const contactIds = contacts.map((contact) => contact.id)
-
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    if (!currentSite?.id || total === 0) return
-    const { ids } = await getContactIdsAction(currentSite.id, {
-      filterGroup: filters.rules.length ? filters : undefined,
-      searchQuery: deferredSearchQuery
-    })
-    if (ids) {
-      contactSelection.selectAll(ids)
-    }
-  }
+  const contactIds = sortedContacts.map((contact) => contact.id)
 
   const handleDelete = (id: string) => {
     setPendingDeleteId(id)
@@ -379,83 +381,96 @@ export default function ContactsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Contacts" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: (value) => {
-                setSearchQuery(value)
-                setCurrentPage(1)
-                contactSelection.clearSelection()
-              },
-              placeholder: "Search contacts"
-            }}
-            preActions={
-              contactSelection.selectedCount > 0 ? (
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                  {segments.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
-                        <SelectTrigger size="button" className="w-[180px] text-sm">
-                          <SelectValue placeholder="Select segment..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {segments.map((seg) => (
-                            <SelectItem key={seg.id} value={seg.id}>
-                              {seg.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant={selectedSegmentId ? "default" : "outline"}
-                        className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
-                        onClick={handleAddToSegment}
-                        disabled={!selectedSegmentId || addingToSegment}
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                        {addingToSegment ? "Adding..." : "Add to Segment"}
-                      </Button>
-                    </div>
-                  )}
+          />
+
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Users className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Contacts</span>
+                <Badge variant="secondary">{total}</Badge>
+                {contactSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={contactSelection.clearSelection}
+                  >
+                    Clear {contactSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
                   <AdminBulkDeleteButton
                     deleting={massDeleting}
                     onClick={() => setMassDeleteConfirmOpen(true)}
                     selectedCount={contactSelection.selectedCount}
                   />
                 </div>
-              ) : null
-            }
-            actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                {successMessage && (
-                  <div className="p-2 px-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-green-800 text-sm">{successMessage}</p>
-                  </div>
-                )}
-                <Button variant="outline" className="relative" onClick={openFilterModal}>
+              </div>
+              <TableRightActions>
+                {contactSelection.selectedCount > 0 && segments.length > 0 ? (
+                  <>
+                    <Select value={selectedSegmentId} onValueChange={setSelectedSegmentId}>
+                      <TableRightActionsSelectTrigger className="w-[180px]" aria-label="Segment">
+                        <SelectValue placeholder="Select segment..." />
+                      </TableRightActionsSelectTrigger>
+                      <SelectContent>
+                        {segments.map((seg) => (
+                          <SelectItem key={seg.id} value={seg.id}>
+                            {seg.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <TableRightActionsButton
+                      variant={selectedSegmentId ? "default" : "outline"}
+                      className={selectedSegmentId ? "bg-green-600 hover:bg-green-700" : ""}
+                      onClick={handleAddToSegment}
+                      disabled={!selectedSegmentId || addingToSegment}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                      {addingToSegment ? "Adding..." : "Add to Segment"}
+                    </TableRightActionsButton>
+                  </>
+                ) : null}
+                {successMessage ? (
+                  <span className="rounded-md border border-green-200 bg-green-50 px-2 py-1 text-xs text-green-800">
+                    {successMessage}
+                  </span>
+                ) : null}
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value)
+                    setCurrentPage(1)
+                    contactSelection.clearSelection()
+                  }}
+                  placeholder="Search contacts"
+                />
+                <TableRightActionsButton variant="outline" className="relative" onClick={openFilterModal}>
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Filter</span>
-                  {activeFilterCount > 0 && (
-                    <span className="ml-1.5 inline-flex items-center justify-center h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                  {activeFilterCount > 0 ? (
+                    <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
                       {activeFilterCount}
                     </span>
-                  )}
-                </Button>
-                <Button onClick={() => fileInputRef.current?.click()}>
+                  ) : null}
+                </TableRightActionsButton>
+                <TableRightActionsButton onClick={() => fileInputRef.current?.click()}>
                   <Upload className="h-4 w-4" />
                   <span className="hidden sm:inline">Import CSV</span>
-                </Button>
-                <Button onClick={() => setAddModalOpen(true)}>
+                </TableRightActionsButton>
+                <TableRightActionsButton onClick={() => setAddModalOpen(true)}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Add Contact</span>
-                </Button>
-              </div>
-            }
-          />
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
 
-          <Card>
             {/* Active filter chips */}
             {activeFilterCount > 0 && (
-              <CardSection className="flex flex-wrap items-center gap-2 border-b">
+              <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
                 <Badge variant="outline" className="font-medium">
                   Matching {filters.match === "all" ? "all" : "any"}
                 </Badge>
@@ -478,177 +493,191 @@ export default function ContactsPage() {
                 >
                   Clear all ({total})
                 </button>
-              </CardSection>
-            )}
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-8">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={contactSelection.isPageSelected(contactIds)}
-                  onCheckedChange={() => contactSelection.togglePage(contactIds)}
-                  aria-label="Select all contacts"
-                />
-                <AdminSortButton
-                  active={contactSort.sortColumn === "contact"}
-                  direction={contactSort.sortDirection}
-                  onClick={() => contactSort.toggleSort("contact")}
-                >
-                  Contact
-                </AdminSortButton>
               </div>
-              <AdminSortButton
-                active={contactSort.sortColumn === "source"}
-                direction={contactSort.sortDirection}
-                onClick={() => contactSort.toggleSort("source")}
-              >
-                Source
-              </AdminSortButton>
-              <AdminSortButton
-                active={contactSort.sortColumn === "status"}
-                direction={contactSort.sortDirection}
-                onClick={() => contactSort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <AdminSortButton
-                active={contactSort.sortColumn === "tags"}
-                direction={contactSort.sortDirection}
-                onClick={() => contactSort.toggleSort("tags")}
-              >
-                Tags
-              </AdminSortButton>
-              <AdminSortButton
-                active={contactSort.sortColumn === "added"}
-                direction={contactSort.sortDirection}
-                onClick={() => contactSort.toggleSort("added")}
-              >
-                Added
-              </AdminSortButton>
-              <AdminSortButton
-                active={contactSort.sortColumn === "engaged"}
-                direction={contactSort.sortDirection}
-                onClick={() => contactSort.toggleSort("engaged")}
-              >
-                Last Engaged
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
+            )}
 
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            <AdminSelectionBanner
-              allSelected={contactSelection.allSelected}
-              onClearSelection={contactSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={contactSelection.selectedCount}
-              total={total}
-              visibleCount={contacts.length}
-            />
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={contactSelection.isPageSelected(contactIds)}
+                        onCheckedChange={() => contactSelection.togglePage(contactIds)}
+                        aria-label="Select all contacts"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={contactSort.sortColumn === "contact"}
+                        direction={contactSort.sortDirection}
+                        onClick={() => contactSort.toggleSort("contact")}
+                      >
+                        Contact
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="content">
+                      <AdminSortButton
+                        active={contactSort.sortColumn === "source"}
+                        direction={contactSort.sortDirection}
+                        onClick={() => contactSort.toggleSort("source")}
+                      >
+                        Source
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={contactSort.sortColumn === "status"}
+                        direction={contactSort.sortDirection}
+                        onClick={() => contactSort.toggleSort("status")}
+                      >
+                        Status
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="content">
+                      <AdminSortButton
+                        active={contactSort.sortColumn === "tags"}
+                        direction={contactSort.sortDirection}
+                        onClick={() => contactSort.toggleSort("tags")}
+                      >
+                        Tags
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={contactSort.sortColumn === "added"}
+                        direction={contactSort.sortDirection}
+                        onClick={() => contactSort.toggleSort("added")}
+                      >
+                        Added
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={contactSort.sortColumn === "engaged"}
+                        direction={contactSort.sortDirection}
+                        onClick={() => contactSort.toggleSort("engaged")}
+                      >
+                        Last Engaged
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={8} rowCount={5} showThumbnail={false} actionCount={2} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={() => loadContacts()} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : contacts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-32 text-center">
+                        <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          {hasSearchQuery && activeFilterCount > 0
+                            ? "No contacts match this search and filter"
+                            : hasSearchQuery
+                              ? "No contacts match this search"
+                              : activeFilterCount > 0
+                                ? "No contacts match this filter"
+                                : "No contacts yet"}
+                        </p>
+                        <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+                          <Upload className="mr-2 h-4 w-4" />
+                          Import CSV
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedContacts.map((contact) => (
+                      <TableRow
+                        key={contact.id}
+                        data-state={contactSelection.selectedIds.has(contact.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={contactSelection.selectedIds.has(contact.id)}
+                            onCheckedChange={() => contactSelection.toggleOne(contact.id)}
+                            aria-label={`Select ${contact.email}`}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <Link
+                            href={`/admin/newsletters/contacts/${contact.id}`}
+                            className="block min-w-0 transition-opacity hover:opacity-80"
+                          >
+                            <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                              {contact.metadata?.first_name || contact.metadata?.last_name
+                                ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
+                                : contact.email}
+                            </h4>
+                            {(contact.metadata?.first_name || contact.metadata?.last_name) && (
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{contact.email}</p>
+                            )}
+                          </Link>
+                        </TableCell>
+                        <TableCell column="content">{getSourceBadge(contact.metadata?.source || "manual")}</TableCell>
+                        <TableCell column="meta">{getStatusBadge(contact.status)}</TableCell>
+                        <TableCell column="content">
+                          <div className="flex flex-wrap gap-1">
+                            {contact.metadata?.tags?.length ? (
+                              contact.metadata.tags.slice(0, 3).map((tag: string) => (
+                                <Badge key={tag} variant="outline" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                            {(contact.metadata?.tags?.length ?? 0) > 3 && (
+                              <span className="text-xs text-muted-foreground">
+                                +{contact.metadata!.tags!.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{formatDate(contact.created_at)}</TableCell>
+                        <TableCell column="mutedMeta">{formatRelativeTime(contact.last_engaged_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openEditModal(contact)}
+                              title="Edit Contact"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span className="sr-only">Edit Contact</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(contact.id)}
+                              title="Delete Contact"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete Contact</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
 
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={8} showThumbnail={false} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadContacts()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : contacts.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    {hasSearchQuery && activeFilterCount > 0
-                      ? "No contacts match this search and filter"
-                      : hasSearchQuery
-                        ? "No contacts match this search"
-                        : activeFilterCount > 0
-                          ? "No contacts match this filter"
-                          : "No contacts yet"}
-                  </p>
-                  <Button onClick={() => fileInputRef.current?.click()} variant="outline">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import CSV
-                  </Button>
-                </div>
-              ) : (
-                sortedContacts.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className={`p-6 transition-colors ${contactSelection.selectedIds.has(contact.id) ? "bg-accent/50" : ""}`}
-                  >
-                    <div className="grid grid-cols-8 gap-4 items-center">
-                      <div className="col-span-2 flex items-center space-x-4">
-                        <Checkbox
-                          checked={contactSelection.selectedIds.has(contact.id)}
-                          onCheckedChange={() => contactSelection.toggleOne(contact.id)}
-                          aria-label={`Select ${contact.email}`}
-                        />
-                        <Link
-                          href={`/admin/newsletters/contacts/${contact.id}`}
-                          className="hover:opacity-80 transition-opacity"
-                        >
-                          <h4 className="font-medium text-sm hover:underline">
-                            {contact.metadata?.first_name || contact.metadata?.last_name
-                              ? `${contact.metadata.first_name || ""} ${contact.metadata.last_name || ""}`.trim()
-                              : contact.email}
-                          </h4>
-                          {(contact.metadata?.first_name || contact.metadata?.last_name) && (
-                            <p className="text-xs text-muted-foreground">{contact.email}</p>
-                          )}
-                        </Link>
-                      </div>
-                      <div>{getSourceBadge(contact.metadata?.source || "manual")}</div>
-                      <div>{getStatusBadge(contact.status)}</div>
-                      <div className="flex flex-wrap gap-1">
-                        {contact.metadata?.tags?.length ? (
-                          contact.metadata.tags.slice(0, 3).map((tag: string) => (
-                            <Badge key={tag} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                        {(contact.metadata?.tags?.length ?? 0) > 3 && (
-                          <span className="text-xs text-muted-foreground">+{contact.metadata!.tags!.length - 3}</span>
-                        )}
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(contact.created_at)}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          {formatRelativeTime(contact.last_engaged_at)}
-                        </span>
-                      </div>
-                      <div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => openEditModal(contact)}
-                          title="Edit Contact"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Edit Contact</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => handleDelete(contact.id)}
-                          title="Delete Contact"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete Contact</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
             {!loading && (
               <AdminListFooter
                 currentPage={currentPage}
@@ -660,7 +689,7 @@ export default function ContactsPage() {
                 }}
               />
             )}
-          </Card>
+          </TableSurface>
 
           <ContactFilterModal
             open={filterModalOpen}

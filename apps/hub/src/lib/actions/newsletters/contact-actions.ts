@@ -621,40 +621,6 @@ export async function deleteContacts(contactIds: string[]): Promise<{ success: b
   }
 }
 
-/** Returns only contact IDs for bulk selection — lightweight alternative to full record fetch */
-export async function getContactIdsAction(
-  siteId: string,
-  options?: {
-    filterGroup?: ContactFilterGroup
-    searchQuery?: string
-  }
-): Promise<{ ids: string[]; error: string | null }> {
-  try {
-    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { ids: [], error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { ids: [], error: 'Access denied' }
-    }
-
-    await repairBouncedContacts(siteId)
-
-    const normalizedGroup = normalizeContactFilterGroup(options?.filterGroup)
-    const whereClause = buildContactsWhere(siteId, normalizedGroup, options?.searchQuery)
-
-    const rows = await db
-      .select({ id: newsletterContacts.id })
-      .from(newsletterContacts)
-      .where(whereClause)
-
-    return { ids: rows.map(r => r.id), error: null }
-  } catch (err) {
-    return { ids: [], error: 'Server error' }
-  }
-}
-
 export async function getContactsWithStats(
   siteId: string,
   options?: {

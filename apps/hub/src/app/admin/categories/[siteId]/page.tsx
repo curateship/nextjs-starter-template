@@ -4,12 +4,27 @@ import { useState, useEffect, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   AdminBulkDeleteButton,
@@ -17,7 +32,6 @@ import {
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   useAdminBulkSelection,
   useAdminSort
@@ -25,12 +39,12 @@ import {
 import {
   getCategoriesWithCountsAction,
   deleteCategoriesAction,
-  getCategoryIdsAction,
   type Category
 } from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Tag, Plus, List, Globe, FileEdit } from "lucide-react"
+import { Tag, Plus } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 const CreateCategoryModal = dynamic(
   () =>
@@ -124,15 +138,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     categorySelection.remove(categoryId)
   }
 
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    if (total === 0) return
-    const { ids } = await getCategoryIdsAction(siteId)
-    if (ids) {
-      categorySelection.selectAll(ids)
-    }
-  }
-
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
@@ -215,7 +220,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     return 0
   })
 
-  const filteredCategoryIds = filteredCategories.map((category) => category.id)
+  const visibleCategoryIds = sortedCategories.map((category) => category.id)
 
   // Get counts
   const statusCounts = {
@@ -229,53 +234,62 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Categories" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search categories"
-            }}
-            filterMenu={{
-              value: filterStatus,
-              onValueChange: (value) => {
-                setFilterStatus(value as "all" | "published" | "draft")
-                categorySelection.clearSelection()
-                setCurrentPage(1)
-              },
-              items: [
-                {
-                  value: "all",
-                  label: "All",
-                  icon: List,
-                  count: statusCounts.all
-                },
-                {
-                  value: "published",
-                  label: "Published",
-                  icon: Globe,
-                  count: statusCounts.published
-                },
-                {
-                  value: "draft",
-                  label: "Draft",
-                  icon: FileEdit,
-                  count: statusCounts.draft
-                }
-              ]
-            }}
-            preActions={
-              <>
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={categorySelection.selectedCount}
+          />
+
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Tag className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Categories</span>
+                <Badge variant="secondary">{filteredCategories.length}</Badge>
+                {categorySelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={categorySelection.clearSelection}
+                  >
+                    Clear {categorySelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={categorySelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search categories"
                 />
+                <Select
+                  value={filterStatus}
+                  onValueChange={(value) => {
+                    setFilterStatus(value as "all" | "published" | "draft")
+                    categorySelection.clearSelection()
+                    setCurrentPage(1)
+                  }}
+                >
+                  <TableRightActionsSelectTrigger aria-label="Category status filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({statusCounts.all})</SelectItem>
+                    <SelectItem value="published">Published ({statusCounts.published})</SelectItem>
+                    <SelectItem value="draft">Draft ({statusCounts.draft})</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={filterLevel} onValueChange={setFilterLevel}>
-                  <SelectTrigger>
+                  <TableRightActionsSelectTrigger aria-label="Category level filter">
                     <SelectValue placeholder="All levels" />
-                  </SelectTrigger>
+                  </TableRightActionsSelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All levels</SelectItem>
                     {depthLevels.map((level) => (
@@ -285,111 +299,117 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                     ))}
                   </SelectContent>
                 </Select>
-              </>
-            }
-            actions={
-              <Button onClick={() => setShowCreateModal(true)}>
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Category</span>
-              </Button>
-            }
-          />
-
-          <Card>
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-7">
-              <div className="col-span-2 flex items-center space-x-4 pl-[3px]">
-                <Checkbox
-                  checked={categorySelection.isPageSelected(filteredCategoryIds)}
-                  onCheckedChange={() => categorySelection.togglePage(filteredCategoryIds)}
-                  aria-label="Select all categories"
-                />
-                <AdminSortButton
-                  active={categorySort.sortColumn === "title"}
-                  direction={categorySort.sortDirection}
-                  onClick={() => categorySort.toggleSort("title")}
-                >
-                  Category
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={categorySort.sortColumn === "parent"}
-                direction={categorySort.sortDirection}
-                onClick={() => categorySort.toggleSort("parent")}
-              >
-                Parent
-              </AdminSortButton>
-              <AdminSortButton
-                active={categorySort.sortColumn === "status"}
-                direction={categorySort.sortDirection}
-                onClick={() => categorySort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <AdminSortButton
-                active={categorySort.sortColumn === "assigned"}
-                direction={categorySort.sortDirection}
-                onClick={() => categorySort.toggleSort("assigned")}
-              >
-                Assigned
-              </AdminSortButton>
-              <AdminSortButton
-                active={categorySort.sortColumn === "modified"}
-                direction={categorySort.sortDirection}
-                onClick={() => categorySort.toggleSort("modified")}
-              >
-                Modified
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            <AdminSelectionBanner
-              allSelected={categorySelection.allSelected}
-              onClearSelection={categorySelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={categorySelection.selectedCount}
-              total={total}
-              visibleCount={filteredCategories.length}
-            />
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={7} rowCount={5} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => window.location.reload()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : categories.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">No categories found</p>
-                  <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-                    Create your first category to start organizing content. You can create nested hierarchies like
-                    Country &gt; City.
-                  </p>
-                  <Button onClick={() => setShowCreateModal(true)} variant="outline">
-                    Create First Category
-                  </Button>
-                </div>
-              ) : (
-                <CategoryTree
-                  categories={sortedCategories}
-                  allCategories={categories}
-                  assignmentCounts={assignmentCounts}
-                  siteId={siteId}
-                  onCategoryDeleted={handleCategoryDeleted}
-                  onCategoryUpdated={(updated) => {
-                    setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-                  }}
-                  selectedIds={categorySelection.selectedIds}
-                  onToggleSelect={categorySelection.toggleOne}
-                />
-              )}
+                <TableRightActionsButton onClick={() => setShowCreateModal(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Category</span>
+                </TableRightActionsButton>
+              </TableRightActions>
             </div>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={categorySelection.isPageSelected(visibleCategoryIds)}
+                        onCheckedChange={() => categorySelection.togglePage(visibleCategoryIds)}
+                        aria-label="Select all categories"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={categorySort.sortColumn === "title"}
+                        direction={categorySort.sortDirection}
+                        onClick={() => categorySort.toggleSort("title")}
+                      >
+                        Category
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="content">
+                      <AdminSortButton
+                        active={categorySort.sortColumn === "parent"}
+                        direction={categorySort.sortDirection}
+                        onClick={() => categorySort.toggleSort("parent")}
+                      >
+                        Parent
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={categorySort.sortColumn === "status"}
+                        direction={categorySort.sortDirection}
+                        onClick={() => categorySort.toggleSort("status")}
+                      >
+                        Status
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={categorySort.sortColumn === "assigned"}
+                        direction={categorySort.sortDirection}
+                        onClick={() => categorySort.toggleSort("assigned")}
+                      >
+                        Assigned
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={categorySort.sortColumn === "modified"}
+                        direction={categorySort.sortDirection}
+                        onClick={() => categorySort.toggleSort("modified")}
+                      >
+                        Modified
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={7} rowCount={5} actionCount={3} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={() => window.location.reload()} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : categories.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <Tag className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">No categories found</p>
+                        <p className="mx-auto mb-4 max-w-md text-sm text-muted-foreground">
+                          Create your first category to start organizing content. You can create nested hierarchies like
+                          Country &gt; City.
+                        </p>
+                        <Button onClick={() => setShowCreateModal(true)} variant="outline">
+                          Create First Category
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    <CategoryTree
+                      categories={sortedCategories}
+                      allCategories={categories}
+                      assignmentCounts={assignmentCounts}
+                      siteId={siteId}
+                      onCategoryDeleted={handleCategoryDeleted}
+                      onCategoryUpdated={(updated) => {
+                        setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+                      }}
+                      selectedIds={categorySelection.selectedIds}
+                      onToggleSelect={categorySelection.toggleOne}
+                    />
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
             {!loading && total > 0 && (
               <AdminListFooter
                 currentPage={currentPage}
@@ -398,7 +418,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                 total={total}
               />
             )}
-          </Card>
+          </TableSurface>
 
           {/* Create Modal */}
           {showCreateModal && (

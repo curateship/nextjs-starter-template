@@ -146,7 +146,7 @@ export default function DirectoryClaimsPage() {
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <AdminListSkeleton columns={6} firstColumnSpan={2} showCheckbox={false} showThumbnail={false} />
+                <AdminListSkeleton columns={6} showCheckbox={false} showThumbnail={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="mb-4 text-red-600">{error}</p>

@@ -1,78 +1,102 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
-import Link from "next/link"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { AdminListSkeleton, formatShortDate } from "@/components/admin/layout/list"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
-import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-actions"
-import type { SystemEmailListItem } from "@/lib/actions/email/system-email"
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { AdminLayout } from "@/components/admin/layout/admin-layout";
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
+import {
+  AdminListSkeleton,
+  formatShortDate,
+} from "@/components/admin/layout/list";
+import {
+  TableRightActions,
+  TableRightActionsSearch,
+} from "@/components/admin/layout/content/table-right-actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface,
+} from "@/components/ui/table";
+import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-actions";
+import type { SystemEmailListItem } from "@/lib/actions/email/system-email";
+import { Mail } from "lucide-react";
 
 interface DashboardData {
-  templates: SystemEmailListItem[]
+  templates: SystemEmailListItem[];
 }
 
 export default function PlatformEmailsPage() {
-  const { currentSite } = useSiteSwitcher()
-  const [loading, setLoading] = useState(true)
+  const { currentSite } = useSiteSwitcher();
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{
-    type: "success" | "error"
-    text: string
-  } | null>(null)
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
-  const [searchQuery, setSearchQuery] = useState("")
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadPage = useCallback(async () => {
     if (!currentSite?.id) {
-      setLoading(false)
-      return
+      setLoading(false);
+      return;
     }
 
-    setLoading(true)
-    setMessage(null)
+    setLoading(true);
+    setMessage(null);
 
-    const dashboardResult = await getSystemEmailDashboardAction(currentSite.id)
+    const dashboardResult = await getSystemEmailDashboardAction(currentSite.id);
 
     if (!dashboardResult.success || !dashboardResult.data) {
       setMessage({
         type: "error",
-        text: dashboardResult.error || "Failed to load system emails."
-      })
-      setDashboard(null)
+        text: dashboardResult.error || "Failed to load system emails.",
+      });
+      setDashboard(null);
     } else {
-      setDashboard(dashboardResult.data)
+      setDashboard(dashboardResult.data);
     }
 
-    setLoading(false)
-  }, [currentSite?.id])
+    setLoading(false);
+  }, [currentSite?.id]);
 
   useEffect(() => {
-    void loadPage()
-  }, [loadPage])
+    void loadPage();
+  }, [loadPage]);
 
-  const templates = dashboard?.templates ?? []
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const templates = dashboard?.templates ?? [];
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredTemplates = normalizedSearchQuery
     ? templates.filter((template) => {
-        const searchText = [template.name, template.description, template.scope_label, template.template_key]
+        const searchText = [
+          template.name,
+          template.description,
+          template.scope_label,
+          template.template_key,
+        ]
           .join(" ")
-          .toLowerCase()
+          .toLowerCase();
 
-        return searchText.includes(normalizedSearchQuery)
+        return searchText.includes(normalizedSearchQuery);
       })
-    : templates
+    : templates;
 
   if (!currentSite) {
     return (
       <AdminLayout>
-        <div className="p-8 text-sm text-muted-foreground">Choose a site to manage system emails.</div>
+        <div className="p-8 text-sm text-muted-foreground">
+          Choose a site to manage system emails.
+        </div>
       </AdminLayout>
-    )
+    );
   }
 
   return (
@@ -80,14 +104,7 @@ export default function PlatformEmailsPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full pb-8">
-          <DashboardSubheader
-            items={[{ label: "Email Templates" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search email templates"
-            }}
-          />
+          <DashboardSubheader items={[{ label: "Email Templates" }]} />
 
           {message && (
             <div
@@ -97,71 +114,113 @@ export default function PlatformEmailsPage() {
             </div>
           )}
 
-          <div className="space-y-6">
-            <Card>
-              <CardTableHeader className="grid-cols-12">
-                <div className="col-span-6">Template</div>
-                <div className="col-span-2">Scope</div>
-                <div className="col-span-2">Updated</div>
-                <div className="col-span-2" />
-              </CardTableHeader>
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Mail className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">
+                  Email Templates
+                </span>
+                <Badge variant="secondary">{filteredTemplates.length}</Badge>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search email templates"
+                />
+              </TableRightActions>
+            </div>
 
-              <div className="divide-y">
-                {loading && (
-                  <AdminListSkeleton columns={12} firstColumnSpan={6} rowCount={3} showCheckbox={false} showThumbnail={false} />
-                )}
-
-                {!loading && filteredTemplates.length === 0 && (
-                  <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-                    {normalizedSearchQuery ? "No email templates match your search." : "No email templates found."}
-                  </div>
-                )}
-
-                {!loading &&
-                  filteredTemplates.map((template) => (
-                    <div key={template.template_key} className="px-6 py-4">
-                      <div className="grid grid-cols-12 gap-4 items-center">
-                        <div className="col-span-6 min-w-0">
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">Template</TableHead>
+                    <TableHead column="meta">Scope</TableHead>
+                    <TableHead column="meta">Updated</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton
+                      columns={4}
+                      rowCount={3}
+                      showCheckbox={false}
+                      showThumbnail={false}
+                    />
+                  ) : filteredTemplates.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={4}
+                        className="h-32 text-center text-sm text-muted-foreground"
+                      >
+                        {normalizedSearchQuery
+                          ? "No email templates match your search."
+                          : "No email templates found."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTemplates.map((template) => (
+                      <TableRow key={template.template_key} className="group">
+                        <TableCell column="main">
                           <div className="flex items-center gap-2">
                             {template.editable ? (
                               <Link
                                 href={`/admin/platforms/emails/${template.template_key}`}
-                                className="font-medium hover:underline"
+                                className="truncate text-sm font-medium hover:underline sm:text-base"
                               >
                                 {template.name}
                               </Link>
                             ) : (
-                              <p className="font-medium">{template.name}</p>
+                              <p className="truncate text-sm font-medium sm:text-base">
+                                {template.name}
+                              </p>
                             )}
-                            {!template.editable && <Badge variant="secondary">Super Admin</Badge>}
+                            {!template.editable && (
+                              <Badge variant="secondary">Super Admin</Badge>
+                            )}
                           </div>
-                          <p className="mt-1 text-sm text-muted-foreground">{template.description}</p>
-                        </div>
-                        <div className="col-span-2 text-sm">{template.scope_label}</div>
-                        <div className="col-span-2 text-sm text-muted-foreground">
+                          <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm">
+                            {template.description}
+                          </p>
+                        </TableCell>
+                        <TableCell column="meta">
+                          {template.scope_label}
+                        </TableCell>
+                        <TableCell column="mutedMeta">
                           {template.updated_at
                             ? formatShortDate(template.updated_at)
                             : "Default"}
-                        </div>
-                        <div className="col-span-2 flex justify-end">
+                        </TableCell>
+                        <TableCell column="meta">
                           {template.editable ? (
                             <Button asChild variant="outline" size="sm">
-                              <Link href={`/admin/platforms/emails/${template.template_key}`}>Edit</Link>
+                              <Link
+                                href={`/admin/platforms/emails/${template.template_key}`}
+                              >
+                                Edit
+                              </Link>
                             </Button>
                           ) : (
                             <Button variant="outline" size="sm" disabled>
                               Edit
                             </Button>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </Card>
-          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
         </div>
       </AdminLayout>
     </>
-  )
+  );
 }

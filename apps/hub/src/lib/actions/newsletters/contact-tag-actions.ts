@@ -197,23 +197,6 @@ export async function getNewsletterContactTags(
   }
 }
 
-export async function getNewsletterContactTagIdsAction(
-  siteId: string,
-  options?: { filter?: NewsletterContactTagFilter; searchQuery?: string }
-): Promise<{ ids: string[]; error: string | null }> {
-  try {
-    const result = await getNewsletterContactTags(siteId, {
-      ...options,
-      page: 1,
-      pageSize: -1,
-    })
-    return { ids: result.data?.map((row) => row.id) ?? [], error: result.error }
-  } catch (err) {
-    console.error('getNewsletterContactTagIdsAction error:', err)
-    return { ids: [], error: 'Server error' }
-  }
-}
-
 export async function renameNewsletterContactTag(
   siteId: string,
   fromTag: string,

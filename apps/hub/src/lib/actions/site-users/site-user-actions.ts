@@ -302,37 +302,6 @@ export async function getSiteUsers(
   }
 }
 
-export async function getSiteUserIdsAction(
-  siteId: string,
-  options?: {
-    filterGroup?: SiteUserFilterGroup | null
-    searchQuery?: string | null
-  }
-): Promise<{ ids: string[]; error: string | null }> {
-  try {
-    if (!UUID_REGEX.test(siteId)) return { ids: [], error: 'Invalid site ID' }
-
-    const user = await requireAdmin()
-    if (!await verifySiteOwnership(siteId, user.id)) return { ids: [], error: 'Access denied' }
-
-    const normalizedFilters = normalizeSiteUserFilterGroup(options?.filterGroup)
-    const where = buildSiteUsersWhere(siteId, normalizedFilters, options?.searchQuery)
-
-    const rows = await db
-      .select({ id: siteMemberships.id })
-      .from(siteMemberships)
-      .innerJoin(authUsers, eq(authUsers.id, siteMemberships.userId))
-      .where(and(where, inArray(siteMemberships.role, ['admin', 'member'])))
-
-    return { ids: rows.map((row) => row.id), error: null }
-  } catch (error) {
-    return {
-      ids: [],
-      error: error instanceof Error ? error.message : 'Failed to load site user IDs',
-    }
-  }
-}
-
 export async function createSiteUser(input: {
   siteId: string
   email: string

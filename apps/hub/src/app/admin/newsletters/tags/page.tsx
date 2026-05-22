@@ -4,20 +4,25 @@ import { useCallback, useDeferredValue, useEffect, useState, type FormEvent } fr
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { Card, CardContent, CardGroup, CardHeader, CardTableHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  TableRightActions,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatShortDate as formatDate,
   useAdminBulkSelection,
@@ -27,12 +32,22 @@ import { Settings, Tag, Trash2 } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   deleteNewsletterContactTags,
-  getNewsletterContactTagIdsAction,
   getNewsletterContactTags,
   renameNewsletterContactTag,
   type NewsletterContactTag,
   type NewsletterContactTagFilter
 } from "@/lib/actions/newsletters/contact-tag-actions"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 
 type TagSortColumn = "tag" | "contacts" | "lastUsed"
 
@@ -117,21 +132,8 @@ export default function NewsletterContactTagsPage() {
     }
     return 0
   })
-  const tagIds = tags.map((tag) => tag.id)
+  const tagIds = sortedTags.map((tag) => tag.id)
   const hasSearchQuery = deferredSearchQuery.trim().length > 0
-
-  const handleSelectAll = async () => {
-    if (!currentSite?.id || total === 0) return
-    const { ids, error: idsError } = await getNewsletterContactTagIdsAction(currentSite.id, {
-      filter: tagFilter,
-      searchQuery: deferredSearchQuery
-    })
-    if (idsError) {
-      showError(idsError)
-      return
-    }
-    tagSelection.selectAll(ids)
-  }
 
   const openRenameModal = (tag: NewsletterContactTag) => {
     setRenamingTag(tag)
@@ -189,151 +191,179 @@ export default function NewsletterContactTagsPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Tags" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: (value) => {
-                setSearchQuery(value)
-                setCurrentPage(1)
-                tagSelection.clearSelection()
-              },
-              placeholder: "Search tags"
-            }}
-            filterMenu={{
-              value: tagFilter,
-              onValueChange: (value) => {
-                setTagFilter(value as NewsletterContactTagFilter)
-                setCurrentPage(1)
-                tagSelection.clearSelection()
-              },
-              items: [
-                { value: "all", label: "All" },
-                { value: "empty", label: "Empty Tags" },
-              ],
-            }}
-            actions={
-              <AdminBulkDeleteButton
-                deleting={deleting}
-                onClick={() => setDeleteConfirmOpen(true)}
-                selectedCount={tagSelection.selectedCount}
-              />
-            }
           />
 
-          <Card>
-            <CardTableHeader className="grid-cols-5">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={tagSelection.isPageSelected(tagIds)}
-                  onCheckedChange={() => tagSelection.togglePage(tagIds)}
-                  aria-label="Select all tags"
-                />
-                <AdminSortButton
-                  active={tagSort.sortColumn === "tag"}
-                  direction={tagSort.sortDirection}
-                  onClick={() => tagSort.toggleSort("tag")}
-                >
-                  Tag
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={tagSort.sortColumn === "contacts"}
-                direction={tagSort.sortDirection}
-                onClick={() => tagSort.toggleSort("contacts")}
-              >
-                Contacts
-              </AdminSortButton>
-              <AdminSortButton
-                active={tagSort.sortColumn === "lastUsed"}
-                direction={tagSort.sortDirection}
-                onClick={() => tagSort.toggleSort("lastUsed")}
-              >
-                Last Used
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            <AdminSelectionBanner
-              allSelected={tagSelection.allSelected}
-              itemLabelPlural="tags"
-              onClearSelection={tagSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={tagSelection.selectedCount}
-              total={total}
-              visibleCount={tags.length}
-            />
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={5} showThumbnail={false} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => loadTags()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : tags.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Tag className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    {tagFilter === "empty"
-                      ? hasSearchQuery ? "No empty tags match this search" : "No empty tags"
-                      : hasSearchQuery ? "No tags match this search" : "No contact tags yet"}
-                  </p>
-                </div>
-              ) : (
-                sortedTags.map((tag) => (
-                  <div
-                    key={tag.id}
-                    className={`p-6 transition-colors ${tagSelection.selectedIds.has(tag.id) ? "bg-accent/50" : ""}`}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Tag className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Tags</span>
+                <Badge variant="secondary">{tags.length}</Badge>
+                {tagSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={tagSelection.clearSelection}
                   >
-                    <div className="grid grid-cols-5 gap-4 items-center">
-                      <div className="col-span-2 flex items-center space-x-4">
-                        <Checkbox
-                          checked={tagSelection.selectedIds.has(tag.id)}
-                          onCheckedChange={() => tagSelection.toggleOne(tag.id)}
-                          aria-label={`Select ${tag.tag}`}
-                        />
-                        <div className="min-w-0">
-                          <h4 className="truncate font-medium text-sm">{tag.tag}</h4>
-                        </div>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {tag.contact_count.toLocaleString()}
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(tag.last_used_at)}</span>
-                      </div>
-                      <div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => openRenameModal(tag)}
-                          title="Rename Tag"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Rename Tag</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => {
-                            tagSelection.selectOnly([tag.id])
-                            setDeleteConfirmOpen(true)
-                          }}
-                          title="Delete Tag"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete Tag</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+                    Clear {tagSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={deleting}
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    selectedCount={tagSelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value)
+                    setCurrentPage(1)
+                    tagSelection.clearSelection()
+                  }}
+                  placeholder="Search tags"
+                />
+                <Select
+                  value={tagFilter}
+                  onValueChange={(value) => {
+                    setTagFilter(value as NewsletterContactTagFilter)
+                    setCurrentPage(1)
+                    tagSelection.clearSelection()
+                  }}
+                >
+                  <TableRightActionsSelectTrigger aria-label="Tag filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="empty">Empty Tags</SelectItem>
+                  </SelectContent>
+                </Select>
+              </TableRightActions>
             </div>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={tagSelection.isPageSelected(tagIds)}
+                        onCheckedChange={() => tagSelection.togglePage(tagIds)}
+                        aria-label="Select all tags"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={tagSort.sortColumn === "tag"}
+                        direction={tagSort.sortDirection}
+                        onClick={() => tagSort.toggleSort("tag")}
+                      >
+                        Tag
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={tagSort.sortColumn === "contacts"}
+                        direction={tagSort.sortDirection}
+                        onClick={() => tagSort.toggleSort("contacts")}
+                      >
+                        Contacts
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={tagSort.sortColumn === "lastUsed"}
+                        direction={tagSort.sortDirection}
+                        onClick={() => tagSort.toggleSort("lastUsed")}
+                      >
+                        Last Used
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} actionCount={2} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={() => loadTags()} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : tags.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <Tag className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          {tagFilter === "empty"
+                            ? hasSearchQuery ? "No empty tags match this search" : "No empty tags"
+                            : hasSearchQuery ? "No tags match this search" : "No contact tags yet"}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedTags.map((tag) => (
+                      <TableRow
+                        key={tag.id}
+                        data-state={tagSelection.selectedIds.has(tag.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={tagSelection.selectedIds.has(tag.id)}
+                            onCheckedChange={() => tagSelection.toggleOne(tag.id)}
+                            aria-label={`Select ${tag.tag}`}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <h4 className="truncate text-sm font-medium sm:text-base">{tag.tag}</h4>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{tag.contact_count.toLocaleString()}</TableCell>
+                        <TableCell column="mutedMeta">{formatDate(tag.last_used_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openRenameModal(tag)}
+                              title="Rename Tag"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span className="sr-only">Rename Tag</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => {
+                                tagSelection.selectOnly([tag.id])
+                                setDeleteConfirmOpen(true)
+                              }}
+                              title="Delete Tag"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete Tag</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
 
             {!loading && (
               <AdminListFooter
@@ -346,7 +376,7 @@ export default function NewsletterContactTagsPage() {
                 }}
               />
             )}
-          </Card>
+          </TableSurface>
         </div>
       </AdminLayout>
 

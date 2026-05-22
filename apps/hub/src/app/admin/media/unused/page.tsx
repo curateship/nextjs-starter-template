@@ -3,11 +3,25 @@
 import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch
+} from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
@@ -134,165 +148,202 @@ export default function UnusedMediaPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Media", href: "/admin/media" }, { label: "Unused" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search unused media"
-            }}
-            preActions={
-              <AdminBulkDeleteButton
-                deleting={isDeleting}
-                onClick={() => setDeleteConfirmOpen(true)}
-                selectedCount={mediaSelection.selectedCount}
-              />
-            }
-            actions={
-              <Button onClick={handleScan} disabled={siteLoading || !currentSiteId || isScanning}>
-                <RefreshCw className={cn("h-4 w-4", isScanning && "animate-spin")} />
-                <span className="hidden sm:inline">{isScanning ? "Scanning..." : "Scan"}</span>
-              </Button>
-            }
           />
 
-          <Card>
-            <CardTableHeader className="grid-cols-6">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={mediaSelection.isPageSelected(sortedMediaIds)}
-                  onCheckedChange={() => mediaSelection.togglePage(sortedMediaIds)}
-                  aria-label="Select all unused media"
-                />
-                <AdminSortButton
-                  active={mediaSort.sortColumn === "name"}
-                  direction={mediaSort.sortDirection}
-                  onClick={() => mediaSort.toggleSort("name")}
-                >
-                  File
-                </AdminSortButton>
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <ImageOff className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Unused Media</span>
+                {mediaItems ? (
+                  <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+                    {filteredMedia.length}
+                  </span>
+                ) : null}
+                {mediaSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={mediaSelection.clearSelection}
+                  >
+                    Clear {mediaSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={isDeleting}
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    selectedCount={mediaSelection.selectedCount}
+                  />
+                </div>
               </div>
-              <AdminSortButton
-                active={mediaSort.sortColumn === "type"}
-                direction={mediaSort.sortDirection}
-                onClick={() => mediaSort.toggleSort("type")}
-              >
-                Type
-              </AdminSortButton>
-              <AdminSortButton
-                active={mediaSort.sortColumn === "size"}
-                direction={mediaSort.sortDirection}
-                onClick={() => mediaSort.toggleSort("size")}
-              >
-                Size
-              </AdminSortButton>
-              <AdminSortButton
-                active={mediaSort.sortColumn === "added"}
-                direction={mediaSort.sortDirection}
-                onClick={() => mediaSort.toggleSort("added")}
-              >
-                Added
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search unused media"
+                />
+                <TableRightActionsButton onClick={handleScan} disabled={siteLoading || !currentSiteId || isScanning}>
+                  <RefreshCw className={cn("h-4 w-4", isScanning && "animate-spin")} />
+                  <span className="hidden sm:inline">{isScanning ? "Scanning..." : "Scan"}</span>
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
 
-            <div className="divide-y divide-muted/80">
-              {isScanning ? (
-                <AdminListSkeleton rowCount={6} />
-              ) : mediaItems === null ? (
-                <div className="p-8 text-center">
-                  <ImageOff className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="mb-4 text-muted-foreground">
-                    Run a scan to find media that is not referenced by this site.
-                  </p>
-                  <Button onClick={handleScan} disabled={siteLoading || !currentSiteId}>
-                    <RefreshCw className="h-4 w-4" />
-                    Scan
-                  </Button>
-                </div>
-              ) : sortedMedia.length === 0 ? (
-                <div className="p-8 text-center">
-                  <ImageOff className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    {mediaItems.length === 0 ? "No unused media found." : "No unused media matches your search."}
-                  </p>
-                  {scannedAt ? (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Last scanned {new Date(scannedAt).toLocaleString()}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                sortedMedia.map((media) => {
-                  const isSelected = mediaSelection.selectedIds.has(media.id)
-                  return (
-                    <div key={media.id} className={cn("p-6 transition-colors", isSelected && "bg-accent/50")}>
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={mediaSelection.isPageSelected(sortedMediaIds)}
+                        onCheckedChange={() => mediaSelection.togglePage(sortedMediaIds)}
+                        aria-label="Select all unused media"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={mediaSort.sortColumn === "name"}
+                        direction={mediaSort.sortDirection}
+                        onClick={() => mediaSort.toggleSort("name")}
+                      >
+                        File
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={mediaSort.sortColumn === "type"}
+                        direction={mediaSort.sortDirection}
+                        onClick={() => mediaSort.toggleSort("type")}
+                      >
+                        Type
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={mediaSort.sortColumn === "size"}
+                        direction={mediaSort.sortDirection}
+                        onClick={() => mediaSort.toggleSort("size")}
+                      >
+                        Size
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={mediaSort.sortColumn === "added"}
+                        direction={mediaSort.sortDirection}
+                        onClick={() => mediaSort.toggleSort("added")}
+                      >
+                        Added
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isScanning ? (
+                    <AdminListSkeleton columns={6} rowCount={6} actionCount={2} />
+                  ) : mediaItems === null ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center">
+                        <ImageOff className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          Run a scan to find media that is not referenced by this site.
+                        </p>
+                        <Button onClick={handleScan} disabled={siteLoading || !currentSiteId} variant="outline">
+                          <RefreshCw className="h-4 w-4" />
+                          Scan
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : sortedMedia.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center">
+                        <ImageOff className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="text-muted-foreground">
+                          {mediaItems.length === 0 ? "No unused media found." : "No unused media matches your search."}
+                        </p>
+                        {scannedAt ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Last scanned {new Date(scannedAt).toLocaleString()}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedMedia.map((media) => {
+                      const isSelected = mediaSelection.selectedIds.has(media.id)
+                      return (
+                        <TableRow key={media.id} data-state={isSelected ? "selected" : undefined} className="group">
+                          <TableCell column="select">
                             <Checkbox
                               checked={isSelected}
                               onCheckedChange={() => mediaSelection.toggleOne(media.id)}
                               aria-label={`Select ${media.original_name}`}
                             />
-                            <div className="relative ml-2 flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted">
-                              {media.file_type === "video" ? (
-                                <VideoIcon className="h-6 w-6 text-muted-foreground" />
-                              ) : (
-                                <Image
-                                  src={media.public_url}
-                                  alt={media.alt_text || media.original_name}
-                                  fill
-                                  className="object-contain"
-                                  sizes="48px"
-                                />
-                              )}
+                          </TableCell>
+                          <TableCell column="main">
+                            <div className="flex min-w-0 items-center space-x-4">
+                              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                                {media.file_type === "video" ? (
+                                  <VideoIcon className="h-5 w-5 text-muted-foreground" />
+                                ) : (
+                                  <Image
+                                    src={media.public_url}
+                                    alt={media.alt_text || media.original_name}
+                                    fill
+                                    className="object-contain"
+                                    sizes="48px"
+                                  />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="truncate text-sm font-medium sm:text-base">{media.original_name}</h4>
+                                {media.alt_text ? (
+                                  <p className="truncate text-xs text-muted-foreground sm:text-sm">{media.alt_text}</p>
+                                ) : null}
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="text-sm font-medium">{media.original_name}</h4>
-                              {media.alt_text ? (
-                                <p className="max-w-[200px] truncate text-xs text-muted-foreground">{media.alt_text}</p>
-                              ) : null}
+                          </TableCell>
+                          <TableCell column="mutedMeta" className="capitalize">{media.file_type}</TableCell>
+                          <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
+                          <TableCell column="mutedMeta">{formatDate(media.created_at)}</TableCell>
+                          <TableCell column="meta">
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => window.open(media.public_url, "_blank")}
+                                title="View Original"
+                              >
+                                <ImageIcon className="h-4 w-4" />
+                                <span className="sr-only">View Original</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteOne(media)}
+                                disabled={isDeleting}
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete</span>
+                              </Button>
                             </div>
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-sm capitalize text-muted-foreground">{media.file_type}</span>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">{formatFileSize(media.file_size)}</span>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">{formatDate(media.created_at)}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => window.open(media.public_url, "_blank")}
-                            title="View Original"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                            <span className="sr-only">View Original</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => handleDeleteOne(media)}
-                            disabled={isDeleting}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </Card>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
 
           <AdminConfirmDialog
             open={deleteConfirmOpen}

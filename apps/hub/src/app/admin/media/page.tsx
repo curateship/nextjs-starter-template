@@ -3,9 +3,9 @@
 import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Grid,
@@ -17,11 +17,16 @@ import {
   Upload
 } from "lucide-react"
 import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
@@ -30,8 +35,7 @@ import {
 import {
   getPaginatedMediaAction,
   deleteImageAction,
-  updateImageAction,
-  getMediaIdsAction
+  updateImageAction
 } from "@/lib/actions/media/media-actions"
 import type { MediaData, PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import Image from "next/image"
@@ -40,6 +44,17 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 
 type MediaSortColumn = "name" | "type" | "size" | "added"
 
@@ -257,17 +272,6 @@ export default function ImagesPage() {
     }
   }
 
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    const total = paginatedData?.total ?? 0
-    if (!currentSiteId || total === 0) return
-    const fileType = filterType === "all" ? undefined : (filterType as "image" | "video")
-    const { ids } = await getMediaIdsAction(fileType, currentSiteId)
-    if (ids) {
-      mediaSelection.selectAll(ids)
-    }
-  }
-
   const handleBulkDelete = async () => {
     if (!currentSiteId || mediaSelection.selectedCount === 0) {
       setMassDeleteConfirmOpen(false)
@@ -320,11 +324,6 @@ export default function ImagesPage() {
       .toLowerCase()
       .includes(normalizedSearchQuery)
   })
-  const filteredImageIds = filteredImages.map((media) => media.id)
-
-  // Check if all items on current page are selected
-  const allPageSelected = mediaSelection.isPageSelected(filteredImageIds)
-
   const sortedImages = [...filteredImages].sort((a, b) => {
     if (!mediaSort.sortColumn) return 0
     const dir = mediaSort.sortDirection === "asc" ? 1 : -1
@@ -334,6 +333,7 @@ export default function ImagesPage() {
     if (mediaSort.sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
     return 0
   })
+  const visibleMediaIds = sortedImages.map((media) => media.id)
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
@@ -350,73 +350,6 @@ export default function ImagesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Media" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search media"
-            }}
-            filterMenu={{
-              value: filterType,
-              onValueChange: (value) => handleFilterChange(value as "all" | "image" | "video"),
-              items: [
-                {
-                  value: "all",
-                  label: "All",
-                  icon: List,
-                  count: typeCounts.all
-                },
-                {
-                  value: "image",
-                  label: "Images",
-                  icon: ImageIcon,
-                  count: typeCounts.image
-                },
-                {
-                  value: "video",
-                  label: "Videos",
-                  icon: VideoIcon,
-                  count: typeCounts.video
-                }
-              ]
-            }}
-            preActions={
-              <>
-                <AdminBulkDeleteButton
-                  deleting={isDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={mediaSelection.selectedCount}
-                />
-                {/* View Mode Toggle */}
-                <div className="flex items-center border rounded-md">
-                  <Button
-                    variant={viewMode === "list" ? "default" : "ghost"}
-                    size="default"
-                    onClick={() => setViewMode("list")}
-                    className="rounded-r-none"
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === "gallery" ? "default" : "ghost"}
-                    onClick={() => setViewMode("gallery")}
-                    className="rounded-l-none"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </Button>
-                </div>
-              </>
-            }
-            actions={
-              <>
-                <Button
-                  onClick={isUploading ? undefined : () => document.getElementById("image-upload-input")?.click()}
-                  disabled={isUploading}
-                >
-                  <Upload className="h-4 w-4" />
-                  <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Upload Media"}</span>
-                </Button>
-              </>
-            }
           />
 
           {/* Hidden file input */}
@@ -428,98 +361,113 @@ export default function ImagesPage() {
             className="hidden"
           />
 
-          <Card>
-            {viewMode === "list" && (
-              /* Table Header */
-              <CardTableHeader className="grid-cols-6">
-                <div className="col-span-2 flex items-center space-x-4">
-                  <Checkbox
-                    checked={allPageSelected}
-                    onCheckedChange={() => mediaSelection.togglePage(filteredImageIds)}
-                    aria-label="Select all media"
-                  />
-                  <AdminSortButton
-                    active={mediaSort.sortColumn === "name"}
-                    direction={mediaSort.sortDirection}
-                    onClick={() => mediaSort.toggleSort("name")}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Media</span>
+                <Badge variant="secondary">{paginatedData?.total ?? 0}</Badge>
+                {mediaSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={mediaSelection.clearSelection}
                   >
-                    File
-                  </AdminSortButton>
+                    Clear {mediaSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={isDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={mediaSelection.selectedCount}
+                  />
                 </div>
-                <AdminSortButton
-                  active={mediaSort.sortColumn === "type"}
-                  direction={mediaSort.sortDirection}
-                  onClick={() => mediaSort.toggleSort("type")}
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search media"
+                />
+                <Select
+                  value={filterType}
+                  onValueChange={(value) => handleFilterChange(value as "all" | "image" | "video")}
                 >
-                  Type
-                </AdminSortButton>
-                <AdminSortButton
-                  active={mediaSort.sortColumn === "size"}
-                  direction={mediaSort.sortDirection}
-                  onClick={() => mediaSort.toggleSort("size")}
+                  <TableRightActionsSelectTrigger aria-label="Media type filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({typeCounts.all})</SelectItem>
+                    <SelectItem value="image">Images ({typeCounts.image})</SelectItem>
+                    <SelectItem value="video">Videos ({typeCounts.video})</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex h-8 items-center rounded-md border">
+                  <Button
+                    variant={viewMode === "list" ? "default" : "ghost"}
+                    size="icon"
+                    onClick={() => setViewMode("list")}
+                    className="h-8 w-8 rounded-r-none"
+                    aria-label="List view"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "gallery" ? "default" : "ghost"}
+                    size="icon"
+                    onClick={() => setViewMode("gallery")}
+                    className="h-8 w-8 rounded-l-none"
+                    aria-label="Gallery view"
+                  >
+                    <Grid className="h-4 w-4" />
+                  </Button>
+                </div>
+                <TableRightActionsButton
+                  onClick={isUploading ? undefined : () => document.getElementById("image-upload-input")?.click()}
+                  disabled={isUploading}
                 >
-                  Size
-                </AdminSortButton>
-                <AdminSortButton
-                  active={mediaSort.sortColumn === "added"}
-                  direction={mediaSort.sortDirection}
-                  onClick={() => mediaSort.toggleSort("added")}
-                >
-                  Added
-                </AdminSortButton>
-                <div>Actions</div>
-              </CardTableHeader>
-            )}
+                  <Upload className="h-4 w-4" />
+                  <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Upload Media"}</span>
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
 
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            {paginatedData && (
-              <AdminSelectionBanner
-                allSelected={mediaSelection.allSelected}
-                onClearSelection={mediaSelection.clearSelection}
-                onSelectAll={handleSelectAll}
-                selectedCount={mediaSelection.selectedCount}
-                total={paginatedData.total}
-                visibleCount={filteredImages.length}
-              />
-            )}
-
-            <div className="divide-y divide-muted/80">
-              {isLoading ? (
-                viewMode === "gallery" ? (
-                  <div className="p-6">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {[...Array(10)].map((_, i) => (
-                        <div
-                          key={i}
-                          className="relative bg-muted rounded-lg overflow-hidden aspect-square animate-pulse"
-                        >
-                          <div className="absolute inset-0 bg-muted"></div>
-                        </div>
-                      ))}
-                    </div>
+            {viewMode === "gallery" ? (
+              isLoading ? (
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                    {[...Array(10)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-square animate-pulse overflow-hidden rounded-lg bg-muted"
+                      >
+                        <div className="absolute inset-0 bg-muted" />
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <AdminListSkeleton rowCount={8} />
-                )
+                </div>
               ) : images.length === 0 ? (
                 <div className="p-8 text-center">
-                  <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-4">No media found. Upload your first file to get started.</p>
+                  <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                  <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
                   <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
                     Upload Your First Media File
                   </Button>
                 </div>
-              ) : viewMode === "gallery" ? (
+              ) : (
                 <div className="p-6">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                     {images.map((media) => (
-                      <div key={media.id} className="group relative bg-muted rounded-lg overflow-hidden aspect-square">
+                      <div key={media.id} className="group relative aspect-square overflow-hidden rounded-lg bg-muted">
                         {media.file_type === "video" ? (
-                          <div className="relative w-full h-full bg-black">
+                          <div className="relative h-full w-full bg-black">
                             <video
                               key={media.id}
                               src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
-                              className="w-full h-full object-contain"
+                              className="h-full w-full object-contain"
                               muted
                               playsInline
                               preload="metadata"
@@ -527,8 +475,8 @@ export default function ImagesPage() {
                                 e.currentTarget.currentTime = 0.1
                               }}
                             />
-                            <div className="absolute top-2 left-2">
-                              <VideoIcon className="w-4 h-4 text-white drop-shadow-lg" />
+                            <div className="absolute left-2 top-2">
+                              <VideoIcon className="h-4 w-4 text-white drop-shadow-lg" />
                             </div>
                           </div>
                         ) : (
@@ -540,7 +488,7 @@ export default function ImagesPage() {
                             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
                           />
                         )}
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                           <div className="flex justify-center space-x-2">
                             <Button
                               size="sm"
@@ -564,87 +512,158 @@ export default function ImagesPage() {
                     ))}
                   </div>
                 </div>
-              ) : (
-                sortedImages.map((media) => {
-                  const isSelected = mediaSelection.selectedIds.has(media.id)
-                  return (
-                    <div key={media.id} className={`p-6 transition-colors ${isSelected ? "bg-accent/50" : ""}`}>
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
-                          <div className="flex items-center space-x-4">
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => mediaSelection.toggleOne(media.id)}
-                              aria-label={`Select ${media.original_name}`}
-                            />
-                            <div className="w-12 h-12 bg-muted rounded flex items-center justify-center overflow-hidden relative ml-2">
-                              {media.file_type === "video" ? (
-                                <VideoIcon className="h-6 w-6 text-muted-foreground" />
-                              ) : (
-                                <Image
-                                  src={media.public_url}
-                                  alt={media.alt_text || media.original_name}
-                                  fill
-                                  className="object-contain"
-                                  sizes="48px"
-                                />
-                              )}
-                            </div>
-                            <div>
-                              <h4 className="font-medium text-sm">{media.original_name}</h4>
-                              {media.alt_text && (
-                                <p className="text-xs text-muted-foreground truncate max-w-[200px]">{media.alt_text}</p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground capitalize">{media.file_type}</span>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">{formatFileSize(media.file_size)}</span>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">{formatDate(media.created_at)}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleEditImage(media)}
-                            title="Edit Details"
-                          >
-                            <Edit className="h-4 w-4" />
-                            <span className="sr-only">Edit</span>
+              )
+            ) : (
+              <ScrollArea className="w-full">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead column="select">
+                        <Checkbox
+                          checked={mediaSelection.isPageSelected(visibleMediaIds)}
+                          onCheckedChange={() => mediaSelection.togglePage(visibleMediaIds)}
+                          aria-label="Select all media"
+                        />
+                      </TableHead>
+                      <TableHead column="main">
+                        <AdminSortButton
+                          active={mediaSort.sortColumn === "name"}
+                          direction={mediaSort.sortDirection}
+                          onClick={() => mediaSort.toggleSort("name")}
+                        >
+                          File
+                        </AdminSortButton>
+                      </TableHead>
+                      <TableHead column="meta">
+                        <AdminSortButton
+                          active={mediaSort.sortColumn === "type"}
+                          direction={mediaSort.sortDirection}
+                          onClick={() => mediaSort.toggleSort("type")}
+                        >
+                          Type
+                        </AdminSortButton>
+                      </TableHead>
+                      <TableHead column="meta">
+                        <AdminSortButton
+                          active={mediaSort.sortColumn === "size"}
+                          direction={mediaSort.sortDirection}
+                          onClick={() => mediaSort.toggleSort("size")}
+                        >
+                          Size
+                        </AdminSortButton>
+                      </TableHead>
+                      <TableHead column="meta">
+                        <AdminSortButton
+                          active={mediaSort.sortColumn === "added"}
+                          direction={mediaSort.sortDirection}
+                          onClick={() => mediaSort.toggleSort("added")}
+                        >
+                          Added
+                        </AdminSortButton>
+                      </TableHead>
+                      <TableHead column="meta">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <AdminListSkeleton columns={6} rowCount={8} actionCount={3} />
+                    ) : images.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-32 text-center">
+                          <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                          <p className="mb-4 text-muted-foreground">
+                            No media found. Upload your first file to get started.
+                          </p>
+                          <Button onClick={() => document.getElementById("image-upload-input")?.click()} variant="outline">
+                            Upload Your First Media File
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => window.open(media.public_url, "_blank")}
-                            title="View Original"
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      sortedImages.map((media) => {
+                        const isSelected = mediaSelection.selectedIds.has(media.id)
+                        return (
+                          <TableRow
+                            key={media.id}
+                            data-state={isSelected ? "selected" : undefined}
+                            className="group"
                           >
-                            <ImageIcon className="h-4 w-4" />
-                            <span className="sr-only">View Original</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => handleDeleteImage(media)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+                            <TableCell column="select">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => mediaSelection.toggleOne(media.id)}
+                                aria-label={`Select ${media.original_name}`}
+                              />
+                            </TableCell>
+                            <TableCell column="main">
+                              <div className="flex min-w-0 items-center space-x-4">
+                                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                                  {media.file_type === "video" ? (
+                                    <VideoIcon className="h-5 w-5 text-muted-foreground" />
+                                  ) : (
+                                    <Image
+                                      src={media.public_url}
+                                      alt={media.alt_text || media.original_name}
+                                      fill
+                                      className="object-contain"
+                                      sizes="48px"
+                                    />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="truncate text-sm font-medium sm:text-base">{media.original_name}</h4>
+                                  {media.alt_text && (
+                                    <p className="truncate text-xs text-muted-foreground sm:text-sm">{media.alt_text}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell column="mutedMeta" className="capitalize">{media.file_type}</TableCell>
+                            <TableCell column="mutedMeta">{formatFileSize(media.file_size)}</TableCell>
+                            <TableCell column="mutedMeta">{formatDate(media.created_at)}</TableCell>
+                            <TableCell column="meta">
+                              <div className="flex items-center space-x-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleEditImage(media)}
+                                  title="Edit Details"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                  <span className="sr-only">Edit</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => window.open(media.public_url, "_blank")}
+                                  title="View Original"
+                                >
+                                  <ImageIcon className="h-4 w-4" />
+                                  <span className="sr-only">View Original</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteImage(media)}
+                                  title="Delete"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Delete</span>
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            )}
             {paginatedData && paginatedData.totalPages > 1 && (
               <AdminListFooter
                 currentPage={currentPage}
@@ -653,7 +672,7 @@ export default function ImagesPage() {
                 total={paginatedData.total}
               />
             )}
-          </Card>
+          </TableSurface>
 
           <AdminConfirmDialog
             open={massDeleteConfirmOpen}

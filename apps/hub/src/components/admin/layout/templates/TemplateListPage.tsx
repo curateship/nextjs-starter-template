@@ -297,7 +297,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
 
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <AdminListSkeleton columns={5} firstColumnSpan={2} rowCount={5} showThumbnail={false} />
+                <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} />
               ) : error ? (
                 <div className="p-8 text-center">
                   <p className="mb-4 text-red-600">{error}</p>

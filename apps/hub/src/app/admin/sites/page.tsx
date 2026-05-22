@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,12 @@ import {
   formatRelativeDate as formatDate,
   useAdminSort
 } from "@/components/admin/layout/list"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
 
 import {
   Eye,
@@ -22,15 +28,21 @@ import {
   Trash2,
   Globe,
   Plus,
-  List,
-  CircleCheck,
-  CircleX,
-  FileEdit,
   Copy
 } from "lucide-react"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { cn } from "@/lib/utils/tailwind"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import {
   getAllSitesAction,
   deleteSiteAction,
@@ -193,16 +205,16 @@ export default function SitesPage() {
     draft: sites.filter((site) => site.status === "draft").length
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800"
+        return <Badge className="bg-green-100 text-green-800">Active</Badge>
       case "inactive":
-        return "bg-red-100 text-red-800"
+        return <Badge variant="destructive">Inactive</Badge>
       case "draft":
-        return "bg-yellow-100 text-yellow-800"
+        return <Badge className="bg-yellow-100 text-yellow-800">Draft</Badge>
       default:
-        return "bg-gray-100 text-gray-800"
+        return <Badge variant="secondary">{status}</Badge>
     }
   }
 
@@ -213,187 +225,185 @@ export default function SitesPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Sites" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search sites"
-            }}
-            filterMenu={{
-              value: filter,
-              onValueChange: (value) => setFilter(value as FilterStatus),
-              items: [
-                {
-                  value: "all",
-                  label: "All",
-                  icon: List,
-                  count: siteCounts.all
-                },
-                {
-                  value: "active",
-                  label: "Active",
-                  icon: CircleCheck,
-                  count: siteCounts.active
-                },
-                {
-                  value: "inactive",
-                  label: "Inactive",
-                  icon: CircleX,
-                  count: siteCounts.inactive
-                },
-                {
-                  value: "draft",
-                  label: "Draft",
-                  icon: FileEdit,
-                  count: siteCounts.draft
-                }
-              ]
-            }}
-            actions={
-              <Button asChild>
-                <Link href="/admin/sites/new">
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Create Site</span>
-                </Link>
-              </Button>
-            }
           />
 
-          <Card>
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-6">
-              <div className="col-span-2">
-                <AdminSortButton
-                  active={siteSort.sortColumn === "name"}
-                  direction={siteSort.sortDirection}
-                  onClick={() => siteSort.toggleSort("name")}
-                >
-                  Site
-                </AdminSortButton>
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Globe className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Sites</span>
+                <Badge variant="secondary">{filteredSites.length}</Badge>
               </div>
-              <div className="text-[0.8125rem]">User</div>
-              <AdminSortButton
-                active={siteSort.sortColumn === "created"}
-                direction={siteSort.sortDirection}
-                onClick={() => siteSort.toggleSort("created")}
-              >
-                Created
-              </AdminSortButton>
-              <AdminSortButton
-                active={siteSort.sortColumn === "status"}
-                direction={siteSort.sortDirection}
-                onClick={() => siteSort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search sites"
+                />
+                <Select value={filter} onValueChange={(value) => setFilter(value as FilterStatus)}>
+                  <TableRightActionsSelectTrigger aria-label="Site status filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({siteCounts.all})</SelectItem>
+                    <SelectItem value="active">Active ({siteCounts.active})</SelectItem>
+                    <SelectItem value="inactive">Inactive ({siteCounts.inactive})</SelectItem>
+                    <SelectItem value="draft">Draft ({siteCounts.draft})</SelectItem>
+                  </SelectContent>
+                </Select>
+                <TableRightActionsButton asChild>
+                  <Link href="/admin/sites/new">
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Create Site</span>
+                  </Link>
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
 
-            <div className="divide-y divide-muted/80" aria-busy={loading}>
-              {loading ? (
-                <AdminListSkeleton showCheckbox={false} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={loadSites} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : filteredSites.length === 0 ? (
-                <div className="p-8 text-center">
-                  <p className="text-muted-foreground mb-4">
-                    {filter === "all" ? "No sites found" : `No ${filter} sites found`}
-                  </p>
-                  <Button asChild variant="outline">
-                    <Link href="/admin/sites/new">Create Your First Site</Link>
-                  </Button>
-                </div>
-              ) : (
-                sortedSites.map((site) => {
-                  return (
-                    <div key={site.id} className="p-6">
-                      <div className="grid grid-cols-6 gap-4 items-center">
-                        <div className="col-span-2">
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={siteSort.sortColumn === "name"}
+                        direction={siteSort.sortDirection}
+                        onClick={() => siteSort.toggleSort("name")}
+                      >
+                        Site
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">User</TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={siteSort.sortColumn === "created"}
+                        direction={siteSort.sortDirection}
+                        onClick={() => siteSort.toggleSort("created")}
+                      >
+                        Created
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={siteSort.sortColumn === "status"}
+                        direction={siteSort.sortDirection}
+                        onClick={() => siteSort.toggleSort("status")}
+                      >
+                        Status
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={5} showCheckbox={false} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={loadSites} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredSites.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <Globe className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          {filter === "all" ? "No sites found" : `No ${filter} sites found`}
+                        </p>
+                        <Button asChild variant="outline">
+                          <Link href="/admin/sites/new">Create Your First Site</Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedSites.map((site) => (
+                      <TableRow key={site.id} className="group">
+                        <TableCell column="main">
                           <Link
                             href={`/admin/sites/${site.id}/settings`}
-                            className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
+                            className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
                           >
-                            <div className="w-12 h-12 rounded-lg flex items-center justify-center overflow-hidden">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
                               {site.settings?.favicon ? (
                                 <img
                                   src={site.settings.favicon}
                                   alt={`${site.name} favicon`}
-                                  className="w-12 h-12 object-cover rounded-lg"
+                                  className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                                  <Globe className="w-5 h-5 text-muted-foreground" />
-                                </div>
+                                <Globe className="h-5 w-5 text-muted-foreground" />
                               )}
                             </div>
-                            <div>
-                              <h4 className="font-medium hover:underline">{site.subdomain}.domain.com</h4>
-                              <p className="text-sm text-muted-foreground">{site.name}</p>
+                            <div className="min-w-0">
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                                {site.subdomain}.domain.com
+                              </h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{site.name}</p>
                             </div>
                           </Link>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 text-xs font-medium">Y</span>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+                              <span className="text-xs font-medium text-blue-600">Y</span>
+                            </div>
+                            <span className="text-sm">You</span>
                           </div>
-                          <span className="text-sm">You</span>
-                        </div>
-                        <div>
-                          <span className="text-sm text-muted-foreground">{formatDate(site.created_at)}</span>
-                        </div>
-                        <div>
-                          <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(site.status)}`}>
-                            {site.status.charAt(0).toUpperCase() + site.status.slice(1)}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                            <a href={getSiteUrl(site)} target="_blank" rel="noopener noreferrer" title="Preview Site">
-                              <Eye className="h-4 w-4" />
-                              <span className="sr-only">Preview Site</span>
-                            </a>
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                            <Link href={`/admin/sites/${site.id}/settings`} title="Site Settings">
-                              <Settings className="h-4 w-4" />
-                              <span className="sr-only">Site Settings</span>
-                            </Link>
-                          </Button>
-                          {/* Duplicate opens a settings modal instead of immediately cloning. */}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => openDuplicateDialog(site)}
-                            disabled={duplicating}
-                            title="Duplicate Site"
-                          >
-                            <Copy className="h-4 w-4" />
-                            <span className="sr-only">Duplicate Site</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => setDeleteConfirm({ id: site.id, name: site.name })}
-                            disabled={deleting === site.id}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </Card>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{formatDate(site.created_at)}</TableCell>
+                        <TableCell column="meta">{getStatusBadge(site.status)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center space-x-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                              <a href={getSiteUrl(site)} target="_blank" rel="noopener noreferrer" title="Preview Site">
+                                <Eye className="h-4 w-4" />
+                                <span className="sr-only">Preview Site</span>
+                              </a>
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                              <Link href={`/admin/sites/${site.id}/settings`} title="Site Settings">
+                                <Settings className="h-4 w-4" />
+                                <span className="sr-only">Site Settings</span>
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openDuplicateDialog(site)}
+                              disabled={duplicating}
+                              title="Duplicate Site"
+                            >
+                              <Copy className="h-4 w-4" />
+                              <span className="sr-only">Duplicate Site</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => setDeleteConfirm({ id: site.id, name: site.name })}
+                              disabled={deleting === site.id}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
         </div>
 
         <AdminConfirmDialog

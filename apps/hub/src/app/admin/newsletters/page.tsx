@@ -3,18 +3,22 @@
 import { useState, useEffect, useCallback } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog } from "@/components/ui/dialog"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
 import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatRelativeDate,
   useAdminBulkSelection,
@@ -41,16 +45,26 @@ import {
   getNewslettersBySite,
   deleteNewsletters,
   pauseNewsletter,
-  resumeNewsletter,
-  getNewsletterIdsAction
+  resumeNewsletter
 } from "@/lib/actions/newsletters/newsletter-actions"
 import { formatNewsletterSendWindows, isWithinNewsletterSendWindow } from "@/lib/actions/newsletters/send-windows"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Mail, Trash2, Settings, Pause, Play, Plus, List, FileEdit, Send } from "lucide-react"
+import { Mail, Trash2, Settings, Pause, Play, Plus } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { NewsletterStatusEventsModal } from "@/components/admin/newsletter-builder/layout/NewsletterStatusEventsModal"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 
 type NewsletterSortColumn = "name" | "opens" | "clicks" | "modified"
 
@@ -233,15 +247,6 @@ export default function NewslettersPage() {
     setPendingDeleteId(null)
   }
 
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    if (!currentSite?.id || total === 0) return
-    const { ids } = await getNewsletterIdsAction(currentSite.id)
-    if (ids) {
-      newsletterSelection.selectAll(ids)
-    }
-  }
-
   const confirmMassDelete = async () => {
     setMassDeleteConfirmOpen(false)
     setMassDeleting(true)
@@ -325,34 +330,13 @@ export default function NewslettersPage() {
       return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir
     return 0
   })
-  const filteredNewsletterIds = filteredNewsletters.map((newsletter) => newsletter.id)
+  const visibleNewsletterIds = sortedNewsletters.map((newsletter) => newsletter.id)
 
   const statusCounts = {
     all: newsletters.length,
     sent: newsletters.filter((n) => n.status === "sent" || n.status === "sending" || n.status === "paused").length,
     draft: newsletters.filter((n) => n.status === "draft" || n.status === "scheduled").length
   }
-
-  const filterOptions = [
-    {
-      value: "all" as const,
-      label: "All",
-      count: statusCounts.all,
-      icon: List
-    },
-    {
-      value: "draft" as const,
-      label: "Drafts",
-      count: statusCounts.draft,
-      icon: FileEdit
-    },
-    {
-      value: "sent" as const,
-      label: "Sent",
-      count: statusCounts.sent,
-      icon: Send
-    }
-  ]
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value as "all" | "draft" | "sent")
@@ -369,167 +353,212 @@ export default function NewslettersPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Newsletters" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search newsletters"
-            }}
-            filterMenu={{
-              value: filterStatus,
-              onValueChange: handleFilterChange,
-              items: filterOptions
-            }}
-            preActions={
-              <AdminBulkDeleteButton
-                deleting={massDeleting}
-                onClick={() => setMassDeleteConfirmOpen(true)}
-                selectedCount={newsletterSelection.selectedCount}
-              />
-            }
-            actions={
-              <>
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Create Newsletter</span>
-                </Button>
-              </>
-            }
           />
 
-          <Card>
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-9">
-              <div className="col-span-4 flex items-center space-x-4">
-                <Checkbox
-                  checked={newsletterSelection.isPageSelected(filteredNewsletterIds)}
-                  onCheckedChange={() => newsletterSelection.togglePage(filteredNewsletterIds)}
-                  aria-label="Select all newsletters"
-                />
-                <AdminSortButton
-                  active={newsletterSort.sortColumn === "name"}
-                  direction={newsletterSort.sortDirection}
-                  onClick={() => newsletterSort.toggleSort("name")}
-                >
-                  Newsletter
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={newsletterSort.sortColumn === "opens"}
-                direction={newsletterSort.sortDirection}
-                onClick={() => newsletterSort.toggleSort("opens")}
-              >
-                Opens
-              </AdminSortButton>
-              <AdminSortButton
-                active={newsletterSort.sortColumn === "clicks"}
-                direction={newsletterSort.sortDirection}
-                onClick={() => newsletterSort.toggleSort("clicks")}
-              >
-                Clicks
-              </AdminSortButton>
-              <div>Unsubscribes</div>
-              <AdminSortButton
-                active={newsletterSort.sortColumn === "modified"}
-                direction={newsletterSort.sortDirection}
-                onClick={() => newsletterSort.toggleSort("modified")}
-              >
-                Modified
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            <AdminSelectionBanner
-              allSelected={newsletterSelection.allSelected}
-              onClearSelection={newsletterSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={newsletterSelection.selectedCount}
-              total={total}
-              visibleCount={filteredNewsletters.length}
-            />
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={9} firstColumnSpan={4} rowCount={3} />
-              ) : filteredNewsletters.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Mail className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    {newsletters.length === 0
-                      ? "No newsletters found"
-                      : `No ${filterStatus === "all" ? "" : filterStatus} newsletters found`}
-                  </p>
-                  <Button onClick={() => setShowCreateDialog(true)} variant="outline">
-                    Create Your First Newsletter
-                  </Button>
-                </div>
-              ) : (
-                sortedNewsletters.map((newsletter) => (
-                  <div
-                    key={newsletter.id}
-                    className={`p-6 transition-colors ${newsletterSelection.selectedIds.has(newsletter.id) ? "bg-accent/50" : ""}`}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Mail className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Newsletters</span>
+                <Badge variant="secondary">{filteredNewsletters.length}</Badge>
+                {newsletterSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={newsletterSelection.clearSelection}
                   >
-                    <div className="grid grid-cols-9 gap-4 items-center">
-                      <div className="col-span-4">
-                        <div className="flex items-center space-x-4">
+                    Clear {newsletterSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={newsletterSelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search newsletters"
+                />
+                <Select value={filterStatus} onValueChange={handleFilterChange}>
+                  <TableRightActionsSelectTrigger aria-label="Newsletter status filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({statusCounts.all})</SelectItem>
+                    <SelectItem value="draft">Drafts ({statusCounts.draft})</SelectItem>
+                    <SelectItem value="sent">Sent ({statusCounts.sent})</SelectItem>
+                  </SelectContent>
+                </Select>
+                <TableRightActionsButton onClick={() => setShowCreateDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Newsletter</span>
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={newsletterSelection.isPageSelected(visibleNewsletterIds)}
+                        onCheckedChange={() => newsletterSelection.togglePage(visibleNewsletterIds)}
+                        aria-label="Select all newsletters"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={newsletterSort.sortColumn === "name"}
+                        direction={newsletterSort.sortDirection}
+                        onClick={() => newsletterSort.toggleSort("name")}
+                      >
+                        Newsletter
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={newsletterSort.sortColumn === "opens"}
+                        direction={newsletterSort.sortDirection}
+                        onClick={() => newsletterSort.toggleSort("opens")}
+                      >
+                        Opens
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={newsletterSort.sortColumn === "clicks"}
+                        direction={newsletterSort.sortDirection}
+                        onClick={() => newsletterSort.toggleSort("clicks")}
+                      >
+                        Clicks
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Unsubscribes</TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={newsletterSort.sortColumn === "modified"}
+                        direction={newsletterSort.sortDirection}
+                        onClick={() => newsletterSort.toggleSort("modified")}
+                      >
+                        Modified
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={7} rowCount={3} actionCount={3} />
+                  ) : filteredNewsletters.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <Mail className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          {newsletters.length === 0
+                            ? "No newsletters found"
+                            : `No ${filterStatus === "all" ? "" : filterStatus} newsletters found`}
+                        </p>
+                        <Button onClick={() => setShowCreateDialog(true)} variant="outline">
+                          Create Your First Newsletter
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedNewsletters.map((newsletter) => (
+                      <TableRow
+                        key={newsletter.id}
+                        data-state={newsletterSelection.selectedIds.has(newsletter.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
                           <Checkbox
                             checked={newsletterSelection.selectedIds.has(newsletter.id)}
                             onCheckedChange={() => newsletterSelection.toggleOne(newsletter.id)}
                             aria-label={`Select ${newsletter.subject}`}
                           />
-                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center ml-2">
-                            <Mail className="h-6 w-6 text-muted-foreground" />
-                          </div>
-                          <div className="min-w-0">
-                            <Link
-                              href={`/admin/newsletters/${newsletter.id}`}
-                              className="hover:opacity-80 transition-opacity"
-                            >
-                              <h4 className="font-medium hover:underline">{newsletter.subject}</h4>
-                            </Link>
-                            <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-                              {(newsletter.status === "sending" || newsletter.status === "paused") &&
-                                newsletter.metadata?.drip_config?.enabled && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
-                                      title={newsletter.status === "sending" ? "Pause" : "Resume"}
-                                      onClick={async (e) => {
-                                        e.stopPropagation()
-                                        if (newsletter.status === "sending") {
-                                          await pauseNewsletter(newsletter.id)
-                                        } else {
-                                          await resumeNewsletter(newsletter.id)
-                                        }
-                                        await loadNewsletters(false)
-                                      }}
-                                    >
-                                      {newsletter.status === "sending" ? (
-                                        <Pause className="h-3 w-3" />
-                                      ) : (
-                                        <Play className="h-3 w-3" />
-                                      )}
-                                      {newsletter.status === "sending" ? "Pause" : "Resume"}
-                                    </button>
-                                    <Badge
-                                      variant="outline"
-                                      className="h-6 shrink-0 bg-background px-2 text-xs font-medium"
-                                    >
-                                      {getDripStatusLabel(newsletter)}
-                                    </Badge>
-                                    {getNextBatchLabel(newsletter) ? (
+                        </TableCell>
+                        <TableCell column="main">
+                          <div className="flex min-w-0 items-center space-x-4">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                              <Mail className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <div className="min-w-0">
+                              <Link
+                                href={`/admin/newsletters/${newsletter.id}`}
+                                className="transition-opacity hover:opacity-80"
+                              >
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                                  {newsletter.subject}
+                                </h4>
+                              </Link>
+                              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                                {(newsletter.status === "sending" || newsletter.status === "paused") &&
+                                  newsletter.metadata?.drip_config?.enabled && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className={`inline-flex h-6 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition-colors ${newsletter.status === "sending" ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"}`}
+                                        title={newsletter.status === "sending" ? "Pause" : "Resume"}
+                                        onClick={async (e) => {
+                                          e.stopPropagation()
+                                          if (newsletter.status === "sending") {
+                                            await pauseNewsletter(newsletter.id)
+                                          } else {
+                                            await resumeNewsletter(newsletter.id)
+                                          }
+                                          await loadNewsletters(false)
+                                        }}
+                                      >
+                                        {newsletter.status === "sending" ? (
+                                          <Pause className="h-3 w-3" />
+                                        ) : (
+                                          <Play className="h-3 w-3" />
+                                        )}
+                                        {newsletter.status === "sending" ? "Pause" : "Resume"}
+                                      </button>
                                       <Badge
                                         variant="outline"
-                                        className="h-6 shrink-0 bg-background px-2 text-xs font-normal"
+                                        className="h-6 shrink-0 bg-background px-2 text-xs font-medium"
                                       >
-                                        {getNextBatchLabel(newsletter)}
+                                        {getDripStatusLabel(newsletter)}
                                       </Badge>
-                                    ) : null}
-                                    {getDeliveryChips(newsletter).map((chip) => (
+                                      {getNextBatchLabel(newsletter) ? (
+                                        <Badge
+                                          variant="outline"
+                                          className="h-6 shrink-0 bg-background px-2 text-xs font-normal"
+                                        >
+                                          {getNextBatchLabel(newsletter)}
+                                        </Badge>
+                                      ) : null}
+                                      {getDeliveryChips(newsletter).map((chip) => (
+                                        <Badge
+                                          key={chip.key}
+                                          variant="outline"
+                                          className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}
+                                        >
+                                          {chip.label}
+                                        </Badge>
+                                      ))}
+                                    </>
+                                  )}
+                                {!(newsletter.status === "sending" || newsletter.status === "paused") ||
+                                !newsletter.metadata?.drip_config?.enabled ? (
+                                  <>
+                                    {getStatusBadge(newsletter)}
+                                    {(newsletter.status === "sent"
+                                      ? getSentStatsChips(newsletter)
+                                      : getDeliveryChips(newsletter)
+                                    ).map((chip) => (
                                       <Badge
                                         key={chip.key}
                                         variant="outline"
@@ -539,45 +568,22 @@ export default function NewslettersPage() {
                                       </Badge>
                                     ))}
                                   </>
-                                )}
-                              {!(newsletter.status === "sending" || newsletter.status === "paused") ||
-                              !newsletter.metadata?.drip_config?.enabled ? (
-                                <>
-                                  {getStatusBadge(newsletter)}
-                                  {(newsletter.status === "sent"
-                                    ? getSentStatsChips(newsletter)
-                                    : getDeliveryChips(newsletter)
-                                  ).map((chip) => (
-                                    <Badge
-                                      key={chip.key}
-                                      variant="outline"
-                                      className={`h-6 shrink-0 px-2 text-xs font-normal ${chip.className}`}
-                                    >
-                                      {chip.label}
-                                    </Badge>
-                                  ))}
-                                </>
-                              ) : null}
+                                ) : null}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell column="mutedMeta">
                           {newsletter.total_sent > 0
                             ? `${Math.round((newsletter.total_opened / newsletter.total_sent) * 100)}%`
                             : "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell column="mutedMeta">
                           {newsletter.total_sent > 0
                             ? `${Math.round((newsletter.total_clicked / newsletter.total_sent) * 100)}%`
                             : "—"}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell column="mutedMeta">
                           {newsletter.total_sent <= 0
                             ? "—"
                             : (newsletter.total_unsubscribed / newsletter.total_sent) * 100 === 0
@@ -585,48 +591,47 @@ export default function NewslettersPage() {
                               : (newsletter.total_unsubscribed / newsletter.total_sent) * 100 < 10
                                 ? `${((newsletter.total_unsubscribed / newsletter.total_sent) * 100).toFixed(1)}%`
                                 : `${Math.round((newsletter.total_unsubscribed / newsletter.total_sent) * 100)}%`}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          {formatRelativeDate(newsletter.updated_at)}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-2"
-                          onClick={() => openStatusEvents(newsletter.id)}
-                        >
-                          Events
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => setSettingsNewsletterId(newsletter.id)}
-                          title="Newsletter Settings"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Newsletter Settings</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => handleDelete(newsletter.id)}
-                          title="Delete Newsletter"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete Newsletter</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{formatRelativeDate(newsletter.updated_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={() => openStatusEvents(newsletter.id)}
+                            >
+                              Events
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setSettingsNewsletterId(newsletter.id)}
+                              title="Newsletter Settings"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span className="sr-only">Newsletter Settings</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(newsletter.id)}
+                              title="Delete Newsletter"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete Newsletter</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
             {!loading && (
               <AdminListFooter
                 currentPage={currentPage}
@@ -635,7 +640,7 @@ export default function NewslettersPage() {
                 onPageChange={setCurrentPage}
               />
             )}
-          </Card>
+          </TableSurface>
 
           {/* Create Newsletter Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

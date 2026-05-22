@@ -12,6 +12,7 @@ import {
   AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
+  AdminListSkeleton,
   AdminSortButton,
   formatRelativeDate,
   useAdminBulkSelection,
@@ -677,36 +678,11 @@ export function ContentListPage<TItem extends ContentListItem>({
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    Array.from({ length: columnCount === 5 ? 4 : 5 }, (_, index) => (
-                      <TableRow key={index}>
-                        <TableCell column="select">
-                          <div className="h-4 w-4 animate-pulse rounded bg-muted" />
-                        </TableCell>
-                        <TableCell column="main">
-                          <div className="flex items-center space-x-4">
-                            <div className="h-10 w-10 animate-pulse rounded bg-muted" />
-                            <div>
-                              <div className="mb-2 h-4 w-36 animate-pulse rounded bg-muted" />
-                              <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
-                            </div>
-                          </div>
-                        </TableCell>
-                        {renderCategoryColumn && (
-                          <TableCell column="content">
-                            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                          </TableCell>
-                        )}
-                        <TableCell column="mutedMeta">
-                          <div className="h-4 w-16 animate-pulse rounded bg-muted" />
-                        </TableCell>
-                        <TableCell column="mutedMeta">
-                          <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                        </TableCell>
-                        <TableCell column="meta">
-                          <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    <AdminListSkeleton
+                      columns={renderCategoryColumn ? 6 : 5}
+                      rowCount={columnCount === 5 ? 4 : 5}
+                      actionCount={3}
+                    />
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={tableColumnCount} className="h-32 text-center">

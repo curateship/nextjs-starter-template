@@ -217,33 +217,6 @@ export async function getSitePostsWithCategoriesAction(
   }
 }
 
-/** Returns only post IDs for bulk selection — lightweight alternative to full record fetch */
-export async function getPostIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
-  try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) return { ids: [], error: 'Invalid site ID format' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { ids: [], error: 'User not authenticated' }
-
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-
-    if (!site) return { ids: [], error: 'Site not found or access denied' }
-
-    const rows = await db
-      .select({ id: posts.id })
-      .from(posts)
-      .where(eq(posts.siteId, siteId))
-
-    return { ids: rows.map(r => r.id), error: null }
-  } catch (error) {
-    return { ids: [], error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
-  }
-}
-
 /**
  * Get a single post by ID
  */

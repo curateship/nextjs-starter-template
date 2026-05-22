@@ -13,6 +13,11 @@ import {
 } from "lucide-react"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch
+} from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -21,7 +26,6 @@ import {
   AdminConfirmDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   formatShortDate as formatDate,
   useAdminBulkSelection,
@@ -29,21 +33,29 @@ import {
 } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils/tailwind"
 import {
   createSiteUser,
   deleteSiteUsers,
-  getSiteUserIdsAction,
   getSiteUsers,
   updateSiteUser,
   type SiteUserListItem
@@ -389,22 +401,6 @@ export default function SiteUsersPage() {
     return 0
   })
 
-  const handleSelectAll = async () => {
-    if (!currentSite?.id || total === 0) return
-
-    const result = await getSiteUserIdsAction(currentSite.id, {
-      filterGroup: filters.rules.length ? filters : undefined,
-      searchQuery: deferredSearchQuery
-    })
-
-    if (result.error) {
-      setErrorMessage(result.error)
-      return
-    }
-
-    userSelection.selectAll(result.ids)
-  }
-
   const handleDelete = (membershipId: string) => {
     setPendingDeleteId(membershipId)
     setConfirmDeleteOpen(true)
@@ -536,22 +532,43 @@ export default function SiteUsersPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Site Users" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: (value) => {
-                setSearchQuery(value)
-                resetSelectionForCurrentView()
-              },
-              placeholder: "Search users"
-            }}
-            actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={userSelection.selectedCount}
+          />
+
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Users className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Site Users</span>
+                <Badge variant="secondary">{total}</Badge>
+                {userSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={userSelection.clearSelection}
+                  >
+                    Clear {userSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={userSelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value)
+                    resetSelectionForCurrentView()
+                  }}
+                  placeholder="Search users"
                 />
-                <Button variant="outline" className="relative" onClick={openFilterModal}>
+                <TableRightActionsButton variant="outline" className="relative" onClick={openFilterModal}>
                   <SlidersHorizontal className="h-4 w-4" />
                   <span className="hidden sm:inline">Filter</span>
                   {activeFilterCount > 0 && (
@@ -559,8 +576,8 @@ export default function SiteUsersPage() {
                       {activeFilterCount}
                     </span>
                   )}
-                </Button>
-                <Button
+                </TableRightActionsButton>
+                <TableRightActionsButton
                   onClick={() => {
                     setErrorMessage(null)
                     setCreateModalOpen(true)
@@ -568,12 +585,10 @@ export default function SiteUsersPage() {
                 >
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Add User</span>
-                </Button>
-              </div>
-            }
-          />
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
 
-          <Card>
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap items-center gap-2 border-b px-6 py-4">
                 <Badge variant="outline" className="font-medium">
@@ -601,150 +616,156 @@ export default function SiteUsersPage() {
               </div>
             )}
 
-            <CardTableHeader className="grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px]">
-              <div className="flex items-center space-x-4">
-                <Checkbox
-                  checked={userSelection.isPageSelected(deletableUserIdsOnPage)}
-                  onCheckedChange={() => userSelection.togglePage(deletableUserIdsOnPage)}
-                  aria-label="Select all site users"
-                />
-                <AdminSortButton
-                  active={userSort.sortColumn === "user"}
-                  direction={userSort.sortDirection}
-                  onClick={() => userSort.toggleSort("user")}
-                >
-                  User
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={userSort.sortColumn === "role"}
-                direction={userSort.sortDirection}
-                onClick={() => userSort.toggleSort("role")}
-              >
-                Role
-              </AdminSortButton>
-              <AdminSortButton
-                active={userSort.sortColumn === "status"}
-                direction={userSort.sortDirection}
-                onClick={() => userSort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <AdminSortButton
-                active={userSort.sortColumn === "added"}
-                direction={userSort.sortDirection}
-                onClick={() => userSort.toggleSort("added")}
-              >
-                Date Added
-              </AdminSortButton>
-              <AdminSortButton
-                active={userSort.sortColumn === "engaged"}
-                direction={userSort.sortDirection}
-                onClick={() => userSort.toggleSort("engaged")}
-              >
-                Last Engaged
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            <AdminSelectionBanner
-              allSelected={userSelection.allSelected}
-              allSelectedMessage="All deletable users matching this view are selected."
-              itemLabelPlural="users"
-              onClearSelection={userSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectAllLabel="Select all matching users"
-              selectedCount={userSelection.selectedCount}
-              total={total}
-              visibleCount={deletableUsersOnPage.length}
-            />
-
-            <div className="divide-y divide-muted/80">
-              {siteLoading || loading ? (
-                <AdminListSkeleton columns={6} firstColumnSpan={1} rowCount={5} showThumbnail={false} />
-              ) : !currentSite?.id ? (
-                <div className="p-8 text-center">
-                  <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">Select a site to view scoped users.</p>
-                </div>
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="mb-4 text-red-600">{error}</p>
-                  <Button onClick={() => loadUsers()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : users.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Users className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    {hasSearchQuery && activeFilterCount > 0
-                      ? "No users match this search and filter"
-                      : hasSearchQuery
-                        ? "No users match this search"
-                        : activeFilterCount > 0
-                          ? "No users match this filter"
-                          : "No users found for this site"}
-                  </p>
-                </div>
-              ) : (
-                sortedUsers.map((user) => (
-                  <div
-                    key={user.id}
-                    className={cn("p-6 transition-colors", userSelection.selectedIds.has(user.id) && "bg-accent/50")}
-                  >
-                    <div className="grid grid-cols-[minmax(0,2fr)_minmax(120px,0.8fr)_minmax(120px,0.8fr)_minmax(120px,1fr)_minmax(120px,1fr)_80px] gap-4 items-center">
-                      <div className="flex items-center space-x-4">
-                        <Checkbox
-                          checked={userSelection.selectedIds.has(user.id)}
-                          onCheckedChange={() => userSelection.toggleOne(user.id)}
-                          disabled={user.role === "owner"}
-                          aria-label={`Select ${user.display_name || user.email}`}
-                        />
-                        <div>
-                          <h4 className="text-sm font-medium">{user.display_name || user.email}</h4>
-                          {user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
-                          {!user.display_name && <p className="text-xs text-muted-foreground">{user.email}</p>}
-                        </div>
-                      </div>
-                      <div>{getRoleBadge(user.role)}</div>
-                      <div>{getStatusBadge(user.status)}</div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(user.created_at)}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">
-                          {formatRelativeTime(user.last_engaged_at)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => openEditModal(user)}
-                          title="Edit User"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Edit User</span>
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={userSelection.isPageSelected(deletableUserIdsOnPage)}
+                        onCheckedChange={() => userSelection.togglePage(deletableUserIdsOnPage)}
+                        aria-label="Select all site users"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={userSort.sortColumn === "user"}
+                        direction={userSort.sortDirection}
+                        onClick={() => userSort.toggleSort("user")}
+                      >
+                        User
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={userSort.sortColumn === "role"}
+                        direction={userSort.sortDirection}
+                        onClick={() => userSort.toggleSort("role")}
+                      >
+                        Role
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={userSort.sortColumn === "status"}
+                        direction={userSort.sortDirection}
+                        onClick={() => userSort.toggleSort("status")}
+                      >
+                        Status
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={userSort.sortColumn === "added"}
+                        direction={userSort.sortDirection}
+                        onClick={() => userSort.toggleSort("added")}
+                      >
+                        Date Added
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={userSort.sortColumn === "engaged"}
+                        direction={userSort.sortDirection}
+                        onClick={() => userSort.toggleSort("engaged")}
+                      >
+                        Last Engaged
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {siteLoading || loading ? (
+                    <AdminListSkeleton columns={7} rowCount={5} showThumbnail={false} actionCount={2} />
+                  ) : !currentSite?.id ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="text-muted-foreground">Select a site to view scoped users.</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={() => loadUsers()} variant="outline" size="sm">
+                          Try Again
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                          onClick={() => handleDelete(user.id)}
-                          title="Delete User"
-                          disabled={user.role === "owner" || massDeleting}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete User</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : users.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <Users className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="text-muted-foreground">
+                          {hasSearchQuery && activeFilterCount > 0
+                            ? "No users match this search and filter"
+                            : hasSearchQuery
+                              ? "No users match this search"
+                              : activeFilterCount > 0
+                                ? "No users match this filter"
+                                : "No users found for this site"}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedUsers.map((user) => (
+                      <TableRow
+                        key={user.id}
+                        data-state={userSelection.selectedIds.has(user.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={userSelection.selectedIds.has(user.id)}
+                            onCheckedChange={() => userSelection.toggleOne(user.id)}
+                            disabled={user.role === "owner"}
+                            aria-label={`Select ${user.display_name || user.email}`}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <div className="min-w-0">
+                            <h4 className="truncate text-sm font-medium sm:text-base">{user.display_name || user.email}</h4>
+                            <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
+                        <TableCell column="meta">{getStatusBadge(user.status)}</TableCell>
+                        <TableCell column="mutedMeta">{formatDate(user.created_at)}</TableCell>
+                        <TableCell column="mutedMeta">{formatRelativeTime(user.last_engaged_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openEditModal(user)}
+                              title="Edit User"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span className="sr-only">Edit User</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(user.id)}
+                              title="Delete User"
+                              disabled={user.role === "owner" || massDeleting}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete User</span>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
 
             {!loading && total > 0 && (
               <AdminListFooter
@@ -754,7 +775,7 @@ export default function SiteUsersPage() {
                 total={total}
               />
             )}
-          </Card>
+          </TableSurface>
         </div>
 
         <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>

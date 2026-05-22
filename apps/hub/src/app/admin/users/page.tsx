@@ -4,11 +4,28 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { AdminConfirmDialog } from "@/components/admin/layout/list"
-import { Card } from "@/components/ui/card"
+import { AdminConfirmDialog, AdminListSkeleton } from "@/components/admin/layout/list"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 import { deleteUser, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
-import { Plus, List, Shield, Pencil, Trash2, User, UserX } from "lucide-react"
+import { Plus, Trash2, User } from "lucide-react"
 import Link from "next/link"
 
 export default function UsersPage() {
@@ -19,6 +36,7 @@ export default function UsersPage() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
   const [pendingDeleteUser, setPendingDeleteUser] = useState<UserListItem | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [roleFilter, setRoleFilter] = useState("all")
 
   async function loadUsers() {
     setLoading(true)
@@ -51,14 +69,14 @@ export default function UsersPage() {
     return email.slice(0, 2).toUpperCase()
   }
 
-  const getRoleBadgeColor = (role: string) => {
+  const getRoleBadge = (role: string) => {
     switch (role) {
       case "super_admin":
-        return "bg-blue-100 text-blue-800"
+        return <Badge className="bg-blue-100 text-blue-800">Super Admin</Badge>
       case "end_user":
-        return "bg-green-100 text-green-800"
+        return <Badge className="bg-green-100 text-green-800">User</Badge>
       default:
-        return "bg-gray-100 text-gray-800"
+        return <Badge variant="secondary">{role}</Badge>
     }
   }
 
@@ -109,11 +127,22 @@ export default function UsersPage() {
   }
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const roleCounts = users.reduce<Record<string, number>>(
+    (counts, user) => {
+      counts.all += 1
+      counts[user.role] = (counts[user.role] || 0) + 1
+      return counts
+    },
+    { all: 0 }
+  )
+  const roleOptions = Array.from(new Set(users.map((user) => user.role)))
   const filteredUsers = users.filter((user) => {
-    if (!normalizedSearchQuery) return true
-    return `${user.display_name ?? ""} ${user.email} ${getRoleLabel(user.role)}`
+    const roleMatch = roleFilter === "all" || user.role === roleFilter
+    const searchMatch = !normalizedSearchQuery || `${user.display_name ?? ""} ${user.email} ${getRoleLabel(user.role)}`
       .toLowerCase()
       .includes(normalizedSearchQuery)
+
+    return roleMatch && searchMatch
   })
 
   return (
@@ -121,92 +150,120 @@ export default function UsersPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Users" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search users"
-            }}
-            filterMenu={{
-              value: "all",
-              onValueChange: () => {},
-              items: [
-                { value: "all", label: "All", icon: List },
-                { value: "admin", label: "Admin", icon: Shield },
-                { value: "editor", label: "Editor", icon: Pencil },
-                { value: "user", label: "User", icon: User },
-                { value: "guest", label: "Guest", icon: UserX }
-              ]
-            }}
-            actions={
-              <Button asChild>
-                <Link href="/admin/users/new">
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Add User</span>
-                </Link>
-              </Button>
-            }
           />
 
-          <Card>
-            <div className="divide-y">
-              {loading ? (
-                <div className="p-6 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                  <p className="text-muted-foreground">Loading users...</p>
-                </div>
-              ) : error ? (
-                <div className="p-6 text-center text-red-500">
-                  <p>Error loading users: {error}</p>
-                </div>
-              ) : filteredUsers.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground">
-                  <p>No users found</p>
-                </div>
-              ) : (
-                filteredUsers.map((user) => (
-                  <div key={user.id} className="p-6 flex items-center justify-between gap-4">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                        <span className="text-muted-foreground text-sm font-medium">
-                          {getInitials(user.email, user.display_name)}
-                        </span>
-                      </div>
-                      <div>
-                        <h4 className="font-medium">{user.display_name || user.email.split("@")[0]}</h4>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      <span className="text-sm text-muted-foreground">
-                        Last active: {formatLastActive(user.last_sign_in_at)}
-                      </span>
-                      <span className={`px-2 py-1 text-xs rounded-full ${getRoleBadgeColor(user.role)}`}>
-                        {getRoleLabel(user.role)}
-                      </span>
-                      {user.id === currentUserId ? (
-                        <span className="text-sm text-muted-foreground">Current account</span>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={deletingUserId === user.id}
-                          onClick={() => setPendingDeleteUser(user)}
-                          aria-label={`Delete ${user.display_name || user.email}`}
-                          title={`Delete ${user.display_name || user.email}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <User className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Users</span>
+                <Badge variant="secondary">{filteredUsers.length}</Badge>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search users"
+                />
+                <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value)}>
+                  <TableRightActionsSelectTrigger aria-label="User role filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({roleCounts.all})</SelectItem>
+                    {roleOptions.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {getRoleLabel(role)} ({roleCounts[role] || 0})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <TableRightActionsButton asChild>
+                  <Link href="/admin/users/new">
+                    <Plus className="h-4 w-4" />
+                    <span className="hidden sm:inline">Add User</span>
+                  </Link>
+                </TableRightActionsButton>
+              </TableRightActions>
             </div>
-          </Card>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">User</TableHead>
+                    <TableHead column="meta">Role</TableHead>
+                    <TableHead column="meta">Last Active</TableHead>
+                    <TableHead column="meta">Account</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={5} showCheckbox={false} actionCount={1} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <p className="text-red-500">Error loading users: {error}</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <User className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="text-muted-foreground">No users found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <TableRow key={user.id} className="group">
+                        <TableCell column="main">
+                          <div className="flex min-w-0 items-center space-x-4">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                              <span className="text-sm font-medium text-muted-foreground">
+                                {getInitials(user.email, user.display_name)}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="truncate text-sm font-medium sm:text-base">
+                                {user.display_name || user.email.split("@")[0]}
+                              </h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
+                        <TableCell column="mutedMeta">{formatLastActive(user.last_sign_in_at)}</TableCell>
+                        <TableCell column="mutedMeta">
+                          {user.id === currentUserId ? "Current account" : "-"}
+                        </TableCell>
+                        <TableCell column="meta">
+                          {user.id !== currentUserId && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              disabled={deletingUserId === user.id}
+                              onClick={() => setPendingDeleteUser(user)}
+                              aria-label={`Delete ${user.display_name || user.email}`}
+                              title={`Delete ${user.display_name || user.email}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
 
           <AdminConfirmDialog
             open={Boolean(pendingDeleteUser)}

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { CategorySettingsModal } from "./CategorySettingsModal"
 import { Checkbox } from "@/components/ui/checkbox"
+import { TableCell, TableRow } from "@/components/ui/table"
 
 interface CategoryTreeProps {
   categories: Category[]
@@ -111,85 +112,76 @@ export function CategoryTree({
   return (
     <>
       {categories.map((category) => (
-        <div key={category.id} className={`p-6 transition-colors ${selectedIds?.has(category.id) ? 'bg-accent/50' : ''}`}>
-          <div className="grid grid-cols-7 gap-4 items-center">
-            <div className="col-span-2">
-              <div className="flex items-center space-x-4 pl-[3px]">
-                {onToggleSelect && (
-                  <Checkbox
-                    checked={selectedIds?.has(category.id) ?? false}
-                    onCheckedChange={() => onToggleSelect(category.id)}
-                    aria-label={`Select ${category.title}`}
+        <TableRow
+          key={category.id}
+          data-state={selectedIds?.has(category.id) ? "selected" : undefined}
+          className="group"
+        >
+          <TableCell column="select">
+            {onToggleSelect && (
+              <Checkbox
+                checked={selectedIds?.has(category.id) ?? false}
+                onCheckedChange={() => onToggleSelect(category.id)}
+                aria-label={`Select ${category.title}`}
+              />
+            )}
+          </TableCell>
+          <TableCell column="main">
+            <Link
+              href={`/admin/categories/builder/${siteId}?category=${category.slug}`}
+              className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
+            >
+              {category.featured_image ? (
+                <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-muted">
+                  <img
+                    src={category.featured_image}
+                    alt={category.title}
+                    className="h-full w-full object-cover"
                   />
-                )}
-                <Link
-                  href={`/admin/categories/builder/${siteId}?category=${category.slug}`}
-                  className="flex items-center space-x-4 hover:opacity-80 transition-opacity"
-                >
-                  {category.featured_image ? (
-                    <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-muted ml-2">
-                      <img
-                        src={category.featured_image}
-                        alt={category.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 bg-primary/10 rounded flex items-center justify-center flex-shrink-0 ml-2">
-                      <Tag className="h-5 w-5 text-primary" />
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="font-medium hover:underline truncate">{category.title}</h4>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {category.meta_description || 'No meta description'}
-                    </p>
-                  </div>
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              {getFullParentPath(category).length > 0 ? (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  {getFullParentPath(category).map((parent, index) => (
-                    <div key={index} className="flex items-center gap-1">
-                      {index > 0 && <ChevronRight className="w-3 h-3 flex-shrink-0" />}
-                      <span className="truncate">{parent}</span>
-                    </div>
-                  ))}
                 </div>
               ) : (
-                <span className="text-sm text-muted-foreground">Top-level</span>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-primary/10">
+                  <Tag className="h-5 w-5 text-primary" />
+                </div>
               )}
-            </div>
-
-            <div>
-              {category.is_published ? (
-                <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                  <Eye className="w-3 h-3" />
-                  Published
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                  <EyeOff className="w-3 h-3" />
-                  Draft
-                </span>
-              )}
-            </div>
-
-            <div>
-              <span className="text-sm text-muted-foreground">
-                {assignmentCounts[category.id] || 0}
+              <div className="min-w-0">
+                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{category.title}</h4>
+                <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                  {category.meta_description || 'No meta description'}
+                </p>
+              </div>
+            </Link>
+          </TableCell>
+          <TableCell column="content">
+            {getFullParentPath(category).length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+                {getFullParentPath(category).map((parent, index) => (
+                  <span key={index} className="inline-flex min-w-0 items-center gap-1">
+                    {index > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
+                    <span className="truncate">{parent}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-muted-foreground">Top-level</span>
+            )}
+          </TableCell>
+          <TableCell column="meta">
+            {category.is_published ? (
+              <span className="inline-flex items-center gap-1 rounded bg-green-50 px-2 py-1 text-xs text-green-600">
+                <Eye className="h-3 w-3" />
+                Published
               </span>
-            </div>
-
-            <div>
-              <span className="text-sm text-muted-foreground">
-                {formatDate(category.updated_at)}
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                <EyeOff className="h-3 w-3" />
+                Draft
               </span>
-            </div>
-
+            )}
+          </TableCell>
+          <TableCell column="mutedMeta">{assignmentCounts[category.id] || 0}</TableCell>
+          <TableCell column="mutedMeta">{formatDate(category.updated_at)}</TableCell>
+          <TableCell column="meta">
             <div className="flex items-center space-x-2">
               <Button
                 variant="ghost"
@@ -214,15 +206,15 @@ export function CategoryTree({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                 onClick={() => handleDeleteClick(category)}
               >
-                <Trash2 className="w-4 h-4 text-red-600" />
+                <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete</span>
               </Button>
             </div>
-          </div>
-        </div>
+          </TableCell>
+        </TableRow>
       ))}
 
       <CategorySettingsModal

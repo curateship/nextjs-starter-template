@@ -102,35 +102,6 @@ export async function getAccountPagesAction(siteId: string, options?: { page?: n
   }
 }
 
-/** Returns only account page IDs for bulk selection — lightweight alternative to full record fetch */
-export async function getAccountPageIdsAction(siteId: string): Promise<{ ids: string[]; error: string | null }> {
-  try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) return { ids: [], error: 'Invalid site ID format' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { ids: [], error: 'Authentication required' }
-
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-      .limit(1)
-
-    if (!site) return { ids: [], error: 'Access denied' }
-
-    const rows = await db
-      .select({ id: siteAccountPages.id })
-      .from(siteAccountPages)
-      .where(and(eq(siteAccountPages.siteId, siteId), eq(siteAccountPages.isDefault, false)))
-
-    return { ids: rows.map(r => r.id), error: null }
-  } catch (error) {
-    console.error('Exception in getAccountPageIdsAction:', error)
-    return { ids: [], error: 'Failed to fetch account pages' }
-  }
-}
-
 /**
  * Get a single account page by ID
  */

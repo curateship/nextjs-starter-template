@@ -1,34 +1,51 @@
-"use client"
+"use client";
 
-import type { ReactNode } from "react"
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronsUpDown, Loader2, Trash2 } from "lucide-react"
+import type { ReactNode } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { CardSection } from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { CardSection } from "@/components/ui/card";
+import { TableCell, TableRow } from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { cn } from "@/lib/utils/tailwind"
-import type { AdminSortDirection } from "./hooks"
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils/tailwind";
+import type { AdminSortDirection } from "./hooks";
 
 export function AdminSortButton({
   active,
   children,
   className,
   direction,
-  onClick
+  onClick,
 }: {
-  active: boolean
-  children: ReactNode
-  className?: string
-  direction: AdminSortDirection
-  onClick: () => void
+  active: boolean;
+  children: ReactNode;
+  className?: string;
+  direction: AdminSortDirection;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -36,7 +53,7 @@ export function AdminSortButton({
       onClick={onClick}
       className={cn(
         "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-foreground outline-none transition-colors hover:text-foreground sm:text-sm",
-        className
+        className,
       )}
     >
       <span>{children}</span>
@@ -50,19 +67,19 @@ export function AdminSortButton({
         )}
       </span>
     </button>
-  )
+  );
 }
 
 export function AdminBulkDeleteButton({
   deleting,
   onClick,
-  selectedCount
+  selectedCount,
 }: {
-  deleting: boolean
-  onClick: () => void
-  selectedCount: number
+  deleting: boolean;
+  onClick: () => void;
+  selectedCount: number;
 }) {
-  if (selectedCount === 0) return null
+  if (selectedCount === 0) return null;
 
   return (
     <Button
@@ -73,10 +90,14 @@ export function AdminBulkDeleteButton({
       onClick={onClick}
       disabled={deleting}
     >
-      {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+      {deleting ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <Trash2 className="size-4" />
+      )}
       Delete ({selectedCount})
     </Button>
-  )
+  );
 }
 
 export function AdminSelectionBanner({
@@ -88,27 +109,35 @@ export function AdminSelectionBanner({
   selectAllLabel,
   selectedCount,
   total,
-  visibleCount
+  visibleCount,
 }: {
-  allSelected: boolean
-  allSelectedMessage?: ReactNode
-  itemLabelPlural?: string
-  onClearSelection: () => void
-  onSelectAll: () => void
-  selectAllLabel?: ReactNode
-  selectedCount: number
-  total: number
-  visibleCount: number
+  allSelected: boolean;
+  allSelectedMessage?: ReactNode;
+  itemLabelPlural?: string;
+  onClearSelection: () => void;
+  onSelectAll: () => void;
+  selectAllLabel?: ReactNode;
+  selectedCount: number;
+  total: number;
+  visibleCount: number;
 }) {
-  if (visibleCount === 0 || total <= visibleCount || (!allSelected && selectedCount !== visibleCount)) {
-    return null
+  if (
+    visibleCount === 0 ||
+    total <= visibleCount ||
+    (!allSelected && selectedCount !== visibleCount)
+  ) {
+    return null;
   }
 
   return (
     <CardSection className="border-b bg-accent/50 text-center text-sm">
       {allSelected ? (
         <span>
-          {allSelectedMessage || <>All {total} {itemLabelPlural} selected.</>}{" "}
+          {allSelectedMessage || (
+            <>
+              All {total} {itemLabelPlural} selected.
+            </>
+          )}{" "}
           <button
             type="button"
             onClick={onClearSelection}
@@ -120,83 +149,87 @@ export function AdminSelectionBanner({
       ) : (
         <span>
           {visibleCount} {itemLabelPlural} on this page are selected.{" "}
-          <button type="button" onClick={onSelectAll} className="font-medium underline">
+          <button
+            type="button"
+            onClick={onSelectAll}
+            className="font-medium underline"
+          >
             {selectAllLabel || <>Select all {total}</>}
           </button>
         </span>
       )}
     </CardSection>
-  )
+  );
 }
 
 export function AdminListSkeleton({
   columns = 6,
-  firstColumnClassName,
-  firstColumnSpan = 2,
+  actionCount = 2,
   rowCount = 5,
   showCheckbox = true,
-  showThumbnail = true
+  showThumbnail = true,
 }: {
-  columns?: 5 | 6 | 7 | 8 | 9 | 12
-  firstColumnClassName?: string
-  firstColumnSpan?: 1 | 2 | 3 | 4 | 6
-  rowCount?: number
-  showCheckbox?: boolean
-  showThumbnail?: boolean
+  actionCount?: number;
+  columns?: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 12;
+  rowCount?: number;
+  showCheckbox?: boolean;
+  showThumbnail?: boolean;
 }) {
-  const gridClassName = {
-    5: "grid-cols-5",
-    6: "grid-cols-6",
-    7: "grid-cols-7",
-    8: "grid-cols-8",
-    9: "grid-cols-9",
-    12: "grid-cols-12"
-  }[columns]
-  const firstColumnSpanClassName = {
-    1: "col-span-1",
-    2: "col-span-2",
-    3: "col-span-3",
-    4: "col-span-4",
-    6: "col-span-6"
-  }[firstColumnSpan]
-  const middleColumnCount = Math.max(0, columns - firstColumnSpan - 1)
+  const hasActionColumn = actionCount > 0;
+  const middleColumnCount = Math.max(
+    0,
+    columns - (showCheckbox ? 1 : 0) - 1 - (hasActionColumn ? 1 : 0),
+  );
 
   return (
-    <div className="space-y-0">
+    <>
       {Array.from({ length: rowCount }, (_, index) => (
-        <CardSection key={index} className="border-b border-muted/80">
-          <div className={cn("grid items-center gap-4", gridClassName)}>
-            <div className={firstColumnSpanClassName}>
-              <div className={cn("flex items-center space-x-4", firstColumnClassName)}>
-                {showCheckbox && <div className="h-4 w-4 animate-pulse rounded bg-muted" />}
-                {showThumbnail && <div className="ml-2 h-12 w-12 animate-pulse rounded bg-muted" />}
-                <div>
-                  <div className="mb-2 h-4 w-32 animate-pulse rounded bg-muted" />
-                  <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
-                </div>
+        <TableRow key={index}>
+          {showCheckbox && (
+            <TableCell column="select">
+              <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+            </TableCell>
+          )}
+          <TableCell column="main">
+            <div className="flex items-center space-x-4">
+              {showThumbnail && (
+                <div className="h-10 w-10 animate-pulse rounded bg-muted" />
+              )}
+              <div>
+                <div className="mb-2 h-4 w-36 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-24 animate-pulse rounded bg-muted/60" />
               </div>
             </div>
-            {Array.from({ length: middleColumnCount }, (_, columnIndex) => (
-              <div key={columnIndex}>
-                <div
-                  className={cn(
-                    "animate-pulse rounded bg-muted/60",
-                    columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-3 w-16"
-                  )}
-                />
+          </TableCell>
+          {Array.from({ length: middleColumnCount }, (_, columnIndex) => (
+            <TableCell
+              key={columnIndex}
+              column={columnIndex === 0 ? "meta" : "mutedMeta"}
+            >
+              <div
+                className={cn(
+                  "animate-pulse rounded bg-muted",
+                  columnIndex === 0 ? "h-5 w-16 rounded-full" : "h-4 w-20",
+                )}
+              />
+            </TableCell>
+          ))}
+          {hasActionColumn && (
+            <TableCell column="meta">
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: actionCount }, (_, actionIndex) => (
+                  <div
+                    key={actionIndex}
+                    className="h-8 w-8 animate-pulse rounded bg-muted"
+                  />
+                ))}
               </div>
-            ))}
-            <div>
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-                <div className="h-8 w-8 animate-pulse rounded bg-muted" />
-              </div>
-            </div>
-          </div>
-        </CardSection>
+            </TableCell>
+          )}
+        </TableRow>
       ))}
-    </div>
-  )
+    </>
+  );
 }
 
 export function AdminListFooter({
@@ -204,22 +237,22 @@ export function AdminListFooter({
   onPageChange,
   onPageSizeChange,
   pageSize,
-  total
+  total,
 }: {
-  currentPage: number
-  onPageChange: (page: number) => void
-  onPageSizeChange?: (pageSize: number) => void
-  pageSize: number
-  total: number
+  currentPage: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  pageSize: number;
+  total: number;
 }) {
-  if (total <= 0) return null
+  if (total <= 0) return null;
 
-  const totalPages = Math.ceil(total / pageSize)
-  const start = (currentPage - 1) * pageSize + 1
-  const end = Math.min(currentPage * pageSize, total)
+  const totalPages = Math.ceil(total / pageSize);
+  const start = (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, total);
   const pageSizeOptions = [10, 25, 50].includes(pageSize)
     ? [10, 25, 50]
-    : [pageSize, 10, 25, 50].sort((a, b) => a - b)
+    : [pageSize, 10, 25, 50].sort((a, b) => a - b);
 
   return (
     <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
@@ -241,7 +274,9 @@ export function AdminListFooter({
             ))}
           </SelectContent>
         </Select>
-        <span>{start}-{end} of {total}</span>
+        <span>
+          {start}-{end} of {total}
+        </span>
       </div>
 
       <div className="flex items-center gap-1">
@@ -287,7 +322,7 @@ export function AdminListFooter({
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 export function AdminConfirmDialog({
@@ -299,17 +334,17 @@ export function AdminConfirmDialog({
   onCancel,
   onConfirm,
   open,
-  title
+  title,
 }: {
-  cancelLabel?: string
-  confirmLabel?: string
-  confirmVariant?: "default" | "destructive"
-  description: ReactNode
-  disabled?: boolean
-  onCancel: () => void
-  onConfirm: () => void
-  open: boolean
-  title: ReactNode
+  cancelLabel?: string;
+  confirmLabel?: string;
+  confirmVariant?: "default" | "destructive";
+  description: ReactNode;
+  disabled?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  open: boolean;
+  title: ReactNode;
 }) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
@@ -322,23 +357,27 @@ export function AdminConfirmDialog({
           <Button onClick={onCancel} variant="outline" disabled={disabled}>
             {cancelLabel}
           </Button>
-          <Button onClick={onConfirm} variant={confirmVariant} disabled={disabled}>
+          <Button
+            onClick={onConfirm}
+            variant={confirmVariant}
+            disabled={disabled}
+          >
             {confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 export function AdminErrorDialog({
   message,
   onOpenChange,
-  open
+  open,
 }: {
-  message: string
-  onOpenChange: (open: boolean) => void
-  open: boolean
+  message: string;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -352,17 +391,17 @@ export function AdminErrorDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 export function formatRelativeDate(dateString: string) {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffTime = Math.abs(now.getTime() - date.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 1) return "1 day ago"
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`
-  return `${Math.ceil(diffDays / 30)} months ago`
+  if (diffDays === 1) return "1 day ago";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+  return `${Math.ceil(diffDays / 30)} months ago`;
 }

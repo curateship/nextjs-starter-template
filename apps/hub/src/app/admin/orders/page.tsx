@@ -371,7 +371,7 @@ function OrdersContent() {
             {/* Table Body */}
             <div className="divide-y divide-muted/80">
               {loading ? (
-                <AdminListSkeleton columns={6} firstColumnSpan={1} rowCount={5} showThumbnail={false} />
+                <AdminListSkeleton columns={6} rowCount={5} showThumbnail={false} />
               ) : filteredOrders.length === 0 ? (
                 <div className="p-8 text-center">
                   <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />

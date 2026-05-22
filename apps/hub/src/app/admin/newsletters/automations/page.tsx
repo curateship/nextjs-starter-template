@@ -6,32 +6,36 @@ import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardContent, CardGroup, CardHeader, CardTableHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminErrorDialog,
   AdminListFooter,
   AdminListSkeleton,
-  AdminSelectionBanner,
   AdminSortButton,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { Trash2, Settings, Zap, Mail, Plus, List, Play, Pause, FileEdit } from "lucide-react"
+import { Trash2, Settings, Zap, Mail, Plus } from "lucide-react"
 import {
   getAutomationsBySite,
   createAutomation,
   updateAutomation,
-  deleteAutomations,
-  getAutomationIdsAction
+  deleteAutomations
 } from "@/lib/actions/newsletters/automation-actions"
 import type { EmailAutomation } from "@/lib/actions/newsletters/automation-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -39,6 +43,17 @@ import {
   AUTOMATION_TRIGGER_SHORT_LABELS,
   getAutomationTriggerNodes
 } from "@/lib/actions/newsletters/automation-triggers"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface
+} from "@/components/ui/table"
 
 type AutomationSortColumn = "name" | "trigger" | "status" | "steps" | "enrolled"
 
@@ -108,15 +123,6 @@ export default function EmailAutomationsPage() {
       setErrorDialogOpen(true)
     }
     if (success) loadAutomations()
-  }
-
-  // Select all items across all pages (lightweight ID-only fetch)
-  const handleSelectAll = async () => {
-    if (!currentSite?.id || total === 0) return
-    const { ids } = await getAutomationIdsAction(currentSite.id)
-    if (ids) {
-      automationSelection.selectAll(ids)
-    }
   }
 
   const confirmMassDelete = async () => {
@@ -203,7 +209,7 @@ export default function EmailAutomationsPage() {
     if (automationSort.sortColumn === "enrolled") return ((a.enrollments_count ?? 0) - (b.enrollments_count ?? 0)) * dir
     return 0
   })
-  const filteredAutomationIds = filtered.map((automation) => automation.id)
+  const visibleAutomationIds = sortedAutomations.map((automation) => automation.id)
 
   const statusCounts = {
     all: automations.length,
@@ -211,28 +217,6 @@ export default function EmailAutomationsPage() {
     paused: automations.filter((a) => a.status === "paused").length,
     draft: automations.filter((a) => a.status === "draft").length
   }
-
-  const filterOptions = [
-    { value: "all", label: "All", icon: List, count: statusCounts.all },
-    {
-      value: "active",
-      label: "Active",
-      icon: Play,
-      count: statusCounts.active
-    },
-    {
-      value: "paused",
-      label: "Paused",
-      icon: Pause,
-      count: statusCounts.paused
-    },
-    {
-      value: "draft",
-      label: "Draft",
-      icon: FileEdit,
-      count: statusCounts.draft
-    }
-  ]
 
   const handleFilterChange = (value: string) => {
     setFilterStatus(value)
@@ -260,160 +244,196 @@ export default function EmailAutomationsPage() {
         <div className="w-full">
           <DashboardSubheader
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Automations" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search automations"
-            }}
-            filterMenu={{
-              value: filterStatus,
-              onValueChange: handleFilterChange,
-              items: filterOptions
-            }}
-            actions={
-              <>
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={automationSelection.selectedCount}
-                />
-                <Button onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Create Automation</span>
-                </Button>
-              </>
-            }
           />
 
-          <Card>
-            <CardTableHeader className="grid-cols-7">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={automationSelection.isPageSelected(filteredAutomationIds)}
-                  onCheckedChange={() => automationSelection.togglePage(filteredAutomationIds)}
-                />
-                <AdminSortButton
-                  active={automationSort.sortColumn === "name"}
-                  direction={automationSort.sortDirection}
-                  onClick={() => automationSort.toggleSort("name")}
-                >
-                  Automation
-                </AdminSortButton>
-              </div>
-              <AdminSortButton
-                active={automationSort.sortColumn === "trigger"}
-                direction={automationSort.sortDirection}
-                onClick={() => automationSort.toggleSort("trigger")}
-              >
-                Trigger
-              </AdminSortButton>
-              <AdminSortButton
-                active={automationSort.sortColumn === "status"}
-                direction={automationSort.sortDirection}
-                onClick={() => automationSort.toggleSort("status")}
-              >
-                Status
-              </AdminSortButton>
-              <AdminSortButton
-                active={automationSort.sortColumn === "steps"}
-                direction={automationSort.sortDirection}
-                onClick={() => automationSort.toggleSort("steps")}
-              >
-                Steps
-              </AdminSortButton>
-              <AdminSortButton
-                active={automationSort.sortColumn === "enrolled"}
-                direction={automationSort.sortDirection}
-                onClick={() => automationSort.toggleSort("enrolled")}
-              >
-                Enrolled
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            {/* "Select all" banner — shown when all page items selected but more exist */}
-            <AdminSelectionBanner
-              allSelected={automationSelection.allSelected}
-              onClearSelection={automationSelection.clearSelection}
-              onSelectAll={handleSelectAll}
-              selectedCount={automationSelection.selectedCount}
-              total={total}
-              visibleCount={filtered.length}
-            />
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={7} rowCount={3} />
-              ) : filtered.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Zap className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">No email automations yet</p>
-                  <Button onClick={() => setCreateOpen(true)} variant="outline">
-                    Create Your First Automation
-                  </Button>
-                </div>
-              ) : (
-                sortedAutomations.map((automation) => (
-                  <div
-                    key={automation.id}
-                    className={`p-6 transition-colors ${automationSelection.selectedIds.has(automation.id) ? "bg-accent/50" : ""}`}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Zap className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Automations</span>
+                <Badge variant="secondary">{filtered.length}</Badge>
+                {automationSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={automationSelection.clearSelection}
                   >
-                    <div className="grid grid-cols-7 gap-4 items-center">
-                      <div className="col-span-2 flex items-center space-x-4">
-                        <Checkbox
-                          checked={automationSelection.selectedIds.has(automation.id)}
-                          onCheckedChange={() => automationSelection.toggleOne(automation.id)}
-                        />
-                        <div className="w-10 h-10 bg-muted rounded flex items-center justify-center ml-2">
-                          <Mail className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <Link
-                          href={`/admin/newsletters/automations/${automation.id}`}
-                          className="hover:opacity-80 transition-opacity"
-                        >
-                          <h4 className="font-medium text-sm hover:underline">{automation.name}</h4>
-                          {automation.description && (
-                            <p className="text-xs text-muted-foreground">{automation.description}</p>
-                          )}
-                        </Link>
-                      </div>
-                      <div>
-                        <Badge variant="outline" className="text-xs">
-                          {getTriggerBadgeLabel(automation)}
-                        </Badge>
-                      </div>
-                      <div>{getStatusBadge(automation.status)}</div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{automation.steps_count ?? 0}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{automation.enrollments_count ?? 0}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => openSettings(automation)}
-                          title="Settings"
-                        >
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => handleDelete(automation.id)}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+                    Clear {automationSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={automationSelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search automations"
+                />
+                <Select value={filterStatus} onValueChange={handleFilterChange}>
+                  <TableRightActionsSelectTrigger aria-label="Automation status filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ({statusCounts.all})</SelectItem>
+                    <SelectItem value="active">Active ({statusCounts.active})</SelectItem>
+                    <SelectItem value="paused">Paused ({statusCounts.paused})</SelectItem>
+                    <SelectItem value="draft">Draft ({statusCounts.draft})</SelectItem>
+                  </SelectContent>
+                </Select>
+                <TableRightActionsButton onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Automation</span>
+                </TableRightActionsButton>
+              </TableRightActions>
             </div>
+
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={automationSelection.isPageSelected(visibleAutomationIds)}
+                        onCheckedChange={() => automationSelection.togglePage(visibleAutomationIds)}
+                        aria-label="Select all automations"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={automationSort.sortColumn === "name"}
+                        direction={automationSort.sortDirection}
+                        onClick={() => automationSort.toggleSort("name")}
+                      >
+                        Automation
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={automationSort.sortColumn === "trigger"}
+                        direction={automationSort.sortDirection}
+                        onClick={() => automationSort.toggleSort("trigger")}
+                      >
+                        Trigger
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={automationSort.sortColumn === "status"}
+                        direction={automationSort.sortDirection}
+                        onClick={() => automationSort.toggleSort("status")}
+                      >
+                        Status
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={automationSort.sortColumn === "steps"}
+                        direction={automationSort.sortDirection}
+                        onClick={() => automationSort.toggleSort("steps")}
+                      >
+                        Steps
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={automationSort.sortColumn === "enrolled"}
+                        direction={automationSort.sortDirection}
+                        onClick={() => automationSort.toggleSort("enrolled")}
+                      >
+                        Enrolled
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={7} rowCount={3} actionCount={2} />
+                  ) : filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center">
+                        <Zap className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">No email automations yet</p>
+                        <Button onClick={() => setCreateOpen(true)} variant="outline">
+                          Create Your First Automation
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedAutomations.map((automation) => (
+                      <TableRow
+                        key={automation.id}
+                        data-state={automationSelection.selectedIds.has(automation.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={automationSelection.selectedIds.has(automation.id)}
+                            onCheckedChange={() => automationSelection.toggleOne(automation.id)}
+                            aria-label={`Select ${automation.name}`}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <div className="flex min-w-0 items-center space-x-4">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                              <Mail className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <Link
+                              href={`/admin/newsletters/automations/${automation.id}`}
+                              className="min-w-0 transition-opacity hover:opacity-80"
+                            >
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{automation.name}</h4>
+                              {automation.description && (
+                                <p className="truncate text-xs text-muted-foreground">{automation.description}</p>
+                              )}
+                            </Link>
+                          </div>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <Badge variant="outline" className="text-xs">
+                            {getTriggerBadgeLabel(automation)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell column="meta">{getStatusBadge(automation.status)}</TableCell>
+                        <TableCell column="mutedMeta">{automation.steps_count ?? 0}</TableCell>
+                        <TableCell column="mutedMeta">{automation.enrollments_count ?? 0}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => openSettings(automation)}
+                              title="Settings"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleDelete(automation.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
             {!loading && (
               <AdminListFooter
                 currentPage={currentPage}
@@ -422,7 +442,7 @@ export default function EmailAutomationsPage() {
                 onPageChange={setCurrentPage}
               />
             )}
-          </Card>
+          </TableSurface>
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>

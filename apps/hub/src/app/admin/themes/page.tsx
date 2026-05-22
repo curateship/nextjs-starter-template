@@ -1,186 +1,221 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
-import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog"
-import { AdminConfirmDialog, AdminListSkeleton, formatRelativeDate } from "@/components/admin/layout/list"
-import { Button } from "@/components/ui/button"
-import { CardTableHeader } from "@/components/ui/card"
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AdminLayout } from "@/components/admin/layout/admin-layout";
+import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
+import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
+import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/ApplyThemeDialog";
+import {
+  AdminConfirmDialog,
+  AdminListSkeleton,
+  formatRelativeDate,
+} from "@/components/admin/layout/list";
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch,
+} from "@/components/admin/layout/content/table-right-actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { createSiteAction, updateSiteAction, type Site } from "@/lib/actions/sites/site-actions"
-import { deleteTemplateAction, getTemplateSitesAction } from "@/lib/actions/themes/user-theme-actions"
-import { Edit, MoreHorizontal, Paintbrush, Pencil, Plus, Trash2 } from "lucide-react"
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSurface,
+} from "@/components/ui/table";
+import {
+  createSiteAction,
+  updateSiteAction,
+  type Site,
+} from "@/lib/actions/sites/site-actions";
+import {
+  deleteTemplateAction,
+  getTemplateSitesAction,
+} from "@/lib/actions/themes/user-theme-actions";
+import {
+  Edit,
+  MoreHorizontal,
+  Paintbrush,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 export default function ThemesPage() {
-  const router = useRouter()
-  const [templates, setTemplates] = useState<Site[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const router = useRouter();
+  const [templates, setTemplates] = useState<Site[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean
-    templateId: string
-    templateName: string
+    open: boolean;
+    templateId: string;
+    templateName: string;
   }>({
     open: false,
     templateId: "",
-    templateName: ""
-  })
-  const [creating, setCreating] = useState(false)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [createName, setCreateName] = useState("")
+    templateName: "",
+  });
+  const [creating, setCreating] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createName, setCreateName] = useState("");
   const [renameDialog, setRenameDialog] = useState<{
-    open: boolean
-    templateId: string
-    currentName: string
+    open: boolean;
+    templateId: string;
+    currentName: string;
   }>({
     open: false,
     templateId: "",
-    currentName: ""
-  })
-  const [renameName, setRenameName] = useState("")
-  const [renaming, setRenaming] = useState(false)
+    currentName: "",
+  });
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const [applyDialog, setApplyDialog] = useState<{
-    open: boolean
-    templateId: string
-    templateName: string
+    open: boolean;
+    templateId: string;
+    templateName: string;
   }>({
     open: false,
     templateId: "",
-    templateName: ""
-  })
-  const [searchQuery, setSearchQuery] = useState("")
+    templateName: "",
+  });
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadTemplates = useCallback(async () => {
     try {
-      setLoading(true)
-      setError(null)
-      const { data, error: loadError } = await getTemplateSitesAction()
+      setLoading(true);
+      setError(null);
+      const { data, error: loadError } = await getTemplateSitesAction();
       if (loadError) {
-        setError(loadError)
-        return
+        setError(loadError);
+        return;
       }
-      setTemplates(data || [])
+      setTemplates(data || []);
     } catch {
-      setError("Failed to load themes")
+      setError("Failed to load themes");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    loadTemplates()
-  }, [loadTemplates])
+    loadTemplates();
+  }, [loadTemplates]);
 
   const handleCreateTheme = async () => {
-    const trimmed = createName.trim()
-    if (!trimmed) return
+    const trimmed = createName.trim();
+    if (!trimmed) return;
 
     try {
-      setCreating(true)
+      setCreating(true);
       const { data, error: createError } = await createSiteAction({
         name: trimmed,
-        is_template: true
-      })
+        is_template: true,
+      });
       if (createError) {
-        setError(`Failed to create theme: ${createError}`)
-        return
+        setError(`Failed to create theme: ${createError}`);
+        return;
       }
       if (data) {
-        setCreateDialogOpen(false)
-        router.push(`/admin/pages/${data.id}`)
+        setCreateDialogOpen(false);
+        router.push(`/admin/pages/${data.id}`);
       }
     } catch {
-      setError("Failed to create theme")
+      setError("Failed to create theme");
     } finally {
-      setCreating(false)
+      setCreating(false);
     }
-  }
+  };
 
   const handleRenameSubmit = async () => {
-    const trimmed = renameName.trim()
-    if (!trimmed || trimmed === renameDialog.currentName) return
+    const trimmed = renameName.trim();
+    if (!trimmed || trimmed === renameDialog.currentName) return;
 
     try {
-      setRenaming(true)
-      const { error: renameError } = await updateSiteAction(renameDialog.templateId, { name: trimmed })
+      setRenaming(true);
+      const { error: renameError } = await updateSiteAction(
+        renameDialog.templateId,
+        { name: trimmed },
+      );
       if (renameError) {
-        setError(`Failed to rename theme: ${renameError}`)
-        return
+        setError(`Failed to rename theme: ${renameError}`);
+        return;
       }
-      setTemplates((prev) => prev.map((t) => (t.id === renameDialog.templateId ? { ...t, name: trimmed } : t)))
-      setRenameDialog((prev) => ({ ...prev, open: false }))
+      setTemplates((prev) =>
+        prev.map((t) =>
+          t.id === renameDialog.templateId ? { ...t, name: trimmed } : t,
+        ),
+      );
+      setRenameDialog((prev) => ({ ...prev, open: false }));
     } catch {
-      setError("Failed to rename theme")
+      setError("Failed to rename theme");
     } finally {
-      setRenaming(false)
+      setRenaming(false);
     }
-  }
+  };
 
   const handleDeleteConfirm = async () => {
     try {
-      setDeleting(deleteDialog.templateId)
-      const { success, error: deleteError } = await deleteTemplateAction(deleteDialog.templateId)
+      setDeleting(deleteDialog.templateId);
+      const { success, error: deleteError } = await deleteTemplateAction(
+        deleteDialog.templateId,
+      );
       if (deleteError) {
-        setError(`Failed to delete theme: ${deleteError}`)
-        return
+        setError(`Failed to delete theme: ${deleteError}`);
+        return;
       }
-      if (success) setTemplates((prev) => prev.filter((t) => t.id !== deleteDialog.templateId))
-      setDeleteDialog((prev) => ({ ...prev, open: false }))
+      if (success)
+        setTemplates((prev) =>
+          prev.filter((t) => t.id !== deleteDialog.templateId),
+        );
+      setDeleteDialog((prev) => ({ ...prev, open: false }));
     } catch {
-      setError("Failed to delete theme")
+      setError("Failed to delete theme");
     } finally {
-      setDeleting(null)
+      setDeleting(null);
     }
-  }
+  };
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const filteredTemplates = normalizedSearchQuery
     ? templates.filter((template) => {
-        const searchText = [template.name, template.settings?.description].filter(Boolean).join(" ").toLowerCase()
+        const searchText = [template.name, template.settings?.description]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-        return searchText.includes(normalizedSearchQuery)
+        return searchText.includes(normalizedSearchQuery);
       })
-    : templates
+    : templates;
 
   return (
     <>
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader
-            items={[{ label: "Themes" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search themes"
-            }}
-            actions={
-              <Button
-                onClick={() => {
-                  setCreateName("")
-                  setCreateDialogOpen(true)
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Create Theme
-              </Button>
-            }
-          />
+          <DashboardSubheader items={[{ label: "Themes" }]} />
 
           {error && (
             <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
@@ -188,145 +223,184 @@ export default function ThemesPage() {
             </div>
           )}
 
-          <AdminCard>
-            <div className="border-b p-6">
-              {loading ? (
-                <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {filteredTemplates.length} theme
-                  {filteredTemplates.length !== 1 ? "s" : ""} found
-                </p>
-              )}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Paintbrush className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Themes</span>
+                <Badge variant="secondary">{filteredTemplates.length}</Badge>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search themes"
+                />
+                <TableRightActionsButton
+                  onClick={() => {
+                    setCreateName("");
+                    setCreateDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Theme</span>
+                </TableRightActionsButton>
+              </TableRightActions>
             </div>
 
-            <CardTableHeader className="grid-cols-5">
-              <div className="col-span-2">Theme</div>
-              <div>Created</div>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={5} rowCount={3} showCheckbox={false} />
-              ) : filteredTemplates.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Paintbrush className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
-                  <p className="mb-1 text-muted-foreground">
-                    {normalizedSearchQuery ? "No themes match your search" : "No themes yet"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {normalizedSearchQuery
-                      ? "Try a different search term."
-                      : 'Click "Create Theme" to start building a reusable template.'}
-                  </p>
-                </div>
-              ) : (
-                filteredTemplates.map((template) => (
-                  <div key={template.id} className="p-6">
-                    <div className="grid grid-cols-5 items-center gap-4">
-                      <div className="col-span-2">
-                        <Link
-                          href={`/admin/pages/${template.id}`}
-                          className="flex items-center space-x-4 transition-opacity hover:opacity-80"
-                        >
-                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-purple-600">
-                            <span className="text-sm font-medium text-white">
-                              {template.name
-                                .split(" ")
-                                .map((w) => w[0])
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)}
-                            </span>
-                          </div>
-                          <div>
-                            <h4 className="font-medium hover:underline">{template.name}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {template.settings?.description || "Reusable template"}
-                            </p>
-                          </div>
-                        </Link>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatRelativeDate(template.created_at)}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/admin/pages/${template.id}`} className="flex items-center">
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                setApplyDialog({
-                                  open: true,
-                                  templateId: template.id,
-                                  templateName: template.name
-                                })
-                              }
-                            >
-                              <Paintbrush className="mr-2 h-4 w-4" />
-                              Apply to Site
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => {
-                                setRenameName(template.name)
-                                setTimeout(
-                                  () =>
-                                    setRenameDialog({
-                                      open: true,
-                                      templateId: template.id,
-                                      currentName: template.name
-                                    }),
-                                  0
-                                )
-                              }}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                setTimeout(
-                                  () =>
-                                    setDeleteDialog({
-                                      open: true,
-                                      templateId: template.id,
-                                      templateName: template.name
-                                    }),
-                                  0
-                                )
-                              }
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete Theme
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </AdminCard>
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">Theme</TableHead>
+                    <TableHead column="meta">Created</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton
+                      columns={3}
+                      rowCount={3}
+                      showCheckbox={false}
+                    />
+                  ) : filteredTemplates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-32 text-center">
+                        <Paintbrush className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+                        <p className="mb-1 text-muted-foreground">
+                          {normalizedSearchQuery
+                            ? "No themes match your search"
+                            : "No themes yet"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {normalizedSearchQuery
+                            ? "Try a different search term."
+                            : 'Click "Create Theme" to start building a reusable template.'}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTemplates.map((template) => (
+                      <TableRow key={template.id} className="group">
+                        <TableCell column="main">
+                          <Link
+                            href={`/admin/pages/${template.id}`}
+                            className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                              <span className="text-sm font-medium text-muted-foreground">
+                                {template.name
+                                  .split(" ")
+                                  .map((w) => w[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .slice(0, 2)}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                                {template.name}
+                              </h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                {template.settings?.description ||
+                                  "Reusable template"}
+                              </p>
+                            </div>
+                          </Link>
+                        </TableCell>
+                        <TableCell column="mutedMeta">
+                          {formatRelativeDate(template.created_at)}
+                        </TableCell>
+                        <TableCell column="meta">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/admin/pages/${template.id}`}
+                                  className="flex items-center"
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  setApplyDialog({
+                                    open: true,
+                                    templateId: template.id,
+                                    templateName: template.name,
+                                  })
+                                }
+                              >
+                                <Paintbrush className="mr-2 h-4 w-4" />
+                                Apply to Site
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => {
+                                  setRenameName(template.name);
+                                  setTimeout(
+                                    () =>
+                                      setRenameDialog({
+                                        open: true,
+                                        templateId: template.id,
+                                        currentName: template.name,
+                                      }),
+                                    0,
+                                  );
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Rename
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  setTimeout(
+                                    () =>
+                                      setDeleteDialog({
+                                        open: true,
+                                        templateId: template.id,
+                                        templateName: template.name,
+                                      }),
+                                    0,
+                                  )
+                                }
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete Theme
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
 
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Create Theme</DialogTitle>
-                <DialogDescription>Enter a name for your new theme template.</DialogDescription>
+                <DialogDescription>
+                  Enter a name for your new theme template.
+                </DialogDescription>
               </DialogHeader>
               <div className="py-2">
                 <Label htmlFor="create-theme-name" className="sr-only">
@@ -337,28 +411,45 @@ export default function ThemesPage() {
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && createName.trim()) handleCreateTheme()
+                    if (e.key === "Enter" && createName.trim())
+                      handleCreateTheme();
                   }}
                   placeholder="Theme name"
                   autoFocus
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setCreateDialogOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleCreateTheme} disabled={creating || !createName.trim()}>
+                <Button
+                  onClick={handleCreateTheme}
+                  disabled={creating || !createName.trim()}
+                >
                   {creating ? "Creating..." : "Create"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Dialog open={renameDialog.open} onOpenChange={(open) => setRenameDialog((prev) => ({ ...prev, open }))}>
-            <DialogContent className="sm:max-w-md" onCloseAutoFocus={(e) => e.preventDefault()}>
+          <Dialog
+            open={renameDialog.open}
+            onOpenChange={(open) =>
+              setRenameDialog((prev) => ({ ...prev, open }))
+            }
+          >
+            <DialogContent
+              className="sm:max-w-md"
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
               <DialogHeader>
                 <DialogTitle>Rename Theme</DialogTitle>
-                <DialogDescription>Enter a new name for this theme.</DialogDescription>
+                <DialogDescription>
+                  Enter a new name for this theme.
+                </DialogDescription>
               </DialogHeader>
               <div className="py-2">
                 <Label htmlFor="theme-name" className="sr-only">
@@ -369,19 +460,28 @@ export default function ThemesPage() {
                   value={renameName}
                   onChange={(e) => setRenameName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRenameSubmit()
+                    if (e.key === "Enter") handleRenameSubmit();
                   }}
                   placeholder="Theme name"
                   autoFocus
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setRenameDialog((prev) => ({ ...prev, open: false }))}>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setRenameDialog((prev) => ({ ...prev, open: false }))
+                  }
+                >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleRenameSubmit}
-                  disabled={renaming || !renameName.trim() || renameName.trim() === renameDialog.currentName}
+                  disabled={
+                    renaming ||
+                    !renameName.trim() ||
+                    renameName.trim() === renameDialog.currentName
+                  }
                 >
                   {renaming ? "Saving..." : "Save"}
                 </Button>
@@ -391,26 +491,34 @@ export default function ThemesPage() {
 
           <AdminConfirmDialog
             open={deleteDialog.open}
-            onCancel={() => setDeleteDialog((prev) => ({ ...prev, open: false }))}
+            onCancel={() =>
+              setDeleteDialog((prev) => ({ ...prev, open: false }))
+            }
             onConfirm={handleDeleteConfirm}
             disabled={deleting === deleteDialog.templateId}
             title="Delete Theme"
             description={
               <>
-                Are you sure you want to delete &ldquo;{deleteDialog.templateName}&rdquo;? This action cannot be undone.
+                Are you sure you want to delete &ldquo;
+                {deleteDialog.templateName}&rdquo;? This action cannot be
+                undone.
               </>
             }
-            confirmLabel={deleting === deleteDialog.templateId ? "Deleting..." : "Delete"}
+            confirmLabel={
+              deleting === deleteDialog.templateId ? "Deleting..." : "Delete"
+            }
           />
 
           <ApplyThemeDialog
             templateId={applyDialog.templateId}
             templateName={applyDialog.templateName}
             open={applyDialog.open}
-            onOpenChange={(open) => setApplyDialog((prev) => ({ ...prev, open }))}
+            onOpenChange={(open) =>
+              setApplyDialog((prev) => ({ ...prev, open }))
+            }
           />
         </div>
       </AdminLayout>
     </>
-  )
+  );
 }
