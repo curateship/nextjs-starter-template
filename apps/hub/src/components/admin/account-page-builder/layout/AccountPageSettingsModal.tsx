@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { CheckCircle } from "lucide-react"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { generateSlug } from "@/lib/utils/slug"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -209,7 +209,7 @@ export function AccountPageSettingsModal({
               ) : (
                 <div />
               )}
-              <div className="flex items-center space-x-2">
+              <DashboardModalFooterActions>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Cancel
                 </Button>
@@ -219,7 +219,7 @@ export function AccountPageSettingsModal({
                 <Button type="button" onClick={handlePublish} disabled={saving}>
                   {saving ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
                 </Button>
-              </div>
+              </DashboardModalFooterActions>
             </>
           }
           footerClassName="sm:justify-between"

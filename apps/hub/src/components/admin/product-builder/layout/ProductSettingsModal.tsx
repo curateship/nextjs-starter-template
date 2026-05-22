@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { CalendarIcon, Check, ImageIcon, X } from "lucide-react"
@@ -349,7 +349,7 @@ export function ProductSettingsModal({
                 <span className="text-sm font-medium">Saved!</span>
               </div>
             ) : <div />}
-            <div className="flex items-center space-x-2">
+            <DashboardModalFooterActions>
               <Button
                 type="button"
                 variant="outline"
@@ -373,7 +373,7 @@ export function ProductSettingsModal({
               >
                 {saving ? "Saving..." : product?.is_published ? "Save" : "Publish"}
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         )}
       >

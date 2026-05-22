@@ -13,7 +13,7 @@ import Link from "@tiptap/extension-link"
 import { Button } from "@/components/ui/button"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { SponsorPickerDialog } from "@/components/admin/sponsors/SponsorPickerDialog"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogFooterActions, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -1310,18 +1310,18 @@ export function InlineRichTextEditor({
               autoFocus
             />
           </div>
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button type="button" variant="outline" onClick={removeLink}>
-              Remove link
-            </Button>
-            <div className="flex items-center gap-2">
+          <DialogFooter>
+            <DialogFooterActions>
+              <Button type="button" variant="outline" onClick={removeLink}>
+                Remove link
+              </Button>
               <Button type="button" variant="ghost" onClick={() => handleLinkDialogOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="button" onClick={applyLink}>
                 Apply
               </Button>
-            </div>
+            </DialogFooterActions>
           </DialogFooter>
         </DialogContent>
       </Dialog>

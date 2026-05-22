@@ -13,7 +13,7 @@ import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog } from "@/components/ui/dialog"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Combobox,
@@ -1274,26 +1274,24 @@ export default function AutomationBuilderPage({ params }: PageProps) {
             title="Trigger"
             description="Choose what event enrolls a contact into this automation."
             footer={
-              <>
-                <div className="flex gap-2">
-                  {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
-                    <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
-                      Remove
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setTriggerEditorOpen(false)
-                      setEditingTriggerIndex(null)
-                      if (selectedTriggerIndex >= displayedTriggerNodes.length) {
-                        setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
-                      }
-                    }}
-                  >
-                    Cancel
+              <DashboardModalFooterActions>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTriggerEditorOpen(false)
+                    setEditingTriggerIndex(null)
+                    if (selectedTriggerIndex >= displayedTriggerNodes.length) {
+                      setSelectedTriggerIndex(displayedTriggerNodes.length ? displayedTriggerNodes.length - 1 : 0)
+                    }
+                  }}
+                >
+                  Cancel
+                </Button>
+                {editingTriggerIndex !== null && editingTriggerIndex < triggerNodes.length && (
+                  <Button variant="outline" onClick={removeTrigger} disabled={savingTrigger}>
+                    Remove
                   </Button>
-                </div>
+                )}
                 <Button
                   onClick={saveTrigger}
                   disabled={
@@ -1304,9 +1302,8 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 >
                   {savingTrigger ? "Saving..." : "Save"}
                 </Button>
-              </>
+              </DashboardModalFooterActions>
             }
-            footerClassName="sm:justify-between"
           >
             <CardGroup className="grid">
               <Card>

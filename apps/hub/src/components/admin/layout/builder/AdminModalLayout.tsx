@@ -82,7 +82,7 @@ function AdminModalFooter({ className, ...props }: React.ComponentProps<typeof D
   return (
     <DialogFooter
       className={cn(
-        "px-6 py-6 sm:flex-row sm:items-center sm:justify-between",
+        "px-6 py-6",
         className
       )}
       {...props}

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { generateSlug } from "@/lib/utils/slug"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
 
@@ -174,17 +174,16 @@ export function CreateAccountPageModal({
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <div className="flex items-center space-x-2">
+            <DashboardModalFooterActions>
               <Button form="create-account-page-form" type="submit" variant="outline" disabled={loading}>
                 {loading ? "Saving..." : "Save as Draft"}
               </Button>
               <Button type="button" onClick={handlePublish} disabled={loading}>
                 {loading ? "Publishing..." : "Publish"}
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         }
-        footerClassName="sm:justify-between"
       >
         {error && (
           <div className="px-6 pb-2">

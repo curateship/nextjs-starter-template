@@ -107,7 +107,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end [&_[data-slot=button]]:w-full sm:[&_[data-slot=button]]:w-auto",
         className
       )}
       {...props}
@@ -119,6 +119,16 @@ function DialogFooter({
         </DialogPrimitive.Close>
       )}
     </div>
+  )
+}
+
+function DialogFooterActions({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-footer-actions"
+      className={cn("flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center", className)}
+      {...props}
+    />
   )
 }
 
@@ -154,6 +164,7 @@ export {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogFooterActions,
   DialogHeader,
   DialogOverlay,
   DialogPortal,

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import {
   Field,
   FieldContent,
@@ -233,7 +233,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <div className="flex items-center space-x-2">
+            <DashboardModalFooterActions>
               <Button
                 form="create-product-form"
                 type="submit"
@@ -249,10 +249,9 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
               >
                 {loading ? 'Saving...' : 'Continue'}
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         }
-        footerClassName="sm:justify-between"
       >
         {error && (
           <div className="px-6 pb-2">

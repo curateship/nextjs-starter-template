@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogFooterActions,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -121,12 +122,17 @@ function DashboardModalFooter({ className, ...props }: React.ComponentProps<type
   return <DialogFooter className={cn("px-6 pb-6", className)} {...props} />
 }
 
+function DashboardModalFooterActions({ className, ...props }: React.ComponentProps<typeof DialogFooterActions>) {
+  return <DialogFooterActions className={className} {...props} />
+}
+
 export {
   DashboardModalCloseButton,
   DashboardModalCardTitle,
   DashboardModalContent,
   DashboardModalDescription,
   DashboardModalFooter,
+  DashboardModalFooterActions,
   DashboardModalHeader,
   DashboardModalScrollBody,
   DashboardModalTitle,

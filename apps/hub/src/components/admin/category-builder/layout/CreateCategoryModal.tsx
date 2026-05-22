@@ -11,7 +11,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { ImageIcon, X } from "lucide-react"
 import { Dialog } from "@/components/ui/dialog"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
 
@@ -140,17 +140,16 @@ export function CreateCategoryModal({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <div className="flex items-center space-x-2">
+              <DashboardModalFooterActions>
                 <Button form="create-category-form" type="submit" variant="outline" disabled={isSubmitting}>
                   {isSubmitting ? 'Saving...' : 'Save as Draft'}
                 </Button>
                 <Button type="button" onClick={() => handleSave(true)} disabled={isSubmitting}>
                   {isSubmitting ? 'Saving...' : 'Continue'}
                 </Button>
-              </div>
+              </DashboardModalFooterActions>
             </>
           }
-          footerClassName="sm:justify-between"
         >
           {error && (
             <div className="px-6 pb-2">

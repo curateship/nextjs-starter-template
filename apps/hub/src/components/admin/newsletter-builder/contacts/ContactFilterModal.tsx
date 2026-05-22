@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { cn } from "@/lib/utils/tailwind"
 import { getContactsWithStats } from "@/lib/actions/newsletters/contact-actions"
 import {
@@ -318,14 +318,14 @@ export function ContactFilterModal({
             >
               Clear all ({pendingFilteredTotal})
             </button>
-            <div className="flex gap-2">
+            <DashboardModalFooterActions>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="button" onClick={applyFilters}>
                 Apply Filters
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         }
         footerClassName="sm:justify-between"

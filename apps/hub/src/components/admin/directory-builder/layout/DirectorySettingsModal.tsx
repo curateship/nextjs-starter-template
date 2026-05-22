@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { ImageIcon, X, Check } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
@@ -211,7 +211,7 @@ export function DirectorySettingsModal({
                 <span className="text-sm font-medium">{saveMessage}</span>
               </div>
             ) : <div />}
-            <div className="flex items-center space-x-2">
+            <DashboardModalFooterActions>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Cancel
               </Button>
@@ -221,7 +221,7 @@ export function DirectorySettingsModal({
               <Button type="button" onClick={handlePublish} disabled={saving}>
                 {saving ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         )}
       >

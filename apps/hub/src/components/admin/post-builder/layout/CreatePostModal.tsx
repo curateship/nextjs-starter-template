@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -210,20 +210,19 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   return (
     <DashboardModalContent
       title="Create New Post"
-      footerClassName="sm:justify-between"
       footer={(
         <>
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <div className="flex items-center space-x-2">
+          <DashboardModalFooterActions>
             <Button type="submit" form="create-post-form" variant="outline" disabled={loading}>
               {loading ? "Saving..." : "Save as Draft"}
             </Button>
             <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
               {loading ? "Saving..." : "Continue"}
             </Button>
-          </div>
+          </DashboardModalFooterActions>
         </>
       )}
     >

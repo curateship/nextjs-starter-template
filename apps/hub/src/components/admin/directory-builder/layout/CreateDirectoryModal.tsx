@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
@@ -196,17 +196,16 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
-            <div className="flex items-center space-x-2">
+            <DashboardModalFooterActions>
               <Button form="create-directory-form" type="submit" variant="outline" disabled={loading}>
                 {loading ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
                 {loading ? 'Saving...' : 'Continue'}
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         }
-        footerClassName="sm:justify-between"
       >
         {error && (
           <div className="px-6 pb-2">

@@ -11,7 +11,7 @@ import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { PRODUCT_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/product-builder/config/product-block-types"
 import {
   parseProductBlocksFromJson,
@@ -422,20 +422,20 @@ export default function ProductTemplateEditorPage({ params }: PageProps) {
                 title={`Edit ${selectedBlock.title}`}
                 titleAccessory={<ModalTabs />}
                 className="max-w-[960px]"
-                footerClassName={blockSaveError ? "sm:justify-between" : "sm:justify-end"}
+                footerClassName={blockSaveError ? "sm:justify-between" : undefined}
                 footer={(
                   <>
                     {blockSaveError ? (
                       <div className="text-sm text-red-600">{blockSaveError}</div>
                     ) : null}
-                    <div className="flex gap-2">
+                    <DashboardModalFooterActions>
                       <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>
                         Cancel
                       </Button>
                       <Button type="button" onClick={handleSaveBlockEditor} disabled={isSavingBlock}>
                         {isSavingBlock ? "Saving..." : "Save"}
                       </Button>
-                    </div>
+                    </DashboardModalFooterActions>
                   </>
                 )}
               >

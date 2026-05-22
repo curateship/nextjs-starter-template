@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
-import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { EventBlockEditor } from "./EventBlockEditor"
 
 interface EventBlock {
@@ -56,14 +56,14 @@ export function EventBlockEditorModal({
           footer={
             <>
               {error ? <p className="text-sm text-red-600">{error}</p> : <div />}
-              <div className="flex items-center gap-2">
+              <DashboardModalFooterActions>
                 <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
                   Cancel
                 </Button>
                 <Button type="button" onClick={onSave} disabled={saving}>
                   {saving ? "Saving..." : "Save"}
                 </Button>
-              </div>
+              </DashboardModalFooterActions>
             </>
           }
           footerClassName="sm:justify-between"

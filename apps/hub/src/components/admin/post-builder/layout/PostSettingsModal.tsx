@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X, CheckCircle } from "lucide-react"
-import { DashboardModalCardTitle, DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { generateSlug } from "@/lib/utils/slug"
@@ -303,7 +303,7 @@ export function PostSettingsModal({
             ) : (
               <div />
             )}
-            <div className="flex items-center space-x-2">
+            <DashboardModalFooterActions>
               <Button
                 type="button"
                 variant="outline"
@@ -327,7 +327,7 @@ export function PostSettingsModal({
               >
                 {saving ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
               </Button>
-            </div>
+            </DashboardModalFooterActions>
           </>
         )}
       >

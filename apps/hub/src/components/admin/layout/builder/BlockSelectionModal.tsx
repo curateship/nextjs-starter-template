@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogFooterActions,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -254,11 +255,11 @@ export function BlockSelectionModal({
         )}
 
         <DialogFooter>
-          <div className="flex items-center justify-between w-full">
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-sm text-muted-foreground">
               {totalBlocksToAdd > 0 ? `${totalBlocksToAdd} block${totalBlocksToAdd === 1 ? '' : 's'} selected` : 'No blocks selected'}
             </span>
-            <div className="flex space-x-2">
+            <DialogFooterActions>
               <Button variant="outline" onClick={handleCancel}>
                 Cancel
               </Button>
@@ -268,7 +269,7 @@ export function BlockSelectionModal({
               >
                 {addActionLabel}
               </Button>
-            </div>
+            </DialogFooterActions>
           </div>
         </DialogFooter>
       </DialogContent>

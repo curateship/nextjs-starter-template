@@ -335,7 +335,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
                 title={`Edit ${selectedBlock.title}`}
                 titleAccessory={<ModalTabs />}
                 className="max-w-[960px]"
-                footerClassName="sm:justify-end"
                 footer={(
                   <>
                     <Button type="button" variant="outline" onClick={handleCloseBlockEditor} disabled={isSavingBlock}>

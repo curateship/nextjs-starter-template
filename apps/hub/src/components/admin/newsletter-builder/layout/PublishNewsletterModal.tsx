@@ -160,7 +160,7 @@ export function PublishNewsletterModal({
             <TooltipProvider delayDuration={0}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span tabIndex={!hasAudience ? 0 : -1}>
+                  <span className="w-full sm:w-auto" tabIndex={!hasAudience ? 0 : -1}>
                     <Button onClick={handleConfirmAndBroadcast} disabled={sending || !hasAudience}>
                       <Send className="mr-2 h-4 w-4" />
                       {sending ? 'Broadcasting...' : 'Confirm and Broadcast'}

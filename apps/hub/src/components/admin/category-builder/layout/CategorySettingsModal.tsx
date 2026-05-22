@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { ImageIcon, X, Check } from "lucide-react"
-import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { updateCategoryAction, type Category, type UpdateCategoryData } from "@/lib/actions/categories/category-actions"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import { generateSlug } from "@/lib/utils/slug"
@@ -260,23 +260,23 @@ export function CategorySettingsModal({
           }
           footer={
             <>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <div className="flex items-center space-x-2">
-                {isSaved && (
-                  <div className="flex items-center space-x-1 text-green-600">
-                    <Check className="h-4 w-4" />
-                    <span className="text-sm font-medium">Saved!</span>
-                  </div>
-                )}
+              {isSaved ? (
+                <div className="flex items-center gap-2 text-green-600">
+                  <Check className="h-4 w-4" />
+                  <span className="text-sm font-medium">Saved!</span>
+                </div>
+              ) : <div />}
+              <DashboardModalFooterActions>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                  Cancel
+                </Button>
                 <Button form="category-settings-form" type="submit" variant="outline" disabled={saving}>
                   {saving ? "Saving..." : "Save as Draft"}
                 </Button>
                 <Button type="button" onClick={handlePublish} disabled={saving}>
                   {saving ? "Saving..." : category?.is_published ? "Save" : "Publish"}
                 </Button>
-              </div>
+              </DashboardModalFooterActions>
             </>
           }
           footerClassName="sm:justify-between"
