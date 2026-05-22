@@ -5,19 +5,22 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  TableRightActions,
+  TableRightActionsButton,
+  TableRightActionsSearch
+} from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AdminListSkeleton } from "@/components/admin/layout/list"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import {
-  deleteDirectoryCustomBlock,
-  getDirectoryCustomBlocksBySite
-} from "@/lib/actions/directories/directory-custom-block-actions"
+import { deleteDirectoryCustomBlock, getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 
 const LAYOUT_LABELS: Record<DirectoryCustomBlockTemplate["layout"], string> = {
   stack: "Stack",
@@ -98,88 +101,101 @@ export default function DirectoryCustomBlocksPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader
-            items={[{ label: "Directory", href: "/admin/directories" }, { label: "Custom Blocks" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search custom blocks"
-            }}
-            actions={
-              <Button onClick={() => router.push("/admin/directories/custom-blocks/new")}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create Custom Block
-              </Button>
-            }
-          />
+          <DashboardSubheader items={[{ label: "Directory", href: "/admin/directories" }, { label: "Custom Blocks" }]} />
 
-          <Card>
-            <CardTableHeader className="grid-cols-7">
-              <div className="col-span-2">Block</div>
-              <div>Layout</div>
-              <div>Fields</div>
-              <div>Used In</div>
-              <div>Modified</div>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={7} rowCount={3} showCheckbox={false} showThumbnail={false} />
-              ) : filteredTemplates.length === 0 ? (
-                <div className="p-12 text-center text-sm text-muted-foreground">
-                  {normalizedSearchQuery
-                    ? "No custom blocks match your search."
-                    : "Create your first custom block to make it available in the directory builder."}
-                </div>
-              ) : (
-                filteredTemplates.map((template) => (
-                  <div key={template.id} className="p-6">
-                    <div className="grid grid-cols-7 gap-4 items-center">
-                      <div className="col-span-2 min-w-0 space-y-1">
-                        <div className="flex items-center gap-3">
-                          <Link
-                            href={`/admin/directories/custom-blocks/${template.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {template.name}
-                          </Link>
-                          {template.used_in_count ? <Badge variant="secondary">Active</Badge> : null}
-                        </div>
-                        <p className="truncate text-xs text-muted-foreground">/custom-blocks/{template.slug}</p>
-                      </div>
-
-                      <div>{LAYOUT_LABELS[template.layout]}</div>
-                      <div>{countDirectoryCustomFields(template.fields)}</div>
-                      <div>{template.used_in_count || 0}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {template.updated_at ? new Date(template.updated_at).toLocaleDateString() : "-"}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <Link href={`/admin/directories/custom-blocks/${template.id}`}>
-                            <Pencil className="h-3.5 w-3.5" />
-                            <span className="sr-only">Edit {template.name}</span>
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          disabled={deletingId === template.id || (template.used_in_count || 0) > 0}
-                          onClick={() => handleDelete(template)}
-                          aria-label={`Delete ${template.name}`}
-                          title={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-red-600" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <Pencil className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Custom Blocks</span>
+                <Badge variant="secondary">{filteredTemplates.length}</Badge>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search custom blocks"
+                />
+                <TableRightActionsButton onClick={() => router.push("/admin/directories/custom-blocks/new")}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Custom Block</span>
+                </TableRightActionsButton>
+              </TableRightActions>
             </div>
-          </Card>
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">Block</TableHead>
+                    <TableHead column="meta">Layout</TableHead>
+                    <TableHead column="meta">Fields</TableHead>
+                    <TableHead column="meta">Used In</TableHead>
+                    <TableHead column="meta">Modified</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={6} rowCount={3} showCheckbox={false} showThumbnail={false} />
+                  ) : filteredTemplates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center text-sm text-muted-foreground">
+                        {normalizedSearchQuery
+                          ? "No custom blocks match your search."
+                          : "Create your first custom block to make it available in the directory builder."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredTemplates.map((template) => (
+                      <TableRow key={template.id} className="group">
+                        <TableCell column="main">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-3">
+                              <Link href={`/admin/directories/custom-blocks/${template.id}`} className="font-medium hover:underline">
+                                {template.name}
+                              </Link>
+                              {template.used_in_count ? <Badge variant="secondary">Active</Badge> : null}
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">/custom-blocks/{template.slug}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{LAYOUT_LABELS[template.layout]}</TableCell>
+                        <TableCell column="mutedMeta">{countDirectoryCustomFields(template.fields)}</TableCell>
+                        <TableCell column="mutedMeta">{template.used_in_count || 0}</TableCell>
+                        <TableCell column="mutedMeta">
+                          {template.updated_at ? new Date(template.updated_at).toLocaleDateString() : "-"}
+                        </TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center gap-1">
+                            <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <Link href={`/admin/directories/custom-blocks/${template.id}`}>
+                                <Pencil className="h-3.5 w-3.5" />
+                                <span className="sr-only">Edit {template.name}</span>
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              disabled={deletingId === template.id || (template.used_in_count || 0) > 0}
+                              onClick={() => handleDelete(template)}
+                              aria-label={`Delete ${template.name}`}
+                              title={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
 
           {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
         </div>

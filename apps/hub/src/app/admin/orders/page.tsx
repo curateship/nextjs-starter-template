@@ -9,7 +9,6 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   AdminBulkDeleteButton,
@@ -23,7 +22,9 @@ import {
   useAdminSort
 } from "@/components/admin/layout/list"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
@@ -303,62 +304,7 @@ function OrdersContent() {
             }
           />
 
-          <Card>
-            {/* Table Header */}
-            <CardTableHeader className="grid-cols-12">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={orderSelection.isPageSelected(filteredOrderIds)}
-                  onCheckedChange={() => orderSelection.togglePage(filteredOrderIds)}
-                  aria-label="Select all orders"
-                />
-                <AdminSortButton
-                  active={orderSort.sortColumn === "customer_email"}
-                  direction={orderSort.sortDirection}
-                  onClick={() => orderSort.toggleSort("customer_email")}
-                >
-                  Customer
-                </AdminSortButton>
-              </div>
-              <div className="col-span-2">
-                <AdminSortButton
-                  active={orderSort.sortColumn === "created_at"}
-                  direction={orderSort.sortDirection}
-                  onClick={() => orderSort.toggleSort("created_at")}
-                >
-                  Date
-                </AdminSortButton>
-              </div>
-              <div className="col-span-2">
-                <AdminSortButton
-                  active={orderSort.sortColumn === "product"}
-                  direction={orderSort.sortDirection}
-                  onClick={() => orderSort.toggleSort("product")}
-                >
-                  Product
-                </AdminSortButton>
-              </div>
-              <div className="col-span-1">
-                <span className="text-[0.8125rem]">Type</span>
-              </div>
-              <div className="col-span-2">
-                <span className="text-[0.8125rem]">Email Status</span>
-              </div>
-              <div className="col-span-2">
-                <AdminSortButton
-                  active={orderSort.sortColumn === "amount"}
-                  direction={orderSort.sortDirection}
-                  onClick={() => orderSort.toggleSort("amount")}
-                >
-                  Amount
-                </AdminSortButton>
-              </div>
-              <div className="col-span-1">
-                <span className="text-[0.8125rem]">Actions</span>
-              </div>
-            </CardTableHeader>
-
-            {/* "Select all" banner — shown when all page items selected but more exist */}
+          <TableSurface>
             <AdminSelectionBanner
               allSelected={orderSelection.allSelected}
               onClearSelection={orderSelection.clearSelection}
@@ -367,86 +313,130 @@ function OrdersContent() {
               total={total}
               visibleCount={filteredOrders.length}
             />
-
-            {/* Table Body */}
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={6} rowCount={5} showThumbnail={false} />
-              ) : filteredOrders.length === 0 ? (
-                <div className="p-8 text-center">
-                  <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {orders.length === 0
-                      ? "No orders found"
-                      : `No ${activeTab === "lead_magnet" ? "lead magnet" : activeTab === "paid_purchase" ? "paid" : ""} orders found`}
-                  </p>
-                </div>
-              ) : (
-                sortedOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className={`p-6 transition-colors ${orderSelection.selectedIds.has(order.id) ? "bg-accent/50" : ""}`}
-                  >
-                    <div className="grid grid-cols-12 gap-4 items-center">
-                      <div className="col-span-2">
-                        <div className="flex items-center space-x-4">
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={orderSelection.isPageSelected(filteredOrderIds)}
+                        onCheckedChange={() => orderSelection.togglePage(filteredOrderIds)}
+                        aria-label="Select all orders"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={orderSort.sortColumn === "customer_email"}
+                        direction={orderSort.sortDirection}
+                        onClick={() => orderSort.toggleSort("customer_email")}
+                      >
+                        Customer
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={orderSort.sortColumn === "created_at"}
+                        direction={orderSort.sortDirection}
+                        onClick={() => orderSort.toggleSort("created_at")}
+                      >
+                        Date
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="content">
+                      <AdminSortButton
+                        active={orderSort.sortColumn === "product"}
+                        direction={orderSort.sortDirection}
+                        onClick={() => orderSort.toggleSort("product")}
+                      >
+                        Product
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Type</TableHead>
+                    <TableHead column="meta">Email Status</TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={orderSort.sortColumn === "amount"}
+                        direction={orderSort.sortDirection}
+                        onClick={() => orderSort.toggleSort("amount")}
+                      >
+                        Amount
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={8} rowCount={5} showThumbnail={false} />
+                  ) : filteredOrders.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-32 text-center">
+                        <ShoppingCart className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="text-muted-foreground">
+                          {orders.length === 0
+                            ? "No orders found"
+                            : `No ${activeTab === "lead_magnet" ? "lead magnet" : activeTab === "paid_purchase" ? "paid" : ""} orders found`}
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedOrders.map((order) => (
+                      <TableRow
+                        key={order.id}
+                        data-state={orderSelection.selectedIds.has(order.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
                           <Checkbox
                             checked={orderSelection.selectedIds.has(order.id)}
                             onCheckedChange={() => orderSelection.toggleOne(order.id)}
                             aria-label={`Select order ${order.id}`}
                           />
-                          <h4 className="font-medium truncate">{order.customer_email}</h4>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-sm text-muted-foreground">{formatDate(order.created_at)}</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-sm font-medium">{productMap[order.product_id] || "Unknown Product"}</span>
-                      </div>
-                      <div className="col-span-1">
-                        <Badge variant="outline" className={orderTypeStyles[order.order_type as OrderBadgeType]}>
-                          {orderTypeLabels[order.order_type as OrderBadgeType]}
-                        </Badge>
-                      </div>
-                      <div className="col-span-2">{getEmailStatusBadge(order)}</div>
-                      <div className="col-span-2">
-                        {order.order_type === "lead_magnet" ? (
-                          <span className="text-sm text-muted-foreground">Free</span>
-                        ) : (
-                          <span className="text-sm font-semibold">
-                            {formatCurrency((order.amount_total || 0) / 100)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="col-span-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                          onClick={() => promptDelete([order.id])}
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                        </TableCell>
+                        <TableCell column="main">
+                          <h4 className="truncate text-sm font-medium sm:text-base">{order.customer_email}</h4>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{formatDate(order.created_at)}</TableCell>
+                        <TableCell column="content">
+                          <span className="text-sm font-medium">{productMap[order.product_id] || "Unknown Product"}</span>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <Badge variant="outline" className={orderTypeStyles[order.order_type as OrderBadgeType]}>
+                            {orderTypeLabels[order.order_type as OrderBadgeType]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell column="meta">{getEmailStatusBadge(order)}</TableCell>
+                        <TableCell column="meta">
+                          {order.order_type === "lead_magnet" ? (
+                            <span className="text-sm text-muted-foreground">Free</span>
+                          ) : (
+                            <span className="text-sm font-semibold">{formatCurrency((order.amount_total || 0) / 100)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell column="meta">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            onClick={() => promptDelete([order.id])}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
 
-            {/* Pagination */}
             {!loading && total > 0 && (
-              <AdminListFooter
-                currentPage={currentPage}
-                onPageChange={setCurrentPage}
-                pageSize={pageSize}
-                total={total}
-              />
+              <AdminListFooter currentPage={currentPage} onPageChange={setCurrentPage} pageSize={pageSize} total={total} />
             )}
-          </Card>
+          </TableSurface>
         </div>
       </AdminLayout>
 

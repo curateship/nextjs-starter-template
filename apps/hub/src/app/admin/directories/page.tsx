@@ -4,24 +4,17 @@ import { useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import { FolderOpen } from "lucide-react"
 
-import {
-  ContentListPage,
-  type ContentCursorListData,
-  type ContentCursorListParams,
-} from "@/components/admin/layout/content/ContentListPage"
+import { ContentListPage } from "@/components/admin/layout/content/ContentListPage"
 import { AdminErrorDialog } from "@/components/admin/layout/list"
 import {
   deleteDirectoriesAction,
   deleteDirectoryAction,
   duplicateDirectoryAction,
   getDirectoryByIdAction,
+  getSiteDirectoriesWithCategoriesAction,
   type Directory,
 } from "@/lib/actions/directories/directory-actions"
-import {
-  getDirectoryListPageAction,
-  type DirectoryListSort,
-  type DirectorySummary,
-} from "@/lib/actions/directories/directory-list-actions"
+import type { DirectorySummary } from "@/lib/actions/directories/directory-list-actions"
 
 const CreateDirectoryModal = dynamic(
   () =>
@@ -52,28 +45,6 @@ function toDirectorySummary(directory: Directory): DirectorySummary {
     created_at: directory.created_at,
     updated_at: directory.updated_at,
   }
-}
-
-async function getDirectoryCursorItems({
-  cursor,
-  limit,
-  search,
-  siteId,
-  sortColumn,
-  sortDirection,
-  status,
-}: ContentCursorListParams): Promise<{ data: ContentCursorListData<DirectorySummary> | null; error: string | null }> {
-  const sortBy: DirectoryListSort = sortColumn === "title" || sortColumn === "modified" ? sortColumn : "default"
-
-  return getDirectoryListPageAction({
-    siteId,
-    search,
-    status,
-    sortBy,
-    sortDirection,
-    cursor,
-    limit,
-  })
 }
 
 async function duplicateDirectorySummaryAction(directoryId: string, title: string) {
@@ -150,19 +121,19 @@ export default function DirectoriesPage() {
   return (
     <ContentListPage<DirectorySummary>
       builderPath="/admin/directories/builder"
-      createButtonLabel="Create Item"
+      createButtonLabel="Create Directory"
       deleteItem={deleteDirectoryAction}
       deleteItems={deleteDirectoriesAction}
       duplicateItem={duplicateDirectorySummaryAction}
       duplicateTitle={(directory) => `${directory.title || "Directory"} Copy`}
       emptyButtonLabel="Create Your First Directory"
       emptyTitle={() => "No directories found for the current filters."}
-      getCursorItems={getDirectoryCursorItems}
+      getItems={getSiteDirectoriesWithCategoriesAction}
       getIsPublished={(directory) => directory.status === "published"}
       icon={FolderOpen}
       itemLabel="Directory"
       itemLabelPlural="Directories"
-      listLabel="Directory"
+      listLabel="Directories"
       pathPrefix="directories"
       refreshAfterCreate
       refreshAfterDelete

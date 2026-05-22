@@ -14,18 +14,25 @@ import {
   AdminSelectionBanner,
   AdminSortButton,
   useAdminBulkSelection,
-  useAdminSort,
+  useAdminSort
 } from "@/components/admin/layout/list"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import {
+  TableRightActions,
+  TableRightActionsButton
+} from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardGroup, CardHeader, CardTableHeader } from "@/components/ui/card"
+import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
 import { cn } from "@/lib/utils/tailwind"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
@@ -52,7 +59,11 @@ interface TemplateListPageProps<TTemplate extends AdminTemplateRecord> {
   getTemplatesBySite: (
     siteId: string,
     options?: { page?: number; pageSize?: number }
-  ) => Promise<{ data: TTemplate[] | null; total: number; error: string | null }>
+  ) => Promise<{
+    data: TTemplate[] | null
+    total: number
+    error: string | null
+  }>
   routeBase: string
   setDefaultTemplate: (templateId: string) => Promise<{ success: boolean; error: string | null }>
 }
@@ -62,7 +73,7 @@ function formatDate(dateString: string) {
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
+    year: "numeric"
   })
 }
 
@@ -76,7 +87,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   getTemplateIds,
   getTemplatesBySite,
   routeBase,
-  setDefaultTemplate,
+  setDefaultTemplate
 }: TemplateListPageProps<TTemplate>) {
   const { currentSite } = useSiteSwitcher()
   const router = useRouter()
@@ -109,10 +120,10 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
       const {
         data,
         total: totalCount,
-        error: loadError,
+        error: loadError
       } = await getTemplatesBySite(currentSite.id, {
         page: currentPage,
-        pageSize,
+        pageSize
       })
       if (loadError) {
         setError(loadError)
@@ -137,7 +148,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
 
     const { data, error: createError } = await createTemplate({
       siteId: currentSite.id,
-      name: formName.trim(),
+      name: formName.trim()
     })
 
     if (createError) {
@@ -234,58 +245,39 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader
-            items={[breadcrumbParent, { label: "Templates" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: handleSearchChange,
-              placeholder: "Search templates",
-            }}
-            actions={
-              <div className="flex items-center gap-1.5 sm:gap-3">
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={templateSelection.selectedCount}
-                />
-                <Button onClick={openCreateModal}>Create Template</Button>
-              </div>
-            }
-          />
+          <DashboardSubheader items={[breadcrumbParent, { label: "Templates" }]} />
 
-          <Card>
-            <CardTableHeader className="grid-cols-5">
-              <div className="col-span-2 flex items-center space-x-4">
-                <Checkbox
-                  checked={pageSelectionChecked}
-                  onCheckedChange={handleTogglePageSelection}
-                  aria-label="Select all templates"
-                />
-                <AdminSortButton
-                  active={templateSort.sortColumn === "name"}
-                  direction={templateSort.sortDirection}
-                  onClick={() => templateSort.toggleSort("name")}
-                >
-                  Name
-                </AdminSortButton>
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <FileText className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Templates</span>
+                <Badge variant="secondary">{filteredTemplates.length}</Badge>
+                {templateSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={templateSelection.clearSelection}
+                  >
+                    Clear {templateSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={massDeleting}
+                    onClick={() => setMassDeleteConfirmOpen(true)}
+                    selectedCount={templateSelection.selectedCount}
+                  />
+                </div>
               </div>
-              <AdminSortButton
-                active={templateSort.sortColumn === "blocks"}
-                direction={templateSort.sortDirection}
-                onClick={() => templateSort.toggleSort("blocks")}
-              >
-                Blocks
-              </AdminSortButton>
-              <AdminSortButton
-                active={templateSort.sortColumn === "modified"}
-                direction={templateSort.sortDirection}
-                onClick={() => templateSort.toggleSort("modified")}
-              >
-                Modified
-              </AdminSortButton>
-              <div>Actions</div>
-            </CardTableHeader>
-
+              <TableRightActions>
+                <TableRightActionsButton onClick={openCreateModal}>
+                  Create Template
+                </TableRightActionsButton>
+              </TableRightActions>
+            </div>
             <AdminSelectionBanner
               allSelected={templateSelection.allSelected}
               onClearSelection={templateSelection.clearSelection}
@@ -294,97 +286,143 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
               total={selectableTotal}
               visibleCount={deletableTemplates.length}
             />
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="mb-4 text-red-600">{error}</p>
-                  <Button onClick={() => loadTemplates()} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : filteredTemplates.length === 0 ? (
-                <div className="p-8 text-center">
-                  <FileText className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="mb-4 text-muted-foreground">
-                    {normalizedSearchQuery ? "No templates match your search." : emptyText}
-                  </p>
-                  <Button onClick={openCreateModal} variant="outline">
-                    Create Template
-                  </Button>
-                </div>
-              ) : (
-                sortedTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className={cn("p-6 transition-colors", templateSelection.selectedIds.has(template.id) && "bg-accent/50")}
-                  >
-                    <div className="grid grid-cols-5 items-center gap-4">
-                      <div className="col-span-2 flex items-center space-x-4">
-                        <Checkbox
-                          checked={templateSelection.selectedIds.has(template.id)}
-                          onCheckedChange={() => templateSelection.toggleOne(template.id)}
-                          aria-label={`Select ${template.name}`}
-                          disabled={template.is_default}
-                        />
-                        <Link href={`${routeBase}/${template.id}`} className="transition-opacity hover:opacity-80">
-                          <h4 className="text-sm font-medium hover:underline">{template.name}</h4>
-                        </Link>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{getBlockCount(template)}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm text-muted-foreground">{formatDate(template.updated_at)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn("h-8 w-8 p-0", template.is_default && "text-yellow-500 hover:text-yellow-500")}
-                          onClick={() => handleSetDefault(template.id)}
-                          title={template.is_default ? "Default template" : "Set as default"}
-                          disabled={template.is_default}
-                        >
-                          <Star className={cn("h-4 w-4", template.is_default && "fill-current")} />
-                          <span className="sr-only">{template.is_default ? "Default" : "Set as default"}</span>
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="select">
+                      <Checkbox
+                        checked={pageSelectionChecked}
+                        onCheckedChange={handleTogglePageSelection}
+                        aria-label="Select all templates"
+                      />
+                    </TableHead>
+                    <TableHead column="main">
+                      <AdminSortButton
+                        active={templateSort.sortColumn === "name"}
+                        direction={templateSort.sortDirection}
+                        onClick={() => templateSort.toggleSort("name")}
+                      >
+                        Name
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={templateSort.sortColumn === "blocks"}
+                        direction={templateSort.sortDirection}
+                        onClick={() => templateSort.toggleSort("blocks")}
+                      >
+                        Blocks
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">
+                      <AdminSortButton
+                        active={templateSort.sortColumn === "modified"}
+                        direction={templateSort.sortDirection}
+                        onClick={() => templateSort.toggleSort("modified")}
+                      >
+                        Modified
+                      </AdminSortButton>
+                    </TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={5} rowCount={5} showThumbnail={false} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={() => loadTemplates()} variant="outline" size="sm">
+                          Try Again
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => router.push(`${routeBase}/${template.id}`)}
-                          title="Edit Template"
-                        >
-                          <Settings className="h-4 w-4" />
-                          <span className="sr-only">Edit Template</span>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTemplates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="mb-4 text-muted-foreground">
+                          {normalizedSearchQuery ? "No templates match your search." : emptyText}
+                        </p>
+                        <Button onClick={openCreateModal} variant="outline">
+                          Create Template
                         </Button>
-                        {!template.is_default && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
-                            onClick={() => {
-                              templateSelection.selectOnly([template.id])
-                              setMassDeleteConfirmOpen(true)
-                            }}
-                            title="Delete Template"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete Template</span>
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedTemplates.map((template) => (
+                      <TableRow
+                        key={template.id}
+                        data-state={templateSelection.selectedIds.has(template.id) ? "selected" : undefined}
+                        className="group"
+                      >
+                        <TableCell column="select">
+                          <Checkbox
+                            checked={templateSelection.selectedIds.has(template.id)}
+                            onCheckedChange={() => templateSelection.toggleOne(template.id)}
+                            aria-label={`Select ${template.name}`}
+                            disabled={template.is_default}
+                          />
+                        </TableCell>
+                        <TableCell column="main">
+                          <Link href={`${routeBase}/${template.id}`} className="transition-opacity hover:opacity-80">
+                            <h4 className="text-sm font-medium hover:underline">{template.name}</h4>
+                          </Link>
+                        </TableCell>
+                        <TableCell column="mutedMeta">{getBlockCount(template)}</TableCell>
+                        <TableCell column="mutedMeta">{formatDate(template.updated_at)}</TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={cn("h-8 w-8 p-0", template.is_default && "text-yellow-500 hover:text-yellow-500")}
+                              onClick={() => handleSetDefault(template.id)}
+                              title={template.is_default ? "Default template" : "Set as default"}
+                              disabled={template.is_default}
+                            >
+                              <Star className={cn("h-4 w-4", template.is_default && "fill-current")} />
+                              <span className="sr-only">{template.is_default ? "Default" : "Set as default"}</span>
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => router.push(`${routeBase}/${template.id}`)}
+                              title="Edit Template"
+                            >
+                              <Settings className="h-4 w-4" />
+                              <span className="sr-only">Edit Template</span>
+                            </Button>
+                            {!template.is_default && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                                onClick={() => {
+                                  templateSelection.selectOnly([template.id])
+                                  setMassDeleteConfirmOpen(true)
+                                }}
+                                title="Delete Template"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Delete Template</span>
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
 
             {!loading && <AdminListFooter currentPage={currentPage} onPageChange={handlePageChange} pageSize={pageSize} total={total} />}
-          </Card>
+          </TableSurface>
         </div>
       </AdminLayout>
 

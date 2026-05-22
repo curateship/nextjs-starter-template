@@ -11,15 +11,21 @@ import {
   type DirectoryClaimStatus
 } from "@/lib/actions/directories/directory-claim-actions"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
+import {
+  TableRightActions,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { AdminListSkeleton, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardTableHeader } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 
 const CLAIM_FILTERS = [
@@ -123,94 +129,117 @@ export default function DirectoryClaimsPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader
-            items={[{ label: "Directory", href: "/admin/directories" }, { label: "Claims" }]}
-            filterMenu={{
-              value: activeStatus,
-              onValueChange: (value) => setActiveStatus(value as DirectoryClaimStatus),
-              items: CLAIM_FILTERS.map((item) => ({
-                ...item,
-                count: counts[item.value as DirectoryClaimStatus] || 0
-              }))
-            }}
-          />
+          <DashboardSubheader items={[{ label: "Directory", href: "/admin/directories" }, { label: "Claims" }]} />
 
-          <Card>
-            <CardTableHeader className="grid-cols-6">
-              <div className="col-span-2">Listing</div>
-              <div>Claimant</div>
-              <div>Business Email</div>
-              <div>Status</div>
-              <div>Actions</div>
-            </CardTableHeader>
-
-            <div className="divide-y divide-muted/80">
-              {loading ? (
-                <AdminListSkeleton columns={6} showCheckbox={false} showThumbnail={false} />
-              ) : error ? (
-                <div className="p-8 text-center">
-                  <p className="mb-4 text-red-600">{error}</p>
-                  <Button onClick={loadClaims} variant="outline" size="sm">
-                    Try Again
-                  </Button>
-                </div>
-              ) : claims.length === 0 ? (
-                <div className="p-8 text-center">
-                  <ShieldCheck className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-muted-foreground">{emptyText}</p>
-                </div>
-              ) : (
-                claims.map((claim) => (
-                  <div key={claim.id} className="p-6 transition-colors">
-                    <div className="grid grid-cols-6 items-center gap-4">
-                      <div className="col-span-2 min-w-0">
-                        <Link href={`/directories/${claim.directory_slug}`} className="block hover:opacity-80">
-                          <h4 className="truncate font-medium hover:underline">{claim.directory_title}</h4>
-                          <p className="truncate text-sm text-muted-foreground">/directories/{claim.directory_slug}</p>
-                        </Link>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-sm">
-                          {claim.claimant_name || claim.claimant_display_name || "Unknown"}
-                        </div>
-                        <div className="truncate text-sm text-muted-foreground">{claim.claimant_account_email}</div>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-sm">{claim.business_email}</div>
-                        <div className="mt-1">
-                          {claim.domain_matches ? (
-                            <Badge className="bg-green-100 text-green-800">Domain Match</Badge>
-                          ) : (
-                            <Badge variant="secondary">Domain Mismatch</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        {statusBadge(claim.status)}
-                        <div className="text-sm text-muted-foreground">{formatDate(claim.created_at)}</div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                          <a
-                            href={`/directories/${claim.directory_slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="View Listing"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            <span className="sr-only">View Listing</span>
-                          </a>
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedClaim(claim)}>
-                          Review
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <ShieldCheck className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Claims</span>
+                <Badge variant="secondary">{claims.length}</Badge>
+              </div>
+              <TableRightActions>
+                <Select value={activeStatus} onValueChange={(value) => setActiveStatus(value as DirectoryClaimStatus)}>
+                  <TableRightActionsSelectTrigger aria-label="Claim status filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    {CLAIM_FILTERS.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label} ({counts[item.value as DirectoryClaimStatus] || 0})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableRightActions>
             </div>
-          </Card>
+            <ScrollArea className="w-full">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead column="main">Listing</TableHead>
+                    <TableHead column="content">Claimant</TableHead>
+                    <TableHead column="content">Business Email</TableHead>
+                    <TableHead column="meta">Status</TableHead>
+                    <TableHead column="meta">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <AdminListSkeleton columns={5} showCheckbox={false} showThumbnail={false} />
+                  ) : error ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <p className="mb-4 text-red-600">{error}</p>
+                        <Button onClick={loadClaims} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ) : claims.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-32 text-center">
+                        <ShieldCheck className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+                        <p className="text-muted-foreground">{emptyText}</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    claims.map((claim) => (
+                      <TableRow key={claim.id} className="group">
+                        <TableCell column="main">
+                          <Link href={`/directories/${claim.directory_slug}`} className="block hover:opacity-80">
+                            <h4 className="truncate font-medium hover:underline">{claim.directory_title}</h4>
+                            <p className="truncate text-sm text-muted-foreground">/directories/{claim.directory_slug}</p>
+                          </Link>
+                        </TableCell>
+                        <TableCell column="content">
+                          <div className="truncate text-sm">{claim.claimant_name || claim.claimant_display_name || "Unknown"}</div>
+                          <div className="truncate text-sm text-muted-foreground">{claim.claimant_account_email}</div>
+                        </TableCell>
+                        <TableCell column="content">
+                          <div className="truncate text-sm">{claim.business_email}</div>
+                          <div className="mt-1">
+                            {claim.domain_matches ? (
+                              <Badge className="bg-green-100 text-green-800">Domain Match</Badge>
+                            ) : (
+                              <Badge variant="secondary">Domain Mismatch</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <div className="space-y-2">
+                            {statusBadge(claim.status)}
+                            <div className="text-sm text-muted-foreground">{formatDate(claim.created_at)}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell column="meta">
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+                              <a
+                                href={`/directories/${claim.directory_slug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="View Listing"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                <span className="sr-only">View Listing</span>
+                              </a>
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setSelectedClaim(claim)}>
+                              Review
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </TableSurface>
         </div>
       </AdminLayout>
 
@@ -254,9 +283,7 @@ export default function DirectoryClaimsPage() {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Domain Check</div>
-                  <div>
-                    {selectedClaim.domain_matches ? "Matches listing website" : "Does not match listing website"}
-                  </div>
+                  <div>{selectedClaim.domain_matches ? "Matches listing website" : "Does not match listing website"}</div>
                 </div>
               </div>
 
@@ -278,12 +305,7 @@ export default function DirectoryClaimsPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="review-note">Review Note</Label>
-                <Textarea
-                  id="review-note"
-                  value={reviewNote}
-                  onChange={(event) => setReviewNote(event.target.value)}
-                  rows={3}
-                />
+                <Textarea id="review-note" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={3} />
               </div>
 
               <div className="flex flex-wrap justify-end gap-2">
@@ -303,10 +325,7 @@ export default function DirectoryClaimsPage() {
                       <XCircle className="mr-2 h-4 w-4" />
                       Reject
                     </Button>
-                    <Button
-                      onClick={() => handleReview("approved")}
-                      disabled={!!savingStatus || selectedClaim.status !== "pending_review"}
-                    >
+                    <Button onClick={() => handleReview("approved")} disabled={!!savingStatus || selectedClaim.status !== "pending_review"}>
                       <CheckCircle2 className="mr-2 h-4 w-4" />
                       Approve
                     </Button>
