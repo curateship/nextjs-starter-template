@@ -222,7 +222,7 @@ export function NewsletterEditorShell({
 }: NewsletterEditorShellProps) {
   const [previewWidth, setPreviewWidth] = useState<PreviewWidth>("desktop")
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [draftSubject, setDraftSubject] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)

@@ -32,7 +32,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
 
   const [selectedCategory, setSelectedCategory] = useState(urlCategory)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {

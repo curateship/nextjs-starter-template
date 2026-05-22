@@ -34,7 +34,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const pageFromUrl = searchParams.get('page') || 'home'
   const [selectedPage, setSelectedPage] = useState(pageFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
 

@@ -48,7 +48,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   const productFromUrl = searchParams.get('product') || ''
   const [selectedProduct, setSelectedProduct] = useState(productFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   

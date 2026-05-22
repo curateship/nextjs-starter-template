@@ -45,7 +45,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
   const [template, setTemplate] = useState<SystemEmailEditorData | null>(null)
   const [previewWidth, setPreviewWidth] = useState<keyof typeof PREVIEW_WIDTHS>('desktop')
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})

@@ -268,15 +268,16 @@ export function StickybarTopRightActions({
         ) : null}
 
         {onToggleBlockList ? (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onToggleBlockList}
             aria-label={blockListOpen ? "Hide block list" : "Show block list"}
             title={blockListOpen ? "Hide block list" : "Show block list"}
-            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
           >
-            {blockListOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRight className="h-3.5 w-3.5" />}
-          </button>
+            {blockListOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
+          </Button>
         ) : null}
       </div>
 

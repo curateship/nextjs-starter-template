@@ -33,7 +33,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const directoryFromUrl = searchParams.get('directory') || ''
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
   const selectedDirectory = directoryFromUrl || ''
 
   // Keep the site switcher aligned with the route before redirecting.

@@ -196,19 +196,20 @@ export function StickyHeader({
         </div>
 
         {/* Right side: page-specific actions */}
-        <div className="flex items-center gap-2 pr-1">
+        <div className="flex items-center gap-1 pr-1">
           <div ref={actionsSlotRef} className="flex items-center gap-2" />
           {rightActions}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 aria-label="Theme"
                 title="Theme"
-                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
               >
-                <SunMoon className="h-3.5 w-3.5" />
-              </button>
+                <SunMoon className="h-4 w-4" />
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setTheme("light")}>

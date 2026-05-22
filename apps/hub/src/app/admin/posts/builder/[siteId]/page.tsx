@@ -42,7 +42,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const postFromUrl = searchParams.get('post') || ''
   const [selectedPost, setSelectedPost] = useState(postFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {

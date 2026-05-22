@@ -31,7 +31,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const eventFromUrl = searchParams.get('event') || ''
   const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {

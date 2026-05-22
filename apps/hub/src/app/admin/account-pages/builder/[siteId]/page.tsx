@@ -38,7 +38,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   const pageFromUrl = searchParams.get('page') || ''
   const [selectedPage, setSelectedPage] = useState(pageFromUrl)
   const [blockModalOpen, setBlockModalOpen] = useState(false)
-  const [blockListOpen, setBlockListOpen] = useState(true)
+  const [blockListOpen, setBlockListOpen] = useState(false)
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [createPageOpen, setCreatePageOpen] = useState(false)
