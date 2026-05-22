@@ -255,7 +255,7 @@ export default function SystemEmailBuilderPage({ params }: PageProps) {
         <NewsletterPreviewPane
           selectedBlock={selectedBlock}
           blocks={blockEditor.blocks}
-          previewWidth={PREVIEW_WIDTHS[previewWidth]}
+          emailWidth={PREVIEW_WIDTHS[previewWidth]}
           updateBlockContent={blockEditor.updateBlockContent}
           onSelectBlock={blockEditor.setSelectedBlock}
           siteId={currentSite?.id || ''}
