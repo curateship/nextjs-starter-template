@@ -106,38 +106,34 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
 
   return (
     <>
-      <StickyHeader
-        navLinks={quickLinks}
-        rightActions={
-          <>
-            {siteUrl ? (
-              <Button asChild variant="outline" size="sm">
-                <a href={siteUrl} target="_blank" rel="noopener noreferrer" aria-label="View Site" title="View Site">
-                  <ExternalLink className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">View Site</span>
-                </a>
-              </Button>
-            ) : null}
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/admin/sites/${siteId}/settings`} aria-label="Settings" title="Settings">
-                <Settings className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Settings</span>
-              </Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href={`/admin/pages/${siteId}`} aria-label="Site Builder" title="Site Builder">
-                <Edit3 className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Site Builder</span>
-              </Link>
-            </Button>
-          </>
-        }
-      />
+      <StickyHeader navLinks={quickLinks} />
       <AdminLayout>
         <div className="w-full">
           <CardGroup className="grid">
-            <div className="flex max-w-full overflow-x-auto">
+            <div className="flex max-w-full flex-col gap-3 overflow-x-auto sm:flex-row sm:items-center sm:justify-between lg:gap-6">
               <DashboardRangeTabs siteId={siteId} value={selectedRange} />
+              <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+                {siteUrl ? (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={siteUrl} target="_blank" rel="noopener noreferrer" aria-label="View Site" title="View Site">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      <span>View Site</span>
+                    </a>
+                  </Button>
+                ) : null}
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/admin/sites/${siteId}/settings`} aria-label="Settings" title="Settings">
+                    <Settings className="h-4 w-4 mr-2" />
+                    <span>Settings</span>
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href={`/admin/pages/${siteId}`} aria-label="Site Builder" title="Site Builder">
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    <span>Site Builder</span>
+                  </Link>
+                </Button>
+              </div>
             </div>
 
             <ChartGroup7

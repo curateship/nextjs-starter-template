@@ -3,7 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDown, PanelLeft, type LucideIcon } from "lucide-react"
+import { ChevronDown, Monitor, Moon, PanelLeft, Sun, SunMoon, type LucideIcon } from "lucide-react"
+import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils/tailwind"
 import { useDashboardHeaderActionsSlot } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { useSidebar } from "@/components/admin/layout/sidebar/Sidebar"
@@ -50,6 +51,7 @@ export function StickyHeader({
 }: StickyHeaderProps) {
   const { isMobile, toggleSidebar } = useSidebar()
   const pathname = usePathname()
+  const { setTheme } = useTheme()
   const { currentSite, sites } = useSiteSwitcher()
   const { setSlot } = useDashboardHeaderActionsSlot()
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
@@ -197,6 +199,32 @@ export function StickyHeader({
         <div className="flex items-center gap-2 pr-1">
           <div ref={actionsSlotRef} className="flex items-center gap-2" />
           {rightActions}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Theme"
+                title="Theme"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md bg-muted text-sm font-medium transition-colors hover:bg-muted-foreground/10"
+              >
+                <SunMoon className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTheme("light")}>
+                <Sun />
+                Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("dark")}>
+                <Moon />
+                Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("system")}>
+                <Monitor />
+                System
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
