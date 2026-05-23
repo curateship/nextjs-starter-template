@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { Suspense } from "react"
 import { ArrowUpRight, Edit3, ExternalLink, Settings } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -75,6 +76,83 @@ function DashboardRangeTabs({
   )
 }
 
+function TopListFallback({ title }: { title: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {[...Array(4)].map((_, index) => (
+          <div key={index} className="flex items-center justify-between gap-4">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+async function TopPagesCard({ siteId, range }: { siteId: string; range: DashboardRange }) {
+  const topPages = await getTopPages(siteId, range).catch(() => [])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Pages</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {topPages.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No data yet</p>
+        ) : (
+          <div className="space-y-3">
+            {topPages.map((page) => (
+              <div key={page.path} className="flex items-center justify-between">
+                <span className="mr-4 truncate text-sm">{page.path}</span>
+                <span className="whitespace-nowrap text-sm text-muted-foreground">
+                  {page.views.toLocaleString()} views
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+async function TopReferrersCard({ siteId, range }: { siteId: string; range: DashboardRange }) {
+  const topReferrers = await getTopReferrers(siteId, range).catch(() => [])
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Referrers</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {topReferrers.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No referrer data yet</p>
+        ) : (
+          <div className="space-y-3">
+            {topReferrers.map((ref) => (
+              <div key={ref.domain} className="flex items-center justify-between">
+                <div className="flex min-w-0 items-center gap-2">
+                  <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-sm">{ref.domain}</span>
+                </div>
+                <span className="whitespace-nowrap text-sm text-muted-foreground">
+                  {ref.visits.toLocaleString()} visits
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export default async function SiteDashboard({ params, searchParams }: PageProps) {
   const { siteId } = await params
   const resolvedSearchParams = await searchParams
@@ -82,12 +160,14 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
     ? resolvedSearchParams.range[0]
     : resolvedSearchParams.range
   const selectedRange = normalizeDashboardRange(rawRange)
-  const [site, cardMetrics, chartMetrics, topPages, topReferrers] = await Promise.all([
+  const cardMetricsPromise = getSiteDashboardMetrics(siteId, selectedRange).catch(() => emptyMetrics)
+  const chartMetricsPromise = selectedRange === "30d"
+    ? cardMetricsPromise
+    : getSiteDashboardMetrics(siteId, "30d").catch(() => emptyMetrics)
+  const [site, cardMetrics, chartMetrics] = await Promise.all([
     getSiteForDashboard(siteId),
-    getSiteDashboardMetrics(siteId, selectedRange).catch(() => emptyMetrics),
-    getSiteDashboardMetrics(siteId, "30d").catch(() => emptyMetrics),
-    getTopPages(siteId, selectedRange).catch(() => []),
-    getTopReferrers(siteId, selectedRange).catch(() => []),
+    cardMetricsPromise,
+    chartMetricsPromise,
   ])
 
   const siteSettings = (site?.settings ?? {}) as {
@@ -151,52 +231,12 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
             />
 
             <CardGroup className="grid lg:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Pages</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {topPages.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No data yet</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {topPages.map((page) => (
-                        <div key={page.path} className="flex items-center justify-between">
-                          <span className="mr-4 truncate text-sm">{page.path}</span>
-                          <span className="whitespace-nowrap text-sm text-muted-foreground">
-                            {page.views.toLocaleString()} views
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Referrers</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {topReferrers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No referrer data yet</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {topReferrers.map((ref) => (
-                        <div key={ref.domain} className="flex items-center justify-between">
-                          <div className="flex min-w-0 items-center gap-2">
-                            <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                            <span className="truncate text-sm">{ref.domain}</span>
-                          </div>
-                          <span className="whitespace-nowrap text-sm text-muted-foreground">
-                            {ref.visits.toLocaleString()} visits
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <Suspense fallback={<TopListFallback title="Top Pages" />}>
+                <TopPagesCard siteId={siteId} range={selectedRange} />
+              </Suspense>
+              <Suspense fallback={<TopListFallback title="Top Referrers" />}>
+                <TopReferrersCard siteId={siteId} range={selectedRange} />
+              </Suspense>
             </CardGroup>
           </CardGroup>
         </div>

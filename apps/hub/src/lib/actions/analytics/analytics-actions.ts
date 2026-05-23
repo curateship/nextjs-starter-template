@@ -4,10 +4,11 @@ import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { cache } from 'react'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-async function verifyAnalyticsAccess(siteId: string) {
+const verifyAnalyticsAccess = cache(async (siteId: string) => {
   if (!UUID_REGEX.test(siteId)) return false
 
   const user = await getAuthenticatedUser()
@@ -21,7 +22,7 @@ async function verifyAnalyticsAccess(siteId: string) {
     .limit(1)
 
   return !!site
-}
+})
 
 function clampLimit(limit: number) {
   return Math.min(100, Math.max(1, Math.floor(limit || 10)))
