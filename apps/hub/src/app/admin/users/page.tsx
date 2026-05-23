@@ -359,14 +359,9 @@ export default function UsersPage() {
       return labels.length ? `Role: ${labels.join(", ")}` : "Role"
     }
 
-    const label = rule.type === "status"
-      ? "Status"
-      : rule.type === "dateAdded"
-        ? "Date Added"
-        : rule.type === "lastActive"
-          ? "Last Active"
-          : "Role"
+    if (!isDateRule(rule)) return "Filter"
 
+    const label = rule.type === "dateAdded" ? "Date Added" : "Last Active"
     const operatorLabel = rule.operator === "is" ? "is" : "isn't"
     if (rule.value.mode === "relative") {
       return `${label} ${operatorLabel} in the last ${rule.value.days} days`
@@ -426,7 +421,8 @@ export default function UsersPage() {
       if (rule.type === "status") return rule.value.includes(user.status)
       if (rule.type === "role") return rule.value.includes(user.role)
       if (rule.type === "dateAdded") return matchesDateRule(user.created_at, rule)
-      return matchesDateRule(user.last_sign_in_at, rule)
+      if (rule.type === "lastActive") return matchesDateRule(user.last_sign_in_at, rule)
+      return false
     })
 
     return filters.match === "all" ? matches.every(Boolean) : matches.some(Boolean)
