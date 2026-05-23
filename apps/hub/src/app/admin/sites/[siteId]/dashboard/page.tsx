@@ -60,9 +60,9 @@ function DashboardRangeTabs({
 }) {
   return (
     <Tabs value={value} className="w-full sm:w-auto">
-      <TabsList className="h-9 max-w-full justify-start overflow-x-auto">
+      <TabsList className="h-8 max-w-full justify-start overflow-x-auto">
         {rangeOptions.map((option) => (
-          <TabsTrigger key={option.value} value={option.value} asChild className="h-7 px-2.5 text-sm">
+          <TabsTrigger key={option.value} value={option.value} asChild className="h-6 px-2 text-sm">
             <Link
               href={`/admin/sites/${siteId}/dashboard?range=${option.value}`}
               scroll={false}
@@ -192,12 +192,8 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
       <StickyHeader navLinks={quickLinks} />
       <AdminLayout>
         <div className="w-full">
-          <CardGroup className="grid">
+          <CardGroup className="grid lg:gap-6">
             <div className="flex max-w-full flex-col gap-3 overflow-x-auto sm:flex-row sm:items-center sm:justify-between lg:gap-6">
-              <DashboardRangeTabs
-                siteId={siteId}
-                value={selectedRange}
-              />
               <div className="flex shrink-0 items-center gap-2 sm:justify-end">
                 {siteUrl ? (
                   <Button asChild variant="outline" size="sm">
@@ -220,6 +216,10 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
                   </Link>
                 </Button>
               </div>
+              <DashboardRangeTabs
+                siteId={siteId}
+                value={selectedRange}
+              />
             </div>
 
             <ChartGroup7
