@@ -63,7 +63,8 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
   const showSettingsSave = isMetadataTab || isTechnicalTab
 
   function handleSave() {
-    document.getElementById(isMetadataTab ? SEO_METADATA_FORM_ID : SEO_TECHNICAL_FORM_ID)?.requestSubmit()
+    const form = document.getElementById(isMetadataTab ? SEO_METADATA_FORM_ID : SEO_TECHNICAL_FORM_ID) as HTMLFormElement | null
+    form?.requestSubmit()
   }
 
   return (

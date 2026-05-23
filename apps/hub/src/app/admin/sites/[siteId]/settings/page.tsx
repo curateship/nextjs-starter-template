@@ -629,7 +629,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
 
   const handleHeaderSave = () => {
     if (isAdminSettingsTab) {
-      document.getElementById("site-admin-settings-form")?.requestSubmit()
+      const form = document.getElementById("site-admin-settings-form") as HTMLFormElement | null
+      form?.requestSubmit()
       return
     }
 
