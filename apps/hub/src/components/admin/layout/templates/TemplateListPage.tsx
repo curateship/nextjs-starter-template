@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileText, Settings, Star, Trash2 } from "lucide-react"
+import { FileText, Plus, Settings, Star, Trash2 } from "lucide-react"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import {
@@ -274,7 +274,8 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
               </div>
               <TableRightActions>
                 <TableRightActionsButton onClick={openCreateModal}>
-                  Create Template
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Template</span>
                 </TableRightActionsButton>
               </TableRightActions>
             </div>

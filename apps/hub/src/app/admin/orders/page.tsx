@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useMemo, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import { Trash2, ShoppingCart, List, Magnet, CreditCard } from "lucide-react"
+import { Trash2, ShoppingCart } from "lucide-react"
 
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -21,7 +21,12 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  TableRightActions,
+  TableRightActionsSearch,
+  TableRightActionsSelectTrigger
+} from "@/components/admin/layout/content/table-right-actions"
+import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
@@ -238,79 +243,84 @@ function OrdersContent() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader
             items={[{ label: "Products", href: "/admin/products" }, { label: "Orders" }]}
-            search={{
-              value: searchQuery,
-              onValueChange: setSearchQuery,
-              placeholder: "Search orders"
-            }}
-            filterMenu={{
-              value: activeTab,
-              onValueChange: (v) => {
-                setActiveTab(v as "all" | OrderType)
-                setCurrentPage(1)
-                clearOrderSelection()
-              },
-              items: [
-                {
-                  value: "all",
-                  label: "All",
-                  icon: List,
-                  count: tabCounts.all
-                },
-                {
-                  value: "lead_magnet",
-                  label: "Lead Magnets",
-                  icon: Magnet,
-                  count: tabCounts.lead_magnet
-                },
-                {
-                  value: "paid_purchase",
-                  label: "Paid",
-                  icon: CreditCard,
-                  count: tabCounts.paid_purchase
-                }
-              ]
-            }}
-            preActions={
-              /* Product filter dropdown — skeleton while loading */
-              loading ? (
-                <Skeleton className="w-[180px] h-9 rounded-md" />
-              ) : Object.keys(productMap).length > 0 ? (
+          />
+
+          <TableSurface>
+            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+                  <ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />
+                </span>
+                <span className="text-sm font-medium sm:text-base">Orders</span>
+                <Badge variant="secondary">{filteredOrders.length}</Badge>
+                {orderSelection.selectedCount ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    onClick={orderSelection.clearSelection}
+                  >
+                    Clear {orderSelection.selectedCount} selected
+                  </button>
+                ) : null}
+                <div className="ml-auto">
+                  <AdminBulkDeleteButton
+                    deleting={deleting}
+                    onClick={() => promptDelete(Array.from(orderSelection.selectedIds))}
+                    selectedCount={orderSelection.selectedCount}
+                  />
+                </div>
+              </div>
+              <TableRightActions>
+                <TableRightActionsSearch
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search orders"
+                />
                 <Select
-                  value={selectedProduct}
+                  value={activeTab}
                   onValueChange={(v) => {
-                    setSelectedProduct(v)
+                    setActiveTab(v as "all" | OrderType)
                     setCurrentPage(1)
                     clearOrderSelection()
                   }}
                 >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="All Products" />
-                  </SelectTrigger>
+                  <TableRightActionsSelectTrigger aria-label="Order type filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Products</SelectItem>
-                    {Object.entries(productMap).map(([id, name]) => (
-                      <SelectItem key={id} value={id}>
-                        {name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="all">All ({tabCounts.all})</SelectItem>
+                    <SelectItem value="lead_magnet">Lead Magnets ({tabCounts.lead_magnet})</SelectItem>
+                    <SelectItem value="paid_purchase">Paid ({tabCounts.paid_purchase})</SelectItem>
                   </SelectContent>
                 </Select>
-              ) : undefined
-            }
-            actions={
-              <AdminBulkDeleteButton
-                deleting={deleting}
-                onClick={() => promptDelete(Array.from(orderSelection.selectedIds))}
-                selectedCount={orderSelection.selectedCount}
-              />
-            }
-          />
-
-          <TableSurface>
+                {loading ? (
+                  <Skeleton className="h-8 w-[160px] rounded-md" />
+                ) : Object.keys(productMap).length > 0 ? (
+                  <Select
+                    value={selectedProduct}
+                    onValueChange={(v) => {
+                      setSelectedProduct(v)
+                      setCurrentPage(1)
+                      clearOrderSelection()
+                    }}
+                  >
+                    <TableRightActionsSelectTrigger aria-label="Product filter" className="max-w-[180px]">
+                      <SelectValue placeholder="All Products" />
+                    </TableRightActionsSelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Products</SelectItem>
+                      {Object.entries(productMap).map(([id, name]) => (
+                        <SelectItem key={id} value={id}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+              </TableRightActions>
+            </div>
             <AdminSelectionBanner
               allSelected={orderSelection.allSelected}
               onClearSelection={orderSelection.clearSelection}

@@ -15,6 +15,13 @@ interface DashboardSubheaderProps {
   preActions?: React.ReactNode
   /** Optional right-side content (buttons, etc.) */
   actions?: React.ReactNode
+  saveMessage?: string | null
+  isSaving?: boolean
+  onSave?: () => void
+  saveDisabled?: boolean
+  saveLabel?: string
+  savingLabel?: string
+  saveVariant?: "outline" | "default"
   /** Optional content rendered below the StickyHeader */
   rightContent?: React.ReactNode
   className?: string
@@ -23,15 +30,36 @@ interface DashboardSubheaderProps {
 /**
  * Dashboard controls are rendered into the StickyHeader top-right slot.
  */
-export function DashboardSubheader({ filterMenu, search, preActions, actions, rightContent, className }: DashboardSubheaderProps) {
+export function DashboardSubheader({
+  filterMenu,
+  search,
+  preActions,
+  actions,
+  saveMessage,
+  isSaving,
+  onSave,
+  saveDisabled,
+  saveLabel,
+  savingLabel,
+  saveVariant,
+  rightContent,
+  className
+}: DashboardSubheaderProps) {
   const { slot } = useDashboardHeaderActionsSlot()
-  const topRightActions = (search || filterMenu || preActions || actions) ? (
+  const topRightActions = (search || filterMenu || preActions || actions || onSave || saveMessage) ? (
     <StickybarTopRightActions
-      className="gap-1 pr-2 sm:gap-3 sm:pr-3"
+      className="gap-1"
       search={search}
       preActions={preActions}
       filterMenu={filterMenu}
       rightActions={actions}
+      saveMessage={saveMessage}
+      isSaving={isSaving}
+      onSave={onSave}
+      saveDisabled={saveDisabled}
+      saveLabel={saveLabel}
+      savingLabel={savingLabel}
+      saveVariant={saveVariant}
     />
   ) : null
 

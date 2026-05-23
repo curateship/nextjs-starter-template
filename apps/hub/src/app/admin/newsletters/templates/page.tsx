@@ -28,7 +28,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { Trash2, Settings, FileText, Star } from "lucide-react"
+import { Trash2, Settings, FileText, Plus, Star } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import {
   getTemplatesBySite,
@@ -227,7 +227,8 @@ export default function TemplatesPage() {
                     setCreateModalOpen(true)
                   }}
                 >
-                  Create Template
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Template</span>
                 </TableRightActionsButton>
               </TableRightActions>
             </div>

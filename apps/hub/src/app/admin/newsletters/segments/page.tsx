@@ -23,7 +23,7 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
-import { Trash2, Settings, Users } from "lucide-react"
+import { Plus, Trash2, Settings, Users } from "lucide-react"
 import { getSegmentsWithCounts, deleteSegments } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -188,7 +188,8 @@ export default function SegmentsPage() {
                   placeholder="Search segments"
                 />
                 <TableRightActionsButton onClick={openCreateModal}>
-                  Create Segment
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Segment</span>
                 </TableRightActionsButton>
               </TableRightActions>
             </div>

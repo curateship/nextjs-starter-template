@@ -200,8 +200,8 @@ export function StickyHeader({
         </div>
 
         {/* Right side: page-specific actions */}
-        <div className="flex items-center gap-1 pr-1">
-          <div ref={actionsSlotRef} className="flex items-center gap-2" />
+        <div className="flex shrink-0 items-center gap-1 pr-1">
+          <div ref={actionsSlotRef} className="flex shrink-0 items-center gap-1" />
           {rightActions}
           <NotificationCenter />
           <DropdownMenu>

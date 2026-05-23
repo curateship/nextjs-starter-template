@@ -2,11 +2,9 @@
 
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CheckCircle, Save } from 'lucide-react'
 import { AdminLayout } from '@/components/admin/layout/admin-layout'
 import { DashboardSubheader } from '@/components/admin/layout/dashboard/DashboardSubheader'
 import { StickyHeader } from '@/components/admin/layout/stickybar/StickyHeader'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/tailwind'
 import { SiteAuditOverviewTab } from './SiteAuditOverviewTab'
 import { ContentAuditTab } from './ContentAuditTab'
@@ -62,25 +60,11 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
   const isMetadataTab = activeTab === 'metadata'
   const isTechnicalTab = activeTab === 'technical'
   const activeSettingsStatus = isMetadataTab ? metadataStatus : technicalStatus
-  const actions = isMetadataTab || isTechnicalTab ? (
-    <div className="flex items-center gap-2">
-      {activeSettingsStatus.message && (
-        <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <span className="text-sm font-medium text-green-700">{activeSettingsStatus.message}</span>
-        </div>
-      )}
-      <Button
-        type="submit"
-        form={isMetadataTab ? SEO_METADATA_FORM_ID : SEO_TECHNICAL_FORM_ID}
-        disabled={activeSettingsStatus.loading || activeSettingsStatus.saving}
-        size="sm"
-      >
-        <Save className="mr-2 h-4 w-4" />
-        {activeSettingsStatus.saving ? 'Saving...' : 'Save'}
-      </Button>
-    </div>
-  ) : undefined
+  const showSettingsSave = isMetadataTab || isTechnicalTab
+
+  function handleSave() {
+    document.getElementById(isMetadataTab ? SEO_METADATA_FORM_ID : SEO_TECHNICAL_FORM_ID)?.requestSubmit()
+  }
 
   return (
     <>
@@ -93,7 +77,13 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
               { label: activeTabConfig.label },
             ]}
             search={search}
-            actions={actions}
+            saveMessage={showSettingsSave ? activeSettingsStatus.message : null}
+            isSaving={activeSettingsStatus.saving}
+            onSave={showSettingsSave ? handleSave : undefined}
+            saveDisabled={activeSettingsStatus.loading}
+            saveLabel="Save"
+            savingLabel="Saving..."
+            saveVariant="default"
           />
 
           <div className="flex items-start gap-6">

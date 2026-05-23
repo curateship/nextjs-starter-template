@@ -1,11 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckCircle } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -174,17 +172,12 @@ export function Breadcrumb({ siteId }: BreadcrumbProps) {
               { label: "Structure", href: `/admin/sites/${siteId}/pages` },
               { label: "Breadcrumbs" }
             ]}
-            actions={
-              <div className="flex items-center gap-2">
-                {saveMessage && (
-                  <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-700">{saveMessage}</span>
-                  </div>
-                )}
-                <Button onClick={saving ? undefined : handleSave}>{saving ? "Saving..." : "Save Changes"}</Button>
-              </div>
-            }
+            saveMessage={saveMessage}
+            isSaving={saving}
+            onSave={handleSave}
+            saveLabel="Save"
+            savingLabel="Saving..."
+            saveVariant="default"
           />
 
           {error && (

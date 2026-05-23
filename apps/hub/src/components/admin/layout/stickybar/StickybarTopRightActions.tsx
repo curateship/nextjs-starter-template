@@ -97,6 +97,7 @@ interface StickybarTopRightActionsProps {
   saveMessage?: string | null
   isSaving?: boolean
   onSave?: () => void
+  saveDisabled?: boolean
   saveLabel?: string
   savingLabel?: string
   saveVariant?: "outline" | "default"
@@ -122,9 +123,10 @@ export function StickybarTopRightActions({
   saveMessage,
   isSaving = false,
   onSave,
+  saveDisabled = false,
   saveLabel = "Save",
   savingLabel = "Saving...",
-  saveVariant = "outline",
+  saveVariant = "default",
   renderSettingsModal,
   settingsLabel = "Edit Settings",
   settingsDisabled = false,
@@ -141,10 +143,24 @@ export function StickybarTopRightActions({
   const { mobileOverflowSlot } = useDashboardHeaderActionsSlot()
   const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || viewPageHref || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
   const mobileMenuItemClassName = "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+  const renderSaveButton = (showLabel: boolean) => (
+    <Button
+      size="sm"
+      variant={saveVariant}
+      onClick={onSave}
+      disabled={isSaving || saveDisabled}
+      aria-label={saveLabel}
+      title={saveLabel}
+      className={!showLabel ? "inline-flex" : undefined}
+    >
+      <Save className="h-4 w-4" />
+      {showLabel ? <span>{isSaving ? savingLabel : saveLabel}</span> : null}
+    </Button>
+  )
 
   return (
     <>
-      <div className={cn("hidden items-center gap-2 [&_[data-slot=button]]:h-8 sm:flex", className)}>
+      <div className={cn("hidden items-center gap-2 **:data-[slot=button]:h-8 sm:flex", className)}>
         {saveMessage ? (
           <div className="hidden sm:block">
             <SaveStatusBadge message={saveMessage} />
@@ -222,17 +238,7 @@ export function StickybarTopRightActions({
         ) : null}
 
         {onSave ? (
-          <Button
-            size="sm"
-            variant={saveVariant}
-            onClick={onSave}
-            disabled={isSaving}
-            aria-label={saveLabel}
-            title={saveLabel}
-          >
-            <Save className="h-4 w-4" />
-            <span className="hidden sm:inline">{isSaving ? savingLabel : saveLabel}</span>
-          </Button>
+          renderSaveButton(true)
         ) : null}
 
         {onPublish && !isPublished ? (
@@ -261,24 +267,15 @@ export function StickybarTopRightActions({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-1 sm:hidden">
+      <div className="flex shrink-0 items-center gap-1 sm:hidden">
         {onSave ? (
-          <Button
-            size="sm"
-            variant={saveVariant}
-            onClick={onSave}
-            disabled={isSaving}
-            aria-label={saveLabel}
-            title={saveLabel}
-          >
-            <Save className="h-4 w-4" />
-          </Button>
+          renderSaveButton(false)
         ) : null}
       </div>
 
       {mobileOverflowSlot && hasMobileOverflow ? createPortal(
         <div className="space-y-1">
-          {preActions ? <div className="px-1 py-1 [&_[data-slot=button]]:h-8">{preActions}</div> : null}
+          {preActions ? <div className="px-1 py-1 **:data-[slot=button]:h-8">{preActions}</div> : null}
 
           {search ? (
             <div className="px-1 py-1">
@@ -337,7 +334,7 @@ export function StickybarTopRightActions({
             </div>
           ) : null}
 
-          {rightActions ? <div className="px-1 py-1 [&_[data-slot=button]]:h-8">{rightActions}</div> : null}
+          {rightActions ? <div className="px-1 py-1 **:data-[slot=button]:h-8">{rightActions}</div> : null}
 
           {viewPageHref ? (
             <a

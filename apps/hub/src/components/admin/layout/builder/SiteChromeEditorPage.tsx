@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { CheckCircle } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -283,22 +282,19 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
               { label: "Structure", href: `/admin/sites/${siteId}/pages` },
               { label: activeLabel }
             ]}
-            actions={
+            saveMessage={saveMessage}
+            isSaving={saving}
+            onSave={handleSave}
+            saveLabel="Save"
+            savingLabel="Saving..."
+            saveVariant="default"
+            actions={safeReturnTo ? (
               <div className="flex items-center gap-2">
-                {safeReturnTo && (
-                  <Button variant="outline" asChild>
-                    <Link href={safeReturnTo}>Back to Builder</Link>
-                  </Button>
-                )}
-                {saveMessage && (
-                  <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-700">{saveMessage}</span>
-                  </div>
-                )}
-                <Button onClick={saving ? undefined : handleSave}>{saving ? "Saving..." : "Save Changes"}</Button>
+                <Button variant="outline" asChild>
+                  <Link href={safeReturnTo}>Back to Builder</Link>
+                </Button>
               </div>
-            }
+            ) : undefined}
           />
 
           {error && (

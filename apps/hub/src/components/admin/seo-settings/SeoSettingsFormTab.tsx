@@ -279,7 +279,6 @@ export function SeoSettingsFormTab({ siteId, mode, formId, onStatusChange }: Seo
     if (result.success) {
       setSaveMessage("SEO settings saved")
       window.setTimeout(() => setSaveMessage(null), 3000)
-      loadData()
     } else {
       setError(result.error || "Failed to save SEO settings")
     }

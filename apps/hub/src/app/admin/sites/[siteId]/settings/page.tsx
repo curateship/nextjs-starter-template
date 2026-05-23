@@ -627,6 +627,17 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     }
   }
 
+  const handleHeaderSave = () => {
+    if (isAdminSettingsTab) {
+      document.getElementById("site-admin-settings-form")?.requestSubmit()
+      return
+    }
+
+    if (!isSubmitting) {
+      void handleSaveClick()
+    }
+  }
+
   if (error && !site) {
     return (
       <AdminLayout>
@@ -658,44 +669,26 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
               },
               { label: activeTabConfig.label }
             ]}
-            actions={
+            saveMessage={!isCronJobsTab ? headerSaveMessage : null}
+            isSaving={isAdminSettingsTab ? adminSettingsStatus.saving : isSubmitting}
+            onSave={!isCronJobsTab ? handleHeaderSave : undefined}
+            saveDisabled={isAdminSettingsTab ? adminSettingsStatus.loading : false}
+            saveLabel="Save"
+            savingLabel="Saving..."
+            saveVariant="default"
+            actions={isCronJobsTab ? (
               <div className="flex items-center gap-2">
-                {headerSaveMessage && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-md">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <span className="text-green-700 text-sm font-medium">{headerSaveMessage}</span>
-                  </div>
-                )}
-                {isCronJobsTab ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={cronJobsLoading}
-                    onClick={() => setCronJobsRefreshSignal((current) => current + 1)}
-                  >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${cronJobsLoading ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
-                ) : (
-                  <Button
-                    type={isAdminSettingsTab ? "submit" : "button"}
-                    form={isAdminSettingsTab ? "site-admin-settings-form" : undefined}
-                    disabled={
-                      isAdminSettingsTab ? adminSettingsStatus.loading || adminSettingsStatus.saving : isSubmitting
-                    }
-                    onClick={isAdminSettingsTab || isSubmitting ? undefined : handleSaveClick}
-                  >
-                    {isAdminSettingsTab
-                      ? adminSettingsStatus.saving
-                        ? "Saving..."
-                        : "Save Changes"
-                      : isSubmitting
-                        ? "Saving..."
-                        : "Save Changes"}
-                  </Button>
-                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cronJobsLoading}
+                  onClick={() => setCronJobsRefreshSignal((current) => current + 1)}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${cronJobsLoading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
               </div>
-            }
+            ) : undefined}
           />
 
           {error && (

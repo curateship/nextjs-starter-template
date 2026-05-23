@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { AdminLayout, AdminCard } from "@/components/admin/layout/admin-layout"
-import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertTriangle, Palette, LayoutGrid } from "lucide-react"
+import { AlertTriangle, LayoutGrid, Palette } from "lucide-react"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { FontSelector } from "@/components/admin/page-builder/layout/FontSelector"
@@ -99,14 +98,12 @@ export default function PlatformSettingsPage() {
       <div className="w-full">
         <DashboardSubheader
           items={[{ label: "Platform Settings" }]}
-          actions={
-            <Button
-              onClick={handleSave}
-              disabled={saving || !hasChanges}
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          }
+          isSaving={saving}
+          onSave={handleSave}
+          saveDisabled={!hasChanges}
+          saveLabel="Save"
+          savingLabel="Saving..."
+          saveVariant="default"
         />
 
         {message && (

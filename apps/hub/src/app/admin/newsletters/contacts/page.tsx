@@ -430,7 +430,7 @@ export default function ContactsPage() {
                       disabled={!selectedSegmentId || addingToSegment}
                     >
                       <ArrowLeft className="h-4 w-4" />
-                      {addingToSegment ? "Adding..." : "Add to Segment"}
+                      <span className="hidden sm:inline">{addingToSegment ? "Adding..." : "Add to Segment"}</span>
                     </TableRightActionsButton>
                   </>
                 ) : null}
