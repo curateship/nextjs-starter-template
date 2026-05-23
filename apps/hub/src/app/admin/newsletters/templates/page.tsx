@@ -21,6 +21,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -38,7 +39,6 @@ import {
 } from "@/lib/actions/newsletters/template-actions"
 import type { NewsletterTemplate } from "@/lib/actions/newsletters/template-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { Badge } from "@/components/ui/badge"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -46,8 +46,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
@@ -187,31 +186,20 @@ export default function TemplatesPage() {
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Templates" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <FileText className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Templates</span>
-                <Badge variant="secondary">{filteredTemplates.length}</Badge>
-                {templateSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={templateSelection.clearSelection}
-                  >
-                    Clear {templateSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={templateSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Templates"
+            icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredTemplates.length}
+            selectedCount={templateSelection.selectedCount}
+            onClearSelection={templateSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={templateSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -231,7 +219,21 @@ export default function TemplatesPage() {
                   <span className="hidden sm:inline">Create Template</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={(page) => {
+                    setCurrentPage(page)
+                    templateSelection.clearSelection()
+                  }}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -382,18 +384,7 @@ export default function TemplatesPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={(page) => {
-                  setCurrentPage(page)
-                  templateSelection.clearSelection()
-                }}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
 

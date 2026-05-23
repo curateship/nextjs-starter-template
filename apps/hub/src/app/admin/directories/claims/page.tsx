@@ -18,14 +18,14 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { AdminListSkeleton, formatShortDate as formatDate } from "@/components/admin/layout/list"
+import { AdminListSkeleton, AdminTableShell, AdminTableSummaryFooter, formatShortDate as formatDate } from "@/components/admin/layout/list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 
 const CLAIM_FILTERS = [
@@ -131,15 +131,11 @@ export default function DirectoryClaimsPage() {
         <div className="w-full">
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directories" }, { label: "Claims" }]} />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <ShieldCheck className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Claims</span>
-                <Badge variant="secondary">{claims.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Claims"
+            icon={<ShieldCheck className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={claims.length}
+            controls={
               <TableRightActions>
                 <Select value={activeStatus} onValueChange={(value) => setActiveStatus(value as DirectoryClaimStatus)}>
                   <TableRightActionsSelectTrigger aria-label="Claim status filter">
@@ -154,7 +150,9 @@ export default function DirectoryClaimsPage() {
                   </SelectContent>
                 </Select>
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminTableSummaryFooter count={claims.length} label="claims" /> : null}
+          >
             <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
@@ -239,7 +237,7 @@ export default function DirectoryClaimsPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
 

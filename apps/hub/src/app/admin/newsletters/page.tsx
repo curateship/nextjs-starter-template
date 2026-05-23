@@ -20,6 +20,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort
@@ -62,8 +63,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 
 type NewsletterSortColumn = "name" | "opens" | "clicks" | "modified"
@@ -357,31 +357,20 @@ export default function NewslettersPage() {
             items={[{ label: "Newsletters" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Mail className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Newsletters</span>
-                <Badge variant="secondary">{filteredNewsletters.length}</Badge>
-                {newsletterSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={newsletterSelection.clearSelection}
-                  >
-                    Clear {newsletterSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={newsletterSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Newsletters"
+            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredNewsletters.length}
+            selectedCount={newsletterSelection.selectedCount}
+            onClearSelection={newsletterSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={newsletterSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -403,7 +392,18 @@ export default function NewslettersPage() {
                   <span className="hidden sm:inline">Create Newsletter</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setCurrentPage}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -632,15 +632,7 @@ export default function NewslettersPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={setCurrentPage}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
 
           {/* Create Newsletter Dialog */}
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

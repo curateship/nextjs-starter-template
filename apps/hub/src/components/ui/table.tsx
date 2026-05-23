@@ -26,7 +26,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
       <table
         data-slot="table"
         className={cn(
-          "w-full caption-bottom text-sm [&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6",
+          "w-full caption-bottom text-sm [&_tbody_tr:first-child_td]:pt-4 [&_tbody_tr:last-child_td]:pb-4 [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_td[data-column=select]+td]:pl-2 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6 [&_th[data-column=select]+th]:pl-2",
           className
         )}
         {...props}
@@ -119,8 +119,8 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
       data-slot="table-head"
       data-column={column}
       className={cn(
-        "h-10 px-5 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
-        column === "select" && "w-12 min-w-12 pr-0",
+        "h-10 px-5 text-left align-middle font-medium whitespace-nowrap text-foreground",
+        column === "select" && "w-11 min-w-11 px-4",
         column === "main" &&
           "w-full min-w-[320px] text-left text-xs font-medium text-foreground sm:text-sm",
         column === "content" &&
@@ -142,8 +142,8 @@ function TableCell({ className, column, ...props }: TableCellProps) {
       data-slot="table-cell"
       data-column={column}
       className={cn(
-        "px-5 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
-        column === "select" && "w-12 min-w-12 pr-0",
+        "px-5 py-2 align-middle whitespace-nowrap",
+        column === "select" && "w-11 min-w-11 px-4",
         column === "main" && "min-w-[320px]",
         column === "content" && "min-w-[180px] whitespace-normal text-left",
         column === "meta" && "whitespace-nowrap text-left",

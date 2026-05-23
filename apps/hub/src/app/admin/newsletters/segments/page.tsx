@@ -19,6 +19,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -36,8 +37,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 
 type SegmentSortColumn = "name" | "contacts" | "modified"
@@ -156,31 +156,20 @@ export default function SegmentsPage() {
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Segments" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Users className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Segments</span>
-                <Badge variant="secondary">{filteredSegments.length}</Badge>
-                {segmentSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={segmentSelection.clearSelection}
-                  >
-                    Clear {segmentSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={segmentSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Segments"
+            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredSegments.length}
+            selectedCount={segmentSelection.selectedCount}
+            onClearSelection={segmentSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={segmentSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -192,7 +181,21 @@ export default function SegmentsPage() {
                   <span className="hidden sm:inline">Create Segment</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={(page) => {
+                    setCurrentPage(page)
+                    segmentSelection.clearSelection()
+                  }}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -337,18 +340,7 @@ export default function SegmentsPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={(page) => {
-                  setCurrentPage(page)
-                  segmentSelection.clearSelection()
-                }}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
 

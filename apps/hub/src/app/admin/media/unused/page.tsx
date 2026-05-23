@@ -19,14 +19,15 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import {
   AdminBulkDeleteButton,
   AdminConfirmDialog,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
+  AdminTableSummaryFooter,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -150,35 +151,20 @@ export default function UnusedMediaPage() {
             items={[{ label: "Media", href: "/admin/media" }, { label: "Unused" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <ImageOff className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Unused Media</span>
-                {mediaItems ? (
-                  <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
-                    {filteredMedia.length}
-                  </span>
-                ) : null}
-                {mediaSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={mediaSelection.clearSelection}
-                  >
-                    Clear {mediaSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={isDeleting}
-                    onClick={() => setDeleteConfirmOpen(true)}
-                    selectedCount={mediaSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Unused Media"
+            icon={<ImageOff className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredMedia.length}
+            selectedCount={mediaSelection.selectedCount}
+            onClearSelection={mediaSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={isDeleting}
+                onClick={() => setDeleteConfirmOpen(true)}
+                selectedCount={mediaSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -190,7 +176,9 @@ export default function UnusedMediaPage() {
                   <span className="hidden sm:inline">{isScanning ? "Scanning..." : "Scan"}</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={mediaItems ? <AdminTableSummaryFooter count={filteredMedia.length} label="unused media" /> : null}
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -343,7 +331,7 @@ export default function UnusedMediaPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
 
           <AdminConfirmDialog
             open={deleteConfirmOpen}

@@ -17,6 +17,8 @@ import {
   AdminConfirmDialog,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
+  AdminTableSummaryFooter,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -32,8 +34,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import {
   deleteSponsorAction,
@@ -195,31 +196,20 @@ export default function SponsorsPage() {
           items={[{ label: "Sponsors" }]}
         />
 
-        <TableSurface>
-          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-            <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-              <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                <Handshake className="size-4 text-muted-foreground sm:size-[18px]" />
-              </span>
-              <span className="text-sm font-medium sm:text-base">Sponsors</span>
-              <Badge variant="secondary">{filteredSponsors.length}</Badge>
-              {sponsorSelection.selectedCount ? (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                  onClick={sponsorSelection.clearSelection}
-                >
-                  Clear {sponsorSelection.selectedCount} selected
-                </button>
-              ) : null}
-              <div className="ml-auto">
-                <AdminBulkDeleteButton
-                  deleting={massDeleting}
-                  onClick={() => setMassDeleteConfirmOpen(true)}
-                  selectedCount={sponsorSelection.selectedCount}
-                />
-              </div>
-            </div>
+        <AdminTableShell
+          title="Sponsors"
+          icon={<Handshake className="size-4 text-muted-foreground sm:size-[18px]" />}
+          count={filteredSponsors.length}
+          selectedCount={sponsorSelection.selectedCount}
+          onClearSelection={sponsorSelection.clearSelection}
+          titleActions={
+            <AdminBulkDeleteButton
+              deleting={massDeleting}
+              onClick={() => setMassDeleteConfirmOpen(true)}
+              selectedCount={sponsorSelection.selectedCount}
+            />
+          }
+          controls={
             <TableRightActions>
               <TableRightActionsSearch
                 value={searchQuery}
@@ -244,10 +234,12 @@ export default function SponsorsPage() {
               </Select>
               <TableRightActionsButton onClick={openCreate} disabled={!currentSite?.id}>
                 <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Create Sponsor</span>
-              </TableRightActionsButton>
+              <span className="hidden sm:inline">Create Sponsor</span>
+            </TableRightActionsButton>
             </TableRightActions>
-          </div>
+          }
+          footer={!loading ? <AdminTableSummaryFooter count={filteredSponsors.length} label="sponsors" /> : null}
+        >
 
           <ScrollArea className="w-full">
             <Table>
@@ -410,7 +402,7 @@ export default function SponsorsPage() {
             </Table>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
-        </TableSurface>
+        </AdminTableShell>
       </AdminLayout>
 
       {currentSite?.id && (

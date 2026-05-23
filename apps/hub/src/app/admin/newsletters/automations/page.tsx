@@ -25,6 +25,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -51,8 +52,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 
 type AutomationSortColumn = "name" | "trigger" | "status" | "steps" | "enrolled"
@@ -246,31 +246,20 @@ export default function EmailAutomationsPage() {
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Automations" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Zap className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Automations</span>
-                <Badge variant="secondary">{filtered.length}</Badge>
-                {automationSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={automationSelection.clearSelection}
-                  >
-                    Clear {automationSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={automationSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Automations"
+            icon={<Zap className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filtered.length}
+            selectedCount={automationSelection.selectedCount}
+            onClearSelection={automationSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={automationSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -293,7 +282,18 @@ export default function EmailAutomationsPage() {
                   <span className="hidden sm:inline">Create Automation</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setCurrentPage}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -434,15 +434,7 @@ export default function EmailAutomationsPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={setCurrentPage}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
 
           {/* Create Dialog */}
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>

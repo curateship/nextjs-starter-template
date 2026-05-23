@@ -10,6 +10,8 @@ import { ApplyThemeDialog } from "@/components/admin/layout/builder/themes/Apply
 import {
   AdminConfirmDialog,
   AdminListSkeleton,
+  AdminTableShell,
+  AdminTableSummaryFooter,
   formatRelativeDate,
 } from "@/components/admin/layout/list";
 import {
@@ -17,7 +19,6 @@ import {
   TableRightActionsButton,
   TableRightActionsSearch,
 } from "@/components/admin/layout/content/table-right-actions";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,7 +44,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table";
 import {
   createSiteAction,
@@ -223,15 +223,11 @@ export default function ThemesPage() {
             </div>
           )}
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Paintbrush className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Themes</span>
-                <Badge variant="secondary">{filteredTemplates.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Themes"
+            icon={<Paintbrush className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredTemplates.length}
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -248,7 +244,9 @@ export default function ThemesPage() {
                   <span className="hidden sm:inline">Create Theme</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="themes" /> : null}
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -392,7 +390,7 @@ export default function ThemesPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
 
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogContent className="sm:max-w-md">

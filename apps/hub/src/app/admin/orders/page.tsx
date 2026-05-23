@@ -17,6 +17,7 @@ import {
   AdminListSkeleton,
   AdminSelectionBanner,
   AdminSortButton,
+  AdminTableShell,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -29,7 +30,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getOrdersWithProducts,
@@ -247,31 +248,20 @@ function OrdersContent() {
             items={[{ label: "Products", href: "/admin/products" }, { label: "Orders" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Orders</span>
-                <Badge variant="secondary">{filteredOrders.length}</Badge>
-                {orderSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={orderSelection.clearSelection}
-                  >
-                    Clear {orderSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={deleting}
-                    onClick={() => promptDelete(Array.from(orderSelection.selectedIds))}
-                    selectedCount={orderSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Orders"
+            icon={<ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredOrders.length}
+            selectedCount={orderSelection.selectedCount}
+            onClearSelection={orderSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={deleting}
+                onClick={() => promptDelete(Array.from(orderSelection.selectedIds))}
+                selectedCount={orderSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -320,7 +310,13 @@ function OrdersContent() {
                   </Select>
                 ) : null}
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter currentPage={currentPage} onPageChange={setCurrentPage} pageSize={pageSize} total={total} />
+              ) : null
+            }
+          >
             <AdminSelectionBanner
               allSelected={orderSelection.allSelected}
               onClearSelection={orderSelection.clearSelection}
@@ -448,11 +444,7 @@ function OrdersContent() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-
-            {!loading && total > 0 && (
-              <AdminListFooter currentPage={currentPage} onPageChange={setCurrentPage} pageSize={pageSize} total={total} />
-            )}
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
 

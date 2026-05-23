@@ -10,7 +10,6 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   TableRightActions,
@@ -24,6 +23,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -45,8 +45,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 
 type TagSortColumn = "tag" | "contacts" | "lastUsed"
@@ -193,31 +192,20 @@ export default function NewsletterContactTagsPage() {
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Tags" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Tag className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Tags</span>
-                <Badge variant="secondary">{tags.length}</Badge>
-                {tagSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={tagSelection.clearSelection}
-                  >
-                    Clear {tagSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={deleting}
-                    onClick={() => setDeleteConfirmOpen(true)}
-                    selectedCount={tagSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Tags"
+            icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={tags.length}
+            selectedCount={tagSelection.selectedCount}
+            onClearSelection={tagSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={deleting}
+                onClick={() => setDeleteConfirmOpen(true)}
+                selectedCount={tagSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -245,7 +233,21 @@ export default function NewsletterContactTagsPage() {
                   </SelectContent>
                 </Select>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={(page) => {
+                    setCurrentPage(page)
+                    tagSelection.clearSelection()
+                  }}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -365,18 +367,7 @@ export default function NewsletterContactTagsPage() {
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
 
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={(page) => {
-                  setCurrentPage(page)
-                  tagSelection.clearSelection()
-                }}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
 

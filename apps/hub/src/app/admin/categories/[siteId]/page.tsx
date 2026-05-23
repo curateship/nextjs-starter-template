@@ -22,8 +22,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
@@ -33,6 +32,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -44,7 +44,6 @@ import {
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tag, Plus } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 
 const CreateCategoryModal = dynamic(
   () =>
@@ -238,31 +237,20 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
             items={[{ label: "Categories" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Tag className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Categories</span>
-                <Badge variant="secondary">{filteredCategories.length}</Badge>
-                {categorySelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={categorySelection.clearSelection}
-                  >
-                    Clear {categorySelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={categorySelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Categories"
+            icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredCategories.length}
+            selectedCount={categorySelection.selectedCount}
+            onClearSelection={categorySelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={categorySelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -304,7 +292,18 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                   <span className="hidden sm:inline">Create Category</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  pageSize={pageSize}
+                  total={total}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -409,16 +408,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-
-            {!loading && total > 0 && (
-              <AdminListFooter
-                currentPage={currentPage}
-                onPageChange={setCurrentPage}
-                pageSize={pageSize}
-                total={total}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
 
           {/* Create Modal */}
           {showCreateModal && (

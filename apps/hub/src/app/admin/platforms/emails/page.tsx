@@ -7,6 +7,8 @@ import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader";
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader";
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
 import {
+  AdminTableShell,
+  AdminTableSummaryFooter,
   AdminListSkeleton,
   formatShortDate,
 } from "@/components/admin/layout/list";
@@ -24,7 +26,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table";
 import { getSystemEmailDashboardAction } from "@/lib/actions/email/system-email-actions";
 import type { SystemEmailListItem } from "@/lib/actions/email/system-email";
@@ -114,17 +115,11 @@ export default function PlatformEmailsPage() {
             </div>
           )}
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Mail className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">
-                  Email Templates
-                </span>
-                <Badge variant="secondary">{filteredTemplates.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Email Templates"
+            icon={<Mail className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredTemplates.length}
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -132,7 +127,9 @@ export default function PlatformEmailsPage() {
                   placeholder="Search email templates"
                 />
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="email templates" /> : null}
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -218,7 +215,7 @@ export default function PlatformEmailsPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
     </>

@@ -12,6 +12,8 @@ import {
   AdminConfirmDialog,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
+  AdminTableSummaryFooter,
   formatRelativeDate as formatDate,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -40,8 +42,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import {
   getAllSitesAction,
@@ -227,15 +228,11 @@ export default function SitesPage() {
             items={[{ label: "Sites" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Globe className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Sites</span>
-                <Badge variant="secondary">{filteredSites.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Sites"
+            icon={<Globe className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredSites.length}
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -260,7 +257,9 @@ export default function SitesPage() {
                   </Link>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminTableSummaryFooter count={filteredSites.length} label="sites" /> : null}
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -403,7 +402,7 @@ export default function SitesPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
         </div>
 
         <AdminConfirmDialog

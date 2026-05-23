@@ -14,6 +14,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatRelativeDate,
   useAdminBulkSelection,
   useAdminSort,
@@ -41,7 +42,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table"
 import type { CategoryInfo } from "@/lib/actions/categories/category-relationship-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
@@ -598,31 +598,20 @@ export function ContentListPage<TItem extends ContentListItem>({
             items={breadcrumbs || [{ label: listLabel }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">{listLabel}</span>
-                <Badge variant="secondary">{usesCursorPagination ? total : filteredItems.length}</Badge>
-                {itemSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={itemSelection.clearSelection}
-                  >
-                    Clear {itemSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={itemSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title={listLabel}
+            icon={<EmptyIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={usesCursorPagination ? total : filteredItems.length}
+            selectedCount={itemSelection.selectedCount}
+            onClearSelection={itemSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={itemSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 {showClearSortAction && itemSort.sortColumn ? (
                   <TableRightActionsButton variant="outline" onClick={itemSort.resetSort}>
@@ -656,7 +645,35 @@ export function ContentListPage<TItem extends ContentListItem>({
                   <span className="hidden sm:inline">{createButtonLabel}</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading && usesCursorPagination ? (
+                <div className="flex items-center justify-between bg-muted/50 p-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {items.length} items from a filtered total of {total}
+                  </div>
+                  <CursorPagination
+                    hasPreviousPage={cursorHistory.length > 0}
+                    hasNextPage={Boolean(nextCursor)}
+                    onPreviousPage={handlePreviousPage}
+                    onNextPage={handleNextPage}
+                  />
+                </div>
+              ) : !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={(nextPageSize) => {
+                    setTablePageSize(nextPageSize)
+                    setCurrentPage(1)
+                    itemSelection.clearSelection()
+                  }}
+                />
+              ) : null
+            }
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -839,34 +856,7 @@ export function ContentListPage<TItem extends ContentListItem>({
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
 
-            {!loading && usesCursorPagination && total > 0 && (
-              <div className="flex items-center justify-between border-t px-6 py-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing {items.length} items from a filtered total of {total}
-                </div>
-                <CursorPagination
-                  hasPreviousPage={cursorHistory.length > 0}
-                  hasNextPage={Boolean(nextCursor)}
-                  onPreviousPage={handlePreviousPage}
-                  onNextPage={handleNextPage}
-                />
-              </div>
-            )}
-
-            {!loading && !usesCursorPagination && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={setCurrentPage}
-                onPageSizeChange={(nextPageSize) => {
-                  setTablePageSize(nextPageSize)
-                  setCurrentPage(1)
-                  itemSelection.clearSelection()
-                }}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
         </div>
 
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>

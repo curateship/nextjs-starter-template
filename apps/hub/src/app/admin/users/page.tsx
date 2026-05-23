@@ -4,7 +4,12 @@ import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
-import { AdminConfirmDialog, AdminListSkeleton } from "@/components/admin/layout/list"
+import {
+  AdminConfirmDialog,
+  AdminListSkeleton,
+  AdminTableShell,
+  AdminTableSummaryFooter
+} from "@/components/admin/layout/list"
 import {
   TableRightActions,
   TableRightActionsButton,
@@ -21,8 +26,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import { deleteUser, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
 import { Plus, Trash2, User } from "lucide-react"
@@ -154,15 +158,11 @@ export default function UsersPage() {
             items={[{ label: "Users" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <User className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Users</span>
-                <Badge variant="secondary">{filteredUsers.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Users"
+            icon={<User className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredUsers.length}
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -189,7 +189,9 @@ export default function UsersPage() {
                   </Link>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminTableSummaryFooter count={filteredUsers.length} label="users" /> : null}
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -263,7 +265,7 @@ export default function UsersPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
 
           <AdminConfirmDialog
             open={Boolean(pendingDeleteUser)}

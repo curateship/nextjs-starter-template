@@ -14,9 +14,9 @@ import { DashboardSubheader } from "@/components/admin/layout/dashboard/Dashboar
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AdminListSkeleton } from "@/components/admin/layout/list"
+import { AdminListSkeleton, AdminTableShell, AdminTableSummaryFooter } from "@/components/admin/layout/list"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { countDirectoryCustomFields } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
@@ -103,15 +103,11 @@ export default function DirectoryCustomBlocksPage() {
         <div className="w-full">
           <DashboardSubheader items={[{ label: "Directory", href: "/admin/directories" }, { label: "Custom Blocks" }]} />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Pencil className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Custom Blocks</span>
-                <Badge variant="secondary">{filteredTemplates.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Custom Blocks"
+            icon={<Pencil className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredTemplates.length}
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -123,7 +119,9 @@ export default function DirectoryCustomBlocksPage() {
                   <span className="hidden sm:inline">Create Custom Block</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminTableSummaryFooter count={filteredTemplates.length} label="custom blocks" /> : null}
+          >
             <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
@@ -195,7 +193,7 @@ export default function DirectoryCustomBlocksPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
 
           {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
         </div>

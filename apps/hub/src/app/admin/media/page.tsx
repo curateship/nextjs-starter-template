@@ -5,7 +5,6 @@ import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Grid,
@@ -28,6 +27,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatRelativeDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -52,8 +52,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 
 type MediaSortColumn = "name" | "type" | "size" | "added"
@@ -361,31 +360,20 @@ export default function ImagesPage() {
             className="hidden"
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Media</span>
-                <Badge variant="secondary">{paginatedData?.total ?? 0}</Badge>
-                {mediaSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={mediaSelection.clearSelection}
-                  >
-                    Clear {mediaSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={isDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={mediaSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Media"
+            icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={paginatedData?.total ?? 0}
+            selectedCount={mediaSelection.selectedCount}
+            onClearSelection={mediaSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={isDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={mediaSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -406,24 +394,24 @@ export default function ImagesPage() {
                   </SelectContent>
                 </Select>
                 <div className="flex h-8 items-center rounded-md border">
-                  <Button
+                  <TableRightActionsButton
                     variant={viewMode === "list" ? "default" : "ghost"}
                     size="icon"
                     onClick={() => setViewMode("list")}
-                    className="h-8 w-8 rounded-r-none"
+                    className="h-8 w-8 rounded-r-none sm:h-8"
                     aria-label="List view"
                   >
                     <List className="h-4 w-4" />
-                  </Button>
-                  <Button
+                  </TableRightActionsButton>
+                  <TableRightActionsButton
                     variant={viewMode === "gallery" ? "default" : "ghost"}
                     size="icon"
                     onClick={() => setViewMode("gallery")}
-                    className="h-8 w-8 rounded-l-none"
+                    className="h-8 w-8 rounded-l-none sm:h-8"
                     aria-label="Gallery view"
                   >
                     <Grid className="h-4 w-4" />
-                  </Button>
+                  </TableRightActionsButton>
                 </div>
                 <TableRightActionsButton
                   onClick={isUploading ? undefined : () => document.getElementById("image-upload-input")?.click()}
@@ -433,7 +421,18 @@ export default function ImagesPage() {
                   <span className="hidden sm:inline">{isUploading ? "Uploading..." : "Upload Media"}</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !isLoading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
+                  pageSize={pageSize}
+                  total={paginatedData?.total ?? 0}
+                />
+              ) : null
+            }
+          >
 
             {viewMode === "gallery" ? (
               isLoading ? (
@@ -664,15 +663,7 @@ export default function ImagesPage() {
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
             )}
-            {paginatedData && paginatedData.totalPages > 1 && (
-              <AdminListFooter
-                currentPage={currentPage}
-                onPageChange={handlePageChange}
-                pageSize={pageSize}
-                total={paginatedData.total}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
 
           <AdminConfirmDialog
             open={massDeleteConfirmOpen}

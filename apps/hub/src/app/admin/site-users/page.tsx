@@ -27,6 +27,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -47,8 +48,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
@@ -534,31 +534,20 @@ export default function SiteUsersPage() {
             items={[{ label: "Site Users" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Users className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Site Users</span>
-                <Badge variant="secondary">{total}</Badge>
-                {userSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={userSelection.clearSelection}
-                  >
-                    Clear {userSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={userSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Site Users"
+            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={total}
+            selectedCount={userSelection.selectedCount}
+            onClearSelection={userSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={userSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -587,7 +576,18 @@ export default function SiteUsersPage() {
                   <span className="hidden sm:inline">Add User</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  onPageChange={setCurrentPage}
+                  pageSize={pageSize}
+                  total={total}
+                />
+              ) : null
+            }
+          >
 
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap items-center gap-2 border-b px-6 py-4">
@@ -767,15 +767,7 @@ export default function SiteUsersPage() {
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
 
-            {!loading && total > 0 && (
-              <AdminListFooter
-                currentPage={currentPage}
-                onPageChange={setCurrentPage}
-                pageSize={pageSize}
-                total={total}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
         </div>
 
         <Dialog open={filterModalOpen} onOpenChange={setFilterModalOpen}>

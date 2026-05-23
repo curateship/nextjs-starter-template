@@ -20,6 +20,7 @@ import {
   AdminListFooter,
   AdminListSkeleton,
   AdminSortButton,
+  AdminTableShell,
   formatShortDate as formatDate,
   useAdminBulkSelection,
   useAdminSort
@@ -32,8 +33,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow,
-  TableSurface
+  TableRow
 } from "@/components/ui/table"
 import { Trash2, Settings, Users, Upload, X, Plus, SlidersHorizontal, ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -383,31 +383,20 @@ export default function ContactsPage() {
             items={[{ label: "Newsletters", href: "/admin/newsletters" }, { label: "Contacts" }]}
           />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Users className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Contacts</span>
-                <Badge variant="secondary">{total}</Badge>
-                {contactSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={contactSelection.clearSelection}
-                  >
-                    Clear {contactSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={contactSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Contacts"
+            icon={<Users className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={total}
+            selectedCount={contactSelection.selectedCount}
+            onClearSelection={contactSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={contactSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 {contactSelection.selectedCount > 0 && segments.length > 0 ? (
                   <>
@@ -466,7 +455,21 @@ export default function ContactsPage() {
                   <span className="hidden sm:inline">Add Contact</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={
+              !loading ? (
+                <AdminListFooter
+                  currentPage={currentPage}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={(page) => {
+                    setCurrentPage(page)
+                    contactSelection.clearSelection()
+                  }}
+                />
+              ) : null
+            }
+          >
 
             {/* Active filter chips */}
             {activeFilterCount > 0 && (
@@ -678,18 +681,7 @@ export default function ContactsPage() {
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
 
-            {!loading && (
-              <AdminListFooter
-                currentPage={currentPage}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={(page) => {
-                  setCurrentPage(page)
-                  contactSelection.clearSelection()
-                }}
-              />
-            )}
-          </TableSurface>
+          </AdminTableShell>
 
           <ContactFilterModal
             open={filterModalOpen}

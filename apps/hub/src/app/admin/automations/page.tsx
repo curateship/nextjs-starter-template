@@ -26,7 +26,6 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table";
 
 import {
@@ -41,7 +40,12 @@ import {
   Workflow,
   Plus,
 } from "lucide-react";
-import { AdminSortButton, useAdminSort } from "@/components/admin/layout/list";
+import {
+  AdminSortButton,
+  AdminTableShell,
+  AdminTableSummaryFooter,
+  useAdminSort,
+} from "@/components/admin/layout/list";
 
 type WorkflowTrigger = "manual" | "schedule" | "webhook" | "event";
 type WorkflowStatus = "active" | "paused" | "draft";
@@ -189,17 +193,11 @@ export default function AutomationsPage() {
           {/* Breadcrumb navigation + action buttons */}
           <DashboardSubheader items={[{ label: "Automations" }]} />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <Workflow className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">
-                  Automations
-                </span>
-                <Badge variant="secondary">{filteredWorkflows.length}</Badge>
-              </div>
+          <AdminTableShell
+            title="Automations"
+            icon={<Workflow className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredWorkflows.length}
+            controls={
               <TableRightActions>
                 <TableRightActionsSearch
                   value={searchQuery}
@@ -235,7 +233,9 @@ export default function AutomationsPage() {
                   <span className="hidden sm:inline">New Workflow</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={<AdminTableSummaryFooter count={filteredWorkflows.length} label="automations" />}
+          >
 
             <ScrollArea className="w-full">
               <Table>
@@ -383,7 +383,7 @@ export default function AutomationsPage() {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
     </>

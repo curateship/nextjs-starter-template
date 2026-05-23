@@ -85,7 +85,7 @@ function TableRightActionsButton({
   return (
     <Button
       size="sm"
-      className={cn("h-8 w-fit gap-2", className)}
+      className={cn("h-8 w-fit gap-2 sm:h-8", className)}
       {...props}
     />
   )

@@ -13,6 +13,7 @@ import {
   AdminListSkeleton,
   AdminSelectionBanner,
   AdminSortButton,
+  AdminTableShell,
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
@@ -24,7 +25,6 @@ import {
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -32,7 +32,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableSurface } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { cn } from "@/lib/utils/tailwind"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
@@ -247,38 +247,29 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
         <div className="w-full">
           <DashboardSubheader items={[breadcrumbParent, { label: "Templates" }]} />
 
-          <TableSurface>
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-              <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-                  <FileText className="size-4 text-muted-foreground sm:size-[18px]" />
-                </span>
-                <span className="text-sm font-medium sm:text-base">Templates</span>
-                <Badge variant="secondary">{filteredTemplates.length}</Badge>
-                {templateSelection.selectedCount ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    onClick={templateSelection.clearSelection}
-                  >
-                    Clear {templateSelection.selectedCount} selected
-                  </button>
-                ) : null}
-                <div className="ml-auto">
-                  <AdminBulkDeleteButton
-                    deleting={massDeleting}
-                    onClick={() => setMassDeleteConfirmOpen(true)}
-                    selectedCount={templateSelection.selectedCount}
-                  />
-                </div>
-              </div>
+          <AdminTableShell
+            title="Templates"
+            icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
+            count={filteredTemplates.length}
+            selectedCount={templateSelection.selectedCount}
+            onClearSelection={templateSelection.clearSelection}
+            titleActions={
+              <AdminBulkDeleteButton
+                deleting={massDeleting}
+                onClick={() => setMassDeleteConfirmOpen(true)}
+                selectedCount={templateSelection.selectedCount}
+              />
+            }
+            controls={
               <TableRightActions>
                 <TableRightActionsButton onClick={openCreateModal}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Template</span>
                 </TableRightActionsButton>
               </TableRightActions>
-            </div>
+            }
+            footer={!loading ? <AdminListFooter currentPage={currentPage} onPageChange={handlePageChange} pageSize={pageSize} total={total} /> : null}
+          >
             <AdminSelectionBanner
               allSelected={templateSelection.allSelected}
               onClearSelection={templateSelection.clearSelection}
@@ -421,9 +412,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
-
-            {!loading && <AdminListFooter currentPage={currentPage} onPageChange={handlePageChange} pageSize={pageSize} total={total} />}
-          </TableSurface>
+          </AdminTableShell>
         </div>
       </AdminLayout>
 

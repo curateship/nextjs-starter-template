@@ -15,7 +15,14 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { CardSection } from "@/components/ui/card";
-import { TableCell, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import {
+  TableCell,
+  TableRow,
+  TableStatusIndicator,
+  TableSurface,
+} from "@/components/ui/table";
+import { TableRightActionsButton } from "@/components/admin/layout/content/table-right-actions";
 import {
   Dialog,
   DialogContent,
@@ -31,8 +38,74 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils/tailwind";
 import type { AdminSortDirection } from "./hooks";
+
+type AdminTableStatus = {
+  tone: "error" | "success";
+  text: string;
+};
+
+export function AdminTableShell({
+  children,
+  className,
+  controls,
+  count,
+  footer,
+  icon,
+  onClearSelection,
+  selectedCount = 0,
+  status,
+  title,
+  titleActions,
+}: {
+  children: ReactNode;
+  className?: string;
+  controls?: ReactNode;
+  count: ReactNode;
+  footer?: ReactNode;
+  icon?: ReactNode;
+  onClearSelection?: () => void;
+  selectedCount?: number;
+  status?: AdminTableStatus | null;
+  title: ReactNode;
+  titleActions?: ReactNode;
+}) {
+  return (
+    <TableSurface className={className}>
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
+          {icon ? (
+            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
+              {icon}
+            </span>
+          ) : null}
+          <span className="text-sm font-medium sm:text-base">{title}</span>
+          <Badge variant="secondary">{count}</Badge>
+          {selectedCount > 0 && onClearSelection ? (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              onClick={onClearSelection}
+            >
+              Clear {selectedCount} selected
+            </button>
+          ) : null}
+          {status ? (
+            <TableStatusIndicator tone={status.tone}>
+              {status.text}
+            </TableStatusIndicator>
+          ) : null}
+          {titleActions ? <div className="ml-auto">{titleActions}</div> : null}
+        </div>
+        {controls}
+      </div>
+      {children}
+      {footer ?? <AdminTableFooterSkeleton />}
+    </TableSurface>
+  );
+}
 
 export function AdminSortButton({
   active,
@@ -82,11 +155,10 @@ export function AdminBulkDeleteButton({
   if (selectedCount === 0) return null;
 
   return (
-    <Button
+    <TableRightActionsButton
       type="button"
       variant="destructive"
-      size="sm"
-      className="h-8 w-fit gap-2 bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40"
+      className="bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40"
       onClick={onClick}
       disabled={deleting}
     >
@@ -96,7 +168,7 @@ export function AdminBulkDeleteButton({
         <Trash2 className="size-4" />
       )}
       Delete ({selectedCount})
-    </Button>
+    </TableRightActionsButton>
   );
 }
 
@@ -245,11 +317,11 @@ export function AdminListFooter({
   pageSize: number;
   total: number;
 }) {
-  if (total <= 0) return null;
-
   const totalPages = Math.ceil(total / pageSize);
-  const start = (currentPage - 1) * pageSize + 1;
-  const end = Math.min(currentPage * pageSize, total);
+  const safeTotalPages = totalPages || 1;
+  const safeCurrentPage = Math.max(1, Math.min(currentPage, safeTotalPages));
+  const start = total ? (safeCurrentPage - 1) * pageSize + 1 : 0;
+  const end = Math.min(safeCurrentPage * pageSize, total);
   const pageSizeOptions = [10, 25, 50].includes(pageSize)
     ? [10, 25, 50]
     : [pageSize, 10, 25, 50].sort((a, b) => a - b);
@@ -275,7 +347,7 @@ export function AdminListFooter({
           </SelectContent>
         </Select>
         <span>
-          {start}-{end} of {total}
+          {start ? `${start}-${end}` : "0"} of {total}
         </span>
       </div>
 
@@ -285,7 +357,7 @@ export function AdminListFooter({
           size="icon"
           className="size-8"
           onClick={() => onPageChange(1)}
-          disabled={currentPage === 1}
+          disabled={safeCurrentPage === 1}
           aria-label="Go to first page"
         >
           <ChevronsLeft className="size-4" />
@@ -294,8 +366,8 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
-          disabled={currentPage === 1}
+          onClick={() => onPageChange(Math.max(safeCurrentPage - 1, 1))}
+          disabled={safeCurrentPage === 1}
           aria-label="Go to previous page"
         >
           <ChevronLeft className="size-4" />
@@ -304,8 +376,8 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))}
-          disabled={currentPage === totalPages || totalPages === 0}
+          onClick={() => onPageChange(Math.min(safeCurrentPage + 1, safeTotalPages))}
+          disabled={safeCurrentPage === safeTotalPages || total === 0}
           aria-label="Go to next page"
         >
           <ChevronRight className="size-4" />
@@ -314,13 +386,45 @@ export function AdminListFooter({
           variant="outline"
           size="icon"
           className="size-8"
-          onClick={() => onPageChange(totalPages)}
-          disabled={currentPage === totalPages || totalPages === 0}
+          onClick={() => onPageChange(safeTotalPages)}
+          disabled={safeCurrentPage === safeTotalPages || total === 0}
           aria-label="Go to last page"
         >
           <ChevronsRight className="size-4" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+export function AdminTableFooterSkeleton() {
+  return (
+    <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
+      <div className="flex items-center gap-2">
+        <Skeleton className="hidden h-4 w-24 sm:block" />
+        <Skeleton className="h-8 w-[70px]" />
+        <Skeleton className="h-4 w-16" />
+      </div>
+      <div className="flex items-center gap-1">
+        <Skeleton className="size-8" />
+        <Skeleton className="size-8" />
+        <Skeleton className="size-8" />
+        <Skeleton className="size-8" />
+      </div>
+    </div>
+  );
+}
+
+export function AdminTableSummaryFooter({
+  count,
+  label,
+}: {
+  count: number;
+  label: string;
+}) {
+  return (
+    <div className="bg-muted/50 p-4 text-xs text-muted-foreground sm:text-sm">
+      {count} {label}
     </div>
   );
 }
