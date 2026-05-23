@@ -45,6 +45,7 @@ export type SidebarGroupEntry =
     }
 
 type SidebarGroupProps = {
+  id: string
   title: string
   entries: SidebarGroupEntry[]
   onNavigate?: (href: string) => void
@@ -76,24 +77,47 @@ function getNavLinkProps(
 }
 
 export function SidebarCollapsible({
+  id,
   title,
   entries,
   onNavigate,
 }: SidebarGroupProps) {
   const { state, setOpenMobile } = useSidebar()
+  const storageKey = `custom-shell-sidebar-section-${id}`
+  const [open, setOpen] = React.useState(true)
   const handleNavClick = React.useCallback(() => {
     setOpenMobile(false)
   }, [setOpenMobile])
+  React.useEffect(() => {
+    setOpen(window.localStorage.getItem(storageKey) !== "closed")
+  }, [storageKey])
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen)
+      window.localStorage.setItem(storageKey, nextOpen ? "open" : "closed")
+    },
+    [storageKey]
+  )
 
   if (!entries.length) {
     return null
   }
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{title || "Untitled Section"}</SidebarGroupLabel>
-      <SidebarMenu>
-        {entries.map((entry) => {
+    <Collapsible open={open} onOpenChange={handleOpenChange}>
+      <SidebarGroup className="px-2 py-0">
+        <SidebarGroupLabel
+          asChild
+          className="group/section-label cursor-pointer justify-between pr-1"
+        >
+          <CollapsibleTrigger>
+            <span className="truncate">{title || "Untitled Section"}</span>
+            <ChevronRight className="opacity-0 transition-[opacity,transform] duration-200 group-hover/section-label:opacity-100 group-focus-visible/section-label:opacity-100 group-data-[state=open]/section-label:rotate-90" />
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
+        <CollapsibleContent className="pb-2">
+          <SidebarMenu>
+            {entries.map((entry) => {
           if (entry.type === "divider") {
             return (
               <li
@@ -171,8 +195,10 @@ export function SidebarCollapsible({
               </SidebarMenuItem>
             </Collapsible>
           )
-        })}
-      </SidebarMenu>
-    </SidebarGroup>
+            })}
+          </SidebarMenu>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
   )
 }

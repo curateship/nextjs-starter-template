@@ -108,13 +108,14 @@ export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="pb-3">
         <WorkspaceSwitcher teams={teams} />
       </SidebarHeader>
       <SidebarContent>
         {config.sections.map((section) => (
           <SidebarCollapsible
             key={section.id}
+            id={section.id}
             title={section.title}
             entries={mapSectionEntries(section, currentPath)}
             onNavigate={handleNavigate}

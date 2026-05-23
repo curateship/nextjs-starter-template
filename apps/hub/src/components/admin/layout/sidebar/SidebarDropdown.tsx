@@ -94,23 +94,47 @@ const SidebarLink = React.forwardRef<HTMLAnchorElement, React.ComponentPropsWith
 })
 
 export function SidebarDropdown({
+  id,
   projects,
   title,
 }: {
+  id: string
   projects: SidebarDropdownProject[]
   title?: string
 }) {
   const pathname = usePathname()
   const { state, setOpenMobile } = useSidebar()
+  const storageKey = `hub-sidebar-section-${id}`
+  const [open, setOpen] = React.useState(true)
 
   const handleNavClick = () => {
     setOpenMobile(false)
   }
+  React.useEffect(() => {
+    setOpen(window.localStorage.getItem(storageKey) !== "closed")
+  }, [storageKey])
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen)
+      window.localStorage.setItem(storageKey, nextOpen ? "open" : "closed")
+    },
+    [storageKey]
+  )
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>{title || "Admin"}</SidebarGroupLabel>
-      <SidebarMenu>
+    <Collapsible open={open} onOpenChange={handleOpenChange}>
+      <SidebarGroup className="px-2 py-0">
+        <SidebarGroupLabel
+          asChild
+          className="group/section-label cursor-pointer justify-between pr-1"
+        >
+          <CollapsibleTrigger>
+            <span className="truncate">{title || "Admin"}</span>
+            <ChevronRight className="opacity-0 transition-[opacity,transform] duration-200 group-hover/section-label:opacity-100 group-focus-visible/section-label:opacity-100 group-data-[state=open]/section-label:rotate-90" />
+          </CollapsibleTrigger>
+        </SidebarGroupLabel>
+        <CollapsibleContent className="pb-2">
+          <SidebarMenu>
         {projects.map((item) => {
           const hasChildren = Boolean(item.items?.length)
           const activeChildUrl = getActiveChildId(pathname, item.items)
@@ -178,7 +202,9 @@ export function SidebarDropdown({
             </Collapsible>
           )
         })}
-      </SidebarMenu>
-    </SidebarGroup>
+          </SidebarMenu>
+        </CollapsibleContent>
+      </SidebarGroup>
+    </Collapsible>
   )
 }

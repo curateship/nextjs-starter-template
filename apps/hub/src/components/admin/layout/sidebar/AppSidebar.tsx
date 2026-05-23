@@ -38,10 +38,10 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
     siteId: sidebarSite?.id ?? routeSiteId,
     pathname,
   })
-  
+
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="pb-3">
         <SiteSwitcherMenu />
       </SidebarHeader>
       <SidebarContent>
@@ -70,6 +70,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           return [
             <SidebarDropdown
               key={section.id}
+              id={section.id}
               title={section.title}
               projects={projects}
             />,
