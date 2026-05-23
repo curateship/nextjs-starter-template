@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { XIcon } from "lucide-react"
 
+type DialogContentVariant = "default" | "admin"
+
+const DialogContentVariantContext =
+  React.createContext<DialogContentVariant>("default")
+
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -55,7 +60,7 @@ function DialogContent({
   showCloseButton = true,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  variant?: "default" | "admin"
+  variant?: DialogContentVariant
   showCloseButton?: boolean
 }) {
   return (
@@ -65,46 +70,70 @@ function DialogContent({
         data-slot="dialog-content"
         data-variant={variant}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-2rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-[variant=admin]:flex data-[variant=admin]:max-h-[calc(100vh-4rem)] data-[variant=admin]:flex-col data-[variant=admin]:gap-0 data-[variant=admin]:overflow-hidden data-[variant=admin]:p-0 data-[variant=admin]:sm:max-w-3xl data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
       >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <Button
-              variant="ghost"
-              className="absolute top-4 right-5"
-              size="icon-sm"
-            >
-              <XIcon
-              />
-              <span className="sr-only">Close</span>
-            </Button>
-          </DialogPrimitive.Close>
-        )}
+        <DialogContentVariantContext.Provider value={variant}>
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close data-slot="dialog-close" asChild>
+              <Button
+                variant="ghost"
+                className={cn(
+                  "absolute top-4 right-5",
+                  variant === "admin" && "top-5"
+                )}
+                size="icon-sm"
+              >
+                <XIcon className="size-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </DialogPrimitive.Close>
+          )}
+        </DialogContentVariantContext.Provider>
       </DialogPrimitive.Content>
     </DialogPortal>
   )
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  const contentVariant = React.useContext(DialogContentVariantContext)
+
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-1 px-6 py-5 text-left", className)}
+      className={cn(
+        "flex flex-col gap-1 text-left",
+        contentVariant === "admin"
+          ? "relative px-6 pt-6 pb-0"
+          : "px-6 py-5",
+        className
+      )}
       {...props}
     />
   )
 }
 
 function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  const contentVariant = React.useContext(DialogContentVariantContext)
+
   return (
-    <ScrollArea className="min-h-0">
+    <ScrollArea
+      className={cn(
+        "min-h-0",
+        contentVariant === "admin" && "flex flex-1 flex-col overflow-hidden"
+      )}
+    >
       <div
         data-slot="dialog-body"
-        className={cn("px-6 py-6", className)}
+        className={cn(
+          contentVariant === "admin"
+            ? "grid gap-6 px-6 pt-6 pb-6 **:data-[slot=card]:shadow-none"
+            : "px-6 py-6",
+          className
+        )}
         {...props}
       />
     </ScrollArea>
@@ -121,12 +150,20 @@ function DialogFooter({
   variant?: "default" | "plain"
   showCloseButton?: boolean
 }) {
+  const contentVariant = React.useContext(DialogContentVariantContext)
+  const isAdminPlain = contentVariant === "admin" && variant === "plain"
+
   return (
     <div
       data-slot="dialog-footer"
       data-variant={variant}
       className={cn(
-        "flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-6 py-5 sm:flex-row sm:justify-end **:data-[slot=button]:h-9 data-[variant=plain]:items-center data-[variant=plain]:rounded-none data-[variant=plain]:border-t-0 data-[variant=plain]:bg-transparent",
+        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end **:data-[slot=button]:h-9",
+        variant === "default" && "rounded-b-xl border-t bg-muted/50 px-6 py-5",
+        variant === "plain" &&
+          "items-center rounded-none border-t-0 bg-transparent",
+        variant === "plain" && !isAdminPlain && "px-6 py-5",
+        isAdminPlain && "px-6 pb-6",
         className
       )}
       {...props}
@@ -145,11 +182,14 @@ function DialogTitle({
   className,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Title>) {
+  const contentVariant = React.useContext(DialogContentVariantContext)
+
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
         "text-base leading-none font-medium",
+        contentVariant === "admin" && "truncate",
         className
       )}
       {...props}

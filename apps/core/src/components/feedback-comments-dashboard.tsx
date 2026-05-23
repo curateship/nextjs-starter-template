@@ -17,7 +17,15 @@ import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -43,7 +51,6 @@ import {
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { cn } from "@/lib/utils"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 
 type FeedbackPeriod = "1year" | "3months" | "30days"
 
@@ -469,11 +476,17 @@ function DeleteFeedbackCommentModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Delete Comment"
-        description="This action cannot be undone."
-        bodyClassName="space-y-3"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Delete Comment</DialogTitle>
+          <DialogDescription>This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete this comment?
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -497,12 +510,8 @@ function DeleteFeedbackCommentModal({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete this comment?
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -522,11 +531,20 @@ function MassDeleteFeedbackCommentsModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title={`Delete ${count} Comment${count === 1 ? "" : "s"}`}
-        description="This action cannot be undone."
-        bodyClassName="space-y-3"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>
+            Delete {count} Comment{count === 1 ? "" : "s"}
+          </DialogTitle>
+          <DialogDescription>This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete {count} comment
+            {count === 1 ? "" : "s"}?
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -550,13 +568,8 @@ function MassDeleteFeedbackCommentsModal({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete {count} comment
-          {count === 1 ? "" : "s"}?
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -629,10 +642,43 @@ function EditFeedbackCommentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Edit Comment"
-        description="Update the comment or remove it from the thread."
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Edit Comment</DialogTitle>
+          <DialogDescription>
+            Update the comment or remove it from the thread.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          {comment ? (
+            <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+              <span className="line-clamp-2">{comment.feedback_message}</span>
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="feedback-comment-message">Comment</Label>
+            <Textarea
+              id="feedback-comment-message"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              className="min-h-40 resize-none text-base"
+              disabled={busy}
+              autoFocus
+            />
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -656,36 +702,8 @@ function EditFeedbackCommentModal({
               Save
             </Button>
           </>
-        }
-      >
-        {comment ? (
-          <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-            <span className="line-clamp-2">{comment.feedback_message}</span>
-          </div>
-        ) : null}
-
-        <div className="space-y-2">
-          <Label htmlFor="feedback-comment-message">Comment</Label>
-          <Textarea
-            id="feedback-comment-message"
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            className="min-h-40 resize-none text-base"
-            disabled={busy}
-            autoFocus
-          />
-        </div>
-
-        {error ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        ) : null}
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }

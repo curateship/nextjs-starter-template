@@ -24,7 +24,15 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -40,7 +48,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
   createProxy,
   deleteProxy,
@@ -710,44 +717,16 @@ function ProxyFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title={editingProxy ? "Edit Proxy" : "Add Proxy"}
-        description={
-          editingProxy
-            ? "Update this proxy. Leave password blank to keep the saved value."
-            : "Add a proxy to the platform pool."
-        }
-        bodyClassName="grid gap-4 sm:grid-cols-2"
-        footerClassName="sm:justify-between"
-        footer={
-          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-              {editingProxy ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onTest}
-                  disabled={testing || saving}
-                >
-                  {testing ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : (
-                    <WifiIcon className="size-4" />
-                  )}
-                  {testing ? "Testing" : "Test"}
-                </Button>
-              ) : null}
-              <Button type="button" onClick={onSave} disabled={saving || testing}>
-                {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                {saving ? "Saving" : "Save"}
-              </Button>
-            </div>
-          </div>
-        }
-      >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>{editingProxy ? "Edit Proxy" : "Add Proxy"}</DialogTitle>
+          <DialogDescription>
+            {editingProxy
+              ? "Update this proxy. Leave password blank to keep the saved value."
+              : "Add a proxy to the platform pool."}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-4 sm:grid-cols-2">
           {editingProxy ? (
             <ProxyStatusCard proxy={editingProxy} className="mb-2" />
           ) : null}
@@ -856,7 +835,36 @@ function ProxyFormDialog({
             />
             Enabled
           </label>
-      </AdminModalContent>
+        </DialogBody>
+        <DialogFooter variant="plain" className="sm:justify-between">
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+              {editingProxy ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onTest}
+                  disabled={testing || saving}
+                >
+                  {testing ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <WifiIcon className="size-4" />
+                  )}
+                  {testing ? "Testing" : "Test"}
+                </Button>
+              ) : null}
+              <Button type="button" onClick={onSave} disabled={saving || testing}>
+                {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                {saving ? "Saving" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -927,22 +935,14 @@ function ImportDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Import Proxies"
-        description="Paste one proxy per line using host:port:user:pass."
-        bodyClassName="grid gap-4"
-        footer={
-          <>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={onImport} disabled={importing}>
-              {importing ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              {importing ? "Importing" : "Import"}
-            </Button>
-          </>
-        }
-      >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Import Proxies</DialogTitle>
+          <DialogDescription>
+            Paste one proxy per line using host:port:user:pass.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Protocol">
               <Select
@@ -980,7 +980,19 @@ function ImportDialog({
               placeholder="proxy.example.com:8080:user:pass"
             />
           </Field>
-      </AdminModalContent>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onImport} disabled={importing}>
+              {importing ? <Loader2Icon className="size-4 animate-spin" /> : null}
+              {importing ? "Importing" : "Import"}
+            </Button>
+          </>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -996,11 +1008,17 @@ function DeleteDialog({
 }) {
   return (
     <Dialog open={Boolean(proxy)} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Delete Proxy"
-        description="This action cannot be undone."
-        bodyClassName="space-y-3"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Delete Proxy</DialogTitle>
+          <DialogDescription>This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {proxy ? `Are you sure you want to delete ${proxy.name}?` : ""}
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -1010,12 +1028,8 @@ function DeleteDialog({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          {proxy ? `Are you sure you want to delete ${proxy.name}?` : ""}
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -1035,11 +1049,19 @@ function MassDeleteDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title={`Delete ${count} ${count === 1 ? "Proxy" : "Proxies"}`}
-        description="This action cannot be undone."
-        bodyClassName="space-y-3"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>
+            Delete {count} {count === 1 ? "Proxy" : "Proxies"}
+          </DialogTitle>
+          <DialogDescription>This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete {count} selected {count === 1 ? "proxy" : "proxies"}?
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -1063,12 +1085,8 @@ function MassDeleteDialog({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete {count} selected {count === 1 ? "proxy" : "proxies"}?
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }

@@ -9,7 +9,15 @@ import {
 import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -25,7 +33,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
   createWorkspace,
   deleteWorkspace,
@@ -243,11 +250,51 @@ function WorkspaceFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title={editing ? "Edit Workspace" : "Add Workspace"}
-        description="Choose the name and icon shown in the workspace switcher."
-        bodyClassName="grid gap-4 sm:grid-cols-2"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>
+            {editing ? "Edit Workspace" : "Add Workspace"}
+          </DialogTitle>
+          <DialogDescription>
+            Choose the name and icon shown in the workspace switcher.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label htmlFor="workspace-name">Name</Label>
+            <Input
+              id="workspace-name"
+              value={form.name}
+              disabled={saving}
+              onChange={(event) =>
+                onFormChange({ ...form, name: event.target.value })
+              }
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="workspace-icon">Icon</Label>
+            <Select
+              value={form.icon}
+              disabled={saving}
+              onValueChange={(value) =>
+                onFormChange({ ...form, icon: value as IconKey })
+              }
+            >
+              <SelectTrigger id="workspace-icon" className="h-8 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(iconMeta).map(([icon, meta]) => (
+                  <SelectItem key={icon} value={icon}>
+                    {renderShellIcon(icon as IconKey)}
+                    {meta.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -264,42 +311,8 @@ function WorkspaceFormDialog({
               {saving ? "Saving..." : "Save"}
             </Button>
           </>
-        }
-      >
-        <div className="grid gap-2">
-          <Label htmlFor="workspace-name">Name</Label>
-          <Input
-            id="workspace-name"
-            value={form.name}
-            disabled={saving}
-            onChange={(event) =>
-              onFormChange({ ...form, name: event.target.value })
-            }
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="workspace-icon">Icon</Label>
-          <Select
-            value={form.icon}
-            disabled={saving}
-            onValueChange={(value) =>
-              onFormChange({ ...form, icon: value as IconKey })
-            }
-          >
-            <SelectTrigger id="workspace-icon" className="h-8 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(iconMeta).map(([icon, meta]) => (
-                <SelectItem key={icon} value={icon}>
-                  {renderShellIcon(icon as IconKey)}
-                  {meta.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -317,10 +330,23 @@ function DeleteWorkspaceDialog({
 }) {
   return (
     <Dialog open={Boolean(workspace)} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Delete Workspace"
-        description="This deletes the workspace and its scoped scraper data."
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Delete Workspace</DialogTitle>
+          <DialogDescription>
+            This deletes the workspace and its scoped scraper data.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <p className="text-sm">
+            Delete{" "}
+            <span className="font-medium">
+              {workspace?.name ?? "this workspace"}
+            </span>
+            ?
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -344,16 +370,8 @@ function DeleteWorkspaceDialog({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm">
-          Delete{" "}
-          <span className="font-medium">
-            {workspace?.name ?? "this workspace"}
-          </span>
-          ?
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }

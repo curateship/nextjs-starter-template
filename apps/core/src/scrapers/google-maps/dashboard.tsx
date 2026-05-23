@@ -14,10 +14,17 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -224,7 +231,14 @@ export function GoogleMapsDashboard() {
       </DashboardTable>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <AdminModalContent title={editing ? "Edit Run" : "New Run"} description="Save a reusable Google Maps search." bodyClassName="grid gap-4 sm:grid-cols-2" footer={<><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button disabled={saving} onClick={() => void save()}>{saving ? "Saving..." : "Save"}</Button></>}>
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Run" : "New Run"}</DialogTitle>
+            <DialogDescription>
+              Save a reusable Google Maps search.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="grid gap-4 sm:grid-cols-2">
           <RunField id="name" label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
           <RunField id="keyword" label="Keyword" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
           <RunField id="location" label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
@@ -241,7 +255,16 @@ export function GoogleMapsDashboard() {
               </SelectContent>
             </Select>
           </div>
-        </AdminModalContent>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={saving} onClick={() => void save()}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   )
