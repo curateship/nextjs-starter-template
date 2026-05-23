@@ -42,8 +42,8 @@ export interface SiteUserFilterGroup {
 export const SITE_USER_FILTER_TYPE_OPTIONS: Array<{ value: SiteUserFilterType; label: string }> = [
   { value: 'status', label: 'Status' },
   { value: 'role', label: 'Role' },
-  { value: 'dateAdded', label: 'Date added' },
-  { value: 'lastEngaged', label: 'Last engaged' },
+  { value: 'dateAdded', label: 'Date Added' },
+  { value: 'lastEngaged', label: 'Last Active' },
 ]
 
 export const SITE_USER_STATUS_OPTIONS = [

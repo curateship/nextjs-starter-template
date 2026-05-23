@@ -59,6 +59,7 @@ export function AdminTableShell({
   status,
   title,
   titleActions,
+  titleMeta,
 }: {
   children: ReactNode;
   className?: string;
@@ -71,6 +72,7 @@ export function AdminTableShell({
   status?: AdminTableStatus | null;
   title: ReactNode;
   titleActions?: ReactNode;
+  titleMeta?: ReactNode;
 }) {
   return (
     <TableSurface className={className}>
@@ -83,6 +85,12 @@ export function AdminTableShell({
           ) : null}
           <span className="text-sm font-medium sm:text-base">{title}</span>
           <Badge variant="secondary">{count}</Badge>
+          {status ? (
+            <TableStatusIndicator tone={status.tone}>
+              {status.text}
+            </TableStatusIndicator>
+          ) : null}
+          {titleMeta}
           {selectedCount > 0 && onClearSelection ? (
             <button
               type="button"
@@ -91,11 +99,6 @@ export function AdminTableShell({
             >
               Clear {selectedCount} selected
             </button>
-          ) : null}
-          {status ? (
-            <TableStatusIndicator tone={status.tone}>
-              {status.text}
-            </TableStatusIndicator>
           ) : null}
           {titleActions ? <div className="ml-auto">{titleActions}</div> : null}
         </div>

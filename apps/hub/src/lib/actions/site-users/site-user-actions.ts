@@ -1,11 +1,12 @@
 'use server'
 
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 
 import { auth } from '@/lib/actions/auth/server'
 import { db } from '@/lib/db'
 import { authUsers, siteMemberships, sites } from '@/lib/db/schema'
 import { requireAdmin } from '@/lib/db/helpers'
+import { lastSignInAtDateSql, lastSignInAtSql } from '@/lib/actions/users/last-sign-in-sql'
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import {
   SITE_USER_RELATIVE_DAY_OPTIONS,
@@ -22,10 +23,11 @@ export interface SiteUserListItem {
   user_id: string
   email: string
   display_name: string | null
+  image: string | null
   role: 'owner' | 'admin' | 'member'
   status: 'active' | 'suspended'
   created_at: string
-  last_engaged_at: string | null
+  last_sign_in_at: string | null
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -51,10 +53,11 @@ function rowToSiteUser(row: any): SiteUserListItem {
     user_id: row.userId,
     email: row.email,
     display_name: row.displayName ?? row.name ?? null,
+    image: row.image ?? null,
     role: row.role,
     status: row.status,
     created_at: row.createdAt?.toISOString() ?? '',
-    last_engaged_at: row.lastEngagedAt?.toISOString() ?? null,
+    last_sign_in_at: row.lastSignInAt ?? null,
   }
 }
 
@@ -142,14 +145,14 @@ function normalizeSiteUserFilterGroup(group: unknown): SiteUserFilterGroup | nul
 }
 
 function buildRelativeDateCondition(
-  column: typeof siteMemberships.lastEngagedAt | typeof siteMemberships.createdAt,
+  column: SQL,
   operator: 'is' | 'isnt',
   days: number,
   includeNullForNegative: boolean
 ): SQL {
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
   if (operator === 'is') {
-    return gte(column, cutoff)
+    return sql`${column} >= ${cutoff}`
   }
 
   const conditions: SQL[] = [sql`${column} < ${cutoff}`]
@@ -160,14 +163,14 @@ function buildRelativeDateCondition(
 }
 
 function buildRangeDateCondition(
-  column: typeof siteMemberships.lastEngagedAt | typeof siteMemberships.createdAt,
+  column: SQL,
   operator: 'is' | 'isnt',
   value: Extract<SiteUserDateFilterValue, { mode: 'range' }>,
   includeNullForNegative: boolean
 ): SQL | null {
   const conditions: SQL[] = []
-  if (value.from) conditions.push(gte(column, startOfDay(value.from)))
-  if (value.to) conditions.push(lte(column, endOfDay(value.to)))
+  if (value.from) conditions.push(sql`${column} >= ${startOfDay(value.from)}`)
+  if (value.to) conditions.push(sql`${column} <= ${endOfDay(value.to)}`)
   if (!conditions.length) return null
 
   if (operator === 'is') {
@@ -190,7 +193,7 @@ function buildRuleCondition(rule: SiteUserFilterRule): SQL | null {
     return rule.value.length ? inArray(siteMemberships.role, rule.value) : null
   }
 
-  const column = rule.type === 'lastEngaged' ? siteMemberships.lastEngagedAt : siteMemberships.createdAt
+  const column = rule.type === 'lastEngaged' ? lastSignInAtDateSql() : sql`${siteMemberships.createdAt}`
   const includeNullForNegative = rule.type === 'lastEngaged'
 
   if (rule.value.mode === 'relative') {
@@ -270,10 +273,11 @@ export async function getSiteUsers(
           email: authUsers.email,
           name: authUsers.name,
           displayName: authUsers.displayName,
+          image: authUsers.image,
           role: siteMemberships.role,
           status: siteMemberships.status,
           createdAt: siteMemberships.createdAt,
-          lastEngagedAt: siteMemberships.lastEngagedAt,
+          lastSignInAt: lastSignInAtSql(),
         })
         .from(siteMemberships)
         .innerJoin(authUsers, eq(authUsers.id, siteMemberships.userId))
@@ -389,10 +393,11 @@ export async function createSiteUser(input: {
         email: authUsers.email,
         name: authUsers.name,
         displayName: authUsers.displayName,
+        image: authUsers.image,
         role: siteMemberships.role,
         status: siteMemberships.status,
         createdAt: siteMemberships.createdAt,
-        lastEngagedAt: siteMemberships.lastEngagedAt,
+        lastSignInAt: lastSignInAtSql(),
       })
       .from(siteMemberships)
       .innerJoin(authUsers, eq(authUsers.id, siteMemberships.userId))
@@ -473,10 +478,11 @@ export async function updateSiteUser(input: {
         email: authUsers.email,
         name: authUsers.name,
         displayName: authUsers.displayName,
+        image: authUsers.image,
         role: siteMemberships.role,
         status: siteMemberships.status,
         createdAt: siteMemberships.createdAt,
-        lastEngagedAt: siteMemberships.lastEngagedAt,
+        lastSignInAt: lastSignInAtSql(),
       })
       .from(siteMemberships)
       .innerJoin(authUsers, eq(authUsers.id, siteMemberships.userId))

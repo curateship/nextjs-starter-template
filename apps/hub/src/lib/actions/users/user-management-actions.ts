@@ -3,7 +3,8 @@
 import { db } from '@/lib/db'
 import { authUsers } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { eq, sql, desc } from 'drizzle-orm'
+import { lastSignInAtSql } from '@/lib/actions/users/last-sign-in-sql'
+import { eq, sql, desc, inArray } from 'drizzle-orm'
 
 export interface UserListItem {
   id: string
@@ -12,6 +13,8 @@ export interface UserListItem {
   last_sign_in_at: string | null
   role: string
   display_name: string | null
+  image: string | null
+  status: 'active' | 'unverified' | 'banned'
   email_confirmed_at: string | null
 }
 
@@ -46,12 +49,11 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
           updatedAt: authUsers.updatedAt,
           role: authUsers.role,
           displayName: authUsers.displayName,
+          image: authUsers.image,
+          banned: authUsers.banned,
+          banExpires: authUsers.banExpires,
           emailVerified: authUsers.emailVerified,
-          lastSignInAt: sql<string | null>`(
-            select max("updatedAt")::text
-            from user_sessions
-            where "userId" = ${authUsers.id}
-          )`,
+          lastSignInAt: lastSignInAtSql(),
         })
         .from(authUsers)
         .orderBy(desc(authUsers.createdAt))
@@ -71,6 +73,8 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
       last_sign_in_at: row.lastSignInAt,
       role: row.role || 'end_user',
       display_name: row.displayName || row.name || null,
+      image: row.image,
+      status: row.banned && (!row.banExpires || row.banExpires > new Date()) ? 'banned' : row.emailVerified ? 'active' : 'unverified',
       email_confirmed_at: row.emailVerified ? row.updatedAt.toISOString() : null,
     }))
 
@@ -116,11 +120,7 @@ export async function getUserById(userId: string) {
         role: authUsers.role,
         displayName: authUsers.displayName,
         emailVerified: authUsers.emailVerified,
-        lastSignInAt: sql<string | null>`(
-          select max("updatedAt")::text
-          from user_sessions
-          where "userId" = ${authUsers.id}
-        )`,
+        lastSignInAt: lastSignInAtSql(),
       })
       .from(authUsers)
       .where(eq(authUsers.id, userId))
@@ -218,5 +218,70 @@ export async function deleteUser(userId: string) {
   } catch (error: any) {
     console.error('Exception deleting user:', error)
     return { success: false, error: error.message || 'Failed to delete user' }
+  }
+}
+
+export async function deleteUsers(userIds: string[]) {
+  try {
+    const currentUser = await getAuthenticatedUser()
+
+    if (!currentUser) {
+      return { success: false, error: 'Unauthorized - not authenticated', deletedCount: 0 }
+    }
+
+    if (currentUser.role !== 'super_admin') {
+      return { success: false, error: 'Unauthorized - super_admin role required', deletedCount: 0 }
+    }
+
+    const normalizedUserIds = Array.from(new Set(userIds.map((id) => id.trim()).filter(Boolean)))
+
+    if (!normalizedUserIds.length) {
+      return { success: false, error: 'No users selected', deletedCount: 0 }
+    }
+
+    if (normalizedUserIds.includes(currentUser.id)) {
+      return { success: false, error: 'You cannot delete your own account', deletedCount: 0 }
+    }
+
+    const targetUsers = await db
+      .select({
+        id: authUsers.id,
+        role: authUsers.role,
+      })
+      .from(authUsers)
+      .where(inArray(authUsers.id, normalizedUserIds))
+
+    if (targetUsers.length !== normalizedUserIds.length) {
+      return { success: false, error: 'Some selected users were not found', deletedCount: 0 }
+    }
+
+    const selectedSuperAdmins = targetUsers.filter((user) => user.role === 'super_admin').length
+
+    if (selectedSuperAdmins > 0) {
+      const adminCountResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(authUsers)
+        .where(eq(authUsers.role, 'super_admin'))
+
+      const adminCount = Number(adminCountResult[0]?.count ?? 0)
+
+      if (adminCount - selectedSuperAdmins < 1) {
+        return { success: false, error: 'Cannot delete the last super admin', deletedCount: 0 }
+      }
+    }
+
+    await db.transaction(async (tx) => {
+      for (const userId of normalizedUserIds) {
+        await tx.execute(sql`delete from user_sessions where "userId" = ${userId}`)
+        await tx.execute(sql`delete from user_auth_paths where "userId" = ${userId}`)
+        await tx.execute(sql`delete from user_verifications where value = ${userId}`)
+        await tx.delete(authUsers).where(eq(authUsers.id, userId))
+      }
+    })
+
+    return { success: true, error: null, deletedCount: normalizedUserIds.length }
+  } catch (error: any) {
+    console.error('Exception deleting users:', error)
+    return { success: false, error: error.message || 'Failed to delete users', deletedCount: 0 }
   }
 }

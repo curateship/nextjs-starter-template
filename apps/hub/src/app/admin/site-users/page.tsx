@@ -32,6 +32,7 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -149,6 +150,17 @@ type SortColumn = "user" | "role" | "status" | "added" | "engaged"
 
 function compareNullableStrings(a: string | null | undefined, b: string | null | undefined) {
   return (a || "\uffff").localeCompare(b || "\uffff")
+}
+
+function getUserInitials(user: SiteUserListItem) {
+  const label = user.display_name || user.email
+  return label
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
 }
 
 export default function SiteUsersPage() {
@@ -390,8 +402,8 @@ export default function SiteUsersPage() {
     if (userSort.sortColumn === "status") return a.status.localeCompare(b.status) * dir
     if (userSort.sortColumn === "added") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
     if (userSort.sortColumn === "engaged") {
-      const aTime = a.last_engaged_at ? new Date(a.last_engaged_at).getTime() : 0
-      const bTime = b.last_engaged_at ? new Date(b.last_engaged_at).getTime() : 0
+      const aTime = a.last_sign_in_at ? new Date(a.last_sign_in_at).getTime() : 0
+      const bTime = b.last_sign_in_at ? new Date(b.last_sign_in_at).getTime() : 0
       if (aTime === bTime) {
         return compareNullableStrings(a.display_name || a.email, b.display_name || b.email) * dir
       }
@@ -547,6 +559,28 @@ export default function SiteUsersPage() {
                 selectedCount={userSelection.selectedCount}
               />
             }
+            titleMeta={
+              activeFilterCount > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="font-medium">
+                    Matching {filters.match === "all" ? "all" : "any"}
+                  </Badge>
+                  {filters.rules.map((rule) => (
+                    <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
+                      {formatSiteUserFilterRule(rule)}
+                      <span className="text-xs font-medium">- Clear all ({activeFilterCount})</span>
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              ) : null
+            }
             controls={
               <TableRightActions>
                 <TableRightActionsSearch
@@ -588,35 +622,7 @@ export default function SiteUsersPage() {
               ) : null
             }
           >
-
-            {activeFilterCount > 0 && (
-              <div className="flex flex-wrap items-center gap-2 border-b px-6 py-4">
-                <Badge variant="outline" className="font-medium">
-                  Matching {filters.match === "all" ? "all" : "any"}
-                </Badge>
-                {filters.rules.map((rule) => (
-                  <Badge key={rule.id} variant="secondary" className="gap-1 pr-1">
-                    {formatSiteUserFilterRule(rule)}
-                    <button
-                      type="button"
-                      onClick={() => removeAppliedRule(rule.id)}
-                      className="ml-1 rounded-full p-0.5 hover:bg-muted"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                <button
-                  type="button"
-                  onClick={clearAllFilters}
-                  className="text-sm text-muted-foreground underline hover:text-foreground"
-                >
-                  Clear all ({total})
-                </button>
-              </div>
-            )}
-
-            <ScrollArea className="w-full">
+            <ScrollArea className="w-full border-t">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -669,7 +675,7 @@ export default function SiteUsersPage() {
                         direction={userSort.sortDirection}
                         onClick={() => userSort.toggleSort("engaged")}
                       >
-                        Last Engaged
+                        Last Active
                       </AdminSortButton>
                     </TableHead>
                     <TableHead column="meta">Actions</TableHead>
@@ -677,7 +683,7 @@ export default function SiteUsersPage() {
                 </TableHeader>
                 <TableBody>
                   {siteLoading || loading ? (
-                    <AdminListSkeleton columns={7} rowCount={5} showThumbnail={false} actionCount={2} />
+                    <AdminListSkeleton columns={7} rowCount={5} actionCount={2} />
                   ) : !currentSite?.id ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-32 text-center">
@@ -725,15 +731,23 @@ export default function SiteUsersPage() {
                           />
                         </TableCell>
                         <TableCell column="main">
-                          <div className="min-w-0">
-                            <h4 className="truncate text-sm font-medium sm:text-base">{user.display_name || user.email}</h4>
-                            <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                              {user.image && <AvatarImage src={user.image} alt={user.display_name || user.email} />}
+                              <AvatarFallback className="text-sm font-medium text-muted-foreground">
+                                {getUserInitials(user)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <h4 className="truncate text-sm font-medium sm:text-base">{user.display_name || user.email}</h4>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{user.email}</p>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell column="meta">{getRoleBadge(user.role)}</TableCell>
                         <TableCell column="meta">{getStatusBadge(user.status)}</TableCell>
                         <TableCell column="mutedMeta">{formatDate(user.created_at)}</TableCell>
-                        <TableCell column="mutedMeta">{formatRelativeTime(user.last_engaged_at)}</TableCell>
+                        <TableCell column="mutedMeta">{formatRelativeTime(user.last_sign_in_at)}</TableCell>
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button

@@ -12,7 +12,7 @@ import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 const settingsTabs = [
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
-  { id: "scrapers", label: "Scrapers" },
+  { id: "scrapers", label: "API Providers" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]

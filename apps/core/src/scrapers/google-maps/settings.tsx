@@ -105,7 +105,7 @@ export function ScraperSettings({
       <Card>
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <h2 className="text-sm font-semibold">Scrapers</h2>
+            <h2 className="text-sm font-semibold">Apify API</h2>
             <p className="text-xs text-muted-foreground">
               Apify provider settings for scraper modules.
             </p>
