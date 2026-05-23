@@ -8,10 +8,7 @@ import {
   Bell,
   Building2,
   CheckCircle2,
-  ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   ChevronsUpDown,
   CircleDollarSign,
   Clock,
@@ -54,6 +51,12 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { DashboardTable } from "@/components/dashboard-table";
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
+} from "@/components/dashboard-toolbar";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 import {
   Collapsible,
@@ -97,8 +100,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -1787,63 +1788,29 @@ const TransactionsTable = () => {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-3.5">
-        <div className="flex flex-1 items-center gap-2 sm:gap-2.5">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 shrink-0 gap-2 sm:h-9"
-            aria-label="Transactions"
-          >
-            <ShoppingCart className="size-4 text-muted-foreground" />
-          </Button>
-          <span className="text-sm font-medium sm:text-base">Transactions</span>
-          <span className="ml-1 inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-[10px] font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset sm:text-xs dark:bg-gray-800/50 dark:text-gray-400 dark:ring-gray-400/20">
-            {filteredTransactions.length}
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 sm:flex-none">
-            <Search
-              className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground sm:size-5"
-              aria-hidden="true"
-            />
-            <Input
-              type="text"
-              name="transactions-search"
-              inputMode="search"
-              autoComplete="off"
-              aria-label="Search transactions"
-              placeholder="Search transactions… (e.g., TXN-100201)"
-              value={searchQuery}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchQuery(e.target.value)
-              }
-              className="h-8 w-full pr-8 pl-9 text-sm sm:h-9 sm:w-[160px] sm:pl-10 lg:w-[200px]"
-            />
-            {searchQuery ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => setSearchQuery("")}
-                aria-label="Clear search"
-              >
-                <X aria-hidden="true" />
-              </Button>
-            ) : null}
-          </div>
+    <DashboardTable
+      title="Transactions"
+      icon={<ShoppingCart className="size-4 text-muted-foreground sm:size-[18px]" />}
+      count={filteredTransactions.length}
+      controls={
+        <>
+          <DashboardToolbarSearch
+            name="transactions-search"
+            aria-label="Search transactions"
+            placeholder="Search transactions..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            inputClassName="lg:w-[200px]"
+          />
 
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger
-              className="h-8 w-[120px] text-xs sm:h-9 sm:w-[140px] sm:text-sm"
+            <DashboardToolbarSelectTrigger
+              className="w-[120px] sm:w-[140px]"
               aria-label="Filter by date"
+              labels={dateFilterOptions.map((option) => option.label)}
             >
               <SelectValue placeholder="Date" />
-            </SelectTrigger>
+            </DashboardToolbarSelectTrigger>
             <SelectContent>
               {dateFilterOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
@@ -1855,11 +1822,9 @@ const TransactionsTable = () => {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
+              <DashboardToolbarButton
                 variant="outline"
-                size="sm"
                 className={cn(
-                  "h-8 gap-2 sm:h-9",
                   statusFilter !== "all" && "border-primary",
                 )}
                 aria-label="Filter by status"
@@ -1869,7 +1834,7 @@ const TransactionsTable = () => {
                 {statusFilter !== "all" && (
                   <span className="size-1.5 rounded-full bg-primary sm:size-2" />
                 )}
-              </Button>
+              </DashboardToolbarButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[180px]">
               <DropdownMenuLabel>Filter by Status</DropdownMenuLabel>
@@ -1893,11 +1858,9 @@ const TransactionsTable = () => {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
+              <DashboardToolbarButton
                 variant="outline"
-                size="sm"
                 className={cn(
-                  "h-8 gap-2 sm:h-9",
                   paymentMethodFilter !== "all" && "border-primary",
                 )}
                 aria-label="Filter by payment method"
@@ -1907,7 +1870,7 @@ const TransactionsTable = () => {
                 {paymentMethodFilter !== "all" && (
                   <span className="size-1.5 rounded-full bg-primary sm:size-2" />
                 )}
-              </Button>
+              </DashboardToolbarButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[200px]">
               <DropdownMenuLabel>Payment Method</DropdownMenuLabel>
@@ -1928,295 +1891,181 @@ const TransactionsTable = () => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </div>
 
-      {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2 px-3 pb-3 sm:px-6">
-          <span className="text-[10px] text-muted-foreground sm:text-xs">
-            Filters:
-          </span>
-          {statusFilter !== "all" && (
-            <button
-              type="button"
-              className={filterChipClassName}
-              onClick={() => setStatusFilter("all")}
-              aria-label={`Clear ${transactionStatusLabels[statusFilter as TransactionStatus]} filter`}
-            >
-              {transactionStatusLabels[statusFilter as TransactionStatus]}
-              <X className="size-2.5 sm:size-3" aria-hidden="true" />
-            </button>
-          )}
-          {dateFilter !== "all" && (
-            <button
-              type="button"
-              className={filterChipClassName}
-              onClick={() => setDateFilter("all")}
-              aria-label={`Clear ${dateFilterOptions.find((o) => o.value === dateFilter)?.label} filter`}
-            >
-              {dateFilterOptions.find((o) => o.value === dateFilter)?.label}
-              <X className="size-2.5 sm:size-3" aria-hidden="true" />
-            </button>
-          )}
-          {paymentMethodFilter !== "all" && (
-            <button
-              type="button"
-              className={filterChipClassName}
-              onClick={() => setPaymentMethodFilter("all")}
-              aria-label={`Clear ${paymentMethodFilter} filter`}
-            >
-              {paymentMethodFilter}
-              <X className="size-2.5 sm:size-3" aria-hidden="true" />
-            </button>
-          )}
-          <button
-            onClick={clearFilters}
-            className="text-[10px] text-destructive hover:underline sm:text-xs"
-          >
-            Clear all
-          </button>
-        </div>
-      )}
-
-      <div className="overflow-x-auto px-3 pb-3 sm:px-6 sm:pb-4">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableHead className="min-w-[100px] text-xs font-medium text-muted-foreground sm:text-sm">
-                Transaction ID
-              </TableHead>
-              <TableHead className="hidden min-w-[140px] text-xs font-medium text-muted-foreground sm:text-sm md:table-cell">
-                Customer
-              </TableHead>
-              <TableHead className="min-w-[100px] text-xs font-medium text-muted-foreground sm:text-sm">
-                Amount
-              </TableHead>
-              <TableHead className="hidden min-w-[100px] text-xs font-medium text-muted-foreground sm:text-sm lg:table-cell">
-                Type
-              </TableHead>
-              <TableHead className="hidden min-w-[120px] text-xs font-medium text-muted-foreground sm:text-sm md:table-cell">
-                Payment Method
-              </TableHead>
-              <TableHead className="hidden text-xs font-medium text-muted-foreground sm:table-cell sm:text-sm">
-                Date
-              </TableHead>
-              <TableHead className="min-w-[100px] text-xs font-medium text-muted-foreground sm:text-sm">
-                Status
-              </TableHead>
-              <TableHead className="w-[40px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedTransactions.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="h-24 text-center text-sm text-muted-foreground"
+          {hasActiveFilters ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] text-muted-foreground sm:text-xs">
+                Filters:
+              </span>
+              {statusFilter !== "all" && (
+                <button
+                  type="button"
+                  className={filterChipClassName}
+                  onClick={() => setStatusFilter("all")}
+                  aria-label={`Clear ${transactionStatusLabels[statusFilter as TransactionStatus]} filter`}
                 >
-                  No transactions found matching your filters.
-                </TableCell>
-              </TableRow>
-            ) : (
-              paginatedTransactions.map((txn) => {
-                const StatusIcon = transactionStatusIcons[txn.status];
-                return (
-                  <TableRow key={txn.id}>
-                    <TableCell className="text-xs font-medium sm:text-sm">
-                      {txn.txnId}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="size-6 bg-muted">
-                          <AvatarFallback className="text-[8px] font-semibold text-muted-foreground uppercase">
-                            {txn.customerInitials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground sm:text-sm">
-                          {txn.customerName}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-foreground tabular-nums sm:text-sm">
-                      {currencyFormatter.format(txn.amount)}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <span className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
-                        {txn.type}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <span className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
-                        {txn.paymentMethod}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden text-xs text-muted-foreground sm:table-cell sm:text-sm">
-                      {txn.date}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium sm:text-xs",
-                          transactionStatusStyles[txn.status],
-                        )}
-                      >
-                        <StatusIcon className="size-3" aria-hidden="true" />
-                        {transactionStatusLabels[txn.status]}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 gap-2 text-muted-foreground hover:text-foreground sm:h-9"
-                            aria-label={`Open actions for ${txn.txnId}`}
-                          >
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="mr-2 size-4" aria-hidden="true" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Pencil
-                              className="mr-2 size-4"
-                              aria-hidden="true"
-                            />
-                            Edit Transaction
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Copy className="mr-2 size-4" aria-hidden="true" />
-                            Duplicate
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onSelect={(event: Event) => {
-                              event.preventDefault();
-                              if (typeof window === "undefined") return;
-                              window.confirm(
-                                "Void this transaction? This cannot be undone.",
-                              );
-                            }}
-                          >
-                            <X className="mr-2 size-4" aria-hidden="true" />
-                            Void Transaction
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="flex flex-col items-center justify-between gap-3 border-t border-border px-3 py-3 sm:flex-row sm:px-6">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-          <span className="hidden sm:inline">Rows per page:</span>
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(value: string) => setPageSize(Number(value))}
-          >
-            <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map((size) => (
-                <SelectItem key={size} value={size.toString()}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-muted-foreground">
-            {filteredTransactions.length === 0
-              ? "0"
-              : `${(currentPage - 1) * pageSize + 1}-${Math.min(
-                  currentPage * pageSize,
-                  filteredTransactions.length,
-                )}`}{" "}
-            of {filteredTransactions.length}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
-            onClick={() => goToPage(1)}
-            disabled={currentPage === 1}
-            aria-label="Go to first page"
-          >
-            <ChevronsLeft className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={currentPage === 1}
-            aria-label="Go to previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
-
-          <div className="flex items-center gap-1 px-2">
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              let pageNum: number;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <Button
-                  key={pageNum}
-                  variant={currentPage === pageNum ? "default" : "ghost"}
-                  size="sm"
-                  className="h-8 gap-2 sm:h-9"
-                  onClick={() => goToPage(pageNum)}
+                  {transactionStatusLabels[statusFilter as TransactionStatus]}
+                  <X className="size-2.5 sm:size-3" aria-hidden="true" />
+                </button>
+              )}
+              {dateFilter !== "all" && (
+                <button
+                  type="button"
+                  className={filterChipClassName}
+                  onClick={() => setDateFilter("all")}
+                  aria-label={`Clear ${dateFilterOptions.find((o) => o.value === dateFilter)?.label} filter`}
                 >
-                  {pageNum}
-                </Button>
-              );
-            })}
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages || totalPages === 0}
-            aria-label="Go to next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
-            onClick={() => goToPage(totalPages)}
-            disabled={currentPage === totalPages || totalPages === 0}
-            aria-label="Go to last page"
-          >
-            <ChevronsRight className="size-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
+                  {dateFilterOptions.find((o) => o.value === dateFilter)?.label}
+                  <X className="size-2.5 sm:size-3" aria-hidden="true" />
+                </button>
+              )}
+              {paymentMethodFilter !== "all" && (
+                <button
+                  type="button"
+                  className={filterChipClassName}
+                  onClick={() => setPaymentMethodFilter("all")}
+                  aria-label={`Clear ${paymentMethodFilter} filter`}
+                >
+                  {paymentMethodFilter}
+                  <X className="size-2.5 sm:size-3" aria-hidden="true" />
+                </button>
+              )}
+              <button
+                onClick={clearFilters}
+                className="text-[10px] text-destructive hover:underline sm:text-xs"
+              >
+                Clear all
+              </button>
+            </div>
+          ) : null}
+        </>
+      }
+      header={
+        <TableHeader>
+          <TableRow>
+            <TableHead column="main">Transaction ID</TableHead>
+            <TableHead column="preview">Customer</TableHead>
+            <TableHead column="meta">Amount</TableHead>
+            <TableHead column="meta" className="hidden lg:table-cell">
+              Type
+            </TableHead>
+            <TableHead column="meta" className="hidden md:table-cell">
+              Payment Method
+            </TableHead>
+            <TableHead column="meta" className="hidden sm:table-cell">
+              Date
+            </TableHead>
+            <TableHead column="meta">Status</TableHead>
+            <TableHead column="meta">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+      }
+      isEmpty={paginatedTransactions.length === 0}
+      emptyText="No transactions found matching your filters."
+      emptyColSpan={8}
+      footer={{
+        type: "pagination",
+        page: currentPage,
+        pageSize,
+        total: filteredTransactions.length,
+        totalPages,
+        pageSizeOptions: PAGE_SIZE_OPTIONS,
+        onPageChange: goToPage,
+        onPageSizeChange: setPageSize,
+      }}
+    >
+      {paginatedTransactions.map((txn) => {
+        const StatusIcon = transactionStatusIcons[txn.status];
+        return (
+          <TableRow key={txn.id}>
+            <TableCell column="main" className="text-xs font-medium sm:text-sm">
+              {txn.txnId}
+            </TableCell>
+            <TableCell column="preview">
+              <div className="flex items-center gap-2">
+                <Avatar className="size-6 bg-muted">
+                  <AvatarFallback className="text-[8px] font-semibold text-muted-foreground uppercase">
+                    {txn.customerInitials}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-xs text-muted-foreground sm:text-sm">
+                  {txn.customerName}
+                </span>
+              </div>
+            </TableCell>
+            <TableCell column="meta" className="text-xs text-foreground tabular-nums sm:text-sm">
+              {currencyFormatter.format(txn.amount)}
+            </TableCell>
+            <TableCell column="meta" className="hidden lg:table-cell">
+              <span className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
+                {txn.type}
+              </span>
+            </TableCell>
+            <TableCell column="meta" className="hidden md:table-cell">
+              <span className="inline-flex items-center rounded-md border border-border px-2 py-0.5 text-[10px] font-normal text-muted-foreground sm:text-xs">
+                {txn.paymentMethod}
+              </span>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden sm:table-cell">
+              {txn.date}
+            </TableCell>
+            <TableCell column="meta">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium sm:text-xs",
+                  transactionStatusStyles[txn.status],
+                )}
+              >
+                <StatusIcon className="size-3" aria-hidden="true" />
+                {transactionStatusLabels[txn.status]}
+              </span>
+            </TableCell>
+            <TableCell column="meta">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-2 text-muted-foreground hover:text-foreground sm:h-9"
+                    aria-label={`Open actions for ${txn.txnId}`}
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>
+                    <Eye className="mr-2 size-4" aria-hidden="true" />
+                    View Details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Pencil className="mr-2 size-4" aria-hidden="true" />
+                    Edit Transaction
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Copy className="mr-2 size-4" aria-hidden="true" />
+                    Duplicate
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onSelect={(event: Event) => {
+                      event.preventDefault();
+                      if (typeof window === "undefined") return;
+                      window.confirm(
+                        "Void this transaction? This cannot be undone.",
+                      );
+                    }}
+                  >
+                    <X className="mr-2 size-4" aria-hidden="true" />
+                    Void Transaction
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        );
+      })}
+    </DashboardTable>
   );
 };
 
@@ -2233,25 +2082,21 @@ const DashboardContent = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <PeriodTabs activePeriod={period} onPeriodChange={setPeriod} />
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <Button
+          <DashboardToolbarButton
             variant="outline"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
             aria-label="Export"
             onClick={exportTransactionsCsv}
           >
             <Download className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Export</span>
-          </Button>
-          <Button
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
+          </DashboardToolbarButton>
+          <DashboardToolbarButton
             aria-label="New feedback"
             onClick={onOpenFeedback}
           >
             <MessageSquarePlus className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">New feedback</span>
-          </Button>
+          </DashboardToolbarButton>
         </div>
       </div>
 

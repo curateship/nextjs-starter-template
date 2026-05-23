@@ -1,20 +1,23 @@
 import * as React from "react"
 import {
+  AlertCircleIcon,
   EditIcon,
   GridIcon,
   ImageIcon,
   ListIcon,
   Loader2Icon,
-  SearchIcon,
   Trash2Icon,
   UploadIcon,
   VideoIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { MediaGridSkeleton } from "@/components/loading-skeleton"
+import { DashboardTable } from "@/components/dashboard-table"
+import {
+  DashboardToolbarButton,
+  DashboardToolbarSearch,
+} from "@/components/dashboard-toolbar"
 import {
   Dialog,
   DialogContent,
@@ -25,13 +28,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableStatusIndicator,
 } from "@/components/ui/table"
 import {
   bulkDeleteMedia,
@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
-const pageSize = 20
+const pageSizeOptions = [10, 20, 50]
 const pageTabs = ["all", "images", "videos"] as const
 
 export type MediaTabId = (typeof pageTabs)[number]
@@ -69,11 +69,11 @@ export function getMediaTabFromPath(path: string): MediaTabId {
 
 export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   const [uploading, setUploading] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
@@ -86,16 +86,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const fileType = activeTabToFileType(activeTab)
 
   const loadCurrentPage = React.useCallback(async () => {
-    setLoading(true)
     setError(null)
     try {
       setData(await listMedia({ page: currentPage, pageSize, fileType }))
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
-    } finally {
-      setLoading(false)
     }
-  }, [currentPage, fileType])
+  }, [currentPage, fileType, pageSize])
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -245,23 +242,21 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {selectedIds.size > 0 ? (
-            <Button
+            <DashboardToolbarButton
               type="button"
               variant="destructive"
-              size="sm"
               onClick={() => setDeleteIds(Array.from(selectedIds))}
             >
               <Trash2Icon className="size-4" />
               Delete {selectedIds.size}
-            </Button>
+            </DashboardToolbarButton>
           ) : null}
           <div className="flex rounded-lg border">
-            <Button
+            <DashboardToolbarButton
               type="button"
               variant="ghost"
-              size="sm"
               className={cn(
-                "h-8 rounded-r-none sm:h-9",
+                "rounded-r-none",
                 viewMode === "list" &&
                   "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
               )}
@@ -269,13 +264,12 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               aria-label="List view"
             >
               <ListIcon className="size-4" />
-            </Button>
-            <Button
+            </DashboardToolbarButton>
+            <DashboardToolbarButton
               type="button"
               variant="ghost"
-              size="sm"
               className={cn(
-                "h-8 rounded-l-none sm:h-9",
+                "rounded-l-none",
                 viewMode === "gallery" &&
                   "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
               )}
@@ -283,18 +277,16 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               aria-label="Gallery view"
             >
               <GridIcon className="size-4" />
-            </Button>
+            </DashboardToolbarButton>
           </div>
-          <Button
+          <DashboardToolbarButton
             type="button"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
           >
             {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
             {uploading ? "Uploading" : "Upload Media"}
-          </Button>
+          </DashboardToolbarButton>
         </div>
       </div>
 
@@ -312,118 +304,122 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader className="gap-3 sm:flex sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-2">
-            <CardTitle>{getTabTitle(activeTab)}</CardTitle>
-            {data ? (
-              <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {data.total}
-              </span>
-            ) : null}
-            {error ? (
-              <TableStatusIndicator tone="error">
-                {error}
-              </TableStatusIndicator>
-            ) : null}
-          </div>
-          <div className="relative w-full sm:w-72">
-            <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
+      {error ? (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      {viewMode === "gallery" ? (
+        <DashboardTable
+          title={getTabTitle(activeTab)}
+          icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          count={data?.total ?? 0}
+          controls={
+            <DashboardToolbarSearch
+              name="media-search"
+              aria-label="Search media"
+              placeholder="Search media..."
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search media"
-              className="pl-9"
             />
-          </div>
-        </CardHeader>
-
-        <CardContent className="min-h-[340px]">
-          {loading ? (
-            <MediaGridSkeleton />
-          ) : visibleMedia.length === 0 ? (
-            <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
-              <div>
-                <ImageIcon className="mx-auto mb-3 size-10" />
-                <p>No media found.</p>
-              </div>
-            </div>
-          ) : viewMode === "gallery" ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {visibleMedia.map((item) => (
-                <GalleryItem
-                  key={item.id}
-                  item={item}
-                  selected={selectedIds.has(item.id)}
-                  onEdit={() => handleEdit(item)}
-                  onDelete={() => setDeleteIds([item.id])}
-                  onToggle={() => handleToggleOne(item.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={allVisibleSelected}
-                      onCheckedChange={handleToggleVisible}
-                      aria-label="Select visible media"
+          }
+          content={
+            <div className="p-4">
+              {visibleMedia.length === 0 ? (
+                <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
+                  <div>
+                    <ImageIcon className="mx-auto mb-3 size-10" />
+                    <p>No media found.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {visibleMedia.map((item) => (
+                    <GalleryItem
+                      key={item.id}
+                      item={item}
+                      selected={selectedIds.has(item.id)}
+                      onEdit={() => handleEdit(item)}
+                      onDelete={() => setDeleteIds([item.id])}
+                      onToggle={() => handleToggleOne(item.id)}
                     />
-                  </TableHead>
-                  <TableHead column="main">File</TableHead>
-                  <TableHead column="meta">Type</TableHead>
-                  <TableHead column="meta" className="hidden md:table-cell">Size</TableHead>
-                  <TableHead column="meta" className="hidden lg:table-cell">Added</TableHead>
-                  <TableHead column="meta">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleMedia.map((item) => (
-                  <MediaTableRow
-                    key={item.id}
-                    item={item}
-                    selected={selectedIds.has(item.id)}
-                    onToggle={() => handleToggleOne(item.id)}
-                    onEdit={() => handleEdit(item)}
-                    onDelete={() => setDeleteIds([item.id])}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-
-        {data && data.total_pages > 1 ? (
-          <CardFooter className="justify-between">
-            <span className="text-sm text-muted-foreground">
-              Page {data.page} of {data.total_pages}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              >
-                Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= data.total_pages}
-                onClick={() => setCurrentPage((page) => page + 1)}
-              >
-                Next
-              </Button>
+                  ))}
+                </div>
+              )}
             </div>
-          </CardFooter>
-        ) : null}
-      </Card>
+          }
+          footer={{
+            type: "summary",
+            count: visibleMedia.length,
+            label: "media items",
+          }}
+        />
+      ) : (
+        <DashboardTable
+          title={getTabTitle(activeTab)}
+          icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+          count={data?.total ?? 0}
+          controls={
+            <DashboardToolbarSearch
+              name="media-search"
+              aria-label="Search media"
+              placeholder="Search media..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+            />
+          }
+          header={
+            <TableHeader>
+              <TableRow>
+                <TableHead column="select">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onCheckedChange={handleToggleVisible}
+                    aria-label="Select visible media"
+                  />
+                </TableHead>
+                <TableHead column="main">File</TableHead>
+                <TableHead column="meta">Type</TableHead>
+                <TableHead column="meta" className="hidden md:table-cell">Size</TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">Added</TableHead>
+                <TableHead column="meta">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+          }
+          isEmpty={visibleMedia.length === 0}
+          emptyText="No media found."
+          emptyColSpan={6}
+          footer={{
+            type: "pagination",
+            page: currentPage,
+            pageSize,
+            total: data?.total ?? 0,
+            totalPages: data?.total_pages ?? 0,
+            pageSizeOptions,
+            onPageChange: setCurrentPage,
+            onPageSizeChange: (size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            },
+          }}
+        >
+          {visibleMedia.map((item) => (
+            <MediaTableRow
+              key={item.id}
+              item={item}
+              selected={selectedIds.has(item.id)}
+              onToggle={() => handleToggleOne(item.id)}
+              onEdit={() => handleEdit(item)}
+              onDelete={() => setDeleteIds([item.id])}
+            />
+          ))}
+        </DashboardTable>
+      )}
 
       <Dialog open={!!editingMedia} onOpenChange={(open) => !open && setEditingMedia(null)}>
         <DialogContent>
@@ -497,7 +493,7 @@ function MediaTableRow({
 }) {
   return (
     <TableRow data-state={selected ? "selected" : undefined}>
-      <TableCell>
+      <TableCell column="select">
         <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${item.original_name}`} />
       </TableCell>
       <TableCell column="main">

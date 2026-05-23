@@ -1,10 +1,6 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronsLeftIcon,
-  ChevronsRightIcon,
   Loader2Icon,
   MessageSquareIcon,
   MessageSquarePlusIcon,
@@ -17,14 +13,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DashboardTable } from "@/components/dashboard-table"
 import {
-  DashboardToolbar,
-  DashboardToolbarControls,
+  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-  DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
-import { TableRowsSkeleton } from "@/components/loading-skeleton"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -33,17 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Dialog } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table"
 import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
@@ -84,27 +74,6 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
 }
 
 const pageSizeOptions = [10, 25, 50]
-
-const feedbackSkeletonColumns = [
-  { skeletonClassName: "h-4 w-4" },
-  { skeletonClassName: "h-4 w-56" },
-  { skeletonClassName: "h-5 w-20" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
-  { skeletonClassName: "h-5 w-14" },
-  { skeletonClassName: "h-5 w-14" },
-  { skeletonClassName: "h-8 w-8" },
-]
-
-const commentSkeletonColumns = [
-  { skeletonClassName: "h-4 w-4" },
-  { skeletonClassName: "h-4 w-64" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-32" },
-  { skeletonClassName: "h-5 w-20" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
-  { skeletonClassName: "h-8 w-8" },
-]
 
 type FeedbackPeriod = "1year" | "3months" | "30days"
 type FeedbackSort = "recent" | "most_votes" | "most_comments"
@@ -315,11 +284,9 @@ export function FeedbackDashboard({
         />
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {selectedIds.size ? (
-            <Button
+            <DashboardToolbarButton
               type="button"
               variant="destructive"
-              size="sm"
-              className="h-8 w-fit gap-2 sm:h-9"
               onClick={() => setMassDeleteOpen(true)}
               disabled={massDeleting}
             >
@@ -329,17 +296,15 @@ export function FeedbackDashboard({
                 <Trash2Icon className="size-4" />
               )}
               Delete ({selectedIds.size})
-            </Button>
+            </DashboardToolbarButton>
           ) : null}
-          <Button
+          <DashboardToolbarButton
             type="button"
-            size="sm"
-            className="h-8 w-fit gap-2 sm:h-9"
             onClick={onOpenFeedback}
           >
             <MessageSquarePlusIcon className="size-4" />
             New feedback
-          </Button>
+          </DashboardToolbarButton>
         </div>
       </div>
       {error ? (
@@ -352,26 +317,14 @@ export function FeedbackDashboard({
         </div>
       ) : null}
 
-      <TableSurface>
-        <DashboardToolbar>
-          <DashboardToolbarTitle>
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              <MessageSquarePlusIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-            </span>
-            <span className="text-sm font-medium sm:text-base">Feedback</span>
-            <Badge variant="secondary">{filteredFeedback.length}</Badge>
-            {selectedIds.size ? (
-              <button
-                type="button"
-                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Clear {selectedIds.size} selected
-              </button>
-            ) : null}
-          </DashboardToolbarTitle>
-
-          <DashboardToolbarControls>
+      <DashboardTable
+        title="Feedback"
+        icon={<MessageSquarePlusIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        count={filteredFeedback.length}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => setSelectedIds(new Set())}
+        controls={
+          <>
             <DashboardToolbarSearch
               name="feedback-search"
               aria-label="Search feedback"
@@ -415,14 +368,12 @@ export function FeedbackDashboard({
                 ))}
               </SelectContent>
             </Select>
-          </DashboardToolbarControls>
-        </DashboardToolbar>
-
-        <ScrollArea className="w-full">
-          <Table>
+          </>
+        }
+        header={
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12 min-w-12">
+                <TableHead column="select">
                   <Checkbox
                     checked={
                       visibleSelected
@@ -458,173 +409,97 @@ export function FeedbackDashboard({
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRowsSkeleton columns={feedbackSkeletonColumns} />
-              ) : paginatedFeedback.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="h-24 text-center text-sm text-muted-foreground"
-                  >
-                    No feedback found matching your filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedFeedback.map((item) => (
-                  <TableRow key={item.id} className="group">
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(item.id)}
-                        onCheckedChange={() => toggleFeedbackSelection(item.id)}
-                        aria-label={`Select feedback ${item.message}`}
-                      />
-                    </TableCell>
-                    <TableCell column="main">
-                      <button
-                        type="button"
-                        className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
-                        onClick={() => setEditingFeedback(item)}
-                        title={item.message}
-                      >
-                        {item.message}
-                      </button>
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge
-                        variant={feedbackTypeBadgeVariants[item.type]}
-                        className={feedbackTypeClassNames[item.type]}
-                      >
-                        {feedbackTypeLabels[item.type]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden md:table-cell">
-                      {item.author_name}
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden lg:table-cell">
-                      {dateFormatter.format(new Date(item.created_at))}
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge variant="secondary">
-                        <MessageSquareIcon className="h-3.5 w-3.5" />
-                        {item.comment_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge variant="secondary">
-                        <ThumbsUpIcon className="h-3.5 w-3.5" />
-                        {item.vote_count}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="meta">
-                      <div className="flex items-center">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => setEditingFeedback(item)}
-                          title="Feedback settings"
-                          aria-label="Feedback settings"
-                        >
-                          <SettingsIcon className="h-4 w-4" />
-                          <span className="sr-only">Feedback settings</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => setDeletingFeedback(item)}
-                          title="Delete feedback"
-                          aria-label="Delete feedback"
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                          <span className="sr-only">Delete feedback</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-
-        <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-            <span className="hidden sm:inline">Rows per page:</span>
-            <Select
-              value={pageSize.toString()}
-              onValueChange={(value) => setPageSize(Number(value))}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {pageSizeOptions.map((size) => (
-                  <SelectItem key={size} value={size.toString()}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span>
-              {filteredFeedback.length === 0
-                ? "0"
-                : `${(currentPage - 1) * pageSize + 1}-${Math.min(
-                    currentPage * pageSize,
-                    filteredFeedback.length
-                  )}`}{" "}
-              of {filteredFeedback.length}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(1)}
-              disabled={currentPage === 1}
-              aria-label="Go to first page"
-            >
-              <ChevronsLeftIcon className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              aria-label="Go to previous page"
-            >
-              <ChevronLeftIcon className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              aria-label="Go to next page"
-            >
-              <ChevronRightIcon className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(totalPages)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              aria-label="Go to last page"
-            >
-              <ChevronsRightIcon className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </TableSurface>
+        }
+        isEmpty={loading || paginatedFeedback.length === 0}
+        emptyText={loading ? "Loading feedback..." : "No feedback found matching your filters."}
+        emptyColSpan={8}
+        footer={{
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: filteredFeedback.length,
+          totalPages,
+          pageSizeOptions,
+          onPageChange: goToPage,
+          onPageSizeChange: setPageSize,
+        }}
+      >
+        {paginatedFeedback.map((item) => (
+          <TableRow key={item.id} className="group">
+            <TableCell column="select">
+              <Checkbox
+                checked={selectedIds.has(item.id)}
+                onCheckedChange={() => toggleFeedbackSelection(item.id)}
+                aria-label={`Select feedback ${item.message}`}
+              />
+            </TableCell>
+            <TableCell column="main">
+              <button
+                type="button"
+                className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
+                onClick={() => setEditingFeedback(item)}
+                title={item.message}
+              >
+                {item.message}
+              </button>
+            </TableCell>
+            <TableCell column="meta">
+              <Badge
+                variant={feedbackTypeBadgeVariants[item.type]}
+                className={feedbackTypeClassNames[item.type]}
+              >
+                {feedbackTypeLabels[item.type]}
+              </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden md:table-cell">
+              {item.author_name}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {dateFormatter.format(new Date(item.created_at))}
+            </TableCell>
+            <TableCell column="meta">
+              <Badge variant="secondary">
+                <MessageSquareIcon className="h-3.5 w-3.5" />
+                {item.comment_count}
+              </Badge>
+            </TableCell>
+            <TableCell column="meta">
+              <Badge variant="secondary">
+                <ThumbsUpIcon className="h-3.5 w-3.5" />
+                {item.vote_count}
+              </Badge>
+            </TableCell>
+            <TableCell column="meta">
+              <div className="flex items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setEditingFeedback(item)}
+                  title="Feedback settings"
+                  aria-label="Feedback settings"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  <span className="sr-only">Feedback settings</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  onClick={() => setDeletingFeedback(item)}
+                  title="Delete feedback"
+                  aria-label="Delete feedback"
+                >
+                  <Trash2Icon className="h-4 w-4" />
+                  <span className="sr-only">Delete feedback</span>
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
       {visibleSelected &&
       filteredFeedbackIds.length > paginatedFeedbackIds.length ? (
         <div className="mt-3 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">

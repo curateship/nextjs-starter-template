@@ -100,7 +100,21 @@ function DashboardToolbarSelectTrigger({
   )
 }
 
+function DashboardToolbarButton({
+  className,
+  ...props
+}: React.ComponentProps<typeof Button>) {
+  return (
+    <Button
+      size="sm"
+      className={cn("h-8 w-fit gap-2 sm:h-9", className)}
+      {...props}
+    />
+  )
+}
+
 export {
+  DashboardToolbarButton,
   DashboardToolbar,
   DashboardToolbarControls,
   DashboardToolbarSearch,

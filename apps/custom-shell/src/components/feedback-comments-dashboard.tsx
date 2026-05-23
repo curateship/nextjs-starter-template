@@ -1,10 +1,6 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronsLeftIcon,
-  ChevronsRightIcon,
   Loader2Icon,
   MessageSquareIcon,
   SaveIcon,
@@ -13,19 +9,16 @@ import {
 } from "lucide-react"
 
 import {
-  DashboardToolbar,
-  DashboardToolbarControls,
+  DashboardToolbarButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-  DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
-import { TableRowsSkeleton } from "@/components/loading-skeleton"
+import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -34,13 +27,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -90,16 +80,6 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
   praise:
     "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
 }
-
-const commentSkeletonColumns = [
-  { skeletonClassName: "h-4 w-4" },
-  { skeletonClassName: "h-4 w-64" },
-  { cellClassName: "hidden md:table-cell", skeletonClassName: "h-4 w-32" },
-  { skeletonClassName: "h-5 w-20" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-24" },
-  { cellClassName: "hidden lg:table-cell", skeletonClassName: "h-4 w-20" },
-  { skeletonClassName: "h-8 w-8" },
-]
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -277,11 +257,9 @@ export function FeedbackCommentsDashboard() {
           onPeriodChange={setPeriodFilter}
         />
         {selectedIds.size ? (
-          <Button
+          <DashboardToolbarButton
             type="button"
             variant="destructive"
-            size="sm"
-            className="h-8 w-fit gap-2 sm:h-9"
             onClick={() => setMassDeleteOpen(true)}
             disabled={massDeleting}
           >
@@ -291,7 +269,7 @@ export function FeedbackCommentsDashboard() {
               <Trash2Icon className="size-4" />
             )}
             Delete ({selectedIds.size})
-          </Button>
+          </DashboardToolbarButton>
         ) : null}
       </div>
 
@@ -305,26 +283,14 @@ export function FeedbackCommentsDashboard() {
         </div>
       ) : null}
 
-      <TableSurface>
-        <DashboardToolbar>
-          <DashboardToolbarTitle>
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              <MessageSquareIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-            </span>
-            <span className="text-sm font-medium sm:text-base">Comments</span>
-            <Badge variant="secondary">{filteredComments.length}</Badge>
-            {selectedIds.size ? (
-              <button
-                type="button"
-                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Clear {selectedIds.size} selected
-              </button>
-            ) : null}
-          </DashboardToolbarTitle>
-
-          <DashboardToolbarControls>
+      <DashboardTable
+        title="Comments"
+        icon={<MessageSquareIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        count={filteredComments.length}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => setSelectedIds(new Set())}
+        controls={
+          <>
             <DashboardToolbarSearch
               name="comment-search"
               aria-label="Search comments"
@@ -349,14 +315,12 @@ export function FeedbackCommentsDashboard() {
                 ))}
               </SelectContent>
             </Select>
-          </DashboardToolbarControls>
-        </DashboardToolbar>
-
-        <ScrollArea className="w-full">
-          <Table>
+          </>
+        }
+        header={
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12 min-w-12">
+                <TableHead column="select">
                   <Checkbox
                     checked={
                       visibleSelected
@@ -381,166 +345,90 @@ export function FeedbackCommentsDashboard() {
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRowsSkeleton columns={commentSkeletonColumns} />
-              ) : paginatedComments.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="h-24 text-center text-sm text-muted-foreground"
-                  >
-                    No comments found matching your filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedComments.map((comment) => (
-                  <TableRow key={comment.id} className="group">
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(comment.id)}
-                        onCheckedChange={() => toggleCommentSelection(comment.id)}
-                        aria-label={`Select comment ${comment.message}`}
-                      />
-                    </TableCell>
-                    <TableCell column="main">
-                      <button
-                        type="button"
-                        className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
-                        onClick={() => setEditingComment(comment)}
-                        title={comment.message}
-                      >
-                        {comment.message}
-                      </button>
-                    </TableCell>
-                    <TableCell column="preview">
-                      <span className="line-clamp-1 max-w-44">
-                        {comment.feedback_message}
-                      </span>
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge
-                        variant={feedbackTypeBadgeVariants[comment.feedback_type]}
-                        className={feedbackTypeClassNames[comment.feedback_type]}
-                      >
-                        {feedbackTypeLabels[comment.feedback_type]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden lg:table-cell">
-                      {comment.author_name}
-                    </TableCell>
-                    <TableCell column="mutedMeta" className="hidden lg:table-cell">
-                      {dateFormatter.format(new Date(comment.created_at))}
-                    </TableCell>
-                    <TableCell column="meta">
-                      <div className="flex items-center">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => setEditingComment(comment)}
-                          title="Comment settings"
-                          aria-label="Comment settings"
-                        >
-                          <SettingsIcon className="h-4 w-4" />
-                          <span className="sr-only">Comment settings</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => setDeletingComment(comment)}
-                          title="Delete comment"
-                          aria-label="Delete comment"
-                        >
-                          <Trash2Icon className="h-4 w-4" />
-                          <span className="sr-only">Delete comment</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-
-        <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-            <span className="hidden sm:inline">Rows per page:</span>
-            <Select
-              value={pageSize.toString()}
-              onValueChange={(value) => setPageSize(Number(value))}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {pageSizeOptions.map((size) => (
-                  <SelectItem key={size} value={size.toString()}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span>
-              {filteredComments.length === 0
-                ? "0"
-                : `${(currentPage - 1) * pageSize + 1}-${Math.min(
-                    currentPage * pageSize,
-                    filteredComments.length
-                  )}`}{" "}
-              of {filteredComments.length}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(1)}
-              disabled={currentPage === 1}
-              aria-label="Go to first page"
-            >
-              <ChevronsLeftIcon className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              aria-label="Go to previous page"
-            >
-              <ChevronLeftIcon className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              aria-label="Go to next page"
-            >
-              <ChevronRightIcon className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8"
-              onClick={() => goToPage(totalPages)}
-              disabled={currentPage === totalPages || totalPages === 0}
-              aria-label="Go to last page"
-            >
-              <ChevronsRightIcon className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </TableSurface>
+        }
+        isEmpty={loading || paginatedComments.length === 0}
+        emptyText={loading ? "Loading comments..." : "No comments found matching your filters."}
+        emptyColSpan={7}
+        footer={{
+          type: "pagination",
+          page: currentPage,
+          pageSize,
+          total: filteredComments.length,
+          totalPages,
+          pageSizeOptions,
+          onPageChange: goToPage,
+          onPageSizeChange: setPageSize,
+        }}
+      >
+        {paginatedComments.map((comment) => (
+          <TableRow key={comment.id} className="group">
+            <TableCell column="select">
+              <Checkbox
+                checked={selectedIds.has(comment.id)}
+                onCheckedChange={() => toggleCommentSelection(comment.id)}
+                aria-label={`Select comment ${comment.message}`}
+              />
+            </TableCell>
+            <TableCell column="main">
+              <button
+                type="button"
+                className="line-clamp-2 max-w-full whitespace-normal text-left text-xs font-medium group-hover:underline sm:text-sm"
+                onClick={() => setEditingComment(comment)}
+                title={comment.message}
+              >
+                {comment.message}
+              </button>
+            </TableCell>
+            <TableCell column="preview">
+              <span className="line-clamp-1 max-w-44">
+                {comment.feedback_message}
+              </span>
+            </TableCell>
+            <TableCell column="meta">
+              <Badge
+                variant={feedbackTypeBadgeVariants[comment.feedback_type]}
+                className={feedbackTypeClassNames[comment.feedback_type]}
+              >
+                {feedbackTypeLabels[comment.feedback_type]}
+              </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {comment.author_name}
+            </TableCell>
+            <TableCell column="mutedMeta" className="hidden lg:table-cell">
+              {dateFormatter.format(new Date(comment.created_at))}
+            </TableCell>
+            <TableCell column="meta">
+              <div className="flex items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setEditingComment(comment)}
+                  title="Comment settings"
+                  aria-label="Comment settings"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                  <span className="sr-only">Comment settings</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  onClick={() => setDeletingComment(comment)}
+                  title="Delete comment"
+                  aria-label="Delete comment"
+                >
+                  <Trash2Icon className="h-4 w-4" />
+                  <span className="sr-only">Delete comment</span>
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
 
       {visibleSelected &&
       filteredCommentIds.length > paginatedCommentIds.length ? (
