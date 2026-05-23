@@ -1,10 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronsLeftIcon,
-  ChevronsRightIcon,
   MapPinnedIcon,
   PencilIcon,
   PlayIcon,
@@ -13,12 +9,10 @@ import {
   SettingsIcon,
 } from "lucide-react"
 
+import { DashboardTable } from "@/components/dashboard-table"
 import {
-  DashboardToolbar,
-  DashboardToolbarControls,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-  DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
 import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +20,6 @@ import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -35,14 +28,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
-  TableStatusIndicator,
 } from "@/components/ui/table"
 import {
   loadGoogleMapsRun,
@@ -162,11 +151,11 @@ export function GoogleMapsDashboard() {
         </div>
       </div>
 
-      <TableShell
+      <DashboardTable
         title="Runs"
-        icon={<MapPinnedIcon className="size-4 text-muted-foreground" />}
+        icon={<MapPinnedIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={filtered.length}
-        message={message ?? (!hasToken ? { tone: "error", text: "Add an Apify API token in scraper settings before starting runs." } : null)}
+        status={message ?? (!hasToken ? { tone: "error", text: "Add an Apify API token in scraper settings before starting runs." } : null)}
         controls={
           <>
             <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search runs..." />
@@ -180,52 +169,59 @@ export function GoogleMapsDashboard() {
             </Select>
           </>
         }
+        header={
+          <TableHeader>
+            <TableRow>
+              <TableHead column="main">Run</TableHead>
+              <TableHead column="meta">Location</TableHead>
+              <TableHead column="meta">Limit</TableHead>
+              <TableHead column="meta">Status</TableHead>
+              <TableHead column="meta">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+        }
+        isEmpty={visible.length === 0}
+        emptyText="No runs found."
+        emptyColSpan={5}
+        footer={{
+          type: "pagination",
+          page,
+          pageSize,
+          total: filtered.length,
+          totalPages,
+          pageSizeOptions: pageSizes,
+          onPageChange: setPage,
+          onPageSizeChange: setPageSize,
+        }}
       >
-        <ScrollArea className="w-full">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead column="main">Run</TableHead>
-                <TableHead column="meta">Location</TableHead>
-                <TableHead column="meta">Limit</TableHead>
-                <TableHead column="meta">Status</TableHead>
-                <TableHead column="meta">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visible.length ? visible.map((run) => {
-                const input = parseRunInput(run.input)
-                return (
-                  <TableRow key={run.id}>
-                    <TableCell column="main">
-                      <Link className="font-medium hover:underline" to="/admin/scrapers/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
-                      <div className="text-xs text-muted-foreground">{input.keyword}</div>
-                    </TableCell>
-                    <TableCell column="meta">{input.location}</TableCell>
-                    <TableCell column="meta">{input.maxResults}</TableCell>
-                    <TableCell column="meta"><StatusBadge status={run.status} /></TableCell>
-                    <TableCell column="meta">
-                      <div className="flex items-center gap-1">
-                        <Button asChild variant="outline" size="sm" className="h-8 sm:h-9">
-                          <Link to="/admin/scrapers/google-maps/runs/$runId" params={{ runId: run.id }}>Open</Link>
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" onClick={() => edit(run)} aria-label={`Edit ${run.name}`}>
-                          <PencilIcon className="size-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" disabled={run.status !== "active"} onClick={() => void start(run)} aria-label={`Start ${run.name}`}>
-                          <PlayIcon className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              }) : <EmptyRow colSpan={5} text="No runs found." />}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-        <Pager page={page} pageSize={pageSize} total={filtered.length} totalPages={totalPages} setPage={setPage} setPageSize={setPageSize} />
-      </TableShell>
+        {visible.map((run) => {
+          const input = parseRunInput(run.input)
+          return (
+            <TableRow key={run.id}>
+              <TableCell column="main">
+                <Link className="font-medium hover:underline" to="/admin/scrapers/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
+                <div className="text-xs text-muted-foreground">{input.keyword}</div>
+              </TableCell>
+              <TableCell column="meta">{input.location}</TableCell>
+              <TableCell column="meta">{input.maxResults}</TableCell>
+              <TableCell column="meta"><StatusBadge status={run.status} /></TableCell>
+              <TableCell column="meta">
+                <div className="flex items-center gap-1">
+                  <Button asChild variant="outline" size="sm" className="h-8 sm:h-9">
+                    <Link to="/admin/scrapers/google-maps/runs/$runId" params={{ runId: run.id }}>Open</Link>
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" onClick={() => edit(run)} aria-label={`Edit ${run.name}`}>
+                    <PencilIcon className="size-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" disabled={run.status !== "active"} onClick={() => void start(run)} aria-label={`Start ${run.name}`}>
+                    <PlayIcon className="size-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </DashboardTable>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <AdminModalContent title={editing ? "Edit Run" : "New Run"} description="Save a reusable Google Maps search." bodyClassName="grid gap-4 sm:grid-cols-2" footer={<><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button disabled={saving} onClick={() => void save()}>{saving ? "Saving..." : "Save"}</Button></>}>
@@ -308,54 +304,46 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         </Button>
       </div>
 
-      <TableShell title="Results" count={results.length} message={message} controls={<DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />}>
-        <ScrollArea className="w-full">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead column="main">Business</TableHead>
-                <TableHead column="preview">Address</TableHead>
-                <TableHead column="meta">Rating</TableHead>
-                <TableHead column="meta">Phone</TableHead>
-                <TableHead column="meta">Website</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {results.length ? results.map((result) => (
-                <TableRow key={result.id}>
-                  <TableCell column="main">
-                    <ResultLink href={text(result.data.mapsUrl)}>{result.title}</ResultLink>
-                    <div className="text-xs text-muted-foreground">{text(result.data.category) ?? "Uncategorized"}</div>
-                  </TableCell>
-                  <TableCell column="preview">{text(result.data.address) ?? "Unknown"}</TableCell>
-                  <TableCell column="meta">{typeof result.data.rating === "number" ? result.data.rating : "Unknown"}</TableCell>
-                  <TableCell column="meta">{text(result.data.phone) ?? "Unknown"}</TableCell>
-                  <TableCell column="meta">{text(result.data.website) ? <ResultLink href={text(result.data.website)}>Open</ResultLink> : "None"}</TableCell>
-                </TableRow>
-              )) : <EmptyRow colSpan={5} text="No results found." />}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </TableShell>
+      <DashboardTable
+        title="Results"
+        count={results.length}
+        status={message}
+        controls={<DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />}
+        header={
+          <TableHeader>
+            <TableRow>
+              <TableHead column="main">Business</TableHead>
+              <TableHead column="preview">Address</TableHead>
+              <TableHead column="meta">Rating</TableHead>
+              <TableHead column="meta">Phone</TableHead>
+              <TableHead column="meta">Website</TableHead>
+            </TableRow>
+          </TableHeader>
+        }
+        isEmpty={results.length === 0}
+        emptyText="No results found."
+        emptyColSpan={5}
+        footer={{ type: "summary", count: results.length, label: "results" }}
+      >
+        {results.map((result) => (
+          <TableRow key={result.id}>
+            <TableCell column="main">
+              <ResultLink href={text(result.data.mapsUrl)}>{result.title}</ResultLink>
+              <div className="text-xs text-muted-foreground">{text(result.data.category) ?? "Uncategorized"}</div>
+            </TableCell>
+            <TableCell column="preview">{text(result.data.address) ?? "Unknown"}</TableCell>
+            <TableCell column="meta">{typeof result.data.rating === "number" ? result.data.rating : "Unknown"}</TableCell>
+            <TableCell column="meta">{text(result.data.phone) ?? "Unknown"}</TableCell>
+            <TableCell column="meta">{text(result.data.website) ? <ResultLink href={text(result.data.website)}>Open</ResultLink> : "None"}</TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
     </div>
   )
 }
 
-function TableShell({ title, icon, count, message, controls, children }: { title: string; icon?: React.ReactNode; count: number; message?: { tone: "error" | "success"; text: string } | null; controls?: React.ReactNode; children: React.ReactNode }) {
-  return <TableSurface><DashboardToolbar><DashboardToolbarTitle>{icon}<span className="text-sm font-medium sm:text-base">{title}</span><Badge variant="secondary">{count}</Badge>{message ? <TableStatusIndicator tone={message.tone}>{message.text}</TableStatusIndicator> : null}</DashboardToolbarTitle>{controls ? <DashboardToolbarControls>{controls}</DashboardToolbarControls> : null}</DashboardToolbar>{children}</TableSurface>
-}
-
-function Pager({ page, pageSize, total, totalPages, setPage, setPageSize }: { page: number; pageSize: number; total: number; totalPages: number; setPage: (page: number) => void; setPageSize: (size: number) => void }) {
-  return <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row"><div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm"><span className="hidden sm:inline">Rows per page:</span><Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}><SelectTrigger className="h-8 w-[70px]"><SelectValue /></SelectTrigger><SelectContent>{pageSizes.map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>{total ? `${(page - 1) * pageSize + 1}-${Math.min(page * pageSize, total)}` : "0"} of {total}</span></div><div className="flex items-center gap-1">{[[1, ChevronsLeftIcon, "First", page === 1], [page - 1, ChevronLeftIcon, "Previous", page === 1], [page + 1, ChevronRightIcon, "Next", page === totalPages || !totalPages], [totalPages, ChevronsRightIcon, "Last", page === totalPages || !totalPages]].map(([target, Icon, label, disabled]) => <Button key={label as string} variant="outline" size="icon" className="size-8" disabled={disabled as boolean} aria-label={`${label} page`} onClick={() => setPage(Math.max(1, Math.min(target as number, totalPages || 1)))}><Icon className="size-4" /></Button>)}</div></div>
-}
-
 function StatusBadge({ status }: { status: ScraperRunStatus | string }) {
   return <Badge variant={status === "active" ? "default" : "secondary"}>{statusLabels[status as keyof typeof statusLabels] ?? status}</Badge>
-}
-
-function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
-  return <TableRow><TableCell colSpan={colSpan} className="h-24 text-center text-sm text-muted-foreground">{text}</TableCell></TableRow>
 }
 
 function RunField({ id, label, type = "text", value, onChange }: { id: string; label: string; type?: string; value: string | number; onChange: (value: string) => void }) {

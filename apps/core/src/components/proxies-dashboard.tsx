@@ -15,12 +15,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { DashboardTable } from "@/components/dashboard-table"
 import {
-  DashboardToolbar,
-  DashboardToolbarControls,
+  DashboardSelectedActionButton,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-  DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,15 +33,11 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { AdminModalContent } from "@/pages/shared/admin-modal"
@@ -398,11 +393,9 @@ export function ProxiesDashboard({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {selectedIds.size ? (
-            <Button
+            <DashboardSelectedActionButton
               type="button"
               variant="destructive"
-              size="sm"
-              className="h-8 w-fit gap-2 sm:h-9"
               onClick={() => setMassDeleteOpen(true)}
               disabled={massDeleting}
             >
@@ -412,7 +405,7 @@ export function ProxiesDashboard({
                 <Trash2Icon className="size-4" />
               )}
               Delete ({selectedIds.size})
-            </Button>
+            </DashboardSelectedActionButton>
           ) : null}
           <Button
             type="button"
@@ -452,25 +445,14 @@ export function ProxiesDashboard({
         </Message>
       ) : null}
 
-      <TableSurface>
-        <DashboardToolbar>
-          <DashboardToolbarTitle>
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              <WifiIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-            </span>
-            <span className="text-sm font-medium sm:text-base">Proxies</span>
-            <Badge variant="secondary">{visibleProxies.length}</Badge>
-            {selectedIds.size ? (
-              <button
-                type="button"
-                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Clear {selectedIds.size} selected
-              </button>
-            ) : null}
-          </DashboardToolbarTitle>
-          <DashboardToolbarControls>
+      <DashboardTable
+        title="Proxies"
+        icon={<WifiIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        count={visibleProxies.length}
+        selectedCount={selectedIds.size}
+        onClearSelection={() => setSelectedIds(new Set())}
+        controls={
+          <>
             <DashboardToolbarSearch
               name="proxy-search"
               aria-label="Search proxies"
@@ -531,14 +513,12 @@ export function ProxiesDashboard({
                 ))}
               </SelectContent>
             </Select>
-          </DashboardToolbarControls>
-        </DashboardToolbar>
-
-        <ScrollArea className="w-full">
-          <Table>
+          </>
+        }
+        header={
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12 min-w-12">
+                <TableHead column="select">
                   <Checkbox
                     checked={
                       visibleSelected
@@ -574,107 +554,97 @@ export function ProxiesDashboard({
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {visibleProxies.length ? (
-                visibleProxies.map((proxy) => (
-                  <TableRow key={proxy.id} className="group">
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(proxy.id)}
-                        onCheckedChange={() => toggleProxySelection(proxy.id)}
-                        aria-label={`Select ${proxy.name}`}
-                      />
-                    </TableCell>
-                    <TableCell column="main">
-                      <div className="space-y-1">
-                        <button
-                          type="button"
-                          className="max-w-full text-left font-medium group-hover:underline"
-                          onClick={() => openEditForm(proxy)}
-                          title={proxy.name}
-                        >
-                          {proxy.name}
-                        </button>
-                        <div className="text-xs text-muted-foreground">
-                          {proxy.protocol}://{proxy.username ? `${proxy.username}@` : ""}
-                          {proxy.host}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell column="meta">{proxy.port}</TableCell>
-                    <TableCell column="meta">{proxy.country ?? "Unknown"}</TableCell>
-                    <TableCell column="meta">
-                      {proxy.connection_type
-                        ? connectionTypeLabels[proxy.connection_type]
-                        : "Unset"}
-                    </TableCell>
-                    <TableCell column="meta">
-                      <StatusBadge status={proxy.last_status} />
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          proxy.enabled
-                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                            : "border-destructive/30 bg-destructive/10 text-destructive"
-                        )}
-                      >
-                        {proxy.enabled ? "Enabled" : "Disabled"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="meta">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => void handleToggle(proxy)}
-                          aria-label={proxy.enabled ? "Disable proxy" : "Enable proxy"}
-                          title={proxy.enabled ? "Disable proxy" : "Enable proxy"}
-                        >
-                          <PowerIcon className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openEditForm(proxy)}
-                          aria-label={`Edit ${proxy.name}`}
-                          title={`Edit ${proxy.name}`}
-                        >
-                          <PencilIcon className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => setPendingDelete(proxy)}
-                          aria-label={`Delete ${proxy.name}`}
-                          title={`Delete ${proxy.name}`}
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="h-24 text-center text-sm text-muted-foreground"
-                  >
-                    No proxies found.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-      </TableSurface>
+        }
+        isEmpty={visibleProxies.length === 0}
+        emptyText="No proxies found."
+        emptyColSpan={8}
+        footer={{ type: "summary", count: visibleProxies.length, label: "proxies" }}
+      >
+        {visibleProxies.map((proxy) => (
+          <TableRow key={proxy.id} className="group">
+            <TableCell column="select">
+              <Checkbox
+                checked={selectedIds.has(proxy.id)}
+                onCheckedChange={() => toggleProxySelection(proxy.id)}
+                aria-label={`Select ${proxy.name}`}
+              />
+            </TableCell>
+            <TableCell column="main">
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  className="max-w-full text-left font-medium group-hover:underline"
+                  onClick={() => openEditForm(proxy)}
+                  title={proxy.name}
+                >
+                  {proxy.name}
+                </button>
+                <div className="text-xs text-muted-foreground">
+                  {proxy.protocol}://{proxy.username ? `${proxy.username}@` : ""}
+                  {proxy.host}
+                </div>
+              </div>
+            </TableCell>
+            <TableCell column="meta">{proxy.port}</TableCell>
+            <TableCell column="meta">{proxy.country ?? "Unknown"}</TableCell>
+            <TableCell column="meta">
+              {proxy.connection_type
+                ? connectionTypeLabels[proxy.connection_type]
+                : "Unset"}
+            </TableCell>
+            <TableCell column="meta">
+              <StatusBadge status={proxy.last_status} />
+            </TableCell>
+            <TableCell column="meta">
+              <Badge
+                variant="outline"
+                className={cn(
+                  proxy.enabled
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                    : "border-destructive/30 bg-destructive/10 text-destructive"
+                )}
+              >
+                {proxy.enabled ? "Enabled" : "Disabled"}
+              </Badge>
+            </TableCell>
+            <TableCell column="meta">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void handleToggle(proxy)}
+                  aria-label={proxy.enabled ? "Disable proxy" : "Enable proxy"}
+                  title={proxy.enabled ? "Disable proxy" : "Enable proxy"}
+                >
+                  <PowerIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => openEditForm(proxy)}
+                  aria-label={`Edit ${proxy.name}`}
+                  title={`Edit ${proxy.name}`}
+                >
+                  <PencilIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setPendingDelete(proxy)}
+                  aria-label={`Delete ${proxy.name}`}
+                  title={`Delete ${proxy.name}`}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
 
       <ProxyFormDialog
         open={formOpen}

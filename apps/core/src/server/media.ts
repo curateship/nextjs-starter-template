@@ -151,7 +151,7 @@ export function serializeMedia(row: CoreMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
-    url: `/api/v1/media/${row.id}/file?name=${encodeURIComponent(row.filename)}`,
+    url: `/api/v1/media/${row.id}/file`,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

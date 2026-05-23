@@ -2,19 +2,15 @@ import * as React from "react"
 import {
   AlertCircleIcon,
   BellIcon,
-  Loader2Icon,
   MessageSquareIcon,
   ThumbsUpIcon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { DashboardTable } from "@/components/dashboard-table"
 import {
-  DashboardToolbar,
-  DashboardToolbarControls,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
-  DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
 import {
   Select,
@@ -22,15 +18,11 @@ import {
   SelectItem,
   SelectValue,
 } from "@/components/ui/select"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table"
 import {
   getNotificationErrorMessage,
@@ -143,19 +135,12 @@ export function NotificationsPage({
         </div>
       ) : null}
 
-      <TableSurface>
-        <DashboardToolbar>
-          <DashboardToolbarTitle>
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              <BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />
-            </span>
-            <span className="text-sm font-medium sm:text-base">
-              Notifications
-            </span>
-            <Badge variant="secondary">{filteredNotifications.length}</Badge>
-          </DashboardToolbarTitle>
-
-          <DashboardToolbarControls>
+      <DashboardTable
+        title="Notifications"
+        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        count={filteredNotifications.length}
+        controls={
+          <>
             <DashboardToolbarSearch
               name="notification-search"
               value={searchQuery}
@@ -195,11 +180,9 @@ export function NotificationsPage({
                 <SelectItem value="feedback_comment">Comments</SelectItem>
               </SelectContent>
             </Select>
-          </DashboardToolbarControls>
-        </DashboardToolbar>
-
-        <ScrollArea className="w-full">
-          <Table>
+          </>
+        }
+        header={
             <TableHeader>
               <TableRow>
                 <TableHead column="main">
@@ -222,96 +205,79 @@ export function NotificationsPage({
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {filteredNotifications.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="h-24 text-center text-sm text-muted-foreground"
-                  >
-                    No notifications found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredNotifications.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    className="cursor-pointer"
-                    onClick={() => onOpenFeedbackThread(item.feedback_id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault()
-                        onOpenFeedbackThread(item.feedback_id)
-                      }
-                    }}
-                  >
-                    <TableCell column="main">
-                      <div className="flex items-center gap-2">
-                        {item.type === "feedback_vote" ? (
-                          <ThumbsUpIcon className="size-4 text-muted-foreground" />
-                        ) : (
-                          <MessageSquareIcon className="size-4 text-muted-foreground" />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium">
-                            {notificationTypeLabels[item.type]}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.actor_name}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell column="preview">
-                      <span className="line-clamp-1 max-w-44">
-                        {item.feedback_message}
-                      </span>
-                    </TableCell>
-                    <TableCell column="mutedMeta">
-                      {item.recipient_name}
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge variant="secondary">
-                        {notificationTypeLabels[item.type]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="meta">
-                      <Badge
-                        variant={item.read_at ? "secondary" : "default"}
-                        className={cn(!item.read_at && "bg-primary")}
-                      >
-                        {item.read_at ? "Read" : "Unread"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell column="mutedMeta">
-                      {dateFormatter.format(new Date(item.created_at))}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
-
-        {nextCursor ? (
-          <div className="flex justify-center bg-muted/50 p-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void loadNotifications(nextCursor)}
-              disabled={loadingMore}
-            >
-              {loadingMore ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              Load older
-            </Button>
-          </div>
-        ) : null}
-      </TableSurface>
+        }
+        isEmpty={filteredNotifications.length === 0}
+        emptyText="No notifications found."
+        emptyColSpan={6}
+        footer={{
+          type: "loadMore",
+          count: filteredNotifications.length,
+          label: "notifications",
+          hasMore: Boolean(nextCursor),
+          loading: loadingMore,
+          onLoadMore: nextCursor
+            ? () => void loadNotifications(nextCursor)
+            : undefined,
+        }}
+      >
+        {filteredNotifications.map((item) => (
+          <TableRow
+            key={item.id}
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer"
+            onClick={() => onOpenFeedbackThread(item.feedback_id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                onOpenFeedbackThread(item.feedback_id)
+              }
+            }}
+          >
+            <TableCell column="main">
+              <div className="flex items-center gap-2">
+                {item.type === "feedback_vote" ? (
+                  <ThumbsUpIcon className="size-4 text-muted-foreground" />
+                ) : (
+                  <MessageSquareIcon className="size-4 text-muted-foreground" />
+                )}
+                <div>
+                  <p className="text-sm font-medium">
+                    {notificationTypeLabels[item.type]}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.actor_name}
+                  </p>
+                </div>
+              </div>
+            </TableCell>
+            <TableCell column="preview">
+              <span className="line-clamp-1 max-w-44">
+                {item.feedback_message}
+              </span>
+            </TableCell>
+            <TableCell column="mutedMeta">
+              {item.recipient_name}
+            </TableCell>
+            <TableCell column="meta">
+              <Badge variant="secondary">
+                {notificationTypeLabels[item.type]}
+              </Badge>
+            </TableCell>
+            <TableCell column="meta">
+              <Badge
+                variant={item.read_at ? "secondary" : "default"}
+                className={cn(!item.read_at && "bg-primary")}
+              >
+                {item.read_at ? "Read" : "Unread"}
+              </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta">
+              {dateFormatter.format(new Date(item.created_at))}
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
     </div>
   )
 }

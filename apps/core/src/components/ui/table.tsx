@@ -5,11 +5,11 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
-  column?: "main" | "meta" | "preview"
+  column?: "main" | "meta" | "preview" | "select"
 }
 
 type TableCellProps = React.ComponentProps<"td"> & {
-  column?: "main" | "meta" | "mutedMeta" | "preview"
+  column?: "main" | "meta" | "mutedMeta" | "preview" | "select"
 }
 
 type TableStatusIndicatorProps = {
@@ -129,6 +129,7 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
           "w-px whitespace-nowrap text-left text-xs font-medium text-muted-foreground sm:text-sm",
         column === "preview" &&
           "hidden w-44 max-w-44 text-left text-xs font-medium text-muted-foreground sm:text-sm md:table-cell",
+        column === "select" && "w-11 min-w-11",
         className
       )}
       {...props}
@@ -149,6 +150,7 @@ function TableCell({ className, column, ...props }: TableCellProps) {
           "whitespace-nowrap text-left text-xs text-muted-foreground sm:text-sm",
         column === "preview" &&
           "hidden w-44 max-w-44 text-left text-xs text-muted-foreground sm:text-sm md:table-cell",
+        column === "select" && "w-11 min-w-11",
         className
       )}
       {...props}

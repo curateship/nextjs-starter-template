@@ -43,14 +43,6 @@ const bulkDeleteMediaSchema = z.object({
   mediaIds: z.array(z.string().min(1)).min(1).max(100),
 })
 
-export function resolveMediaUrl(url: string) {
-  return url
-}
-
-export function getMediaFileUrl(mediaId: string) {
-  return resolveMediaUrl(`/api/v1/media/${mediaId}/file`)
-}
-
 export function getMediaErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Media request failed."
 }

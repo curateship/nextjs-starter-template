@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 
 import { MediaGridSkeleton } from "@/components/loading-skeleton"
+import { PrivateMediaImage } from "@/components/private-media-image"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -315,11 +316,10 @@ export function MediaPicker({
                         <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
                       </div>
                     ) : (
-                      <img
+                      <PrivateMediaImage
                         src={item.url}
                         alt={item.alt_text ?? item.original_name}
                         className="h-full w-full object-contain"
-                        loading="lazy"
                       />
                     )}
                     {currentMediaUrl === item.url ? (

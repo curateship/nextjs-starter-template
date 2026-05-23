@@ -7,8 +7,8 @@ import {
 
 export class R2StorageNotConfiguredError extends Error {}
 
-function getR2Setting(name: string, fallbackName?: string) {
-  const value = process.env[name] || (fallbackName ? process.env[fallbackName] : "")
+function getR2Setting(name: string) {
+  const value = process.env[name]
   if (value) {
     return value
   }
@@ -16,17 +16,17 @@ function getR2Setting(name: string, fallbackName?: string) {
 }
 
 function getBucketName() {
-  return process.env.CORE_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || "core-media"
+  return getR2Setting("CORE_R2_BUCKET_NAME")
 }
 
 function getR2Client() {
-  const accountId = getR2Setting("CORE_R2_ACCOUNT_ID", "R2_ACCOUNT_ID")
+  const accountId = getR2Setting("CORE_R2_ACCOUNT_ID")
   return new S3Client({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: {
-      accessKeyId: getR2Setting("CORE_R2_ACCESS_KEY_ID", "R2_ACCESS_KEY_ID"),
-      secretAccessKey: getR2Setting("CORE_R2_SECRET_ACCESS_KEY", "R2_SECRET_ACCESS_KEY"),
+      accessKeyId: getR2Setting("CORE_R2_ACCESS_KEY_ID"),
+      secretAccessKey: getR2Setting("CORE_R2_SECRET_ACCESS_KEY"),
     },
   })
 }

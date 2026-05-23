@@ -6,10 +6,7 @@ import {
   Loader2Icon,
 } from "lucide-react"
 
-import {
-  DashboardToolbar,
-  DashboardToolbarTitle,
-} from "@/components/dashboard-toolbar"
+import { DashboardTable } from "@/components/dashboard-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
@@ -23,13 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  TableSurface,
 } from "@/components/ui/table"
 import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
@@ -138,18 +132,11 @@ export function WorkspacesDashboard({
 
       {error ? <Message>{error}</Message> : null}
 
-      <TableSurface>
-        <DashboardToolbar>
-          <DashboardToolbarTitle>
-            <span className="flex size-7 shrink-0 items-center justify-center sm:size-8">
-              {renderShellIcon("briefcaseBusiness", "size-4 text-muted-foreground sm:size-[18px]")}
-            </span>
-            <span className="text-sm font-medium sm:text-base">Projects</span>
-            <Badge variant="secondary">{workspaces.length}</Badge>
-          </DashboardToolbarTitle>
-        </DashboardToolbar>
-
-        <Table>
+      <DashboardTable
+        title="Projects"
+        icon={renderShellIcon("briefcaseBusiness", "size-4 text-muted-foreground sm:size-[18px]")}
+        count={workspaces.length}
+        header={
           <TableHeader>
             <TableRow>
               <TableHead column="main">Workspace</TableHead>
@@ -157,60 +144,63 @@ export function WorkspacesDashboard({
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {workspaces.map((workspace) => (
-              <TableRow key={workspace.id}>
-                <TableCell column="main">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border">
-                      {renderShellIcon(workspace.icon)}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{workspace.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Private project
-                      </div>
-                    </div>
+        }
+        isEmpty={workspaces.length === 0}
+        emptyText="No workspaces found."
+        emptyColSpan={3}
+        footer={{ type: "summary", count: workspaces.length, label: "workspaces" }}
+      >
+        {workspaces.map((workspace) => (
+          <TableRow key={workspace.id}>
+            <TableCell column="main">
+              <div className="flex items-center gap-3">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border">
+                  {renderShellIcon(workspace.icon)}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{workspace.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Private project
                   </div>
-                </TableCell>
-                <TableCell column="meta">
-                  {workspace.active ? (
-                    <Badge>Active</Badge>
-                  ) : (
-                    <Badge variant="secondary">Inactive</Badge>
-                  )}
-                </TableCell>
-                <TableCell column="meta">
-                  <div className="flex items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => openEditForm(workspace)}
-                      aria-label={`Edit ${workspace.name}`}
-                      title={`Edit ${workspace.name}`}
-                    >
-                      <PencilIcon className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={workspaces.length <= 1}
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => setPendingDelete(workspace)}
-                      aria-label={`Delete ${workspace.name}`}
-                      title={`Delete ${workspace.name}`}
-                    >
-                      <Trash2Icon className="size-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableSurface>
+                </div>
+              </div>
+            </TableCell>
+            <TableCell column="meta">
+              {workspace.active ? (
+                <Badge>Active</Badge>
+              ) : (
+                <Badge variant="secondary">Inactive</Badge>
+              )}
+            </TableCell>
+            <TableCell column="meta">
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => openEditForm(workspace)}
+                  aria-label={`Edit ${workspace.name}`}
+                  title={`Edit ${workspace.name}`}
+                >
+                  <PencilIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={workspaces.length <= 1}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => setPendingDelete(workspace)}
+                  aria-label={`Delete ${workspace.name}`}
+                  title={`Delete ${workspace.name}`}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
 
       <WorkspaceFormDialog
         open={formOpen}
