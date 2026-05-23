@@ -20,7 +20,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -29,7 +36,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
   createFeedbackComment,
   createFeedback,
@@ -405,10 +411,14 @@ export function FeedbackModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Send Feedback"
-        description="Share a request, report, question, or win."
-      >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Send Feedback</DialogTitle>
+          <DialogDescription>
+            Share a request, report, question, or win.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
         <div className="rounded-md border border-input bg-transparent shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
           <Textarea
             value={message}
@@ -790,7 +800,8 @@ export function FeedbackModal({
             <span>{error}</span>
           </div>
         ) : null}
-      </AdminModalContent>
+        </DialogBody>
+      </DialogContent>
     </Dialog>
   )
 }

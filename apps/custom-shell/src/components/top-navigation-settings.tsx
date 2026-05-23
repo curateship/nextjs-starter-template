@@ -32,14 +32,21 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { cn } from "@/lib/utils"
 import {
   createDefaultTopRightNavigation,
@@ -278,11 +285,39 @@ function SortableTopNavigationItem({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <AdminModalContent
-          title={item.label || "Top Navigation Link"}
-          description="Edit this dashboard navigation destination."
-          bodyClassName="space-y-4"
-          footer={
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>{item.label || "Top Navigation Link"}</DialogTitle>
+            <DialogDescription>
+              Edit this dashboard navigation destination.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
+              <IconPickerButton
+                value={item.icon}
+                compact
+                onValueChange={(icon) => onItemChange(item.id, { icon })}
+              />
+              <Input
+                value={item.label}
+                onChange={(event) =>
+                  onItemChange(item.id, { label: event.target.value })
+                }
+                placeholder="Label"
+                aria-label="Top navigation label"
+              />
+              <Input
+                value={item.href}
+                onChange={(event) =>
+                  onItemChange(item.id, { href: event.target.value })
+                }
+                placeholder="/admin/dashboard"
+                aria-label="Top navigation URL"
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter variant="plain">
             <Button
               type="button"
               disabled={isSaving}
@@ -293,32 +328,8 @@ function SortableTopNavigationItem({
             >
               {isSaving ? "Saving" : "Save"}
             </Button>
-          }
-        >
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-            <IconPickerButton
-              value={item.icon}
-              compact
-              onValueChange={(icon) => onItemChange(item.id, { icon })}
-            />
-            <Input
-              value={item.label}
-              onChange={(event) =>
-                onItemChange(item.id, { label: event.target.value })
-              }
-              placeholder="Label"
-              aria-label="Top navigation label"
-            />
-            <Input
-              value={item.href}
-              onChange={(event) =>
-                onItemChange(item.id, { href: event.target.value })
-              }
-              placeholder="/admin/dashboard"
-              aria-label="Top navigation URL"
-            />
-          </div>
-        </AdminModalContent>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   )

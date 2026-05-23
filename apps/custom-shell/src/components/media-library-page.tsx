@@ -20,6 +20,7 @@ import {
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -422,27 +423,29 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       )}
 
       <Dialog open={!!editingMedia} onOpenChange={(open) => !open && setEditingMedia(null)}>
-        <DialogContent>
+        <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>{editingMedia?.file_type === "video" ? "Edit Video" : "Edit Image"}</DialogTitle>
           </DialogHeader>
-          {editingMedia ? (
-            <div className="space-y-4">
-              <MediaPreview item={editingMedia} className="aspect-video rounded-lg border bg-muted" />
-              <div className="grid gap-2">
-                <Label htmlFor="media-alt-text">
-                  {editingMedia.file_type === "video" ? "Description" : "Alt text"}
-                </Label>
-                <Input
-                  id="media-alt-text"
-                  value={editAltText}
-                  onChange={(event) => setEditAltText(event.target.value)}
-                  placeholder="Optional"
-                />
+          <DialogBody>
+            {editingMedia ? (
+              <div className="space-y-4">
+                <MediaPreview item={editingMedia} className="aspect-video rounded-lg border bg-muted" />
+                <div className="grid gap-2">
+                  <Label htmlFor="media-alt-text">
+                    {editingMedia.file_type === "video" ? "Description" : "Alt text"}
+                  </Label>
+                  <Input
+                    id="media-alt-text"
+                    value={editAltText}
+                    onChange={(event) => setEditAltText(event.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
               </div>
-            </div>
-          ) : null}
-          <DialogFooter>
+            ) : null}
+          </DialogBody>
+          <DialogFooter variant="plain">
             <Button type="button" variant="outline" onClick={() => setEditingMedia(null)}>
               Cancel
             </Button>
@@ -455,16 +458,18 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       </Dialog>
 
       <Dialog open={!!deleteIds} onOpenChange={(open) => !open && setDeleteIds(null)}>
-        <DialogContent>
+        <DialogContent variant="admin">
           <DialogHeader>
             <DialogTitle>
               Delete {deleteIds?.length ?? 0} {(deleteIds?.length ?? 0) === 1 ? "item" : "items"}?
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            This removes the selected media from the library. This action cannot be undone.
-          </p>
-          <DialogFooter>
+          <DialogBody>
+            <p className="text-sm text-muted-foreground">
+              This removes the selected media from the library. This action cannot be undone.
+            </p>
+          </DialogBody>
+          <DialogFooter variant="plain">
             <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>
               Cancel
             </Button>

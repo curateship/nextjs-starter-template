@@ -38,14 +38,21 @@ import {
   CardGroup,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import { cn } from "@/lib/utils"
 import {
   createDefaultShellConfig,
@@ -433,10 +440,98 @@ function SortableSidebarItem({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <AdminModalContent
-          title={item.label || "Sidebar Link"}
-          description="Edit this sidebar destination and its child links."
-          footer={
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>{item.label || "Sidebar Link"}</DialogTitle>
+            <DialogDescription>
+              Edit this sidebar destination and its child links.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
+              <IconPickerButton
+                value={item.icon}
+                compact
+                onValueChange={(icon) =>
+                  icon ? onItemChange(sectionId, item.id, { icon }) : undefined
+                }
+              />
+              <Input
+                value={item.label}
+                onChange={(event) =>
+                  onItemChange(sectionId, item.id, {
+                    label: event.target.value,
+                  })
+                }
+                placeholder="Label"
+                aria-label="Sidebar link label"
+              />
+              <Input
+                value={item.href}
+                onChange={(event) =>
+                  onItemChange(sectionId, item.id, {
+                    href: event.target.value,
+                  })
+                }
+                placeholder="/admin/example"
+                aria-label="Sidebar link URL"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Child links</p>
+                  <p className="text-xs text-muted-foreground">
+                    These become the nested links and sticky header shortcuts.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onChildAdd(sectionId, item.id)}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Add Child
+                </Button>
+              </div>
+
+              {children.length ? (
+                <DndContext
+                  id={`custom-shell-sidebar-children-${item.id}`}
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
+                >
+                  <SortableContext
+                    items={children.map((child) => child.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
+                      {children.map((child) => (
+                        <SortableChild
+                          key={child.id}
+                          child={child}
+                          onChange={(childId, patch) =>
+                            onChildChange(sectionId, item.id, childId, patch)
+                          }
+                          onDelete={(childId) =>
+                            onChildDelete(sectionId, item.id, childId)
+                          }
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  No child links.
+                </div>
+              )}
+            </div>
+          </DialogBody>
+          <DialogFooter variant="plain">
             <Button
               type="button"
               disabled={isSaving}
@@ -447,91 +542,8 @@ function SortableSidebarItem({
             >
               {isSaving ? "Saving" : "Save"}
             </Button>
-          }
-        >
-          <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-            <IconPickerButton
-              value={item.icon}
-              compact
-              onValueChange={(icon) =>
-                icon ? onItemChange(sectionId, item.id, { icon }) : undefined
-              }
-            />
-            <Input
-              value={item.label}
-              onChange={(event) =>
-                onItemChange(sectionId, item.id, {
-                  label: event.target.value,
-                })
-              }
-              placeholder="Label"
-              aria-label="Sidebar link label"
-            />
-            <Input
-              value={item.href}
-              onChange={(event) =>
-                onItemChange(sectionId, item.id, {
-                  href: event.target.value,
-                })
-              }
-              placeholder="/admin/example"
-              aria-label="Sidebar link URL"
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">Child links</p>
-                <p className="text-xs text-muted-foreground">
-                  These become the nested links and sticky header shortcuts.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onChildAdd(sectionId, item.id)}
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add Child
-              </Button>
-            </div>
-
-            {children.length ? (
-              <DndContext
-                id={`custom-shell-sidebar-children-${item.id}`}
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={(event) => onChildDragEnd(sectionId, item.id, event)}
-              >
-                <SortableContext
-                  items={children.map((child) => child.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="space-y-2">
-                    {children.map((child) => (
-                      <SortableChild
-                        key={child.id}
-                        child={child}
-                        onChange={(childId, patch) =>
-                          onChildChange(sectionId, item.id, childId, patch)
-                        }
-                        onDelete={(childId) =>
-                          onChildDelete(sectionId, item.id, childId)
-                        }
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            ) : (
-              <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                No child links.
-              </div>
-            )}
-          </div>
-        </AdminModalContent>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   )

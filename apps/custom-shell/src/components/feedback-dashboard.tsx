@@ -27,7 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Dialog } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
   TableCell,
@@ -35,7 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { AdminModalContent } from "@/pages/shared/admin-modal"
 import {
   deleteFeedback,
   deleteFeedbackMany,
@@ -559,11 +566,17 @@ function DeleteFeedbackModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Delete Feedback Item"
-        description="This action cannot be undone."
-        bodyClassName="space-y-3"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Delete Feedback Item</DialogTitle>
+          <DialogDescription>This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete this feedback item?
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -587,12 +600,8 @@ function DeleteFeedbackModal({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete this feedback item?
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -612,11 +621,20 @@ function MassDeleteFeedbackModal({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title={`Delete ${count} Feedback Item${count === 1 ? "" : "s"}`}
-        description="This action cannot be undone."
-        bodyClassName="space-y-3"
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>
+            Delete {count} Feedback Item{count === 1 ? "" : "s"}
+          </DialogTitle>
+          <DialogDescription>This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete {count} feedback item
+            {count === 1 ? "" : "s"}?
+          </p>
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -640,13 +658,8 @@ function MassDeleteFeedbackModal({
               Delete
             </Button>
           </>
-        }
-      >
-        <p className="text-sm text-muted-foreground">
-          Are you sure you want to delete {count} feedback item
-          {count === 1 ? "" : "s"}?
-        </p>
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -723,10 +736,57 @@ function EditFeedbackModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <AdminModalContent
-        title="Edit Feedback"
-        description="Update the message and feedback type."
-        footer={
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Edit Feedback</DialogTitle>
+          <DialogDescription>
+            Update the message and feedback type.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-2">
+            <Label htmlFor="feedback-message">Feedback</Label>
+            <Textarea
+              id="feedback-message"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              className="min-h-40 resize-none text-base"
+              disabled={busy}
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="feedback-type">Type</Label>
+            <Select
+              value={feedbackType}
+              onValueChange={(value) => setFeedbackType(value as FeedbackType)}
+              disabled={busy}
+            >
+              <SelectTrigger id="feedback-type" className="h-9 w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(feedbackTypeLabels).map(([type, label]) => (
+                  <SelectItem key={type} value={type}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {error ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+        </DialogBody>
+        <DialogFooter variant="plain">
           <>
             <Button
               type="button"
@@ -750,50 +810,8 @@ function EditFeedbackModal({
               Save
             </Button>
           </>
-        }
-      >
-        <div className="space-y-2">
-          <Label htmlFor="feedback-message">Feedback</Label>
-          <Textarea
-            id="feedback-message"
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            className="min-h-40 resize-none text-base"
-            disabled={busy}
-            autoFocus
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="feedback-type">Type</Label>
-          <Select
-            value={feedbackType}
-            onValueChange={(value) => setFeedbackType(value as FeedbackType)}
-            disabled={busy}
-          >
-            <SelectTrigger id="feedback-type" className="h-9 w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(feedbackTypeLabels).map(([type, label]) => (
-                <SelectItem key={type} value={type}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {error ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        ) : null}
-      </AdminModalContent>
+        </DialogFooter>
+      </DialogContent>
     </Dialog>
   )
 }
