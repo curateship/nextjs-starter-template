@@ -1,12 +1,18 @@
 import Link from "next/link"
 import { Suspense } from "react"
-import { ArrowUpRight, Edit3, ExternalLink, Settings } from "lucide-react"
+import { ArrowUpRight, Check, ChevronDown, Edit3, ExternalLink, Settings } from "lucide-react"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { ChartGroup7 } from "@/components/admin/layout/dashboard/analytics/chart-group7"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   getSiteDashboardMetrics,
   getSiteForDashboard,
@@ -51,6 +57,41 @@ function normalizeDashboardRange(value?: string | null): DashboardRange {
     : "today"
 }
 
+function DashboardRangeDropdown({
+  siteId,
+  value,
+}: {
+  siteId: string
+  value: DashboardRange
+}) {
+  const selectedOption = rangeOptions.find((option) => option.value === value) ?? rangeOptions[0]
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="min-w-28 justify-between">
+          {selectedOption.label}
+          <ChevronDown className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {rangeOptions.map((option) => (
+          <DropdownMenuItem key={option.value} asChild>
+            <Link
+              className="justify-between"
+              href={`/admin/sites/${siteId}/dashboard?range=${option.value}`}
+              scroll={false}
+            >
+              {option.label}
+              {option.value === value ? <Check className="h-4 w-4" /> : null}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function DashboardRangeTabs({
   siteId,
   value,
@@ -59,8 +100,8 @@ function DashboardRangeTabs({
   value: DashboardRange
 }) {
   return (
-    <Tabs value={value} className="w-full sm:w-auto">
-      <TabsList className="h-8 max-w-full justify-start overflow-x-auto">
+    <Tabs value={value}>
+      <TabsList className="h-8">
         {rangeOptions.map((option) => (
           <TabsTrigger key={option.value} value={option.value} asChild className="h-6 px-2 text-sm">
             <Link
@@ -193,33 +234,41 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
       <AdminLayout>
         <div className="w-full">
           <CardGroup className="grid lg:gap-6">
-            <div className="flex max-w-full flex-col gap-3 overflow-x-auto sm:flex-row sm:items-center sm:justify-between lg:gap-6">
-              <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+            <div className="flex max-w-full items-center justify-between gap-3 lg:gap-6">
+              <div className="sm:hidden">
+                <DashboardRangeDropdown
+                  siteId={siteId}
+                  value={selectedRange}
+                />
+              </div>
+              <div className="hidden sm:block">
+                <DashboardRangeTabs
+                  siteId={siteId}
+                  value={selectedRange}
+                />
+              </div>
+              <div className="flex shrink-0 items-center justify-end gap-2">
                 {siteUrl ? (
                   <Button asChild variant="outline" size="sm">
                     <a href={siteUrl} target="_blank" rel="noopener noreferrer" aria-label="View Site" title="View Site">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      <span>View Site</span>
+                      <ExternalLink className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">View Site</span>
                     </a>
                   </Button>
                 ) : null}
                 <Button asChild variant="outline" size="sm">
                   <Link href={`/admin/sites/${siteId}/settings`} aria-label="Settings" title="Settings">
-                    <Settings className="h-4 w-4 mr-2" />
-                    <span>Settings</span>
+                    <Settings className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Settings</span>
                   </Link>
                 </Button>
                 <Button asChild size="sm">
                   <Link href={`/admin/pages/${siteId}`} aria-label="Site Builder" title="Site Builder">
-                    <Edit3 className="h-4 w-4 mr-2" />
-                    <span>Site Builder</span>
+                    <Edit3 className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Site Builder</span>
                   </Link>
                 </Button>
               </div>
-              <DashboardRangeTabs
-                siteId={siteId}
-                value={selectedRange}
-              />
             </div>
 
             <ChartGroup7
