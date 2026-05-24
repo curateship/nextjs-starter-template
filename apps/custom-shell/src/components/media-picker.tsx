@@ -117,6 +117,15 @@ export function MediaPicker({
       })
   }, [currentMediaUrl, data?.media, searchQuery, showVideos])
 
+  React.useEffect(() => {
+    if (!open || selectedMedia || !currentMediaUrl) return
+
+    const currentMedia = mediaItems.find((item) => item.url === currentMediaUrl)
+    if (currentMedia) {
+      setSelectedMedia(currentMedia)
+    }
+  }, [currentMediaUrl, mediaItems, open, selectedMedia])
+
   function clearUpload() {
     setUploadFile(null)
     setUploadPreview(null)
@@ -305,9 +314,9 @@ export function MediaPicker({
                       type="button"
                       className={cn(
                         "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
-                        selectedMedia?.id === item.id
-                          ? "border-primary ring-2 ring-primary/20"
-                          : "hover:border-muted-foreground/40"
+                          selectedMedia?.id === item.id || currentMediaUrl === item.url
+                            ? "border-primary ring-2 ring-primary/20"
+                            : "hover:border-muted-foreground/40"
                       )}
                       onClick={() => setSelectedMedia(item)}
                     >
@@ -324,7 +333,7 @@ export function MediaPicker({
                         />
                       )}
                       {currentMediaUrl === item.url ? (
-                        <span className="absolute top-2 right-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-medium">
+                        <span className="absolute top-2 right-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
                           Current
                         </span>
                       ) : null}

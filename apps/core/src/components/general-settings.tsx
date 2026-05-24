@@ -1,8 +1,7 @@
 import * as React from "react"
-import { ImageIcon, XIcon } from "lucide-react"
+import { ImageIcon } from "lucide-react"
 
 import { MediaPicker } from "@/components/media-picker"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -56,6 +55,22 @@ export function GeneralSettings({
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="workspace-subheader">Workspace subheader</Label>
+            <Input
+              id="workspace-subheader"
+              value={config.workspacePlan}
+              disabled={isSaving}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  workspacePlan: event.target.value,
+                })
+              }
+              placeholder="Project"
+            />
+          </div>
+
+          <div className="grid gap-2">
             <Label>Favicon</Label>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -78,17 +93,6 @@ export function GeneralSettings({
                   </div>
                 )}
               </button>
-              {favicon ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isSaving}
-                  onClick={() => onConfigChange({ ...config, favicon: "" })}
-                >
-                  <XIcon className="h-4 w-4" />
-                  Clear
-                </Button>
-              ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
               Upload a square image for the browser tab and workspace logo.

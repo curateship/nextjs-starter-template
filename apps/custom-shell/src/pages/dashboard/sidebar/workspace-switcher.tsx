@@ -44,10 +44,12 @@ import { renderShellIcon } from "@/lib/custom-shell"
 export function WorkspaceSwitcher({
   workspaces,
   workspaceName,
+  workspacePlan,
   favicon,
 }: {
   workspaces: WorkspaceItem[]
   workspaceName: string
+  workspacePlan: string
   favicon: string
 }) {
   const router = useRouter()
@@ -55,6 +57,7 @@ export function WorkspaceSwitcher({
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
   const activeWorkspaceName = workspaceName.trim() || activeWorkspace?.name || ""
+  const activeWorkspacePlan = workspacePlan.trim() || "Project"
   const activeFavicon = favicon.trim() || activeWorkspace?.favicon || ""
   const [createOpen, setCreateOpen] = React.useState(false)
   const [name, setName] = React.useState("")
@@ -130,7 +133,7 @@ export function WorkspaceSwitcher({
                   {activeWorkspaceName}
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  Project
+                  {activeWorkspacePlan}
                 </span>
               </Link>
               <DropdownMenu>
@@ -156,6 +159,9 @@ export function WorkspaceSwitcher({
                     const displayName = workspace.active
                       ? activeWorkspaceName
                       : workspace.name
+                    const displayPlan = workspace.active
+                      ? activeWorkspacePlan
+                      : "Project"
                     const workspaceFavicon = workspace.active
                       ? activeFavicon
                       : workspace.favicon
@@ -182,7 +188,7 @@ export function WorkspaceSwitcher({
                         <div className="flex-1">
                           <div className="font-medium">{displayName}</div>
                           <div className="text-xs text-muted-foreground">
-                            Project
+                            {displayPlan}
                           </div>
                         </div>
                         {workspace.active && !busy ? (

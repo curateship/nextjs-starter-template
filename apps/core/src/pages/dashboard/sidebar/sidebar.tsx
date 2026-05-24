@@ -105,6 +105,7 @@ export function AppSidebar({
         <WorkspaceSwitcher
           workspaces={workspaces}
           workspaceName={config.workspaceName}
+          workspacePlan={config.workspacePlan}
           favicon={config.favicon}
         />
       </SidebarHeader>
