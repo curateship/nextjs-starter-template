@@ -18,8 +18,6 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminMediaVideosRouteImport } from './routes/_authenticated/admin/media/videos'
-import { Route as AuthenticatedAdminMediaImagesRouteImport } from './routes/_authenticated/admin/media/images'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
@@ -71,18 +69,6 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
-const AuthenticatedAdminMediaVideosRoute =
-  AuthenticatedAdminMediaVideosRouteImport.update({
-    id: '/videos',
-    path: '/videos',
-    getParentRoute: () => AuthenticatedAdminMediaRoute,
-  } as any)
-const AuthenticatedAdminMediaImagesRoute =
-  AuthenticatedAdminMediaImagesRouteImport.update({
-    id: '/images',
-    path: '/images',
-    getParentRoute: () => AuthenticatedAdminMediaRoute,
-  } as any)
 const AuthenticatedAdminFeedbackCommentsRoute =
   AuthenticatedAdminFeedbackCommentsRouteImport.update({
     id: '/comments',
@@ -100,12 +86,10 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
+  '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
-  '/admin/media/videos': typeof AuthenticatedAdminMediaVideosRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -114,12 +98,10 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
+  '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
-  '/admin/media/videos': typeof AuthenticatedAdminMediaVideosRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -130,12 +112,10 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
+  '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/_authenticated/admin/media/images': typeof AuthenticatedAdminMediaImagesRoute
-  '/_authenticated/admin/media/videos': typeof AuthenticatedAdminMediaVideosRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
@@ -150,8 +130,6 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/admin/feedback/comments'
-    | '/admin/media/images'
-    | '/admin/media/videos'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
@@ -164,8 +142,6 @@ export interface FileRouteTypes {
     | '/admin/notifications'
     | '/admin/settings'
     | '/admin/feedback/comments'
-    | '/admin/media/images'
-    | '/admin/media/videos'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   id:
@@ -179,8 +155,6 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/feedback/comments'
-    | '/_authenticated/admin/media/images'
-    | '/_authenticated/admin/media/videos'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
@@ -256,20 +230,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
-    '/_authenticated/admin/media/videos': {
-      id: '/_authenticated/admin/media/videos'
-      path: '/videos'
-      fullPath: '/admin/media/videos'
-      preLoaderRoute: typeof AuthenticatedAdminMediaVideosRouteImport
-      parentRoute: typeof AuthenticatedAdminMediaRoute
-    }
-    '/_authenticated/admin/media/images': {
-      id: '/_authenticated/admin/media/images'
-      path: '/images'
-      fullPath: '/admin/media/images'
-      preLoaderRoute: typeof AuthenticatedAdminMediaImagesRouteImport
-      parentRoute: typeof AuthenticatedAdminMediaRoute
-    }
     '/_authenticated/admin/feedback/comments': {
       id: '/_authenticated/admin/feedback/comments'
       path: '/comments'
@@ -302,22 +262,6 @@ const AuthenticatedAdminFeedbackRouteWithChildren =
     AuthenticatedAdminFeedbackRouteChildren,
   )
 
-interface AuthenticatedAdminMediaRouteChildren {
-  AuthenticatedAdminMediaImagesRoute: typeof AuthenticatedAdminMediaImagesRoute
-  AuthenticatedAdminMediaVideosRoute: typeof AuthenticatedAdminMediaVideosRoute
-}
-
-const AuthenticatedAdminMediaRouteChildren: AuthenticatedAdminMediaRouteChildren =
-  {
-    AuthenticatedAdminMediaImagesRoute: AuthenticatedAdminMediaImagesRoute,
-    AuthenticatedAdminMediaVideosRoute: AuthenticatedAdminMediaVideosRoute,
-  }
-
-const AuthenticatedAdminMediaRouteWithChildren =
-  AuthenticatedAdminMediaRoute._addFileChildren(
-    AuthenticatedAdminMediaRouteChildren,
-  )
-
 interface AuthenticatedAdminSettingsRouteChildren {
   AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
 }
@@ -336,7 +280,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
-  AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRouteWithChildren
+  AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
 }
@@ -345,7 +289,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
-  AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRouteWithChildren,
+  AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
 }

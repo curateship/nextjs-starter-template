@@ -70,12 +70,6 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 })
 
-export function getMediaTabFromPath(path: string): MediaTabId {
-  if (path === "/admin/media/images") return "images"
-  if (path === "/admin/media/videos") return "videos"
-  return "all"
-}
-
 export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [error, setError] = React.useState<string | null>(null)
