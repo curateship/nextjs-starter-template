@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
+import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
@@ -7,6 +8,7 @@ import type { ShellConfig } from "@/lib/custom-shell"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
 
 const settingsTabs = [
+  { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
 ] as const
@@ -18,7 +20,7 @@ export function getSettingsTabFromPath(path: string): SettingsTabId {
   const segment = path.replace(/^\/admin\/settings\/?/, "")
   return settingsTabs.some((tab) => tab.id === segment)
     ? (segment as SettingsTabId)
-    : "sidebar"
+    : "general"
 }
 
 export function SettingsPage({
@@ -92,6 +94,13 @@ export function SettingsPage({
         </nav>
 
         <div className="min-w-0 flex-1">
+          {activeTab === "general" ? (
+            <GeneralSettings
+              config={config}
+              isSaving={isSaving}
+              onConfigChange={onConfigChange}
+            />
+          ) : null}
           {activeTab === "sidebar" ? (
             <SidebarSettings
               config={config}
@@ -130,7 +139,7 @@ function SettingsTabLink({
       : "text-muted-foreground hover:text-foreground"
   )
 
-  if (tabId === "sidebar") {
+  if (tabId === "general") {
     return (
       <Link to="/admin/settings" className={className}>
         {label}

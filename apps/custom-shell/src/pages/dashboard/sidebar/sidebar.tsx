@@ -4,6 +4,7 @@ import * as React from "react"
 import { useNavigate, useRouterState } from "@tanstack/react-router"
 
 import { UserDropdown } from "@/pages/dashboard/sidebar/user-dropdown"
+import { PrivateMediaImage } from "@/components/private-media-image"
 import {
   SidebarCollapsible,
   type SidebarGroupEntry,
@@ -93,12 +94,22 @@ export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps
 
   const teams = [
     {
+      id: "workspace",
       name: config.workspaceName,
-      logo: renderShellIcon("briefcaseBusiness"),
+      logo: config.favicon ? (
+        <PrivateMediaImage
+          src={config.favicon}
+          alt={`${config.workspaceName || "Workspace"} favicon`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        renderShellIcon("briefcaseBusiness")
+      ),
       plan: config.workspacePlan,
       href: "/",
     },
     {
+      id: "hub-baseline",
       name: "Hub baseline",
       logo: renderShellIcon("globe"),
       plan: "Reference",

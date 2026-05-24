@@ -68,6 +68,7 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
+  favicon: z.string(),
   topNavigation: z.array(
     z.object({
       id: z.string().min(1),

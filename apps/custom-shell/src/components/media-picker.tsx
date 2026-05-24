@@ -14,6 +14,7 @@ import { PrivateMediaImage } from "@/components/private-media-image"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -185,184 +186,186 @@ export function MediaPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] gap-4 overflow-hidden sm:max-w-3xl">
+      <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>{showVideos ? "Select Media" : "Select Image"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="relative min-w-0 flex-1">
-              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search media"
-                className="pl-9"
-              />
+        <DialogBody>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search media"
+                  className="pl-9"
+                />
+              </div>
+
+              {showVideos ? (
+                <Select value={filterType} onValueChange={handleFilterChange}>
+                  <SelectTrigger className="w-full sm:w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="image">Images</SelectItem>
+                    <SelectItem value="video">Videos</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              <Button asChild>
+                <label>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept={
+                      showVideos
+                        ? [...imageTypes, ...videoTypes].join(",")
+                        : imageTypes.join(",")
+                    }
+                    onChange={handleFileSelect}
+                  />
+                  <UploadIcon className="size-4" />
+                  Upload
+                </label>
+              </Button>
             </div>
 
-            {showVideos ? (
-              <Select value={filterType} onValueChange={handleFilterChange}>
-                <SelectTrigger className="w-full sm:w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
-                  <SelectItem value="video">Videos</SelectItem>
-                </SelectContent>
-              </Select>
+            {error ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
             ) : null}
 
-            <Button asChild>
-              <label>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept={
-                    showVideos
-                      ? [...imageTypes, ...videoTypes].join(",")
-                      : imageTypes.join(",")
-                  }
-                  onChange={handleFileSelect}
-                />
-                <UploadIcon className="size-4" />
-                Upload
-              </label>
-            </Button>
-          </div>
-
-          {error ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          ) : null}
-
-          {uploadFile ? (
-            <div className="rounded-lg border bg-muted/30 p-3">
-              <div className="flex gap-3">
-                <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-md bg-background">
-                  {uploadPreview && uploadFile.type.startsWith("video/") ? (
-                    <>
-                      <video src={uploadPreview} className="h-full w-full object-contain" muted />
-                      <PlayIcon className="absolute size-5 text-white drop-shadow" />
-                    </>
-                  ) : uploadPreview ? (
-                    <img src={uploadPreview} alt="" className="h-full w-full object-contain" />
-                  ) : (
-                    <ImageIcon className="size-6 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{uploadFile.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatFileSize(uploadFile.size)}</p>
+            {uploadFile ? (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <div className="flex gap-3">
+                  <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-md bg-background">
+                    {uploadPreview && uploadFile.type.startsWith("video/") ? (
+                      <>
+                        <video src={uploadPreview} className="h-full w-full object-contain" muted />
+                        <PlayIcon className="absolute size-5 text-white drop-shadow" />
+                      </>
+                    ) : uploadPreview ? (
+                      <img src={uploadPreview} alt="" className="h-full w-full object-contain" />
+                    ) : (
+                      <ImageIcon className="size-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{uploadFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(uploadFile.size)}</p>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon-sm" onClick={clearUpload}>
+                        <XIcon className="size-4" />
+                        <span className="sr-only">Clear upload</span>
+                      </Button>
                     </div>
-                    <Button type="button" variant="ghost" size="icon-sm" onClick={clearUpload}>
-                      <XIcon className="size-4" />
-                      <span className="sr-only">Clear upload</span>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="media-picker-alt-text">
+                        {uploadFile.type.startsWith("video/") ? "Description" : "Alt text"}
+                      </Label>
+                      <Input
+                        id="media-picker-alt-text"
+                        value={altText}
+                        onChange={(event) => setAltText(event.target.value)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <Button type="button" onClick={handleUpload} disabled={uploading}>
+                      {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+                      {uploading ? "Uploading" : "Upload and select"}
                     </Button>
                   </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="media-picker-alt-text">
-                      {uploadFile.type.startsWith("video/") ? "Description" : "Alt text"}
-                    </Label>
-                    <Input
-                      id="media-picker-alt-text"
-                      value={altText}
-                      onChange={(event) => setAltText(event.target.value)}
-                      placeholder="Optional"
-                    />
+                </div>
+              </div>
+            ) : null}
+
+            <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
+              {loading ? (
+                <MediaGridSkeleton count={8} />
+              ) : mediaItems.length === 0 ? (
+                <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
+                  <div>
+                    <ImageIcon className="mx-auto mb-3 size-10" />
+                    <p>No media found.</p>
                   </div>
-                  <Button type="button" onClick={handleUpload} disabled={uploading}>
-                    {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-                    {uploading ? "Uploading" : "Upload and select"}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                  {mediaItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={cn(
+                        "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
+                        selectedMedia?.id === item.id
+                          ? "border-primary ring-2 ring-primary/20"
+                          : "hover:border-muted-foreground/40"
+                      )}
+                      onClick={() => setSelectedMedia(item)}
+                    >
+                      {item.file_type === "video" ? (
+                        <div className="relative h-full w-full bg-black">
+                          <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
+                          <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
+                        </div>
+                      ) : (
+                        <PrivateMediaImage
+                          src={item.url}
+                          alt={item.alt_text ?? item.original_name}
+                          className="h-full w-full object-contain"
+                        />
+                      )}
+                      {currentMediaUrl === item.url ? (
+                        <span className="absolute top-2 right-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-medium">
+                          Current
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {data && data.total_pages > 1 ? (
+              <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                <span>
+                  Page {data.page} of {data.total_pages}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= data.total_pages}
+                    onClick={() => setCurrentPage((page) => page + 1)}
+                  >
+                    Next
                   </Button>
                 </div>
               </div>
-            </div>
-          ) : null}
-
-          <div className="min-h-[260px] overflow-y-auto rounded-lg border p-3">
-            {loading ? (
-              <MediaGridSkeleton count={8} />
-            ) : mediaItems.length === 0 ? (
-              <div className="grid h-56 place-items-center text-center text-sm text-muted-foreground">
-                <div>
-                  <ImageIcon className="mx-auto mb-3 size-10" />
-                  <p>No media found.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                {mediaItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={cn(
-                      "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
-                      selectedMedia?.id === item.id
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "hover:border-muted-foreground/40"
-                    )}
-                    onClick={() => setSelectedMedia(item)}
-                  >
-                    {item.file_type === "video" ? (
-                      <div className="relative h-full w-full bg-black">
-                        <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
-                        <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
-                      </div>
-                    ) : (
-                      <PrivateMediaImage
-                        src={item.url}
-                        alt={item.alt_text ?? item.original_name}
-                        className="h-full w-full object-contain"
-                      />
-                    )}
-                    {currentMediaUrl === item.url ? (
-                      <span className="absolute top-2 right-2 rounded bg-background px-1.5 py-0.5 text-[10px] font-medium">
-                        Current
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            )}
+            ) : null}
           </div>
+        </DialogBody>
 
-          {data && data.total_pages > 1 ? (
-            <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-              <span>
-                Page {data.page} of {data.total_pages}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage >= data.total_pages}
-                  onClick={() => setCurrentPage((page) => page + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <DialogFooter>
+        <DialogFooter variant="plain">
           {currentMediaUrl ? (
             <Button
               type="button"

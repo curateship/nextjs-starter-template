@@ -199,6 +199,7 @@ export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
+  favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
@@ -216,6 +217,7 @@ export function createDefaultShellConfig(): ShellConfig {
     appName: "",
     workspaceName: "",
     workspacePlan: "",
+    favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],

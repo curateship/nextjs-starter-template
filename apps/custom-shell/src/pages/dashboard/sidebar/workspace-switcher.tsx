@@ -18,18 +18,28 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
+type WorkspaceTeam = {
+  id: string
+  name: string
+  logo: React.ReactNode
+  plan: string
+  href?: string
+}
+
 export function WorkspaceSwitcher({
   teams,
 }: {
-  teams: {
-    name: string
-    logo: React.ReactNode
-    plan: string
-    href?: string
-  }[]
+  teams: WorkspaceTeam[]
 }) {
   const { isMobile } = useSidebar()
-  const [activeTeam, setActiveTeam] = React.useState(teams[0])
+  const [activeTeamId, setActiveTeamId] = React.useState(teams[0]?.id)
+  const activeTeam = teams.find((team) => team.id === activeTeamId) ?? teams[0]
+
+  React.useEffect(() => {
+    if (!teams.some((team) => team.id === activeTeamId)) {
+      setActiveTeamId(teams[0]?.id)
+    }
+  }, [activeTeamId, teams])
 
   if (!activeTeam) {
     return null
@@ -76,8 +86,8 @@ export function WorkspaceSwitcher({
                 </DropdownMenuLabel>
                 {teams.map((team) => (
                   <DropdownMenuItem
-                    key={team.name}
-                    onClick={() => setActiveTeam(team)}
+                    key={team.id}
+                    onClick={() => setActiveTeamId(team.id)}
                     className="gap-2 p-2"
                   >
                     <div className="flex size-6 items-center justify-center rounded-md border border-border">

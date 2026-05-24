@@ -64,6 +64,8 @@ export function ShellLayout({
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
   const lastSettingsRef = React.useRef(settings)
 
+  useShellFavicon(config.favicon)
+
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
       return
@@ -203,6 +205,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
@@ -213,6 +216,65 @@ function normalizeConfig(settings: ShellConfig | null) {
       ? settings.sections
       : fallback.sections,
   }
+}
+
+function useShellFavicon(favicon: string) {
+  React.useEffect(() => {
+    const href = favicon.trim()
+    const currentLink = document.querySelector<HTMLLinkElement>(
+      'link[data-custom-shell-favicon="true"]'
+    )
+
+    if (!href) {
+      currentLink?.remove()
+      return
+    }
+
+    let cancelled = false
+    let objectUrl: string | null = null
+
+    const setIcon = (url: string) => {
+      if (cancelled) return
+      const link = getOrCreateShellFaviconLink()
+      link.href = url
+    }
+
+    if (href.startsWith("/api/v1/media/")) {
+      fetch(href, { credentials: "same-origin" })
+        .then((response) => {
+          if (!response.ok) throw new Error("Failed to load favicon")
+          return response.blob()
+        })
+        .then((blob) => {
+          if (cancelled) return
+          objectUrl = URL.createObjectURL(blob)
+          setIcon(objectUrl)
+        })
+        .catch(() => undefined)
+    } else {
+      setIcon(href)
+    }
+
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [favicon])
+}
+
+function getOrCreateShellFaviconLink() {
+  const existing = document.querySelector<HTMLLinkElement>(
+    'link[data-custom-shell-favicon="true"]'
+  )
+  if (existing) {
+    return existing
+  }
+
+  const link = document.createElement("link")
+  link.rel = "icon"
+  link.setAttribute("data-custom-shell-favicon", "true")
+  document.head.appendChild(link)
+  return link
 }
 
 function getShellItems(config: ShellConfig) {
