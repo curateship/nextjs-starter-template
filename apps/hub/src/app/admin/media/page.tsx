@@ -427,56 +427,70 @@ export default function ImagesPage() {
               ) : (
                 <div className="px-5 pt-3 pb-5">
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-                    {sortedImages.map((media) => (
-                      <div key={media.id} className="group relative aspect-[3/4] overflow-hidden rounded-lg border bg-muted">
-                        {media.file_type === "video" ? (
-                          <div className="relative h-full w-full bg-black">
-                            <video
-                              key={media.id}
-                              src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
-                              className="h-full w-full object-contain"
-                              muted
-                              playsInline
-                              preload="metadata"
-                              onLoadedMetadata={(e) => {
-                                e.currentTarget.currentTime = 0.1
-                              }}
-                            />
-                            <div className="absolute left-2 top-2">
-                              <VideoIcon className="h-4 w-4 text-white drop-shadow-lg" />
-                            </div>
+                    {sortedImages.map((media) => {
+                      const isSelected = mediaSelection.selectedIds.has(media.id)
+                      return (
+                        <div
+                          key={media.id}
+                          className={`group relative aspect-[3/4] overflow-hidden rounded-lg border bg-muted ${isSelected ? "ring-2 ring-primary/25" : ""}`}
+                        >
+                          <button
+                            type="button"
+                            className="relative block h-full w-full"
+                            onClick={() => mediaSelection.toggleOne(media.id)}
+                            aria-pressed={isSelected}
+                            aria-label={`Select ${media.original_name}`}
+                          >
+                            {media.file_type === "video" ? (
+                              <div className="relative h-full w-full bg-black">
+                                <video
+                                  key={media.id}
+                                  src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                                  className="h-full w-full object-contain"
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  onLoadedMetadata={(e) => {
+                                    e.currentTarget.currentTime = 0.1
+                                  }}
+                                />
+                                <div className="absolute left-2 top-2">
+                                  <VideoIcon className="h-4 w-4 text-white drop-shadow-lg" />
+                                </div>
+                              </div>
+                            ) : (
+                              <Image
+                                src={media.public_url}
+                                alt={media.alt_text || media.original_name}
+                                fill
+                                className="object-contain"
+                                sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
+                              />
+                            )}
+                          </button>
+                          <div className="absolute right-2 bottom-2 flex gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleEditImage(media)}
+                              className="h-8 w-8 cursor-pointer p-0"
+                              aria-label="Edit media"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteImage(media)}
+                              className="h-8 w-8 cursor-pointer p-0 text-destructive hover:text-destructive"
+                              aria-label="Delete media"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        ) : (
-                          <Image
-                            src={media.public_url}
-                            alt={media.alt_text || media.original_name}
-                            fill
-                            className="object-contain"
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
-                          />
-                        )}
-                        <div className="absolute right-2 bottom-2 flex gap-1 rounded-md bg-background/90 p-1 shadow-sm">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditImage(media)}
-                            className="h-8 w-8 cursor-pointer p-0"
-                            aria-label="Edit media"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteImage(media)}
-                            className="h-8 w-8 cursor-pointer p-0 text-destructive hover:text-destructive"
-                            aria-label="Delete media"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )
