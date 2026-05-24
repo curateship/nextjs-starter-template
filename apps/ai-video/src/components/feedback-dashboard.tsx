@@ -288,36 +288,6 @@ export function FeedbackDashboard({
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PeriodTabs
-          activePeriod={periodFilter}
-          onPeriodChange={setPeriodFilter}
-        />
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {selectedIds.size ? (
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
-              onClick={() => setMassDeleteOpen(true)}
-              disabled={massDeleting}
-            >
-              {massDeleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="size-4" />
-              )}
-              Delete ({selectedIds.size})
-            </DashboardToolbarButton>
-          ) : null}
-          <DashboardToolbarButton
-            type="button"
-            onClick={onOpenFeedback}
-          >
-            <MessageSquarePlusIcon className="size-4" />
-            New feedback
-          </DashboardToolbarButton>
-        </div>
-      </div>
       {error ? (
         <div
           role="alert"
@@ -336,6 +306,11 @@ export function FeedbackDashboard({
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
+            <PeriodTabs
+              activePeriod={periodFilter}
+              onPeriodChange={setPeriodFilter}
+            />
+
             <DashboardToolbarSearch
               name="feedback-search"
               aria-label="Search feedback"
@@ -379,6 +354,29 @@ export function FeedbackDashboard({
                 ))}
               </SelectContent>
             </Select>
+
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
+            <DashboardToolbarButton
+              type="button"
+              onClick={onOpenFeedback}
+            >
+              <MessageSquarePlusIcon className="size-4" />
+              New feedback
+            </DashboardToolbarButton>
           </>
         }
         header={

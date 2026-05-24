@@ -2079,7 +2079,7 @@ const DashboardContent = () => {
     <div
       id="dashboard-main"
       tabIndex={-1}
-      className="w-full flex-1 space-y-4 overflow-auto bg-background p-3 sm:space-y-6 sm:p-4 md:p-6"
+      className="w-full flex-1 space-y-4 overflow-auto bg-background sm:space-y-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <PeriodTabs activePeriod={period} onPeriodChange={setPeriod} />

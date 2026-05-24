@@ -124,30 +124,23 @@ export function WorkspacesDashboard({
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Workspaces</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your private project workspaces.
-          </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 w-fit gap-2 sm:h-9"
-          onClick={openCreateForm}
-        >
-          <PlusIcon className="size-4" />
-          Add Workspace
-        </Button>
-      </div>
-
       {error ? <Message>{error}</Message> : null}
 
       <DashboardTable
         title="Projects"
         icon={renderShellIcon("briefcaseBusiness", "size-4 text-muted-foreground sm:size-[18px]")}
         count={workspaces.length}
+        controls={
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 w-fit gap-2 sm:h-9"
+            onClick={openCreateForm}
+          >
+            <PlusIcon className="size-4" />
+            Add Workspace
+          </Button>
+        }
         header={
           <TableHeader>
             <TableRow>

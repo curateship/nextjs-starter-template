@@ -107,21 +107,6 @@ export function VideosPage() {
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">UGC Ad Video</h1>
-          <p className="text-sm text-muted-foreground">
-            Create and manage vertical short-form UGC ad videos.
-          </p>
-        </div>
-        <Button asChild size="sm" className="h-8 gap-2 sm:h-9">
-          <Link to="/admin/modules/ugc-ad-video/create">
-            <PlusIcon className="size-4" />
-            New Video
-          </Link>
-        </Button>
-      </div>
-
       <DashboardTable
         title="Generated videos"
         icon={<LibraryIcon className="size-5" />}
@@ -156,6 +141,12 @@ export function VideosPage() {
                 <SelectItem value="failed">Failed</SelectItem>
               </SelectContent>
             </Select>
+            <DashboardToolbarButton asChild>
+              <Link to="/admin/modules/ugc-ad-video/create">
+                <PlusIcon className="size-4" />
+                New Video
+              </Link>
+            </DashboardToolbarButton>
           </>
         }
         footer={{
@@ -322,53 +313,43 @@ export function GenerationResultPage({ generationId }: { generationId: string })
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <Button asChild variant="link" size="sm" className="h-auto p-0">
-            <Link to="/admin/modules/ugc-ad-video">UGC Ad Video</Link>
-          </Button>
-          <h1 className="font-heading text-xl font-semibold">Video result</h1>
-          <p className="text-sm text-muted-foreground">
-            {generation
-              ? `${generation.provider} / ${generation.model}`
-              : "Loading generation..."}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
-            disabled={!generation || refreshMutation.isPending}
-            onClick={() => refreshMutation.mutate()}
-          >
-            {refreshMutation.isPending ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <RefreshCwIcon className="size-4" />
-            )}
-            Refresh
-          </Button>
-          {generation?.status === "failed" ? (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 gap-2 sm:h-9"
-              disabled={retryMutation.isPending}
-              onClick={() => retryMutation.mutate()}
-            >
-              <RotateCcwIcon className="size-4" />
-              Retry
-            </Button>
-          ) : null}
-        </div>
+      <div className="mb-4">
+        <Button asChild variant="link" size="sm" className="h-auto p-0">
+          <Link to="/admin/modules/ugc-ad-video">UGC Ad Video</Link>
+        </Button>
       </div>
 
       <DashboardTable
-        title="Result"
+        title="Video result"
         count={generation ? 1 : 0}
         status={error ? { tone: "error", text: error } : null}
+        controls={
+          <>
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              disabled={!generation || refreshMutation.isPending}
+              onClick={() => refreshMutation.mutate()}
+            >
+              {refreshMutation.isPending ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <RefreshCwIcon className="size-4" />
+              )}
+              Refresh
+            </DashboardToolbarButton>
+            {generation?.status === "failed" ? (
+              <DashboardToolbarButton
+                type="button"
+                disabled={retryMutation.isPending}
+                onClick={() => retryMutation.mutate()}
+              >
+                <RotateCcwIcon className="size-4" />
+                Retry
+              </DashboardToolbarButton>
+            ) : null}
+          </>
+        }
         header={
           <TableHeader>
             <TableRow>

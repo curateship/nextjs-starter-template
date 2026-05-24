@@ -183,13 +183,9 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            {isDashboardPath(config, currentPath) ? (
+            <DashboardContent>
               <Outlet />
-            ) : (
-              <DashboardContent>
-                <Outlet />
-              </DashboardContent>
-            )}
+            </DashboardContent>
           </SidebarInset>
         </SidebarProvider>
         <FeedbackModal

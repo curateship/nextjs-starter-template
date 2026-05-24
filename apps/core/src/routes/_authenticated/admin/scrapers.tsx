@@ -38,14 +38,6 @@ function ScrapersRoute() {
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Scrapers</h1>
-          <p className="text-sm text-muted-foreground">
-            Registered scraper modules.
-          </p>
-        </div>
-      </div>
       <DashboardTable
         title="Modules"
         icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}

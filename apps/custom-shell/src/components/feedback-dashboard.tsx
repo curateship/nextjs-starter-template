@@ -16,10 +16,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
-  dashboardToolbarSegmentedButtonActiveClassName,
-  dashboardToolbarSegmentedButtonClassName,
-  dashboardToolbarSegmentedButtonInactiveClassName,
-  dashboardToolbarSegmentedGroupClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
@@ -56,7 +52,6 @@ import {
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
-import { cn } from "@/lib/utils"
 
 const feedbackTypeLabels: Record<FeedbackType, string> = {
   suggestion: "Suggestion",
@@ -86,14 +81,7 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
 
 const pageSizeOptions = [10, 25, 50]
 
-type FeedbackPeriod = "1year" | "3months" | "30days"
 type FeedbackSort = "recent" | "most_votes" | "most_comments"
-
-const feedbackPeriodLabels: Record<FeedbackPeriod, string> = {
-  "1year": "1 Year",
-  "3months": "3 Months",
-  "30days": "30 Days",
-}
 
 const feedbackSortLabels: Record<FeedbackSort, string> = {
   recent: "Recent",
@@ -120,8 +108,6 @@ export function FeedbackDashboard({
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [sortFilter, setSortFilter] = React.useState<FeedbackSort>("recent")
-  const [periodFilter, setPeriodFilter] =
-    React.useState<FeedbackPeriod>("1year")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
   const [loading, setLoading] = React.useState(true)
@@ -161,15 +147,13 @@ export function FeedbackDashboard({
 
   const filteredFeedback = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
-    const periodStart = getPeriodStart(periodFilter)
     const matches = feedback.filter((item) => {
       const matchesSearch =
         !query ||
         item.message.toLowerCase().includes(query) ||
         item.author_name.toLowerCase().includes(query)
       const matchesType = typeFilter === "all" || item.type === typeFilter
-      const matchesPeriod = new Date(item.created_at) >= periodStart
-      return matchesSearch && matchesType && matchesPeriod
+      return matchesSearch && matchesType
     })
 
     return matches.sort((a, b) => {
@@ -183,7 +167,7 @@ export function FeedbackDashboard({
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       )
     })
-  }, [feedback, periodFilter, searchQuery, sortFilter, typeFilter])
+  }, [feedback, searchQuery, sortFilter, typeFilter])
 
   const totalPages = Math.ceil(filteredFeedback.length / pageSize)
   const paginatedFeedback = React.useMemo(() => {
@@ -206,7 +190,7 @@ export function FeedbackDashboard({
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, periodFilter, sortFilter, typeFilter, pageSize])
+  }, [searchQuery, sortFilter, typeFilter, pageSize])
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
@@ -288,36 +272,6 @@ export function FeedbackDashboard({
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PeriodTabs
-          activePeriod={periodFilter}
-          onPeriodChange={setPeriodFilter}
-        />
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {selectedIds.size ? (
-            <DashboardToolbarButton
-              type="button"
-              variant="destructive"
-              onClick={() => setMassDeleteOpen(true)}
-              disabled={massDeleting}
-            >
-              {massDeleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="size-4" />
-              )}
-              Delete ({selectedIds.size})
-            </DashboardToolbarButton>
-          ) : null}
-          <DashboardToolbarButton
-            type="button"
-            onClick={onOpenFeedback}
-          >
-            <MessageSquarePlusIcon className="size-4" />
-            New feedback
-          </DashboardToolbarButton>
-        </div>
-      </div>
       {error ? (
         <div
           role="alert"
@@ -379,6 +333,29 @@ export function FeedbackDashboard({
                 ))}
               </SelectContent>
             </Select>
+
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
+            <DashboardToolbarButton
+              type="button"
+              onClick={onOpenFeedback}
+            >
+              <MessageSquarePlusIcon className="size-4" />
+              New feedback
+            </DashboardToolbarButton>
           </>
         }
         header={
@@ -817,49 +794,4 @@ function EditFeedbackModal({
       </DialogContent>
     </Dialog>
   )
-}
-
-function PeriodTabs({
-  activePeriod,
-  onPeriodChange,
-}: {
-  activePeriod: FeedbackPeriod
-  onPeriodChange: (period: FeedbackPeriod) => void
-}) {
-  return (
-    <div className={dashboardToolbarSegmentedGroupClassName}>
-      {(Object.keys(feedbackPeriodLabels) as FeedbackPeriod[]).map((key) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => onPeriodChange(key)}
-          className={cn(
-            dashboardToolbarSegmentedButtonClassName,
-            activePeriod === key
-              ? dashboardToolbarSegmentedButtonActiveClassName
-              : dashboardToolbarSegmentedButtonInactiveClassName
-          )}
-        >
-          {feedbackPeriodLabels[key]}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function getPeriodStart(period: FeedbackPeriod) {
-  const date = new Date()
-
-  if (period === "30days") {
-    date.setDate(date.getDate() - 30)
-    return date
-  }
-
-  if (period === "3months") {
-    date.setMonth(date.getMonth() - 3)
-    return date
-  }
-
-  date.setFullYear(date.getFullYear() - 1)
-  return date
 }

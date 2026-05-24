@@ -262,28 +262,6 @@ export function FeedbackCommentsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PeriodTabs
-          activePeriod={periodFilter}
-          onPeriodChange={setPeriodFilter}
-        />
-        {selectedIds.size ? (
-          <DashboardToolbarButton
-            type="button"
-            variant="destructive"
-            onClick={() => setMassDeleteOpen(true)}
-            disabled={massDeleting}
-          >
-            {massDeleting ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <Trash2Icon className="size-4" />
-            )}
-            Delete ({selectedIds.size})
-          </DashboardToolbarButton>
-        ) : null}
-      </div>
-
       {error ? (
         <div
           role="alert"
@@ -302,6 +280,11 @@ export function FeedbackCommentsDashboard() {
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
+            <PeriodTabs
+              activePeriod={periodFilter}
+              onPeriodChange={setPeriodFilter}
+            />
+
             <DashboardToolbarSearch
               name="comment-search"
               aria-label="Search comments"
@@ -326,6 +309,22 @@ export function FeedbackCommentsDashboard() {
                 ))}
               </SelectContent>
             </Select>
+
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
           </>
         }
         header={

@@ -114,17 +114,6 @@ export function NotificationsPage({
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Notifications
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            All feedback notification activity across users.
-          </p>
-        </div>
-      </div>
-
       {error ? (
         <div
           role="alert"

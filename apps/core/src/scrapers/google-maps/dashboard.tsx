@@ -48,7 +48,7 @@ import {
   scraperError,
   startGoogleMapsRun,
 } from "@/scrapers/google-maps/api"
-import { importedCount, parseRunInput } from "@/scrapers/google-maps/schema"
+import { parseRunInput } from "@/scrapers/google-maps/schema"
 import type { ScraperRunItem, ScraperRunStatus } from "@/scrapers/types"
 
 type RunForm = {
@@ -139,25 +139,6 @@ export function GoogleMapsDashboard() {
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Google Maps</h1>
-          <p className="text-sm text-muted-foreground">Saved Apify searches.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm" className="h-8 gap-2 sm:h-9">
-            <Link to="/admin/settings/$tab" params={{ tab: "scrapers" }}>
-              <SettingsIcon className="size-4" />
-              Settings
-            </Link>
-          </Button>
-          <Button size="sm" className="h-8 gap-2 sm:h-9" onClick={() => edit()}>
-            <PlusIcon className="size-4" />
-            New Run
-          </Button>
-        </div>
-      </div>
-
       <DashboardTable
         title="Runs"
         icon={<MapPinnedIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
@@ -174,6 +155,16 @@ export function GoogleMapsDashboard() {
                 {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button asChild variant="outline" size="sm" className="h-8 gap-2 sm:h-9">
+              <Link to="/admin/settings/$tab" params={{ tab: "scrapers" }}>
+                <SettingsIcon className="size-4" />
+                Settings
+              </Link>
+            </Button>
+            <Button size="sm" className="h-8 gap-2 sm:h-9" onClick={() => edit()}>
+              <PlusIcon className="size-4" />
+              New Run
+            </Button>
           </>
         }
         header={
@@ -288,7 +279,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     void load()
   }, [load])
 
-  const runInput = data?.run ? parseRunInput(data.run.input) : null
   const results = (data?.results ?? []).filter((result) => {
     const term = query.trim().toLowerCase()
     const row = result.data
@@ -312,26 +302,23 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <Button asChild variant="link" size="sm" className="h-auto p-0"><Link to="/admin/scrapers/google-maps">Google Maps</Link></Button>
-          <h1 className="font-heading text-xl font-semibold">{data?.run.name ?? "Run"}</h1>
-          <p className="text-sm text-muted-foreground">
-            {runInput ? `${runInput.keyword} in ${runInput.location}` : ""}
-            {data?.latest_execution ? ` · ${data.latest_execution.status} · ${importedCount(data.latest_execution.stats)} results` : ""}
-          </p>
-        </div>
-        <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={!data || data.run.status !== "active"} onClick={() => void startOrRefresh()}>
-          {data?.latest_execution && ["queued", "running"].includes(data.latest_execution.status) ? <RefreshCwIcon className="size-4" /> : <PlayIcon className="size-4" />}
-          {data?.latest_execution && ["queued", "running"].includes(data.latest_execution.status) ? "Refresh" : "Run now"}
-        </Button>
+      <div className="mb-4">
+        <Button asChild variant="link" size="sm" className="h-auto p-0"><Link to="/admin/scrapers/google-maps">Google Maps</Link></Button>
       </div>
 
       <DashboardTable
-        title="Results"
+        title={data?.run.name ?? "Results"}
         count={results.length}
         status={message}
-        controls={<DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />}
+        controls={
+          <>
+            <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />
+            <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={!data || data.run.status !== "active"} onClick={() => void startOrRefresh()}>
+              {data?.latest_execution && ["queued", "running"].includes(data.latest_execution.status) ? <RefreshCwIcon className="size-4" /> : <PlayIcon className="size-4" />}
+              {data?.latest_execution && ["queued", "running"].includes(data.latest_execution.status) ? "Refresh" : "Run now"}
+            </Button>
+          </>
+        }
         header={
           <TableHeader>
             <TableRow>

@@ -40,7 +40,7 @@ function TableSurface({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="table-surface"
       className={cn(
-        "mt-4 overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10 sm:mt-6",
+        "overflow-hidden rounded-xl bg-card text-card-foreground ring-1 ring-foreground/10",
         className
       )}
       {...props}

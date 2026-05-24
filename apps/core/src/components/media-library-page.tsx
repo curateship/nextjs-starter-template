@@ -232,69 +232,70 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     }
   }
 
+  const mediaControls = (
+    <>
+      <DashboardToolbarSearch
+        name="media-search"
+        aria-label="Search media"
+        placeholder="Search media..."
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.target.value)}
+      />
+      {selectedIds.size > 0 ? (
+        <DashboardSelectedActionButton
+          type="button"
+          variant="destructive"
+          onClick={() => setDeleteIds(Array.from(selectedIds))}
+        >
+          <Trash2Icon className="size-4" />
+          Delete {selectedIds.size}
+        </DashboardSelectedActionButton>
+      ) : null}
+      <div className="flex rounded-lg border">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "h-8 rounded-r-none",
+            viewMode === "list" &&
+              "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+          )}
+          onClick={() => setViewMode("list")}
+          aria-label="List view"
+        >
+          <ListIcon className="size-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "h-8 rounded-l-none",
+            viewMode === "gallery" &&
+              "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+          )}
+          onClick={() => setViewMode("gallery")}
+          aria-label="Gallery view"
+        >
+          <GridIcon className="size-4" />
+        </Button>
+      </div>
+      <Button
+        type="button"
+        size="sm"
+        className="h-8 gap-2 sm:h-9"
+        disabled={uploading}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+        {uploading ? "Uploading" : "Upload Media"}
+      </Button>
+    </>
+  )
+
   return (
     <div className="w-full pb-8">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Media Library</h1>
-          <p className="text-sm text-muted-foreground">
-            Upload, organize, and reuse images and videos.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedIds.size > 0 ? (
-            <DashboardSelectedActionButton
-              type="button"
-              variant="destructive"
-              onClick={() => setDeleteIds(Array.from(selectedIds))}
-            >
-              <Trash2Icon className="size-4" />
-              Delete {selectedIds.size}
-            </DashboardSelectedActionButton>
-          ) : null}
-          <div className="flex rounded-lg border">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-8 rounded-r-none",
-                viewMode === "list" &&
-                  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
-              )}
-              onClick={() => setViewMode("list")}
-              aria-label="List view"
-            >
-              <ListIcon className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-8 rounded-l-none",
-                viewMode === "gallery" &&
-                  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
-              )}
-              onClick={() => setViewMode("gallery")}
-              aria-label="Gallery view"
-            >
-              <GridIcon className="size-4" />
-            </Button>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {uploading ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
-            {uploading ? "Uploading" : "Upload Media"}
-          </Button>
-        </div>
-      </div>
-
       <input
         ref={fileInputRef}
         type="file"
@@ -324,15 +325,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           title={getTabTitle(activeTab)}
           icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={data?.total ?? 0}
-          controls={
-            <DashboardToolbarSearch
-              name="media-search"
-              aria-label="Search media"
-              placeholder="Search media..."
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          }
+          controls={mediaControls}
           content={
             <div className="p-4">
               {visibleMedia.length === 0 ? (
@@ -369,15 +362,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           title={getTabTitle(activeTab)}
           icon={<ImageIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={data?.total ?? 0}
-          controls={
-            <DashboardToolbarSearch
-              name="media-search"
-              aria-label="Search media"
-              placeholder="Search media..."
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-            />
-          }
+          controls={mediaControls}
           header={
             <TableHeader>
               <TableRow>

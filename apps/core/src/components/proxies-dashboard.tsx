@@ -391,54 +391,6 @@ export function ProxiesDashboard({
 
   return (
     <div className="w-full pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="font-heading text-xl font-semibold">Proxies</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage outbound scraping proxies.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedIds.size ? (
-            <DashboardSelectedActionButton
-              type="button"
-              variant="destructive"
-              onClick={() => setMassDeleteOpen(true)}
-              disabled={massDeleting}
-            >
-              {massDeleting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <Trash2Icon className="size-4" />
-              )}
-              Delete ({selectedIds.size})
-            </DashboardSelectedActionButton>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 w-fit gap-2 sm:h-9"
-            onClick={() => {
-              setImportErrors([])
-              setImportOpen(true)
-            }}
-          >
-            <DownloadIcon className="size-4" />
-            Import
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            className="h-8 w-fit gap-2 sm:h-9"
-            onClick={openCreateForm}
-          >
-            <PlusIcon className="size-4" />
-            Add Proxy
-          </Button>
-        </div>
-      </div>
-
       {error ? <Message tone="error">{error}</Message> : null}
       {notice ? <Message tone="success">{notice}</Message> : null}
       {importErrors.length ? (
@@ -520,6 +472,43 @@ export function ProxiesDashboard({
                 ))}
               </SelectContent>
             </Select>
+            {selectedIds.size ? (
+              <DashboardSelectedActionButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardSelectedActionButton>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 w-fit gap-2 sm:h-9"
+              onClick={() => {
+                setImportErrors([])
+                setImportOpen(true)
+              }}
+            >
+              <DownloadIcon className="size-4" />
+              Import
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 w-fit gap-2 sm:h-9"
+              onClick={openCreateForm}
+            >
+              <PlusIcon className="size-4" />
+              Add Proxy
+            </Button>
           </>
         }
         header={
