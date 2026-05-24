@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
+import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
@@ -54,10 +54,8 @@ export function SettingsPage({
               Saved
             </span>
           ) : null}
-          <Button
+          <DashboardToolbarButton
             type="button"
-            size="sm"
-            className="h-8 gap-2 sm:h-9"
             onClick={onSaveConfig}
             disabled={isSaving}
           >
@@ -67,7 +65,7 @@ export function SettingsPage({
               <SaveIcon className="h-4 w-4" />
             )}
             {isSaving ? "Saving" : "Save"}
-          </Button>
+          </DashboardToolbarButton>
         </div>
       </div>
 

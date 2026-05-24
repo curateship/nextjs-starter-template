@@ -16,6 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
+  dashboardToolbarButtonActiveClassName,
+  dashboardToolbarButtonGroupClassName,
+  dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
 import {
@@ -252,14 +255,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               Delete {selectedIds.size}
             </DashboardToolbarButton>
           ) : null}
-          <div className="flex rounded-lg border">
+          <div className={dashboardToolbarButtonGroupClassName}>
             <DashboardToolbarButton
               type="button"
               variant="ghost"
               className={cn(
-                "rounded-r-none",
-                viewMode === "list" &&
-                  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+                dashboardToolbarButtonGroupItemClassName,
+                viewMode === "list" && dashboardToolbarButtonActiveClassName
               )}
               onClick={() => setViewMode("list")}
               aria-label="List view"
@@ -270,9 +272,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               type="button"
               variant="ghost"
               className={cn(
-                "rounded-l-none",
-                viewMode === "gallery" &&
-                  "border-black bg-black bg-clip-border text-white hover:bg-black hover:text-white"
+                dashboardToolbarButtonGroupItemClassName,
+                viewMode === "gallery" && dashboardToolbarButtonActiveClassName
               )}
               onClick={() => setViewMode("gallery")}
               aria-label="Gallery view"

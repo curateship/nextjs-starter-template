@@ -54,6 +54,14 @@ import { Button } from "@/components/ui/button";
 import { DashboardTable } from "@/components/dashboard-table";
 import {
   DashboardToolbarButton,
+  dashboardToolbarButtonActiveFilterClassName,
+  dashboardToolbarClearButtonClassName,
+  dashboardToolbarFilterChipClassName,
+  dashboardToolbarMutedButtonClassName,
+  dashboardToolbarSegmentedButtonActiveClassName,
+  dashboardToolbarSegmentedButtonClassName,
+  dashboardToolbarSegmentedGroupClassName,
+  dashboardToolbarSegmentedButtonInactiveClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar";
@@ -1265,16 +1273,17 @@ const PeriodTabs = ({
   onPeriodChange: (period: PeriodKey) => void;
 }) => {
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+    <div className={dashboardToolbarSegmentedGroupClassName}>
       {(Object.keys(periodLabels) as PeriodKey[]).map((key) => (
         <button
+          type="button"
           key={key}
           onClick={() => onPeriodChange(key)}
           className={cn(
-            "inline-flex h-8 items-center gap-2 rounded-md px-3 text-xs font-medium transition-all sm:h-9 sm:text-sm",
+            dashboardToolbarSegmentedButtonClassName,
             activePeriod === key
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
+              ? dashboardToolbarSegmentedButtonActiveClassName
+              : dashboardToolbarSegmentedButtonInactiveClassName,
           )}
         >
           {periodLabels[key]}
@@ -1705,9 +1714,6 @@ function exportTransactionsCsv() {
   URL.revokeObjectURL(url);
 }
 
-const filterChipClassName =
-  "inline-flex h-5 cursor-pointer items-center gap-1 rounded-md bg-gray-50 px-2 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 sm:h-6 sm:text-xs dark:bg-gray-800/50 dark:text-gray-400 dark:ring-gray-400/20";
-
 const TransactionsTable = () => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
@@ -1825,7 +1831,7 @@ const TransactionsTable = () => {
               <DashboardToolbarButton
                 variant="outline"
                 className={cn(
-                  statusFilter !== "all" && "border-primary",
+                  statusFilter !== "all" && dashboardToolbarButtonActiveFilterClassName,
                 )}
                 aria-label="Filter by status"
               >
@@ -1861,7 +1867,7 @@ const TransactionsTable = () => {
               <DashboardToolbarButton
                 variant="outline"
                 className={cn(
-                  paymentMethodFilter !== "all" && "border-primary",
+                  paymentMethodFilter !== "all" && dashboardToolbarButtonActiveFilterClassName,
                 )}
                 aria-label="Filter by payment method"
               >
@@ -1900,7 +1906,7 @@ const TransactionsTable = () => {
               {statusFilter !== "all" && (
                 <button
                   type="button"
-                  className={filterChipClassName}
+                  className={dashboardToolbarFilterChipClassName}
                   onClick={() => setStatusFilter("all")}
                   aria-label={`Clear ${transactionStatusLabels[statusFilter as TransactionStatus]} filter`}
                 >
@@ -1911,7 +1917,7 @@ const TransactionsTable = () => {
               {dateFilter !== "all" && (
                 <button
                   type="button"
-                  className={filterChipClassName}
+                  className={dashboardToolbarFilterChipClassName}
                   onClick={() => setDateFilter("all")}
                   aria-label={`Clear ${dateFilterOptions.find((o) => o.value === dateFilter)?.label} filter`}
                 >
@@ -1922,7 +1928,7 @@ const TransactionsTable = () => {
               {paymentMethodFilter !== "all" && (
                 <button
                   type="button"
-                  className={filterChipClassName}
+                  className={dashboardToolbarFilterChipClassName}
                   onClick={() => setPaymentMethodFilter("all")}
                   aria-label={`Clear ${paymentMethodFilter} filter`}
                 >
@@ -1931,8 +1937,9 @@ const TransactionsTable = () => {
                 </button>
               )}
               <button
+                type="button"
                 onClick={clearFilters}
-                className="text-[10px] text-destructive hover:underline sm:text-xs"
+                className={dashboardToolbarClearButtonClassName}
               >
                 Clear all
               </button>
@@ -2023,14 +2030,13 @@ const TransactionsTable = () => {
             <TableCell column="meta">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
+                  <DashboardToolbarButton
                     variant="ghost"
-                    size="sm"
-                    className="h-8 gap-2 text-muted-foreground hover:text-foreground sm:h-9"
+                    className={dashboardToolbarMutedButtonClassName}
                     aria-label={`Open actions for ${txn.txnId}`}
                   >
                     <MoreHorizontal className="size-4" />
-                  </Button>
+                  </DashboardToolbarButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem>

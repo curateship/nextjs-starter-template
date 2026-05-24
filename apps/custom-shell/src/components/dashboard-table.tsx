@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DashboardToolbar,
+  DashboardToolbarButton,
   DashboardToolbarControls,
+  DashboardToolbarSelectTrigger,
   DashboardToolbarTitle,
 } from "@/components/dashboard-toolbar"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -19,7 +21,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
 import {
@@ -185,9 +186,9 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
             onValueChange={(value) => footer.onPageSizeChange?.(Number(value))}
             disabled={!footer.onPageSizeChange}
           >
-            <SelectTrigger className="h-8 w-[70px]">
+            <DashboardToolbarSelectTrigger className="w-[70px]">
               <SelectValue />
-            </SelectTrigger>
+            </DashboardToolbarSelectTrigger>
             <SelectContent>
               {pageSizeOptions.map((size) => (
                 <SelectItem key={size} value={String(size)}>
@@ -243,10 +244,9 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
             {footer.count} {footer.label ?? "items"}
           </span>
         </div>
-        <Button
+        <DashboardToolbarButton
           type="button"
           variant="outline"
-          className="h-8 w-fit sm:h-9"
           disabled={!footer.hasMore || footer.loading}
           onClick={footer.onLoadMore}
         >
@@ -254,7 +254,7 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
             <Loader2Icon className="size-4 animate-spin" />
           ) : null}
           {footer.actionLabel ?? "Load older"}
-        </Button>
+        </DashboardToolbarButton>
       </div>
     )
   }

@@ -16,6 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
+  dashboardToolbarSegmentedButtonActiveClassName,
+  dashboardToolbarSegmentedButtonClassName,
+  dashboardToolbarSegmentedButtonInactiveClassName,
+  dashboardToolbarSegmentedGroupClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
@@ -481,8 +485,7 @@ export function FeedbackDashboard({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
+                  size="icon"
                   onClick={() => setEditingFeedback(item)}
                   title="Feedback settings"
                   aria-label="Feedback settings"
@@ -493,8 +496,8 @@ export function FeedbackDashboard({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  size="icon"
+                  className="text-destructive hover:text-destructive"
                   onClick={() => setDeletingFeedback(item)}
                   title="Delete feedback"
                   aria-label="Delete feedback"
@@ -824,17 +827,17 @@ function PeriodTabs({
   onPeriodChange: (period: FeedbackPeriod) => void
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+    <div className={dashboardToolbarSegmentedGroupClassName}>
       {(Object.keys(feedbackPeriodLabels) as FeedbackPeriod[]).map((key) => (
         <button
           key={key}
           type="button"
           onClick={() => onPeriodChange(key)}
           className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
+            dashboardToolbarSegmentedButtonClassName,
             activePeriod === key
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              ? dashboardToolbarSegmentedButtonActiveClassName
+              : dashboardToolbarSegmentedButtonInactiveClassName
           )}
         >
           {feedbackPeriodLabels[key]}

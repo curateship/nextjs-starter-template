@@ -10,6 +10,10 @@ import {
 
 import {
   DashboardToolbarButton,
+  dashboardToolbarSegmentedButtonActiveClassName,
+  dashboardToolbarSegmentedButtonClassName,
+  dashboardToolbarSegmentedButtonInactiveClassName,
+  dashboardToolbarSegmentedGroupClassName,
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
@@ -410,8 +414,7 @@ export function FeedbackCommentsDashboard() {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
+                  size="icon"
                   onClick={() => setEditingComment(comment)}
                   title="Comment settings"
                   aria-label="Comment settings"
@@ -422,8 +425,8 @@ export function FeedbackCommentsDashboard() {
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  size="icon"
+                  className="text-destructive hover:text-destructive"
                   onClick={() => setDeletingComment(comment)}
                   title="Delete comment"
                   aria-label="Delete comment"
@@ -737,17 +740,17 @@ function PeriodTabs({
   onPeriodChange: (period: FeedbackPeriod) => void
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-muted p-1">
+    <div className={dashboardToolbarSegmentedGroupClassName}>
       {(Object.keys(feedbackPeriodLabels) as FeedbackPeriod[]).map((key) => (
         <button
           key={key}
           type="button"
           onClick={() => onPeriodChange(key)}
           className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm",
+            dashboardToolbarSegmentedButtonClassName,
             activePeriod === key
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
+              ? dashboardToolbarSegmentedButtonActiveClassName
+              : dashboardToolbarSegmentedButtonInactiveClassName
           )}
         >
           {feedbackPeriodLabels[key]}
