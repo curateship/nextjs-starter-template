@@ -244,13 +244,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
   const mediaControls = (
     <>
-      <DashboardToolbarSearch
-        name="media-search"
-        aria-label="Search media"
-        placeholder="Search media..."
-        value={searchQuery}
-        onChange={(event) => setSearchQuery(event.target.value)}
-      />
       {selectedIds.size > 0 ? (
         <DashboardToolbarButton
           type="button"
@@ -261,6 +254,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           Delete {selectedIds.size}
         </DashboardToolbarButton>
       ) : null}
+      <DashboardToolbarSearch
+        name="media-search"
+        aria-label="Search media"
+        placeholder="Search media..."
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.target.value)}
+      />
       <div className={dashboardToolbarButtonGroupClassName}>
         <DashboardToolbarButton
           type="button"

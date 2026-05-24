@@ -43,12 +43,28 @@ import {
   settingsPayloadSchema,
   updateRunSchema,
 } from "@/scrapers/google-maps/schema"
+import type {
+  ScraperExecutionItem,
+  ScraperResultItem,
+  ScraperRunItem,
+} from "@/scrapers/types"
+
+type ScraperSettingsItem = ReturnType<typeof serializeSettings>
+type ScraperSettingsResponse = { settings: ScraperSettingsItem }
+type GoogleMapsRunsResponse = ScraperSettingsResponse & {
+  runs: ScraperRunItem[]
+}
+type GoogleMapsRunResponse = {
+  run: ScraperRunItem
+  latest_execution: ScraperExecutionItem | null
+  results: ScraperResultItem[]
+}
 
 export function scraperError(error: unknown) {
   return error instanceof Error ? error.message : "Scraper request failed."
 }
 
-const loadSettingsFn = createServerFn({ method: "GET" }).handler(async () => {
+const loadSettingsFn = createServerFn({ method: "GET" }).handler(async (): Promise<ScraperSettingsResponse> => {
   const workspace = await findWorkspace()
   if (!workspace) return { settings: serializeSettings(null) }
   return { settings: serializeSettings(await settingsRow(workspace.id)) }
@@ -56,7 +72,7 @@ const loadSettingsFn = createServerFn({ method: "GET" }).handler(async () => {
 
 const saveSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(settingsPayloadSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<ScraperSettingsResponse> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const existing = await settingsRow(workspace.id)
@@ -75,7 +91,7 @@ const saveSettingsFn = createServerFn({ method: "POST" })
     return { settings: serializeSettings(row) }
   })
 
-const loadRunsFn = createServerFn({ method: "GET" }).handler(async () => {
+const loadRunsFn = createServerFn({ method: "GET" }).handler(async (): Promise<GoogleMapsRunsResponse> => {
   const workspace = await findWorkspace()
   if (!workspace) {
     return { settings: serializeSettings(null), runs: [] }
@@ -86,7 +102,7 @@ const loadRunsFn = createServerFn({ method: "GET" }).handler(async () => {
 
 const saveRunFn = createServerFn({ method: "POST" })
   .inputValidator(updateRunSchema.partial({ runId: true }))
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ run: ScraperRunItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const updatedAt = now()
@@ -108,7 +124,7 @@ const saveRunFn = createServerFn({ method: "POST" })
 
 const startRunFn = createServerFn({ method: "POST" })
   .inputValidator(runIdSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ execution: ScraperExecutionItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const run = await getGoogleMapsRun(data.runId, workspace.id)
@@ -143,7 +159,7 @@ const startRunFn = createServerFn({ method: "POST" })
 
 const refreshExecutionFn = createServerFn({ method: "POST" })
   .inputValidator(executionIdSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<{ execution: ScraperExecutionItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const [row] = await db
@@ -174,7 +190,7 @@ const refreshExecutionFn = createServerFn({ method: "POST" })
 
 const loadRunFn = createServerFn({ method: "GET" })
   .inputValidator(runIdSchema)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<GoogleMapsRunResponse> => {
     const workspace = await findWorkspace()
     if (!workspace) throw new Error("Run not found.")
     const run = await getGoogleMapsRun(data.runId, workspace.id)

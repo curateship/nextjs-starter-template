@@ -288,6 +288,21 @@ export function FeedbackDashboard({
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
+            {selectedIds.size ? (
+              <DashboardSelectedActionButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardSelectedActionButton>
+            ) : null}
             <DashboardToolbarSearch
               name="feedback-search"
               aria-label="Search feedback"
@@ -331,22 +346,6 @@ export function FeedbackDashboard({
                 ))}
               </SelectContent>
             </Select>
-
-            {selectedIds.size ? (
-              <DashboardSelectedActionButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
-                Delete ({selectedIds.size})
-              </DashboardSelectedActionButton>
-            ) : null}
             <Button
               type="button"
               size="sm"

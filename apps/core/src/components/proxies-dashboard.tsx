@@ -412,6 +412,21 @@ export function ProxiesDashboard({
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
+            {selectedIds.size ? (
+              <DashboardSelectedActionButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardSelectedActionButton>
+            ) : null}
             <DashboardToolbarSearch
               name="proxy-search"
               aria-label="Search proxies"
@@ -472,21 +487,6 @@ export function ProxiesDashboard({
                 ))}
               </SelectContent>
             </Select>
-            {selectedIds.size ? (
-              <DashboardSelectedActionButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
-                Delete ({selectedIds.size})
-              </DashboardSelectedActionButton>
-            ) : null}
             <Button
               type="button"
               variant="outline"

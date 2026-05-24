@@ -279,6 +279,21 @@ export function FeedbackCommentsDashboard() {
         onClearSelection={() => setSelectedIds(new Set())}
         controls={
           <>
+            {selectedIds.size ? (
+              <DashboardToolbarButton
+                type="button"
+                variant="destructive"
+                onClick={() => setMassDeleteOpen(true)}
+                disabled={massDeleting}
+              >
+                {massDeleting ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <Trash2Icon className="size-4" />
+                )}
+                Delete ({selectedIds.size})
+              </DashboardToolbarButton>
+            ) : null}
             <PeriodTabs
               activePeriod={periodFilter}
               onPeriodChange={setPeriodFilter}
@@ -308,22 +323,6 @@ export function FeedbackCommentsDashboard() {
                 ))}
               </SelectContent>
             </Select>
-
-            {selectedIds.size ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
-                disabled={massDeleting}
-              >
-                {massDeleting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <Trash2Icon className="size-4" />
-                )}
-                Delete ({selectedIds.size})
-              </DashboardToolbarButton>
-            ) : null}
           </>
         }
         header={

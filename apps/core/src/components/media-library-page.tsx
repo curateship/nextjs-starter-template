@@ -234,13 +234,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
   const mediaControls = (
     <>
-      <DashboardToolbarSearch
-        name="media-search"
-        aria-label="Search media"
-        placeholder="Search media..."
-        value={searchQuery}
-        onChange={(event) => setSearchQuery(event.target.value)}
-      />
       {selectedIds.size > 0 ? (
         <DashboardSelectedActionButton
           type="button"
@@ -251,6 +244,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           Delete {selectedIds.size}
         </DashboardSelectedActionButton>
       ) : null}
+      <DashboardToolbarSearch
+        name="media-search"
+        aria-label="Search media"
+        placeholder="Search media..."
+        value={searchQuery}
+        onChange={(event) => setSearchQuery(event.target.value)}
+      />
       <div className="flex rounded-lg border">
         <Button
           type="button"

@@ -6,7 +6,15 @@ import type {
   CoreScraperResult,
   CoreScraperRun,
 } from "@/server/schema"
-import { executionStatuses, runStatuses } from "@/scrapers/types"
+import {
+  executionStatuses,
+  runStatuses,
+  type ScraperExecutionItem,
+  type ScraperExecutionStatus,
+  type ScraperResultItem,
+  type ScraperRunItem,
+  type ScraperRunStatus,
+} from "@/scrapers/types"
 
 export const apifyProviderKey = "apify"
 export const googleMapsScraperKey = "google-maps"
@@ -66,20 +74,20 @@ export function serializeSettings(row: CoreScraperProviderSettings | null) {
   }
 }
 
-export function serializeRun(row: CoreScraperRun) {
+export function serializeRun(row: CoreScraperRun): ScraperRunItem {
   return {
     id: row.id,
     name: row.name,
-    status: row.status,
+    status: row.status as ScraperRunStatus,
     input: record(row.input),
     created_at: row.createdAt.toISOString(),
   }
 }
 
-export function serializeExecution(row: CoreScraperExecution) {
+export function serializeExecution(row: CoreScraperExecution): ScraperExecutionItem {
   return {
     id: row.id,
-    status: row.status,
+    status: row.status as ScraperExecutionStatus,
     message: row.message,
     error: row.error,
     stats: record(row.stats),
@@ -88,7 +96,7 @@ export function serializeExecution(row: CoreScraperExecution) {
   }
 }
 
-export function serializeResult(row: CoreScraperResult) {
+export function serializeResult(row: CoreScraperResult): ScraperResultItem {
   return {
     id: row.id,
     external_id: row.externalId,
