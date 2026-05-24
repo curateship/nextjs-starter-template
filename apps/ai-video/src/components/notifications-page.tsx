@@ -1,0 +1,272 @@
+import * as React from "react"
+import {
+  AlertCircleIcon,
+  BellIcon,
+  MessageSquareIcon,
+  ThumbsUpIcon,
+} from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { DashboardTable } from "@/components/dashboard-table"
+import {
+  DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
+} from "@/components/dashboard-toolbar"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  getNotificationErrorMessage,
+  listAllNotifications,
+  type NotificationItem,
+  type NotificationType,
+} from "@/lib/api/notification"
+import { cn } from "@/lib/utils"
+
+type ReadFilter = "all" | "unread" | "read"
+type TypeFilter = "all" | NotificationType
+
+const ADMIN_NOTIFICATION_PAGE_SIZE = 50
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+const notificationTypeLabels: Record<NotificationType, string> = {
+  feedback_vote: "Thumbs up",
+  feedback_comment: "Comment",
+}
+
+type NotificationsPageProps = {
+  onOpenFeedbackThread: (feedbackId: string) => void
+}
+
+export function NotificationsPage({
+  onOpenFeedbackThread,
+}: NotificationsPageProps) {
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>(
+    []
+  )
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
+  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all")
+
+  const loadNotifications = React.useCallback(async (cursor?: string) => {
+    if (cursor) {
+      setLoadingMore(true)
+    }
+    setError(null)
+
+    try {
+      const data = await listAllNotifications({
+        cursor,
+        limit: ADMIN_NOTIFICATION_PAGE_SIZE,
+      })
+      setNotifications((current) =>
+        cursor ? [...current, ...data.notifications] : data.notifications
+      )
+      setNextCursor(data.next_cursor)
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void loadNotifications()
+  }, [loadNotifications])
+
+  const filteredNotifications = React.useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+
+    return notifications.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.actor_name.toLowerCase().includes(query) ||
+        item.recipient_name.toLowerCase().includes(query) ||
+        item.feedback_message.toLowerCase().includes(query)
+      const matchesRead =
+        readFilter === "all" ||
+        (readFilter === "unread" && !item.read_at) ||
+        (readFilter === "read" && item.read_at)
+      const matchesType = typeFilter === "all" || item.type === typeFilter
+
+      return matchesSearch && matchesRead && matchesType
+    })
+  }, [notifications, readFilter, searchQuery, typeFilter])
+
+  return (
+    <div className="w-full pb-8">
+      {error ? (
+        <div
+          role="alert"
+          className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      <DashboardTable
+        title="Notifications"
+        icon={<BellIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        count={filteredNotifications.length}
+        controls={
+          <>
+            <DashboardToolbarSearch
+              name="notification-search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              aria-label="Search notifications"
+              placeholder="Search notifications..."
+            />
+            <Select
+              value={readFilter}
+              onValueChange={(value) => setReadFilter(value as ReadFilter)}
+            >
+              <DashboardToolbarSelectTrigger
+                aria-label="Read filter"
+                labels={["All", "Unread", "Read"]}
+              >
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="unread">Unread</SelectItem>
+                <SelectItem value="read">Read</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={typeFilter}
+              onValueChange={(value) => setTypeFilter(value as TypeFilter)}
+            >
+              <DashboardToolbarSelectTrigger
+                aria-label="Type filter"
+                labels={["All types", "Thumbs up", "Comments"]}
+              >
+                <SelectValue />
+              </DashboardToolbarSelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="feedback_vote">Thumbs up</SelectItem>
+                <SelectItem value="feedback_comment">Comments</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+        header={
+            <TableHeader>
+              <TableRow>
+                <TableHead column="main">
+                  Activity
+                </TableHead>
+                <TableHead column="preview">
+                  Feedback
+                </TableHead>
+                <TableHead column="meta">
+                  Recipient
+                </TableHead>
+                <TableHead column="meta">
+                  Type
+                </TableHead>
+                <TableHead column="meta">
+                  Status
+                </TableHead>
+                <TableHead column="meta">
+                  Created
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+        }
+        isEmpty={filteredNotifications.length === 0}
+        emptyText="No notifications found."
+        emptyColSpan={6}
+        footer={{
+          type: "loadMore",
+          count: filteredNotifications.length,
+          label: "notifications",
+          hasMore: Boolean(nextCursor),
+          loading: loadingMore,
+          onLoadMore: nextCursor
+            ? () => void loadNotifications(nextCursor)
+            : undefined,
+        }}
+      >
+        {filteredNotifications.map((item) => (
+          <TableRow
+            key={item.id}
+            role="button"
+            tabIndex={0}
+            className="cursor-pointer"
+            onClick={() => onOpenFeedbackThread(item.feedback_id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                onOpenFeedbackThread(item.feedback_id)
+              }
+            }}
+          >
+            <TableCell column="main">
+              <div className="flex items-center gap-2">
+                {item.type === "feedback_vote" ? (
+                  <ThumbsUpIcon className="size-4 text-muted-foreground" />
+                ) : (
+                  <MessageSquareIcon className="size-4 text-muted-foreground" />
+                )}
+                <div>
+                  <p className="text-sm font-medium">
+                    {notificationTypeLabels[item.type]}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.actor_name}
+                  </p>
+                </div>
+              </div>
+            </TableCell>
+            <TableCell column="preview">
+              <span className="line-clamp-1 max-w-44">
+                {item.feedback_message}
+              </span>
+            </TableCell>
+            <TableCell column="mutedMeta">
+              {item.recipient_name}
+            </TableCell>
+            <TableCell column="meta">
+              <Badge variant="secondary">
+                {notificationTypeLabels[item.type]}
+              </Badge>
+            </TableCell>
+            <TableCell column="meta">
+              <Badge
+                variant={item.read_at ? "secondary" : "default"}
+                className={cn(!item.read_at && "bg-primary")}
+              >
+                {item.read_at ? "Read" : "Unread"}
+              </Badge>
+            </TableCell>
+            <TableCell column="mutedMeta">
+              {dateFormatter.format(new Date(item.created_at))}
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
+    </div>
+  )
+}

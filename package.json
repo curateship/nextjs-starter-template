@@ -6,10 +6,12 @@
     "dev": "turbo dev",
     "dev:custom-shell": "npm run dev:custom-shell-ui",
     "dev:custom-shell-ui": "npm run dev --workspace=custom-shell",
+    "dev:ai-video": "npm run dev --workspace=ai-video",
     "dev:core": "npm run dev --workspace=core",
     "dev:hub": "npm run dev --workspace=@repo/hub",
     "build": "turbo build",
     "build:custom-shell": "npm run build --workspace=custom-shell",
+    "build:ai-video": "npm run build --workspace=ai-video",
     "build:core": "npm run build --workspace=core",
     "lint": "turbo lint"
   },
