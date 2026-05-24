@@ -18,7 +18,6 @@ import {
   DashboardSelectedActionButton,
   DashboardToolbarSearch,
 } from "@/components/dashboard-toolbar"
-import { PrivateMediaImage } from "@/components/private-media-image"
 import {
   Dialog,
   DialogBody,
@@ -584,7 +583,11 @@ function MediaPreview({ item, className }: { item: MediaItem; className?: string
           <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
         </>
       ) : (
-        <PrivateMediaImage src={item.url} alt={item.alt_text ?? item.original_name} className="h-full w-full object-contain" />
+        <img
+          src={item.url}
+          alt={item.alt_text ?? item.original_name}
+          className="h-full w-full object-contain"
+        />
       )}
     </div>
   )

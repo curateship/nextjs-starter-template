@@ -19,6 +19,7 @@ const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
+  favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
@@ -265,6 +266,7 @@ export function serializeWorkspace(
     id: row.id,
     name: row.name,
     icon: settings.icon,
+    favicon: settings.favicon,
     active: row.id === currentWorkspaceId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
@@ -277,6 +279,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
     const settings = value as Partial<WorkspaceSettings>
     return {
       icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
+      favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
       topNavigation: Array.isArray(settings.topNavigation)
         ? settings.topNavigation
         : fallback.topNavigation,
@@ -299,6 +302,7 @@ function cleanWorkspaceSettings(
     icon: isWorkspaceIcon(settings.icon)
       ? settings.icon
       : DEFAULT_WORKSPACE_ICON,
+    favicon: typeof settings.favicon === "string" ? settings.favicon : "",
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : [],
@@ -312,6 +316,7 @@ function cleanWorkspaceSettings(
 function defaultWorkspaceSettings(): WorkspaceSettings {
   return {
     icon: DEFAULT_WORKSPACE_ICON,
+    favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
     sections: [],

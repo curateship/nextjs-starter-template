@@ -19,6 +19,12 @@ function getBucketName() {
   return getR2Setting("CORE_R2_BUCKET_NAME")
 }
 
+export function getPublicMediaUrl(storagePath: string) {
+  const baseUrl = getR2Setting("CORE_R2_PUBLIC_URL").replace(/\/+$/, "")
+  const key = storagePath.replace(/^\/+/, "")
+  return `${baseUrl}/${key}`
+}
+
 function getR2Client() {
   const accountId = getR2Setting("CORE_R2_ACCOUNT_ID")
   return new S3Client({
@@ -36,13 +42,15 @@ export async function uploadToR2(
   data: Uint8Array,
   contentType: string
 ) {
+  getPublicMediaUrl(storagePath)
+
   await getR2Client().send(
     new PutObjectCommand({
       Bucket: getBucketName(),
       Key: storagePath,
       Body: data,
       ContentType: contentType,
-      CacheControl: "private, max-age=31536000, immutable",
+      CacheControl: "public, max-age=31536000, immutable",
     })
   )
 }

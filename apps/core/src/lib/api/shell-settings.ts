@@ -48,6 +48,7 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
+  favicon: z.string(),
   topNavigation: z.array(
     z.object({
       id: z.string().min(1),
@@ -90,10 +91,13 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const shellGlobals = parseShellGlobals(row?.settings)
 
     return {
       settings: {
-        ...parseShellGlobals(row?.settings),
+        ...shellGlobals,
+        workspaceName: workspace.name,
+        favicon: workspaceSettings.favicon,
         topNavigation: workspaceSettings.topNavigation,
         topRightNavigation: workspaceSettings.topRightNavigation,
         sections: workspaceSettings.sections,
@@ -113,12 +117,18 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       await import("@/server/workspaces")
     const workspace = await getOrCreateCurrentWorkspace(user.id)
     const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const workspaceName = data.workspaceName.trim()
+    if (!workspaceName) {
+      throw new Error("Workspace name is required")
+    }
 
     await db
       .update(workspaces)
       .set({
+        name: workspaceName.slice(0, 255),
         settings: {
           ...workspaceSettings,
+          favicon: data.favicon,
           topNavigation: data.topNavigation,
           topRightNavigation: data.topRightNavigation,
           sections: data.sections,

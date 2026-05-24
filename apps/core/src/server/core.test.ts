@@ -73,8 +73,14 @@ import * as schema from "@/server/schema"
 
 let client: PGlite
 let database: ReturnType<typeof drizzle<typeof schema>>
+const hadOriginalCoreR2PublicUrl = Object.prototype.hasOwnProperty.call(
+  process.env,
+  "CORE_R2_PUBLIC_URL"
+)
+const originalCoreR2PublicUrl = process.env.CORE_R2_PUBLIC_URL
 
 beforeEach(async () => {
+  process.env.CORE_R2_PUBLIC_URL = "https://core-media.example.test"
   client = new PGlite()
   const migration = await readFile(
     new URL("../../drizzle/0000_core_baseline.sql", import.meta.url),
@@ -97,6 +103,11 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await client.close()
+  if (hadOriginalCoreR2PublicUrl) {
+    process.env.CORE_R2_PUBLIC_URL = originalCoreR2PublicUrl
+  } else {
+    delete process.env.CORE_R2_PUBLIC_URL
+  }
 })
 
 describe("core auth helpers", () => {
@@ -1011,7 +1022,13 @@ describe("core media helpers", () => {
       listOwnedMedia({ userId: ownerId, page: 1, pageSize: 20 })
     ).resolves.toMatchObject({
       total: 1,
-      media: [{ id: ownedMediaId, original_name: "hero.png" }],
+      media: [
+        {
+          id: ownedMediaId,
+          original_name: "hero.png",
+          url: `https://core-media.example.test/${ownerId}/hero.png`,
+        },
+      ],
     })
     await expect(getOwnedMedia(otherId, ownedMediaId)).rejects.toThrow(
       "Media not found"

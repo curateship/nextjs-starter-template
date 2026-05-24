@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { getPublicMediaUrl } from "@/server/media-storage"
 import { media, type CoreMedia } from "@/server/schema"
 import { uuid } from "@/server/security"
 
@@ -151,7 +152,7 @@ export function serializeMedia(row: CoreMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
-    url: `/api/v1/media/${row.id}/file`,
+    url: getPublicMediaUrl(row.storagePath),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

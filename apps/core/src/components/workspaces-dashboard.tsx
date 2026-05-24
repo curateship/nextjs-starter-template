@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useRouter } from "@tanstack/react-router"
 import {
   PencilIcon,
   PlusIcon,
@@ -54,6 +55,7 @@ export function WorkspacesDashboard({
 }: {
   initialWorkspaces: WorkspaceItem[]
 }) {
+  const router = useRouter()
   const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
@@ -94,7 +96,9 @@ export function WorkspacesDashboard({
       } else {
         await createWorkspace(name, form.icon)
       }
-      window.location.reload()
+      await router.invalidate()
+      setFormOpen(false)
+      setEditing(null)
     } catch (error) {
       setError(getWorkspaceErrorMessage(error))
     } finally {
@@ -109,7 +113,8 @@ export function WorkspacesDashboard({
     setError(null)
     try {
       await deleteWorkspace(pendingDelete.id)
-      window.location.reload()
+      await router.invalidate()
+      setPendingDelete(null)
     } catch (error) {
       setError(getWorkspaceErrorMessage(error))
     } finally {

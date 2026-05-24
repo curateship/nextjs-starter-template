@@ -10,10 +10,10 @@ import {
 } from "lucide-react"
 
 import { MediaGridSkeleton } from "@/components/loading-skeleton"
-import { PrivateMediaImage } from "@/components/private-media-image"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -185,54 +185,55 @@ export function MediaPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] gap-4 overflow-hidden sm:max-w-3xl">
+      <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>{showVideos ? "Select Media" : "Select Image"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="relative min-w-0 flex-1">
-              <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search media"
-                className="pl-9"
-              />
-            </div>
-
-            {showVideos ? (
-              <Select value={filterType} onValueChange={handleFilterChange}>
-                <SelectTrigger className="w-full sm:w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="image">Images</SelectItem>
-                  <SelectItem value="video">Videos</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : null}
-
-            <Button asChild>
-              <label>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept={
-                    showVideos
-                      ? [...imageTypes, ...videoTypes].join(",")
-                      : imageTypes.join(",")
-                  }
-                  onChange={handleFileSelect}
+        <DialogBody>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search media"
+                  className="pl-9"
                 />
-                <UploadIcon className="size-4" />
-                Upload
-              </label>
-            </Button>
-          </div>
+              </div>
+
+              {showVideos ? (
+                <Select value={filterType} onValueChange={handleFilterChange}>
+                  <SelectTrigger className="w-full sm:w-36">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="image">Images</SelectItem>
+                    <SelectItem value="video">Videos</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : null}
+
+              <Button asChild>
+                <label>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept={
+                      showVideos
+                        ? [...imageTypes, ...videoTypes].join(",")
+                        : imageTypes.join(",")
+                    }
+                    onChange={handleFileSelect}
+                  />
+                  <UploadIcon className="size-4" />
+                  Upload
+                </label>
+              </Button>
+            </div>
 
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -316,7 +317,7 @@ export function MediaPicker({
                         <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
                       </div>
                     ) : (
-                      <PrivateMediaImage
+                      <img
                         src={item.url}
                         alt={item.alt_text ?? item.original_name}
                         className="h-full w-full object-contain"
@@ -360,9 +361,10 @@ export function MediaPicker({
               </div>
             </div>
           ) : null}
-        </div>
+          </div>
+        </DialogBody>
 
-        <DialogFooter>
+        <DialogFooter variant="plain">
           {currentMediaUrl ? (
             <Button
               type="button"

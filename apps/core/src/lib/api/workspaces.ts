@@ -7,6 +7,7 @@ export type WorkspaceItem = {
   id: string
   name: string
   icon: IconKey
+  favicon: string
   active: boolean
   created_at: string
   updated_at: string

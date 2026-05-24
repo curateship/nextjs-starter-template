@@ -67,6 +67,8 @@ export function ShellLayout({
   const [feedbackRefreshToken, setFeedbackRefreshToken] = React.useState(0)
   const lastSettingsRef = React.useRef(settings)
 
+  useShellFavicon(config.favicon)
+
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
       return
@@ -211,6 +213,7 @@ function normalizeConfig(settings: ShellConfig | null) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
       : fallback.topNavigation,
@@ -221,6 +224,38 @@ function normalizeConfig(settings: ShellConfig | null) {
       ? settings.sections
       : fallback.sections,
   }
+}
+
+function useShellFavicon(favicon: string) {
+  React.useEffect(() => {
+    const href = favicon.trim()
+    const currentLink = document.querySelector<HTMLLinkElement>(
+      'link[data-core-favicon="true"]'
+    )
+
+    if (!href) {
+      currentLink?.remove()
+      return
+    }
+
+    const link = getOrCreateCoreFaviconLink()
+    link.href = href
+  }, [favicon])
+}
+
+function getOrCreateCoreFaviconLink() {
+  const existing = document.querySelector<HTMLLinkElement>(
+    'link[data-core-favicon="true"]'
+  )
+  if (existing) {
+    return existing
+  }
+
+  const link = document.createElement("link")
+  link.rel = "icon"
+  link.setAttribute("data-core-favicon", "true")
+  document.head.appendChild(link)
+  return link
 }
 
 function getShellItems(config: ShellConfig) {

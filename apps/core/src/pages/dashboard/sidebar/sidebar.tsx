@@ -102,7 +102,11 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="pb-3">
-        <WorkspaceSwitcher workspaces={workspaces} />
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          workspaceName={config.workspaceName}
+          favicon={config.favicon}
+        />
       </SidebarHeader>
       <SidebarContent>
         {config.sections.map((section) => (
