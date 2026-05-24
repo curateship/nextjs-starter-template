@@ -1,11 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import type { ShellConfig } from "@/lib/custom-shell"
+import { createDefaultShellConfig, type ShellConfig } from "@/lib/custom-shell"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
-import { customShellSettings } from "@/server/schema"
+import {
+  customShellSettings,
+  customShellWorkspaces,
+} from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
@@ -99,7 +102,7 @@ export function getShellSettingsErrorMessage(error: unknown) {
 
 const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
   async () => {
-    await requireUser()
+    const user = await requireUser()
 
     const [row] = await db
       .select()
@@ -107,7 +110,22 @@ const loadShellSettingsFn = createServerFn({ method: "GET" }).handler(
       .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
       .limit(1)
 
-    return { settings: (row?.settings as ShellConfig | undefined) ?? null }
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const shellGlobals = parseShellGlobals(row?.settings)
+
+    return {
+      settings: {
+        ...shellGlobals,
+        workspaceName: workspace.name,
+        favicon: workspaceSettings.favicon,
+        topNavigation: workspaceSettings.topNavigation,
+        topRightNavigation: workspaceSettings.topRightNavigation,
+        sections: workspaceSettings.sections,
+      },
+    }
   }
 )
 
@@ -115,28 +133,60 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(shellConfigSchema)
   .handler(async ({ data }) => {
     requireAppOrigin()
-    await requireUser()
+    const user = await requireAdminUser()
 
     const updatedAt = now()
-    const [existing] = await db
-      .select({ key: customShellSettings.key })
-      .from(customShellSettings)
-      .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
-      .limit(1)
-
-    if (existing) {
-      await db
-        .update(customShellSettings)
-        .set({ settings: data, updatedAt })
-        .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
-    } else {
-      await db.insert(customShellSettings).values({
-        key: DEFAULT_SETTINGS_KEY,
-        settings: data,
-        createdAt: updatedAt,
-        updatedAt,
-      })
+    const { getOrCreateCurrentWorkspace, parseWorkspaceSettings } =
+      await import("@/server/workspaces")
+    const workspace = await getOrCreateCurrentWorkspace(user.id)
+    const workspaceSettings = parseWorkspaceSettings(workspace.settings)
+    const workspaceName = data.workspaceName.trim()
+    if (!workspaceName) {
+      throw new Error("Workspace name is required")
     }
+
+    const globalSettings = pickShellGlobals(data)
+    await db.transaction(async (tx) => {
+      await tx
+        .update(customShellWorkspaces)
+        .set({
+          name: workspaceName.slice(0, 255),
+          settings: {
+            ...workspaceSettings,
+            favicon: data.favicon,
+            topNavigation: data.topNavigation,
+            topRightNavigation: data.topRightNavigation,
+            sections: data.sections,
+          },
+          updatedAt,
+        })
+        .where(
+          and(
+            eq(customShellWorkspaces.id, workspace.id),
+            eq(customShellWorkspaces.userId, user.id)
+          )
+        )
+
+      const [existing] = await tx
+        .select({ key: customShellSettings.key })
+        .from(customShellSettings)
+        .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+        .limit(1)
+
+      if (existing) {
+        await tx
+          .update(customShellSettings)
+          .set({ settings: globalSettings, updatedAt })
+          .where(eq(customShellSettings.key, DEFAULT_SETTINGS_KEY))
+      } else {
+        await tx.insert(customShellSettings).values({
+          key: DEFAULT_SETTINGS_KEY,
+          settings: globalSettings,
+          createdAt: updatedAt,
+          updatedAt,
+        })
+      }
+    })
 
     return { settings: data }
   })
@@ -155,4 +205,34 @@ async function requireUser() {
     throw new Error("Missing Custom Shell session")
   }
   return user
+}
+
+async function requireAdminUser() {
+  const user = await requireUser()
+  if (user.role !== "admin") {
+    throw new Error("Not authorized")
+  }
+  return user
+}
+
+function parseShellGlobals(value: unknown) {
+  const fallback = createDefaultShellConfig()
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return pickShellGlobals(fallback)
+  }
+
+  const settings = value as Partial<ShellConfig>
+  return {
+    appName: settings.appName ?? fallback.appName,
+    workspaceName: settings.workspaceName ?? fallback.workspaceName,
+    workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+  }
+}
+
+function pickShellGlobals(settings: ShellConfig) {
+  return {
+    appName: settings.appName,
+    workspaceName: settings.workspaceName,
+    workspacePlan: settings.workspacePlan,
+  }
 }

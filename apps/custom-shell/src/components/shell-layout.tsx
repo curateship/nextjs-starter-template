@@ -20,6 +20,7 @@ import {
   getShellSettingsErrorMessage,
   saveShellSettings,
 } from "@/lib/api/shell-settings"
+import type { WorkspaceListResponse } from "@/lib/api/workspaces"
 
 type SaveStatus = "idle" | "saving" | "saved"
 
@@ -47,9 +48,11 @@ export function useShellRuntime() {
 export function ShellLayout({
   user,
   settings,
+  workspaces,
 }: {
   user: AuthUser
   settings: ShellConfig | null
+  workspaces: WorkspaceListResponse
 }) {
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -167,7 +170,12 @@ export function ShellLayout({
     <ShellRuntimeContext.Provider value={runtime}>
       <div className="min-h-screen bg-background">
         <SidebarProvider className="h-screen">
-          <AppSidebar config={config} user={user} onLogout={handleLogout} />
+          <AppSidebar
+            config={config}
+            user={user}
+            workspaces={workspaces.workspaces}
+            onLogout={handleLogout}
+          />
           <SidebarInset>
             <StickyHeader
               navLinks={getStickyHeaderNavLinks(config, currentPath)}
@@ -230,35 +238,8 @@ function useShellFavicon(favicon: string) {
       return
     }
 
-    let cancelled = false
-    let objectUrl: string | null = null
-
-    const setIcon = (url: string) => {
-      if (cancelled) return
-      const link = getOrCreateShellFaviconLink()
-      link.href = url
-    }
-
-    if (href.startsWith("/api/v1/media/")) {
-      fetch(href, { credentials: "same-origin" })
-        .then((response) => {
-          if (!response.ok) throw new Error("Failed to load favicon")
-          return response.blob()
-        })
-        .then((blob) => {
-          if (cancelled) return
-          objectUrl = URL.createObjectURL(blob)
-          setIcon(objectUrl)
-        })
-        .catch(() => undefined)
-    } else {
-      setIcon(href)
-    }
-
-    return () => {
-      cancelled = true
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
+    const link = getOrCreateShellFaviconLink()
+    link.href = href
   }, [favicon])
 }
 

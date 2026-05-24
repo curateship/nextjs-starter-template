@@ -4,6 +4,7 @@ import { ShellLoadingSkeleton } from "@/components/loading-skeleton"
 import { ShellLayout } from "@/components/shell-layout"
 import { loadCurrentUser } from "@/lib/api/auth"
 import { loadShellSettings } from "@/lib/api/shell-settings"
+import { loadWorkspaces } from "@/lib/api/workspaces"
 
 export const Route = createFileRoute("/_authenticated")({
   loader: async () => {
@@ -13,13 +14,14 @@ export const Route = createFileRoute("/_authenticated")({
     }
 
     const { settings } = await loadShellSettings()
-    return { user, settings }
+    const workspaces = await loadWorkspaces()
+    return { user, settings, workspaces }
   },
   pendingComponent: ShellLoadingSkeleton,
   component: AuthenticatedLayout,
 })
 
 function AuthenticatedLayout() {
-  const { user, settings } = Route.useLoaderData()
-  return <ShellLayout user={user} settings={settings} />
+  const { user, settings, workspaces } = Route.useLoaderData()
+  return <ShellLayout user={user} settings={settings} workspaces={workspaces} />
 }

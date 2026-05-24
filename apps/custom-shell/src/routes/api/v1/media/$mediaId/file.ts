@@ -37,7 +37,7 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
 
           const headers = new Headers({
             "Accept-Ranges": "bytes",
-            "Cache-Control": "private, max-age=31536000, immutable",
+            "Cache-Control": "private, no-store",
             "Content-Type": object.ContentType || media.mimeType,
           })
           if (object.ContentLength !== undefined) {
@@ -56,7 +56,7 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
             return Response.json(
               {
                 detail:
-                  "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables for custom-shell.",
+                  "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables, including CUSTOM_SHELL_R2_PUBLIC_URL.",
               },
               { status: 503 }
             )

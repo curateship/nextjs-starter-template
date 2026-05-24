@@ -44,6 +44,8 @@ __pycache__/
 
 # env files
 .env*
+!.env.example
+!apps/*/.env.example
 
 # vercel
 .vercel

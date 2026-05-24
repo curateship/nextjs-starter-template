@@ -2,7 +2,6 @@ import * as React from "react"
 import { ImageIcon, XIcon } from "lucide-react"
 
 import { MediaPicker } from "@/components/media-picker"
-import { PrivateMediaImage } from "@/components/private-media-image"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -67,7 +66,7 @@ export function GeneralSettings({
                 aria-label={favicon ? "Change favicon" : "Select favicon"}
               >
                 {favicon ? (
-                  <PrivateMediaImage
+                  <img
                     src={favicon}
                     alt="Favicon preview"
                     className="h-full w-full object-cover"

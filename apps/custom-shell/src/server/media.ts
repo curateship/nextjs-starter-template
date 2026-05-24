@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { getPublicMediaUrl } from "@/server/media-storage"
 import { customShellMedia, type CustomShellMedia } from "@/server/schema"
 import { uuid } from "@/server/security"
 
@@ -66,9 +67,46 @@ export function validateMediaFile(mimeType: string, size: number) {
   }
 }
 
+export function validateMediaContent(mimeType: string, data: Uint8Array) {
+  const valid =
+    (mimeType === "image/jpeg" || mimeType === "image/jpg") &&
+      hasPrefix(data, [0xff, 0xd8, 0xff]) ||
+    mimeType === "image/png" &&
+      hasPrefix(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||
+    mimeType === "image/gif" &&
+      (hasAscii(data, 0, "GIF87a") || hasAscii(data, 0, "GIF89a")) ||
+    mimeType === "image/webp" &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "WEBP") ||
+    (mimeType === "video/mp4" || mimeType === "video/quicktime") &&
+      hasAscii(data, 4, "ftyp") ||
+    mimeType === "video/webm" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]) ||
+    mimeType === "video/x-msvideo" &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "AVI ") ||
+    mimeType === "video/x-matroska" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])
+
+  if (!valid) {
+    throw new Error("File content does not match the selected media type.")
+  }
+}
+
 export function cleanOriginalName(filename?: string) {
   const name = (filename || "media").replace(/\\/g, "/").split("/").pop()?.trim()
   return (name || "media").slice(0, 255)
+}
+
+function hasPrefix(data: Uint8Array, prefix: number[]) {
+  return prefix.every((byte, index) => data[index] === byte)
+}
+
+function hasAscii(data: Uint8Array, offset: number, value: string) {
+  if (data.length < offset + value.length) return false
+  return Array.from(value).every(
+    (character, index) => data[offset + index] === character.charCodeAt(0)
+  )
 }
 
 export function storedFilename(originalName: string, mimeType: string) {
@@ -151,7 +189,7 @@ export function serializeMedia(row: CustomShellMedia): MediaItem {
     file_size: row.fileSize,
     mime_type: row.mimeType,
     file_type: row.fileType as MediaFileType,
-    url: `/api/v1/media/${row.id}/file?name=${encodeURIComponent(row.filename)}`,
+    url: getPublicMediaUrl(row.storagePath),
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

@@ -11,6 +11,7 @@ import {
   listOwnedMedia,
   serializeMedia,
   storedFilename,
+  validateMediaContent,
   validateMediaFile,
   type MediaFileType,
   type MediaItem,
@@ -42,14 +43,6 @@ const updateMediaSchema = z.object({
 const bulkDeleteMediaSchema = z.object({
   mediaIds: z.array(z.string().min(1)).min(1).max(100),
 })
-
-export function resolveMediaUrl(url: string) {
-  return url
-}
-
-export function getMediaFileUrl(mediaId: string) {
-  return resolveMediaUrl(`/api/v1/media/${mediaId}/file`)
-}
 
 export function getMediaErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Media request failed."
@@ -93,6 +86,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     if (!fileData.byteLength) {
       throw new Error("File is empty")
     }
+    validateMediaContent(mimeType, fileData)
 
     const originalName = cleanOriginalName(data.file.name)
     const filename = storedFilename(originalName, mimeType)
@@ -103,7 +97,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     } catch (error) {
       if (error instanceof R2StorageNotConfiguredError) {
         throw new Error(
-          "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables for custom-shell."
+          "R2 storage is not configured. Set the CUSTOM_SHELL_R2_* environment variables, including CUSTOM_SHELL_R2_PUBLIC_URL."
         )
       }
       throw new Error("Upload failed")

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm"
 import {
   bigint,
+  boolean,
   check,
   index,
   jsonb,
@@ -49,6 +50,24 @@ export const customShellSettings = pgTable(
   },
   (table) => [
     check("custom_shell_settings_default_key", sql`${table.key} = 'default'`),
+  ]
+)
+
+export const customShellWorkspaces = pgTable(
+  "custom_shell_workspaces",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    settings: jsonb("settings").notNull(),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_custom_shell_workspaces_user_id").on(table.userId),
   ]
 )
 
@@ -194,6 +213,7 @@ export const customShellMedia = pgTable(
 )
 
 export type CustomShellUser = typeof customShellUsers.$inferSelect
+export type CustomShellWorkspace = typeof customShellWorkspaces.$inferSelect
 export type CustomShellMedia = typeof customShellMedia.$inferSelect
 export type CustomShellFeedback = typeof customShellFeedback.$inferSelect
 export type CustomShellFeedbackComment =

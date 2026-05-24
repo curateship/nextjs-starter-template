@@ -4,7 +4,6 @@ import * as React from "react"
 import { useNavigate, useRouterState } from "@tanstack/react-router"
 
 import { UserDropdown } from "@/pages/dashboard/sidebar/user-dropdown"
-import { PrivateMediaImage } from "@/components/private-media-image"
 import {
   SidebarCollapsible,
   type SidebarGroupEntry,
@@ -24,10 +23,12 @@ import {
   type ShellSection,
 } from "@/lib/custom-shell"
 import type { AuthUser } from "@/lib/api/auth"
+import type { WorkspaceItem } from "@/lib/api/workspaces"
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
   config: ShellConfig
   user: AuthUser
+  workspaces: WorkspaceItem[]
   onLogout: () => void
 }
 
@@ -82,7 +83,13 @@ function mapSectionEntries(
   return entries
 }
 
-export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps) {
+export function AppSidebar({
+  config,
+  user,
+  workspaces,
+  onLogout,
+  ...props
+}: AppSidebarProps) {
   const navigate = useNavigate()
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
@@ -92,35 +99,14 @@ export function AppSidebar({ config, user, onLogout, ...props }: AppSidebarProps
     navigate({ href })
   }, [navigate])
 
-  const teams = [
-    {
-      id: "workspace",
-      name: config.workspaceName,
-      logo: config.favicon ? (
-        <PrivateMediaImage
-          src={config.favicon}
-          alt={`${config.workspaceName || "Workspace"} favicon`}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        renderShellIcon("briefcaseBusiness")
-      ),
-      plan: config.workspacePlan,
-      href: "/",
-    },
-    {
-      id: "hub-baseline",
-      name: "Hub baseline",
-      logo: renderShellIcon("globe"),
-      plan: "Reference",
-      href: "/",
-    },
-  ]
-
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="pb-3">
-        <WorkspaceSwitcher teams={teams} />
+        <WorkspaceSwitcher
+          workspaces={workspaces}
+          workspaceName={config.workspaceName}
+          favicon={config.favicon}
+        />
       </SidebarHeader>
       <SidebarContent>
         {config.sections.map((section) => (

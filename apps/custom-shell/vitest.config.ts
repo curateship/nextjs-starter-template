@@ -9,6 +9,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    pool: "threads",
+    pool: "forks",
   },
 })

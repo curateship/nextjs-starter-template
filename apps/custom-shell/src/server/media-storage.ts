@@ -7,8 +7,8 @@ import {
 
 export class R2StorageNotConfiguredError extends Error {}
 
-function getR2Setting(name: string, fallbackName?: string) {
-  const value = process.env[name] || (fallbackName ? process.env[fallbackName] : "")
+function getR2Setting(name: string) {
+  const value = process.env[name]
   if (value) {
     return value
   }
@@ -16,17 +16,23 @@ function getR2Setting(name: string, fallbackName?: string) {
 }
 
 function getBucketName() {
-  return process.env.CUSTOM_SHELL_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || "custom-shell-media"
+  return getR2Setting("CUSTOM_SHELL_R2_BUCKET_NAME")
+}
+
+export function getPublicMediaUrl(storagePath: string) {
+  const baseUrl = getR2Setting("CUSTOM_SHELL_R2_PUBLIC_URL").replace(/\/+$/, "")
+  const key = storagePath.replace(/^\/+/, "")
+  return `${baseUrl}/${key}`
 }
 
 function getR2Client() {
-  const accountId = getR2Setting("CUSTOM_SHELL_R2_ACCOUNT_ID", "R2_ACCOUNT_ID")
+  const accountId = getR2Setting("CUSTOM_SHELL_R2_ACCOUNT_ID")
   return new S3Client({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
     credentials: {
-      accessKeyId: getR2Setting("CUSTOM_SHELL_R2_ACCESS_KEY_ID", "R2_ACCESS_KEY_ID"),
-      secretAccessKey: getR2Setting("CUSTOM_SHELL_R2_SECRET_ACCESS_KEY", "R2_SECRET_ACCESS_KEY"),
+      accessKeyId: getR2Setting("CUSTOM_SHELL_R2_ACCESS_KEY_ID"),
+      secretAccessKey: getR2Setting("CUSTOM_SHELL_R2_SECRET_ACCESS_KEY"),
     },
   })
 }
@@ -36,13 +42,15 @@ export async function uploadToR2(
   data: Uint8Array,
   contentType: string
 ) {
+  getPublicMediaUrl(storagePath)
+
   await getR2Client().send(
     new PutObjectCommand({
       Bucket: getBucketName(),
       Key: storagePath,
       Body: data,
       ContentType: contentType,
-      CacheControl: "private, max-age=31536000, immutable",
+      CacheControl: "public, max-age=31536000, immutable",
     })
   )
 }

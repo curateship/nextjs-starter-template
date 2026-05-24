@@ -14,6 +14,7 @@ import {
   getOwnedMedia,
   listOwnedMedia,
   storedFilename,
+  validateMediaContent,
   validateMediaFile,
 } from "@/server/media"
 import {
@@ -41,24 +42,50 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/security"
+import {
+  createUserWorkspace,
+  deleteUserWorkspace,
+  getOrCreateCurrentWorkspace,
+  listUserWorkspaces,
+  parseWorkspaceSettings,
+  switchUserWorkspace,
+  updateUserWorkspace,
+} from "@/server/workspaces"
 import * as schema from "@/server/schema"
 
 let client: PGlite
 let database: ReturnType<typeof drizzle<typeof schema>>
+const hadOriginalCustomShellR2PublicUrl = Object.prototype.hasOwnProperty.call(
+  process.env,
+  "CUSTOM_SHELL_R2_PUBLIC_URL"
+)
+const originalCustomShellR2PublicUrl = process.env.CUSTOM_SHELL_R2_PUBLIC_URL
 
 beforeEach(async () => {
+  process.env.CUSTOM_SHELL_R2_PUBLIC_URL =
+    "https://custom-shell-media.example.test"
   client = new PGlite()
   const migration = await readFile(
     new URL("../../drizzle/0000_custom_shell_baseline.sql", import.meta.url),
     "utf8"
   )
+  const workspaceMigration = await readFile(
+    new URL("../../drizzle/0003_custom_shell_workspaces.sql", import.meta.url),
+    "utf8"
+  )
   await client.exec(migration)
+  await client.exec(workspaceMigration)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CustomShellDb)
 })
 
 afterEach(async () => {
   await client.close()
+  if (hadOriginalCustomShellR2PublicUrl) {
+    process.env.CUSTOM_SHELL_R2_PUBLIC_URL = originalCustomShellR2PublicUrl
+  } else {
+    delete process.env.CUSTOM_SHELL_R2_PUBLIC_URL
+  }
 })
 
 describe("custom shell auth helpers", () => {
@@ -103,6 +130,122 @@ describe("custom shell auth helpers", () => {
 
     await database.delete(customShellSessions)
     await expect(findUserBySessionToken(token, database as unknown as CustomShellDb)).resolves.toBeNull()
+  })
+})
+
+describe("custom shell workspaces", () => {
+  it("creates a default workspace and switches the active workspace", async () => {
+    const createdAt = now()
+    const userId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "workspace-owner@internal.dev",
+      name: "Workspace Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    expect(
+      await listUserWorkspaces(userId, database as unknown as CustomShellDb)
+    ).toEqual({ workspaces: [], currentWorkspaceId: null })
+
+    const defaultWorkspace = await getOrCreateCurrentWorkspace(
+      userId,
+      database as unknown as CustomShellDb
+    )
+    expect(defaultWorkspace).toMatchObject({
+      userId,
+      name: "My project",
+    })
+    const defaultSettings = parseWorkspaceSettings(defaultWorkspace.settings)
+    expect(defaultSettings.icon).toBe("briefcaseBusiness")
+    expect(defaultSettings.sections[0]?.entries).toMatchObject([
+      {
+        type: "item",
+        label: "Settings",
+        href: "/admin/settings",
+        visible: true,
+      },
+    ])
+
+    const secondWorkspace = await createUserWorkspace(
+      userId,
+      "Client leads",
+      { icon: "globe" },
+      database as unknown as CustomShellDb
+    )
+    expect(secondWorkspace).toMatchObject({
+      userId,
+      name: "Client leads",
+    })
+    const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
+    expect(secondSettings.icon).toBe("globe")
+    expect(secondSettings.sections[0]?.entries).toMatchObject([
+      {
+        type: "item",
+        label: "Settings",
+        href: "/admin/settings",
+        visible: true,
+      },
+    ])
+
+    const updatedWorkspace = await updateUserWorkspace(
+      userId,
+      secondWorkspace.id,
+      { name: "Client leads updated", settings: { icon: "sparkles" } },
+      database as unknown as CustomShellDb
+    )
+    expect(updatedWorkspace.name).toBe("Client leads updated")
+    expect(parseWorkspaceSettings(updatedWorkspace.settings).icon).toBe(
+      "sparkles"
+    )
+
+    const listed = await listUserWorkspaces(
+      userId,
+      database as unknown as CustomShellDb
+    )
+    expect(listed.currentWorkspaceId).toBe(secondWorkspace.id)
+    expect(listed.workspaces.map((workspace) => workspace.id)).toEqual(
+      expect.arrayContaining([defaultWorkspace.id, secondWorkspace.id])
+    )
+
+    await switchUserWorkspace(
+      userId,
+      defaultWorkspace.id,
+      database as unknown as CustomShellDb
+    )
+    await expect(
+      listUserWorkspaces(userId, database as unknown as CustomShellDb)
+    ).resolves.toMatchObject({
+      currentWorkspaceId: defaultWorkspace.id,
+    })
+
+    await expect(
+      switchUserWorkspace(userId, uuid(), database as unknown as CustomShellDb)
+    ).rejects.toThrow("Workspace not found")
+
+    await deleteUserWorkspace(
+      userId,
+      secondWorkspace.id,
+      database as unknown as CustomShellDb
+    )
+    const afterDelete = await listUserWorkspaces(
+      userId,
+      database as unknown as CustomShellDb
+    )
+    expect(afterDelete.workspaces.map((workspace) => workspace.id)).toEqual([
+      defaultWorkspace.id,
+    ])
+    await expect(
+      deleteUserWorkspace(
+        userId,
+        defaultWorkspace.id,
+        database as unknown as CustomShellDb
+      )
+    ).rejects.toThrow("At least one workspace is required")
   })
 })
 
@@ -505,6 +648,15 @@ describe("custom shell media helpers", () => {
     )
     expect(cleanAltText("  Useful alt  ")).toBe("Useful alt")
     expect(cleanAltText("   ")).toBeNull()
+    expect(() =>
+      validateMediaContent(
+        "image/png",
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      )
+    ).not.toThrow()
+    expect(() =>
+      validateMediaContent("image/png", new Uint8Array([0xff, 0xd8, 0xff]))
+    ).toThrow("File content does not match")
   })
 
   it("lists only owned media and blocks cross-user access", async () => {
@@ -567,7 +719,13 @@ describe("custom shell media helpers", () => {
       listOwnedMedia({ userId: ownerId, page: 1, pageSize: 20 })
     ).resolves.toMatchObject({
       total: 1,
-      media: [{ id: ownedMediaId, original_name: "hero.png" }],
+      media: [
+        {
+          id: ownedMediaId,
+          original_name: "hero.png",
+          url: `https://custom-shell-media.example.test/${ownerId}/hero.png`,
+        },
+      ],
     })
     await expect(getOwnedMedia(otherId, ownedMediaId)).rejects.toThrow(
       "Media not found"

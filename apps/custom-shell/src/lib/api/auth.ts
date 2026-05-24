@@ -76,6 +76,9 @@ const loginFn = createServerFn({ method: "POST" })
       createdAt: now(),
     })
 
+    const { getOrCreateCurrentWorkspace } = await import("@/server/workspaces")
+    await getOrCreateCurrentWorkspace(user.id)
+
     setSessionCookie(token)
     return serializeUser(user)
   })
