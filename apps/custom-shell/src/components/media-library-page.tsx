@@ -1,6 +1,9 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
+  ArrowDownIcon,
+  ArrowUpDownIcon,
+  ArrowUpIcon,
   EditIcon,
   GridIcon,
   ImageIcon,
@@ -47,10 +50,12 @@ import {
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
+  type MediaSortBy,
+  type MediaSortDirection,
 } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
 const pageSizeOptions = [10, 20, 50]
 const pageTabs = ["all", "images", "videos"] as const
@@ -58,6 +63,18 @@ const pageTabs = ["all", "images", "videos"] as const
 export type MediaTabId = (typeof pageTabs)[number]
 
 type ViewMode = "list" | "gallery"
+
+const sortableMediaColumns: {
+  by: MediaSortBy
+  label: string
+  column: "main" | "meta"
+  className?: string
+}[] = [
+  { by: "original_name", label: "File", column: "main" },
+  { by: "file_type", label: "Type", column: "meta" },
+  { by: "file_size", label: "Size", column: "meta", className: "hidden md:table-cell" },
+  { by: "created_at", label: "Added", column: "meta", className: "hidden lg:table-cell" },
+]
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -79,6 +96,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
+  const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
+  const [sortDirection, setSortDirection] = React.useState<MediaSortDirection>("desc")
   const [uploading, setUploading] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [editingMedia, setEditingMedia] = React.useState<MediaItem | null>(null)
@@ -92,11 +111,17 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const loadCurrentPage = React.useCallback(async () => {
     setError(null)
     try {
-      setData(await listMedia({ page: currentPage, pageSize, fileType }))
+      setData(await listMedia({
+        page: currentPage,
+        pageSize,
+        fileType,
+        sortBy,
+        sortDirection,
+      }))
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
     }
-  }, [currentPage, fileType, pageSize])
+  }, [currentPage, fileType, pageSize, sortBy, sortDirection])
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -133,6 +158,16 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     })
   }
 
+  function handleSort(by: MediaSortBy) {
+    setSortDirection((current) =>
+      sortBy === by
+        ? current === "asc" ? "desc" : "asc"
+        : by === "created_at" || by === "file_size" ? "desc" : "asc"
+    )
+    setSortBy(by)
+    setCurrentPage(1)
+  }
+
   function handleToggleVisible() {
     setSelectedIds((current) => {
       const next = new Set(current)
@@ -151,7 +186,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     const allowedTypes = [...imageTypes, ...videoTypes]
     if (!allowedTypes.includes(file.type)) {
-      setError("Invalid file type. Only images and videos are allowed.")
+      setError("Invalid file type. Only images, SVGs, and videos are allowed.")
       event.target.value = ""
       return
     }
@@ -385,10 +420,21 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                     aria-label="Select visible media"
                   />
                 </TableHead>
-                <TableHead column="main">File</TableHead>
-                <TableHead column="meta">Type</TableHead>
-                <TableHead column="meta" className="hidden md:table-cell">Size</TableHead>
-                <TableHead column="meta" className="hidden lg:table-cell">Added</TableHead>
+                {sortableMediaColumns.map((column) => (
+                  <TableHead
+                    key={column.by}
+                    column={column.column}
+                    className={column.className}
+                    aria-sort={getAriaSort(sortBy, sortDirection, column.by)}
+                  >
+                    <MediaSortButton
+                      active={sortBy === column.by}
+                      direction={sortDirection}
+                      label={column.label}
+                      onClick={() => handleSort(column.by)}
+                    />
+                  </TableHead>
+                ))}
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -482,6 +528,46 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       </Dialog>
     </div>
   )
+}
+
+function MediaSortButton({
+  active,
+  direction,
+  label,
+  onClick,
+}: {
+  active: boolean
+  direction: MediaSortDirection
+  label: string
+  onClick: () => void
+}) {
+  const Icon = !active
+    ? ArrowUpDownIcon
+    : direction === "asc"
+      ? ArrowUpIcon
+      : ArrowDownIcon
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      className="-ml-2 text-muted-foreground"
+      onClick={onClick}
+    >
+      {label}
+      <Icon className="size-3" />
+    </Button>
+  )
+}
+
+function getAriaSort(
+  sortBy: MediaSortBy,
+  sortDirection: MediaSortDirection,
+  by: MediaSortBy
+) {
+  if (sortBy !== by) return "none"
+  return sortDirection === "asc" ? "ascending" : "descending"
 }
 
 function MediaTableRow({

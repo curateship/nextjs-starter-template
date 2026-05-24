@@ -13,6 +13,7 @@ import {
   getMediaFileType,
   getOwnedMedia,
   listOwnedMedia,
+  prepareMediaContent,
   storedFilename,
   validateMediaContent,
   validateMediaFile,
@@ -656,6 +657,19 @@ describe("custom shell media helpers", () => {
     ).not.toThrow()
     expect(() =>
       validateMediaContent("image/png", new Uint8Array([0xff, 0xd8, 0xff]))
+    ).toThrow("File content does not match")
+    const unsafeSvg = new TextEncoder().encode(
+      '<svg viewBox="0 0 1 1"><script>alert(1)</script><path d="M0 0h1v1z" onclick="alert(1)" /></svg>'
+    )
+    expect(() => validateMediaContent("image/svg+xml", unsafeSvg)).not.toThrow()
+    expect(
+      new TextDecoder().decode(prepareMediaContent("image/svg+xml", unsafeSvg))
+    ).toBe('<svg viewBox="0 0 1 1"><path d="M0 0h1v1z"></path></svg>')
+    expect(() =>
+      prepareMediaContent(
+        "image/svg+xml",
+        new TextEncoder().encode('<svg><path fill="url(https://example.test/x)" /></svg>')
+      )
     ).toThrow("File content does not match")
   })
 

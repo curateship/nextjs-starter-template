@@ -9,13 +9,15 @@ import {
   getMediaFileType,
   getOwnedMedia,
   listOwnedMedia,
+  prepareMediaContent,
   serializeMedia,
   storedFilename,
-  validateMediaContent,
   validateMediaFile,
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
+  type MediaSortBy,
+  type MediaSortDirection,
 } from "@/server/media"
 import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
@@ -24,12 +26,15 @@ import { findCurrentUser, now } from "@/server/security"
 import { uuid } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
+export type { MediaSortBy, MediaSortDirection }
 
 const listMediaSchema = z
   .object({
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
     fileType: z.enum(["image", "video"]).optional(),
+    sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
+    sortDirection: z.enum(["asc", "desc"]).optional(),
   })
   .optional()
 
@@ -57,6 +62,8 @@ const listMediaFn = createServerFn({ method: "GET" })
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
       fileType: data?.fileType,
+      sortBy: data?.sortBy,
+      sortDirection: data?.sortDirection,
     })
   })
 
@@ -82,11 +89,11 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const mimeType = data.file.type || "application/octet-stream"
     validateMediaFile(mimeType, data.file.size)
 
-    const fileData = new Uint8Array(await data.file.arrayBuffer())
-    if (!fileData.byteLength) {
+    const rawFileData = new Uint8Array(await data.file.arrayBuffer())
+    if (!rawFileData.byteLength) {
       throw new Error("File is empty")
     }
-    validateMediaContent(mimeType, fileData)
+    const fileData = prepareMediaContent(mimeType, rawFileData)
 
     const originalName = cleanOriginalName(data.file.name)
     const filename = storedFilename(originalName, mimeType)
@@ -208,12 +215,16 @@ export function listMedia({
   page = 1,
   pageSize = 20,
   fileType,
+  sortBy,
+  sortDirection,
 }: {
   page?: number
   pageSize?: number
   fileType?: MediaFileType
+  sortBy?: MediaSortBy
+  sortDirection?: MediaSortDirection
 } = {}) {
-  return listMediaFn({ data: { page, pageSize, fileType } })
+  return listMediaFn({ data: { page, pageSize, fileType, sortBy, sortDirection } })
 }
 
 export function uploadMedia(file: File, altText?: string) {

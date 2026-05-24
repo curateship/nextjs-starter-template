@@ -33,15 +33,33 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 }
 
 function isActivePath(href: string, currentPath: string) {
+  if (!href.trim()) return false
+
   return (
     href === currentPath ||
     (href !== "/" && currentPath.startsWith(`${href}/`))
   )
 }
 
+function getActiveHref(config: ShellConfig, currentPath: string) {
+  const hrefs: string[] = []
+
+  config.sections.forEach((section) => {
+    section.entries.forEach((entry) => {
+      if (!isShellItem(entry) || !entry.visible) return
+      hrefs.push(entry.href)
+      entry.children?.forEach((child) => hrefs.push(child.href))
+    })
+  })
+
+  return hrefs
+    .filter((href) => isActivePath(href, currentPath))
+    .sort((a, b) => b.length - a.length)[0]
+}
+
 function mapSectionEntries(
   section: ShellSection,
-  currentPath: string
+  activeHref: string | undefined
 ): SidebarGroupEntry[] {
   const entries: SidebarGroupEntry[] = []
 
@@ -66,16 +84,16 @@ function mapSectionEntries(
       href: entry.href,
       icon: renderShellIcon(entry.icon),
       active:
-        isActivePath(entry.href, currentPath) ||
+        entry.href === activeHref ||
         Boolean(
-          entry.children?.some((child) => isActivePath(child.href, currentPath))
+          entry.children?.some((child) => child.href === activeHref)
         ),
       children: entry.children?.map((child) => ({
         id: child.id,
         label: child.label,
         href: child.href,
         icon: child.icon ? renderShellIcon(child.icon) : undefined,
-        active: isActivePath(child.href, currentPath),
+        active: child.href === activeHref,
       })),
     })
   })
@@ -94,6 +112,7 @@ export function AppSidebar({
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const activeHref = getActiveHref(config, currentPath)
 
   const handleNavigate = React.useCallback((href: string) => {
     navigate({ href })
@@ -114,7 +133,7 @@ export function AppSidebar({
             key={section.id}
             id={section.id}
             title={section.title}
-            entries={mapSectionEntries(section, currentPath)}
+            entries={mapSectionEntries(section, activeHref)}
             onNavigate={handleNavigate}
           />
         ))}

@@ -1,4 +1,5 @@
-import { and, desc, eq, sql } from "drizzle-orm"
+import sanitizeHtml from "sanitize-html"
+import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media-storage"
@@ -11,6 +12,7 @@ export const IMAGE_TYPES = new Set([
   "image/png",
   "image/gif",
   "image/webp",
+  "image/svg+xml",
 ])
 export const VIDEO_TYPES = new Set([
   "video/mp4",
@@ -26,6 +28,12 @@ const VIDEO_MAX_BYTES = 100 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
 export type MediaFileType = "image" | "video"
+export type MediaSortBy =
+  | "created_at"
+  | "original_name"
+  | "file_size"
+  | "file_type"
+export type MediaSortDirection = "asc" | "desc"
 
 export type MediaItem = {
   id: string
@@ -55,7 +63,7 @@ export function getMediaFileType(mimeType: string): MediaFileType {
 export function validateMediaFile(mimeType: string, size: number) {
   if (!ALLOWED_TYPES.has(mimeType)) {
     throw new Error(
-      "Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
+      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
     )
   }
 
@@ -68,6 +76,11 @@ export function validateMediaFile(mimeType: string, size: number) {
 }
 
 export function validateMediaContent(mimeType: string, data: Uint8Array) {
+  if (mimeType === "image/svg+xml") {
+    sanitizeSvgContent(data)
+    return
+  }
+
   const valid =
     (mimeType === "image/jpeg" || mimeType === "image/jpg") &&
       hasPrefix(data, [0xff, 0xd8, 0xff]) ||
@@ -91,6 +104,46 @@ export function validateMediaContent(mimeType: string, data: Uint8Array) {
   if (!valid) {
     throw new Error("File content does not match the selected media type.")
   }
+}
+
+export function prepareMediaContent(mimeType: string, data: Uint8Array) {
+  if (mimeType === "image/svg+xml") {
+    return sanitizeSvgContent(data)
+  }
+
+  validateMediaContent(mimeType, data)
+  return data
+}
+
+const svgSanitizeOptions = {
+  allowedTags: "svg g path rect circle ellipse line polyline polygon title desc".split(" "),
+  allowedAttributes: {
+    svg: "xmlns viewBox width height role aria-label aria-labelledby fill stroke".split(" "),
+    "*": "d x y x1 x2 y1 y2 cx cy r rx ry points fill stroke stroke-width opacity transform".split(" "),
+  },
+  parser: {
+    lowerCaseAttributeNames: false,
+    lowerCaseTags: false,
+  },
+} satisfies sanitizeHtml.IOptions
+
+function sanitizeSvgContent(data: Uint8Array) {
+  let source = ""
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(data)
+  } catch {
+    throw new Error("File content does not match the selected media type.")
+  }
+
+  const sanitized = sanitizeHtml(source, svgSanitizeOptions).trim()
+  if (
+    !/^<svg(?:\s|>)/i.test(sanitized) ||
+    /(?:javascript:|data:|url\s*\()/i.test(sanitized)
+  ) {
+    throw new Error("File content does not match the selected media type.")
+  }
+
+  return new TextEncoder().encode(sanitized)
 }
 
 export function cleanOriginalName(filename?: string) {
@@ -132,11 +185,15 @@ export async function listOwnedMedia({
   page,
   pageSize,
   fileType,
+  sortBy = "created_at",
+  sortDirection = "desc",
 }: {
   userId: string
   page: number
   pageSize: number
   fileType?: MediaFileType
+  sortBy?: MediaSortBy
+  sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
@@ -153,7 +210,7 @@ export async function listOwnedMedia({
     .select()
     .from(customShellMedia)
     .where(where)
-    .orderBy(desc(customShellMedia.createdAt))
+    .orderBy(getMediaOrderBy(sortBy, sortDirection))
     .offset((normalizedPage - 1) * normalizedPageSize)
     .limit(normalizedPageSize)
 
@@ -164,6 +221,19 @@ export async function listOwnedMedia({
     page_size: normalizedPageSize,
     total_pages: total ? Math.ceil(total / normalizedPageSize) : 0,
   }
+}
+
+function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection) {
+  const column =
+    sortBy === "original_name"
+      ? customShellMedia.originalName
+      : sortBy === "file_size"
+        ? customShellMedia.fileSize
+        : sortBy === "file_type"
+          ? customShellMedia.fileType
+          : customShellMedia.createdAt
+
+  return sortDirection === "asc" ? asc(column) : desc(column)
 }
 
 export async function getOwnedMedia(userId: string, mediaId: string) {
@@ -200,6 +270,7 @@ function defaultExtensionForMimeType(mimeType: string) {
   if (mimeType === "image/png") return "png"
   if (mimeType === "image/gif") return "gif"
   if (mimeType === "image/webp") return "webp"
+  if (mimeType === "image/svg+xml") return "svg"
   if (mimeType === "video/mp4") return "mp4"
   if (mimeType === "video/webm") return "webm"
   if (mimeType === "video/quicktime") return "mov"
