@@ -46,7 +46,7 @@ type MediaFilter = "all" | MediaFileType
 type MediaPickerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSelectMedia: (mediaUrl: string, altText?: string) => void
+  onSelectMedia: (mediaUrl: string, altText?: string, media?: MediaItem) => void
   currentMediaUrl?: string
   showVideos?: boolean
 }
@@ -176,7 +176,7 @@ export function MediaPicker({
     setError(null)
     try {
       const item = await uploadMedia(uploadFile, altText)
-      onSelectMedia(item.url, item.alt_text ?? undefined)
+      onSelectMedia(item.url, item.alt_text ?? undefined, item)
       clearUpload()
       onOpenChange(false)
     } catch (uploadError) {
@@ -188,7 +188,11 @@ export function MediaPicker({
 
   function handleSelectMedia() {
     if (!selectedMedia) return
-    onSelectMedia(selectedMedia.url, selectedMedia.alt_text ?? undefined)
+    onSelectMedia(
+      selectedMedia.url,
+      selectedMedia.alt_text ?? undefined,
+      selectedMedia
+    )
     onOpenChange(false)
   }
 

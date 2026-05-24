@@ -212,9 +212,67 @@ export const aiVideoMedia = pgTable(
   ]
 )
 
+export const aiVideoActors = pgTable(
+  "actors",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    prompt: text("prompt").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    tags: jsonb("tags").notNull(),
+    referenceMediaId: varchar("reference_media_id", { length: 36 }).references(
+      () => aiVideoMedia.id,
+      { onDelete: "set null" }
+    ),
+    imageStoragePath: text("image_storage_path").notNull().unique(),
+    imageMimeType: varchar("image_mime_type", { length: 255 }).notNull(),
+    imageFileSize: bigint("image_file_size", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "actors_status_check",
+      sql`${table.status} in ('active', 'inactive')`
+    ),
+    index("ix_actors_user_id").on(table.userId),
+    index("ix_actors_status").on(table.status),
+    index("ix_actors_created_at").on(table.createdAt),
+    index("ix_actors_user_status_created").on(
+      table.userId,
+      table.status,
+      table.createdAt
+    ),
+    index("ix_actors_reference_media_id").on(table.referenceMediaId),
+  ]
+)
+
+export const aiVideoActorGenerationEvents = pgTable(
+  "actor_generation_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_actor_generation_events_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+    index("ix_actor_generation_events_created_at").on(table.createdAt),
+  ]
+)
+
 export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
+export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment =
   typeof aiVideoFeedbackComments.$inferSelect
