@@ -2,6 +2,7 @@ import * as React from "react"
 import { ImageIcon, PlayIcon, VideoIcon, XIcon } from "lucide-react"
 
 import { MediaPicker } from "@/components/media-picker"
+import { PrivateMediaImage } from "@/components/private-media-image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -45,7 +46,7 @@ export function MediaInput({
                 </div>
               </>
             ) : (
-              <img src={value} alt={label} className="h-full w-full object-contain" />
+              <PrivateMediaImage src={value} alt={label} className="h-full w-full object-contain" />
             )}
           </div>
           <Button
