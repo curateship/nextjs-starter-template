@@ -60,7 +60,7 @@ type MediaSortColumn = "name" | "type" | "size" | "added"
 export default function ImagesPage() {
   const { currentSite, loading: siteLoading } = useSiteSwitcher()
   const currentSiteId = currentSite?.id
-  const [viewMode, setViewMode] = useState<"list" | "gallery">("list")
+  const [viewMode, setViewMode] = useState<"list" | "gallery">("gallery")
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [filterType, setFilterType] = useState<"all" | "image" | "video">("all")
@@ -75,30 +75,6 @@ export default function ImagesPage() {
   const mediaSort = useAdminSort<MediaSortColumn>()
   const [isDeleting, setIsDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
-  const [typeCounts, setTypeCounts] = useState<{
-    all: number
-    image: number
-    video: number
-  }>({ all: 0, image: 0, video: 0 })
-
-  // Load type counts after mutations
-  const loadTypeCounts = useCallback(async () => {
-    if (!currentSiteId) {
-      setTypeCounts({ all: 0, image: 0, video: 0 })
-      return
-    }
-
-    const [allRes, imgRes, vidRes] = await Promise.all([
-      getPaginatedMediaAction(1, 1, undefined, currentSiteId),
-      getPaginatedMediaAction(1, 1, "image", currentSiteId),
-      getPaginatedMediaAction(1, 1, "video", currentSiteId)
-    ])
-    setTypeCounts({
-      all: allRes.data?.total ?? 0,
-      image: imgRes.data?.total ?? 0,
-      video: vidRes.data?.total ?? 0
-    })
-  }, [currentSiteId])
 
   const loadImages = useCallback(async () => {
     try {
@@ -139,11 +115,6 @@ export default function ImagesPage() {
     clearMediaSelection()
   }, [currentSiteId, clearMediaSelection])
 
-  useEffect(() => {
-    if (siteLoading) return
-    loadTypeCounts()
-  }, [siteLoading, loadTypeCounts])
-
   // Reset to first page when filter changes
   const handleFilterChange = (newFilter: "all" | "image" | "video") => {
     setFilterType(newFilter)
@@ -170,7 +141,6 @@ export default function ImagesPage() {
       } else {
         toast.success("Image deleted successfully")
         loadImages()
-        loadTypeCounts()
       }
     } catch (error) {
       toast.error("Failed to delete image")
@@ -259,7 +229,6 @@ export default function ImagesPage() {
 
       toast.success("Image uploaded successfully!")
       loadImages()
-      loadTypeCounts()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed")
     } finally {
@@ -306,7 +275,6 @@ export default function ImagesPage() {
       clearMediaSelection()
       setMassDeleteConfirmOpen(false)
       loadImages()
-      loadTypeCounts()
     } catch (error) {
       toast.error("Failed to delete items")
     } finally {
@@ -388,9 +356,9 @@ export default function ImagesPage() {
                     <SelectValue />
                   </TableRightActionsSelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All ({typeCounts.all})</SelectItem>
-                    <SelectItem value="image">Images ({typeCounts.image})</SelectItem>
-                    <SelectItem value="video">Videos ({typeCounts.video})</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="image">Images</SelectItem>
+                    <SelectItem value="video">Videos</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex h-8 items-center rounded-md border">
@@ -436,19 +404,19 @@ export default function ImagesPage() {
 
             {viewMode === "gallery" ? (
               isLoading ? (
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                <div className="px-5 pt-3 pb-5">
+                  <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                     {[...Array(10)].map((_, i) => (
                       <div
                         key={i}
-                        className="relative aspect-square animate-pulse overflow-hidden rounded-lg bg-muted"
+                        className="relative aspect-[3/4] animate-pulse overflow-hidden rounded-lg bg-muted"
                       >
                         <div className="absolute inset-0 bg-muted" />
                       </div>
                     ))}
                   </div>
                 </div>
-              ) : images.length === 0 ? (
+              ) : sortedImages.length === 0 ? (
                 <div className="p-8 text-center">
                   <ImageIcon className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                   <p className="mb-4 text-muted-foreground">No media found. Upload your first file to get started.</p>
@@ -457,10 +425,10 @@ export default function ImagesPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="p-6">
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {images.map((media) => (
-                      <div key={media.id} className="group relative aspect-square overflow-hidden rounded-lg bg-muted">
+                <div className="px-5 pt-3 pb-5">
+                  <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+                    {sortedImages.map((media) => (
+                      <div key={media.id} className="group relative aspect-[3/4] overflow-hidden rounded-lg border bg-muted">
                         {media.file_type === "video" ? (
                           <div className="relative h-full w-full bg-black">
                             <video
@@ -487,25 +455,25 @@ export default function ImagesPage() {
                             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 20vw"
                           />
                         )}
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                          <div className="flex justify-center space-x-2">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => handleEditImage(media)}
-                              className="cursor-pointer"
-                            >
-                              <Edit className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteImage(media)}
-                              className="cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
+                        <div className="absolute right-2 bottom-2 flex gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleEditImage(media)}
+                            className="h-8 w-8 cursor-pointer p-0"
+                            aria-label="Edit media"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteImage(media)}
+                            className="h-8 w-8 cursor-pointer p-0 text-destructive hover:text-destructive"
+                            aria-label="Delete media"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -683,7 +651,13 @@ export default function ImagesPage() {
               </DialogHeader>
               {editingImage && (
                 <div className="space-y-4">
-                  <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
+                  <div
+                    className={
+                      editingImage.file_type === "video"
+                        ? "relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg border bg-muted"
+                        : "relative mx-auto h-[50vh] max-h-96 min-h-48 w-full max-w-80 overflow-hidden rounded-lg border bg-muted"
+                    }
+                  >
                     {editingImage.file_type === "video" ? (
                       <video
                         src={`/api/media/proxy?url=${encodeURIComponent(editingImage.public_url)}`}

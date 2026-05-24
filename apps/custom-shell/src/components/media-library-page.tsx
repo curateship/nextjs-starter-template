@@ -23,6 +23,7 @@ import {
   dashboardToolbarButtonGroupClassName,
   dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
@@ -34,6 +35,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   TableCell,
   TableHead,
@@ -63,6 +70,7 @@ const pageTabs = ["all", "images", "videos"] as const
 export type MediaTabId = (typeof pageTabs)[number]
 
 type ViewMode = "list" | "gallery"
+type MediaTypeFilter = "all" | MediaFileType
 
 const sortableMediaColumns: {
   by: MediaSortBy
@@ -93,9 +101,10 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(() => activeTabToFileType(activeTab) ?? "all")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
-  const [viewMode, setViewMode] = React.useState<ViewMode>("list")
+  const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
   const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
   const [sortDirection, setSortDirection] = React.useState<MediaSortDirection>("desc")
   const [uploading, setUploading] = React.useState(false)
@@ -106,7 +115,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  const fileType = activeTabToFileType(activeTab)
+  React.useEffect(() => {
+    setMediaTypeFilter(activeTabToFileType(activeTab) ?? "all")
+    setCurrentPage(1)
+    setSelectedIds(new Set())
+  }, [activeTab])
+
+  const fileType = mediaTypeFilter === "all" ? undefined : mediaTypeFilter
 
   const loadCurrentPage = React.useCallback(async () => {
     setError(null)
@@ -122,11 +137,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       setError(getMediaErrorMessage(loadError))
     }
   }, [currentPage, fileType, pageSize, sortBy, sortDirection])
-
-  React.useEffect(() => {
-    setCurrentPage(1)
-    setSelectedIds(new Set())
-  }, [activeTab])
 
   React.useEffect(() => {
     loadCurrentPage()
@@ -289,6 +299,25 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         value={searchQuery}
         onChange={(event) => setSearchQuery(event.target.value)}
       />
+      <Select
+        value={mediaTypeFilter}
+        onValueChange={(value) => {
+          setMediaTypeFilter(value as MediaTypeFilter)
+          setCurrentPage(1)
+        }}
+      >
+        <DashboardToolbarSelectTrigger
+          aria-label="Media type filter"
+          labels={["All", "Images", "Videos"]}
+        >
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          <SelectItem value="image">Images</SelectItem>
+          <SelectItem value="video">Videos</SelectItem>
+        </SelectContent>
+      </Select>
       <div className={dashboardToolbarButtonGroupClassName}>
         <DashboardToolbarButton
           type="button"
@@ -359,7 +388,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           count={data?.total ?? 0}
           controls={mediaControls}
           content={
-            <div className="p-4">
+            <div className="px-5 pt-3 pb-5">
               {visibleMedia.length === 0 ? (
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
@@ -368,7 +397,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                   {visibleMedia.map((item) => (
                     <GalleryItem
                       key={item.id}
@@ -384,9 +413,17 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             </div>
           }
           footer={{
-            type: "summary",
-            count: visibleMedia.length,
-            label: "media items",
+            type: "pagination",
+            page: currentPage,
+            pageSize,
+            total: data?.total ?? 0,
+            totalPages: data?.total_pages ?? 0,
+            pageSizeOptions,
+            onPageChange: setCurrentPage,
+            onPageSizeChange: (size) => {
+              setPageSize(size)
+              setCurrentPage(1)
+            },
           }}
         />
       ) : (
@@ -462,7 +499,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           <DialogBody>
             {editingMedia ? (
               <div className="space-y-4">
-                <MediaPreview item={editingMedia} className="aspect-video rounded-lg border bg-muted" />
+                <MediaPreview
+                  item={editingMedia}
+                  className={cn(
+                    "mx-auto w-full rounded-lg border bg-muted",
+                    editingMedia.file_type === "video" ? "aspect-video max-w-xl" : "h-[50vh] max-h-96 min-h-48 max-w-80",
+                  )}
+                />
                 <div className="grid gap-2">
                   <Label htmlFor="media-alt-text">
                     {editingMedia.file_type === "video" ? "Description" : "Alt text"}
@@ -617,26 +660,20 @@ function GalleryItem({
   onDelete: () => void
 }) {
   return (
-    <div className={cn("group overflow-hidden rounded-lg border bg-card", selected && "ring-2 ring-primary/25")}>
-      <button type="button" className="relative block aspect-square w-full bg-muted" onClick={onToggle}>
+    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "ring-2 ring-primary/25")}>
+      <button type="button" className="relative block aspect-[3/4] w-full bg-muted" onClick={onToggle}>
         <MediaPreview item={item} className="h-full w-full" />
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {item.file_type}
         </span>
       </button>
-      <div className="flex items-center justify-between gap-2 p-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{item.original_name}</p>
-          <p className="text-xs text-muted-foreground">{formatFileSize(item.file_size)}</p>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
-            <EditIcon className="size-4" />
-          </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
-            <Trash2Icon className="size-4 text-destructive" />
-          </Button>
-        </div>
+      <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
+          <EditIcon className="size-4" />
+        </Button>
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
+          <Trash2Icon className="size-4 text-destructive" />
+        </Button>
       </div>
     </div>
   )
