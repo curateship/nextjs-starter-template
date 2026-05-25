@@ -108,7 +108,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end **:data-[slot=button]:w-full sm:**:data-[slot=button]:w-auto",
+        "flex flex-row items-center justify-end gap-2 **:data-[slot=button]:w-auto",
         className
       )}
       {...props}
@@ -127,7 +127,7 @@ function DialogFooterActions({ className, ...props }: React.ComponentProps<"div"
   return (
     <div
       data-slot="dialog-footer-actions"
-      className={cn("flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center", className)}
+      className={cn("flex w-auto flex-row items-center gap-2", className)}
       {...props}
     />
   )
