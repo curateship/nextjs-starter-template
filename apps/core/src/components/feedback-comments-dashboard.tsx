@@ -438,7 +438,7 @@ export function FeedbackCommentsDashboard({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  className="h-8 w-8 p-0"
                   onClick={() => setDeletingComment(comment)}
                   title="Delete comment"
                   aria-label="Delete comment"

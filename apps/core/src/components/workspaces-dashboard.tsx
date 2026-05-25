@@ -227,7 +227,6 @@ export function WorkspacesDashboard({
                   variant="ghost"
                   size="icon-sm"
                   disabled={workspaces.length <= 1}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => setPendingDelete(workspace)}
                   aria-label={`Delete ${workspace.name}`}
                   title={`Delete ${workspace.name}`}

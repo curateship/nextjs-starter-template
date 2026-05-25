@@ -177,94 +177,121 @@ function DashboardTableFooter({ footer }: { footer: DashboardTableFooter }) {
     const lastRow = Math.min(currentPage * footer.pageSize, footer.total)
 
     return (
-      <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-          <span className="hidden sm:inline">Rows per page:</span>
-          <Select
-            value={String(footer.pageSize)}
-            onValueChange={(value) => footer.onPageSizeChange?.(Number(value))}
-            disabled={!footer.onPageSizeChange}
-          >
-            <SelectTrigger className="h-8 w-[70px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pageSizeOptions.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span>
-            {firstRow ? `${firstRow}-${lastRow}` : "0"} of {footer.total}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <PageButton
-            label="Go to first page"
-            disabled={currentPage === 1}
-            onClick={() => footer.onPageChange(1)}
-          >
-            <ChevronsLeftIcon className="size-4" />
-          </PageButton>
-          <PageButton
-            label="Go to previous page"
-            disabled={currentPage === 1}
-            onClick={() => footer.onPageChange(currentPage - 1)}
-          >
-            <ChevronLeftIcon className="size-4" />
-          </PageButton>
-          <PageButton
-            label="Go to next page"
-            disabled={currentPage === totalPages || footer.total === 0}
-            onClick={() => footer.onPageChange(currentPage + 1)}
-          >
-            <ChevronRightIcon className="size-4" />
-          </PageButton>
-          <PageButton
-            label="Go to last page"
-            disabled={currentPage === totalPages || footer.total === 0}
-            onClick={() => footer.onPageChange(totalPages)}
-          >
-            <ChevronsRightIcon className="size-4" />
-          </PageButton>
-        </div>
-      </div>
+      <DashboardTablePaginationFooter
+        pageSize={footer.pageSize}
+        pageSizeOptions={pageSizeOptions}
+        rangeText={`${firstRow ? `${firstRow}-${lastRow}` : "0"} of ${footer.total}`}
+        onPageSizeChange={footer.onPageSizeChange}
+        firstDisabled={currentPage === 1}
+        previousDisabled={currentPage === 1}
+        nextDisabled={currentPage === totalPages || footer.total === 0}
+        lastDisabled={currentPage === totalPages || footer.total === 0}
+        onFirst={() => footer.onPageChange(1)}
+        onPrevious={() => footer.onPageChange(currentPage - 1)}
+        onNext={() => footer.onPageChange(currentPage + 1)}
+        onLast={() => footer.onPageChange(totalPages)}
+      />
     )
   }
 
   if (footer.type === "loadMore") {
+    const pageSize = footer.count || defaultPageSizeOptions[0]
+
     return (
-      <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-          <span>
-            {footer.count} {footer.label ?? "items"}
-          </span>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-8 w-fit sm:h-9"
-          disabled={!footer.hasMore || footer.loading}
-          onClick={footer.onLoadMore}
-        >
-          {footer.loading ? (
-            <Loader2Icon className="size-4 animate-spin" />
-          ) : null}
-          {footer.actionLabel ?? "Load older"}
-        </Button>
-      </div>
+      <DashboardTablePaginationFooter
+        pageSize={pageSize}
+        pageSizeOptions={[pageSize]}
+        rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}${footer.hasMore ? "+" : ""}`}
+        firstDisabled
+        previousDisabled
+        nextDisabled={!footer.hasMore || footer.loading}
+        lastDisabled
+        onNext={footer.onLoadMore}
+        nextIcon={footer.loading ? <Loader2Icon className="size-4 animate-spin" /> : undefined}
+      />
     )
   }
 
+  const pageSize = footer.count || defaultPageSizeOptions[0]
+
+  return (
+    <DashboardTablePaginationFooter
+      pageSize={pageSize}
+      pageSizeOptions={[pageSize]}
+      rangeText={`${footer.count ? `1-${footer.count}` : "0"} of ${footer.count}`}
+      firstDisabled
+      previousDisabled
+      nextDisabled
+      lastDisabled
+    />
+  )
+}
+
+function DashboardTablePaginationFooter({
+  pageSize,
+  pageSizeOptions,
+  rangeText,
+  onPageSizeChange,
+  firstDisabled,
+  previousDisabled,
+  nextDisabled,
+  lastDisabled,
+  onFirst,
+  onPrevious,
+  onNext,
+  onLast,
+  nextIcon,
+}: {
+  pageSize: number
+  pageSizeOptions: number[]
+  rangeText: string
+  onPageSizeChange?: (pageSize: number) => void
+  firstDisabled: boolean
+  previousDisabled: boolean
+  nextDisabled: boolean
+  lastDisabled: boolean
+  onFirst?: () => void
+  onPrevious?: () => void
+  onNext?: () => void
+  onLast?: () => void
+  nextIcon?: React.ReactNode
+}) {
   return (
     <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
       <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
-        <span>
-          {footer.count} {footer.label ?? "items"}
-        </span>
+        <span className="hidden sm:inline">Rows per page:</span>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(value) => onPageSizeChange?.(Number(value))}
+          disabled={!onPageSizeChange}
+        >
+          <SelectTrigger className="h-8 w-[70px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {pageSizeOptions.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span>{rangeText}</span>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <PageButton label="Go to first page" disabled={firstDisabled} onClick={onFirst}>
+          <ChevronsLeftIcon className="size-4" />
+        </PageButton>
+        <PageButton label="Go to previous page" disabled={previousDisabled} onClick={onPrevious}>
+          <ChevronLeftIcon className="size-4" />
+        </PageButton>
+        <PageButton label="Go to next page" disabled={nextDisabled} onClick={onNext}>
+          {nextIcon ?? <ChevronRightIcon className="size-4" />}
+        </PageButton>
+        <PageButton label="Go to last page" disabled={lastDisabled} onClick={onLast}>
+          <ChevronsRightIcon className="size-4" />
+        </PageButton>
       </div>
     </div>
   )
@@ -278,7 +305,7 @@ function PageButton({
 }: {
   label: string
   disabled: boolean
-  onClick: () => void
+  onClick?: () => void
   children: React.ReactNode
 }) {
   return (

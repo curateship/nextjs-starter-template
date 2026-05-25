@@ -472,7 +472,6 @@ export function FeedbackDashboard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-destructive hover:text-destructive"
                   onClick={() => setDeletingFeedback(item)}
                   title="Delete feedback"
                   aria-label="Delete feedback"

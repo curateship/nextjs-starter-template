@@ -832,7 +832,7 @@ function ActorTableRow({
             onClick={onDelete}
             aria-label="Delete actor"
           >
-            <Trash2Icon className="size-4 text-destructive" />
+            <Trash2Icon className="size-4" />
           </Button>
         </div>
       </TableCell>
@@ -892,7 +892,7 @@ function ActorGalleryItem({
           onClick={onDelete}
           aria-label="Delete actor"
         >
-          <Trash2Icon className="size-4 text-destructive" />
+          <Trash2Icon className="size-4" />
         </Button>
       </div>
     </div>

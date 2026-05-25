@@ -462,7 +462,6 @@ export function FeedbackCommentsDashboard() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-destructive hover:text-destructive"
                   onClick={() => setDeletingComment(comment)}
                   title="Delete comment"
                   aria-label="Delete comment"

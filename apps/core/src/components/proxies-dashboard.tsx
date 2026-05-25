@@ -664,7 +664,6 @@ export function ProxiesDashboard({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => setPendingDelete(proxy)}
                   aria-label={`Delete ${proxy.name}`}
                   title={`Delete ${proxy.name}`}

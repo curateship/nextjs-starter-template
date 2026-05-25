@@ -585,7 +585,7 @@ function MediaTableRow({
             <EditIcon className="size-4" />
           </Button>
           <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
-            <Trash2Icon className="size-4 text-destructive" />
+            <Trash2Icon className="size-4" />
           </Button>
         </div>
       </TableCell>
@@ -619,7 +619,7 @@ function GalleryItem({
           <EditIcon className="size-4" />
         </Button>
         <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete media">
-          <Trash2Icon className="size-4 text-destructive" />
+          <Trash2Icon className="size-4" />
         </Button>
       </div>
     </div>
