@@ -25,9 +25,9 @@ function AdminModalContent({
     <DialogContent
       size="admin"
       className={cn(
-        "flex max-h-[calc(100vh-4rem)] min-h-0 flex-col overflow-hidden p-0",
-        size === "default" && "max-w-[840px]",
-        size === "wide" && "h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]",
+        "flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100vh-4rem)]",
+        size === "default" && "sm:max-w-[840px]",
+        size === "wide" && "sm:h-[calc(100vh-4rem)] sm:max-h-[820px] sm:max-w-[960px]",
         className
       )}
       {...props}
@@ -36,7 +36,7 @@ function AdminModalContent({
 }
 
 function AdminModalHeader({ className, ...props }: React.ComponentProps<typeof DialogHeader>) {
-  return <DialogHeader className={cn("gap-2 px-6 pt-6 pb-0", className)} {...props} />
+  return <DialogHeader className={cn("gap-2 px-4 pt-4 pb-0 sm:px-6 sm:pt-6", className)} {...props} />
 }
 
 function AdminModalTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {
@@ -53,7 +53,7 @@ function AdminModalDescription({
 function AdminModalBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("min-h-0 overflow-y-auto px-6 pt-6 pb-0", className)}
+      className={cn("min-h-0 overflow-y-auto px-4 pt-4 pb-0 sm:px-6 sm:pt-6", className)}
       {...props}
     />
   )
@@ -70,7 +70,12 @@ function AdminModalScrollBody({
   return (
     <AdminModalBody className={cn("flex-1 overflow-hidden p-0", className)} {...props}>
       <ScrollArea className="h-full">
-        <div className={cn("px-6 pt-6 pb-0 pr-8 [&_h3]:pt-4", viewportClassName)}>
+        <div
+          className={cn(
+            "px-4 pt-4 pb-0 pr-4 sm:px-6 sm:pt-6 sm:pr-8 [&_h3]:pt-4 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0",
+            viewportClassName
+          )}
+        >
           {children}
         </div>
       </ScrollArea>
@@ -82,7 +87,7 @@ function AdminModalFooter({ className, ...props }: React.ComponentProps<typeof D
   return (
     <DialogFooter
       className={cn(
-        "px-6 py-6",
+        "px-4 py-4 sm:px-6 sm:py-6",
         className
       )}
       {...props}

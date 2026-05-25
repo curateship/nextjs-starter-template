@@ -44,7 +44,7 @@ function DashboardModalContent({
     <DialogContent
       showCloseButton={false}
       size="admin"
-      className={cn("flex max-h-[calc(100vh-4rem)] flex-col overflow-hidden p-0", className)}
+      className={cn("flex h-dvh max-h-dvh flex-col overflow-hidden p-0 sm:h-auto sm:max-h-[calc(100vh-4rem)]", className)}
       {...props}
     >
       <DashboardModalHeader>
@@ -66,7 +66,7 @@ function DashboardModalContent({
 }
 
 function DashboardModalHeader({ className, ...props }: React.ComponentProps<typeof DialogHeader>) {
-  return <DialogHeader className={cn("relative px-6 pt-6 pb-0 text-left", className)} {...props} />
+  return <DialogHeader className={cn("relative px-4 pt-4 pb-0 text-left sm:px-6 sm:pt-6", className)} {...props} />
 }
 
 function DashboardModalTitle({ className, ...props }: React.ComponentProps<typeof DialogTitle>) {
@@ -91,7 +91,7 @@ function DashboardModalCloseButton() {
         type="button"
         variant="ghost"
         size="icon-sm"
-        className="absolute top-5 right-5"
+        className="absolute top-3 right-3 sm:top-5 sm:right-5"
       >
         <XIcon className="h-4 w-4" />
         <span className="sr-only">Close</span>
@@ -111,7 +111,12 @@ function DashboardModalScrollBody({
 }) {
   return (
     <ScrollArea className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)} {...props}>
-      <div className={cn("grid gap-6 px-6 pt-2 pb-6 **:data-[slot=card]:shadow-none", viewportClassName)}>
+      <div
+        className={cn(
+          "grid gap-6 px-4 pt-2 pb-4 sm:px-6 sm:pb-6 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0 sm:**:data-[slot=card]:shadow-none",
+          viewportClassName
+        )}
+      >
         {children}
       </div>
     </ScrollArea>
@@ -119,7 +124,7 @@ function DashboardModalScrollBody({
 }
 
 function DashboardModalFooter({ className, ...props }: React.ComponentProps<typeof DialogFooter>) {
-  return <DialogFooter className={cn("px-6 pb-6", className)} {...props} />
+  return <DialogFooter className={cn("px-4 pb-4 sm:px-6 sm:pb-6", className)} {...props} />
 }
 
 function DashboardModalFooterActions({ className, ...props }: React.ComponentProps<typeof DialogFooterActions>) {
