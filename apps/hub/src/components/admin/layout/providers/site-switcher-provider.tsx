@@ -11,6 +11,7 @@ interface SiteSwitcherState {
   loading: boolean
   error: string | null
   pageSize: number
+  setPageSize: (pageSize: number) => void
   setCurrentSite: (site: SiteWithTheme | null) => void
   refreshSites: () => Promise<void>
 }
@@ -77,7 +78,7 @@ export function SiteSwitcherProvider({
   )
   const [loading, setLoading] = useState(initialSites === undefined)
   const [error, setError] = useState<string | null>(null)
-  const [pageSize] = useState(initialPageSize ?? 50)
+  const [pageSize, setPageSize] = useState(initialPageSize ?? 50)
 
   const syncResolvedSite = useCallback((availableSites: SiteWithTheme[]) => {
     const nextSite = resolveCurrentSite(availableSites, routeSiteId)
@@ -138,6 +139,7 @@ export function SiteSwitcherProvider({
         loading,
         error,
         pageSize,
+        setPageSize,
         setCurrentSite: handleSetCurrentSite,
         refreshSites,
       }}

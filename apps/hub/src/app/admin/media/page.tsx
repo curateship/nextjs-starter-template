@@ -58,7 +58,7 @@ import {
 type MediaSortColumn = "name" | "type" | "size" | "added"
 
 export default function ImagesPage() {
-  const { currentSite, loading: siteLoading } = useSiteSwitcher()
+  const { currentSite, loading: siteLoading, pageSize } = useSiteSwitcher()
   const currentSiteId = currentSite?.id
   const [viewMode, setViewMode] = useState<"list" | "gallery">("gallery")
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
@@ -69,7 +69,6 @@ export default function ImagesPage() {
   const [editAltText, setEditAltText] = useState("")
   const [isUploading, setIsUploading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(20)
   const mediaSelection = useAdminBulkSelection()
   const clearMediaSelection = mediaSelection.clearSelection
   const mediaSort = useAdminSort<MediaSortColumn>()
@@ -125,6 +124,10 @@ export default function ImagesPage() {
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
+  }
+
+  const handlePageSizeChange = () => {
+    clearMediaSelection()
   }
 
   const handleDeleteImage = async (image: MediaData) => {
@@ -395,6 +398,7 @@ export default function ImagesPage() {
                 <AdminListFooter
                   currentPage={currentPage}
                   onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
                   pageSize={pageSize}
                   total={paginatedData?.total ?? 0}
                 />

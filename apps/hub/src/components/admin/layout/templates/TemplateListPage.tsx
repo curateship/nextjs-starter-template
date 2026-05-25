@@ -89,7 +89,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   routeBase,
   setDefaultTemplate
 }: TemplateListPageProps<TTemplate>) {
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const router = useRouter()
   const templateSelection = useAdminBulkSelection()
   const templateSort = useAdminSort<TemplateSortColumn>()
@@ -104,7 +104,6 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
   const [creating, setCreating] = useState(false)
-  const pageSize = 50
 
   const loadTemplates = useCallback(async () => {
     if (!currentSite?.id) {
@@ -136,7 +135,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     } finally {
       setLoading(false)
     }
-  }, [currentPage, currentSite?.id, getTemplatesBySite])
+  }, [currentPage, currentSite?.id, getTemplatesBySite, pageSize])
 
   useEffect(() => {
     loadTemplates()

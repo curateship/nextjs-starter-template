@@ -52,7 +52,7 @@ import {
 type TemplateSortColumn = "name" | "blocks" | "modified"
 
 export default function TemplatesPage() {
-  const { currentSite } = useSiteSwitcher()
+  const { currentSite, pageSize } = useSiteSwitcher()
   const router = useRouter()
   const [templates, setTemplates] = useState<NewsletterTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,7 +62,6 @@ export default function TemplatesPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 50
   const [total, setTotal] = useState(0)
 
   const templateSort = useAdminSort<TemplateSortColumn>()
@@ -73,7 +72,7 @@ export default function TemplatesPage() {
 
   useEffect(() => {
     loadTemplates()
-  }, [currentSite?.id, currentPage])
+  }, [currentSite?.id, currentPage, pageSize])
 
   async function loadTemplates() {
     if (!currentSite?.id) {

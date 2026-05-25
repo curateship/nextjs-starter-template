@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -39,7 +39,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { updateAdminSettingsAction } from "@/lib/actions/admin-settings/admin-settings-actions";
 import { cn } from "@/lib/utils/tailwind";
+import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider";
+import { toast } from "sonner";
 import type { AdminSortDirection } from "./hooks";
 
 type AdminTableStatus = {
@@ -320,14 +323,31 @@ export function AdminListFooter({
   pageSize: number;
   total: number;
 }) {
+  const { setPageSize: setContextPageSize } = useSiteSwitcher();
+  const [isSavingPageSize, setIsSavingPageSize] = useState(false);
   const totalPages = Math.ceil(total / pageSize);
   const safeTotalPages = totalPages || 1;
   const safeCurrentPage = Math.max(1, Math.min(currentPage, safeTotalPages));
   const start = total ? (safeCurrentPage - 1) * pageSize + 1 : 0;
   const end = Math.min(safeCurrentPage * pageSize, total);
-  const pageSizeOptions = [10, 25, 50].includes(pageSize)
-    ? [10, 25, 50]
-    : [pageSize, 10, 25, 50].sort((a, b) => a - b);
+  const pageSizeOptions = [25, 50, 100].includes(pageSize)
+    ? [25, 50, 100]
+    : [pageSize, 25, 50, 100].sort((a, b) => a - b);
+
+  const handlePageSizeChange = async (value: string) => {
+    const nextPageSize = Number(value);
+    setContextPageSize(nextPageSize);
+    onPageSizeChange?.(nextPageSize);
+    onPageChange(1);
+
+    setIsSavingPageSize(true);
+    const result = await updateAdminSettingsAction({ dashboard_page_size: nextPageSize });
+    setIsSavingPageSize(false);
+
+    if (result.error) {
+      toast.error(`Failed to save rows per page: ${result.error}`);
+    }
+  };
 
   return (
     <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
@@ -335,8 +355,8 @@ export function AdminListFooter({
         <span className="hidden sm:inline">Rows per page:</span>
         <Select
           value={pageSize.toString()}
-          onValueChange={(value) => onPageSizeChange?.(Number(value))}
-          disabled={!onPageSizeChange}
+          onValueChange={handlePageSizeChange}
+          disabled={isSavingPageSize}
         >
           <SelectTrigger className="h-8 w-[70px]">
             <SelectValue />
