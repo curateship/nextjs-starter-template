@@ -32,7 +32,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   createWorkspace,
@@ -47,6 +49,7 @@ type WorkspaceForm = {
   name: string
   icon: IconKey
 }
+type WorkspaceSortColumn = "name" | "status"
 
 const defaultIcon = "briefcaseBusiness" satisfies IconKey
 
@@ -66,6 +69,28 @@ export function WorkspacesDashboard({
   })
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [sortColumn, setSortColumn] = React.useState<WorkspaceSortColumn>("name")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
+
+  const sortedWorkspaces = React.useMemo(() => {
+    const direction = sortDirection === "asc" ? 1 : -1
+    return [...workspaces].sort((a, b) => {
+      if (sortColumn === "status") {
+        return (Number(b.active) - Number(a.active)) * direction
+      }
+      return a.name.localeCompare(b.name) * direction
+    })
+  }, [sortColumn, sortDirection, workspaces])
+
+  function toggleSort(column: WorkspaceSortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
 
   function openCreateForm() {
     setEditing(null)
@@ -129,7 +154,7 @@ export function WorkspacesDashboard({
       <DashboardTable
         title="Projects"
         icon={renderShellIcon("briefcaseBusiness", "size-4 text-muted-foreground sm:size-[18px]")}
-        count={workspaces.length}
+        count={sortedWorkspaces.length}
         controls={
           <Button
             type="button"
@@ -144,18 +169,26 @@ export function WorkspacesDashboard({
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="main">Workspace</TableHead>
-              <TableHead column="meta">Status</TableHead>
+              <TableHead column="main">
+                <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
+                  Workspace
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                  Status
+                </TableSortButton>
+              </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
-        isEmpty={workspaces.length === 0}
+        isEmpty={sortedWorkspaces.length === 0}
         emptyText="No workspaces found."
         emptyColSpan={3}
-        footer={{ type: "summary", count: workspaces.length, label: "workspaces" }}
+        footer={{ type: "summary", count: sortedWorkspaces.length, label: "workspaces" }}
       >
-        {workspaces.map((workspace) => (
+        {sortedWorkspaces.map((workspace) => (
           <TableRow key={workspace.id}>
             <TableCell column="main">
               <div className="flex items-center gap-3">

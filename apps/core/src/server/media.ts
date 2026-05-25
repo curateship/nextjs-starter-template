@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media-storage"
@@ -26,6 +26,8 @@ const VIDEO_MAX_BYTES = 100 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
 export type MediaFileType = "image" | "video"
+export type MediaSortBy = "created_at" | "original_name" | "file_size" | "file_type"
+export type MediaSortDirection = "asc" | "desc"
 
 export type MediaItem = {
   id: string
@@ -95,11 +97,15 @@ export async function listOwnedMedia({
   page,
   pageSize,
   fileType,
+  sortBy = "created_at",
+  sortDirection = "desc",
 }: {
   userId: string
   page: number
   pageSize: number
   fileType?: MediaFileType
+  sortBy?: MediaSortBy
+  sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
@@ -116,7 +122,7 @@ export async function listOwnedMedia({
     .select()
     .from(media)
     .where(where)
-    .orderBy(desc(media.createdAt))
+    .orderBy(getMediaOrderBy(sortBy, sortDirection))
     .offset((normalizedPage - 1) * normalizedPageSize)
     .limit(normalizedPageSize)
 
@@ -127,6 +133,19 @@ export async function listOwnedMedia({
     page_size: normalizedPageSize,
     total_pages: total ? Math.ceil(total / normalizedPageSize) : 0,
   }
+}
+
+function getMediaOrderBy(sortBy: MediaSortBy, sortDirection: MediaSortDirection) {
+  const column =
+    sortBy === "original_name"
+      ? media.originalName
+      : sortBy === "file_size"
+        ? media.fileSize
+        : sortBy === "file_type"
+          ? media.fileType
+          : media.createdAt
+
+  return sortDirection === "asc" ? asc(column) : desc(column)
 }
 
 export async function getOwnedMedia(userId: string, mediaId: string) {

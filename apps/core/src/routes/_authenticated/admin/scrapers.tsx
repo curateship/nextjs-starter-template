@@ -6,6 +6,7 @@ import {
   redirect,
   useRouterState,
 } from "@tanstack/react-router"
+import * as React from "react"
 import { BotIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
@@ -14,10 +15,14 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import { loadCurrentUser } from "@/lib/api/auth"
 import { scraperModules } from "@/scrapers"
+
+type ScraperSortColumn = "name" | "provider"
 
 export const Route = createFileRoute("/_authenticated/admin/scrapers")({
   loader: async () => {
@@ -28,6 +33,8 @@ export const Route = createFileRoute("/_authenticated/admin/scrapers")({
 })
 
 function ScrapersRoute() {
+  const [sortColumn, setSortColumn] = React.useState<ScraperSortColumn>("name")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -36,27 +43,51 @@ function ScrapersRoute() {
     return <Outlet />
   }
 
+  const sortedModules = [...scraperModules].sort((a, b) => {
+    const direction = sortDirection === "asc" ? 1 : -1
+    if (sortColumn === "provider") return 0
+    return a.name.localeCompare(b.name) * direction
+  })
+
+  const toggleSort = (column: ScraperSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
+
   return (
     <div className="w-full pb-8">
       <DashboardTable
         title="Modules"
         icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={scraperModules.length}
+        count={sortedModules.length}
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="main">Scraper</TableHead>
-              <TableHead column="meta">Provider</TableHead>
+              <TableHead column="main">
+                <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
+                  Scraper
+                </TableSortButton>
+              </TableHead>
+              <TableHead column="meta">
+                <TableSortButton active={sortColumn === "provider"} direction={sortDirection} onClick={() => toggleSort("provider")}>
+                  Provider
+                </TableSortButton>
+              </TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
-        isEmpty={scraperModules.length === 0}
+        isEmpty={sortedModules.length === 0}
         emptyText="No scraper modules found."
         emptyColSpan={3}
-        footer={{ type: "summary", count: scraperModules.length, label: "modules" }}
+        footer={{ type: "summary", count: sortedModules.length, label: "modules" }}
       >
-        {scraperModules.map((module) => (
+        {sortedModules.map((module) => (
           <TableRow key={module.key}>
             <TableCell column="main">
               <Link

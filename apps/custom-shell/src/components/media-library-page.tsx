@@ -1,9 +1,6 @@
 import * as React from "react"
 import {
   AlertCircleIcon,
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
   EditIcon,
   GridIcon,
   ImageIcon,
@@ -45,6 +42,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
 } from "@/components/ui/table"
 import {
@@ -443,12 +441,13 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                     className={column.className}
                     aria-sort={getAriaSort(sortBy, sortDirection, column.by)}
                   >
-                    <MediaSortButton
+                    <TableSortButton
                       active={sortBy === column.by}
                       direction={sortDirection}
-                      label={column.label}
                       onClick={() => handleSort(column.by)}
-                    />
+                    >
+                      {column.label}
+                    </TableSortButton>
                   </TableHead>
                 ))}
                 <TableHead column="meta">Actions</TableHead>
@@ -549,37 +548,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
         </DialogContent>
       </Dialog>
     </div>
-  )
-}
-
-function MediaSortButton({
-  active,
-  direction,
-  label,
-  onClick,
-}: {
-  active: boolean
-  direction: MediaSortDirection
-  label: string
-  onClick: () => void
-}) {
-  const Icon = !active
-    ? ArrowUpDownIcon
-    : direction === "asc"
-      ? ArrowUpIcon
-      : ArrowDownIcon
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="xs"
-      className="-ml-2 text-muted-foreground"
-      onClick={onClick}
-    >
-      {label}
-      <Icon className="size-3" />
-    </Button>
   )
 }
 

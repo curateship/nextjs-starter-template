@@ -41,7 +41,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   deleteFeedback,
@@ -81,13 +83,7 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
 
 const pageSizeOptions = [10, 25, 50]
 
-type FeedbackSort = "recent" | "most_votes" | "most_comments"
-
-const feedbackSortLabels: Record<FeedbackSort, string> = {
-  recent: "Recent",
-  most_votes: "Most Votes",
-  most_comments: "Most Comments",
-}
+type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -109,7 +105,8 @@ export function FeedbackDashboard({
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>(initialFeedback)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
-  const [sortFilter, setSortFilter] = React.useState<FeedbackSort>("recent")
+  const [sortColumn, setSortColumn] = React.useState<FeedbackSortColumn>("created")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
   const [error, setError] = React.useState<string | null>(null)
@@ -154,18 +151,16 @@ export function FeedbackDashboard({
       return matchesSearch && matchesType
     })
 
+    const direction = sortDirection === "asc" ? 1 : -1
     return matches.sort((a, b) => {
-      if (sortFilter === "most_votes") {
-        return b.vote_count - a.vote_count
-      }
-      if (sortFilter === "most_comments") {
-        return b.comment_count - a.comment_count
-      }
-      return (
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )
+      if (sortColumn === "message") return a.message.localeCompare(b.message) * direction
+      if (sortColumn === "type") return feedbackTypeLabels[a.type].localeCompare(feedbackTypeLabels[b.type]) * direction
+      if (sortColumn === "author") return a.author_name.localeCompare(b.author_name) * direction
+      if (sortColumn === "comments") return (a.comment_count - b.comment_count) * direction
+      if (sortColumn === "votes") return (a.vote_count - b.vote_count) * direction
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
-  }, [feedback, searchQuery, sortFilter, typeFilter])
+  }, [feedback, searchQuery, sortColumn, sortDirection, typeFilter])
 
   const totalPages = Math.ceil(filteredFeedback.length / pageSize)
   const paginatedFeedback = React.useMemo(() => {
@@ -188,7 +183,17 @@ export function FeedbackDashboard({
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, sortFilter, typeFilter, pageSize])
+  }, [searchQuery, sortColumn, sortDirection, typeFilter, pageSize])
+
+  const toggleSort = (column: FeedbackSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
@@ -328,24 +333,6 @@ export function FeedbackDashboard({
               </SelectContent>
             </Select>
 
-            <Select
-              value={sortFilter}
-              onValueChange={(value) => setSortFilter(value as FeedbackSort)}
-            >
-              <DashboardToolbarSelectTrigger
-                aria-label="Sort feedback"
-                labels={Object.values(feedbackSortLabels)}
-              >
-                <SelectValue placeholder="Sort" />
-              </DashboardToolbarSelectTrigger>
-              <SelectContent>
-                {Object.entries(feedbackSortLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Button
               type="button"
               size="sm"
@@ -374,22 +361,34 @@ export function FeedbackDashboard({
                   />
                 </TableHead>
                 <TableHead column="main">
-                  Feedback
+                  <TableSortButton active={sortColumn === "message"} direction={sortDirection} onClick={() => toggleSort("message")}>
+                    Feedback
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Type
+                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
+                    Type
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden md:table-cell">
-                  Author
+                  <TableSortButton active={sortColumn === "author"} direction={sortDirection} onClick={() => toggleSort("author")}>
+                    Author
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
-                  Created
+                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
+                    Created
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Comments
+                  <TableSortButton active={sortColumn === "comments"} direction={sortDirection} onClick={() => toggleSort("comments")}>
+                    Comments
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Votes
+                  <TableSortButton active={sortColumn === "votes"} direction={sortDirection} onClick={() => toggleSort("votes")}>
+                    Votes
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
                   Actions

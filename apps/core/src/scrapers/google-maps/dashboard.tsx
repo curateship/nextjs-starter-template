@@ -1,9 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  ChevronsUpDownIcon,
   MapPinnedIcon,
   Loader2Icon,
   PlayIcon,
@@ -51,6 +48,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
 } from "@/components/ui/table"
 import {
@@ -289,11 +287,11 @@ export function GoogleMapsDashboard() {
               <TableHead column="select">
                 <Checkbox checked={visibleRunsSelected ? true : visibleRunsIndeterminate ? "indeterminate" : false} onCheckedChange={(checked) => toggleVisibleRuns(checked === true)} aria-label="Select visible runs" />
               </TableHead>
-              <TableHead column="main"><DashboardSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Run</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Location</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={runSortColumn === "limit"} direction={runSortDirection} onClick={() => toggleRunSort("limit")}>Limit</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={runSortColumn === "status"} direction={runSortDirection} onClick={() => toggleRunSort("status")}>Status</DashboardSortButton></TableHead>
-              <TableHead className="w-px whitespace-nowrap text-left text-xs font-medium text-foreground sm:text-sm">Actions</TableHead>
+              <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Run</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Location</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={runSortColumn === "limit"} direction={runSortDirection} onClick={() => toggleRunSort("limit")}>Limit</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={runSortColumn === "status"} direction={runSortDirection} onClick={() => toggleRunSort("status")}>Status</TableSortButton></TableHead>
+              <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
@@ -643,14 +641,14 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <TableHead column="select">
                 <Checkbox checked={visibleSelected ? true : visibleIndeterminate ? "indeterminate" : false} onCheckedChange={(checked) => toggleVisible(checked === true)} aria-label="Select visible results" />
               </TableHead>
-              <TableHead column="main"><DashboardSortButton active={sortColumn === "title"} direction={sortDirection} onClick={() => toggleSort("title")}>Business</DashboardSortButton></TableHead>
-              <TableHead column="preview" className="w-64 max-w-64"><DashboardSortButton active={sortColumn === "address"} direction={sortDirection} onClick={() => toggleSort("address")}>Address</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={sortColumn === "rating"} direction={sortDirection} onClick={() => toggleSort("rating")}>Rating</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={sortColumn === "reviews"} direction={sortDirection} onClick={() => toggleSort("reviews")}>Reviews</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={sortColumn === "phone"} direction={sortDirection} onClick={() => toggleSort("phone")}>Phone</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={sortColumn === "website"} direction={sortDirection} onClick={() => toggleSort("website")}>Website</DashboardSortButton></TableHead>
-              <TableHead column="meta"><DashboardSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>Date added</DashboardSortButton></TableHead>
-              <TableHead className="w-px whitespace-nowrap text-left text-xs font-medium text-foreground sm:text-sm">Actions</TableHead>
+              <TableHead column="main"><TableSortButton active={sortColumn === "title"} direction={sortDirection} onClick={() => toggleSort("title")}>Business</TableSortButton></TableHead>
+              <TableHead column="preview" className="w-64 max-w-64"><TableSortButton active={sortColumn === "address"} direction={sortDirection} onClick={() => toggleSort("address")}>Address</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={sortColumn === "rating"} direction={sortDirection} onClick={() => toggleSort("rating")}>Rating</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={sortColumn === "reviews"} direction={sortDirection} onClick={() => toggleSort("reviews")}>Reviews</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={sortColumn === "phone"} direction={sortDirection} onClick={() => toggleSort("phone")}>Phone</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={sortColumn === "website"} direction={sortDirection} onClick={() => toggleSort("website")}>Website</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>Date added</TableSortButton></TableHead>
+              <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
@@ -772,37 +770,6 @@ function DeleteResultsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function DashboardSortButton({
-  active,
-  children,
-  direction,
-  onClick,
-}: {
-  active: boolean
-  children: React.ReactNode
-  direction: SortDirection
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className="flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-foreground outline-none transition-colors hover:text-foreground sm:text-sm"
-      onClick={onClick}
-    >
-      <span>{children}</span>
-      <span className="flex size-3.5 items-center justify-center">
-        {!active ? (
-          <ChevronsUpDownIcon className="size-3 opacity-50" />
-        ) : direction === "asc" ? (
-          <ArrowUpIcon className="size-3" />
-        ) : (
-          <ArrowDownIcon className="size-3" />
-        )}
-      </span>
-    </button>
   )
 }
 

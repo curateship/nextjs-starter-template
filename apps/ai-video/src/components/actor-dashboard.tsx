@@ -43,7 +43,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -62,6 +64,7 @@ import { cn } from "@/lib/utils"
 
 type ViewMode = "gallery" | "list"
 type StatusFilter = "all" | ActorStatus
+type ActorSortColumn = "name" | "tags" | "status" | "created"
 type ActorModalState =
   | { type: "create" }
   | { type: "edit"; actor: ActorItem }
@@ -91,6 +94,8 @@ export function ActorDashboard() {
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all")
   const [tagFilter, setTagFilter] = React.useState("all")
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  const [sortColumn, setSortColumn] = React.useState<ActorSortColumn>("created")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [modalState, setModalState] = React.useState<ActorModalState>(null)
@@ -143,6 +148,7 @@ export function ActorDashboard() {
 
   const filteredActors = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
+    const direction = sortDirection === "asc" ? 1 : -1
     return actors.filter((actor) => {
       const matchesSearch =
         !query ||
@@ -153,8 +159,13 @@ export function ActorDashboard() {
         statusFilter === "all" || actor.status === statusFilter
       const matchesTag = tagFilter === "all" || actor.tags.includes(tagFilter)
       return matchesSearch && matchesStatus && matchesTag
+    }).sort((a, b) => {
+      if (sortColumn === "tags") return a.tags.join(", ").localeCompare(b.tags.join(", ")) * direction
+      if (sortColumn === "status") return statusLabels[a.status].localeCompare(statusLabels[b.status]) * direction
+      if (sortColumn === "created") return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
+      return a.name.localeCompare(b.name) * direction
     })
-  }, [actors, searchQuery, statusFilter, tagFilter])
+  }, [actors, searchQuery, sortColumn, sortDirection, statusFilter, tagFilter])
 
   const totalPages = Math.ceil(filteredActors.length / pageSize)
   const paginatedActors = React.useMemo(() => {
@@ -164,7 +175,17 @@ export function ActorDashboard() {
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [pageSize, searchQuery, statusFilter, tagFilter])
+  }, [pageSize, searchQuery, sortColumn, sortDirection, statusFilter, tagFilter])
+
+  function toggleSort(column: ActorSortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
 
   function openCreateModal() {
     setModalState({ type: "create" })
@@ -454,11 +475,25 @@ export function ActorDashboard() {
           header={
             <TableHeader>
               <TableRow>
-                <TableHead column="main">Actor</TableHead>
-                <TableHead column="meta">Tags</TableHead>
-                <TableHead column="meta">Status</TableHead>
+                <TableHead column="main">
+                  <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
+                    Actor
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton active={sortColumn === "tags"} direction={sortDirection} onClick={() => toggleSort("tags")}>
+                    Tags
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                    Status
+                  </TableSortButton>
+                </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
-                  Date Added
+                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
+                    Date Added
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>

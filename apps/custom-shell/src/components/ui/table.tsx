@@ -1,11 +1,23 @@
 "use client"
 
 import * as React from "react"
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChevronsUpDownIcon,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
 type TableHeadProps = React.ComponentProps<"th"> & {
   column?: "main" | "meta" | "preview" | "select"
+}
+
+type TableSortDirection = "asc" | "desc"
+
+type TableSortButtonProps = React.ComponentProps<"button"> & {
+  active: boolean
+  direction: TableSortDirection
 }
 
 type TableCellProps = React.ComponentProps<"td"> & {
@@ -137,6 +149,36 @@ function TableHead({ className, column, ...props }: TableHeadProps) {
   )
 }
 
+function TableSortButton({
+  active,
+  children,
+  className,
+  direction,
+  ...props
+}: TableSortButtonProps) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex h-8 cursor-pointer items-center gap-2 px-0 text-xs font-medium text-inherit outline-none transition-colors hover:text-foreground sm:text-sm",
+        className
+      )}
+      {...props}
+    >
+      <span>{children}</span>
+      <span className="flex size-3.5 items-center justify-center">
+        {!active ? (
+          <ChevronsUpDownIcon className="size-3 opacity-50" />
+        ) : direction === "asc" ? (
+          <ArrowUpIcon className="size-3" />
+        ) : (
+          <ArrowDownIcon className="size-3" />
+        )}
+      </span>
+    </button>
+  )
+}
+
 function TableCell({ className, column, ...props }: TableCellProps) {
   return (
     <td
@@ -179,7 +221,9 @@ export {
   TableBody,
   TableFooter,
   TableHead,
+  TableSortButton,
   TableRow,
   TableCell,
   TableCaption,
 }
+export type { TableSortDirection }

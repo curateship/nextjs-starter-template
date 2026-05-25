@@ -42,7 +42,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -57,6 +59,7 @@ import {
 import { cn } from "@/lib/utils"
 
 type FeedbackPeriod = "1year" | "3months" | "30days"
+type CommentSortColumn = "message" | "feedback" | "type" | "author" | "created"
 
 const pageSizeOptions = [10, 25, 50]
 
@@ -104,6 +107,8 @@ export function FeedbackCommentsDashboard() {
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [periodFilter, setPeriodFilter] =
     React.useState<FeedbackPeriod>("1year")
+  const [sortColumn, setSortColumn] = React.useState<CommentSortColumn>("created")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
   const [loading, setLoading] = React.useState(true)
@@ -144,6 +149,7 @@ export function FeedbackCommentsDashboard() {
   const filteredComments = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const periodStart = getPeriodStart(periodFilter)
+    const direction = sortDirection === "asc" ? 1 : -1
     return comments.filter((comment) => {
       const matchesSearch =
         !query ||
@@ -154,8 +160,14 @@ export function FeedbackCommentsDashboard() {
         typeFilter === "all" || comment.feedback_type === typeFilter
       const matchesPeriod = new Date(comment.created_at) >= periodStart
       return matchesSearch && matchesType && matchesPeriod
+    }).sort((a, b) => {
+      if (sortColumn === "message") return a.message.localeCompare(b.message) * direction
+      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
+      if (sortColumn === "type") return feedbackTypeLabels[a.feedback_type].localeCompare(feedbackTypeLabels[b.feedback_type]) * direction
+      if (sortColumn === "author") return a.author_name.localeCompare(b.author_name) * direction
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
-  }, [comments, periodFilter, searchQuery, typeFilter])
+  }, [comments, periodFilter, searchQuery, sortColumn, sortDirection, typeFilter])
 
   const totalPages = Math.ceil(filteredComments.length / pageSize)
   const paginatedComments = React.useMemo(() => {
@@ -178,7 +190,17 @@ export function FeedbackCommentsDashboard() {
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, periodFilter, typeFilter, pageSize])
+  }, [searchQuery, periodFilter, sortColumn, sortDirection, typeFilter, pageSize])
+
+  const toggleSort = (column: CommentSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
@@ -342,14 +364,30 @@ export function FeedbackCommentsDashboard() {
                     aria-label="Select visible comments"
                   />
                 </TableHead>
-                <TableHead column="main">Comment</TableHead>
-                <TableHead column="preview">Feedback</TableHead>
-                <TableHead column="meta">Type</TableHead>
-                <TableHead column="meta" className="hidden lg:table-cell">
-                  Author
+                <TableHead column="main">
+                  <TableSortButton active={sortColumn === "message"} direction={sortDirection} onClick={() => toggleSort("message")}>
+                    Comment
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="preview">
+                  <TableSortButton active={sortColumn === "feedback"} direction={sortDirection} onClick={() => toggleSort("feedback")}>
+                    Feedback
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
+                    Type
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
-                  Created
+                  <TableSortButton active={sortColumn === "author"} direction={sortDirection} onClick={() => toggleSort("author")}>
+                    Author
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
+                    Created
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>

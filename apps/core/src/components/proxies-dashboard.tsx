@@ -45,7 +45,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -83,6 +85,7 @@ type ProxyImportState = {
   protocol: ProxyProtocol
   enabled: boolean
 }
+type ProxySortColumn = "name" | "port" | "country" | "type" | "status" | "enabled"
 
 const emptyProxyForm: ProxyFormState = {
   name: "",
@@ -133,6 +136,8 @@ export function ProxiesDashboard({
   const [statusFilter, setStatusFilter] = React.useState<ProxyStatus | "all">("all")
   const [typeFilter, setTypeFilter] = React.useState<ProxyConnectionType | "all" | "unset">("all")
   const [countryFilter, setCountryFilter] = React.useState("all")
+  const [sortColumn, setSortColumn] = React.useState<ProxySortColumn>("name")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
   const [editingProxy, setEditingProxy] = React.useState<ProxyItem | null>(null)
   const [formOpen, setFormOpen] = React.useState(false)
   const [form, setForm] = React.useState<ProxyFormState>(emptyProxyForm)
@@ -168,6 +173,7 @@ export function ProxiesDashboard({
   const visibleProxies = React.useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
+    const direction = sortDirection === "asc" ? 1 : -1
     return proxies.filter((proxy) => {
       if (statusFilter !== "all" && proxy.last_status !== statusFilter) {
         return false
@@ -199,8 +205,15 @@ export function ProxiesDashboard({
         .join(" ")
         .toLowerCase()
         .includes(normalizedQuery)
+    }).sort((a, b) => {
+      if (sortColumn === "port") return (a.port - b.port) * direction
+      if (sortColumn === "country") return (a.country ?? "Unknown").localeCompare(b.country ?? "Unknown") * direction
+      if (sortColumn === "type") return (a.connection_type ? connectionTypeLabels[a.connection_type] : "Unset").localeCompare(b.connection_type ? connectionTypeLabels[b.connection_type] : "Unset") * direction
+      if (sortColumn === "status") return statusLabels[a.last_status].localeCompare(statusLabels[b.last_status]) * direction
+      if (sortColumn === "enabled") return (Number(b.enabled) - Number(a.enabled)) * direction
+      return a.name.localeCompare(b.name) * direction
     })
-  }, [countryFilter, proxies, query, statusFilter, typeFilter])
+  }, [countryFilter, proxies, query, sortColumn, sortDirection, statusFilter, typeFilter])
 
   const visibleProxyIds = visibleProxies.map((proxy) => proxy.id)
   const visibleSelected =
@@ -220,6 +233,16 @@ export function ProxiesDashboard({
 
       return next
     })
+  }
+
+  function toggleSort(column: ProxySortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
   }
 
   function toggleProxySelection(proxyId: string) {
@@ -528,22 +551,34 @@ export function ProxiesDashboard({
                   />
                 </TableHead>
                 <TableHead column="main">
-                  Proxy
+                  <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
+                    Proxy
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Port
+                  <TableSortButton active={sortColumn === "port"} direction={sortDirection} onClick={() => toggleSort("port")}>
+                    Port
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Country
+                  <TableSortButton active={sortColumn === "country"} direction={sortDirection} onClick={() => toggleSort("country")}>
+                    Country
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Type
+                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
+                    Type
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Status
+                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                    Status
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Enabled
+                  <TableSortButton active={sortColumn === "enabled"} direction={sortDirection} onClick={() => toggleSort("enabled")}>
+                    Enabled
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
                   Actions

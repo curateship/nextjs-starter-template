@@ -39,7 +39,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   bulkDeleteMedia,
@@ -51,6 +53,7 @@ import {
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
+  type MediaSortBy,
 } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 
@@ -78,6 +81,8 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(() => activeTabToFileType(activeTab) ?? "all")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
+  const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
   const [uploading, setUploading] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
@@ -97,11 +102,11 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const loadCurrentPage = React.useCallback(async () => {
     setError(null)
     try {
-      setData(await listMedia({ page: currentPage, pageSize, fileType }))
+      setData(await listMedia({ page: currentPage, pageSize, fileType, sortBy, sortDirection }))
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
     }
-  }, [currentPage, fileType, pageSize])
+  }, [currentPage, fileType, pageSize, sortBy, sortDirection])
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -148,6 +153,17 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       }
       return next
     })
+  }
+
+  function toggleSort(column: MediaSortBy) {
+    setCurrentPage(1)
+    if (sortBy === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortBy(column)
+    setSortDirection("asc")
   }
 
   async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
@@ -408,10 +424,26 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                     aria-label="Select visible media"
                   />
                 </TableHead>
-                <TableHead column="main">File</TableHead>
-                <TableHead column="meta">Type</TableHead>
-                <TableHead column="meta" className="hidden md:table-cell">Size</TableHead>
-                <TableHead column="meta" className="hidden lg:table-cell">Added</TableHead>
+                <TableHead column="main">
+                  <TableSortButton active={sortBy === "original_name"} direction={sortDirection} onClick={() => toggleSort("original_name")}>
+                    File
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton active={sortBy === "file_type"} direction={sortDirection} onClick={() => toggleSort("file_type")}>
+                    Type
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden md:table-cell">
+                  <TableSortButton active={sortBy === "file_size"} direction={sortDirection} onClick={() => toggleSort("file_size")}>
+                    Size
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortBy === "created_at"} direction={sortDirection} onClick={() => toggleSort("created_at")}>
+                    Added
+                  </TableSortButton>
+                </TableHead>
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>
             </TableHeader>

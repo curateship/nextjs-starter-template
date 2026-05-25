@@ -22,7 +22,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import {
   getNotificationErrorMessage,
@@ -34,6 +36,7 @@ import { cn } from "@/lib/utils"
 
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
+type NotificationSortColumn = "activity" | "feedback" | "recipient" | "type" | "status" | "created"
 
 const ADMIN_NOTIFICATION_PAGE_SIZE = 50
 
@@ -66,6 +69,8 @@ export function NotificationsPage({
   const [searchQuery, setSearchQuery] = React.useState("")
   const [readFilter, setReadFilter] = React.useState<ReadFilter>("all")
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all")
+  const [sortColumn, setSortColumn] = React.useState<NotificationSortColumn>("created")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
 
   const loadNotifications = React.useCallback(async (cursor?: string) => {
     if (cursor) {
@@ -96,6 +101,7 @@ export function NotificationsPage({
   const filteredNotifications = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
 
+    const direction = sortDirection === "asc" ? 1 : -1
     return notifications.filter((item) => {
       const matchesSearch =
         !query ||
@@ -109,8 +115,25 @@ export function NotificationsPage({
       const matchesType = typeFilter === "all" || item.type === typeFilter
 
       return matchesSearch && matchesRead && matchesType
+    }).sort((a, b) => {
+      if (sortColumn === "activity") return a.actor_name.localeCompare(b.actor_name) * direction
+      if (sortColumn === "feedback") return a.feedback_message.localeCompare(b.feedback_message) * direction
+      if (sortColumn === "recipient") return a.recipient_name.localeCompare(b.recipient_name) * direction
+      if (sortColumn === "type") return notificationTypeLabels[a.type].localeCompare(notificationTypeLabels[b.type]) * direction
+      if (sortColumn === "status") return (Number(Boolean(a.read_at)) - Number(Boolean(b.read_at))) * direction
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
     })
-  }, [notifications, readFilter, searchQuery, typeFilter])
+  }, [notifications, readFilter, searchQuery, sortColumn, sortDirection, typeFilter])
+
+  const toggleSort = (column: NotificationSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+      return
+    }
+
+    setSortColumn(column)
+    setSortDirection("asc")
+  }
 
   return (
     <div className="w-full pb-8">
@@ -175,22 +198,34 @@ export function NotificationsPage({
             <TableHeader>
               <TableRow>
                 <TableHead column="main">
-                  Activity
+                  <TableSortButton active={sortColumn === "activity"} direction={sortDirection} onClick={() => toggleSort("activity")}>
+                    Activity
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="preview">
-                  Feedback
+                  <TableSortButton active={sortColumn === "feedback"} direction={sortDirection} onClick={() => toggleSort("feedback")}>
+                    Feedback
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Recipient
+                  <TableSortButton active={sortColumn === "recipient"} direction={sortDirection} onClick={() => toggleSort("recipient")}>
+                    Recipient
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Type
+                  <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
+                    Type
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Status
+                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                    Status
+                  </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
-                  Created
+                  <TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>
+                    Created
+                  </TableSortButton>
                 </TableHead>
               </TableRow>
             </TableHeader>

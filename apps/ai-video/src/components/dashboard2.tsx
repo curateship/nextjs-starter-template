@@ -111,7 +111,9 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableSortButton,
   TableRow,
+  type TableSortDirection,
 } from "@/components/ui/table";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -166,6 +168,14 @@ type Transaction = {
 };
 
 type PeriodKey = "30days" | "3months" | "1year";
+type TransactionSortColumn =
+  | "txnId"
+  | "customer"
+  | "amount"
+  | "type"
+  | "paymentMethod"
+  | "date"
+  | "status";
 
 type RevenueDataPoint = {
   month: string;
@@ -1714,12 +1724,20 @@ function exportTransactionsCsv() {
   URL.revokeObjectURL(url);
 }
 
+function transactionDateRank(date: string) {
+  if (date === "Today") return 0;
+  const daysAgo = Number.parseInt(date, 10);
+  return Number.isNaN(daysAgo) ? 0 : -daysAgo;
+}
+
 const TransactionsTable = () => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [dateFilter, setDateFilter] = React.useState<string>("all");
   const [paymentMethodFilter, setPaymentMethodFilter] =
     React.useState<string>("all");
+  const [sortColumn, setSortColumn] = React.useState<TransactionSortColumn>("date");
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc");
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
 
@@ -1736,6 +1754,7 @@ const TransactionsTable = () => {
 
   const filteredTransactions = React.useMemo(() => {
     const query = searchQuery.toLowerCase();
+    const direction = sortDirection === "asc" ? 1 : -1;
     return transactionRecords.filter((txn) => {
       const matchesSearch =
         txn.txnId.toLowerCase().includes(query) ||
@@ -1774,8 +1793,24 @@ const TransactionsTable = () => {
       return (
         matchesSearch && matchesStatus && matchesPaymentMethod && matchesDate
       );
+    }).sort((a, b) => {
+      if (sortColumn === "customer") {
+        return a.customerName.localeCompare(b.customerName) * direction;
+      }
+      if (sortColumn === "amount") return (a.amount - b.amount) * direction;
+      if (sortColumn === "type") return a.type.localeCompare(b.type) * direction;
+      if (sortColumn === "paymentMethod") {
+        return a.paymentMethod.localeCompare(b.paymentMethod) * direction;
+      }
+      if (sortColumn === "date") {
+        return (transactionDateRank(a.date) - transactionDateRank(b.date)) * direction;
+      }
+      if (sortColumn === "status") {
+        return transactionStatusLabels[a.status].localeCompare(transactionStatusLabels[b.status]) * direction;
+      }
+      return a.txnId.localeCompare(b.txnId) * direction;
     });
-  }, [searchQuery, statusFilter, dateFilter, paymentMethodFilter]);
+  }, [searchQuery, statusFilter, dateFilter, paymentMethodFilter, sortColumn, sortDirection]);
 
   const totalPages = Math.ceil(filteredTransactions.length / pageSize);
 
@@ -1787,10 +1822,20 @@ const TransactionsTable = () => {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, dateFilter, paymentMethodFilter, pageSize]);
+  }, [searchQuery, statusFilter, dateFilter, paymentMethodFilter, sortColumn, sortDirection, pageSize]);
 
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const toggleSort = (column: TransactionSortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortColumn(column);
+    setSortDirection("asc");
   };
 
   return (
@@ -1950,19 +1995,41 @@ const TransactionsTable = () => {
       header={
         <TableHeader>
           <TableRow>
-            <TableHead column="main">Transaction ID</TableHead>
-            <TableHead column="preview">Customer</TableHead>
-            <TableHead column="meta">Amount</TableHead>
+            <TableHead column="main">
+              <TableSortButton active={sortColumn === "txnId"} direction={sortDirection} onClick={() => toggleSort("txnId")}>
+                Transaction ID
+              </TableSortButton>
+            </TableHead>
+            <TableHead column="preview">
+              <TableSortButton active={sortColumn === "customer"} direction={sortDirection} onClick={() => toggleSort("customer")}>
+                Customer
+              </TableSortButton>
+            </TableHead>
+            <TableHead column="meta">
+              <TableSortButton active={sortColumn === "amount"} direction={sortDirection} onClick={() => toggleSort("amount")}>
+                Amount
+              </TableSortButton>
+            </TableHead>
             <TableHead column="meta" className="hidden lg:table-cell">
-              Type
+              <TableSortButton active={sortColumn === "type"} direction={sortDirection} onClick={() => toggleSort("type")}>
+                Type
+              </TableSortButton>
             </TableHead>
             <TableHead column="meta" className="hidden md:table-cell">
-              Payment Method
+              <TableSortButton active={sortColumn === "paymentMethod"} direction={sortDirection} onClick={() => toggleSort("paymentMethod")}>
+                Payment Method
+              </TableSortButton>
             </TableHead>
             <TableHead column="meta" className="hidden sm:table-cell">
-              Date
+              <TableSortButton active={sortColumn === "date"} direction={sortDirection} onClick={() => toggleSort("date")}>
+                Date
+              </TableSortButton>
             </TableHead>
-            <TableHead column="meta">Status</TableHead>
+            <TableHead column="meta">
+              <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                Status
+              </TableSortButton>
+            </TableHead>
             <TableHead column="meta">Actions</TableHead>
           </TableRow>
         </TableHeader>
