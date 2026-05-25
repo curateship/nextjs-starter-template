@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import { getPaginatedMediaAction, type MediaData, type PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -293,9 +294,15 @@ export function ShellIconPickerField({
                   accept="image/svg+xml,.svg"
                   onChange={handleSvgUpload}
                 />
-                <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                <Button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label={uploading ? "Uploading SVG" : "Upload SVG"}
+                  className="shrink-0 px-3 sm:px-4"
+                >
                   {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                  {uploading ? "Uploading" : "Upload SVG"}
+                  <span className="hidden sm:inline">{uploading ? "Uploading" : "Upload SVG"}</span>
                 </Button>
               </>
             ) : null}
@@ -361,8 +368,10 @@ export function ShellIconPickerField({
               ) : null}
               <ScrollArea className="pr-2">
                 {mediaLoading ? (
-                  <div className="grid place-items-center py-10 text-sm text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                  <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
+                    {Array.from({ length: 14 }).map((_, index) => (
+                      <Skeleton key={index} className="aspect-square rounded-lg" />
+                    ))}
                   </div>
                 ) : mediaItems.length === 0 ? (
                   <div className="py-10 text-center text-sm text-muted-foreground">

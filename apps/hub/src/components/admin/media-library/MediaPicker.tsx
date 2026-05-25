@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { 
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -61,11 +62,11 @@ export function MediaPicker({
   const [pageSize] = useState(12) // Smaller page size for modal
   const requestedSiteId = site_id || siteId || currentSite?.id
   const scopedSiteId = requestedSiteId && UUID_REGEX.test(requestedSiteId) ? requestedSiteId : undefined
-  
+
   // Support legacy props
   const actualCurrentUrl = currentMediaUrl || currentImageUrl
   const actualOnSelect = onSelectMedia || onSelectImage
-  
+
   // Upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadPreview, setUploadPreview] = useState<string | null>(null)
@@ -115,7 +116,7 @@ export function MediaPicker({
     .filter(media => {
       // Filter by video support
       if (!showVideos && media.file_type === 'video') return false
-      
+
       // Filter by search query (client-side for now)
       if (!searchQuery) return true
       return media.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -157,19 +158,19 @@ export function MediaPicker({
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type 
+    // Validate file type
     const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = showVideos ? [...imageTypes, ...videoTypes] : imageTypes
-    
+
     if (!allowedTypes.includes(file.type)) {
-      const message = showVideos 
+      const message = showVideos
         ? 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.'
         : 'Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.'
       toast.error(message)
       return
     }
-    
+
     const fileType = imageTypes.includes(file.type) ? 'image' : 'video'
 
     // Validate file size (10MB for images, 100MB for videos)
@@ -181,14 +182,14 @@ export function MediaPicker({
     }
 
     setUploadFile(file)
-    
+
     // Create preview
     const reader = new FileReader()
     reader.onload = (e) => {
       setUploadPreview(e.target?.result as string)
     }
     reader.readAsDataURL(file)
-    
+
     // File is ready for upload, we'll show upload UI inline
   }
 
@@ -221,17 +222,17 @@ export function MediaPicker({
       }
 
       toast.success("Media uploaded successfully!")
-      
+
       // Select the newly uploaded media immediately
       if (actualOnSelect) {
         actualOnSelect(result.data.public_url, result.data.alt_text || undefined)
       }
-      
+
       // Clean up upload state
       setUploadFile(null)
       setUploadPreview(null)
       setAltText('')
-      
+
       // Close dialog
       onOpenChange(false)
 
@@ -250,15 +251,18 @@ export function MediaPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-media-picker-dialog="true" className="max-w-[800px]! max-h-[85vh]! w-[90vw]">
+      <DialogContent
+        data-media-picker-dialog="true"
+        className="max-w-[800px]! max-h-[85vh]! w-[90vw] max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!border-0 max-sm:!p-4 max-sm:flex max-sm:flex-col max-sm:overflow-hidden"
+      >
         <DialogHeader>
           <DialogTitle>{showVideos ? 'Select Media' : 'Select Image'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 max-sm:flex max-sm:min-h-0 max-sm:flex-1 max-sm:flex-col max-sm:overflow-hidden">
             {/* Search, Filter and Upload */}
             <div className="flex gap-3">
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
                   placeholder={showVideos ? "Search media by name or alt text..." : "Search images by name or alt text..."}
@@ -267,14 +271,21 @@ export function MediaPicker({
                   className="pl-10"
                 />
               </div>
-              
+
               {/* Filter Dropdown */}
               {showVideos && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="default">
-                      <Filter className="w-4 h-4 mr-2" />
-                      {filterType === 'all' ? 'All' : filterType === 'image' ? 'Images' : filterType === 'video' ? 'Videos' : 'SVG'}
+                    <Button
+                      variant="outline"
+                      size="default"
+                      className="shrink-0 px-3 sm:px-4"
+                      aria-label="Filter media"
+                    >
+                      <Filter className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">
+                        {filterType === 'all' ? 'All' : filterType === 'image' ? 'Images' : filterType === 'video' ? 'Videos' : 'SVG'}
+                      </span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
@@ -297,16 +308,16 @@ export function MediaPicker({
                 </DropdownMenu>
               )}
 
-              <Button asChild>
-                <label className="cursor-pointer">
+              <Button asChild className="shrink-0 px-3 sm:px-4">
+                <label className="cursor-pointer" aria-label="Upload media">
                   <input
                     type="file"
                     className="hidden"
                     accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"}
                     onChange={handleFileSelect}
                   />
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload
+                  <Upload className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Upload</span>
                 </label>
               </Button>
             </div>
@@ -326,14 +337,14 @@ export function MediaPicker({
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                
+
                 <div className="flex gap-4">
                   {uploadPreview && (
                     <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-muted border">
                       {uploadFile && uploadFile.type.startsWith('video/') ? (
                         <div className="relative w-full h-full bg-gray-900 flex items-center justify-center">
-                          <video 
-                            src={uploadPreview} 
+                          <video
+                            src={uploadPreview}
                             className="max-w-full max-h-full object-contain"
                             muted
                           />
@@ -360,7 +371,7 @@ export function MediaPicker({
                       )}
                     </div>
                   )}
-                  
+
                   <div className="flex-1 space-y-3">
                     <div>
                       <p className="font-medium text-blue-900">{uploadFile.name}</p>
@@ -368,15 +379,15 @@ export function MediaPicker({
                         {(uploadFile.size / (1024 * 1024)).toFixed(2)} MB
                       </p>
                     </div>
-                    
+
                     <div>
                       <Label htmlFor="alt-text" className="text-blue-900">
                         {uploadFile?.type.startsWith('video/') ? 'Description (Optional)' : 'Alt Text (Optional)'}
                       </Label>
                       <Input
                         id="alt-text"
-                        placeholder={uploadFile?.type.startsWith('video/') 
-                          ? "Describe this video..." 
+                        placeholder={uploadFile?.type.startsWith('video/')
+                          ? "Describe this video..."
                           : "Describe this image for accessibility..."
                         }
                         value={altText}
@@ -384,7 +395,7 @@ export function MediaPicker({
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <Button
                       onClick={handleUpload}
                       disabled={isUploading}
@@ -398,7 +409,7 @@ export function MediaPicker({
             )}
 
             {/* Image Grid */}
-            <div className="border rounded-lg overflow-hidden">
+            <div className="overflow-hidden rounded-lg border max-sm:min-h-0 max-sm:flex-1 max-sm:rounded-none max-sm:border-0">
               {isLoading ? (
                 <div className="p-8 flex items-center justify-center">
                   <div className="text-center">
@@ -410,13 +421,13 @@ export function MediaPicker({
                 <div className="p-8 text-center">
                   <ImageIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-lg font-medium mb-2">
-                    {searchQuery 
+                    {searchQuery
                       ? (showVideos ? 'No media found' : 'No images found')
                       : (showVideos ? 'No media available' : 'No images available')
                     }
                   </p>
                   <p className="text-muted-foreground mb-4">
-                    {searchQuery 
+                    {searchQuery
                       ? 'Try adjusting your search terms'
                       : (showVideos ? "You haven't uploaded any media yet." : "You haven't uploaded any images yet.")
                     }
@@ -434,96 +445,100 @@ export function MediaPicker({
                   </Button>
                 </div>
               ) : (
-                <div className="max-h-[60vh] overflow-y-auto p-8">
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {filteredMedia.map((media) => (
-                      <div
-                        key={media.id}
-                        className={`
-                          relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all bg-muted
-                          ${selectedMedia?.id === media.id 
-                            ? 'border-green-500 ring-2 ring-green-500/20' 
-                            : 'border-transparent hover:border-muted-foreground/20'
-                          }
-                          ${actualCurrentUrl === media.public_url ? 'ring-2 ring-green-500/50' : ''}
-                        `}
-                        onClick={() => setSelectedMedia(media)}
-                      >
-                        {media.file_type === 'video' ? (
-                          <div className="relative w-full h-full bg-black">
-                            <video 
-                              src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
-                              className="w-full h-full object-contain"
-                              muted
-                              playsInline
-                              preload="metadata"
-                              onLoadedMetadata={(e) => {
-                                e.currentTarget.currentTime = 0.1;
-                              }}
-                            />
-                            <div className="absolute top-2 left-2">
-                              <VideoIcon className="w-4 h-4 text-white drop-shadow-lg" />
+                <ScrollArea className="h-[60vh] max-sm:h-full">
+                  <div className="p-3 sm:p-8">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {filteredMedia.map((media) => (
+                        <div
+                          key={media.id}
+                          className={`
+                            relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all bg-muted
+                            ${selectedMedia?.id === media.id
+                              ? 'border-green-500 ring-2 ring-green-500/20'
+                              : 'border-transparent hover:border-muted-foreground/20'
+                            }
+                            ${actualCurrentUrl === media.public_url ? 'ring-2 ring-green-500/50' : ''}
+                          `}
+                          onClick={() => setSelectedMedia(media)}
+                        >
+                          {media.file_type === 'video' ? (
+                            <div className="relative w-full h-full bg-black">
+                              <video
+                                src={`/api/media/proxy?url=${encodeURIComponent(media.public_url)}`}
+                                className="w-full h-full object-contain"
+                                muted
+                                playsInline
+                                preload="metadata"
+                                onLoadedMetadata={(e) => {
+                                  e.currentTarget.currentTime = 0.1;
+                                }}
+                              />
+                              <div className="absolute top-2 left-2">
+                                <VideoIcon className="w-4 h-4 text-white drop-shadow-lg" />
+                              </div>
                             </div>
-                          </div>
-                        ) : media.mime_type === 'image/svg+xml' ? (
-                          <img
-                            src={media.public_url}
-                            alt={media.alt_text || media.original_name}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <Image
-                            src={media.public_url}
-                            alt={media.alt_text || media.original_name}
-                            fill
-                            className="object-contain"
-                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                          />
-                        )}
-                        {actualCurrentUrl === media.public_url && (
-                          <div className="absolute top-2 right-2">
-                            <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                              Current
-                            </span>
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
-                          {selectedMedia?.id === media.id && (
-                            <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                              <svg className="w-4 h-4 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                          ) : media.mime_type === 'image/svg+xml' ? (
+                            <img
+                              src={media.public_url}
+                              alt={media.alt_text || media.original_name}
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <Image
+                              src={media.public_url}
+                              alt={media.alt_text || media.original_name}
+                              fill
+                              className="object-contain"
+                              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                            />
+                          )}
+                          {actualCurrentUrl === media.public_url && (
+                            <div className="absolute top-2 right-2">
+                              <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                                Current
+                              </span>
                             </div>
                           )}
+                          <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center">
+                            {selectedMedia?.id === media.id && (
+                              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                <svg className="w-4 h-4 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </ScrollArea>
               )}
             </div>
 
             {/* Pagination Controls */}
             {paginatedData && paginatedData.totalPages > 1 && (
-              <div className="mt-4 flex flex-col items-center justify-between gap-4 sm:flex-row">
+              <div className="mt-4 flex shrink-0 flex-col items-center justify-between gap-3 sm:flex-row">
                 <PaginationInfo
                   currentPage={currentPage}
                   pageSize={pageSize}
                   total={paginatedData.total}
-                  className="text-sm"
+                  className="text-center text-sm sm:text-left"
                 />
                 <Pagination
                   currentPage={currentPage}
                   totalPages={paginatedData.totalPages}
                   onPageChange={handlePageChange}
-                  maxVisiblePages={5}
+                  showFirstLast={false}
+                  maxVisiblePages={3}
+                  className="max-w-full gap-1 space-x-0"
                 />
               </div>
             )}
         </div>
 
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           {actualCurrentUrl && (
             <Button variant="outline" onClick={handleRemoveMedia}>
               {showVideos ? 'Remove Media' : 'Remove Image'}
@@ -532,7 +547,7 @@ export function MediaPicker({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleSelectMedia}
             disabled={!selectedMedia}
           >
