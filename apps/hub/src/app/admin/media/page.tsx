@@ -63,7 +63,7 @@ export default function ImagesPage() {
   const [viewMode, setViewMode] = useState<"list" | "gallery">("gallery")
   const [paginatedData, setPaginatedData] = useState<PaginatedMediaResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [filterType, setFilterType] = useState<"all" | "image" | "video">("all")
+  const [filterType, setFilterType] = useState<"all" | "image" | "video" | "svg">("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [editingImage, setEditingImage] = useState<MediaData | null>(null)
   const [editAltText, setEditAltText] = useState("")
@@ -89,8 +89,9 @@ export default function ImagesPage() {
         return
       }
 
-      const fileType = filterType === "all" ? undefined : (filterType as "image" | "video")
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSiteId)
+      const fileType = filterType === "all" || filterType === "svg" ? undefined : (filterType as "image" | "video")
+      const mimeType = filterType === "svg" ? "image/svg+xml" : undefined
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, currentSiteId, mimeType)
       if (error) {
         toast.error(`Failed to load images: ${error}`)
       } else {
@@ -115,7 +116,7 @@ export default function ImagesPage() {
   }, [currentSiteId, clearMediaSelection])
 
   // Reset to first page when filter changes
-  const handleFilterChange = (newFilter: "all" | "image" | "video") => {
+  const handleFilterChange = (newFilter: "all" | "image" | "video" | "svg") => {
     setFilterType(newFilter)
     setCurrentPage(1)
     clearMediaSelection()
@@ -191,13 +192,13 @@ export default function ImagesPage() {
     if (!file || !currentSite) return
 
     // Validate file type
-    const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
     const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
     const allowedTypes = [...imageTypes, ...videoTypes]
 
     if (!allowedTypes.includes(file.type)) {
       toast.error(
-        "Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
+        "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
       )
       return
     }
@@ -326,7 +327,7 @@ export default function ImagesPage() {
           <input
             id="image-upload-input"
             type="file"
-            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime"
+            accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska"
             onChange={handleImageUpload}
             className="hidden"
           />
@@ -353,7 +354,7 @@ export default function ImagesPage() {
                 />
                 <Select
                   value={filterType}
-                  onValueChange={(value) => handleFilterChange(value as "all" | "image" | "video")}
+                  onValueChange={(value) => handleFilterChange(value as "all" | "image" | "video" | "svg")}
                 >
                   <TableRightActionsSelectTrigger aria-label="Media type filter">
                     <SelectValue />
@@ -362,6 +363,7 @@ export default function ImagesPage() {
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="image">Images</SelectItem>
                     <SelectItem value="video">Videos</SelectItem>
+                    <SelectItem value="svg">SVG</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex h-8 items-center rounded-md border">
@@ -462,6 +464,12 @@ export default function ImagesPage() {
                                   <VideoIcon className="h-4 w-4 text-white drop-shadow-lg" />
                                 </div>
                               </div>
+                            ) : media.mime_type === "image/svg+xml" ? (
+                              <img
+                                src={media.public_url}
+                                alt={media.alt_text || media.original_name}
+                                className="h-full w-full object-contain"
+                              />
                             ) : (
                               <Image
                                 src={media.public_url}
@@ -585,6 +593,12 @@ export default function ImagesPage() {
                                 <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
                                   {media.file_type === "video" ? (
                                     <VideoIcon className="h-5 w-5 text-muted-foreground" />
+                                  ) : media.mime_type === "image/svg+xml" ? (
+                                    <img
+                                      src={media.public_url}
+                                      alt={media.alt_text || media.original_name}
+                                      className="h-full w-full object-contain"
+                                    />
                                   ) : (
                                     <Image
                                       src={media.public_url}

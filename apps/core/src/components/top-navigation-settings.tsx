@@ -18,7 +18,6 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import {
   BellIcon,
-  CheckIcon,
   GripVertical,
   ImageIcon,
   MessageSquarePlusIcon,
@@ -32,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ShellIconPicker } from "@/components/shell-icon-picker"
 import {
   Dialog,
   DialogBody,
@@ -43,27 +43,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
-import {
   createDefaultTopRightNavigation,
-  iconMeta,
   normalizeTopRightNavigation,
   renderShellIcon,
-  type IconKey,
   type ShellConfig,
   type ShellTopRightNavigationItem,
   type ShellTopRightNavigationItemId,
   type ShellTopNavigationItem,
 } from "@/lib/core"
-
-const iconOptions = Object.entries(iconMeta).map(([value, meta]) => ({
-  value: value as IconKey,
-  label: meta.label,
-}))
 
 type TopNavigationSettingsProps = {
   config: ShellConfig
@@ -115,86 +102,6 @@ function createTopNavigationId() {
   }
 
   return `top-nav-${Date.now()}`
-}
-
-function IconPickerButton({
-  value,
-  onValueChange,
-  compact = false,
-}: {
-  value?: IconKey
-  onValueChange: (value: IconKey | undefined) => void
-  compact?: boolean
-}) {
-  const [open, setOpen] = React.useState(false)
-  const currentLabel = value ? iconMeta[value].label : "No icon"
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size={compact ? "icon" : "default"}
-          className={cn(
-            !compact && "justify-start",
-            !value &&
-              "border-dotted border-muted-foreground/30 bg-muted/40 text-muted-foreground/50 hover:bg-muted/60"
-          )}
-          aria-label={`Choose icon, current icon ${currentLabel}`}
-        >
-          {value ? (
-            renderShellIcon(value, "h-4 w-4")
-          ) : (
-            <ImageIcon className="h-4 w-4" />
-          )}
-          {!compact ? <span className="truncate">{currentLabel}</span> : null}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        <div className="grid grid-cols-5 gap-1.5">
-          <button
-            type="button"
-            className={cn(
-              "relative flex aspect-square items-center justify-center rounded-md border text-xs transition-colors hover:bg-muted",
-              !value && "border-primary bg-primary/5"
-            )}
-            onClick={() => {
-              onValueChange(undefined)
-              setOpen(false)
-            }}
-            aria-label="Use no icon"
-          >
-            None
-            {!value ? (
-              <CheckIcon className="absolute right-1 top-1 h-3 w-3" />
-            ) : null}
-          </button>
-          {iconOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={cn(
-                "relative flex aspect-square items-center justify-center rounded-md border transition-colors hover:bg-muted",
-                value === option.value && "border-primary bg-primary/5"
-              )}
-              onClick={() => {
-                onValueChange(option.value)
-                setOpen(false)
-              }}
-              aria-label={`Use ${option.label} icon`}
-              title={option.label}
-            >
-              {renderShellIcon(option.value, "h-4 w-4")}
-              {value === option.value ? (
-                <CheckIcon className="absolute right-1 top-1 h-3 w-3" />
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
 }
 
 function SortableTopNavigationItem({
@@ -294,8 +201,9 @@ function SortableTopNavigationItem({
           </DialogHeader>
           <DialogBody className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-              <IconPickerButton
+              <ShellIconPicker
                 value={item.icon}
+                allowEmpty
                 compact
                 onValueChange={(icon) => onItemChange(item.id, { icon })}
               />

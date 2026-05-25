@@ -960,9 +960,18 @@ describe("core media helpers", () => {
     expect(storedFilename("Hero Image.png", "image/png")).toMatch(
       /_Hero-Image\.png$/
     )
+    expect(storedFilename("Hero Image.exe", "image/png")).toMatch(
+      /_Hero-Image\.png$/
+    )
     expect(storedFilename("Logo", "image/svg+xml")).toMatch(/_Logo\.svg$/)
     expect(cleanAltText("  Useful alt  ")).toBe("Useful alt")
     expect(cleanAltText("   ")).toBeNull()
+    expect(() =>
+      validateMediaContent("image/png", new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    ).not.toThrow()
+    expect(() =>
+      validateMediaContent("image/png", new Uint8Array([0x3c, 0x73, 0x76, 0x67]))
+    ).toThrow("File content does not match")
     const unsafeSvg = new TextEncoder().encode(
       '<svg viewBox="0 0 1 1"><script>alert(1)</script><path d="M0 0h1v1z" onclick="alert(1)" /></svg>'
     )
@@ -1049,5 +1058,69 @@ describe("core media helpers", () => {
     await expect(getOwnedMedia(otherId, ownedMediaId)).rejects.toThrow(
       "Media not found"
     )
+  })
+
+  it("filters owned media by SVG mime type", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const svgMediaId = uuid()
+
+    await database.insert(users).values({
+      id: userId,
+      email: "svg-owner@internal.dev",
+      name: "SVG Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await database.insert(media).values([
+      {
+        id: uuid(),
+        userId,
+        filename: "hero.png",
+        originalName: "hero.png",
+        altText: null,
+        fileSize: 123,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${userId}/hero.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: svgMediaId,
+        userId,
+        filename: "icon.svg",
+        originalName: "icon.svg",
+        altText: "Icon",
+        fileSize: 456,
+        mimeType: "image/svg+xml",
+        fileType: "image",
+        storagePath: `${userId}/icon.svg`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await expect(
+      listOwnedMedia({
+        userId,
+        page: 1,
+        pageSize: 20,
+        mimeType: "image/svg+xml",
+      })
+    ).resolves.toMatchObject({
+      total: 1,
+      media: [
+        {
+          id: svgMediaId,
+          original_name: "icon.svg",
+          mime_type: "image/svg+xml",
+          url: `https://core-media.example.test/${userId}/icon.svg`,
+        },
+      ],
+    })
   })
 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import {
   DndContext,
   closestCenter,
@@ -18,30 +18,26 @@ import {
   useSortable
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { Check, GripVertical, Plus, Search, Trash2 } from "lucide-react"
+import { GripVertical, Plus, Trash2 } from "lucide-react"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils/tailwind"
-import {
-  QUICK_LINK_ICON_OPTIONS,
-  getQuickLinkIcon,
-  getQuickLinkIconOrNull,
-  type QuickLinkIconName,
-  type SiteQuickLink
-} from "@/lib/utils/site-quick-links"
+import { type QuickLinkIconValue, type SiteQuickLink } from "@/lib/utils/site-quick-links"
 
 interface QuickLinksSettingsCardProps {
   quickLinks: SiteQuickLink[]
+  siteId: string
   onQuickLinksChange: (quickLinks: SiteQuickLink[]) => void
 }
 
 interface SortableQuickLinkItemProps {
   link: SiteQuickLink
+  siteId: string
   onChange: (id: string, patch: Partial<SiteQuickLink>) => void
   onDelete: (id: string) => void
 }
@@ -52,34 +48,19 @@ function QuickLinkSettingsButton({
   label,
   value,
   href,
+  siteId,
   onSave
 }: {
   label: string
-  value?: QuickLinkIconName
+  value?: QuickLinkIconValue
   href: string
+  siteId: string
   onSave: (patch: Pick<SiteQuickLink, "label" | "href" | "icon">) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [iconPickerOpen, setIconPickerOpen] = useState(false)
-  const [query, setQuery] = useState("")
   const [draftLabel, setDraftLabel] = useState(label)
   const [draftHref, setDraftHref] = useState(href)
-  const [draftIcon, setDraftIcon] = useState<QuickLinkIconName | undefined>(value)
-
-  const SelectedIcon = getQuickLinkIconOrNull(draftIcon)
-  const DefaultIcon = getQuickLinkIcon()
-  const normalizedQuery = query.trim().toLowerCase()
-  const showDefaultOption = !normalizedQuery || "default link".includes(normalizedQuery)
-
-  const filteredOptions = useMemo(() => {
-    if (!normalizedQuery) return QUICK_LINK_ICON_OPTIONS
-
-    return QUICK_LINK_ICON_OPTIONS.filter((option) => {
-      const haystack = [option.label, option.value, ...(option.keywords || [])].join(" ").toLowerCase()
-
-      return haystack.includes(normalizedQuery)
-    })
-  }, [normalizedQuery])
+  const [draftIcon, setDraftIcon] = useState<QuickLinkIconValue | undefined>(value)
 
   return (
     <>
@@ -92,7 +73,7 @@ function QuickLinkSettingsButton({
           aria-label={`Edit settings for ${label || "quick link"}`}
           title={label || "Quick link settings"}
         >
-          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={value} className="h-4 w-4 shrink-0" />
           <span className="truncate">{label || "Quick link"}</span>
         </Button>
       </div>
@@ -106,8 +87,6 @@ function QuickLinkSettingsButton({
             setDraftHref(href)
             setDraftIcon(value)
           }
-          setIconPickerOpen(false)
-          setQuery("")
         }}
       >
         <DashboardModalContent
@@ -144,26 +123,7 @@ function QuickLinkSettingsButton({
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-                  <Field>
-                    <FieldLabel>Icon</FieldLabel>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        "h-9 shrink-0",
-                        SelectedIcon ? "w-9 p-0" : "bg-muted px-2 text-muted-foreground hover:bg-muted/80"
-                      )}
-                      onClick={() => setIconPickerOpen(true)}
-                    >
-                      {SelectedIcon ? (
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                          <SelectedIcon className="h-4 w-4 shrink-0" />
-                        </span>
-                      ) : (
-                        <span className="text-center text-[10px] leading-tight font-medium">Choose Icon</span>
-                      )}
-                    </Button>
-                  </Field>
+                  <ShellIconPickerField siteId={siteId} value={draftIcon} onChange={setDraftIcon} />
                   <Field>
                     <FieldLabel>Name</FieldLabel>
                     <Input
@@ -187,116 +147,12 @@ function QuickLinkSettingsButton({
             </Card>
           </CardGroup>
         </DashboardModalContent>
-        <Dialog
-          open={iconPickerOpen}
-          onOpenChange={(nextOpen) => {
-            setIconPickerOpen(nextOpen)
-            if (!nextOpen) {
-              setQuery("")
-            }
-          }}
-        >
-          <DashboardModalContent
-            className="max-w-xl"
-            title="Choose Icon"
-            description="Pick an icon for this quick link."
-            footer={
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIconPickerOpen(false)
-                  setQuery("")
-                }}
-              >
-                Back
-              </Button>
-            }
-          >
-            <CardGroup className="grid" onWheelCapture={(event) => event.stopPropagation()}>
-              <Card>
-                <CardContent className="space-y-3">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      className="pl-9"
-                      placeholder="Search icons"
-                    />
-                  </div>
-
-                  <ScrollArea className="h-[320px] pr-2 overscroll-contain">
-                    {filteredOptions.length === 0 && !showDefaultOption ? (
-                      <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
-                    ) : (
-                      <div className="grid grid-cols-6 gap-2">
-                        {showDefaultOption && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraftIcon(undefined)
-                          setIconPickerOpen(false)
-                          setQuery("")
-                        }}
-                        className={cn(
-                          "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                          !draftIcon ? "bg-primary/5" : "hover:bg-muted/50"
-                        )}
-                        aria-label="Use default icon"
-                      >
-                        {!draftIcon && (
-                          <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                            <Check className="h-3 w-3" />
-                          </span>
-                        )}
-                        <DefaultIcon className="h-5 w-5" />
-                        <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
-                      </button>
-                    )}
-                    {filteredOptions.map((option) => {
-                      const Icon = getQuickLinkIcon(option.value)
-                      const isSelected = option.value === draftIcon
-
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => {
-                            setDraftIcon(option.value)
-                            setIconPickerOpen(false)
-                            setQuery("")
-                          }}
-                          className={cn(
-                            "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                            isSelected ? "bg-primary/5" : "hover:bg-muted/50"
-                          )}
-                          aria-label={`Choose ${option.label} icon`}
-                        >
-                          {isSelected && (
-                            <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                              <Check className="h-3 w-3" />
-                            </span>
-                          )}
-                          <Icon className="h-5 w-5" />
-                          <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            </CardGroup>
-          </DashboardModalContent>
-        </Dialog>
       </Dialog>
     </>
   )
 }
 
-function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkItemProps) {
+function SortableQuickLinkItem({ link, siteId, onChange, onDelete }: SortableQuickLinkItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id })
 
   const style = {
@@ -325,6 +181,7 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
           label={link.label}
           value={link.icon}
           href={link.href}
+          siteId={siteId}
           onSave={(patch) => onChange(link.id, patch)}
         />
         <Button
@@ -342,7 +199,7 @@ function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkIt
   )
 }
 
-export function QuickLinksSettingsCard({ quickLinks, onQuickLinksChange }: QuickLinksSettingsCardProps) {
+export function QuickLinksSettingsCard({ quickLinks, siteId, onQuickLinksChange }: QuickLinksSettingsCardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
@@ -416,6 +273,7 @@ export function QuickLinksSettingsCard({ quickLinks, onQuickLinksChange }: Quick
                   <SortableQuickLinkItem
                     key={link.id}
                     link={link}
+                    siteId={siteId}
                     onChange={handleUpdateLink}
                     onDelete={handleDeleteLink}
                   />

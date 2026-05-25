@@ -146,12 +146,39 @@ export const iconMeta = {
 } satisfies Record<string, { label: string; icon: LucideIcon }>
 
 export type IconKey = keyof typeof iconMeta
+export type ShellIcon = IconKey | string
+
+export function isIconKey(value?: string): value is IconKey {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(iconMeta, value))
+}
+
+export function isShellIconUrl(value?: string) {
+  if (!value) return false
+  if (!value.startsWith("/") || value.startsWith("//")) return false
+
+  try {
+    const url = new URL(value, "https://core.local")
+    return (
+      url.origin === "https://core.local" &&
+      /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname)
+    )
+  } catch {
+    return false
+  }
+}
+
+export function getShellIconLabel(value?: ShellIcon) {
+  if (!value) return "No icon"
+  if (isIconKey(value)) return iconMeta[value].label
+  if (isShellIconUrl(value)) return "Media icon"
+  return "Custom icon"
+}
 
 export type ShellChildItem = {
   id: string
   label: string
   href: string
-  icon?: IconKey
+  icon?: ShellIcon
 }
 
 export type ShellItem = {
@@ -159,7 +186,7 @@ export type ShellItem = {
   id: string
   label: string
   href: string
-  icon: IconKey
+  icon: ShellIcon
   visible: boolean
   children?: ShellChildItem[]
 }
@@ -182,7 +209,7 @@ export type ShellTopNavigationItem = {
   id: string
   label: string
   href: string
-  icon?: IconKey
+  icon?: ShellIcon
   visible: boolean
 }
 
@@ -251,7 +278,16 @@ export function isShellItem(entry: ShellEntry): entry is ShellItem {
   return entry.type === "item"
 }
 
-export function renderShellIcon(iconKey: IconKey, className = "size-4") {
-  const Icon = iconMeta[iconKey].icon
+export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4") {
+  if (isIconKey(icon)) {
+    const Icon = iconMeta[icon].icon
+    return <Icon className={className} />
+  }
+
+  if (isShellIconUrl(icon)) {
+    return <img src={icon} alt="" className={`${className} object-contain`} />
+  }
+
+  const Icon = ImageIcon
   return <Icon className={className} />
 }

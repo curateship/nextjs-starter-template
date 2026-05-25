@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronRight, type LucideIcon } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -30,7 +30,7 @@ type SidebarDropdownChild = {
   id?: string
   title: string
   url: string
-  icon?: LucideIcon
+  icon?: React.ComponentType<{ className?: string }>
   activePaths?: string[]
 }
 
@@ -38,7 +38,7 @@ type SidebarDropdownProject = {
   id?: string
   name: string
   url: string
-  icon: LucideIcon
+  icon: React.ComponentType<{ className?: string }>
   activePaths?: string[]
   items?: SidebarDropdownChild[]
 }
@@ -162,7 +162,7 @@ export function SidebarDropdown({
                     className="flex-1 hover:bg-transparent active:bg-transparent data-[active=true]:bg-transparent data-[state=open]:hover:bg-transparent"
                   >
                     <SidebarLink href={item.url} onClick={handleNavClick}>
-                      <item.icon />
+                      <item.icon className="h-4 w-4 shrink-0" />
                       <span>{item.name}</span>
                     </SidebarLink>
                   </SidebarMenuButton>
@@ -189,7 +189,7 @@ export function SidebarDropdown({
                             isActive={subItem.url === activeChildUrl}
                           >
                             <SidebarLink href={subItem.url} onClick={handleNavClick}>
-                              {subItem.icon ? <subItem.icon /> : null}
+                              {subItem.icon ? <subItem.icon className="h-4 w-4 shrink-0" /> : null}
                               <span>{subItem.title}</span>
                             </SidebarLink>
                           </SidebarMenuSubButton>

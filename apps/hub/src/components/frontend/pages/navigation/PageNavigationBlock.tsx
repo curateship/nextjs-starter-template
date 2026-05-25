@@ -18,7 +18,11 @@ import {
   type NavigationSignedInLinkSettings,
 } from '@/lib/utils/site-structure'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
-import { getQuickLinkIconOrNull, type QuickLinkIconName } from '@/lib/utils/site-quick-links'
+import {
+  getQuickLinkIconOrNull,
+  isQuickLinkIconUrl,
+  type QuickLinkIconValue,
+} from '@/lib/utils/site-quick-links'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/actions/auth/client'
 import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
@@ -37,7 +41,7 @@ import {
 interface MenuItem {
   name: string;
   href: string;
-  icon?: QuickLinkIconName;
+  icon?: QuickLinkIconValue;
   hasDropdown: boolean;
   dropdownItems?: Array<{ name: string; href: string }>;
 }
@@ -55,8 +59,8 @@ interface NavBlockProps {
   logo?: string;
   logoUrl?: string;
   site?: PublicSiteClientProps;
-  links?: Array<{ text: string; url: string; icon?: QuickLinkIconName }>;
-  buttons?: Array<{ id?: string; text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconName }>;
+  links?: Array<{ text: string; url: string; icon?: QuickLinkIconValue }>;
+  buttons?: Array<{ id?: string; text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconValue }>;
   accountMenu?: NavigationAccountMenuSettings;
   actionItemOrder?: string[];
   navigationStyle?: string;
@@ -91,12 +95,15 @@ function UserAvatar({ user }: { user: SessionUser }) {
   )
 }
 
-function NavItemLabel({ label, icon }: { label: string; icon?: QuickLinkIconName }) {
+function NavItemLabel({ label, icon }: { label: string; icon?: QuickLinkIconValue }) {
   const Icon = getQuickLinkIconOrNull(icon)
 
   return (
     <span className="flex items-center gap-2">
       {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+      {!Icon && isQuickLinkIconUrl(icon) ? (
+        <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" />
+      ) : null}
       <span>{label}</span>
     </span>
   )
@@ -254,7 +261,7 @@ interface ResolvedNavigationButton {
   url: string
   style: 'primary' | 'outline' | 'ghost'
   showOnMobile?: boolean
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 type NavigationActionItem =

@@ -23,8 +23,9 @@ import {
   verticalListSortingStrategy
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { CheckIcon, GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
+import { GripVertical, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react"
 
+import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
 import { Button } from "@/components/ui/button"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -37,18 +38,14 @@ import {
   DialogTitle
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils/tailwind"
 import {
-  ADMIN_SIDEBAR_ICON_OPTIONS,
   createDefaultAdminSidebarSettings,
-  getAdminSidebarIcon,
   type AdminSidebarChildItem,
   type AdminSidebarItem,
   type AdminSidebarSection,
   type AdminSidebarSettings
 } from "@/lib/utils/admin-sidebar"
-import type { QuickLinkIconName } from "@/lib/utils/site-quick-links"
 
 type AdminSidebarSettingsCardProps = {
   config: AdminSidebarSettings
@@ -59,6 +56,7 @@ type AdminSidebarSettingsCardProps = {
 type SortableItemProps = {
   sectionId: string
   item: AdminSidebarItem
+  siteId: string
   onItemChange: (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => void
   onItemDelete: (sectionId: string, itemId: string) => void
   onChildAdd: (sectionId: string, itemId: string) => void
@@ -69,12 +67,14 @@ type SortableItemProps = {
 
 type SortableChildProps = {
   child: AdminSidebarChildItem
+  siteId: string
   onChange: (childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onDelete: (childId: string) => void
 }
 
 type SortableSectionProps = {
   section: AdminSidebarSection
+  siteId: string
   isDraggingItem: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
   onReset: () => void
@@ -86,11 +86,6 @@ type SortableSectionProps = {
   onChildDelete: (sectionId: string, itemId: string, childId: string) => void
   onChildDragEnd: (sectionId: string, itemId: string, event: DragEndEvent) => void
 }
-
-const iconOptions = ADMIN_SIDEBAR_ICON_OPTIONS.map((option) => ({
-  value: option.value,
-  label: option.label
-}))
 
 const sectionDropPrefix = "section-drop:"
 
@@ -121,86 +116,7 @@ function updateSection(
   }
 }
 
-function renderAdminSidebarIcon(iconKey: QuickLinkIconName, className = "size-4") {
-  const Icon = getAdminSidebarIcon(iconKey)
-  return <Icon className={className} />
-}
-
-function IconPickerButton({
-  value,
-  onValueChange,
-  allowEmpty = false,
-  compact = false,
-  ghost = false
-}: {
-  value?: QuickLinkIconName
-  onValueChange: (value: QuickLinkIconName | undefined) => void
-  allowEmpty?: boolean
-  compact?: boolean
-  ghost?: boolean
-}) {
-  const [open, setOpen] = React.useState(false)
-  const currentLabel = value ? iconOptions.find((option) => option.value === value)?.label || "Icon" : "No icon"
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant={ghost ? "ghost" : "outline"}
-          size={compact ? "icon" : "default"}
-          className={cn(!compact && "justify-start")}
-          aria-label={`Choose icon, current icon ${currentLabel}`}
-        >
-          {value ? renderAdminSidebarIcon(value, "h-4 w-4") : null}
-          {!compact ? <span className="truncate">{currentLabel}</span> : null}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        <div className="grid max-h-[360px] grid-cols-5 gap-1.5 overflow-y-auto">
-          {allowEmpty ? (
-            <button
-              type="button"
-              className={cn(
-                "relative flex aspect-square items-center justify-center rounded-md border text-xs transition-colors hover:bg-muted",
-                !value && "border-primary bg-primary/5"
-              )}
-              onClick={() => {
-                onValueChange(undefined)
-                setOpen(false)
-              }}
-              aria-label="Use no icon"
-            >
-              None
-              {!value ? <CheckIcon className="absolute right-1 top-1 h-3 w-3" /> : null}
-            </button>
-          ) : null}
-          {iconOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={cn(
-                "relative flex aspect-square items-center justify-center rounded-md border transition-colors hover:bg-muted",
-                value === option.value && "border-primary bg-primary/5"
-              )}
-              onClick={() => {
-                onValueChange(option.value)
-                setOpen(false)
-              }}
-              aria-label={`Use ${option.label} icon`}
-              title={option.label}
-            >
-              {renderAdminSidebarIcon(option.value, "h-4 w-4")}
-              {value === option.value ? <CheckIcon className="absolute right-1 top-1 h-3 w-3" /> : null}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
+function SortableChild({ child, siteId, onChange, onDelete }: SortableChildProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id })
 
   const style: React.CSSProperties = {
@@ -224,12 +140,11 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
       >
         <GripVertical className="h-4 w-4" />
       </button>
-      <IconPickerButton
+      <ShellIconPickerField
+        siteId={siteId}
         value={child.icon}
-        allowEmpty
+        onChange={(icon) => onChange(child.id, { icon })}
         compact
-        ghost
-        onValueChange={(icon) => onChange(child.id, { icon })}
       />
       <Input
         value={child.label}
@@ -261,6 +176,7 @@ function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
 function SortableSidebarItem({
   sectionId,
   item,
+  siteId,
   onItemChange,
   onItemDelete,
   onChildAdd,
@@ -305,7 +221,7 @@ function SortableSidebarItem({
           onClick={() => setDialogOpen(true)}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center text-foreground">
-            {renderAdminSidebarIcon(item.icon, "h-4 w-4")}
+            <ShellIconPreview icon={item.icon} className="h-4 w-4" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{item.label || "Untitled link"}</span>
@@ -352,10 +268,12 @@ function SortableSidebarItem({
 
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
-              <IconPickerButton
+              <ShellIconPickerField
+                siteId={siteId}
                 value={item.icon}
+                onChange={(icon) => (icon ? onItemChange(sectionId, item.id, { icon }) : undefined)}
                 compact
-                onValueChange={(icon) => (icon ? onItemChange(sectionId, item.id, { icon }) : undefined)}
+                allowEmpty={false}
               />
               <Input
                 value={item.label}
@@ -401,6 +319,7 @@ function SortableSidebarItem({
                         <SortableChild
                           key={child.id}
                           child={child}
+                          siteId={siteId}
                           onChange={(childId, patch) => onChildChange(sectionId, item.id, childId, patch)}
                           onDelete={(childId) => onChildDelete(sectionId, item.id, childId)}
                         />
@@ -429,6 +348,7 @@ function SortableSidebarItem({
 
 function SortableSectionCard({
   section,
+  siteId,
   isDraggingItem,
   onSectionTitleChange,
   onReset,
@@ -496,6 +416,7 @@ function SortableSectionCard({
                 key={entry.id}
                 sectionId={section.id}
                 item={entry}
+                siteId={siteId}
                 onItemChange={onItemChange}
                 onItemDelete={onItemDelete}
                 onChildAdd={onChildAdd}
@@ -863,6 +784,7 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
               <SortableSectionCard
                 key={section.id}
                 section={section}
+                siteId={siteId}
                 isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
                 onReset={() => onConfigChange(createDefaultAdminSidebarSettings(siteId))}

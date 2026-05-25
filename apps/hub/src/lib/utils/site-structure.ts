@@ -1,7 +1,7 @@
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import {
-  isQuickLinkIconName,
-  type QuickLinkIconName,
+  isQuickLinkIconValue,
+  type QuickLinkIconValue,
 } from '@/lib/utils/site-quick-links'
 import {
   getSavedNavigationButtonIds,
@@ -20,14 +20,14 @@ export interface NavigationActionSettings {
   url: string
   style: NavigationActionStyle
   showOnMobile?: boolean
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 export interface NavigationSignedInLinkSettings {
   id?: string
   text: string
   url: string
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 export interface NavigationAccountMenuSettings {
@@ -106,7 +106,7 @@ function sanitizeNavigationActionSettings(
     showOnMobile: typeof raw.showOnMobile === 'boolean'
       ? raw.showOnMobile
       : fallback.showOnMobile === true,
-    icon: isQuickLinkIconName(raw.icon) ? raw.icon : fallback.icon,
+    icon: isQuickLinkIconValue(raw.icon) ? raw.icon : fallback.icon,
   }
 }
 
@@ -144,7 +144,7 @@ function sanitizeUrlItems(items: unknown) {
         url: sanitizeUrl(item.url, ''),
       }
 
-      if (!isQuickLinkIconName(item.icon)) {
+      if (!isQuickLinkIconValue(item.icon)) {
         delete sanitizedItem.icon
       }
 
@@ -170,7 +170,7 @@ function sanitizeNavigationSignedInLinks(items: unknown): NavigationSignedInLink
         link.id = id
       }
 
-      if (isQuickLinkIconName(item.icon)) {
+      if (isQuickLinkIconValue(item.icon)) {
         link.icon = item.icon
       }
 

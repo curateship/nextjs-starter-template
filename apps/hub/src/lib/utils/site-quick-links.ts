@@ -131,12 +131,13 @@ export const QUICK_LINK_ICONS = {
 } as const
 
 export type QuickLinkIconName = keyof typeof QUICK_LINK_ICONS
+export type QuickLinkIconValue = QuickLinkIconName | string
 
 export interface SiteQuickLink {
   id: string
   label: string
   href: string
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 export interface QuickLinkIconOption {
@@ -219,7 +220,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function getQuickLinkIcon(icon?: string): LucideIcon {
-  if (icon && icon in QUICK_LINK_ICONS) {
+  if (typeof icon === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, icon)) {
     return QUICK_LINK_ICONS[icon as QuickLinkIconName]
   }
 
@@ -227,7 +228,7 @@ export function getQuickLinkIcon(icon?: string): LucideIcon {
 }
 
 export function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
-  if (icon && icon in QUICK_LINK_ICONS) {
+  if (typeof icon === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, icon)) {
     return QUICK_LINK_ICONS[icon as QuickLinkIconName]
   }
 
@@ -239,7 +240,27 @@ export function getQuickLinkIconLabel(icon?: string): string {
 }
 
 export function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
-  return typeof value === "string" && value in QUICK_LINK_ICONS
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, value)
+}
+
+export function isQuickLinkIconUrl(value: unknown): value is string {
+  if (typeof value !== "string" || !value) return false
+  if (!value.startsWith("/") || value.startsWith("//")) return false
+
+  try {
+    const url = new URL(value, "https://hub.local")
+    return (
+      url.origin === "https://hub.local" &&
+      url.pathname.startsWith("/cdn/") &&
+      url.pathname.toLowerCase().endsWith(".svg")
+    )
+  } catch {
+    return false
+  }
+}
+
+export function isQuickLinkIconValue(value: unknown): value is QuickLinkIconValue {
+  return isQuickLinkIconName(value) || isQuickLinkIconUrl(value)
 }
 
 export function normalizeSiteQuickLinks(value: unknown): SiteQuickLink[] {
@@ -258,7 +279,7 @@ function normalizeSiteQuickLink(item: unknown, index: number): SiteQuickLink | n
 
   if (!label || !href || !isValidQuickLinkHref(href)) return null
 
-  const icon = isQuickLinkIconName(item.icon)
+  const icon = isQuickLinkIconValue(item.icon)
     ? item.icon
     : undefined
 

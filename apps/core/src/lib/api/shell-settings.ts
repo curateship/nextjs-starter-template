@@ -5,6 +5,7 @@ import { z } from "zod"
 import {
   createDefaultShellConfig,
   iconMeta,
+  isShellIconUrl,
   type IconKey,
   type ShellConfig,
 } from "@/lib/core"
@@ -16,15 +17,19 @@ import { findCurrentUser, now } from "@/server/security"
 const DEFAULT_SETTINGS_KEY = "default"
 
 const iconSchema = z.custom<IconKey>(
-  (value) => typeof value === "string" && value in iconMeta,
+  (value) => typeof value === "string" && Object.prototype.hasOwnProperty.call(iconMeta, value),
   { message: "Invalid icon." }
 )
+const shellIconSchema = z.union([
+  iconSchema,
+  z.string().trim().max(2048).refine(isShellIconUrl),
+])
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
   label: z.string(),
   href: z.string(),
-  icon: iconSchema.optional(),
+  icon: shellIconSchema.optional(),
 })
 
 const shellEntrySchema = z.discriminatedUnion("type", [
@@ -33,7 +38,7 @@ const shellEntrySchema = z.discriminatedUnion("type", [
     id: z.string().min(1),
     label: z.string(),
     href: z.string(),
-    icon: iconSchema,
+    icon: shellIconSchema,
     visible: z.boolean(),
     children: z.array(shellChildItemSchema).optional(),
   }),
@@ -54,7 +59,7 @@ const shellConfigSchema = z.object({
       id: z.string().min(1),
       label: z.string(),
       href: z.string(),
-      icon: iconSchema.optional(),
+      icon: shellIconSchema.optional(),
       visible: z.boolean(),
     })
   ),

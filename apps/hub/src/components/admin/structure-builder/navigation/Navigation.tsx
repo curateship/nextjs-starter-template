@@ -8,10 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
+import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
 import { cn } from "@/lib/utils/tailwind"
 import {
   ACCOUNT_MENU_ACTION_ITEM_ID,
@@ -28,13 +27,7 @@ import {
   type NavigationActionSettings,
   type NavigationSignedInLinkSettings
 } from "@/lib/utils/site-structure"
-import {
-  QUICK_LINK_ICON_OPTIONS,
-  getQuickLinkIcon,
-  getQuickLinkIconOrNull,
-  isQuickLinkIconName,
-  type QuickLinkIconName
-} from "@/lib/utils/site-quick-links"
+import { isQuickLinkIconValue, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
 import {
   DndContext,
   closestCenter,
@@ -60,7 +53,6 @@ import {
   GripVertical,
   ImageIcon,
   Plus,
-  Search,
   Trash2,
   type LucideIcon,
   UserRound,
@@ -72,7 +64,7 @@ interface NavigationLink {
   text: string
   url: string
   id?: string
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 interface NavigationButton {
@@ -81,7 +73,7 @@ interface NavigationButton {
   style: "primary" | "outline" | "ghost"
   showOnMobile?: boolean
   id?: string
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 interface NavigationProps {
@@ -133,268 +125,20 @@ function ensureSignedInLinkIds(links: NavigationSignedInLinkSettings[]): Navigat
   }))
 }
 
-function NavigationIconField({
-  value,
-  onChange
-}: {
-  value?: QuickLinkIconName
-  onChange: (value?: QuickLinkIconName) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState("")
-
-  const SelectedIcon = getQuickLinkIconOrNull(value)
-  const DefaultIcon = getQuickLinkIcon()
-  const normalizedQuery = query.trim().toLowerCase()
-  const showDefaultOption = !normalizedQuery || "default icon".includes(normalizedQuery)
-
-  const filteredOptions = useMemo(() => {
-    if (!normalizedQuery) return QUICK_LINK_ICON_OPTIONS
-
-    return QUICK_LINK_ICON_OPTIONS.filter((option) => {
-      const haystack = [option.label, option.value, ...(option.keywords || [])].join(" ").toLowerCase()
-
-      return haystack.includes(normalizedQuery)
-    })
-  }, [normalizedQuery])
-
-  return (
-    <>
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Icon</p>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-9 w-9 shrink-0 p-0 shadow-none hover:bg-transparent"
-          onClick={() => setOpen(true)}
-        >
-          {SelectedIcon ? (
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-              <SelectedIcon className="h-4 w-4 shrink-0" />
-            </span>
-          ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-md border border-dashed bg-muted text-muted-foreground">
-              <ImageIcon className="h-4 w-4" />
-            </span>
-          )}
-        </Button>
-      </div>
-
-      <Dialog
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen)
-          if (!nextOpen) {
-            setQuery("")
-          }
-        }}
-      >
-        <DashboardModalContent
-          className="max-w-xl"
-          title="Choose Icon"
-          description="Pick an icon for this navigation item."
-          footer={
-            <>
-              {value ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    onChange(undefined)
-                    setOpen(false)
-                    setQuery("")
-                  }}
-                >
-                  Remove Icon
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setOpen(false)
-                  setQuery("")
-                }}
-              >
-                Back
-              </Button>
-            </>
-          }
-        >
-          <CardGroup className="grid">
-            <Card>
-              <CardContent className="space-y-3" onWheelCapture={(event) => event.stopPropagation()}>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className="pl-9"
-                    placeholder="Search icons"
-                  />
-                </div>
-
-                <ScrollArea className="h-[320px] pr-2 overscroll-contain">
-              {filteredOptions.length === 0 && !showDefaultOption ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">No icons match that search.</div>
-              ) : (
-                <div className="grid grid-cols-6 gap-2">
-                  {showDefaultOption && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onChange(undefined)
-                        setOpen(false)
-                        setQuery("")
-                      }}
-                      className={cn(
-                        "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                        !value ? "bg-primary/5" : "hover:bg-muted/50"
-                      )}
-                      aria-label="Use default icon"
-                    >
-                      {!value && (
-                        <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                          <Check className="h-3 w-3" />
-                        </span>
-                      )}
-                      <DefaultIcon className="h-5 w-5" />
-                      <span className="line-clamp-2 text-[11px] leading-tight">Default</span>
-                    </button>
-                  )}
-                  {filteredOptions.map((option) => {
-                    const Icon = getQuickLinkIcon(option.value)
-                    const isSelected = option.value === value
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          onChange(option.value)
-                          setOpen(false)
-                          setQuery("")
-                        }}
-                        className={cn(
-                          "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                          isSelected ? "bg-primary/5" : "hover:bg-muted/50"
-                        )}
-                        aria-label={`Choose ${option.label} icon`}
-                      >
-                        {isSelected && (
-                          <span className="absolute top-2 right-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                            <Check className="h-3 w-3" />
-                          </span>
-                        )}
-                        <Icon className="h-5 w-5" />
-                        <span className="line-clamp-2 text-[11px] leading-tight">{option.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </CardGroup>
-        </DashboardModalContent>
-      </Dialog>
-    </>
-  )
-}
-
-function NavigationCompactIconField({
-  value,
-  onChange
-}: {
-  value?: QuickLinkIconName
-  onChange: (value?: QuickLinkIconName) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const SelectedIcon = getQuickLinkIconOrNull(value)
-  const currentLabel = value
-    ? QUICK_LINK_ICON_OPTIONS.find((option) => option.value === value)?.label || "Custom icon"
-    : "No icon"
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="h-8 w-8"
-          aria-label={`Choose icon, current icon ${currentLabel}`}
-          title={currentLabel}
-        >
-          {SelectedIcon ? (
-            <SelectedIcon className="h-4 w-4" />
-          ) : (
-            <span className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed bg-muted text-muted-foreground">
-              <ImageIcon className="h-4 w-4" />
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        <div className="grid grid-cols-5 gap-1.5">
-          <button
-            type="button"
-            className={cn(
-              "relative flex aspect-square items-center justify-center rounded-md border border-dashed bg-muted transition-colors hover:bg-muted/70",
-              !value && "border-primary bg-primary/5"
-            )}
-            onClick={() => {
-              onChange(undefined)
-              setOpen(false)
-            }}
-            aria-label="Use no icon"
-          >
-            <ImageIcon className="h-4 w-4 text-muted-foreground" />
-            {!value ? <Check className="absolute right-1 top-1 h-3 w-3" /> : null}
-          </button>
-          {QUICK_LINK_ICON_OPTIONS.map((option) => {
-            const Icon = getQuickLinkIcon(option.value)
-            const isSelected = option.value === value
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={cn(
-                  "relative flex aspect-square items-center justify-center rounded-md border transition-colors hover:bg-muted",
-                  isSelected && "border-primary bg-primary/5"
-                )}
-                onClick={() => {
-                  onChange(option.value)
-                  setOpen(false)
-                }}
-                aria-label={`Use ${option.label} icon`}
-                title={option.label}
-              >
-                <Icon className="h-4 w-4" />
-                {isSelected ? <Check className="absolute right-1 top-1 h-3 w-3" /> : null}
-              </button>
-            )
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 function NavigationActionSettingsFields({
   action,
   fieldPrefix,
+  siteId,
   onChange
 }: {
   action: NavigationActionSettings
   fieldPrefix: string
+  siteId: string
   onChange: (nextAction: NavigationActionSettings) => void
 }) {
   return (
     <div className="flex flex-wrap items-end gap-4">
-      <NavigationIconField value={action.icon} onChange={(value) => onChange({ ...action, icon: value })} />
+      <ShellIconPickerField siteId={siteId} value={action.icon} onChange={(value) => onChange({ ...action, icon: value })} />
 
       <Field className="w-full sm:w-[140px]">
         <FieldLabel htmlFor={`${fieldPrefix}-label`}>Name</FieldLabel>
@@ -453,12 +197,14 @@ function NavigationActionSettingsSection({
   description,
   action,
   fieldPrefix,
+  siteId,
   onChange
 }: {
   title: string
   description: string
   action: NavigationActionSettings
   fieldPrefix: string
+  siteId: string
   onChange: (nextAction: NavigationActionSettings) => void
 }) {
   return (
@@ -468,7 +214,7 @@ function NavigationActionSettingsSection({
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
-      <NavigationActionSettingsFields action={action} fieldPrefix={fieldPrefix} onChange={onChange} />
+      <NavigationActionSettingsFields action={action} fieldPrefix={fieldPrefix} siteId={siteId} onChange={onChange} />
     </div>
   )
 }
@@ -492,8 +238,6 @@ function SortableLinkItem({
     transition,
     opacity: isDragging ? 0.5 : 1
   }
-  const SelectedIcon = getQuickLinkIconOrNull(link.icon)
-
   return (
     <div
       ref={setNodeRef}
@@ -518,7 +262,7 @@ function SortableLinkItem({
           aria-label={`Edit settings for ${link.text || "navigation link"}`}
           title={link.text || "Navigation link settings"}
         >
-          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
           <span className="truncate">{link.text || "Link"}</span>
         </Button>
         <Button
@@ -547,8 +291,6 @@ function StaticLinkItem({
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const SelectedIcon = getQuickLinkIconOrNull(link.icon)
-
   return (
     <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
       <div className="flex max-w-full flex-wrap items-center gap-1">
@@ -563,7 +305,7 @@ function StaticLinkItem({
           aria-label={`Edit settings for ${link.text || "navigation link"}`}
           title={link.text || "Navigation link settings"}
         >
-          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={link.icon} className="h-4 w-4 shrink-0" />
           <span className="truncate">{link.text || "Link"}</span>
         </Button>
         <Button
@@ -586,6 +328,7 @@ function UserPanelChildLinkRow({
   index,
   onChange,
   onDelete,
+  siteId,
   dragHandle,
   setNodeRef,
   style
@@ -594,6 +337,7 @@ function UserPanelChildLinkRow({
   index: number
   onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
   onDelete: (index: number) => void
+  siteId: string
   dragHandle: ReactNode
   setNodeRef?: (node: HTMLElement | null) => void
   style?: CSSProperties
@@ -605,7 +349,7 @@ function UserPanelChildLinkRow({
       className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto]"
     >
       {dragHandle}
-      <NavigationCompactIconField value={link.icon} onChange={(icon) => onChange(index, { icon })} />
+      <ShellIconPickerField siteId={siteId} value={link.icon} onChange={(icon) => onChange(index, { icon })} compact />
       <Input
         value={link.text}
         onChange={(event) => onChange(index, { text: event.target.value })}
@@ -637,12 +381,14 @@ function SortableUserPanelChildLink({
   link,
   index,
   onChange,
-  onDelete
+  onDelete,
+  siteId
 }: {
   link: NavigationSignedInLinkSettings
   index: number
   onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
   onDelete: (index: number) => void
+  siteId: string
 }) {
   const itemId = link.id || `user-panel-child-${index}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: itemId })
@@ -659,6 +405,7 @@ function SortableUserPanelChildLink({
       index={index}
       onChange={onChange}
       onDelete={onDelete}
+      siteId={siteId}
       setNodeRef={setNodeRef}
       style={style}
       dragHandle={
@@ -680,12 +427,14 @@ function StaticUserPanelChildLink({
   link,
   index,
   onChange,
-  onDelete
+  onDelete,
+  siteId
 }: {
   link: NavigationSignedInLinkSettings
   index: number
   onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
   onDelete: (index: number) => void
+  siteId: string
 }) {
   return (
     <UserPanelChildLinkRow
@@ -693,6 +442,7 @@ function StaticUserPanelChildLink({
       index={index}
       onChange={onChange}
       onDelete={onDelete}
+      siteId={siteId}
       dragHandle={
         <div className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground">
           <GripVertical className="h-4 w-4" />
@@ -721,8 +471,6 @@ function SortableButtonItem({
     transition,
     opacity: isDragging ? 0.5 : 1
   }
-  const SelectedIcon = getQuickLinkIconOrNull(button.icon)
-
   return (
     <div
       ref={setNodeRef}
@@ -747,7 +495,7 @@ function SortableButtonItem({
           aria-label={`Edit settings for ${button.text || "action button"}`}
           title={button.text || "Action button settings"}
         >
-          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
           <span className="truncate">{button.text || "Button"}</span>
         </Button>
         <Button
@@ -776,8 +524,6 @@ function StaticButtonItem({
   onEdit: (index: number) => void
   onDelete: (index: number) => void
 }) {
-  const SelectedIcon = getQuickLinkIconOrNull(button.icon)
-
   return (
     <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
       <div className="flex max-w-full flex-wrap items-center gap-1">
@@ -792,7 +538,7 @@ function StaticButtonItem({
           aria-label={`Edit settings for ${button.text || "action button"}`}
           title={button.text || "Action button settings"}
         >
-          {SelectedIcon ? <SelectedIcon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={button.icon} className="h-4 w-4 shrink-0" />
           <span className="truncate">{button.text || "Button"}</span>
         </Button>
         <Button
@@ -899,7 +645,7 @@ function StaticBuiltInActionItem({
   )
 }
 
-export function Navigation({ content, onContentChange, onContentPersist, siteFavicon, onBack }: NavigationProps) {
+export function Navigation({ content, onContentChange, onContentPersist, siteId, siteFavicon, onBack }: NavigationProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)
@@ -956,7 +702,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
         id: typeof link.id === "string" ? link.id : undefined,
         text: typeof link.text === "string" ? link.text : "",
         url: typeof link.url === "string" ? link.url : "",
-        icon: isQuickLinkIconName(link.icon) ? link.icon : undefined
+        icon: isQuickLinkIconValue(link.icon) ? link.icon : undefined
       }))
   }, [accountMenu.signedInLinks, rawAccountMenu])
   const navigationStyle = content.navigationStyle || "default"
@@ -1746,7 +1492,8 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
             <Card>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-                  <NavigationIconField
+                  <ShellIconPickerField
+                    siteId={siteId}
                     value={linkDraft.icon}
                     onChange={(icon) => setLinkDraft((prev) => ({ ...prev, icon }))}
                   />
@@ -1821,7 +1568,8 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
             <Card>
               <CardContent>
                 <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
-                  <NavigationIconField
+                  <ShellIconPickerField
+                    siteId={siteId}
                     value={buttonDraft.icon}
                     onChange={(icon) => setButtonDraft((prev) => ({ ...prev, icon }))}
                   />
@@ -1935,6 +1683,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                       description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
                       action={accountMenuDraft.login}
                       fieldPrefix="navigation-account-menu-login"
+                      siteId={siteId}
                       onChange={(nextAction) => updateAccountMenuActionDraft("login", nextAction)}
                     />
                   </CardContent>
@@ -1947,6 +1696,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                       description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
                       action={accountMenuDraft.register}
                       fieldPrefix="navigation-account-menu-register"
+                      siteId={siteId}
                       onChange={(nextAction) => updateAccountMenuActionDraft("register", nextAction)}
                     />
                   </CardContent>
@@ -1985,6 +1735,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                                     key={link.id || `user-panel-child-${index}`}
                                     link={link}
                                     index={index}
+                                    siteId={siteId}
                                     onChange={updateAccountMenuSignedInLinkDraft}
                                     onDelete={removeAccountMenuSignedInLinkDraft}
                                   />
@@ -1999,6 +1750,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                                 key={link.id || `user-panel-child-static-${index}`}
                                 link={link}
                                 index={index}
+                                siteId={siteId}
                                 onChange={updateAccountMenuSignedInLinkDraft}
                                 onDelete={removeAccountMenuSignedInLinkDraft}
                               />

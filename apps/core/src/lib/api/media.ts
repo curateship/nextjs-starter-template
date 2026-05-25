@@ -32,6 +32,7 @@ const listMediaSchema = z
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
     fileType: z.enum(["image", "video"]).optional(),
+    mimeType: z.enum(["image/svg+xml"]).optional(),
     sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
     sortDirection: z.enum(["asc", "desc"]).optional(),
   })
@@ -61,6 +62,7 @@ const listMediaFn = createServerFn({ method: "GET" })
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
       fileType: data?.fileType,
+      mimeType: data?.mimeType,
       sortBy: data?.sortBy,
       sortDirection: data?.sortDirection,
     })
@@ -214,16 +216,18 @@ export function listMedia({
   page = 1,
   pageSize = 20,
   fileType,
+  mimeType,
   sortBy,
   sortDirection,
 }: {
   page?: number
   pageSize?: number
   fileType?: MediaFileType
+  mimeType?: "image/svg+xml"
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 } = {}) {
-  return listMediaFn({ data: { page, pageSize, fileType, sortBy, sortDirection } })
+  return listMediaFn({ data: { page, pageSize, fileType, mimeType, sortBy, sortDirection } })
 }
 
 export function uploadMedia(file: File, altText?: string) {

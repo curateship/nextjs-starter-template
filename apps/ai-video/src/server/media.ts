@@ -166,9 +166,7 @@ export function storedFilename(originalName: string, mimeType: string) {
   const extensionIndex = originalName.lastIndexOf(".")
   const base =
     extensionIndex > -1 ? originalName.slice(0, extensionIndex) : originalName
-  const originalExtension =
-    extensionIndex > -1 ? originalName.slice(extensionIndex + 1) : ""
-  const extension = originalExtension || defaultExtensionForMimeType(mimeType)
+  const extension = defaultExtensionForMimeType(mimeType)
   const cleanBase = base.replace(FILENAME_SAFE_CHARS, "-").replace(/^[.-]+|[.-]+$/g, "") || "media"
   const cleanExtension = extension.replace(FILENAME_SAFE_CHARS, "").replace(/^\.+|\.+$/g, "")
   const suffix = cleanExtension ? `.${cleanExtension}` : ""
@@ -185,6 +183,7 @@ export async function listOwnedMedia({
   page,
   pageSize,
   fileType,
+  mimeType,
   sortBy = "created_at",
   sortDirection = "desc",
 }: {
@@ -192,14 +191,23 @@ export async function listOwnedMedia({
   page: number
   pageSize: number
   fileType?: MediaFileType
+  mimeType?: "image/svg+xml"
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
-  const where = fileType
-    ? and(eq(aiVideoMedia.userId, userId), eq(aiVideoMedia.fileType, fileType))
-    : eq(aiVideoMedia.userId, userId)
+  const ownerWhere = eq(aiVideoMedia.userId, userId)
+  const typeWhere = fileType ? eq(aiVideoMedia.fileType, fileType) : null
+  const mimeWhere = mimeType ? eq(aiVideoMedia.mimeType, mimeType) : null
+  const where =
+    typeWhere && mimeWhere
+      ? and(ownerWhere, typeWhere, mimeWhere)
+      : typeWhere
+        ? and(ownerWhere, typeWhere)
+        : mimeWhere
+          ? and(ownerWhere, mimeWhere)
+          : ownerWhere
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })

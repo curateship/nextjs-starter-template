@@ -39,6 +39,7 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
             "Accept-Ranges": "bytes",
             "Cache-Control": "private, no-store",
             "Content-Type": object.ContentType || media.mimeType,
+            "X-Content-Type-Options": "nosniff",
           })
           if (object.ContentLength !== undefined) {
             headers.set("Content-Length", object.ContentLength.toString())

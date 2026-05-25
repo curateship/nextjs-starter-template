@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/actions/auth/server'
 import { uploadMediaAction } from '@/lib/actions/media/media-actions'
+import { isSameOriginRequest } from '@/lib/utils/request-origin'
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isSameOriginRequest(request)) {
+      return NextResponse.json({ error: 'Invalid origin' }, { status: 403 })
+    }
+
     // Verify authentication
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session?.user) {
@@ -30,13 +35,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file type
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = [...imageTypes, ...videoTypes]
 
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' },
+        { error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' },
         { status: 400 }
       )
     }
@@ -84,13 +89,5 @@ export async function POST(request: NextRequest) {
 
 // Handle preflight requests for CORS
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Range',
-      'Access-Control-Allow-Credentials': 'false',
-    },
-  })
+  return new NextResponse(null, { status: 204 })
 }

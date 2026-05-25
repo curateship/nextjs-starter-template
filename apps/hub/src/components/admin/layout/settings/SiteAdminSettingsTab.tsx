@@ -225,7 +225,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
         {mode === "sidebar" ? (
           <AdminSidebarSettingsCard config={adminSidebar} siteId={siteId} onConfigChange={handleAdminSidebarChange} />
         ) : (
-          <QuickLinksSettingsCard quickLinks={quickLinks} onQuickLinksChange={setQuickLinks} />
+          <QuickLinksSettingsCard quickLinks={quickLinks} siteId={siteId} onQuickLinksChange={setQuickLinks} />
         )}
       </CardGroup>
     </form>

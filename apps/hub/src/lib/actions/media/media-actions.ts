@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { media, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { uploadToR2, deleteFromR2 } from '@/lib/utils/r2'
+import DOMPurify from 'isomorphic-dompurify'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -15,6 +16,7 @@ export interface MediaData {
   original_name: string
   alt_text: string | null
   file_size: number
+  mime_type: string
   file_type: 'image' | 'video'
   storage_path: string
   public_url: string
@@ -50,6 +52,7 @@ function toMediaData(row: any): MediaData {
     original_name: row.originalName ?? row.original_name,
     alt_text: row.altText ?? row.alt_text ?? null,
     file_size: Number(row.fileSize ?? row.file_size ?? 0),
+    mime_type: row.mimeType ?? row.mime_type,
     file_type: row.fileType ?? row.file_type,
     storage_path: row.storagePath ?? row.storage_path,
     public_url: row.publicUrl ?? row.public_url,
@@ -80,12 +83,12 @@ export async function uploadMediaAction(
   site_id?: string
 ): Promise<{ data: MediaData | null; error: string | null }> {
   try {
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = [...imageTypes, ...videoTypes]
 
     if (!allowedTypes.includes(file.type)) {
-      return { data: null, error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' }
+      return { data: null, error: 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.' }
     }
 
     const fileType: 'image' | 'video' = imageTypes.includes(file.type) ? 'image' : 'video'
@@ -103,13 +106,18 @@ export async function uploadMediaAction(
     if (scope.error !== null) return { data: null, error: scope.error }
 
     const timestamp = Date.now()
-    const fileExtension = file.name.split('.').pop() || ''
+    const fileExtension = defaultExtensionForMimeType(file.type)
     const cleanFilename = file.name
       .replace(/\.[^/.]+$/, '')
       .replace(/[^a-zA-Z0-9.-]/g, '-')
 
     const arrayBuffer = await file.arrayBuffer()
-    const fileBuffer = Buffer.from(arrayBuffer)
+    let fileBuffer: Buffer
+    try {
+      fileBuffer = prepareMediaBuffer(file.type, Buffer.from(arrayBuffer))
+    } catch (error) {
+      return { data: null, error: error instanceof Error ? error.message : 'Invalid SVG file.' }
+    }
 
     const r2FileName = `${user.id}/${timestamp}_${cleanFilename}.${fileExtension}`
     let publicUrl: string
@@ -128,7 +136,7 @@ export async function uploadMediaAction(
         filename: `${timestamp}_${cleanFilename}.${fileExtension}`,
         originalName: file.name,
         altText: alt_text || null,
-        fileSize: file.size,
+        fileSize: fileBuffer.length,
         mimeType: file.type,
         fileType,
         storagePath: r2FileName,
@@ -159,7 +167,8 @@ export interface PaginatedMediaResponse {
 
 export async function getMediaAction(
   fileType?: 'image' | 'video',
-  site_id?: string
+  site_id?: string,
+  mimeType?: 'image/svg+xml'
 ): Promise<{ data: MediaData[] | null; error: string | null }> {
   try {
     const user = await getAuthenticatedUser()
@@ -170,6 +179,7 @@ export async function getMediaAction(
 
     const conditions = [eq(media.userId, user.id), eq(media.siteId, scope.siteId)]
     if (fileType) conditions.push(eq(media.fileType, fileType))
+    if (mimeType) conditions.push(eq(media.mimeType, mimeType))
 
     const result = await db
       .select()
@@ -187,7 +197,8 @@ export async function getPaginatedMediaAction(
   page: number = 1,
   pageSize: number = 20,
   fileType?: 'image' | 'video',
-  site_id?: string
+  site_id?: string,
+  mimeType?: 'image/svg+xml'
 ): Promise<{ data: PaginatedMediaResponse | null; error: string | null }> {
   try {
     const user = await getAuthenticatedUser()
@@ -196,16 +207,19 @@ export async function getPaginatedMediaAction(
     const scope = await validateSiteScope(user.id, site_id)
     if (scope.error !== null) return { data: null, error: scope.error }
 
+    const normalizedPage = normalizePositiveInteger(page, 1, 10000)
+    const normalizedPageSize = normalizePositiveInteger(pageSize, 20, 100)
     const conditions = [eq(media.userId, user.id), eq(media.siteId, scope.siteId)]
     if (fileType) conditions.push(eq(media.fileType, fileType))
+    if (mimeType) conditions.push(eq(media.mimeType, mimeType))
 
     const whereClause = and(...conditions)
 
-    const offset = (page - 1) * pageSize
+    const offset = (normalizedPage - 1) * normalizedPageSize
 
     const [countResult, result] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(media).where(whereClause),
-      db.select().from(media).where(whereClause).orderBy(desc(media.createdAt)).limit(pageSize).offset(offset),
+      db.select().from(media).where(whereClause).orderBy(desc(media.createdAt)).limit(normalizedPageSize).offset(offset),
     ])
 
     const totalCount = countResult[0]?.count || 0
@@ -215,8 +229,8 @@ export async function getPaginatedMediaAction(
       data: {
         data: result.map(toMediaData),
         total: totalCount,
-        page,
-        pageSize,
+        page: normalizedPage,
+        pageSize: normalizedPageSize,
         totalPages,
       },
       error: null,
@@ -224,6 +238,106 @@ export async function getPaginatedMediaAction(
   } catch (error) {
     return { data: null, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
+}
+
+function sanitizeSvgBuffer(fileBuffer: Buffer) {
+  let source = ''
+  try {
+    source = new TextDecoder('utf-8', { fatal: true }).decode(fileBuffer)
+  } catch {
+    throw new Error('File content does not match the selected media type.')
+  }
+
+  const sanitized = DOMPurify.sanitize(source, {
+    ALLOWED_TAGS: ['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'title', 'desc'],
+    ALLOWED_ATTR: [
+      'xmlns',
+      'viewBox',
+      'width',
+      'height',
+      'role',
+      'aria-label',
+      'aria-labelledby',
+      'fill',
+      'stroke',
+      'd',
+      'x',
+      'y',
+      'x1',
+      'x2',
+      'y1',
+      'y2',
+      'cx',
+      'cy',
+      'r',
+      'rx',
+      'ry',
+      'points',
+      'stroke-width',
+      'opacity',
+      'transform',
+    ],
+    ALLOW_DATA_ATTR: false,
+    FORBID_TAGS: ['script', 'style', 'foreignObject'],
+    SANITIZE_DOM: true,
+    SANITIZE_NAMED_PROPS: true,
+  }).trim()
+
+  if (!/^<svg(?:\s|>)/i.test(sanitized) || /(?:javascript:|data:|url\s*\()/i.test(sanitized)) {
+    throw new Error('File content does not match the selected media type.')
+  }
+
+  return Buffer.from(sanitized, 'utf8')
+}
+
+function prepareMediaBuffer(mimeType: string, fileBuffer: Buffer) {
+  if (mimeType === 'image/svg+xml') return sanitizeSvgBuffer(fileBuffer)
+  validateMediaContent(mimeType, fileBuffer)
+  return fileBuffer
+}
+
+function validateMediaContent(mimeType: string, data: Buffer) {
+  const valid =
+    ((mimeType === 'image/jpeg' || mimeType === 'image/jpg') && hasPrefix(data, [0xff, 0xd8, 0xff])) ||
+    (mimeType === 'image/png' && hasPrefix(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
+    (mimeType === 'image/gif' && (hasAscii(data, 0, 'GIF87a') || hasAscii(data, 0, 'GIF89a'))) ||
+    (mimeType === 'image/webp' && hasAscii(data, 0, 'RIFF') && hasAscii(data, 8, 'WEBP')) ||
+    ((mimeType === 'video/mp4' || mimeType === 'video/quicktime') && hasAscii(data, 4, 'ftyp')) ||
+    (mimeType === 'video/webm' && hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])) ||
+    (mimeType === 'video/x-msvideo' && hasAscii(data, 0, 'RIFF') && hasAscii(data, 8, 'AVI ')) ||
+    (mimeType === 'video/x-matroska' && hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]))
+
+  if (!valid) {
+    throw new Error('File content does not match the selected media type.')
+  }
+}
+
+function hasPrefix(data: Buffer, prefix: number[]) {
+  return prefix.every((byte, index) => data[index] === byte)
+}
+
+function hasAscii(data: Buffer, offset: number, value: string) {
+  if (data.length < offset + value.length) return false
+  return Array.from(value).every((character, index) => data[offset + index] === character.charCodeAt(0))
+}
+
+function defaultExtensionForMimeType(mimeType: string) {
+  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return 'jpg'
+  if (mimeType === 'image/png') return 'png'
+  if (mimeType === 'image/gif') return 'gif'
+  if (mimeType === 'image/webp') return 'webp'
+  if (mimeType === 'image/svg+xml') return 'svg'
+  if (mimeType === 'video/mp4') return 'mp4'
+  if (mimeType === 'video/webm') return 'webm'
+  if (mimeType === 'video/quicktime') return 'mov'
+  if (mimeType === 'video/x-msvideo') return 'avi'
+  if (mimeType === 'video/x-matroska') return 'mkv'
+  return 'bin'
+}
+
+function normalizePositiveInteger(value: number, fallback: number, max: number) {
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(Math.max(1, Math.floor(value)), max)
 }
 
 export async function scanUnusedMediaAction(

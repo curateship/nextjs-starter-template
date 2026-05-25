@@ -76,6 +76,30 @@ export function validateMediaContent(mimeType: string, data: Uint8Array) {
     sanitizeSvgContent(data)
     return
   }
+
+  const valid =
+    ((mimeType === "image/jpeg" || mimeType === "image/jpg") &&
+      hasPrefix(data, [0xff, 0xd8, 0xff])) ||
+    (mimeType === "image/png" &&
+      hasPrefix(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ||
+    (mimeType === "image/gif" &&
+      (hasAscii(data, 0, "GIF87a") || hasAscii(data, 0, "GIF89a"))) ||
+    (mimeType === "image/webp" &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "WEBP")) ||
+    ((mimeType === "video/mp4" || mimeType === "video/quicktime") &&
+      hasAscii(data, 4, "ftyp")) ||
+    (mimeType === "video/webm" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])) ||
+    (mimeType === "video/x-msvideo" &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "AVI ")) ||
+    (mimeType === "video/x-matroska" &&
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]))
+
+  if (!valid) {
+    throw new Error("File content does not match the selected media type.")
+  }
 }
 
 export function prepareMediaContent(mimeType: string, data: Uint8Array) {
@@ -127,9 +151,7 @@ export function storedFilename(originalName: string, mimeType: string) {
   const extensionIndex = originalName.lastIndexOf(".")
   const base =
     extensionIndex > -1 ? originalName.slice(0, extensionIndex) : originalName
-  const originalExtension =
-    extensionIndex > -1 ? originalName.slice(extensionIndex + 1) : ""
-  const extension = originalExtension || defaultExtensionForMimeType(mimeType)
+  const extension = defaultExtensionForMimeType(mimeType)
   const cleanBase = base.replace(FILENAME_SAFE_CHARS, "-").replace(/^[.-]+|[.-]+$/g, "") || "media"
   const cleanExtension = extension.replace(FILENAME_SAFE_CHARS, "").replace(/^\.+|\.+$/g, "")
   const suffix = cleanExtension ? `.${cleanExtension}` : ""
@@ -141,11 +163,23 @@ export function cleanAltText(value?: string | null) {
   return cleaned ? cleaned.slice(0, 500) : null
 }
 
+function hasPrefix(data: Uint8Array, prefix: number[]) {
+  return prefix.every((byte, index) => data[index] === byte)
+}
+
+function hasAscii(data: Uint8Array, offset: number, value: string) {
+  if (data.length < offset + value.length) return false
+  return Array.from(value).every(
+    (character, index) => data[offset + index] === character.charCodeAt(0)
+  )
+}
+
 export async function listOwnedMedia({
   userId,
   page,
   pageSize,
   fileType,
+  mimeType,
   sortBy = "created_at",
   sortDirection = "desc",
 }: {
@@ -153,14 +187,23 @@ export async function listOwnedMedia({
   page: number
   pageSize: number
   fileType?: MediaFileType
+  mimeType?: "image/svg+xml"
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
-  const where = fileType
-    ? and(eq(media.userId, userId), eq(media.fileType, fileType))
-    : eq(media.userId, userId)
+  const ownerWhere = eq(media.userId, userId)
+  const typeWhere = fileType ? eq(media.fileType, fileType) : null
+  const mimeWhere = mimeType ? eq(media.mimeType, mimeType) : null
+  const where =
+    typeWhere && mimeWhere
+      ? and(ownerWhere, typeWhere, mimeWhere)
+      : typeWhere
+        ? and(ownerWhere, typeWhere)
+        : mimeWhere
+          ? and(ownerWhere, mimeWhere)
+          : ownerWhere
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })

@@ -65,7 +65,7 @@ const pageTabs = ["all", "images", "videos"] as const
 export type MediaTabId = (typeof pageTabs)[number]
 
 type ViewMode = "list" | "gallery"
-type MediaTypeFilter = "all" | MediaFileType
+type MediaTypeFilter = "all" | MediaFileType | "svg"
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -97,16 +97,17 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     setCurrentPage(1)
   }, [activeTab])
 
-  const fileType = mediaTypeFilter === "all" ? undefined : mediaTypeFilter
+  const fileType = mediaTypeFilter === "all" || mediaTypeFilter === "svg" ? undefined : mediaTypeFilter
+  const mimeType = mediaTypeFilter === "svg" ? "image/svg+xml" : undefined
 
   const loadCurrentPage = React.useCallback(async () => {
     setError(null)
     try {
-      setData(await listMedia({ page: currentPage, pageSize, fileType, sortBy, sortDirection }))
+      setData(await listMedia({ page: currentPage, pageSize, fileType, mimeType, sortBy, sortDirection }))
     } catch (loadError) {
       setError(getMediaErrorMessage(loadError))
     }
-  }, [currentPage, fileType, pageSize, sortBy, sortDirection])
+  }, [currentPage, fileType, mimeType, pageSize, sortBy, sortDirection])
 
   React.useEffect(() => {
     setCurrentPage(1)
@@ -284,7 +285,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       >
         <DashboardToolbarSelectTrigger
           aria-label="Media type filter"
-          labels={["All", "Images", "Videos"]}
+          labels={["All", "Images", "Videos", "SVG"]}
         >
           <SelectValue />
         </DashboardToolbarSelectTrigger>
@@ -292,6 +293,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           <SelectItem value="all">All</SelectItem>
           <SelectItem value="image">Images</SelectItem>
           <SelectItem value="video">Videos</SelectItem>
+          <SelectItem value="svg">SVG</SelectItem>
         </SelectContent>
       </Select>
       <div className="flex rounded-lg border">

@@ -2,15 +2,16 @@ import type { LucideIcon } from "lucide-react"
 import {
   QUICK_LINK_ICON_OPTIONS,
   getQuickLinkIcon,
-  isQuickLinkIconName,
   type QuickLinkIconName,
+  isQuickLinkIconValue,
+  type QuickLinkIconValue,
 } from "@/lib/utils/site-quick-links"
 
 export type AdminSidebarChildItem = {
   id: string
   label: string
   href: string
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
   visible?: boolean
   activePaths?: string[]
 }
@@ -20,7 +21,7 @@ export type AdminSidebarItem = {
   id: string
   label: string
   href: string
-  icon: QuickLinkIconName
+  icon: QuickLinkIconValue
   visible: boolean
   children?: AdminSidebarChildItem[]
   activePaths?: string[]
@@ -43,7 +44,7 @@ export type AdminSidebarNavLink = {
   label: string
   href: string
   active?: boolean
-  iconName?: QuickLinkIconName
+  iconName?: QuickLinkIconValue
   external?: boolean
 }
 
@@ -84,7 +85,7 @@ function child(
   id: string,
   label: string,
   href: string,
-  icon?: QuickLinkIconName,
+  icon?: QuickLinkIconValue,
   activePaths?: string[]
 ): AdminSidebarChildItem {
   return {
@@ -294,7 +295,7 @@ function normalizeChild(value: unknown, index: number): AdminSidebarChildItem | 
     : createFallbackId("child", index)
   const label = readString(value, ["label", "title", "name"])
   const href = sanitizeAdminSidebarHref(readString(value, ["href", "url", "route"]))
-  const icon = isQuickLinkIconName(value.icon) ? value.icon : undefined
+  const icon = isQuickLinkIconValue(value.icon) ? value.icon : undefined
   const activePaths = normalizeActivePaths(value.activePaths)
 
   return {
@@ -313,7 +314,7 @@ function normalizeItem(value: unknown, index: number): AdminSidebarItem | null {
   const id = typeof value.id === "string" && value.id.trim()
     ? value.id.trim()
     : createFallbackId("item", index)
-  const icon = isQuickLinkIconName(value.icon) ? value.icon : "grid"
+  const icon = isQuickLinkIconValue(value.icon) ? value.icon : "grid"
   const childValues = Array.isArray(value.children)
     ? value.children
     : Array.isArray(value.items)
@@ -484,7 +485,7 @@ export function serializeAdminSidebarSettings(settings: AdminSidebarSettings): A
   }
 }
 
-export function getAdminSidebarIcon(iconName: QuickLinkIconName): LucideIcon {
+export function getAdminSidebarIcon(iconName?: string): LucideIcon {
   return getQuickLinkIcon(iconName)
 }
 

@@ -56,7 +56,7 @@ export function MediaPicker({
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMedia, setSelectedMedia] = useState<MediaData | null>(null)
-  const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>('all')
+  const [filterType, setFilterType] = useState<'all' | 'image' | 'video' | 'svg'>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(12) // Smaller page size for modal
   const requestedSiteId = site_id || siteId || currentSite?.id
@@ -80,8 +80,9 @@ export function MediaPicker({
         return
       }
 
-      const fileType = filterType === 'all' ? undefined : filterType as 'image' | 'video'
-      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, scopedSiteId)
+      const fileType = filterType === 'all' || filterType === 'svg' ? undefined : filterType as 'image' | 'video'
+      const mimeType = filterType === 'svg' ? 'image/svg+xml' : undefined
+      const { data, error } = await getPaginatedMediaAction(currentPage, pageSize, fileType, scopedSiteId, mimeType)
 
       if (error) {
         toast.error(`Failed to load media: ${error}`)
@@ -142,7 +143,7 @@ export function MediaPicker({
   }
 
   // Handle filter change - reset to page 1
-  const handleFilterChange = (newFilter: 'all' | 'image' | 'video') => {
+  const handleFilterChange = (newFilter: 'all' | 'image' | 'video' | 'svg') => {
     setFilterType(newFilter)
     setCurrentPage(1)
   }
@@ -157,14 +158,14 @@ export function MediaPicker({
     if (!file) return
 
     // Validate file type 
-    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
     const videoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska']
     const allowedTypes = showVideos ? [...imageTypes, ...videoTypes] : imageTypes
     
     if (!allowedTypes.includes(file.type)) {
       const message = showVideos 
-        ? 'Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.'
-        : 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.'
+        ? 'Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed.'
+        : 'Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed.'
       toast.error(message)
       return
     }
@@ -273,7 +274,7 @@ export function MediaPicker({
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="default">
                       <Filter className="w-4 h-4 mr-2" />
-                      {filterType === 'all' ? 'All' : filterType === 'image' ? 'Images' : 'Videos'}
+                      {filterType === 'all' ? 'All' : filterType === 'image' ? 'Images' : filterType === 'video' ? 'Videos' : 'SVG'}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
@@ -288,6 +289,10 @@ export function MediaPicker({
                       <VideoIcon className="w-4 h-4 mr-2" />
                       Videos Only
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleFilterChange('svg')}>
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      SVG Only
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -297,7 +302,7 @@ export function MediaPicker({
                   <input
                     type="file"
                     className="hidden"
-                    accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp"}
+                    accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"}
                     onChange={handleFileSelect}
                   />
                   <Upload className="w-4 h-4 mr-2" />
@@ -338,6 +343,12 @@ export function MediaPicker({
                             </div>
                           </div>
                         </div>
+                      ) : uploadFile?.type === 'image/svg+xml' ? (
+                        <img
+                          src={uploadPreview}
+                          alt="Upload preview"
+                          className="h-full w-full object-contain"
+                        />
                       ) : (
                         <Image
                           src={uploadPreview}
@@ -415,7 +426,7 @@ export function MediaPicker({
                       <input
                         type="file"
                         className="hidden"
-                        accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp"}
+                        accept={showVideos ? "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" : "image/jpeg,image/jpg,image/png,image/gif,image/webp,image/svg+xml"}
                         onChange={handleFileSelect}
                       />
                       {showVideos ? 'Upload Your First Media File' : 'Upload Your First Image'}
@@ -454,6 +465,12 @@ export function MediaPicker({
                               <VideoIcon className="w-4 h-4 text-white drop-shadow-lg" />
                             </div>
                           </div>
+                        ) : media.mime_type === 'image/svg+xml' ? (
+                          <img
+                            src={media.public_url}
+                            alt={media.alt_text || media.original_name}
+                            className="h-full w-full object-contain"
+                          />
                         ) : (
                           <Image
                             src={media.public_url}

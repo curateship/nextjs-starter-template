@@ -19,9 +19,21 @@ import {
   getAdminSidebarIcon,
   resolveAdminSidebarSettings,
 } from "@/lib/utils/admin-sidebar"
+import { cn } from "@/lib/utils/tailwind"
+import { isQuickLinkIconUrl, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: { name: string; email: string; avatar?: string }
+}
+
+function getSidebarIcon(icon?: QuickLinkIconValue) {
+  if (isQuickLinkIconUrl(icon)) {
+    return function SidebarMediaIcon({ className }: { className?: string }) {
+      return <img src={icon} alt="" className={cn(className, "object-contain")} />
+    }
+  }
+
+  return getAdminSidebarIcon(icon)
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
@@ -52,7 +64,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
               id: entry.id,
               name: entry.label || "Untitled link",
               url: entry.href,
-              icon: getAdminSidebarIcon(entry.icon),
+              icon: getSidebarIcon(entry.icon),
               activePaths: entry.activePaths,
               items: entry.children
                 ?.filter((child) => child.visible !== false)
@@ -60,7 +72,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
                   id: child.id,
                   title: child.label || "Untitled child",
                   url: child.href,
-                  icon: child.icon ? getAdminSidebarIcon(child.icon) : undefined,
+                  icon: child.icon ? getSidebarIcon(child.icon) : undefined,
                   activePaths: child.activePaths,
                 })),
             }))
