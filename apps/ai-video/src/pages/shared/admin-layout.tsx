@@ -10,7 +10,7 @@ export function AdminLayout({
   headerActions,
 }: AdminLayoutProps) {
   return (
-    <div className="px-5 pt-[15px] pb-6">
+    <div className="min-w-0 max-w-full px-5 pt-[15px] pb-6">
       {headerActions && <div className="mb-4">{headerActions}</div>}
       {children}
     </div>

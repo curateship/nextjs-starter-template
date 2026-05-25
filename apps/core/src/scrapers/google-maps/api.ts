@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, desc, eq } from "drizzle-orm"
+import { and, desc, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
@@ -59,6 +59,29 @@ type GoogleMapsRunResponse = {
   latest_execution: ScraperExecutionItem | null
   results: ScraperResultItem[]
 }
+const resultIdsSchema = z.object({
+  runId: z.string().min(1),
+  resultIds: z.array(z.string().min(1)).min(1),
+})
+const runIdsSchema = z.object({
+  runIds: z.array(z.string().min(1)).min(1),
+})
+const resultPayloadSchema = z.object({
+  runId: z.string().min(1),
+  resultId: z.string().min(1),
+  title: z.string().trim().min(1).max(500),
+  category: z.string().trim().max(500).optional(),
+  categoryName: z.string().trim().max(255).optional(),
+  address: z.string().trim().max(1000).optional(),
+  street: z.string().trim().max(500).optional(),
+  city: z.string().trim().max(255).optional(),
+  state: z.string().trim().max(255).optional(),
+  countryCode: z.string().trim().max(20).optional(),
+  rating: z.number().min(0).max(5).nullable().optional(),
+  reviewCount: z.number().int().min(0).nullable().optional(),
+  phone: z.string().trim().max(100).optional(),
+  website: z.string().trim().max(1000).optional(),
+})
 
 export function scraperError(error: unknown) {
   return error instanceof Error ? error.message : "Scraper request failed."
@@ -120,6 +143,15 @@ const saveRunFn = createServerFn({ method: "POST" })
 
     if (!row) throw new Error("Run not found.")
     return { run: serializeRun(row) }
+  })
+
+const deleteRunsFn = createServerFn({ method: "POST" })
+  .inputValidator(runIdsSchema)
+  .handler(async ({ data }): Promise<{ deleted: number }> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const deleted = await db.delete(scraperRuns).where(and(eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey), inArray(scraperRuns.id, data.runIds))).returning({ id: scraperRuns.id })
+    return { deleted: deleted.length }
   })
 
 const startRunFn = createServerFn({ method: "POST" })
@@ -207,13 +239,58 @@ const loadRunFn = createServerFn({ method: "GET" })
     }
   })
 
+const updateResultFn = createServerFn({ method: "POST" })
+  .inputValidator(resultPayloadSchema)
+  .handler(async ({ data }): Promise<{ result: ScraperResultItem }> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
+    const [result] = await db.select().from(scraperResults).where(and(eq(scraperResults.id, data.resultId), eq(scraperResults.runId, run.id))).limit(1)
+    if (!result) throw new Error("Result not found.")
+
+    const title = data.title.trim()
+    const [updated] = await db.update(scraperResults).set({
+      title,
+      data: {
+        ...record(result.data),
+        businessName: title,
+        category: cleanOptional(data.category),
+        categoryName: cleanOptional(data.categoryName),
+        address: cleanOptional(data.address),
+        street: cleanOptional(data.street),
+        city: cleanOptional(data.city),
+        state: cleanOptional(data.state),
+        countryCode: cleanOptional(data.countryCode),
+        rating: data.rating ?? null,
+        reviewCount: data.reviewCount ?? null,
+        phone: cleanOptional(data.phone),
+        website: cleanUrl(data.website),
+      },
+    }).where(eq(scraperResults.id, result.id)).returning()
+
+    return { result: serializeResult(updated) }
+  })
+
+const deleteResultsFn = createServerFn({ method: "POST" })
+  .inputValidator(resultIdsSchema)
+  .handler(async ({ data }): Promise<{ deleted: number }> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
+    const deleted = await db.delete(scraperResults).where(and(eq(scraperResults.runId, run.id), inArray(scraperResults.id, data.resultIds))).returning({ id: scraperResults.id })
+    return { deleted: deleted.length }
+  })
+
 export const loadScraperSettings = () => loadSettingsFn()
 export const saveScraperSettings = (data: z.infer<typeof settingsPayloadSchema>) => saveSettingsFn({ data })
 export const loadGoogleMapsRuns = () => loadRunsFn()
 export const saveGoogleMapsRun = (data: z.infer<typeof runPayloadSchema> & { runId?: string }) => saveRunFn({ data })
+export const deleteGoogleMapsRuns = (runIds: string[]) => deleteRunsFn({ data: { runIds } })
 export const startGoogleMapsRun = (runId: string) => startRunFn({ data: { runId } })
 export const refreshGoogleMapsExecution = (executionId: string) => refreshExecutionFn({ data: { executionId } })
 export const loadGoogleMapsRun = (runId: string) => loadRunFn({ data: { runId } })
+export const updateGoogleMapsResult = (data: z.infer<typeof resultPayloadSchema>) => updateResultFn({ data })
+export const deleteGoogleMapsResults = (runId: string, resultIds: string[]) => deleteResultsFn({ data: { runId, resultIds } })
 
 async function settingsRow(workspaceId: string) {
   const [row] = await db.select().from(scraperProviderSettings).where(and(eq(scraperProviderSettings.workspaceId, workspaceId), eq(scraperProviderSettings.providerKey, apifyProviderKey))).limit(1)
@@ -267,6 +344,28 @@ function date(value: string | null | undefined) {
   if (!value) return null
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function cleanOptional(value: string | undefined) {
+  const cleaned = value?.trim()
+  return cleaned || null
+}
+
+function cleanUrl(value: string | undefined) {
+  const cleaned = cleanOptional(value)
+  if (!cleaned) return null
+  try {
+    const parsed = new URL(cleaned)
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : null
+  } catch {
+    return null
+  }
 }
 
 async function requireAdmin() {

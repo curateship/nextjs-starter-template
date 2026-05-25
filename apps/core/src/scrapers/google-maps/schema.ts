@@ -102,6 +102,7 @@ export function serializeResult(row: CoreScraperResult): ScraperResultItem {
     external_id: row.externalId,
     title: row.title,
     data: record(row.data),
+    created_at: row.createdAt.toISOString(),
   }
 }
 

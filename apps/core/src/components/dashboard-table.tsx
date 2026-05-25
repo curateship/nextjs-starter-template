@@ -65,7 +65,7 @@ type DashboardTableFooter =
     }
 
 type DashboardTableBaseProps = {
-  title: string
+  title: React.ReactNode
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode
@@ -115,7 +115,7 @@ export function DashboardTable(props: DashboardTableProps) {
               {icon}
             </span>
           ) : null}
-          <span className="text-sm font-medium sm:text-base">{title}</span>
+          <div className="text-sm font-medium sm:text-base">{title}</div>
           <Badge variant="secondary">{count}</Badge>
           {selectedCount && onClearSelection ? (
             <button

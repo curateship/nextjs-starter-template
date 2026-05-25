@@ -78,7 +78,12 @@ export function normalizeResult(item: Record<string, unknown>) {
     data: {
       businessName,
       category: category(item),
+      categoryName: text(item, ["categoryName"]),
       address: text(item, ["address", "street"]),
+      street: text(item, ["street"]),
+      city: text(item, ["city"]),
+      state: text(item, ["state"]),
+      countryCode: text(item, ["countryCode"]),
       phone: text(item, ["phone", "phoneNumber", "phoneUnformatted"]),
       website: url(item, ["website", "websiteUrl"]),
       rating: number(item, ["totalScore", "rating", "stars"]),

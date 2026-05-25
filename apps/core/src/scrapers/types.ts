@@ -41,4 +41,5 @@ export type ScraperResultItem = {
   external_id: string | null
   title: string
   data: Record<string, unknown>
+  created_at: string
 }
