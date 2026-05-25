@@ -408,12 +408,12 @@ export default function ImagesPage() {
 
             {viewMode === "gallery" ? (
               isLoading ? (
-                <div className="px-5 pt-3 pb-5">
+                <div className="px-5 pb-5">
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                     {[...Array(10)].map((_, i) => (
                       <div
                         key={i}
-                        className="relative aspect-[3/4] animate-pulse overflow-hidden rounded-lg bg-muted"
+                        className="relative aspect-square animate-pulse overflow-hidden rounded-lg bg-muted"
                       >
                         <div className="absolute inset-0 bg-muted" />
                       </div>
@@ -429,14 +429,14 @@ export default function ImagesPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="px-5 pt-3 pb-5">
+                <div className="px-5 pb-5">
                   <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                     {sortedImages.map((media) => {
                       const isSelected = mediaSelection.selectedIds.has(media.id)
                       return (
                         <div
                           key={media.id}
-                          className={`group relative aspect-[3/4] overflow-hidden rounded-lg border bg-muted ${isSelected ? "ring-2 ring-primary/25" : ""}`}
+                          className={`group relative aspect-square overflow-hidden rounded-lg border bg-muted ${isSelected ? "ring-2 ring-primary/25" : ""}`}
                         >
                           <button
                             type="button"
@@ -472,7 +472,7 @@ export default function ImagesPage() {
                               />
                             )}
                           </button>
-                          <div className="absolute right-2 bottom-2 flex gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+                          <div className="absolute right-2 bottom-2 flex gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
                             <Button
                               size="sm"
                               variant="ghost"
@@ -611,7 +611,7 @@ export default function ImagesPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0"
+                                  className="h-8 w-8 p-0 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
                                   onClick={() => handleEditImage(media)}
                                   title="Edit Details"
                                 >
@@ -631,7 +631,7 @@ export default function ImagesPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
                                   onClick={() => handleDeleteImage(media)}
                                   title="Delete"
                                 >

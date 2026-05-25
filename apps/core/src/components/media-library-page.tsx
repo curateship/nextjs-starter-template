@@ -354,7 +354,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
           count={data?.total ?? 0}
           controls={mediaControls}
           content={
-            <div className="px-5 pt-3 pb-5">
+            <div className="px-5 pb-5">
               {visibleMedia.length === 0 ? (
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
@@ -527,7 +527,7 @@ function MediaTableRow({
   onDelete: () => void
 }) {
   return (
-    <TableRow data-state={selected ? "selected" : undefined}>
+    <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell column="select">
         <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`Select ${item.original_name}`} />
       </TableCell>
@@ -548,7 +548,7 @@ function MediaTableRow({
         {dateFormatter.format(new Date(item.created_at))}
       </TableCell>
       <TableCell column="meta">
-        <div className="flex justify-start gap-1">
+        <div className="flex justify-start gap-1 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
           <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
             <EditIcon className="size-4" />
           </Button>
@@ -582,7 +582,7 @@ function GalleryItem({
           {item.file_type}
         </span>
       </button>
-      <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+      <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
         <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
           <EditIcon className="size-4" />
         </Button>
