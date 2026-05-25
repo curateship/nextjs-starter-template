@@ -76,7 +76,7 @@ function SortableMessageItem({
           variant="ghost"
           size="sm"
           onClick={() => deleteItem(index)}
-          className="h-7 w-7 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+          className="h-7 w-7 p-0 text-foreground hover:bg-accent hover:text-foreground"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>

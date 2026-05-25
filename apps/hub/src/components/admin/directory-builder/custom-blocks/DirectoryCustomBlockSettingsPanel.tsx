@@ -307,7 +307,7 @@ function FieldOptionsEditor({
               size="icon"
               onClick={() => onChange(options.filter(item => item.id !== option.id))}
             >
-              <Trash2 className="h-4 w-4 text-red-600" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -372,7 +372,7 @@ function SortableRepeaterFieldEditor({
         </div>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 text-red-600" />
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -426,7 +426,7 @@ function SortableRepeaterFieldEditor({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="justify-start px-0 text-red-600"
+                  className="justify-start px-0"
                   onClick={() => onChange({ ...field, options: (field.options || []).filter(item => item.id !== option.id) })}
                 >
                   Remove option

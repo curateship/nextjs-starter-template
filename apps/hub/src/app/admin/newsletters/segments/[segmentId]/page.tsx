@@ -578,7 +578,7 @@ export default function SegmentDashboardPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600"
+                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                                   onClick={() => handleRemoveContact(contact.id)}
                                   title="Remove from segment"
                                 >

@@ -182,7 +182,7 @@ export default function DirectoryCustomBlocksPage() {
                               aria-label={`Delete ${template.name}`}
                               title={(template.used_in_count || 0) > 0 ? "Block is in use" : `Delete ${template.name}`}
                             >
-                              <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>

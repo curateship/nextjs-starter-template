@@ -84,7 +84,7 @@ export function ProductGalleryBlock({
                             variant="ghost"
                             size="sm"
                             onClick={() => removeImage(index)}
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
+                            className="h-6 w-6 p-0 text-foreground hover:text-foreground"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

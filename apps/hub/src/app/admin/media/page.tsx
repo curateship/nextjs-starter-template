@@ -494,7 +494,7 @@ export default function ImagesPage() {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleDeleteImage(media)}
-                              className="h-8 w-8 cursor-pointer p-0 text-destructive hover:text-destructive"
+                              className="h-8 w-8 cursor-pointer p-0 text-foreground hover:text-foreground"
                               aria-label="Delete media"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -645,7 +645,7 @@ export default function ImagesPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
+                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
                                   onClick={() => handleDeleteImage(media)}
                                   title="Delete"
                                 >

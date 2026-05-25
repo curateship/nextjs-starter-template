@@ -92,7 +92,7 @@ function SortableAvatarItem({
           variant="ghost"
           size="sm"
           onClick={() => removeAvatar(index)}
-          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+          className="h-8 w-8 p-0 text-foreground hover:text-foreground hover:bg-accent"
         >
           <Trash2 className="h-3 w-3" />
         </Button>

@@ -96,7 +96,7 @@ function SortableTestimonialItem({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="h-6 w-6 p-0 text-foreground hover:text-foreground hover:bg-accent"
             onClick={() => deleteItem(index)}
           >
             <Trash2 className="w-3 h-3" />

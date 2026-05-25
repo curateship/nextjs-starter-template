@@ -265,13 +265,13 @@ export function NewsletterStatusEventsModal({
             <table className="w-full min-w-[720px] table-fixed caption-bottom border-separate border-spacing-0 text-sm">
               <TableHeader className="sticky top-0 z-20 bg-background">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="relative h-12 w-[48%] bg-muted/50 px-4 text-left text-sm font-medium select-none first:rounded-l-lg first:pl-5">
+                  <TableHead className="relative h-12 w-[48%] bg-muted/50 px-4 text-left text-sm font-medium select-none first:rounded-tl-lg first:pl-5">
                     Email
                   </TableHead>
                   <TableHead className="relative h-12 w-[22%] bg-muted/50 px-4 text-left text-sm font-medium select-none">
                     Event
                   </TableHead>
-                  <TableHead className="relative h-12 w-[30%] bg-muted/50 px-4 text-left text-sm font-medium select-none last:rounded-r-lg last:pr-5">
+                  <TableHead className="relative h-12 w-[30%] bg-muted/50 px-4 text-left text-sm font-medium select-none last:rounded-tr-lg last:pr-5">
                     Date
                   </TableHead>
                 </TableRow>

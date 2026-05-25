@@ -616,7 +616,7 @@ export default function NewslettersPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                               onClick={() => handleDelete(newsletter.id)}
                               title="Delete Newsletter"
                             >

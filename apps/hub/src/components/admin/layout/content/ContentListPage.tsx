@@ -836,7 +836,7 @@ export function ContentListPage<TItem extends ContentListItem>({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                  className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                                   onClick={() => setPendingDeleteId(item.id)}
                                   disabled={deletingItemId === item.id}
                                   title="Delete"

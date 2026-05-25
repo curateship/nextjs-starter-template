@@ -391,7 +391,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                                className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                                 onClick={() => {
                                   templateSelection.selectOnly([template.id])
                                   setMassDeleteConfirmOpen(true)

@@ -185,6 +185,14 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
               cursor: pointer;
             }
             .preview-container .block-hovered {
+              position: relative;
+            }
+            .preview-container .block-hovered::after {
+              content: "";
+              position: absolute;
+              inset: 0;
+              z-index: 9999;
+              pointer-events: none;
               outline: 2px dotted #3b82f6;
               outline-offset: -2px;
             }

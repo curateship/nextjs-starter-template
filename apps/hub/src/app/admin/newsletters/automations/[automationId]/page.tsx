@@ -977,7 +977,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         }
                       }}
                       className={cn(
-                        "w-full cursor-pointer border-l-4 border-l-black! p-4 text-left transition-colors hover:bg-[#fcfcfc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                        "w-full cursor-pointer p-4 text-left transition-colors hover:bg-[#fcfcfc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
                         isSelected && !isPlaceholder ? "ring-1 ring-blue-500/15" : "",
                         isSelected && isPlaceholder ? "ring-1 ring-border" : ""
                       )}
@@ -1021,7 +1021,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             size="sm"
                             aria-label="Remove trigger"
                             disabled={savingTrigger}
-                            className="h-8 w-8 shrink-0 p-0 text-red-600 hover:text-red-600"
+                            className="h-8 w-8 shrink-0 p-0 text-foreground hover:text-foreground"
                             onClick={(event) => {
                               event.stopPropagation()
                               void removeTriggerAtIndex(index)
@@ -1078,7 +1078,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                           onClick={(event) => {
                             event.stopPropagation()
                             setPendingDeleteNodeId(node.id)
@@ -1118,7 +1118,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                          className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                           onClick={(event) => {
                             event.stopPropagation()
                             setPendingDeleteNodeId(node.id)
@@ -1192,7 +1192,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                             variant="ghost"
                             size="sm"
                             aria-label="Delete email"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-600"
+                            className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                             onClick={(event) => {
                               event.stopPropagation()
                               setPendingDeleteNodeId(node.id)

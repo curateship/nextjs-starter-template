@@ -109,7 +109,7 @@ export function ProductDetailsBlock({
                             variant="ghost"
                             size="sm"
                             onClick={() => removeSpecification(index)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                            className="h-8 w-8 p-0 text-foreground hover:text-foreground"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

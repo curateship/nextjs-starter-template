@@ -2,8 +2,8 @@ import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import {
   Loader2Icon,
-  PencilIcon,
   PlusIcon,
+  SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -231,7 +231,7 @@ export function WorkspacesDashboard({
                   aria-label={`Edit ${workspace.name}`}
                   title={`Edit ${workspace.name}`}
                 >
-                  <PencilIcon className="size-4" />
+                  <SettingsIcon className="size-4" />
                 </Button>
                 <Button
                   type="button"
