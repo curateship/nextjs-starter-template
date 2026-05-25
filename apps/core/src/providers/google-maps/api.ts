@@ -5,33 +5,33 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
-  scraperExecutions,
-  scraperProviderSettings,
-  scraperResults,
-  scraperRuns,
-  type CoreScraperExecution,
-  type CoreScraperRun,
+  providerExecutions,
+  providerSettings,
+  providerResults,
+  providerRunConfigs,
+  type CoreProviderExecution,
+  type CoreProviderRunConfig,
 } from "@/server/schema"
 import { findCurrentUser, now, uuid } from "@/server/security"
 import {
   getOrCreateCurrentWorkspace,
   listUserWorkspaces,
 } from "@/server/workspaces"
-import { decryptScraperSecret, encryptScraperSecret } from "@/scrapers/secrets"
+import { decryptProviderSecret, encryptProviderSecret } from "@/providers/secrets"
 import {
   getDatasetItems,
   getRun,
   mapApifyStatus,
   normalizeResult,
   startActor,
-} from "@/scrapers/google-maps/adapter"
+} from "@/providers/google-maps/adapter"
 import {
   apifyProviderKey,
   cleanRunInput,
   defaultApifyActorId,
   defaultMaxResults,
   executionIdSchema,
-  googleMapsScraperKey,
+  googleMapsProviderKey,
   parseConfig,
   parseRunInput,
   runIdSchema,
@@ -42,22 +42,22 @@ import {
   serializeSettings,
   settingsPayloadSchema,
   updateRunSchema,
-} from "@/scrapers/google-maps/schema"
+} from "@/providers/google-maps/schema"
 import type {
-  ScraperExecutionItem,
-  ScraperResultItem,
-  ScraperRunItem,
-} from "@/scrapers/types"
+  ProviderExecutionItem,
+  ProviderResultItem,
+  ProviderRunConfigItem,
+} from "@/providers/types"
 
-type ScraperSettingsItem = ReturnType<typeof serializeSettings>
-type ScraperSettingsResponse = { settings: ScraperSettingsItem }
-type GoogleMapsRunsResponse = ScraperSettingsResponse & {
-  runs: ScraperRunItem[]
+type ProviderSettingsItem = ReturnType<typeof serializeSettings>
+type ProviderSettingsResponse = { settings: ProviderSettingsItem }
+type GoogleMapsRunsResponse = ProviderSettingsResponse & {
+  runs: ProviderRunConfigItem[]
 }
 type GoogleMapsRunResponse = {
-  run: ScraperRunItem
-  latest_execution: ScraperExecutionItem | null
-  results: ScraperResultItem[]
+  run: ProviderRunConfigItem
+  latest_execution: ProviderExecutionItem | null
+  results: ProviderResultItem[]
 }
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
@@ -83,11 +83,11 @@ const resultPayloadSchema = z.object({
   website: z.string().trim().max(1000).optional(),
 })
 
-export function scraperError(error: unknown) {
-  return error instanceof Error ? error.message : "Scraper request failed."
+export function providerError(error: unknown) {
+  return error instanceof Error ? error.message : "Provider request failed."
 }
 
-const loadSettingsFn = createServerFn({ method: "GET" }).handler(async (): Promise<ScraperSettingsResponse> => {
+const loadSettingsFn = createServerFn({ method: "GET" }).handler(async (): Promise<ProviderSettingsResponse> => {
   const workspace = await findWorkspace()
   if (!workspace) return { settings: serializeSettings(null) }
   return { settings: serializeSettings(await settingsRow(workspace.id)) }
@@ -95,7 +95,7 @@ const loadSettingsFn = createServerFn({ method: "GET" }).handler(async (): Promi
 
 const saveSettingsFn = createServerFn({ method: "POST" })
   .inputValidator(settingsPayloadSchema)
-  .handler(async ({ data }): Promise<ScraperSettingsResponse> => {
+  .handler(async ({ data }): Promise<ProviderSettingsResponse> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const existing = await settingsRow(workspace.id)
@@ -103,13 +103,13 @@ const saveSettingsFn = createServerFn({ method: "POST" })
     const token = data.token?.trim()
     const values = {
       config: { actorId: data.actorId.trim(), defaultMaxResults: data.defaultMaxResults },
-      secretEncrypted: token ? encryptScraperSecret(token) : existing?.secretEncrypted ?? null,
+      secretEncrypted: token ? encryptProviderSecret(token) : existing?.secretEncrypted ?? null,
       updatedAt,
     }
 
     const [row] = existing
-      ? await db.update(scraperProviderSettings).set(values).where(and(eq(scraperProviderSettings.workspaceId, workspace.id), eq(scraperProviderSettings.providerKey, apifyProviderKey))).returning()
-      : await db.insert(scraperProviderSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
+      ? await db.update(providerSettings).set(values).where(and(eq(providerSettings.workspaceId, workspace.id), eq(providerSettings.providerKey, apifyProviderKey))).returning()
+      : await db.insert(providerSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
 
     return { settings: serializeSettings(row) }
   })
@@ -119,18 +119,18 @@ const loadRunsFn = createServerFn({ method: "GET" }).handler(async (): Promise<G
   if (!workspace) {
     return { settings: serializeSettings(null), runs: [] }
   }
-  const runs = await db.select().from(scraperRuns).where(and(eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey))).orderBy(desc(scraperRuns.createdAt))
+  const runs = await db.select().from(providerRunConfigs).where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).orderBy(desc(providerRunConfigs.createdAt))
   return { settings: serializeSettings(await settingsRow(workspace.id)), runs: runs.map(serializeRun) }
 })
 
 const saveRunFn = createServerFn({ method: "POST" })
   .inputValidator(updateRunSchema.partial({ runId: true }))
-  .handler(async ({ data }): Promise<{ run: ScraperRunItem }> => {
+  .handler(async ({ data }): Promise<{ run: ProviderRunConfigItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const updatedAt = now()
     const values = {
-      name: data.name.trim(),
+      name: data.name.trim() || data.keyword.trim(),
       status: data.status,
       input: cleanRunInput(data),
       metadata: {},
@@ -138,8 +138,8 @@ const saveRunFn = createServerFn({ method: "POST" })
     }
 
     const [row] = data.runId
-      ? await db.update(scraperRuns).set(values).where(and(eq(scraperRuns.id, data.runId), eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey))).returning()
-      : await db.insert(scraperRuns).values({ id: uuid(), workspaceId: workspace.id, scraperKey: googleMapsScraperKey, createdAt: updatedAt, ...values }).returning()
+      ? await db.update(providerRunConfigs).set(values).where(and(eq(providerRunConfigs.id, data.runId), eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).returning()
+      : await db.insert(providerRunConfigs).values({ id: uuid(), workspaceId: workspace.id, providerKey: googleMapsProviderKey, createdAt: updatedAt, ...values }).returning()
 
     if (!row) throw new Error("Run not found.")
     return { run: serializeRun(row) }
@@ -150,13 +150,13 @@ const deleteRunsFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ deleted: number }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
-    const deleted = await db.delete(scraperRuns).where(and(eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey), inArray(scraperRuns.id, data.runIds))).returning({ id: scraperRuns.id })
+    const deleted = await db.delete(providerRunConfigs).where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey), inArray(providerRunConfigs.id, data.runIds))).returning({ id: providerRunConfigs.id })
     return { deleted: deleted.length }
   })
 
 const startRunFn = createServerFn({ method: "POST" })
   .inputValidator(runIdSchema)
-  .handler(async ({ data }): Promise<{ execution: ScraperExecutionItem }> => {
+  .handler(async ({ data }): Promise<{ execution: ProviderExecutionItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const run = await getGoogleMapsRun(data.runId, workspace.id)
@@ -170,9 +170,9 @@ const startRunFn = createServerFn({ method: "POST" })
       input: parseRunInput(run.input),
     })
     const createdAt = now()
-    const [execution] = await db.insert(scraperExecutions).values({
+    const [execution] = await db.insert(providerExecutions).values({
       id: uuid(),
-      runId: run.id,
+      runConfigId: run.id,
       providerKey: apifyProviderKey,
       providerRunId: actorRun.id,
       providerDatasetId: actorRun.defaultDatasetId ?? null,
@@ -191,23 +191,23 @@ const startRunFn = createServerFn({ method: "POST" })
 
 const refreshExecutionFn = createServerFn({ method: "POST" })
   .inputValidator(executionIdSchema)
-  .handler(async ({ data }): Promise<{ execution: ScraperExecutionItem }> => {
+  .handler(async ({ data }): Promise<{ execution: ProviderExecutionItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const [row] = await db
-      .select({ execution: scraperExecutions })
-      .from(scraperExecutions)
-      .innerJoin(scraperRuns, eq(scraperExecutions.runId, scraperRuns.id))
-      .where(and(eq(scraperExecutions.id, data.executionId), eq(scraperRuns.workspaceId, workspace.id), eq(scraperRuns.scraperKey, googleMapsScraperKey)))
+      .select({ execution: providerExecutions })
+      .from(providerExecutions)
+      .innerJoin(providerRunConfigs, eq(providerExecutions.runConfigId, providerRunConfigs.id))
+      .where(and(eq(providerExecutions.id, data.executionId), eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey)))
       .limit(1)
     const execution = row?.execution
     if (!execution?.providerRunId) throw new Error("Execution not found.")
 
-    const run = await getGoogleMapsRun(execution.runId, workspace.id)
+    const run = await getGoogleMapsRun(execution.runConfigId, workspace.id)
     const token = requiredToken((await requiredSettings(workspace.id)).secretEncrypted)
     const actorRun = await getRun(token, execution.providerRunId)
     const status = mapApifyStatus(actorRun.status)
-    const [updated] = await db.update(scraperExecutions).set({
+    const [updated] = await db.update(providerExecutions).set({
       providerDatasetId: actorRun.defaultDatasetId ?? execution.providerDatasetId,
       status,
       message: actorRun.statusMessage ?? null,
@@ -215,7 +215,7 @@ const refreshExecutionFn = createServerFn({ method: "POST" })
       startedAt: date(actorRun.startedAt) ?? execution.startedAt,
       finishedAt: date(actorRun.finishedAt),
       updatedAt: now(),
-    }).where(eq(scraperExecutions.id, execution.id)).returning()
+    }).where(eq(providerExecutions.id, execution.id)).returning()
 
     return { execution: serializeExecution(await importIfReady(updated, run, token)) }
   })
@@ -226,10 +226,10 @@ const loadRunFn = createServerFn({ method: "GET" })
     const workspace = await findWorkspace()
     if (!workspace) throw new Error("Run not found.")
     const run = await getGoogleMapsRun(data.runId, workspace.id)
-    const executions = await db.select().from(scraperExecutions).where(eq(scraperExecutions.runId, run.id)).orderBy(desc(scraperExecutions.createdAt)).limit(1)
+    const executions = await db.select().from(providerExecutions).where(eq(providerExecutions.runConfigId, run.id)).orderBy(desc(providerExecutions.createdAt)).limit(1)
     const latest = executions[0] ?? null
     const results = latest
-      ? await db.select().from(scraperResults).where(eq(scraperResults.executionId, latest.id))
+      ? await db.select().from(providerResults).where(eq(providerResults.executionId, latest.id))
       : []
 
     return {
@@ -241,15 +241,15 @@ const loadRunFn = createServerFn({ method: "GET" })
 
 const updateResultFn = createServerFn({ method: "POST" })
   .inputValidator(resultPayloadSchema)
-  .handler(async ({ data }): Promise<{ result: ScraperResultItem }> => {
+  .handler(async ({ data }): Promise<{ result: ProviderResultItem }> => {
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const run = await getGoogleMapsRun(data.runId, workspace.id)
-    const [result] = await db.select().from(scraperResults).where(and(eq(scraperResults.id, data.resultId), eq(scraperResults.runId, run.id))).limit(1)
+    const [result] = await db.select().from(providerResults).where(and(eq(providerResults.id, data.resultId), eq(providerResults.runConfigId, run.id))).limit(1)
     if (!result) throw new Error("Result not found.")
 
     const title = data.title.trim()
-    const [updated] = await db.update(scraperResults).set({
+    const [updated] = await db.update(providerResults).set({
       title,
       data: {
         ...record(result.data),
@@ -266,7 +266,7 @@ const updateResultFn = createServerFn({ method: "POST" })
         phone: cleanOptional(data.phone),
         website: cleanUrl(data.website),
       },
-    }).where(eq(scraperResults.id, result.id)).returning()
+    }).where(eq(providerResults.id, result.id)).returning()
 
     return { result: serializeResult(updated) }
   })
@@ -277,12 +277,12 @@ const deleteResultsFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const run = await getGoogleMapsRun(data.runId, workspace.id)
-    const deleted = await db.delete(scraperResults).where(and(eq(scraperResults.runId, run.id), inArray(scraperResults.id, data.resultIds))).returning({ id: scraperResults.id })
+    const deleted = await db.delete(providerResults).where(and(eq(providerResults.runConfigId, run.id), inArray(providerResults.id, data.resultIds))).returning({ id: providerResults.id })
     return { deleted: deleted.length }
   })
 
-export const loadScraperSettings = () => loadSettingsFn()
-export const saveScraperSettings = (data: z.infer<typeof settingsPayloadSchema>) => saveSettingsFn({ data })
+export const loadProviderSettings = () => loadSettingsFn()
+export const saveProviderSettings = (data: z.infer<typeof settingsPayloadSchema>) => saveSettingsFn({ data })
 export const loadGoogleMapsRuns = () => loadRunsFn()
 export const saveGoogleMapsRun = (data: z.infer<typeof runPayloadSchema> & { runId?: string }) => saveRunFn({ data })
 export const deleteGoogleMapsRuns = (runIds: string[]) => deleteRunsFn({ data: { runIds } })
@@ -293,7 +293,7 @@ export const updateGoogleMapsResult = (data: z.infer<typeof resultPayloadSchema>
 export const deleteGoogleMapsResults = (runId: string, resultIds: string[]) => deleteResultsFn({ data: { runId, resultIds } })
 
 async function settingsRow(workspaceId: string) {
-  const [row] = await db.select().from(scraperProviderSettings).where(and(eq(scraperProviderSettings.workspaceId, workspaceId), eq(scraperProviderSettings.providerKey, apifyProviderKey))).limit(1)
+  const [row] = await db.select().from(providerSettings).where(and(eq(providerSettings.workspaceId, workspaceId), eq(providerSettings.providerKey, apifyProviderKey))).limit(1)
   return row ?? null
 }
 
@@ -306,36 +306,36 @@ async function requiredSettings(workspaceId: string) {
 }
 
 function requiredToken(encrypted: string | null) {
-  if (!encrypted) throw new Error("Add an Apify API token in scraper settings first.")
-  return decryptScraperSecret(encrypted)
+  if (!encrypted) throw new Error("Add an Apify API token in provider settings first.")
+  return decryptProviderSecret(encrypted)
 }
 
 async function getGoogleMapsRun(runId: string, workspaceId: string) {
-  const [run] = await db.select().from(scraperRuns).where(and(eq(scraperRuns.id, runId), eq(scraperRuns.workspaceId, workspaceId), eq(scraperRuns.scraperKey, googleMapsScraperKey))).limit(1)
+  const [run] = await db.select().from(providerRunConfigs).where(and(eq(providerRunConfigs.id, runId), eq(providerRunConfigs.workspaceId, workspaceId), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).limit(1)
   if (!run) throw new Error("Run not found.")
   return run
 }
 
-async function importIfReady(execution: CoreScraperExecution, run: CoreScraperRun, token: string) {
+async function importIfReady(execution: CoreProviderExecution, run: CoreProviderRunConfig, token: string) {
   if (execution.status !== "succeeded" || !execution.providerDatasetId) return execution
 
   const items = await getDatasetItems(token, execution.providerDatasetId, parseRunInput(run.input).maxResults)
   const createdAt = now()
   const rows = items.map((item) => ({
     id: uuid(),
-    runId: run.id,
+    runConfigId: run.id,
     executionId: execution.id,
     createdAt,
     ...normalizeResult(item),
   }))
 
   return db.transaction(async (tx) => {
-    await tx.delete(scraperResults).where(eq(scraperResults.executionId, execution.id))
-    if (rows.length) await tx.insert(scraperResults).values(rows)
-    const [updated] = await tx.update(scraperExecutions).set({
+    await tx.delete(providerResults).where(eq(providerResults.executionId, execution.id))
+    if (rows.length) await tx.insert(providerResults).values(rows)
+    const [updated] = await tx.update(providerExecutions).set({
       stats: { importedResults: rows.length },
       updatedAt: now(),
-    }).where(eq(scraperExecutions.id, execution.id)).returning()
+    }).where(eq(providerExecutions.id, execution.id)).returning()
     return updated
   })
 }

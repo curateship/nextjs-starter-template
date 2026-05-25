@@ -263,8 +263,8 @@ export const proxies = pgTable(
   ]
 )
 
-export const scraperProviderSettings = pgTable(
-  "scraper_provider_settings",
+export const providerSettings = pgTable(
+  "provider_settings",
   {
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
@@ -278,20 +278,20 @@ export const scraperProviderSettings = pgTable(
   (table) => [
     primaryKey({
       columns: [table.workspaceId, table.providerKey],
-      name: "scraper_provider_settings_pkey",
+      name: "provider_settings_pkey",
     }),
-    check("scraper_provider_settings_provider_check", sql`${table.providerKey} in ('apify')`),
+    check("provider_settings_provider_check", sql`${table.providerKey} in ('apify')`),
   ]
 )
 
-export const scraperRuns = pgTable(
-  "scraper_runs",
+export const providerRunConfigs = pgTable(
+  "provider_run_configs",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     workspaceId: varchar("workspace_id", { length: 36 })
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    scraperKey: varchar("scraper_key", { length: 50 }).notNull(),
+    providerKey: varchar("provider_key", { length: 50 }).notNull(),
     name: varchar("name", { length: 255 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
     input: jsonb("input").notNull(),
@@ -300,21 +300,21 @@ export const scraperRuns = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("scraper_runs_key_check", sql`${table.scraperKey} in ('google-maps')`),
-    check("scraper_runs_status_check", sql`${table.status} in ('draft', 'active', 'inactive')`),
-    index("ix_scraper_runs_workspace_scraper_status").on(
+    check("provider_run_configs_key_check", sql`${table.providerKey} in ('google-maps')`),
+    check("provider_run_configs_status_check", sql`${table.status} in ('draft', 'active', 'inactive')`),
+    index("ix_provider_run_configs_workspace_provider_status").on(
       table.workspaceId,
-      table.scraperKey,
+      table.providerKey,
       table.status
     ),
   ]
 )
 
-export const scraperExecutions = pgTable(
-  "scraper_executions",
+export const providerExecutions = pgTable(
+  "provider_executions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    runId: varchar("run_id", { length: 36 }).notNull().references(() => scraperRuns.id, { onDelete: "cascade" }),
+    runConfigId: varchar("run_config_id", { length: 36 }).notNull().references(() => providerRunConfigs.id, { onDelete: "cascade" }),
     providerKey: varchar("provider_key", { length: 50 }).notNull(),
     providerRunId: varchar("provider_run_id", { length: 255 }),
     providerDatasetId: varchar("provider_dataset_id", { length: 255 }),
@@ -328,26 +328,26 @@ export const scraperExecutions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("scraper_executions_provider_check", sql`${table.providerKey} in ('apify')`),
-    check("scraper_executions_status_check", sql`${table.status} in ('queued', 'running', 'succeeded', 'failed', 'aborted')`),
-    index("ix_scraper_executions_run_created").on(table.runId, table.createdAt),
+    check("provider_executions_provider_check", sql`${table.providerKey} in ('apify')`),
+    check("provider_executions_status_check", sql`${table.status} in ('queued', 'running', 'succeeded', 'failed', 'aborted')`),
+    index("ix_provider_executions_run_config_created").on(table.runConfigId, table.createdAt),
   ]
 )
 
-export const scraperResults = pgTable(
-  "scraper_results",
+export const providerResults = pgTable(
+  "provider_results",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    runId: varchar("run_id", { length: 36 }).notNull().references(() => scraperRuns.id, { onDelete: "cascade" }),
-    executionId: varchar("execution_id", { length: 36 }).notNull().references(() => scraperExecutions.id, { onDelete: "cascade" }),
+    runConfigId: varchar("run_config_id", { length: 36 }).notNull().references(() => providerRunConfigs.id, { onDelete: "cascade" }),
+    executionId: varchar("execution_id", { length: 36 }).notNull().references(() => providerExecutions.id, { onDelete: "cascade" }),
     externalId: text("external_id"),
     title: text("title").notNull(),
     data: jsonb("data").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_scraper_results_execution_id").on(table.executionId),
-    index("ix_scraper_results_run_id").on(table.runId),
+    index("ix_provider_results_execution_id").on(table.executionId),
+    index("ix_provider_results_run_config_id").on(table.runConfigId),
   ]
 )
 
@@ -355,10 +355,10 @@ export type CoreUser = typeof users.$inferSelect
 export type CoreWorkspace = typeof workspaces.$inferSelect
 export type CoreMedia = typeof media.$inferSelect
 export type CoreProxy = typeof proxies.$inferSelect
-export type CoreScraperProviderSettings = typeof scraperProviderSettings.$inferSelect
-export type CoreScraperRun = typeof scraperRuns.$inferSelect
-export type CoreScraperExecution = typeof scraperExecutions.$inferSelect
-export type CoreScraperResult = typeof scraperResults.$inferSelect
+export type CoreProviderSettings = typeof providerSettings.$inferSelect
+export type CoreProviderRunConfig = typeof providerRunConfigs.$inferSelect
+export type CoreProviderExecution = typeof providerExecutions.$inferSelect
+export type CoreProviderResult = typeof providerResults.$inferSelect
 export type CoreFeedback = typeof feedback.$inferSelect
 export type CoreFeedbackComment =
   typeof feedbackComments.$inferSelect

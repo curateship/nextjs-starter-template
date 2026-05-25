@@ -1,4 +1,4 @@
-import type { ScraperExecutionStatus } from "@/scrapers/types"
+import type { ProviderExecutionStatus } from "@/providers/types"
 
 const apiBase = "https://api.apify.com/v2"
 
@@ -27,7 +27,7 @@ export function buildActorInput(input: GoogleMapsInput) {
   }
 }
 
-export function mapApifyStatus(status: string): ScraperExecutionStatus {
+export function mapApifyStatus(status: string): ProviderExecutionStatus {
   if (status === "READY") return "queued"
   if (status === "RUNNING" || status === "TIMING-OUT") return "running"
   if (status === "SUCCEEDED") return "succeeded"

@@ -1,9 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { Outlet, createFileRoute, useRouterState } from "@tanstack/react-router"
 
-import { GoogleMapsDashboard } from "@/scrapers/google-maps/dashboard"
+import { GoogleMapsDashboard } from "@/providers/google-maps/dashboard"
 
-export const Route = createFileRoute("/_authenticated/admin/scrapers/google-maps")({
+export const Route = createFileRoute("/_authenticated/admin/providers/google-maps")({
   component: GoogleMapsRoute,
 })
 
@@ -12,7 +12,7 @@ function GoogleMapsRoute() {
     select: (state) => state.location.pathname,
   })
 
-  if (pathname !== "/admin/scrapers/google-maps") {
+  if (pathname !== "/admin/providers/google-maps") {
     return <Outlet />
   }
 

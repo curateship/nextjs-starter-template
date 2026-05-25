@@ -364,7 +364,7 @@ function DeleteWorkspaceDialog({
         <DialogHeader>
           <DialogTitle>Delete Workspace</DialogTitle>
           <DialogDescription>
-            This deletes the workspace and its scoped scraper data.
+            This deletes the workspace and its scoped provider data.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>

@@ -9,26 +9,26 @@ export const executionStatuses = [
   "aborted",
 ] as const
 
-export type ScraperRunStatus = (typeof runStatuses)[number]
-export type ScraperExecutionStatus = (typeof executionStatuses)[number]
-export type ScraperModule = {
+export type ProviderRunConfigStatus = (typeof runStatuses)[number]
+export type ProviderExecutionStatus = (typeof executionStatuses)[number]
+export type ProviderModule = {
   key: "google-maps"
   name: string
   href: string
   icon: LucideIcon
 }
 
-export type ScraperRunItem = {
+export type ProviderRunConfigItem = {
   id: string
   name: string
-  status: ScraperRunStatus
+  status: ProviderRunConfigStatus
   input: Record<string, unknown>
   created_at: string
 }
 
-export type ScraperExecutionItem = {
+export type ProviderExecutionItem = {
   id: string
-  status: ScraperExecutionStatus
+  status: ProviderExecutionStatus
   message: string | null
   error: string | null
   stats: Record<string, unknown>
@@ -36,7 +36,7 @@ export type ScraperExecutionItem = {
   created_at: string
 }
 
-export type ScraperResultItem = {
+export type ProviderResultItem = {
   id: string
   external_id: string | null
   title: string

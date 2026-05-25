@@ -11,14 +11,14 @@ CREATE TABLE IF NOT EXISTS "workspaces" (
 CREATE INDEX IF NOT EXISTS "ix_workspaces_user_id" ON "workspaces" ("user_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "ux_workspaces_one_default_per_user" ON "workspaces" ("user_id") WHERE "is_default";
 
-ALTER TABLE "scraper_provider_settings" DROP CONSTRAINT IF EXISTS "scraper_provider_settings_pkey";
-ALTER TABLE "scraper_provider_settings"
+ALTER TABLE "provider_settings" DROP CONSTRAINT IF EXISTS "provider_settings_pkey";
+ALTER TABLE "provider_settings"
   ADD COLUMN IF NOT EXISTS "workspace_id" varchar(36) NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE;
-ALTER TABLE "scraper_provider_settings"
-  ADD CONSTRAINT "scraper_provider_settings_pkey" PRIMARY KEY ("workspace_id", "provider_key");
+ALTER TABLE "provider_settings"
+  ADD CONSTRAINT "provider_settings_pkey" PRIMARY KEY ("workspace_id", "provider_key");
 
-ALTER TABLE "scraper_runs"
+ALTER TABLE "provider_run_configs"
   ADD COLUMN IF NOT EXISTS "workspace_id" varchar(36) NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE;
 
-DROP INDEX IF EXISTS "ix_scraper_runs_scraper_status";
-CREATE INDEX IF NOT EXISTS "ix_scraper_runs_workspace_scraper_status" ON "scraper_runs" ("workspace_id", "scraper_key", "status");
+DROP INDEX IF EXISTS "ix_provider_run_configs_provider_status";
+CREATE INDEX IF NOT EXISTS "ix_provider_run_configs_workspace_provider_status" ON "provider_run_configs" ("workspace_id", "provider_key", "status");

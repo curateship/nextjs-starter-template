@@ -7,7 +7,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router"
 import * as React from "react"
-import { BotIcon } from "lucide-react"
+import { DatabaseZapIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
 import { Button } from "@/components/ui/button"
@@ -20,36 +20,36 @@ import {
   type TableSortDirection,
 } from "@/components/ui/table"
 import { loadCurrentUser } from "@/lib/api/auth"
-import { scraperModules } from "@/scrapers"
+import { providers } from "@/providers"
 
-type ScraperSortColumn = "name" | "provider"
+type ProviderSortColumn = "name" | "provider"
 
-export const Route = createFileRoute("/_authenticated/admin/scrapers")({
+export const Route = createFileRoute("/_authenticated/admin/providers")({
   loader: async () => {
     const user = await loadCurrentUser()
     if (user?.role !== "admin") throw redirect({ to: "/" })
   },
-  component: ScrapersRoute,
+  component: ProvidersRoute,
 })
 
-function ScrapersRoute() {
-  const [sortColumn, setSortColumn] = React.useState<ScraperSortColumn>("name")
+function ProvidersRoute() {
+  const [sortColumn, setSortColumn] = React.useState<ProviderSortColumn>("name")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("asc")
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
 
-  if (pathname !== "/admin/scrapers") {
+  if (pathname !== "/admin/providers") {
     return <Outlet />
   }
 
-  const sortedModules = [...scraperModules].sort((a, b) => {
+  const sortedProviders = [...providers].sort((a, b) => {
     const direction = sortDirection === "asc" ? 1 : -1
     if (sortColumn === "provider") return 0
     return a.name.localeCompare(b.name) * direction
   })
 
-  const toggleSort = (column: ScraperSortColumn) => {
+  const toggleSort = (column: ProviderSortColumn) => {
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
       return
@@ -62,15 +62,15 @@ function ScrapersRoute() {
   return (
     <div className="w-full pb-8">
       <DashboardTable
-        title="Modules"
-        icon={<BotIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
-        count={sortedModules.length}
+        title="Data Sources"
+        icon={<DatabaseZapIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
+        count={sortedProviders.length}
         header={
           <TableHeader>
             <TableRow>
               <TableHead column="main">
                 <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
-                  Scraper
+                  Data Source
                 </TableSortButton>
               </TableHead>
               <TableHead column="meta">
@@ -82,26 +82,26 @@ function ScrapersRoute() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={sortedModules.length === 0}
-        emptyText="No scraper modules found."
+        isEmpty={sortedProviders.length === 0}
+        emptyText="No providers found."
         emptyColSpan={3}
-        footer={{ type: "summary", count: sortedModules.length, label: "modules" }}
+        footer={{ type: "summary", count: sortedProviders.length, label: "providers" }}
       >
-        {sortedModules.map((module) => (
-          <TableRow key={module.key}>
+        {sortedProviders.map((provider) => (
+          <TableRow key={provider.key}>
             <TableCell column="main">
               <Link
-                to="/admin/scrapers/google-maps"
+                to="/admin/providers/google-maps"
                 className="inline-flex items-center gap-2 font-medium hover:underline"
               >
-                <module.icon className="size-4 text-muted-foreground" />
-                {module.name}
+                <provider.icon className="size-4 text-muted-foreground" />
+                {provider.name}
               </Link>
             </TableCell>
             <TableCell column="meta">Apify</TableCell>
             <TableCell column="meta">
               <Button asChild variant="outline" size="sm" className="h-8 sm:h-9">
-                <Link to="/admin/scrapers/google-maps">Open</Link>
+                <Link to="/admin/providers/google-maps">Open</Link>
               </Button>
             </TableCell>
           </TableRow>

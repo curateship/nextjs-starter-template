@@ -58,12 +58,12 @@ import {
   loadGoogleMapsRuns,
   refreshGoogleMapsExecution,
   saveGoogleMapsRun,
-  scraperError,
+  providerError,
   startGoogleMapsRun,
   updateGoogleMapsResult,
-} from "@/scrapers/google-maps/api"
-import { parseRunInput } from "@/scrapers/google-maps/schema"
-import type { ScraperResultItem, ScraperRunItem, ScraperRunStatus } from "@/scrapers/types"
+} from "@/providers/google-maps/api"
+import { parseRunInput } from "@/providers/google-maps/schema"
+import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
 
 type RunForm = {
   name: string
@@ -71,7 +71,7 @@ type RunForm = {
   location: string
   language: string
   maxResults: number
-  status: ScraperRunStatus
+  status: ProviderRunConfigStatus
 }
 type ResultForm = {
   title: string
@@ -105,7 +105,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 })
 
 export function GoogleMapsDashboard() {
-  const [runs, setRuns] = React.useState<ScraperRunItem[]>([])
+  const [runs, setRuns] = React.useState<ProviderRunConfigItem[]>([])
   const [hasToken, setHasToken] = React.useState<boolean | null>(null)
   const [defaultMax, setDefaultMax] = React.useState(25)
   const [query, setQuery] = React.useState("")
@@ -116,7 +116,7 @@ export function GoogleMapsDashboard() {
   const [pageSize, setPageSize] = React.useState(10)
   const [saving, setSaving] = React.useState(false)
   const [message, setMessage] = React.useState<{ tone: "error" | "success"; text: string } | null>(null)
-  const [editing, setEditing] = React.useState<ScraperRunItem | null>(null)
+  const [editing, setEditing] = React.useState<ProviderRunConfigItem | null>(null)
   const [selectedRunIds, setSelectedRunIds] = React.useState<Set<string>>(new Set())
   const [deleteRunIds, setDeleteRunIds] = React.useState<string[]>([])
   const [deletingRuns, setDeletingRuns] = React.useState(false)
@@ -130,7 +130,7 @@ export function GoogleMapsDashboard() {
         setHasToken(settings.has_token)
         setDefaultMax(settings.default_max_results)
       })
-      .catch((error) => setMessage({ tone: "error", text: scraperError(error) }))
+      .catch((error) => setMessage({ tone: "error", text: providerError(error) }))
   }, [])
 
   const filtered = runs.filter((run) => {
@@ -174,7 +174,7 @@ export function GoogleMapsDashboard() {
     setRunSortDirection("asc")
   }
 
-  const edit = (run?: ScraperRunItem) => {
+  const edit = (run?: ProviderRunConfigItem) => {
     setEditing(run ?? null)
     setForm(run ? { name: run.name, status: run.status, ...parseRunInput(run.input) } : emptyForm(defaultMax))
     setOpen(true)
@@ -189,19 +189,19 @@ export function GoogleMapsDashboard() {
       setMessage({ tone: "success", text: editing ? "Run updated." : "Run created." })
       setOpen(false)
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     } finally {
       setSaving(false)
     }
   }
 
-  const start = async (run: ScraperRunItem) => {
+  const start = async (run: ProviderRunConfigItem) => {
     setMessage(null)
     try {
       await startGoogleMapsRun(run.id)
       setMessage({ tone: "success", text: `Started ${run.name}.` })
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     }
   }
 
@@ -235,9 +235,9 @@ export function GoogleMapsDashboard() {
       })
       setDeleteRunIds([])
       setPage(1)
-      setMessage({ tone: "success", text: ids.length === 1 ? "Run deleted." : "Runs deleted." })
+      setMessage({ tone: "success", text: ids.length === 1 ? "Data source deleted." : "Data sources deleted." })
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     } finally {
       setDeletingRuns(false)
     }
@@ -246,10 +246,10 @@ export function GoogleMapsDashboard() {
   return (
     <div className="w-full pb-8">
       <DashboardTable
-        title="Runs"
+        title="Google Maps"
         icon={<MapPinnedIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={filtered.length}
-        status={message ?? (hasToken === false ? { tone: "error", text: "Add an Apify API token in scraper settings before starting runs." } : null)}
+        status={message ?? (hasToken === false ? { tone: "error", text: "Add an Apify API token in provider settings before starting runs." } : null)}
         selectedCount={selectedRunIds.size}
         onClearSelection={() => setSelectedRunIds(new Set())}
         controls={
@@ -260,7 +260,7 @@ export function GoogleMapsDashboard() {
                 Delete ({selectedRunIds.size})
               </Button>
             ) : null}
-            <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search runs..." />
+            <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search data sources..." />
             <Select value={status} onValueChange={(value) => setStatus(value as keyof typeof statusLabels)}>
               <DashboardToolbarSelectTrigger aria-label="Filter by status" labels={Object.values(statusLabels)}>
                 <SelectValue />
@@ -270,14 +270,14 @@ export function GoogleMapsDashboard() {
               </SelectContent>
             </Select>
             <Button asChild variant="outline" size="sm" className="h-8 gap-2 sm:h-9">
-              <Link to="/admin/settings/$tab" params={{ tab: "scrapers" }}>
+              <Link to="/admin/settings/$tab" params={{ tab: "providers" }}>
                 <SettingsIcon className="size-4" />
                 Settings
               </Link>
             </Button>
             <Button size="sm" className="h-8 gap-2 sm:h-9" onClick={() => edit()}>
               <PlusIcon className="size-4" />
-              New Run
+              Add Data Source
             </Button>
           </>
         }
@@ -287,7 +287,7 @@ export function GoogleMapsDashboard() {
               <TableHead column="select">
                 <Checkbox checked={visibleRunsSelected ? true : visibleRunsIndeterminate ? "indeterminate" : false} onCheckedChange={(checked) => toggleVisibleRuns(checked === true)} aria-label="Select visible runs" />
               </TableHead>
-              <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Run</TableSortButton></TableHead>
+              <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Data Source</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Location</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "limit"} direction={runSortDirection} onClick={() => toggleRunSort("limit")}>Limit</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "status"} direction={runSortDirection} onClick={() => toggleRunSort("status")}>Status</TableSortButton></TableHead>
@@ -296,7 +296,7 @@ export function GoogleMapsDashboard() {
           </TableHeader>
         }
         isEmpty={visible.length === 0}
-        emptyText="No runs found."
+        emptyText="No data sources found."
         emptyColSpan={6}
         footer={{
           type: "pagination",
@@ -317,7 +317,7 @@ export function GoogleMapsDashboard() {
                 <Checkbox checked={selectedRunIds.has(run.id)} onCheckedChange={(checked) => toggleRun(run.id, checked === true)} aria-label={`Select ${run.name}`} />
               </TableCell>
               <TableCell column="main">
-                <Link className="font-medium hover:underline" to="/admin/scrapers/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
+                <Link className="font-medium hover:underline" to="/admin/providers/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
                 <div className="text-xs text-muted-foreground">{input.keyword}</div>
               </TableCell>
               <TableCell column="meta">{input.location}</TableCell>
@@ -344,20 +344,20 @@ export function GoogleMapsDashboard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Run" : "New Run"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Data Source" : "Add Data Source"}</DialogTitle>
             <DialogDescription>
               Save a reusable Google Maps search.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="grid gap-4 sm:grid-cols-2">
-          <RunField id="name" label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+          <RunField id="name" label="Name (optional)" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
           <RunField id="keyword" label="Keyword" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
           <RunField id="location" label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
           <RunField id="language" label="Language" value={form.language} onChange={(value) => setForm({ ...form, language: value })} />
           <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => setForm({ ...form, maxResults: Number(value) })} />
           <div className="grid gap-2">
             <Label htmlFor="status">Status</Label>
-            <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ScraperRunStatus })}>
+            <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ProviderRunConfigStatus })}>
               <SelectTrigger id="status"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Active</SelectItem>
@@ -435,7 +435,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [pageSize, setPageSize] = React.useState(10)
   const [message, setMessage] = React.useState<{ tone: "error" | "success"; text: string } | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
-  const [editingResult, setEditingResult] = React.useState<ScraperResultItem | null>(null)
+  const [editingResult, setEditingResult] = React.useState<ProviderResultItem | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[]>([])
   const [deletingResults, setDeletingResults] = React.useState(false)
   const [savingResult, setSavingResult] = React.useState(false)
@@ -445,7 +445,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     try {
       setData(await loadGoogleMapsRun(runId))
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     }
   }, [runId])
 
@@ -453,6 +453,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [load])
+
+  React.useEffect(() => {
+    if (message?.text !== "Run refreshed.") return
+    const timeout = window.setTimeout(() => setMessage(null), 3000)
+    return () => window.clearTimeout(timeout)
+  }, [message])
 
   const results = (data?.results ?? []).filter((result) => {
     const term = query.trim().toLowerCase()
@@ -502,7 +508,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       await load()
       setMessage({ tone: "success", text: "Run started." })
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     }
   }
 
@@ -514,7 +520,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       await load()
       setMessage({ tone: "success", text: "Run refreshed." })
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     }
   }
 
@@ -534,7 +540,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     })
   }
 
-  const editResult = (result: ScraperResultItem) => {
+  const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
     setResultForm({
       title: result.title,
@@ -577,7 +583,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       await load()
       setMessage({ tone: "success", text: "Result updated." })
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     } finally {
       setSavingResult(false)
     }
@@ -599,7 +605,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       await load()
       setMessage({ tone: "success", text: ids.length === 1 ? "Result deleted." : "Results deleted." })
     } catch (error) {
-      setMessage({ tone: "error", text: scraperError(error) })
+      setMessage({ tone: "error", text: providerError(error) })
     } finally {
       setDeletingResults(false)
     }
@@ -779,7 +785,7 @@ function GoogleMapsResultsBreadcrumb({ title }: { title: string }) {
       <BreadcrumbList className="gap-1.5 text-sm sm:text-base">
         <BreadcrumbItem>
           <BreadcrumbLink asChild className="font-medium text-muted-foreground hover:text-foreground">
-            <Link to="/admin/scrapers/google-maps">Google Maps</Link>
+            <Link to="/admin/providers/google-maps">Google Maps</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator className="text-muted-foreground" />
@@ -791,7 +797,7 @@ function GoogleMapsResultsBreadcrumb({ title }: { title: string }) {
   )
 }
 
-function StatusBadge({ status }: { status: ScraperRunStatus | string }) {
+function StatusBadge({ status }: { status: ProviderRunConfigStatus | string }) {
   return <Badge variant={status === "active" ? "default" : "secondary"}>{statusLabels[status as keyof typeof statusLabels] ?? status}</Badge>
 }
 

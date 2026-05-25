@@ -25,8 +25,8 @@ import {
   feedbackVotes,
   notifications,
   proxies,
-  scraperProviderSettings,
-  scraperRuns,
+  providerSettings,
+  providerRunConfigs,
   sessions,
   users,
 } from "@/server/schema"
@@ -65,12 +65,12 @@ import {
   buildActorInput,
   mapApifyStatus,
   normalizeResult,
-} from "@/scrapers/google-maps/adapter"
-import { serializeSettings } from "@/scrapers/google-maps/schema"
+} from "@/providers/google-maps/adapter"
+import { serializeSettings } from "@/providers/google-maps/schema"
 import {
-  decryptScraperSecret,
-  encryptScraperSecret,
-} from "@/scrapers/secrets"
+  decryptProviderSecret,
+  encryptProviderSecret,
+} from "@/providers/secrets"
 import * as schema from "@/server/schema"
 
 let client: PGlite
@@ -88,8 +88,8 @@ beforeEach(async () => {
     new URL("../../drizzle/0000_core_baseline.sql", import.meta.url),
     "utf8"
   )
-  const scraperMigration = await readFile(
-    new URL("../../drizzle/0004_core_scrapers.sql", import.meta.url),
+  const providerMigration = await readFile(
+    new URL("../../drizzle/0004_core_providers.sql", import.meta.url),
     "utf8"
   )
   const workspaceMigration = await readFile(
@@ -97,7 +97,7 @@ beforeEach(async () => {
     "utf8"
   )
   await client.exec(migration)
-  await client.exec(scraperMigration)
+  await client.exec(providerMigration)
   await client.exec(workspaceMigration)
   database = drizzle(client, { schema })
   setDbForTests(database as unknown as CoreDb)
@@ -737,38 +737,38 @@ describe("core proxies", () => {
   })
 })
 
-describe("core scrapers", () => {
-  it("uses generic JSON columns for scraper data", async () => {
+describe("core providers", () => {
+  it("uses generic JSON columns for provider data", async () => {
     const result = await client.query<{ table_name: string; column_name: string }>(`
       select table_name, column_name
       from information_schema.columns
-      where table_schema = 'public' and table_name like 'scraper_%'
+      where table_schema = 'public' and table_name like 'provider_%'
     `)
     const columns = result.rows.map((row) => `${row.table_name}.${row.column_name}`)
 
     expect(columns).toEqual(expect.arrayContaining([
-      "scraper_provider_settings.config",
-      "scraper_runs.input",
-      "scraper_runs.metadata",
-      "scraper_executions.stats",
-      "scraper_results.data",
+      "provider_settings.config",
+      "provider_run_configs.input",
+      "provider_run_configs.metadata",
+      "provider_executions.stats",
+      "provider_results.data",
     ]))
     expect(columns).not.toEqual(expect.arrayContaining([
-      "scraper_runs.keyword",
-      "scraper_runs.location",
-      "scraper_results.rating",
-      "scraper_results.phone",
+      "provider_run_configs.keyword",
+      "provider_run_configs.location",
+      "provider_results.rating",
+      "provider_results.phone",
     ]))
   })
 
-  it("scopes scraper settings and runs by workspace", async () => {
+  it("scopes provider settings and runs by workspace", async () => {
     const createdAt = now()
     const userId = uuid()
 
     await database.insert(users).values({
       id: userId,
-      email: "scraper-workspaces@internal.dev",
-      name: "Scraper Owner",
+      email: "provider-workspaces@internal.dev",
+      name: "Provider Owner",
       role: "admin",
       passwordHash: "hash",
       createdAt,
@@ -788,7 +788,7 @@ describe("core scrapers", () => {
       database as unknown as CoreDb
     )
 
-    await database.insert(scraperProviderSettings).values([
+    await database.insert(providerSettings).values([
       {
         workspaceId: firstWorkspace.id,
         providerKey: "apify",
@@ -809,15 +809,15 @@ describe("core scrapers", () => {
 
     const settingsRows = await database
       .select()
-      .from(scraperProviderSettings)
-      .where(eq(scraperProviderSettings.providerKey, "apify"))
+      .from(providerSettings)
+      .where(eq(providerSettings.providerKey, "apify"))
     expect(settingsRows).toHaveLength(2)
 
-    await database.insert(scraperRuns).values([
+    await database.insert(providerRunConfigs).values([
       {
         id: uuid(),
         workspaceId: firstWorkspace.id,
-        scraperKey: "google-maps",
+        providerKey: "google-maps",
         name: "First run",
         status: "active",
         input: {
@@ -833,7 +833,7 @@ describe("core scrapers", () => {
       {
         id: uuid(),
         workspaceId: secondWorkspace.id,
-        scraperKey: "google-maps",
+        providerKey: "google-maps",
         name: "Second run",
         status: "active",
         input: {
@@ -850,20 +850,20 @@ describe("core scrapers", () => {
 
     const firstRuns = await database
       .select()
-      .from(scraperRuns)
+      .from(providerRunConfigs)
       .where(
         and(
-          eq(scraperRuns.workspaceId, firstWorkspace.id),
-          eq(scraperRuns.scraperKey, "google-maps")
+          eq(providerRunConfigs.workspaceId, firstWorkspace.id),
+          eq(providerRunConfigs.providerKey, "google-maps")
         )
       )
     expect(firstRuns).toHaveLength(1)
     expect(firstRuns[0].name).toBe("First run")
   })
 
-  it("encrypts scraper tokens and serializes only connection state", async () => {
-    const previousKey = process.env.CORE_SCRAPER_ENCRYPTION_KEY
-    process.env.CORE_SCRAPER_ENCRYPTION_KEY = "test scraper encryption key with enough length"
+  it("encrypts provider tokens and serializes only connection state", async () => {
+    const previousKey = process.env.CORE_PROVIDER_ENCRYPTION_KEY
+    process.env.CORE_PROVIDER_ENCRYPTION_KEY = "test provider encryption key with enough length"
 
     try {
       const createdAt = now()
@@ -871,8 +871,8 @@ describe("core scrapers", () => {
 
       await database.insert(users).values({
         id: userId,
-        email: "scraper-token@internal.dev",
-        name: "Scraper Token Owner",
+        email: "provider-token@internal.dev",
+        name: "Provider Token Owner",
         role: "admin",
         passwordHash: "hash",
         createdAt,
@@ -884,10 +884,10 @@ describe("core scrapers", () => {
         {},
         database as unknown as CoreDb
       )
-      const encrypted = encryptScraperSecret("apify-secret")
-      expect(decryptScraperSecret(encrypted)).toBe("apify-secret")
+      const encrypted = encryptProviderSecret("apify-secret")
+      expect(decryptProviderSecret(encrypted)).toBe("apify-secret")
 
-      const [row] = await database.insert(scraperProviderSettings).values({
+      const [row] = await database.insert(providerSettings).values({
         workspaceId: workspace.id,
         providerKey: "apify",
         config: { actorId: "compass/crawler-google-places", defaultMaxResults: 25 },
@@ -901,8 +901,8 @@ describe("core scrapers", () => {
       expect(JSON.stringify(serialized)).not.toContain("apify-secret")
       expect(JSON.stringify(serialized)).not.toContain(encrypted)
     } finally {
-      if (previousKey === undefined) delete process.env.CORE_SCRAPER_ENCRYPTION_KEY
-      else process.env.CORE_SCRAPER_ENCRYPTION_KEY = previousKey
+      if (previousKey === undefined) delete process.env.CORE_PROVIDER_ENCRYPTION_KEY
+      else process.env.CORE_PROVIDER_ENCRYPTION_KEY = previousKey
     }
   })
 

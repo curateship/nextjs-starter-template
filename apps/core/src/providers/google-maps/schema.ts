@@ -1,23 +1,23 @@
 import { z } from "zod"
 
 import type {
-  CoreScraperExecution,
-  CoreScraperProviderSettings,
-  CoreScraperResult,
-  CoreScraperRun,
+  CoreProviderExecution,
+  CoreProviderSettings,
+  CoreProviderResult,
+  CoreProviderRunConfig,
 } from "@/server/schema"
 import {
   executionStatuses,
   runStatuses,
-  type ScraperExecutionItem,
-  type ScraperExecutionStatus,
-  type ScraperResultItem,
-  type ScraperRunItem,
-  type ScraperRunStatus,
-} from "@/scrapers/types"
+  type ProviderExecutionItem,
+  type ProviderExecutionStatus,
+  type ProviderResultItem,
+  type ProviderRunConfigItem,
+  type ProviderRunConfigStatus,
+} from "@/providers/types"
 
 export const apifyProviderKey = "apify"
-export const googleMapsScraperKey = "google-maps"
+export const googleMapsProviderKey = "google-maps"
 export const defaultApifyActorId = "compass/crawler-google-places"
 export const defaultMaxResults = 25
 const requiredText = (max: number) => z.string().trim().min(1).max(max)
@@ -36,7 +36,7 @@ export const runInputSchema = z.object({
   maxResults: z.number().int().min(1).max(500),
 })
 export const runPayloadSchema = runInputSchema.extend({
-  name: requiredText(255),
+  name: z.string().trim().max(255),
   status: z.enum(runStatuses),
 })
 export const updateRunSchema = runPayloadSchema.extend({
@@ -65,7 +65,7 @@ export function cleanRunInput(data: z.infer<typeof runPayloadSchema>) {
   }
 }
 
-export function serializeSettings(row: CoreScraperProviderSettings | null) {
+export function serializeSettings(row: CoreProviderSettings | null) {
   const config = parseConfig(row?.config)
   return {
     actor_id: config.actorId,
@@ -74,20 +74,20 @@ export function serializeSettings(row: CoreScraperProviderSettings | null) {
   }
 }
 
-export function serializeRun(row: CoreScraperRun): ScraperRunItem {
+export function serializeRun(row: CoreProviderRunConfig): ProviderRunConfigItem {
   return {
     id: row.id,
     name: row.name,
-    status: row.status as ScraperRunStatus,
+    status: row.status as ProviderRunConfigStatus,
     input: record(row.input),
     created_at: row.createdAt.toISOString(),
   }
 }
 
-export function serializeExecution(row: CoreScraperExecution): ScraperExecutionItem {
+export function serializeExecution(row: CoreProviderExecution): ProviderExecutionItem {
   return {
     id: row.id,
-    status: row.status as ScraperExecutionStatus,
+    status: row.status as ProviderExecutionStatus,
     message: row.message,
     error: row.error,
     stats: record(row.stats),
@@ -96,7 +96,7 @@ export function serializeExecution(row: CoreScraperExecution): ScraperExecutionI
   }
 }
 
-export function serializeResult(row: CoreScraperResult): ScraperResultItem {
+export function serializeResult(row: CoreProviderResult): ProviderResultItem {
   return {
     id: row.id,
     external_id: row.externalId,

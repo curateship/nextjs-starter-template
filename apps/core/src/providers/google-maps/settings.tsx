@@ -7,16 +7,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  loadScraperSettings,
-  saveScraperSettings,
-  scraperError,
-} from "@/scrapers/google-maps/api"
+  loadProviderSettings,
+  saveProviderSettings,
+  providerError,
+} from "@/providers/google-maps/api"
 import {
   defaultApifyActorId,
   defaultMaxResults,
-} from "@/scrapers/google-maps/schema"
+} from "@/providers/google-maps/schema"
 
-export function ScraperSettings({
+export function ProviderSettings({
   onHeaderActionChange,
 }: {
   onHeaderActionChange: (action: React.ReactNode) => void
@@ -32,7 +32,7 @@ export function ScraperSettings({
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    void loadScraperSettings()
+    void loadProviderSettings()
       .then(({ settings }) => {
         setForm({
           actorId: settings.actor_id,
@@ -41,7 +41,7 @@ export function ScraperSettings({
         })
         setHasToken(settings.has_token)
       })
-      .catch((error) => setError(scraperError(error)))
+      .catch((error) => setError(providerError(error)))
       .finally(() => setBusy(false))
   }, [])
 
@@ -50,7 +50,7 @@ export function ScraperSettings({
     setSaved(false)
     setError(null)
     try {
-      const { settings } = await saveScraperSettings(form)
+      const { settings } = await saveProviderSettings(form)
       setForm({
         actorId: settings.actor_id,
         defaultMaxResults: settings.default_max_results,
@@ -59,7 +59,7 @@ export function ScraperSettings({
       setHasToken(settings.has_token)
       setSaved(true)
     } catch (error) {
-      setError(scraperError(error))
+      setError(providerError(error))
     } finally {
       setBusy(false)
     }
@@ -107,7 +107,7 @@ export function ScraperSettings({
           <div className="space-y-1">
             <h2 className="text-sm font-semibold">Apify API</h2>
             <p className="text-xs text-muted-foreground">
-              Apify provider settings for scraper modules.
+              Apify provider settings for Google Maps data sources.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

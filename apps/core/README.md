@@ -38,12 +38,12 @@ CORE_PROXY_ENCRYPTION_KEY=""
 
 Use a random server-only value with at least 32 characters. Do not expose it with a `VITE_` prefix.
 
-## Scraper Secret Encryption
+## Provider Secret Encryption
 
-Scraper provider tokens, including Apify, are encrypted before storage.
+Provider tokens, including Apify, are encrypted before storage.
 
 ```bash
-CORE_SCRAPER_ENCRYPTION_KEY=""
+CORE_PROVIDER_ENCRYPTION_KEY=""
 ```
 
 Use a random server-only value with at least 32 characters. Do not expose it with a `VITE_` prefix.

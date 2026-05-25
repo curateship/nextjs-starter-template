@@ -4,7 +4,7 @@ const algorithm = "aes-256-gcm"
 const ivLength = 12
 const tagLength = 16
 
-export function encryptScraperSecret(secret: string) {
+export function encryptProviderSecret(secret: string) {
   const iv = randomBytes(ivLength)
   const cipher = createCipheriv(algorithm, getKey(), iv)
   const encrypted = Buffer.concat([
@@ -19,12 +19,12 @@ export function encryptScraperSecret(secret: string) {
   ].join(":")
 }
 
-export function decryptScraperSecret(value: string) {
+export function decryptProviderSecret(value: string) {
   const [ivBase64, tagBase64, encryptedBase64] = value.split(":")
   const iv = Buffer.from(ivBase64 || "", "base64")
   const tag = Buffer.from(tagBase64 || "", "base64")
   if (!encryptedBase64 || iv.length !== ivLength || tag.length !== tagLength) {
-    throw new Error("Invalid encrypted scraper secret.")
+    throw new Error("Invalid encrypted provider secret.")
   }
 
   const decipher = createDecipheriv(algorithm, getKey(), iv)
@@ -36,12 +36,12 @@ export function decryptScraperSecret(value: string) {
 }
 
 function getKey() {
-  const secret = process.env.CORE_SCRAPER_ENCRYPTION_KEY
+  const secret = process.env.CORE_PROVIDER_ENCRYPTION_KEY
   if (!secret) {
-    throw new Error("CORE_SCRAPER_ENCRYPTION_KEY is required.")
+    throw new Error("CORE_PROVIDER_ENCRYPTION_KEY is required.")
   }
   if (secret.length < 32) {
-    throw new Error("CORE_SCRAPER_ENCRYPTION_KEY must be at least 32 characters.")
+    throw new Error("CORE_PROVIDER_ENCRYPTION_KEY must be at least 32 characters.")
   }
   return createHash("sha256").update(secret, "utf8").digest()
 }

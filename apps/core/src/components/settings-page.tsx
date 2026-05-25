@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router"
 import { Button } from "@/components/ui/button"
 import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
-import { ScraperSettings } from "@/scrapers/google-maps/settings"
+import { ProviderSettings } from "@/providers/google-maps/settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/core"
@@ -14,7 +14,7 @@ const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
-  { id: "scrapers", label: "API Providers" },
+  { id: "providers", label: "Provider Settings" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -43,10 +43,10 @@ export function SettingsPage({
   onSaveConfig: () => Promise<boolean>
 }) {
   const isSaving = saveStatus === "saving"
-  const shellTab = activeTab !== "scrapers"
-  const [scraperAction, setScraperAction] = React.useState<React.ReactNode>(null)
-  const handleScraperActionChange = React.useCallback((action: React.ReactNode) => {
-    setScraperAction(action)
+  const shellTab = activeTab !== "providers"
+  const [providerAction, setProviderAction] = React.useState<React.ReactNode>(null)
+  const handleProviderActionChange = React.useCallback((action: React.ReactNode) => {
+    setProviderAction(action)
   }, [])
 
   return (
@@ -79,7 +79,7 @@ export function SettingsPage({
             )}
             {isSaving ? "Saving" : "Save"}
           </Button>
-        </div> : scraperAction}
+        </div> : providerAction}
       </div>
 
       {settingsError && shellTab ? (
@@ -128,8 +128,8 @@ export function SettingsPage({
               onSaveConfig={onSaveConfig}
             />
           ) : null}
-          {activeTab === "scrapers" ? (
-            <ScraperSettings onHeaderActionChange={handleScraperActionChange} />
+          {activeTab === "providers" ? (
+            <ProviderSettings onHeaderActionChange={handleProviderActionChange} />
           ) : null}
         </div>
       </div>
