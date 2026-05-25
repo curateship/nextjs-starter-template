@@ -18,20 +18,44 @@ interface AdminClientShellProps {
   user: { name: string; email: string; avatar?: string }
 }
 
-function AdminDocumentTitle() {
+function setAdminIcon(rel: string, href: string) {
+  const selector = `link[data-admin-site-icon="${rel}"]`
+  const existing = document.querySelector<HTMLLinkElement>(selector)
+
+  if (!href) {
+    existing?.remove()
+    return
+  }
+
+  const link = existing ?? document.createElement("link")
+  link.rel = rel
+  link.href = href
+  link.setAttribute("data-admin-site-icon", rel)
+
+  if (!existing) document.head.appendChild(link)
+}
+
+function AdminDocumentMeta() {
   const { currentSite } = useSiteSwitcher()
 
   useEffect(() => {
     if (!currentSite) {
       document.title = "Admin"
+      setAdminIcon("icon", "")
+      setAdminIcon("apple-touch-icon", "")
       return
     }
 
     const siteTitle = typeof currentSite.settings?.site_title === "string"
       ? currentSite.settings.site_title.trim()
       : ""
+    const favicon = typeof currentSite.settings?.favicon === "string"
+      ? currentSite.settings.favicon.trim()
+      : ""
 
     document.title = `${siteTitle || currentSite.name} Admin`
+    setAdminIcon("icon", favicon)
+    setAdminIcon("apple-touch-icon", favicon)
   }, [currentSite])
 
   return null
@@ -58,7 +82,7 @@ export function AdminClientShell({
         secondaryFontFamily={secondaryFontFamily}
       />
       <SiteSwitcherProvider initialSites={initialSites} pageSize={pageSize}>
-        <AdminDocumentTitle />
+        <AdminDocumentMeta />
         <DashboardHeaderActionsSlotProvider>
           <div className="admin-layout min-h-screen bg-background">
             <SidebarProvider className="h-screen">
