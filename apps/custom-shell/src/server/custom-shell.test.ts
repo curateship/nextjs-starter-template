@@ -745,4 +745,68 @@ describe("custom shell media helpers", () => {
       "Media not found"
     )
   })
+
+  it("filters owned media by SVG mime type", async () => {
+    const createdAt = now()
+    const userId = uuid()
+    const svgMediaId = uuid()
+
+    await database.insert(customShellUsers).values({
+      id: userId,
+      email: "svg-owner@internal.dev",
+      name: "SVG Owner",
+      role: "admin",
+      passwordHash: "hash",
+      createdAt,
+      updatedAt: createdAt,
+    })
+
+    await database.insert(customShellMedia).values([
+      {
+        id: uuid(),
+        userId,
+        filename: "hero.png",
+        originalName: "hero.png",
+        altText: null,
+        fileSize: 123,
+        mimeType: "image/png",
+        fileType: "image",
+        storagePath: `${userId}/hero.png`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      {
+        id: svgMediaId,
+        userId,
+        filename: "icon.svg",
+        originalName: "icon.svg",
+        altText: "Icon",
+        fileSize: 456,
+        mimeType: "image/svg+xml",
+        fileType: "image",
+        storagePath: `${userId}/icon.svg`,
+        createdAt,
+        updatedAt: createdAt,
+      },
+    ])
+
+    await expect(
+      listOwnedMedia({
+        userId,
+        page: 1,
+        pageSize: 20,
+        mimeType: "image/svg+xml",
+      })
+    ).resolves.toMatchObject({
+      total: 1,
+      media: [
+        {
+          id: svgMediaId,
+          original_name: "icon.svg",
+          mime_type: "image/svg+xml",
+          url: `https://custom-shell-media.example.test/${userId}/icon.svg`,
+        },
+      ],
+    })
+  })
 })

@@ -185,6 +185,7 @@ export async function listOwnedMedia({
   page,
   pageSize,
   fileType,
+  mimeType,
   sortBy = "created_at",
   sortDirection = "desc",
 }: {
@@ -192,14 +193,23 @@ export async function listOwnedMedia({
   page: number
   pageSize: number
   fileType?: MediaFileType
+  mimeType?: "image/svg+xml"
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
-  const where = fileType
-    ? and(eq(customShellMedia.userId, userId), eq(customShellMedia.fileType, fileType))
-    : eq(customShellMedia.userId, userId)
+  const ownerWhere = eq(customShellMedia.userId, userId)
+  const typeWhere = fileType ? eq(customShellMedia.fileType, fileType) : null
+  const mimeWhere = mimeType ? eq(customShellMedia.mimeType, mimeType) : null
+  const where =
+    typeWhere && mimeWhere
+      ? and(ownerWhere, typeWhere, mimeWhere)
+      : typeWhere
+        ? and(ownerWhere, typeWhere)
+        : mimeWhere
+          ? and(ownerWhere, mimeWhere)
+          : ownerWhere
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })

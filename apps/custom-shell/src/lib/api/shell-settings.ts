@@ -2,7 +2,11 @@ import { createServerFn } from "@tanstack/react-start"
 import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
-import { createDefaultShellConfig, type ShellConfig } from "@/lib/custom-shell"
+import {
+  createDefaultShellConfig,
+  isShellIconUrl,
+  type ShellConfig,
+} from "@/lib/custom-shell"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import {
@@ -42,12 +46,16 @@ const iconSchema = z.enum([
   "sparkles",
   "messageSquarePlus",
 ])
+const shellIconSchema = z.union([
+  iconSchema,
+  z.string().trim().max(2048).refine(isShellIconUrl),
+])
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
   label: z.string(),
   href: z.string(),
-  icon: iconSchema.optional(),
+  icon: shellIconSchema.optional(),
 })
 
 const shellEntrySchema = z.discriminatedUnion("type", [
@@ -56,7 +64,7 @@ const shellEntrySchema = z.discriminatedUnion("type", [
     id: z.string().min(1),
     label: z.string(),
     href: z.string(),
-    icon: iconSchema,
+    icon: shellIconSchema,
     visible: z.boolean(),
     children: z.array(shellChildItemSchema).optional(),
   }),
@@ -77,7 +85,7 @@ const shellConfigSchema = z.object({
       id: z.string().min(1),
       label: z.string(),
       href: z.string(),
-      icon: iconSchema.optional(),
+      icon: shellIconSchema.optional(),
       visible: z.boolean(),
     })
   ),
