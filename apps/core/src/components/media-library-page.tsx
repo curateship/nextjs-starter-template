@@ -57,7 +57,7 @@ import {
 } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
 const pageSizeOptions = [10, 20, 50]
 const pageTabs = ["all", "images", "videos"] as const
@@ -172,7 +172,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
 
     const allowedTypes = [...imageTypes, ...videoTypes]
     if (!allowedTypes.includes(file.type)) {
-      setError("Invalid file type. Only images and videos are allowed.")
+      setError("Invalid file type. Only images, SVGs, and videos are allowed.")
       event.target.value = ""
       return
     }

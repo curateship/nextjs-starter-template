@@ -38,7 +38,7 @@ import {
 } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 
-const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
 
 type MediaFilter = "all" | MediaFileType
@@ -145,8 +145,8 @@ export function MediaPicker({
     if (!allowedTypes.includes(file.type)) {
       setError(
         showVideos
-          ? "Invalid file type. Only images and videos are allowed."
-          : "Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed."
+          ? "Invalid file type. Only images, SVGs, and videos are allowed."
+          : "Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG images are allowed."
       )
       event.target.value = ""
       return

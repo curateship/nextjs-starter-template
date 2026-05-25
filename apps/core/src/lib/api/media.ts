@@ -9,6 +9,7 @@ import {
   getMediaFileType,
   getOwnedMedia,
   listOwnedMedia,
+  prepareMediaContent,
   serializeMedia,
   storedFilename,
   validateMediaFile,
@@ -87,10 +88,11 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const mimeType = data.file.type || "application/octet-stream"
     validateMediaFile(mimeType, data.file.size)
 
-    const fileData = new Uint8Array(await data.file.arrayBuffer())
-    if (!fileData.byteLength) {
+    const rawFileData = new Uint8Array(await data.file.arrayBuffer())
+    if (!rawFileData.byteLength) {
       throw new Error("File is empty")
     }
+    const fileData = prepareMediaContent(mimeType, rawFileData)
 
     const originalName = cleanOriginalName(data.file.name)
     const filename = storedFilename(originalName, mimeType)

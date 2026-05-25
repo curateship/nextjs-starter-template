@@ -1,3 +1,4 @@
+import sanitizeHtml from "sanitize-html"
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
@@ -11,6 +12,7 @@ export const IMAGE_TYPES = new Set([
   "image/png",
   "image/gif",
   "image/webp",
+  "image/svg+xml",
 ])
 export const VIDEO_TYPES = new Set([
   "video/mp4",
@@ -57,7 +59,7 @@ export function getMediaFileType(mimeType: string): MediaFileType {
 export function validateMediaFile(mimeType: string, size: number) {
   if (!ALLOWED_TYPES.has(mimeType)) {
     throw new Error(
-      "Invalid file type. Only images (JPEG, PNG, GIF, WebP) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
+      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
     )
   }
 
@@ -67,6 +69,53 @@ export function validateMediaFile(mimeType: string, size: number) {
   if (size > maxSize) {
     throw new Error(`File size too large. Maximum size is ${maxSizeLabel}.`)
   }
+}
+
+export function validateMediaContent(mimeType: string, data: Uint8Array) {
+  if (mimeType === "image/svg+xml") {
+    sanitizeSvgContent(data)
+    return
+  }
+}
+
+export function prepareMediaContent(mimeType: string, data: Uint8Array) {
+  if (mimeType === "image/svg+xml") {
+    return sanitizeSvgContent(data)
+  }
+
+  validateMediaContent(mimeType, data)
+  return data
+}
+
+const svgSanitizeOptions = {
+  allowedTags: "svg g path rect circle ellipse line polyline polygon title desc".split(" "),
+  allowedAttributes: {
+    svg: "xmlns viewBox width height role aria-label aria-labelledby fill stroke".split(" "),
+    "*": "d x y x1 x2 y1 y2 cx cy r rx ry points fill stroke stroke-width opacity transform".split(" "),
+  },
+  parser: {
+    lowerCaseAttributeNames: false,
+    lowerCaseTags: false,
+  },
+} satisfies sanitizeHtml.IOptions
+
+function sanitizeSvgContent(data: Uint8Array) {
+  let source = ""
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(data)
+  } catch {
+    throw new Error("File content does not match the selected media type.")
+  }
+
+  const sanitized = sanitizeHtml(source, svgSanitizeOptions).trim()
+  if (
+    !/^<svg(?:\s|>)/i.test(sanitized) ||
+    /(?:javascript:|data:|url\s*\()/i.test(sanitized)
+  ) {
+    throw new Error("File content does not match the selected media type.")
+  }
+
+  return new TextEncoder().encode(sanitized)
 }
 
 export function cleanOriginalName(filename?: string) {
@@ -182,6 +231,7 @@ function defaultExtensionForMimeType(mimeType: string) {
   if (mimeType === "image/png") return "png"
   if (mimeType === "image/gif") return "gif"
   if (mimeType === "image/webp") return "webp"
+  if (mimeType === "image/svg+xml") return "svg"
   if (mimeType === "video/mp4") return "mp4"
   if (mimeType === "video/webm") return "webm"
   if (mimeType === "video/quicktime") return "mov"
