@@ -154,13 +154,17 @@ export function isIconKey(value?: string): value is IconKey {
 
 export function isShellIconUrl(value?: string) {
   if (!value) return false
-  if (!value.startsWith("/") || value.startsWith("//")) return false
 
   try {
-    const url = new URL(value, "https://core.local")
+    const url =
+      value.startsWith("/") && !value.startsWith("//")
+        ? new URL(value, "https://core.local")
+        : new URL(value)
     return (
-      url.origin === "https://core.local" &&
-      /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname)
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      (url.pathname.toLowerCase().endsWith(".svg") ||
+        (url.origin === "https://core.local" &&
+          /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname)))
     )
   } catch {
     return false

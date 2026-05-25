@@ -85,8 +85,8 @@ export function ShellIconPicker({
           .includes(normalizedQuery)
       })
       .sort((left, right) => {
-        if (value && getMediaIconUrl(left) === value) return -1
-        if (value && getMediaIconUrl(right) === value) return 1
+        if (value && left.url === value) return -1
+        if (value && right.url === value) return 1
         return 0
       })
   }, [mediaData?.media, normalizedQuery, value])
@@ -118,7 +118,7 @@ export function ShellIconPicker({
 
   React.useEffect(() => {
     if (!open || selectedMedia || !value) return
-    const currentMedia = mediaItems.find((item) => getMediaIconUrl(item) === value)
+    const currentMedia = mediaItems.find((item) => item.url === value)
     if (currentMedia) setSelectedMedia(currentMedia)
   }, [mediaItems, open, selectedMedia, value])
 
@@ -154,7 +154,7 @@ export function ShellIconPicker({
     setMediaError(null)
     try {
       const item = await uploadMedia(file)
-      onValueChange(getMediaIconUrl(item))
+      onValueChange(item.url)
       closePicker()
     } catch (error) {
       setMediaError(getMediaErrorMessage(error))
@@ -294,7 +294,7 @@ export function ShellIconPicker({
                 disabled={!selectedMedia}
                 onClick={() => {
                   if (!selectedMedia) return
-                  onValueChange(getMediaIconUrl(selectedMedia))
+                  onValueChange(selectedMedia.url)
                   closePicker()
                 }}
               >
@@ -309,10 +309,6 @@ export function ShellIconPicker({
       </Dialog>
     </>
   )
-}
-
-function getMediaIconUrl(item: Pick<MediaItem, "id">) {
-  return `/api/v1/media/${item.id}/file`
 }
 
 function LucideIconGrid({
