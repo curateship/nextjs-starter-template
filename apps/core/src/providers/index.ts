@@ -6,7 +6,7 @@ export const providers: ProviderModule[] = [
   {
     key: "google-maps",
     name: "Google Maps",
-    href: "/admin/providers/google-maps",
+    href: "/admin/datasource/google-maps",
     icon: MapPinnedIcon,
   },
 ]

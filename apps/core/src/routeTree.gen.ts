@@ -15,16 +15,16 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminProxiesRouteImport } from './routes/_authenticated/admin/proxies'
-import { Route as AuthenticatedAdminProvidersRouteImport } from './routes/_authenticated/admin/providers'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminDatasourceRouteImport } from './routes/_authenticated/admin/datasource'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
-import { Route as AuthenticatedAdminProvidersSettingsRouteImport } from './routes/_authenticated/admin/providers/settings'
-import { Route as AuthenticatedAdminProvidersGoogleMapsRouteImport } from './routes/_authenticated/admin/providers/google-maps'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
+import { Route as AuthenticatedAdminDatasourceSettingsRouteImport } from './routes/_authenticated/admin/datasource/settings'
+import { Route as AuthenticatedAdminDatasourceGoogleMapsRouteImport } from './routes/_authenticated/admin/datasource/google-maps'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
-import { Route as AuthenticatedAdminProvidersGoogleMapsRunsRunIdRouteImport } from './routes/_authenticated/admin/providers/google-maps/runs/$runId'
+import { Route as AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport } from './routes/_authenticated/admin/datasource/google-maps/runs/$runId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -57,12 +57,6 @@ const AuthenticatedAdminProxiesRoute =
     path: '/admin/proxies',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAdminProvidersRoute =
-  AuthenticatedAdminProvidersRouteImport.update({
-    id: '/admin/providers',
-    path: '/admin/providers',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAdminNotificationsRoute =
   AuthenticatedAdminNotificationsRouteImport.update({
     id: '/admin/notifications',
@@ -80,23 +74,17 @@ const AuthenticatedAdminFeedbackRoute =
     path: '/admin/feedback',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminDatasourceRoute =
+  AuthenticatedAdminDatasourceRouteImport.update({
+    id: '/admin/datasource',
+    path: '/admin/datasource',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminSettingsTabRoute =
   AuthenticatedAdminSettingsTabRouteImport.update({
     id: '/$tab',
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
-  } as any)
-const AuthenticatedAdminProvidersSettingsRoute =
-  AuthenticatedAdminProvidersSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedAdminProvidersRoute,
-  } as any)
-const AuthenticatedAdminProvidersGoogleMapsRoute =
-  AuthenticatedAdminProvidersGoogleMapsRouteImport.update({
-    id: '/google-maps',
-    path: '/google-maps',
-    getParentRoute: () => AuthenticatedAdminProvidersRoute,
   } as any)
 const AuthenticatedAdminFeedbackCommentsRoute =
   AuthenticatedAdminFeedbackCommentsRouteImport.update({
@@ -104,51 +92,63 @@ const AuthenticatedAdminFeedbackCommentsRoute =
     path: '/comments',
     getParentRoute: () => AuthenticatedAdminFeedbackRoute,
   } as any)
+const AuthenticatedAdminDatasourceSettingsRoute =
+  AuthenticatedAdminDatasourceSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminDatasourceRoute,
+  } as any)
+const AuthenticatedAdminDatasourceGoogleMapsRoute =
+  AuthenticatedAdminDatasourceGoogleMapsRouteImport.update({
+    id: '/google-maps',
+    path: '/google-maps',
+    getParentRoute: () => AuthenticatedAdminDatasourceRoute,
+  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute =
-  AuthenticatedAdminProvidersGoogleMapsRunsRunIdRouteImport.update({
+const AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute =
+  AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport.update({
     id: '/runs/$runId',
     path: '/runs/$runId',
-    getParentRoute: () => AuthenticatedAdminProvidersGoogleMapsRoute,
+    getParentRoute: () => AuthenticatedAdminDatasourceGoogleMapsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/admin/datasource': typeof AuthenticatedAdminDatasourceRouteWithChildren
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
-  '/admin/providers': typeof AuthenticatedAdminProvidersRouteWithChildren
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
+  '/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/admin/providers/google-maps': typeof AuthenticatedAdminProvidersGoogleMapsRouteWithChildren
-  '/admin/providers/settings': typeof AuthenticatedAdminProvidersSettingsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
-  '/admin/providers/google-maps/runs/$runId': typeof AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute
+  '/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
+  '/admin/datasource': typeof AuthenticatedAdminDatasourceRouteWithChildren
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
-  '/admin/providers': typeof AuthenticatedAdminProvidersRouteWithChildren
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
+  '/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/admin/providers/google-maps': typeof AuthenticatedAdminProvidersGoogleMapsRouteWithChildren
-  '/admin/providers/settings': typeof AuthenticatedAdminProvidersSettingsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
-  '/admin/providers/google-maps/runs/$runId': typeof AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute
+  '/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -156,18 +156,18 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/admin/datasource': typeof AuthenticatedAdminDatasourceRouteWithChildren
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
-  '/_authenticated/admin/providers': typeof AuthenticatedAdminProvidersRouteWithChildren
   '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
+  '/_authenticated/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
+  '/_authenticated/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
-  '/_authenticated/admin/providers/google-maps': typeof AuthenticatedAdminProvidersGoogleMapsRouteWithChildren
-  '/_authenticated/admin/providers/settings': typeof AuthenticatedAdminProvidersSettingsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
-  '/_authenticated/admin/providers/google-maps/runs/$runId': typeof AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute
+  '/_authenticated/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -175,53 +175,53 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/workspaces'
+    | '/admin/datasource'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
-    | '/admin/providers'
     | '/admin/proxies'
     | '/admin/settings'
+    | '/admin/datasource/google-maps'
+    | '/admin/datasource/settings'
     | '/admin/feedback/comments'
-    | '/admin/providers/google-maps'
-    | '/admin/providers/settings'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
-    | '/admin/providers/google-maps/runs/$runId'
+    | '/admin/datasource/google-maps/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/workspaces'
     | '/'
+    | '/admin/datasource'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
-    | '/admin/providers'
     | '/admin/proxies'
     | '/admin/settings'
+    | '/admin/datasource/google-maps'
+    | '/admin/datasource/settings'
     | '/admin/feedback/comments'
-    | '/admin/providers/google-maps'
-    | '/admin/providers/settings'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
-    | '/admin/providers/google-maps/runs/$runId'
+    | '/admin/datasource/google-maps/runs/$runId'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
     | '/_authenticated/workspaces'
     | '/_authenticated/'
+    | '/_authenticated/admin/datasource'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
-    | '/_authenticated/admin/providers'
     | '/_authenticated/admin/proxies'
     | '/_authenticated/admin/settings'
+    | '/_authenticated/admin/datasource/google-maps'
+    | '/_authenticated/admin/datasource/settings'
     | '/_authenticated/admin/feedback/comments'
-    | '/_authenticated/admin/providers/google-maps'
-    | '/_authenticated/admin/providers/settings'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
-    | '/_authenticated/admin/providers/google-maps/runs/$runId'
+    | '/_authenticated/admin/datasource/google-maps/runs/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -274,13 +274,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminProxiesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/providers': {
-      id: '/_authenticated/admin/providers'
-      path: '/admin/providers'
-      fullPath: '/admin/providers'
-      preLoaderRoute: typeof AuthenticatedAdminProvidersRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/admin/notifications': {
       id: '/_authenticated/admin/notifications'
       path: '/admin/notifications'
@@ -302,26 +295,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/datasource': {
+      id: '/_authenticated/admin/datasource'
+      path: '/admin/datasource'
+      fullPath: '/admin/datasource'
+      preLoaderRoute: typeof AuthenticatedAdminDatasourceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/settings/$tab': {
       id: '/_authenticated/admin/settings/$tab'
       path: '/$tab'
       fullPath: '/admin/settings/$tab'
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
-    }
-    '/_authenticated/admin/providers/settings': {
-      id: '/_authenticated/admin/providers/settings'
-      path: '/settings'
-      fullPath: '/admin/providers/settings'
-      preLoaderRoute: typeof AuthenticatedAdminProvidersSettingsRouteImport
-      parentRoute: typeof AuthenticatedAdminProvidersRoute
-    }
-    '/_authenticated/admin/providers/google-maps': {
-      id: '/_authenticated/admin/providers/google-maps'
-      path: '/google-maps'
-      fullPath: '/admin/providers/google-maps'
-      preLoaderRoute: typeof AuthenticatedAdminProvidersGoogleMapsRouteImport
-      parentRoute: typeof AuthenticatedAdminProvidersRoute
     }
     '/_authenticated/admin/feedback/comments': {
       id: '/_authenticated/admin/feedback/comments'
@@ -330,6 +316,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFeedbackCommentsRouteImport
       parentRoute: typeof AuthenticatedAdminFeedbackRoute
     }
+    '/_authenticated/admin/datasource/settings': {
+      id: '/_authenticated/admin/datasource/settings'
+      path: '/settings'
+      fullPath: '/admin/datasource/settings'
+      preLoaderRoute: typeof AuthenticatedAdminDatasourceSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminDatasourceRoute
+    }
+    '/_authenticated/admin/datasource/google-maps': {
+      id: '/_authenticated/admin/datasource/google-maps'
+      path: '/google-maps'
+      fullPath: '/admin/datasource/google-maps'
+      preLoaderRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRouteImport
+      parentRoute: typeof AuthenticatedAdminDatasourceRoute
+    }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
       path: '/api/v1/media/$mediaId/file'
@@ -337,15 +337,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin/providers/google-maps/runs/$runId': {
-      id: '/_authenticated/admin/providers/google-maps/runs/$runId'
+    '/_authenticated/admin/datasource/google-maps/runs/$runId': {
+      id: '/_authenticated/admin/datasource/google-maps/runs/$runId'
       path: '/runs/$runId'
-      fullPath: '/admin/providers/google-maps/runs/$runId'
-      preLoaderRoute: typeof AuthenticatedAdminProvidersGoogleMapsRunsRunIdRouteImport
-      parentRoute: typeof AuthenticatedAdminProvidersGoogleMapsRoute
+      fullPath: '/admin/datasource/google-maps/runs/$runId'
+      preLoaderRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport
+      parentRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRoute
     }
   }
 }
+
+interface AuthenticatedAdminDatasourceGoogleMapsRouteChildren {
+  AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
+}
+
+const AuthenticatedAdminDatasourceGoogleMapsRouteChildren: AuthenticatedAdminDatasourceGoogleMapsRouteChildren =
+  {
+    AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute:
+      AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute,
+  }
+
+const AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren =
+  AuthenticatedAdminDatasourceGoogleMapsRoute._addFileChildren(
+    AuthenticatedAdminDatasourceGoogleMapsRouteChildren,
+  )
+
+interface AuthenticatedAdminDatasourceRouteChildren {
+  AuthenticatedAdminDatasourceGoogleMapsRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
+  AuthenticatedAdminDatasourceSettingsRoute: typeof AuthenticatedAdminDatasourceSettingsRoute
+}
+
+const AuthenticatedAdminDatasourceRouteChildren: AuthenticatedAdminDatasourceRouteChildren =
+  {
+    AuthenticatedAdminDatasourceGoogleMapsRoute:
+      AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren,
+    AuthenticatedAdminDatasourceSettingsRoute:
+      AuthenticatedAdminDatasourceSettingsRoute,
+  }
+
+const AuthenticatedAdminDatasourceRouteWithChildren =
+  AuthenticatedAdminDatasourceRoute._addFileChildren(
+    AuthenticatedAdminDatasourceRouteChildren,
+  )
 
 interface AuthenticatedAdminFeedbackRouteChildren {
   AuthenticatedAdminFeedbackCommentsRoute: typeof AuthenticatedAdminFeedbackCommentsRoute
@@ -360,39 +393,6 @@ const AuthenticatedAdminFeedbackRouteChildren: AuthenticatedAdminFeedbackRouteCh
 const AuthenticatedAdminFeedbackRouteWithChildren =
   AuthenticatedAdminFeedbackRoute._addFileChildren(
     AuthenticatedAdminFeedbackRouteChildren,
-  )
-
-interface AuthenticatedAdminProvidersGoogleMapsRouteChildren {
-  AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute: typeof AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute
-}
-
-const AuthenticatedAdminProvidersGoogleMapsRouteChildren: AuthenticatedAdminProvidersGoogleMapsRouteChildren =
-  {
-    AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute:
-      AuthenticatedAdminProvidersGoogleMapsRunsRunIdRoute,
-  }
-
-const AuthenticatedAdminProvidersGoogleMapsRouteWithChildren =
-  AuthenticatedAdminProvidersGoogleMapsRoute._addFileChildren(
-    AuthenticatedAdminProvidersGoogleMapsRouteChildren,
-  )
-
-interface AuthenticatedAdminProvidersRouteChildren {
-  AuthenticatedAdminProvidersGoogleMapsRoute: typeof AuthenticatedAdminProvidersGoogleMapsRouteWithChildren
-  AuthenticatedAdminProvidersSettingsRoute: typeof AuthenticatedAdminProvidersSettingsRoute
-}
-
-const AuthenticatedAdminProvidersRouteChildren: AuthenticatedAdminProvidersRouteChildren =
-  {
-    AuthenticatedAdminProvidersGoogleMapsRoute:
-      AuthenticatedAdminProvidersGoogleMapsRouteWithChildren,
-    AuthenticatedAdminProvidersSettingsRoute:
-      AuthenticatedAdminProvidersSettingsRoute,
-  }
-
-const AuthenticatedAdminProvidersRouteWithChildren =
-  AuthenticatedAdminProvidersRoute._addFileChildren(
-    AuthenticatedAdminProvidersRouteChildren,
   )
 
 interface AuthenticatedAdminSettingsRouteChildren {
@@ -412,10 +412,10 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAdminDatasourceRoute: typeof AuthenticatedAdminDatasourceRouteWithChildren
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
-  AuthenticatedAdminProvidersRoute: typeof AuthenticatedAdminProvidersRouteWithChildren
   AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
 }
@@ -423,11 +423,11 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAdminDatasourceRoute:
+    AuthenticatedAdminDatasourceRouteWithChildren,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
-  AuthenticatedAdminProvidersRoute:
-    AuthenticatedAdminProvidersRouteWithChildren,
   AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
 }

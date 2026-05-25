@@ -24,7 +24,7 @@ import { providers } from "@/providers"
 
 type ProviderSortColumn = "name" | "provider"
 
-export const Route = createFileRoute("/_authenticated/admin/providers")({
+export const Route = createFileRoute("/_authenticated/admin/datasource")({
   loader: async () => {
     const user = await loadCurrentUser()
     if (user?.role !== "admin") throw redirect({ to: "/" })
@@ -39,7 +39,7 @@ function ProvidersRoute() {
     select: (state) => state.location.pathname,
   })
 
-  if (pathname !== "/admin/providers") {
+  if (pathname !== "/admin/datasource") {
     return <Outlet />
   }
 
@@ -91,7 +91,7 @@ function ProvidersRoute() {
           <TableRow key={provider.key}>
             <TableCell column="main">
               <Link
-                to="/admin/providers/google-maps"
+                to="/admin/datasource/google-maps"
                 className="inline-flex items-center gap-2 font-medium hover:underline"
               >
                 <provider.icon className="size-4 text-muted-foreground" />
@@ -101,7 +101,7 @@ function ProvidersRoute() {
             <TableCell column="meta">Apify</TableCell>
             <TableCell column="meta">
               <Button asChild variant="outline" size="sm" className="h-8 sm:h-9">
-                <Link to="/admin/providers/google-maps">Open</Link>
+                <Link to="/admin/datasource/google-maps">Open</Link>
               </Button>
             </TableCell>
           </TableRow>

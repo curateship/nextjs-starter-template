@@ -277,7 +277,7 @@ export function GoogleMapsDashboard() {
             </Button>
             <Button size="sm" className="h-8 gap-2 sm:h-9" onClick={() => edit()}>
               <PlusIcon className="size-4" />
-              Add Data Source
+              Add Run
             </Button>
           </>
         }
@@ -287,7 +287,7 @@ export function GoogleMapsDashboard() {
               <TableHead column="select">
                 <Checkbox checked={visibleRunsSelected ? true : visibleRunsIndeterminate ? "indeterminate" : false} onCheckedChange={(checked) => toggleVisibleRuns(checked === true)} aria-label="Select visible runs" />
               </TableHead>
-              <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Data Source</TableSortButton></TableHead>
+              <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Run Name</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Location</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "limit"} direction={runSortDirection} onClick={() => toggleRunSort("limit")}>Limit</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "status"} direction={runSortDirection} onClick={() => toggleRunSort("status")}>Status</TableSortButton></TableHead>
@@ -317,7 +317,7 @@ export function GoogleMapsDashboard() {
                 <Checkbox checked={selectedRunIds.has(run.id)} onCheckedChange={(checked) => toggleRun(run.id, checked === true)} aria-label={`Select ${run.name}`} />
               </TableCell>
               <TableCell column="main">
-                <Link className="font-medium hover:underline" to="/admin/providers/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
+                <Link className="font-medium hover:underline" to="/admin/datasource/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
                 <div className="text-xs text-muted-foreground">{input.keyword}</div>
               </TableCell>
               <TableCell column="meta">{input.location}</TableCell>
@@ -344,7 +344,7 @@ export function GoogleMapsDashboard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Data Source" : "Add Data Source"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Run" : "Add Run"}</DialogTitle>
             <DialogDescription>
               Save a reusable Google Maps search.
             </DialogDescription>
@@ -785,7 +785,7 @@ function GoogleMapsResultsBreadcrumb({ title }: { title: string }) {
       <BreadcrumbList className="gap-1.5 text-sm sm:text-base">
         <BreadcrumbItem>
           <BreadcrumbLink asChild className="font-medium text-muted-foreground hover:text-foreground">
-            <Link to="/admin/providers/google-maps">Google Maps</Link>
+            <Link to="/admin/datasource/google-maps">Google Maps</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator className="text-muted-foreground" />
