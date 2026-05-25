@@ -72,7 +72,7 @@ function AdminModalScrollBody({
       <ScrollArea className="h-full">
         <div
           className={cn(
-            "px-4 pt-4 pb-0 pr-4 sm:px-6 sm:pt-6 sm:pr-8 [&_h3]:pt-4 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0",
+            "px-4 pt-4 pb-0 pr-4 sm:px-6 sm:pt-6 sm:pr-8 [&_h3]:pt-4 max-sm:[&_.grid-cols-2]:grid-cols-1 max-sm:[&_.grid-cols-3]:grid-cols-1 max-sm:[&_.grid-cols-4]:grid-cols-1 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0",
             viewportClassName
           )}
         >

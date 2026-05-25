@@ -200,7 +200,7 @@ export function ProductHotspotBlock({
                   <DashboardModalCardTitle>Header Content</DashboardModalCardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
                     <div className="space-y-2">
                       <Label htmlFor="title">Header</Label>
                       <Input

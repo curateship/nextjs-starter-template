@@ -128,7 +128,7 @@ export function PageDividerBlock({
                     <div className="space-y-4">
                       {dividerStyle === 'line' || dividerStyle === 'line-with-icon' ? (
                         <>
-                          <div className="grid grid-cols-[repeat(5,minmax(0,1fr))] gap-3">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(5,minmax(0,1fr))]">
                             <div className="min-w-0 space-y-2">
                               <Label htmlFor="dividerStyle">Type</Label>
                               <Select value={dividerStyle} onValueChange={onDividerStyleChange}>
@@ -279,7 +279,7 @@ export function PageDividerBlock({
                           )}
                         </>
                       ) : dividerStyle === 'icon' ? (
-                        <div className="grid grid-cols-[repeat(5,minmax(0,1fr))] gap-3">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(5,minmax(0,1fr))]">
                           <div className="min-w-0 space-y-2">
                             <Label htmlFor="dividerStyle">Type</Label>
                             <Select value={dividerStyle} onValueChange={onDividerStyleChange}>

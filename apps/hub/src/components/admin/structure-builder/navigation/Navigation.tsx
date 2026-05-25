@@ -1567,7 +1567,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
           <CardGroup className="grid">
             <Card>
               <CardContent>
-                <div className="grid grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] items-end gap-4">
+                <div className="grid gap-4 md:grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] md:items-end">
                   <ShellIconPickerField
                     siteId={siteId}
                     value={buttonDraft.icon}

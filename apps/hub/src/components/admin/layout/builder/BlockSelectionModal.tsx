@@ -242,20 +242,20 @@ export function BlockSelectionModal({
                   <div>
                     <h3 className="text-sm font-semibold">{section.title}</h3>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-4 sm:grid-cols-3">
                     {section.blockTypes.map(renderBlockCard)}
                   </div>
                 </div>
               ))}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4 py-4">
+          <div className="grid gap-4 py-4 sm:grid-cols-3">
             {blockTypes.map(renderBlockCard)}
           </div>
         )}
 
         <DialogFooter>
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex w-full flex-row items-center justify-between gap-2">
             <span className="text-sm text-muted-foreground">
               {totalBlocksToAdd > 0 ? `${totalBlocksToAdd} block${totalBlocksToAdd === 1 ? '' : 's'} selected` : 'No blocks selected'}
             </span>

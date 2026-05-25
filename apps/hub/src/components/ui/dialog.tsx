@@ -66,7 +66,7 @@ function DialogContent({
           "fixed top-[50%] left-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           size === "default" && "w-full max-w-[calc(100%-2rem)] sm:max-w-lg",
           size === "admin" &&
-            "max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!border-0 max-sm:!p-0 overflow-y-auto sm:w-[calc(100vw-2rem)] sm:max-w-[840px] sm:max-h-[calc(100vh-4rem)]",
+            "max-sm:!inset-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none max-sm:!border-0 max-sm:!p-0 max-sm:[&_.grid-cols-2]:grid-cols-1 max-sm:[&_.grid-cols-3]:grid-cols-1 max-sm:[&_.grid-cols-4]:grid-cols-1 overflow-y-auto sm:w-[calc(100vw-2rem)] sm:max-w-[840px] sm:max-h-[calc(100vh-4rem)]",
           className
         )}
         {...props}

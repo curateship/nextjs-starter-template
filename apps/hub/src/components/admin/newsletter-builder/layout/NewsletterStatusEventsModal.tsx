@@ -239,7 +239,7 @@ export function NewsletterStatusEventsModal({
             <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} showFirstLast={false} />
           </>
         ) : undefined}
-        footerClassName="flex-col gap-3 sm:flex-row sm:justify-between"
+        footerClassName="gap-3 justify-between"
       >
         {showRateCards && (
           <CardGroup className="grid sm:grid-cols-3">

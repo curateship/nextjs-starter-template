@@ -223,11 +223,11 @@ export function PageListingViewBlock({
               <Card>
                 <CardContent>
                   <BlockEditorSection heading="Content Settings">
-          <div className="flex flex-wrap gap-4">
-            <div className="space-y-2">
+          <div className="flex gap-4">
+            <div className="shrink-0 space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
               <Select value={contentType} onValueChange={(value) => onContentTypeChange(value as ListingContentType)}>
-                <SelectTrigger id="contentType" size="button">
+                <SelectTrigger id="contentType" size="button" className="min-h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,7 +237,7 @@ export function PageListingViewBlock({
               </Select>
             </div>
 
-            <div className="min-w-[240px] space-y-2">
+            <div className="min-w-0 flex-1 space-y-2">
               <Label>Category</Label>
               <CategoryPicker
                 siteId={siteId}

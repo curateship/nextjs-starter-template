@@ -82,7 +82,7 @@ function SortableMessageItem({
         </Button>
       </div>
 
-      <div className="mt-3 grid grid-cols-[auto_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,1fr)_minmax(0,0.7fr)] items-start gap-3">
+      <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[auto_minmax(0,0.8fr)_minmax(0,0.6fr)_minmax(0,1fr)_minmax(0,0.7fr)]">
         <button
           type="button"
           onClick={() => onPickAvatar(index)}
@@ -97,7 +97,7 @@ function SortableMessageItem({
           </Avatar>
         </button>
 
-        <div className="space-y-1">
+        <div className="col-span-2 space-y-1 sm:col-span-1">
           <Label htmlFor={`${blockId}-buyer-${item.id}`} className="sr-only">Buyer name</Label>
           <Input
             id={`${blockId}-buyer-${item.id}`}
@@ -107,7 +107,7 @@ function SortableMessageItem({
           />
         </div>
 
-        <div className="space-y-1">
+        <div className="col-span-2 space-y-1 sm:col-span-1">
           <Label htmlFor={`${blockId}-action-${item.id}`} className="sr-only">Action</Label>
           <Input
             id={`${blockId}-action-${item.id}`}
@@ -117,7 +117,7 @@ function SortableMessageItem({
           />
         </div>
 
-        <div className="space-y-1">
+        <div className="col-span-2 space-y-1 sm:col-span-1">
           <Label htmlFor={`${blockId}-product-${item.id}`} className="sr-only">Product text</Label>
           <Input
             id={`${blockId}-product-${item.id}`}

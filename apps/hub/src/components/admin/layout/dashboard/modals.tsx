@@ -113,7 +113,7 @@ function DashboardModalScrollBody({
     <ScrollArea className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)} {...props}>
       <div
         className={cn(
-          "grid gap-6 px-4 pt-2 pb-4 sm:px-6 sm:pb-6 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0 sm:**:data-[slot=card]:shadow-none",
+          "grid gap-6 px-4 pt-2 pb-4 sm:px-6 sm:pb-6 max-sm:[&_.grid-cols-2]:grid-cols-1 max-sm:[&_.grid-cols-3]:grid-cols-1 max-sm:[&_.grid-cols-4]:grid-cols-1 max-sm:**:data-[slot=card-group]:gap-6 max-sm:**:data-[slot=card]:rounded-none max-sm:**:data-[slot=card]:border-0 max-sm:**:data-[slot=card]:bg-transparent max-sm:**:data-[slot=card]:p-0 max-sm:**:data-[slot=card]:shadow-none max-sm:**:data-[slot=card]:ring-0 max-sm:**:data-[slot=card-header]:p-0 max-sm:**:data-[slot=card-header]:pb-2 max-sm:**:data-[slot=card-content]:p-0 sm:**:data-[slot=card]:shadow-none",
           viewportClassName
         )}
       >

@@ -104,7 +104,7 @@ export function ProductListingViewBlock({
                   <DashboardModalCardTitle>Header Settings</DashboardModalCardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
                     <div className="space-y-2">
                       <Label htmlFor="title">Header</Label>
                       <Input
@@ -164,7 +164,7 @@ export function ProductListingViewBlock({
                   <DashboardModalCardTitle>Content Settings</DashboardModalCardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-5 gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                     <div className="space-y-2">
                       <Label htmlFor="contentType">Content Type</Label>
                       <Select value={contentType} onValueChange={onContentTypeChange}>

@@ -222,7 +222,7 @@ export function ContactImportModal({
                   <p className="text-muted-foreground text-sm mt-1">Map your CSV columns to contact fields</p>
                 </div>
 
-                <div className="grid grid-cols-[1fr_32px_1fr] gap-2 mb-3 px-1">
+                <div className="mb-3 hidden grid-cols-[1fr_32px_1fr] gap-2 px-1 sm:grid">
                   <p className="text-sm font-medium text-muted-foreground">CSV data sample</p>
                   <div />
                   <p className="text-sm font-medium text-muted-foreground">Contact field</p>
@@ -236,7 +236,7 @@ export function ContactImportModal({
                     return (
                       <div key={header}>
                         <p className="text-xs font-medium text-muted-foreground mb-1.5">{header}</p>
-                        <div className="grid grid-cols-[1fr_32px_1fr] gap-2 items-center">
+                        <div className="grid gap-2 sm:grid-cols-[1fr_32px_1fr] sm:items-center">
                           <div className="h-10 rounded-md border bg-muted/30 px-3 flex items-center">
                             <span className="text-sm truncate">{sample || "-"}</span>
                           </div>
@@ -271,7 +271,7 @@ export function ContactImportModal({
                   })}
                 </div>
 
-                <div className="grid grid-cols-[1fr_32px_1fr] gap-2 mt-3 px-1">
+                <div className="mt-3 hidden grid-cols-[1fr_32px_1fr] gap-2 px-1 sm:grid">
                   <p className="text-xs text-muted-foreground">Check that your CSV data on the left</p>
                   <div />
                   <p className="text-xs text-muted-foreground">Matches the contact field on the right</p>

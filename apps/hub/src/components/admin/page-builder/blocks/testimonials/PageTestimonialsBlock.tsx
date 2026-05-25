@@ -104,7 +104,7 @@ function SortableTestimonialItem({
         </div>
 
         <div className="px-2 pt-2">
-          <div className="grid grid-cols-[auto_minmax(0,0.5fr)_minmax(0,0.5fr)_minmax(0,3fr)] items-start gap-3">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[auto_minmax(0,0.5fr)_minmax(0,0.5fr)_minmax(0,3fr)]">
             <div className="shrink-0">
               <Label htmlFor={`testimonial-avatar-${item.id}`} className="sr-only">
                 Avatar
@@ -140,7 +140,7 @@ function SortableTestimonialItem({
                 placeholder="Name"
               />
             </div>
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <Label htmlFor={`testimonial-role-${item.id}`} className="sr-only">
                 Role
               </Label>
@@ -151,7 +151,7 @@ function SortableTestimonialItem({
                 placeholder="Role"
               />
             </div>
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <Label htmlFor={`testimonial-quote-${item.id}`} className="sr-only">
                 Quote
               </Label>
@@ -243,7 +243,7 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                 <Card>
                   <CardContent>
                     <BlockEditorSection heading="Header Settings">
-                  <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px] gap-4">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
                     <div className="space-y-2">
                       <Label>Title</Label>
                       <Input
@@ -361,7 +361,7 @@ export function PageTestimonialsBlock({ content, onContentChange, siteId, onBack
                 <Card>
                   <CardContent>
                     <BlockEditorSection heading="Testimonial Style">
-                  <div className="grid grid-cols-2 gap-2 max-w-sm">
+                  <div className="grid max-w-sm gap-2 sm:grid-cols-2">
                     {Object.entries(TESTIMONIAL_STYLES).map(([key, style]) => (
                       <button
                         key={key}
