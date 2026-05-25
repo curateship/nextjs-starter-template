@@ -436,7 +436,7 @@ export default function ImagesPage() {
                       return (
                         <div
                           key={media.id}
-                          className={`group relative aspect-square overflow-hidden rounded-lg border bg-muted ${isSelected ? "ring-2 ring-primary/25" : ""}`}
+                          className={`group relative aspect-square overflow-hidden rounded-lg border bg-muted ${isSelected ? "border-green-500 ring-2 ring-green-500/25" : ""}`}
                         >
                           <button
                             type="button"

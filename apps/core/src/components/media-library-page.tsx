@@ -575,7 +575,7 @@ function GalleryItem({
   onDelete: () => void
 }) {
   return (
-    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "ring-2 ring-primary/25")}>
+    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "border-green-500 ring-2 ring-green-500/25")}>
       <button type="button" className="relative block aspect-[3/4] w-full bg-muted" onClick={onToggle}>
         <MediaPreview item={item} className="h-full w-full" />
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">

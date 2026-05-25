@@ -431,7 +431,7 @@ export function MediaPicker({
                         className={`
                           relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all bg-muted
                           ${selectedMedia?.id === media.id 
-                            ? 'border-primary ring-2 ring-primary/20' 
+                            ? 'border-green-500 ring-2 ring-green-500/20' 
                             : 'border-transparent hover:border-muted-foreground/20'
                           }
                           ${actualCurrentUrl === media.public_url ? 'ring-2 ring-green-500/50' : ''}

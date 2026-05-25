@@ -523,7 +523,7 @@ export default function UsersPage() {
             }
             footer={!loading ? <AdminTableSummaryFooter count={filteredUsers.length} label="users" /> : null}
           >
-            <ScrollArea className="w-full border-t">
+            <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
                   <TableRow>

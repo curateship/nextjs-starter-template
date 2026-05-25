@@ -315,7 +315,7 @@ export function MediaPicker({
                     className={cn(
                       "group relative aspect-square overflow-hidden rounded-md border bg-muted text-left outline-none transition",
                         selectedMedia?.id === item.id || currentMediaUrl === item.url
-                          ? "border-primary ring-2 ring-primary/20"
+                          ? "border-green-500 ring-2 ring-green-500/20"
                           : "hover:border-muted-foreground/40"
                     )}
                     onClick={() => setSelectedMedia(item)}

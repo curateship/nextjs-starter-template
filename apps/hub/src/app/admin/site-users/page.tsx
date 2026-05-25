@@ -622,7 +622,7 @@ export default function SiteUsersPage() {
               ) : null
             }
           >
-            <ScrollArea className="w-full border-t">
+            <ScrollArea className="w-full">
               <Table>
                 <TableHeader>
                   <TableRow>
