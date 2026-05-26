@@ -686,6 +686,16 @@ export default function AutomationBuilderPage({ params }: PageProps) {
     return "Draft"
   }
 
+  const currentDelayStepId = nodes.find((node, index) => {
+    const nextNode = nodes[index + 1]
+    return (
+      node.node_type === "delay" &&
+      !!journeyIndicators[node.step_order] &&
+      nextNode?.node_type === "email" &&
+      getEmailStatusLabel(nextNode) === "Waiting for trigger"
+    )
+  })?.id
+
   const getTriggerDetails = (triggerNode: AutomationTriggerNode) => {
     if (triggerNode.type === "segment_added") {
       return {
@@ -1044,6 +1054,11 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                   {node.node_type === "delay" ? (
                     <Card
                       className="relative w-full cursor-pointer border-l-4 border-l-yellow-400 p-4 transition-colors hover:border-primary/50 hover:bg-[#fcfcfc]"
+                      style={node.id === currentDelayStepId ? {
+                        borderColor: "#22c55e",
+                        borderLeftColor: "#22c55e",
+                        boxShadow: "0 0 0 2px rgba(34, 197, 94, 0.2)",
+                      } : undefined}
                       onClick={() => openDelayEditor(node)}
                     >
                       <div className="flex items-center justify-between">

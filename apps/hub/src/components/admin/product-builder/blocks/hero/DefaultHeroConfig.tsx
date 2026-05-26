@@ -297,8 +297,8 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
           <CardDescription>Set the optional background texture.</CardDescription>
         </CardHeader>
         <CardContent>
-        <div className="inline-flex items-end gap-3">
-          <Field className="w-[180px]">
+        <div className="grid w-full items-end gap-3 sm:w-auto sm:grid-cols-[180px_140px_112px]">
+          <Field className="min-w-0">
             <FieldLabel className="text-xs">Pattern Type</FieldLabel>
             <Select
               value={backgroundPattern || 'none'}
@@ -317,7 +317,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
 
           {backgroundPattern !== 'none' && (
             <>
-              <Field className="w-[140px]">
+              <Field className="min-w-0">
                 <FieldLabel className="text-xs">Size</FieldLabel>
                 <Select
                   value={backgroundPatternSize || 'medium'}
@@ -334,7 +334,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                 </Select>
               </Field>
 
-              <Field className="w-[112px]">
+              <Field className="min-w-0">
                 <FieldLabel className="text-xs">Opacity</FieldLabel>
                 <div className="flex items-center space-x-2">
                   <Input
