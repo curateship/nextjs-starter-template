@@ -196,6 +196,11 @@ export function BuilderPreviewShell<TBlock extends SelectablePreviewBlock>({
               outline: 2px dotted #3b82f6;
               outline-offset: -2px;
             }
+            .preview-container [data-radix-scroll-area-viewport] > div {
+              display: block !important;
+              min-width: 0 !important;
+              width: 100% !important;
+            }
           `}</style>
         )}
 

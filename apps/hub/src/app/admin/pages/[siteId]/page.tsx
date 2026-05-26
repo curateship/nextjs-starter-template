@@ -20,7 +20,6 @@ import { PageBlockEditorDialog } from "@/components/admin/page-builder/layout/Pa
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -253,35 +252,33 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-hidden border-r bg-background">
-          <ScrollArea className="h-full">
-            <PagePreview
-              blocks={currentPage.blocks}
-              site={site ? {
-                id: site.id,
-                name: site.name,
-                subdomain: site.subdomain,
-                settings: site.settings
-              } : undefined}
-              className="min-h-full"
-              blocksLoading={blocksLoading}
-              allBlocks={currentPage.blocks}
-              selectedBlock={builderState.selectedBlock}
-              onSelectBlock={builderState.setSelectedBlock}
-              onSelectSiteChrome={handleSelectSiteChrome}
-              onUpdateRichTextBody={(blockId, htmlContent) => {
-                const block = currentPage.blocks.find((item) => item.id === blockId)
-                if (!block) return
+          <PagePreview
+            blocks={currentPage.blocks}
+            site={site ? {
+              id: site.id,
+              name: site.name,
+              subdomain: site.subdomain,
+              settings: site.settings
+            } : undefined}
+            className="min-h-full"
+            blocksLoading={blocksLoading}
+            allBlocks={currentPage.blocks}
+            selectedBlock={builderState.selectedBlock}
+            onSelectBlock={builderState.setSelectedBlock}
+            onSelectSiteChrome={handleSelectSiteChrome}
+            onUpdateRichTextBody={(blockId, htmlContent) => {
+              const block = currentPage.blocks.find((item) => item.id === blockId)
+              if (!block) return
 
-                builderState.handleUpdateBlock(blockId, {
-                  content: {
-                    ...block.content,
-                    body: htmlContent,
-                    format: "html",
-                  },
-                })
-              }}
-            />
-          </ScrollArea>
+              builderState.handleUpdateBlock(blockId, {
+                content: {
+                  ...block.content,
+                  body: htmlContent,
+                  format: "html",
+                },
+              })
+            }}
+          />
         </div>
 
         <PageBlockEditorDialog
