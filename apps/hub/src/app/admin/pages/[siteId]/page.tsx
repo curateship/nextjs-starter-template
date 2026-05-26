@@ -252,33 +252,35 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-hidden border-r bg-background">
-          <PagePreview
-            blocks={currentPage.blocks}
-            site={site ? {
-              id: site.id,
-              name: site.name,
-              subdomain: site.subdomain,
-              settings: site.settings
-            } : undefined}
-            className="min-h-full"
-            blocksLoading={blocksLoading}
-            allBlocks={currentPage.blocks}
-            selectedBlock={builderState.selectedBlock}
-            onSelectBlock={builderState.setSelectedBlock}
-            onSelectSiteChrome={handleSelectSiteChrome}
-            onUpdateRichTextBody={(blockId, htmlContent) => {
-              const block = currentPage.blocks.find((item) => item.id === blockId)
-              if (!block) return
+          <div className="h-full overflow-y-auto overflow-x-hidden">
+            <PagePreview
+              blocks={currentPage.blocks}
+              site={site ? {
+                id: site.id,
+                name: site.name,
+                subdomain: site.subdomain,
+                settings: site.settings
+              } : undefined}
+              className="min-h-full"
+              blocksLoading={blocksLoading}
+              allBlocks={currentPage.blocks}
+              selectedBlock={builderState.selectedBlock}
+              onSelectBlock={builderState.setSelectedBlock}
+              onSelectSiteChrome={handleSelectSiteChrome}
+              onUpdateRichTextBody={(blockId, htmlContent) => {
+                const block = currentPage.blocks.find((item) => item.id === blockId)
+                if (!block) return
 
-              builderState.handleUpdateBlock(blockId, {
-                content: {
-                  ...block.content,
-                  body: htmlContent,
-                  format: "html",
-                },
-              })
-            }}
-          />
+                builderState.handleUpdateBlock(blockId, {
+                  content: {
+                    ...block.content,
+                    body: htmlContent,
+                    format: "html",
+                  },
+                })
+              }}
+            />
+          </div>
         </div>
 
         <PageBlockEditorDialog
