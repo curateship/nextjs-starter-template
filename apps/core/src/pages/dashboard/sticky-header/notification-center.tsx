@@ -117,8 +117,8 @@ function NotificationTabs({
   onFilterChange: (filter: NotificationFilter) => void
 }) {
   const tabs: { label: string; value: NotificationFilter }[] = [
-    { label: "View all", value: "all" },
     { label: `Unread (${unreadCount})`, value: "unread" },
+    { label: "View all", value: "all" },
   ]
 
   return (
@@ -150,7 +150,7 @@ export function NotificationCenter({
   onOpenFeedback,
 }: NotificationCenterProps) {
   const [open, setOpen] = React.useState(false)
-  const [filter, setFilter] = React.useState<NotificationFilter>("all")
+  const [filter, setFilter] = React.useState<NotificationFilter>("unread")
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     []
   )
@@ -298,7 +298,7 @@ export function NotificationCenter({
                 >
                   <div className="pt-5">
                     {!item.read_at ? (
-                      <span className="block size-2 rounded-full bg-primary" />
+                      <span className="block size-2 rounded-full bg-red-500" />
                     ) : null}
                   </div>
                   <NotificationAvatar item={item} />

@@ -88,7 +88,7 @@ type ResultForm = {
   website: string
 }
 type ResultSortColumn = "title" | "address" | "rating" | "reviews" | "phone" | "website" | "created"
-type RunSortColumn = "name" | "location" | "limit" | "status"
+type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
 
 const statusLabels = {
@@ -146,6 +146,7 @@ export function GoogleMapsDashboard() {
     if (runSortColumn === "name") return a.name.localeCompare(b.name) * direction
     if (runSortColumn === "location") return aInput.location.localeCompare(bInput.location) * direction
     if (runSortColumn === "limit") return (aInput.maxResults - bInput.maxResults) * direction
+    if (runSortColumn === "amount") return (a.amount - b.amount) * direction
     return a.status.localeCompare(b.status) * direction
   })
   const totalPages = Math.ceil(filtered.length / pageSize)
@@ -290,6 +291,7 @@ export function GoogleMapsDashboard() {
               <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Run Name</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Location</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "limit"} direction={runSortDirection} onClick={() => toggleRunSort("limit")}>Limit</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={runSortColumn === "amount"} direction={runSortDirection} onClick={() => toggleRunSort("amount")}>Amount</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "status"} direction={runSortDirection} onClick={() => toggleRunSort("status")}>Status</TableSortButton></TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -297,7 +299,7 @@ export function GoogleMapsDashboard() {
         }
         isEmpty={visible.length === 0}
         emptyText="No data sources found."
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page,
@@ -322,6 +324,7 @@ export function GoogleMapsDashboard() {
               </TableCell>
               <TableCell column="meta">{input.location}</TableCell>
               <TableCell column="meta">{input.maxResults}</TableCell>
+              <TableCell column="meta">{run.amount}</TableCell>
               <TableCell column="meta"><StatusBadge status={run.status} /></TableCell>
               <TableCell column="meta">
                 <div className="flex items-center gap-1">

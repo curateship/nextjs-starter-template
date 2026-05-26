@@ -80,6 +80,7 @@ export function serializeRun(row: CoreProviderRunConfig): ProviderRunConfigItem 
     name: row.name,
     status: row.status as ProviderRunConfigStatus,
     input: record(row.input),
+    amount: 0,
     created_at: row.createdAt.toISOString(),
   }
 }

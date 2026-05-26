@@ -23,6 +23,7 @@ export type ProviderRunConfigItem = {
   name: string
   status: ProviderRunConfigStatus
   input: Record<string, unknown>
+  amount: number
   created_at: string
 }
 

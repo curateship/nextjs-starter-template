@@ -93,6 +93,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [nodes, setNodes] = useState<AutomationStep[]>([])
   const [journeyIndicators, setJourneyIndicators] = useState<Record<number, AutomationJourneyIndicator>>({})
   const [emailStepStats, setEmailStepStats] = useState<Record<number, EmailStepStats>>({})
+  const [emailStepStatsLoaded, setEmailStepStatsLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -137,7 +138,10 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
   const loadEmailStepStats = useCallback(async () => {
     const { data } = await getAutomationReport(automationId)
-    if (!data) return
+    if (!data) {
+      setEmailStepStatsLoaded(true)
+      return
+    }
     setEmailStepStats(
       Object.fromEntries(
         data.stepStats.map((step) => [
@@ -151,6 +155,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
         ])
       )
     )
+    setEmailStepStatsLoaded(true)
   }, [automationId])
 
   useEffect(() => {
@@ -158,6 +163,9 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     async function loadAutomation() {
       setLoading(true)
+      setEmailStepStatsLoaded(false)
+      setEmailStepStats({})
+      setJourneyIndicators({})
       const { data, steps, error } = await getAutomationById(automationId)
 
       if (cancelled) return
@@ -689,6 +697,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const currentDelayStepId = nodes.find((node, index) => {
     const nextNode = nodes[index + 1]
     return (
+      emailStepStatsLoaded &&
       node.node_type === "delay" &&
       !!journeyIndicators[node.step_order] &&
       nextNode?.node_type === "email" &&

@@ -59,8 +59,8 @@ function NotificationTabs({
   onFilterChange: (filter: NotificationFilter) => void
 }) {
   const tabs: { label: string; value: NotificationFilter }[] = [
-    { label: "View all", value: "all" },
     { label: `Unread (${unreadCount})`, value: "unread" },
+    { label: "View all", value: "all" },
   ]
 
   return (
@@ -101,7 +101,7 @@ function NotificationRow({
     >
       <div className="pt-5">
         {!item.read_at ? (
-          <span className="block size-2 rounded-full bg-primary" />
+          <span className="block size-2 rounded-full bg-red-500" />
         ) : null}
       </div>
       <div className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -144,7 +144,7 @@ export function NotificationCenter() {
   const router = useRouter()
   const { sites, setCurrentSite } = useSiteSwitcher()
   const [open, setOpen] = useState(false)
-  const [filter, setFilter] = useState<NotificationFilter>("all")
+  const [filter, setFilter] = useState<NotificationFilter>("unread")
   const [notifications, setNotifications] = useState<HubNotificationItem[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [nextCursor, setNextCursor] = useState<string | null>(null)

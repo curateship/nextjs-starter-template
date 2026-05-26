@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
@@ -120,7 +120,8 @@ const loadRunsFn = createServerFn({ method: "GET" }).handler(async (): Promise<G
     return { settings: serializeSettings(null), runs: [] }
   }
   const runs = await db.select().from(providerRunConfigs).where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).orderBy(desc(providerRunConfigs.createdAt))
-  return { settings: serializeSettings(await settingsRow(workspace.id)), runs: runs.map(serializeRun) }
+  const amountByRun = await resultCountsByRun(runs.map((run) => run.id))
+  return { settings: serializeSettings(await settingsRow(workspace.id)), runs: runs.map((run) => ({ ...serializeRun(run), amount: amountByRun.get(run.id) ?? 0 })) }
 })
 
 const saveRunFn = createServerFn({ method: "POST" })
@@ -142,7 +143,7 @@ const saveRunFn = createServerFn({ method: "POST" })
       : await db.insert(providerRunConfigs).values({ id: uuid(), workspaceId: workspace.id, providerKey: googleMapsProviderKey, createdAt: updatedAt, ...values }).returning()
 
     if (!row) throw new Error("Run not found.")
-    return { run: serializeRun(row) }
+    return { run: { ...serializeRun(row), amount: await resultCount(row.id) } }
   })
 
 const deleteRunsFn = createServerFn({ method: "POST" })
@@ -314,6 +315,35 @@ async function getGoogleMapsRun(runId: string, workspaceId: string) {
   const [run] = await db.select().from(providerRunConfigs).where(and(eq(providerRunConfigs.id, runId), eq(providerRunConfigs.workspaceId, workspaceId), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).limit(1)
   if (!run) throw new Error("Run not found.")
   return run
+}
+
+async function resultCountsByRun(runIds: string[]) {
+  if (!runIds.length) return new Map<string, number>()
+  const executions = await db.select().from(providerExecutions).where(inArray(providerExecutions.runConfigId, runIds)).orderBy(desc(providerExecutions.createdAt))
+  const latestExecutions = new Map<string, CoreProviderExecution>()
+
+  executions.forEach((execution) => {
+    if (!latestExecutions.has(execution.runConfigId)) latestExecutions.set(execution.runConfigId, execution)
+  })
+
+  const executionRunIds = new Map(Array.from(latestExecutions.values()).map((execution) => [execution.id, execution.runConfigId]))
+  const executionIds = Array.from(executionRunIds.keys())
+  if (!executionIds.length) return new Map<string, number>()
+
+  const rows = await db
+    .select({
+      executionId: providerResults.executionId,
+      amount: sql<number>`count(*)::int`,
+    })
+    .from(providerResults)
+    .where(inArray(providerResults.executionId, executionIds))
+    .groupBy(providerResults.executionId)
+
+  return new Map(rows.map((row) => [executionRunIds.get(row.executionId)!, row.amount]))
+}
+
+async function resultCount(runId: string) {
+  return (await resultCountsByRun([runId])).get(runId) ?? 0
 }
 
 async function importIfReady(execution: CoreProviderExecution, run: CoreProviderRunConfig, token: string) {
