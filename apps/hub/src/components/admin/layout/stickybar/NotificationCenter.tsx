@@ -155,6 +155,7 @@ export function NotificationCenter() {
   const visibleNotifications = filter === "unread"
     ? notifications.filter((item) => !item.read_at)
     : notifications
+  const unreadBadgeLabel = unreadCount > 99 ? "99+" : String(unreadCount)
 
   const loadNotificationRows = useCallback(async (cursor?: string) => {
     if (cursor) {
@@ -264,12 +265,14 @@ export function NotificationCenter() {
           variant="outline"
           size="sm"
           className="relative"
-          aria-label="Notifications"
-          title="Notifications"
+          aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+          title={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 ? (
-            <span className="absolute right-1 top-1 size-3 rounded-full border-2 border-background bg-red-500" />
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+              {unreadBadgeLabel}
+            </span>
           ) : null}
         </Button>
       </DropdownMenuTrigger>

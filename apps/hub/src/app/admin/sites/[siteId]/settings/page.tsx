@@ -48,17 +48,25 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
 
   const isConfigured = integration !== null
   const stripeMode = (formValues.mode || integration?.config?.mode) === "sandbox" ? "Sandbox" : "Live"
+  const configuredSensitiveFields = integration?.configuredSensitiveFields ?? []
+  const hasSavedWebhookSecret = configuredSensitiveFields.includes("webhook_secret")
+  const enteredWebhookSecret = formValues.webhook_secret || ""
   const savedWebhookSecret =
     typeof integration?.config?.webhook_secret === "string" ? integration.config.webhook_secret : ""
+  const webhookSecret = savedWebhookSecret || enteredWebhookSecret
   const webhookSlug =
     entry.type === "notion_marketplace" ? "notion-marketplace" : ""
   const webhookUrl =
-    webhookSlug && savedWebhookSecret && webhookBaseUrl
-      ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(savedWebhookSecret)}`
+    webhookSlug && webhookSecret && webhookBaseUrl
+      ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=${encodeURIComponent(webhookSecret)}`
       : ""
   const webhookUrlPreview = webhookUrl
     ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=********`
     : ""
+  const savedWebhookUrlPreview =
+    webhookSlug && hasSavedWebhookSecret && webhookBaseUrl
+      ? `${webhookBaseUrl}/api/webhooks/${webhookSlug}?siteId=${encodeURIComponent(siteId)}&secret=********`
+      : ""
 
   useEffect(() => {
     const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
@@ -154,13 +162,25 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
                 <Input
                   id={`${entry.type}-${field.key}`}
                   type={field.type === "password" && !revealedFields.has(field.key) ? "password" : field.type}
-                  placeholder={field.placeholder}
+                  placeholder={
+                    field.type === "password" && configuredSensitiveFields.includes(field.key)
+                      ? "********"
+                      : field.placeholder
+                  }
                   value={formValues[field.key] || ""}
                   onChange={(e) => onFormChange(entry.type, field.key, e.target.value)}
-                  className={field.type === "password" ? "pr-10" : ""}
+                  className={
+                    field.type === "password"
+                      ? formValues[field.key]
+                        ? "pr-10"
+                        : configuredSensitiveFields.includes(field.key)
+                          ? "pr-16"
+                          : ""
+                      : ""
+                  }
                 />
               )}
-              {field.type === "password" && (
+              {field.type === "password" && formValues[field.key] ? (
                 <button
                   type="button"
                   onClick={() => toggleReveal(field.key)}
@@ -168,7 +188,11 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
                 >
                   {revealedFields.has(field.key) ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
-              )}
+              ) : field.type === "password" && configuredSensitiveFields.includes(field.key) ? (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">
+                  Saved
+                </span>
+              ) : null}
             </div>
             {entry.type === "stripe" && field.key === "mode" && (
               <p className="text-sm text-muted-foreground">
@@ -179,12 +203,18 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
         ))}
 
         {entry.type === "notion_marketplace" && (
-          <div className="space-y-2 border-t pt-4">
+          <div className="space-y-2">
             <Label htmlFor={`${entry.type}-webhook-url`}>Webhook URL</Label>
             <div className="flex gap-2">
               <Input
                 id={`${entry.type}-webhook-url`}
-                value={webhookUrlPreview || "Save a webhook secret to generate the URL"}
+                value={
+                  webhookUrlPreview ||
+                  savedWebhookUrlPreview ||
+                  (hasSavedWebhookSecret
+                    ? "********"
+                    : "Save a webhook secret to generate the URL")
+                }
                 readOnly
                 className="font-mono text-xs"
               />

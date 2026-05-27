@@ -28,6 +28,7 @@ export interface SiteIntegration {
   siteId: string
   integrationType: string
   config: Record<string, any>
+  configuredSensitiveFields: string[]
   createdAt: Date
   updatedAt: Date
 }
@@ -73,6 +74,14 @@ function maskSensitiveConfig(integrationType: string, config: Record<string, any
   return masked
 }
 
+function getConfiguredSensitiveFields(integrationType: string, config: Record<string, any>): string[] {
+  const sensitiveKeys = SENSITIVE_FIELDS[integrationType as IntegrationType] || []
+  return sensitiveKeys.filter((key) => {
+    const value = config[key]
+    return typeof value === 'string' ? value.trim() !== '' : value != null
+  })
+}
+
 /**
  * Get a specific integration for a site. Sensitive config values are omitted.
  */
@@ -96,6 +105,10 @@ export async function getSiteIntegration(
 
     return {
       ...result,
+      configuredSensitiveFields: getConfiguredSensitiveFields(
+        result.integrationType,
+        result.config as Record<string, any>
+      ),
       config: maskSensitiveConfig(result.integrationType, result.config as Record<string, any>),
     } as SiteIntegration
   } catch (error) {
@@ -121,6 +134,10 @@ export async function getSiteIntegrations(
 
     return results.map((row) => ({
       ...row,
+      configuredSensitiveFields: getConfiguredSensitiveFields(
+        row.integrationType,
+        row.config as Record<string, any>
+      ),
       config: maskSensitiveConfig(row.integrationType, row.config as Record<string, any>),
     })) as unknown as SiteIntegration[]
   } catch (error) {
@@ -176,6 +193,10 @@ export async function createOrUpdateIntegration(
 
     return {
       ...result,
+      configuredSensitiveFields: getConfiguredSensitiveFields(
+        result.integrationType,
+        result.config as Record<string, any>
+      ),
       config: maskSensitiveConfig(result.integrationType, result.config as Record<string, any>),
     } as SiteIntegration
   } catch (error) {
