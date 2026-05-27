@@ -381,7 +381,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="heroImageCustomSize"
-                  checked={!!config.heroImageSize}
+                  checked={config.heroImageSize != null}
                   onCheckedChange={(checked) => onConfigChange('heroImageSize', checked ? 600 : null)}
                 />
                 <Label htmlFor="heroImageCustomSize" className="text-sm cursor-pointer">Custom size</Label>

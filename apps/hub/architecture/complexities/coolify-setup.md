@@ -51,7 +51,8 @@ When a user saves a custom domain in Hub:
 3. If verified, Hub calls Coolify.
 4. Coolify adds `https://domain.com`.
 5. For root domains, Coolify also adds `https://www.domain.com`.
-6. The site record is saved with the custom domain.
+6. Better Auth trusts login requests from verified custom domains by resolving the request host back to an active Hub site.
+7. The site record is saved with the custom domain.
 
 The DNS records still need to exist in Cloudflare. Hub does not create customer DNS records unless a separate Cloudflare integration is built for that domain owner.
 

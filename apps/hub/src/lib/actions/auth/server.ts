@@ -155,6 +155,60 @@ async function resolveSiteFromRequest(source?: Request | AuthRequestContext): Pr
   return site
 }
 
+function normalizeTrustedOrigin(value?: string | null) {
+  if (!value) return null
+
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
+function getConfiguredTrustedOrigins() {
+  const values = [
+    process.env.BETTER_AUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.BETTER_AUTH_TRUSTED_ORIGINS,
+  ]
+
+  const origins = new Set<string>()
+  for (const value of values) {
+    value?.split(',').forEach((entry) => {
+      const origin = normalizeTrustedOrigin(entry.trim())
+      if (origin) origins.add(origin)
+    })
+  }
+
+  return origins
+}
+
+async function getTrustedOrigins(request?: Request) {
+  const origins = getConfiguredTrustedOrigins()
+
+  if (!request) {
+    return Array.from(origins)
+  }
+
+  const requestOrigin = normalizeTrustedOrigin(request.headers.get('origin'))
+  if (!requestOrigin) {
+    return Array.from(origins)
+  }
+
+  const originHost = normalizeRequestHost({ headers: new Headers({ host: new URL(requestOrigin).host }) })
+  const requestHost = normalizeRequestHost(request)
+  if (!originHost || originHost !== requestHost) {
+    return Array.from(origins)
+  }
+
+  const site = await resolveSiteFromRequest(request)
+  if (site) {
+    origins.add(requestOrigin)
+  }
+
+  return Array.from(origins)
+}
+
 function splitContactName(name?: string | null) {
   const normalizedName = name?.trim()
 
@@ -370,6 +424,7 @@ export async function getSessionCookieCacheVersion(
 
 export const auth = betterAuth({
   database: pool,
+  trustedOrigins: getTrustedOrigins,
   databaseHooks: {
     user: {
       create: {

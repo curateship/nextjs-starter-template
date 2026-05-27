@@ -168,7 +168,7 @@ export function StylingSettingsCard({
                     className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => setShowFaviconPicker(true)}
                   >
-                    <img src={favicon} alt="Favicon preview" className="w-16 h-16 object-cover" />
+                    <img src={favicon} alt="Favicon preview" className="w-16 h-16 object-contain" />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
                       <div className="text-white text-center">
                         <ImageIcon className="mx-auto h-4 w-4 mb-1" />
