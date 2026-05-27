@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils/tailwind"
 const cardVariants = cva("text-card-foreground rounded-md", {
   variants: {
     variant: {
-      default: "bg-card shadow border-transparent ring-1 ring-foreground/5",
+      default: "bg-card border-transparent ring-1 ring-foreground/7",
       soft: "bg-foreground/5",
       mixed: "bg-foreground/5 border border-foreground.5"
     }

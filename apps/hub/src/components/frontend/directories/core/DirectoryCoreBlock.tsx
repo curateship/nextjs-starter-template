@@ -97,7 +97,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
       href={href}
       target={isExternalHref(href) ? "_blank" : undefined}
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
-      className="flex min-h-14 items-center gap-3 border-t px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+      className="flex min-h-14 items-center gap-3 px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
     >
       <Icon className="h-5 w-5 shrink-0" />
       <span className="min-w-0 wrap-break-word text-base leading-snug">{label}</span>

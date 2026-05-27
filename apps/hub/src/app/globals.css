@@ -167,11 +167,6 @@ button:not(:disabled),
   --font-sans: var(--admin-font-sans, system-ui, sans-serif);
 }
 
-.admin-layout [data-slot="card"] {
-  border: 1px solid var(--border);
-  box-shadow: none;
-}
-
 .admin-layout body {
   font-family: var(--admin-font-secondary, system-ui, sans-serif);
 }

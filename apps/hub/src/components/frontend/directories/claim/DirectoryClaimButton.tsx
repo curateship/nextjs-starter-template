@@ -138,7 +138,7 @@ export function DirectoryClaimButton({
     return (
       <a
         href={buildAuthHref(authPath || "/", redirectPath)}
-        className="flex min-h-14 items-center gap-3 border-t px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+        className="flex min-h-14 items-center gap-3 px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
       >
         <Building2 className="h-5 w-5 shrink-0" />
         <span className="min-w-0 wrap-break-word text-base leading-snug">{buttonText}</span>
@@ -150,7 +150,7 @@ export function DirectoryClaimButton({
     return (
       <a
         href={editPath}
-        className="flex min-h-14 items-center gap-3 border-t px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+        className="flex min-h-14 items-center gap-3 px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
       >
         <CheckCircle2 className="h-5 w-5 shrink-0" />
         <span className="min-w-0 wrap-break-word text-base leading-snug">{approvedText}</span>
@@ -167,10 +167,10 @@ export function DirectoryClaimButton({
   return (
     <>
       {notice ? (
-        <div className="border-t px-6 py-3 text-sm text-muted-foreground">{notice}</div>
+        <div className="px-6 py-3 text-sm text-muted-foreground">{notice}</div>
       ) : null}
       {disabledText ? (
-        <div className="flex min-h-14 items-center gap-3 border-t px-6 py-3 text-muted-foreground">
+        <div className="flex min-h-14 items-center gap-3 px-6 py-3 text-muted-foreground">
           <Building2 className="h-5 w-5 shrink-0" />
           <span className="min-w-0 wrap-break-word text-base leading-snug">{disabledText}</span>
         </div>
@@ -178,7 +178,7 @@ export function DirectoryClaimButton({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex min-h-14 w-full items-center gap-3 border-t px-6 py-3 text-left text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+          className="flex min-h-14 w-full items-center gap-3 px-6 py-3 text-left text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
         >
           <Building2 className="h-5 w-5 shrink-0" />
           <span className="min-w-0 wrap-break-word text-base leading-snug">{buttonText}</span>
