@@ -1,8 +1,8 @@
 # Architecture Overview
 
-`core` is a scaffolding app.
+`core` is the data-processing app.
 
-Its job is to be the base UI for future admin and internal apps in this repo, so new products start from a working shell instead of rebuilding layout, navigation, theme, and shared UI from scratch.
+It owns extraction, provider runs, normalized public data, archives, and future workspace data-server routing. Hub owns public frontend rendering and reads only display-ready data from Core APIs.
 
 ## Principles
 
@@ -21,6 +21,15 @@ Its job is to be the base UI for future admin and internal apps in this repo, so
 - theme and font presets
 - shared UI primitives
 
+## What Core Data Owns
+
+- provider settings and run configs
+- provider executions and raw imported results
+- normalized public directory records
+- public publish status
+- workspace Hub read-token generation
+- server-read APIs for Hub
+
 ## Navigation Model
 
 - The sticky header top-left area is local navigation for the current context.
@@ -32,13 +41,14 @@ Its job is to be the base UI for future admin and internal apps in this repo, so
 
 ## What The Shell Does Not Own
 
-- app-specific business logic
-- product workflows
-- domain models
-- backend architecture decisions
+- public site themes and rendering
+- Hub page, post, product, category, event, or directory builder state
+- direct public website delivery
 
 ## Current Baseline
 
-Today, `core` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, and a config-driven shell model through `ShellConfig`.
+Today, `core` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, provider data-source tools, and a public directory read API.
 
-The current placeholder routes and demo content exist to prove the shell works. Future apps should keep the shell frame and replace the content with real product features.
+Provider data can be archived in raw result tables, normalized into public directory records, and exposed to Hub through token-protected server-read endpoints.
+
+Hub read tokens are generated in Core workspace settings and stored as hashes. The raw token is shown only when generated, then pasted into Hub's Data Source settings.

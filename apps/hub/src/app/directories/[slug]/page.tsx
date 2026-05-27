@@ -16,6 +16,10 @@ import {
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
+import {
+  getCoreDirectoryBySlugForSite,
+  mapCoreDirectoryToHubDirectory,
+} from "@/lib/actions/directories/core-directory-client"
 import { getGoogleMapsConfig } from "@/lib/actions/integrations/config-helpers"
 import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
 
@@ -68,6 +72,33 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
 
   if (!siteSuccess || !site) {
     notFound()
+  }
+
+  const coreDirectoryResult = await getCoreDirectoryBySlugForSite(site.id, slug)
+  if (coreDirectoryResult.enabled) {
+    if (!coreDirectoryResult.data) {
+      notFound()
+    }
+
+    const directoryWithBlocks = mapCoreDirectoryToHubDirectory(coreDirectoryResult.data) as any
+    const blocks = directoryWithBlocks.blocks || []
+    const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
+    const googleMapsConfig = needsGoogleMapsConfig
+      ? await getGoogleMapsConfig(site.id)
+      : null
+
+    return (
+      <>
+        <StructuredData site={site} content={directoryWithBlocks} contentType="directory" />
+        <DirectoryBlockRenderer
+          site={site}
+          directory={directoryWithBlocks}
+          breadcrumbs={[]}
+          googleMapsEmbedApiKey={googleMapsConfig?.apiKey || ''}
+          claimAuthPath={null}
+        />
+      </>
+    )
   }
 
   const [directory] = await db
@@ -183,6 +214,23 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
       return {
         title: 'Directory Not Found',
         description: 'The requested directory could not be found.',
+      }
+    }
+
+    const coreDirectoryResult = await getCoreDirectoryBySlugForSite(site.id, slug)
+    if (coreDirectoryResult.enabled) {
+      if (!coreDirectoryResult.data) {
+        return {
+          title: 'Directory Not Found',
+          description: 'The requested directory could not be found.',
+        }
+      }
+
+      const directory = mapCoreDirectoryToHubDirectory(coreDirectoryResult.data)
+      return {
+        title: `${directory.title} | ${site.name}`,
+        description: directory.meta_description || `${directory.title} on ${site.name}`,
+        ...buildSeoMetadata(site, directory as any, 'directory', `/directories/${slug}`),
       }
     }
 

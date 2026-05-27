@@ -42,5 +42,6 @@ export type ProviderResultItem = {
   external_id: string | null
   title: string
   data: Record<string, unknown>
+  public_status: "draft" | "published" | null
   created_at: string
 }

@@ -9,9 +9,11 @@ import {
   providerSettings,
   providerResults,
   providerRunConfigs,
+  publicDirectories,
   type CoreProviderExecution,
   type CoreProviderRunConfig,
 } from "@/server/schema"
+import { createPublicDirectoryDraftValues } from "@/server/public-directories"
 import { findCurrentUser, now, uuid } from "@/server/security"
 import {
   getOrCreateCurrentWorkspace,
@@ -38,6 +40,7 @@ import {
   runPayloadSchema,
   serializeExecution,
   serializeResult,
+  serializeResultWithPublicStatus,
   serializeRun,
   serializeSettings,
   settingsPayloadSchema,
@@ -81,6 +84,11 @@ const resultPayloadSchema = z.object({
   reviewCount: z.number().int().min(0).nullable().optional(),
   phone: z.string().trim().max(100).optional(),
   website: z.string().trim().max(1000).optional(),
+})
+const resultPublicStatusSchema = z.object({
+  runId: z.string().min(1),
+  resultId: z.string().min(1),
+  status: z.enum(["draft", "published"]),
 })
 
 export function providerError(error: unknown) {
@@ -230,13 +238,23 @@ const loadRunFn = createServerFn({ method: "GET" })
     const executions = await db.select().from(providerExecutions).where(eq(providerExecutions.runConfigId, run.id)).orderBy(desc(providerExecutions.createdAt)).limit(1)
     const latest = executions[0] ?? null
     const results = latest
-      ? await db.select().from(providerResults).where(eq(providerResults.executionId, latest.id))
+      ? await db
+          .select({
+            result: providerResults,
+            publicStatus: publicDirectories.status,
+          })
+          .from(providerResults)
+          .leftJoin(publicDirectories, eq(publicDirectories.sourceResultId, providerResults.id))
+          .where(eq(providerResults.executionId, latest.id))
       : []
 
     return {
       run: serializeRun(run),
       latest_execution: latest ? serializeExecution(latest) : null,
-      results: results.map(serializeResult),
+      results: results.map((row) => serializeResultWithPublicStatus(
+        row.result,
+        row.publicStatus as "draft" | "published" | null
+      )),
     }
   })
 
@@ -269,6 +287,24 @@ const updateResultFn = createServerFn({ method: "POST" })
       },
     }).where(eq(providerResults.id, result.id)).returning()
 
+    const updatedAt = now()
+    const publicValues = createPublicDirectoryDraftValues({
+      createdAt: updatedAt,
+      externalId: updated.externalId,
+      id: uuid(),
+      sourceResultId: updated.id,
+      title: updated.title,
+      data: record(updated.data),
+      workspaceId: run.workspaceId,
+    })
+    await db.update(publicDirectories).set({
+      title: publicValues.title,
+      metaDescription: publicValues.metaDescription,
+      featuredImage: publicValues.featuredImage,
+      publicData: publicValues.publicData,
+      updatedAt,
+    }).where(eq(publicDirectories.sourceResultId, updated.id))
+
     return { result: serializeResult(updated) }
   })
 
@@ -278,8 +314,73 @@ const deleteResultsFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const run = await getGoogleMapsRun(data.runId, workspace.id)
-    const deleted = await db.delete(providerResults).where(and(eq(providerResults.runConfigId, run.id), inArray(providerResults.id, data.resultIds))).returning({ id: providerResults.id })
+    const ownedResults = await db
+      .select({ id: providerResults.id })
+      .from(providerResults)
+      .where(and(eq(providerResults.runConfigId, run.id), inArray(providerResults.id, data.resultIds)))
+    const ownedResultIds = ownedResults.map((result) => result.id)
+    if (!ownedResultIds.length) return { deleted: 0 }
+
+    const deleted = await db.transaction(async (tx) => {
+      await tx.delete(publicDirectories).where(inArray(publicDirectories.sourceResultId, ownedResultIds))
+      return tx.delete(providerResults).where(inArray(providerResults.id, ownedResultIds)).returning({ id: providerResults.id })
+    })
     return { deleted: deleted.length }
+  })
+
+const updateResultPublicStatusFn = createServerFn({ method: "POST" })
+  .inputValidator(resultPublicStatusSchema)
+  .handler(async ({ data }): Promise<{ result: ProviderResultItem }> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
+    const [result] = await db.select().from(providerResults).where(and(eq(providerResults.id, data.resultId), eq(providerResults.runConfigId, run.id))).limit(1)
+    if (!result) throw new Error("Result not found.")
+
+    const updatedAt = now()
+    const values = createPublicDirectoryDraftValues({
+      createdAt: updatedAt,
+      externalId: result.externalId,
+      id: uuid(),
+      sourceResultId: result.id,
+      title: result.title,
+      data: record(result.data),
+      workspaceId: run.workspaceId,
+    })
+
+    const [existing] = await db.select({ id: publicDirectories.id })
+      .from(publicDirectories)
+      .where(eq(publicDirectories.sourceResultId, result.id))
+      .limit(1)
+
+    if (existing) {
+      await db.update(publicDirectories).set({
+        status: data.status,
+        title: values.title,
+        metaDescription: values.metaDescription,
+        featuredImage: values.featuredImage,
+        publicData: values.publicData,
+        updatedAt,
+      }).where(eq(publicDirectories.id, existing.id))
+    } else {
+      await db
+        .insert(publicDirectories)
+        .values({ ...values, status: data.status })
+        .onConflictDoUpdate({
+          target: [publicDirectories.workspaceId, publicDirectories.slug],
+          set: {
+            sourceResultId: sql`excluded.source_result_id`,
+            status: data.status,
+            title: sql`excluded.title`,
+            metaDescription: sql`excluded.meta_description`,
+            featuredImage: sql`excluded.featured_image`,
+            publicData: sql`excluded.public_data`,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        })
+    }
+
+    return { result: serializeResultWithPublicStatus(result, data.status) }
   })
 
 export const loadProviderSettings = () => loadSettingsFn()
@@ -292,6 +393,7 @@ export const refreshGoogleMapsExecution = (executionId: string) => refreshExecut
 export const loadGoogleMapsRun = (runId: string) => loadRunFn({ data: { runId } })
 export const updateGoogleMapsResult = (data: z.infer<typeof resultPayloadSchema>) => updateResultFn({ data })
 export const deleteGoogleMapsResults = (runId: string, resultIds: string[]) => deleteResultsFn({ data: { runId, resultIds } })
+export const updateGoogleMapsResultPublicStatus = (data: z.infer<typeof resultPublicStatusSchema>) => updateResultPublicStatusFn({ data })
 
 async function settingsRow(workspaceId: string) {
   const [row] = await db.select().from(providerSettings).where(and(eq(providerSettings.workspaceId, workspaceId), eq(providerSettings.providerKey, apifyProviderKey))).limit(1)
@@ -362,6 +464,30 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
   return db.transaction(async (tx) => {
     await tx.delete(providerResults).where(eq(providerResults.executionId, execution.id))
     if (rows.length) await tx.insert(providerResults).values(rows)
+    if (rows.length) {
+      await tx
+        .insert(publicDirectories)
+        .values(rows.map((row) => createPublicDirectoryDraftValues({
+          createdAt,
+          externalId: row.externalId,
+          id: uuid(),
+          sourceResultId: row.id,
+          title: row.title,
+          data: row.data,
+          workspaceId: run.workspaceId,
+        })))
+        .onConflictDoUpdate({
+          target: [publicDirectories.workspaceId, publicDirectories.slug],
+          set: {
+            sourceResultId: sql`excluded.source_result_id`,
+            title: sql`excluded.title`,
+            metaDescription: sql`excluded.meta_description`,
+            featuredImage: sql`excluded.featured_image`,
+            publicData: sql`excluded.public_data`,
+            updatedAt: sql`excluded.updated_at`,
+          },
+        })
+    }
     const [updated] = await tx.update(providerExecutions).set({
       stats: { importedResults: rows.length },
       updatedAt: now(),

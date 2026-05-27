@@ -20,6 +20,7 @@ const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
+  publicReadTokenHash?: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
@@ -280,6 +281,9 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
     return {
       icon: isWorkspaceIcon(settings.icon) ? settings.icon : fallback.icon,
       favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
+      publicReadTokenHash: isTokenHash(settings.publicReadTokenHash)
+        ? settings.publicReadTokenHash
+        : undefined,
       topNavigation: Array.isArray(settings.topNavigation)
         ? settings.topNavigation
         : fallback.topNavigation,
@@ -298,7 +302,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
 function cleanWorkspaceSettings(
   settings: Partial<WorkspaceSettings>
 ): WorkspaceSettings {
-  return {
+  const cleaned: WorkspaceSettings = {
     icon: isWorkspaceIcon(settings.icon)
       ? settings.icon
       : DEFAULT_WORKSPACE_ICON,
@@ -311,6 +315,12 @@ function cleanWorkspaceSettings(
       : createDefaultTopRightNavigation(),
     sections: Array.isArray(settings.sections) ? settings.sections : [],
   }
+
+  if (isTokenHash(settings.publicReadTokenHash)) {
+    cleaned.publicReadTokenHash = settings.publicReadTokenHash
+  }
+
+  return cleaned
 }
 
 function defaultWorkspaceSettings(): WorkspaceSettings {
@@ -325,4 +335,8 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
 
 function isWorkspaceIcon(value: unknown): value is IconKey {
   return typeof value === "string" && value in iconMeta
+}
+
+function isTokenHash(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value)
 }

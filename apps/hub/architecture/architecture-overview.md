@@ -90,6 +90,13 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 6. Site-facing users are global Better Auth users linked to sites through `site_memberships`; site role/status/activity live on that join table, not on the global user row
 7. Admin notifications are stored per `super_admin` recipient in `hub_notifications`; event creators insert one row per current super admin so read state stays per account.
 
+**Core-backed directory data:**
+- Hub can render directory pages from Core when a site has the Core Directory integration configured.
+- Core owns extraction, archive rows, normalized public directory records, and publish status.
+- Hub stores only the per-site Core API URL, workspace ID, and encrypted read token.
+- Public directory routes ask Core for display-ready published data by slug, then render it through the existing directory renderer.
+- If a site has no Core Directory integration, Hub keeps using its own `directory` table.
+
 **Frontend slug resolution:**
 - Public page-builder pages own the normal frontend root slug space.
 - Account-page-builder pages require an existing active site membership and resolve only under `/account/*`.

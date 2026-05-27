@@ -351,6 +351,48 @@ export const providerResults = pgTable(
   ]
 )
 
+export const publicDirectories = pgTable(
+  "public_directories",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    sourceResultId: varchar("source_result_id", { length: 36 }).references(
+      () => providerResults.id,
+      { onDelete: "set null" }
+    ),
+    slug: varchar("slug", { length: 100 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    title: varchar("title", { length: 255 }).notNull(),
+    metaDescription: text("meta_description"),
+    featuredImage: text("featured_image"),
+    publicData: jsonb("public_data").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    unique("public_directories_workspace_slug_unique").on(
+      table.workspaceId,
+      table.slug
+    ),
+    check(
+      "public_directories_status_check",
+      sql`${table.status} in ('draft', 'published')`
+    ),
+    index("ix_public_directories_workspace_status_slug").on(
+      table.workspaceId,
+      table.status,
+      table.slug
+    ),
+    index("ix_public_directories_workspace_updated").on(
+      table.workspaceId,
+      table.updatedAt
+    ),
+    unique("public_directories_source_result_id_unique").on(table.sourceResultId),
+  ]
+)
+
 export type CoreUser = typeof users.$inferSelect
 export type CoreWorkspace = typeof workspaces.$inferSelect
 export type CoreMedia = typeof media.$inferSelect
@@ -359,6 +401,7 @@ export type CoreProviderSettings = typeof providerSettings.$inferSelect
 export type CoreProviderRunConfig = typeof providerRunConfigs.$inferSelect
 export type CoreProviderExecution = typeof providerExecutions.$inferSelect
 export type CoreProviderResult = typeof providerResults.$inferSelect
+export type CorePublicDirectory = typeof publicDirectories.$inferSelect
 export type CoreFeedback = typeof feedback.$inferSelect
 export type CoreFeedbackComment =
   typeof feedbackComments.$inferSelect

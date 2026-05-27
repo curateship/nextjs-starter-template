@@ -8,6 +8,7 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
+  UploadCloudIcon,
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
@@ -61,6 +62,7 @@ import {
   providerError,
   startGoogleMapsRun,
   updateGoogleMapsResult,
+  updateGoogleMapsResultPublicStatus,
 } from "@/providers/google-maps/api"
 import { parseRunInput } from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
@@ -614,6 +616,22 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     }
   }
 
+  const updatePublicStatus = async (result: ProviderResultItem) => {
+    const nextStatus = result.public_status === "published" ? "draft" : "published"
+    setMessage(null)
+    try {
+      await updateGoogleMapsResultPublicStatus({
+        runId,
+        resultId: result.id,
+        status: nextStatus,
+      })
+      await load()
+      setMessage({ tone: "success", text: nextStatus === "published" ? "Result published." : "Result unpublished." })
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+    }
+  }
+
   return (
     <div className="w-full pb-8">
       <DashboardTable
@@ -654,6 +672,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <TableHead column="preview" className="w-64 max-w-64"><TableSortButton active={sortColumn === "address"} direction={sortDirection} onClick={() => toggleSort("address")}>Address</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "rating"} direction={sortDirection} onClick={() => toggleSort("rating")}>Rating</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "reviews"} direction={sortDirection} onClick={() => toggleSort("reviews")}>Reviews</TableSortButton></TableHead>
+              <TableHead column="meta">Public</TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "phone"} direction={sortDirection} onClick={() => toggleSort("phone")}>Phone</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "website"} direction={sortDirection} onClick={() => toggleSort("website")}>Website</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>Date added</TableSortButton></TableHead>
@@ -663,7 +682,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         }
         isEmpty={results.length === 0}
         emptyText="No results found."
-        emptyColSpan={9}
+        emptyColSpan={10}
         footer={{
           type: "pagination",
           page,
@@ -689,11 +708,19 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <TableCell column="preview" className="w-64 max-w-64 truncate">{locationText(result.data)}</TableCell>
               <TableCell column="meta">{typeof result.data.rating === "number" ? result.data.rating : "Unknown"}</TableCell>
               <TableCell column="meta">{typeof result.data.reviewCount === "number" ? result.data.reviewCount : "Unknown"}</TableCell>
+              <TableCell column="meta">
+                <Badge variant={result.public_status === "published" ? "default" : "secondary"}>
+                  {result.public_status === "published" ? "Published" : "Draft"}
+                </Badge>
+              </TableCell>
               <TableCell column="meta">{text(result.data.phone) ?? "Unknown"}</TableCell>
               <TableCell column="meta">{websiteHref ? <Button asChild variant="outline" size="sm" className="h-8 sm:h-9"><a href={websiteHref} target="_blank" rel="noopener noreferrer">Visit</a></Button> : "None"}</TableCell>
               <TableCell column="meta">{dateFormatter.format(new Date(result.created_at))}</TableCell>
               <TableCell column="meta">
                 <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon-sm" onClick={() => void updatePublicStatus(result)} aria-label={`${result.public_status === "published" ? "Unpublish" : "Publish"} ${result.title}`}>
+                    <UploadCloudIcon className="size-4" />
+                  </Button>
                   <Button variant="ghost" size="icon-sm" onClick={() => editResult(result)} aria-label={`Edit ${result.title}`}>
                     <SettingsIcon className="size-4" />
                   </Button>
