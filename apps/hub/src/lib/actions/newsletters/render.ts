@@ -193,7 +193,7 @@ export function renderNewsletterBlockHtml(block: NewsletterRenderBlock, options?
       let inner = ''
 
       if (companyName) inner += `<p style="margin:0 0 4px 0;font-weight:bold;">${escapeHtml(companyName)}</p>`
-      if (companyAddress) inner += `<p style="margin:0 0 12px 0;">${escapeHtml(companyAddress)}</p>`
+      if (companyAddress) inner += `<p style="margin:0 0 12px 0;" class="unstyle-auto-detected-links">${escapeHtml(companyAddress)}</p>`
       if (showUnsubscribe) inner += `<p style="margin:0;"><a href="{{unsubscribe_url}}" style="color:#999999;text-decoration:underline;">Unsubscribe</a></p>`
 
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:20px;text-align:${align};font-family:Arial,sans-serif;font-size:12px;color:#999999;">${inner}</td></tr></table>`
@@ -210,5 +210,5 @@ export function generateEmailHtml(blocks: NewsletterRenderBlock[], maxWidth: num
     .map((blockHtml) => `<tr><td>${blockHtml}</td></tr>`)
     .join('')
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><style>@media only screen and (max-width:${maxWidth + 20}px){.email-container{width:100%!important;}}</style></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;"><center><!--[if mso]><table role="presentation" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]--><table role="presentation" class="email-container" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">${wrappedBlocks}</table><!--[if mso]></td></tr></table><![endif]--></center></body></html>`
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="format-detection" content="address=no"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><style>@media only screen and (max-width:${maxWidth + 20}px){.email-container{width:100%!important;}}.unstyle-auto-detected-links a[x-apple-data-detectors],.unstyle-auto-detected-links a{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-family:inherit!important;font-weight:inherit!important;line-height:inherit!important;}</style></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;"><center><!--[if mso]><table role="presentation" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]--><table role="presentation" class="email-container" width="${maxWidth}" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">${wrappedBlocks}</table><!--[if mso]></td></tr></table><![endif]--></center></body></html>`
 }

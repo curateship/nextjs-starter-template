@@ -123,6 +123,7 @@ export function DirectoryBlockRenderer({
       "data-block-id": block.id,
       "data-block-type": block.type,
       className: cn(
+        "shadow-none",        
         className,
         isStickyBlock(block) && "lg:sticky lg:self-start",
         isStickyBlock(block) && (hasFixedNavigation ? "lg:top-28" : "lg:top-10")
