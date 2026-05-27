@@ -113,10 +113,10 @@ export function WorkspaceSwitcher({
     <>
       <SidebarMenu>
         <SidebarMenuItem>
-          <div className="relative flex min-h-8 items-center py-2">
+          <div className="flex min-h-8 items-center gap-2 py-2">
             <Link
               to="/"
-              className="flex size-8 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg"
+              className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center"
             >
               <WorkspaceLogo
                 favicon={activeFavicon}
@@ -124,7 +124,7 @@ export function WorkspaceSwitcher({
                 name={activeWorkspaceName}
               />
             </Link>
-            <div className="absolute right-0 left-10 flex min-w-0 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
+            <div className="flex min-w-0 flex-1 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
               <Link
                 to="/"
                 className="grid min-w-0 flex-1 text-left text-sm leading-tight"
@@ -174,7 +174,7 @@ export function WorkspaceSwitcher({
                         onSelect={() => void handleSwitch(workspace.id)}
                         className="gap-2 p-2"
                       >
-                        <div className="flex size-6 items-center justify-center overflow-hidden rounded-md border border-border">
+                        <div className="flex h-6 min-w-6 shrink-0 items-center justify-center border-border">
                           {busy ? (
                             <Loader2Icon className="size-4 animate-spin" />
                           ) : (
@@ -294,7 +294,7 @@ function WorkspaceLogo({
       <img
         src={favicon}
         alt={`${name || "Workspace"} favicon`}
-        className="h-full w-full object-cover"
+        className="h-full w-auto object-contain"
       />
     )
   }

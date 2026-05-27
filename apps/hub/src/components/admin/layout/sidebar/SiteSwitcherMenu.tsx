@@ -30,7 +30,7 @@ const SiteFavicon = React.memo(function SiteFavicon({ favicon, name }: { favicon
         alt={`${name} favicon`}
         width={32}
         height={32}
-        className="size-8 object-cover rounded-lg p-0.5"
+        className="h-8 w-auto object-contain p-0.5"
       />
     )
   }
@@ -88,14 +88,14 @@ export function SiteSwitcherMenu() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="relative flex min-h-8 items-center py-2">
+        <div className="flex min-h-8 items-center gap-2 py-2">
           <Link
             href={dashboardHref}
-            className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+            className="flex h-8 shrink-0 items-center justify-center"
           >
             <SiteFavicon favicon={currentSite?.settings?.favicon} name={currentSite?.name} />
           </Link>
-          <div className="absolute inset-y-0 left-10 right-0 flex min-w-0 items-center overflow-hidden whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:pointer-events-none">
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:pointer-events-none">
             <Link href={dashboardHref} className="grid min-w-0 flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">
                 {currentSite ? currentSite.name : "Select Site"}
@@ -132,12 +132,12 @@ export function SiteSwitcherMenu() {
                     }}
                     className="gap-2 p-2"
                   >
-                    <div className="flex size-6 items-center justify-center overflow-hidden rounded-md">
+                    <div className="flex h-6 shrink-0 items-center justify-center">
                       {site.settings?.favicon ? (
                         <img
                           src={site.settings.favicon}
                           alt={`${site.name} favicon`}
-                          className="size-6 rounded-md object-cover"
+                          className="h-6 w-auto object-contain"
                         />
                       ) : (
                         <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">

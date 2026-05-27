@@ -836,7 +836,7 @@ export const NavBlock = memo(function NavBlock({
                   <img 
                     src={site.settings.favicon} 
                     alt="Site favicon" 
-                    className="h-10 w-10 object-contain rounded-lg p-0.5"
+                    className="h-10 w-auto object-contain rounded-lg p-0.5"
                     onError={(e) => {
                       // Hide broken image via opacity (avoids forced reflow)
                       e.currentTarget.style.opacity = '0';

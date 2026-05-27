@@ -195,12 +195,12 @@ export function WorkspacesDashboard({
           <TableRow key={workspace.id}>
             <TableCell column="main">
               <div className="flex items-center gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border">
+                <span className="flex h-8 min-w-8 shrink-0 items-center justify-center border-border">
                   {workspace.favicon ? (
                     <img
                       src={workspace.favicon}
                       alt={`${workspace.name} favicon`}
-                      className="h-full w-full object-cover"
+                      className="h-8 w-auto object-contain"
                     />
                   ) : (
                     renderShellIcon(workspace.icon)

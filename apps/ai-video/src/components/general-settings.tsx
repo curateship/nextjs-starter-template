@@ -76,7 +76,7 @@ export function GeneralSettings({
               <button
                 type="button"
                 disabled={isSaving}
-                className="grid size-16 place-items-center overflow-hidden rounded-lg border border-dashed bg-muted/50 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                className="grid h-16 min-w-16 place-items-center border border-dashed bg-muted/50 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => setPickerOpen(true)}
                 aria-label={favicon ? "Change favicon" : "Select favicon"}
               >
@@ -84,7 +84,7 @@ export function GeneralSettings({
                   <img
                     src={favicon}
                     alt="Favicon preview"
-                    className="h-full w-full object-cover"
+                    className="h-16 w-auto object-contain"
                   />
                 ) : (
                   <div className="text-center text-xs text-muted-foreground">

@@ -333,7 +333,7 @@ export default function SitesPage() {
                                 <img
                                   src={site.settings.favicon}
                                   alt={`${site.name} favicon`}
-                                  className="h-full w-full object-cover"
+                                  className="h-full w-full object-contain"
                                 />
                               ) : (
                                 <Globe className="h-5 w-5 text-muted-foreground" />

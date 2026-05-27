@@ -1178,7 +1178,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
                         <img
                           src={siteFavicon}
                           alt="Site favicon (used as logo)"
-                          className="h-10 w-10 cursor-pointer object-contain"
+                          className="h-10 w-auto cursor-pointer object-contain"
                         />
                       </div>
                     ) : (

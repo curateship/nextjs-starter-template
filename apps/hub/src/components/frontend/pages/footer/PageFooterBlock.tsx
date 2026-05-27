@@ -174,7 +174,7 @@ export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks
                         <img 
                             src={site.settings.favicon} 
                             alt="Site favicon" 
-                            className="h-10 w-10 object-contain rounded-lg p-0.5 mx-auto"
+                            className="h-10 w-auto object-contain rounded-lg p-0.5 mx-auto"
                             onError={(e) => {
                                 // Fallback to Globe icon on error
                                 e.currentTarget.style.display = 'none';
