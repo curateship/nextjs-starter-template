@@ -26,6 +26,7 @@ export type HubNotificationListResponse = {
 }
 
 type HubNotificationListInput = {
+  siteId: string
   cursor?: string | null
   limit?: number | null
 }
@@ -72,13 +73,20 @@ function serializeNotification(row: {
 }
 
 export async function listHubNotificationPage(
-  input: HubNotificationListInput = {}
+  input: HubNotificationListInput
 ): Promise<HubNotificationListResponse> {
+  if (!input || !UUID_PATTERN.test(input.siteId)) {
+    throw new Error('Invalid site')
+  }
+
   try {
     const user = await requireAdmin()
     const pageSize = normalizePageSize(input.limit)
     const cursor = parseCursor(input.cursor)
-    const conditions: SQL[] = [eq(hubNotifications.recipientUserId, user.id)]
+    const conditions: SQL[] = [
+      eq(hubNotifications.recipientUserId, user.id),
+      eq(hubNotifications.siteId, input.siteId),
+    ]
 
     if (cursor) {
       conditions.push(or(
@@ -108,6 +116,7 @@ export async function listHubNotificationPage(
       .from(hubNotifications)
       .where(and(
         eq(hubNotifications.recipientUserId, user.id),
+        eq(hubNotifications.siteId, input.siteId),
         isNull(hubNotifications.readAt)
       ))
 
@@ -124,12 +133,15 @@ export async function listHubNotificationPage(
   }
 }
 
-export async function markHubNotificationRead(notificationId: string): Promise<{
+export async function markHubNotificationRead(notificationId: string, siteId: string): Promise<{
   notificationId: string
   readAt: string
 }> {
   if (!UUID_PATTERN.test(notificationId)) {
     throw new Error('Invalid notification')
+  }
+  if (!UUID_PATTERN.test(siteId)) {
+    throw new Error('Invalid site')
   }
 
   try {
@@ -140,6 +152,7 @@ export async function markHubNotificationRead(notificationId: string): Promise<{
       .set({ readAt })
       .where(and(
         eq(hubNotifications.id, notificationId),
+        eq(hubNotifications.siteId, siteId),
         eq(hubNotifications.recipientUserId, user.id)
       ))
       .returning({ id: hubNotifications.id })
@@ -153,10 +166,14 @@ export async function markHubNotificationRead(notificationId: string): Promise<{
   }
 }
 
-export async function markAllHubNotificationsRead(): Promise<{
+export async function markAllHubNotificationsRead(siteId: string): Promise<{
   notificationIds: string[]
   readAt: string
 }> {
+  if (!UUID_PATTERN.test(siteId)) {
+    throw new Error('Invalid site')
+  }
+
   try {
     const user = await requireAdmin()
     const readAt = new Date()
@@ -165,6 +182,7 @@ export async function markAllHubNotificationsRead(): Promise<{
       .set({ readAt })
       .where(and(
         eq(hubNotifications.recipientUserId, user.id),
+        eq(hubNotifications.siteId, siteId),
         isNull(hubNotifications.readAt)
       ))
       .returning({ id: hubNotifications.id })

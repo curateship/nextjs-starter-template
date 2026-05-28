@@ -2,6 +2,18 @@
 
 Guidance for Codex working in this repository.
 
+## Labels
+
+I/me/we - refers to me the person that that talks to you
+You - refers to the person that respond to me (I)
+Agent - refer to the actual agent that writes the code
+User - refers to the person that uses our app
+
+If I say "Hub" refer to the Hub App
+If I say "Core" refer to the Core App
+If I say "Ai Video" refer to the ai-video App
+If I say "Custom Shell" refer to the custom-shell App
+
 ## Core Philosophy
 
 Simplicity is mandatory. Always implement the simplest solution that works. If a simple feature needs more than 20 lines, stop and reconsider. Direct solutions beat clever architecture. Try removing code before adding code. Question every new dependency, hook, or context.
@@ -11,9 +23,6 @@ Do not expand a small request into broad cleanup, scoring changes, helper abstra
 ## Small Request Discipline
 
 - If the user asks for a small visible change, implement the smallest visible change only.
-- Do not turn a UI chip, warning, badge, button, or modal tweak into a generic subsystem, reporting layer, health framework, or reusable abstraction unless the user explicitly asks for that.
-- Before adding a new action, hook, context, polling loop, schema field, helper module, or cross-cutting abstraction, ask: "Can this be done directly in the existing file with less code?" If yes, do that.
-- If the simplest correct implementation appears to need more than about 40 lines, pause and explain why before coding more.
 - Prefer returning display-ready data for tiny UI features instead of exposing broad intermediate state that forces the UI to duplicate business logic.
 - Fix only the requested behavior. Do not add adjacent states, edge-case handling, dashboards, status systems, or future-proofing unless they are required for the exact request.
 
@@ -33,8 +42,7 @@ Do not expand a small request into broad cleanup, scoring changes, helper abstra
 
 ### App-Specific Instructions
 - Before working in a specific app or service directory, check for a local `AGENTS.md` in that directory and follow it for that scope.
-- App-specific `AGENTS.md` files override root-level guidance when the instructions are more specific to that app.
-- For work in `apps/hub/**`, follow `apps/hub/AGENTS.md`.
+- App-specific `AGENTS.md` files override root-level guidance when the instructions are more specific to that app. Example: For work in `apps/hub/**`, follow `apps/hub/AGENTS.md`.
 
 
 ## Repository Structure

@@ -143,7 +143,7 @@ function NotificationTraySkeleton() {
 
 export function NotificationCenter() {
   const router = useRouter()
-  const { sites, setCurrentSite } = useSiteSwitcher()
+  const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState<NotificationFilter>("unread")
   const [notifications, setNotifications] = useState<HubNotificationItem[]>([])
@@ -160,6 +160,13 @@ export function NotificationCenter() {
   const unreadBadgeLabel = unreadCount > 99 ? "99+" : String(unreadCount)
 
   const loadNotificationRows = useCallback(async (cursor?: string) => {
+    if (!currentSite?.id) {
+      setNotifications([])
+      setUnreadCount(0)
+      setNextCursor(null)
+      return
+    }
+
     if (cursor) {
       setLoadingMore(true)
     } else {
@@ -169,6 +176,7 @@ export function NotificationCenter() {
 
     try {
       const data = await listHubNotificationPage({
+        siteId: currentSite.id,
         cursor,
         limit: NOTIFICATION_PAGE_SIZE,
       })
@@ -183,7 +191,7 @@ export function NotificationCenter() {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [])
+  }, [currentSite?.id])
 
   useEffect(() => {
     void loadNotificationRows()
@@ -219,7 +227,9 @@ export function NotificationCenter() {
 
     setError(null)
     try {
-      const result = await markAllHubNotificationsRead()
+      if (!currentSite?.id) return
+
+      const result = await markAllHubNotificationsRead(currentSite.id)
       const readIds = new Set(result.notificationIds)
       setNotifications((current) =>
         current.map((item) =>
@@ -237,7 +247,7 @@ export function NotificationCenter() {
 
     if (!item.read_at) {
       try {
-        const result = await markHubNotificationRead(item.id)
+        const result = await markHubNotificationRead(item.id, item.site_id)
         setNotifications((current) =>
           current.map((currentItem) =>
             currentItem.id === result.notificationId
