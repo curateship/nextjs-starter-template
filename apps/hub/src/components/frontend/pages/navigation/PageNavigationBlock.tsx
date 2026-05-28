@@ -355,6 +355,7 @@ const DesktopUserMenu = ({
   user,
   onSignOut,
   showAdminLink,
+  adminHref,
   signedInLinks,
   bordered = true,
   mounted = true,
@@ -362,6 +363,7 @@ const DesktopUserMenu = ({
   user: SessionUser
   onSignOut: () => void
   showAdminLink: boolean
+  adminHref: string
   signedInLinks: NavigationSignedInLinkSettings[]
   bordered?: boolean
   mounted?: boolean
@@ -398,7 +400,7 @@ const DesktopUserMenu = ({
       ))}
       {showAdminLink && (
         <DropdownMenuItem asChild>
-          <Link href="/admin">
+          <Link href={adminHref}>
             <Shield className="size-4" />
             Admin
           </Link>
@@ -537,6 +539,7 @@ export const NavBlock = memo(function NavBlock({
     () => getAccountMenuSignedInLinks(resolvedAccountMenu),
     [resolvedAccountMenu]
   )
+  const adminHref = site?.id ? `/admin?site=${encodeURIComponent(site.id)}` : '/admin'
 
   const sessionUser = useSiteAuthUser() as SessionUser | null
   const showAdminLink = sessionUser?.role === 'super_admin'
@@ -718,6 +721,7 @@ export const NavBlock = memo(function NavBlock({
             user={sessionUser}
             onSignOut={handleSignOut}
             showAdminLink={showAdminLink}
+            adminHref={adminHref}
             signedInLinks={signedInAccountMenuLinks}
             bordered={false}
             mounted={mounted}
@@ -768,6 +772,7 @@ export const NavBlock = memo(function NavBlock({
             user={sessionUser}
             onSignOut={handleSignOut}
             showAdminLink={showAdminLink}
+            adminHref={adminHref}
             signedInLinks={signedInAccountMenuLinks}
             bordered={false}
             mounted={mounted}
