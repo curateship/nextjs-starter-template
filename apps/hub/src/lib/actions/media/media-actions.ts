@@ -249,20 +249,42 @@ function sanitizeSvgBuffer(fileBuffer: Buffer) {
   }
 
   const sanitized = DOMPurify.sanitize(source, {
-    ALLOWED_TAGS: ['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'title', 'desc'],
+    ALLOWED_TAGS: [
+      'svg', 'g', 'defs', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+      'title', 'desc', 'style', 'linearGradient', 'radialGradient', 'stop', 'clipPath',
+      'mask', 'pattern', 'symbol', 'use',
+    ],
     ALLOWED_ATTR: [
       'xmlns',
+      'xmlns:xlink',
+      'version',
       'viewBox',
       'width',
       'height',
+      'id',
+      'class',
+      'style',
       'role',
       'aria-label',
       'aria-labelledby',
+      'href',
+      'xlink:href',
       'fill',
+      'fill-rule',
+      'fill-opacity',
       'stroke',
+      'stroke-width',
+      'stroke-linecap',
+      'stroke-linejoin',
+      'stroke-miterlimit',
+      'stroke-dasharray',
+      'stroke-dashoffset',
+      'stroke-opacity',
       'd',
       'x',
       'y',
+      'xlink:x',
+      'xlink:y',
       'x1',
       'x2',
       'y1',
@@ -273,17 +295,33 @@ function sanitizeSvgBuffer(fileBuffer: Buffer) {
       'rx',
       'ry',
       'points',
-      'stroke-width',
       'opacity',
       'transform',
+      'offset',
+      'stop-color',
+      'stop-opacity',
+      'gradientUnits',
+      'gradientTransform',
+      'clipPathUnits',
+      'maskUnits',
+      'maskContentUnits',
+      'patternUnits',
+      'patternContentUnits',
+      'preserveAspectRatio',
+      'vector-effect',
     ],
     ALLOW_DATA_ATTR: false,
-    FORBID_TAGS: ['script', 'style', 'foreignObject'],
+    FORBID_TAGS: ['script', 'foreignObject'],
     SANITIZE_DOM: true,
-    SANITIZE_NAMED_PROPS: true,
+    SANITIZE_NAMED_PROPS: false,
   }).trim()
 
-  if (!/^<svg(?:\s|>)/i.test(sanitized) || /(?:javascript:|data:|url\s*\()/i.test(sanitized)) {
+  const hasUnsafeReference =
+    /(?:javascript:|data:|@import|expression\s*\(|-moz-binding)/i.test(sanitized) ||
+    /url\s*\(\s*(?!['"]?#)[^)]+\)/i.test(sanitized) ||
+    /\s(?:href|xlink:href)\s*=\s*(['"])(?!#)[\s\S]*?\1/i.test(sanitized)
+
+  if (!/^<svg(?:\s|>)/i.test(sanitized) || hasUnsafeReference) {
     throw new Error('File content does not match the selected media type.')
   }
 
