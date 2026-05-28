@@ -392,7 +392,7 @@ export function Footer({
     () => (Array.isArray(content.socialLinks) ? content.socialLinks : []),
     [content.socialLinks]
   )
-  const defaultCopyrightText = `© {year} ${siteName}. All rights reserved.`
+  const defaultCopyrightText = `© {year} {site}. All rights reserved.`
   const copyrightText = typeof content.copyright === "string" ? content.copyright : defaultCopyrightText
   const sortableLinksReady = sortableReady && links.every((link) => !!link.id)
   const sortableSocialLinksReady = sortableReady && socialLinks.every((socialLink) => !!socialLink.id)

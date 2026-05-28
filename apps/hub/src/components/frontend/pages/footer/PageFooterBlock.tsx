@@ -103,15 +103,19 @@ interface FooterBlockProps {
 }
 
 const COPYRIGHT_YEAR_TOKEN = '{year}'
+const COPYRIGHT_SITE_TOKEN = '{site}'
 
 function renderCopyrightText(value: string, currentYear: number, siteName: string) {
-    const template = value || `© ${COPYRIGHT_YEAR_TOKEN} ${siteName}. All rights reserved.`
+    const template = value || `© ${COPYRIGHT_YEAR_TOKEN} ${COPYRIGHT_SITE_TOKEN}. All rights reserved.`
+    const text = template
+        .replaceAll(COPYRIGHT_YEAR_TOKEN, String(currentYear))
+        .replaceAll(COPYRIGHT_SITE_TOKEN, siteName)
 
     if (template.includes(COPYRIGHT_YEAR_TOKEN)) {
-        return template.replaceAll(COPYRIGHT_YEAR_TOKEN, String(currentYear))
+        return text
     }
 
-    return template.replace(/^(©\s*)\d{4}/, `$1${currentYear}`)
+    return text.replace(/^(©\s*)\d{4}/, `$1${currentYear}`)
 }
 
 export function FooterBlock({ logo, logoUrl, copyright, site, links, socialLinks }: FooterBlockProps) {
