@@ -16,6 +16,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -159,6 +160,7 @@ export function NotificationCenter({
   const [loading, setLoading] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const scrollAreaRootRef = React.useRef<HTMLDivElement>(null)
 
   const visibleNotifications =
     filter === "unread"
@@ -196,8 +198,7 @@ export function NotificationCenter({
     void loadNotificationRows()
   }, [loadNotificationRows, open])
 
-  function loadMoreOnScroll(event: React.UIEvent<HTMLDivElement>) {
-    const element = event.currentTarget
+  const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
     const distanceFromBottom =
       element.scrollHeight - element.scrollTop - element.clientHeight
 
@@ -206,7 +207,18 @@ export function NotificationCenter({
     }
 
     void loadNotificationRows(nextCursor)
-  }
+  }, [loadNotificationRows, loading, loadingMore, nextCursor])
+
+  React.useEffect(() => {
+    const element = scrollAreaRootRef.current?.querySelector<HTMLDivElement>(
+      "[data-slot='scroll-area-viewport']"
+    )
+    if (!element) return
+
+    const handleScroll = () => loadMoreFromElement(element)
+    element.addEventListener("scroll", handleScroll)
+    return () => element.removeEventListener("scroll", handleScroll)
+  }, [loadMoreFromElement])
 
   async function markAllAsRead() {
     if (unreadCount === 0) return
@@ -281,58 +293,59 @@ export function NotificationCenter({
         </div>
         <Separator />
 
-        <div
-          className="h-[28rem] overflow-y-auto px-4 py-4"
-          onScroll={loadMoreOnScroll}
-        >
-          {loading ? (
-            <NotificationTraySkeleton />
-          ) : visibleNotifications.length > 0 ? (
-            <div className="space-y-3">
-              {visibleNotifications.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
-                  onClick={() => void openNotification(item)}
-                >
-                  <div className="pt-5">
-                    {!item.read_at ? (
-                      <span className="block size-2 rounded-full bg-red-500" />
-                    ) : null}
-                  </div>
-                  <NotificationAvatar item={item} />
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-sm leading-snug text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
-                      <NotificationIcon item={item} />
-                      <span>
-                        <NotificationMessage item={item} />
-                      </span>
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                      {getFeedbackPreview(item.feedback_message)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {dateFormatter.format(new Date(item.created_at))}
-                    </p>
-                  </div>
-                </button>
-              ))}
+        <div ref={scrollAreaRootRef}>
+          <ScrollArea className="h-[28rem]">
+            <div className="px-4 py-4">
+              {loading ? (
+                <NotificationTraySkeleton />
+              ) : visibleNotifications.length > 0 ? (
+                <div className="space-y-3">
+                  {visibleNotifications.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="grid w-full grid-cols-[0.25rem_3rem_1fr] gap-2 rounded-md p-2 text-left hover:bg-muted/60"
+                      onClick={() => void openNotification(item)}
+                    >
+                      <div className="pt-5">
+                        {!item.read_at ? (
+                          <span className="block size-2 rounded-full bg-red-500" />
+                        ) : null}
+                      </div>
+                      <NotificationAvatar item={item} />
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 text-sm leading-snug text-muted-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
+                          <NotificationIcon item={item} />
+                          <span>
+                            <NotificationMessage item={item} />
+                          </span>
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                          {getFeedbackPreview(item.feedback_message)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {dateFormatter.format(new Date(item.created_at))}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-muted-foreground">
+                  No notifications
+                </div>
+              )}
+              {error ? (
+                <p className="mt-4 text-sm text-destructive">{error}</p>
+              ) : null}
+              {loadingMore ? (
+                <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                  <Loader2Icon className="h-4 w-4 animate-spin" />
+                  Loading more
+                </div>
+              ) : null}
             </div>
-          ) : (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              No notifications
-            </div>
-          )}
-          {error ? (
-            <p className="mt-4 text-sm text-destructive">{error}</p>
-          ) : null}
-          {loadingMore ? (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-              <Loader2Icon className="h-4 w-4 animate-spin" />
-              Loading more
-            </div>
-          ) : null}
+          </ScrollArea>
         </div>
         <Separator />
         <div className="flex flex-wrap items-center gap-2 p-4">

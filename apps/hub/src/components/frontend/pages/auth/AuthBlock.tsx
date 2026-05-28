@@ -24,6 +24,7 @@ interface AuthBlockProps {
   resetTitle?: string
   resetDescription?: string
   visibility?: Record<string, boolean>
+  siteId?: string
 }
 
 type AuthClientError = {
@@ -50,6 +51,7 @@ export function AuthBlock({
   resetTitle = "Reset your password",
   resetDescription = "Enter your email to receive a reset link",
   visibility,
+  siteId,
 }: AuthBlockProps) {
   const showLoginTab = visibility?.showLoginTab !== false
   const showRegisterTab = visibility?.showRegisterTab !== false
@@ -125,7 +127,20 @@ export function AuthBlock({
     }
   }
 
-  const verificationRedirectPath = getSafeRedirectPath(searchParams.get("redirect") || registerRedirectPath || pathname)
+  const getSiteAwareRedirectPath = (value?: string | null) => {
+    const redirectPath = getSafeRedirectPath(value)
+    if (!siteId) return redirectPath
+
+    const url = new URL(redirectPath, "https://local.invalid")
+    if (!url.pathname.startsWith("/admin") || url.searchParams.has("site")) {
+      return redirectPath
+    }
+
+    url.searchParams.set("site", siteId)
+    return `${url.pathname}${url.search}${url.hash}`
+  }
+
+  const verificationRedirectPath = getSiteAwareRedirectPath(searchParams.get("redirect") || registerRedirectPath || pathname)
 
   const getAuthErrorCode = (error: AuthClientError) => {
     if (typeof error?.error?.code === "string") {
@@ -223,7 +238,7 @@ export function AuthBlock({
         setLoginError("Invalid email or password")
       } else {
         const rawRedirect = searchParams.get("redirect") || loginRedirectPath
-        const redirectTo = getSafeRedirectPath(rawRedirect)
+        const redirectTo = getSiteAwareRedirectPath(rawRedirect)
         window.location.href = redirectTo
       }
     } catch (err) {
@@ -267,7 +282,7 @@ export function AuthBlock({
 
         showVerificationState(registerEmail)
       } else {
-        window.location.href = getSafeRedirectPath(registerRedirectPath)
+        window.location.href = getSiteAwareRedirectPath(registerRedirectPath)
       }
     } catch (err) {
       setRegisterError("An unexpected error occurred")

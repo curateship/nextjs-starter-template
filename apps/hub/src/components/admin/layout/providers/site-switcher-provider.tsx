@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { getAllSitesAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 import { getAdminSidebarSiteIdFromPathname } from '@/lib/utils/admin-sidebar'
 
@@ -71,20 +71,23 @@ export function SiteSwitcherProvider({
   pageSize: initialPageSize,
 }: SiteSwitcherProviderProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
+  const querySiteId = searchParams.get('site')
+  const preferredSiteId = routeSiteId || (querySiteId && SITE_ID_PATTERN.test(querySiteId) ? querySiteId : null)
   const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() =>
-    resolveRouteSite(initialSites ?? [], routeSiteId)
+    resolveRouteSite(initialSites ?? [], preferredSiteId)
   )
   const [loading, setLoading] = useState(initialSites === undefined)
   const [error, setError] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState(initialPageSize ?? 50)
 
   const syncResolvedSite = useCallback((availableSites: SiteWithTheme[]) => {
-    const nextSite = resolveCurrentSite(availableSites, routeSiteId)
+    const nextSite = resolveCurrentSite(availableSites, preferredSiteId)
     setCurrentSite(nextSite)
     persistResolvedSite(nextSite)
-  }, [routeSiteId])
+  }, [preferredSiteId])
 
   useEffect(() => {
     if (initialSites === undefined) return

@@ -181,6 +181,7 @@ export function BlockRenderer({
               <Suspense>
                 <AuthBlock
                   {...blockContent}
+                  siteId={site.id}
                 />
               </Suspense>
             </div>

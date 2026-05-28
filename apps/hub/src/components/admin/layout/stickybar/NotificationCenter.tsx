@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, type UIEvent } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   AlertTriangle,
@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils/tailwind"
 
 type NotificationFilter = "all" | "unread"
@@ -151,6 +152,7 @@ export function NotificationCenter() {
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   const visibleNotifications = filter === "unread"
     ? notifications.filter((item) => !item.read_at)
@@ -192,8 +194,7 @@ export function NotificationCenter() {
     void loadNotificationRows()
   }, [loadNotificationRows, open])
 
-  function loadMoreOnScroll(event: UIEvent<HTMLDivElement>) {
-    const element = event.currentTarget
+  const loadMoreFromElement = useCallback((element: HTMLDivElement) => {
     const distanceFromBottom =
       element.scrollHeight - element.scrollTop - element.clientHeight
 
@@ -202,7 +203,16 @@ export function NotificationCenter() {
     }
 
     void loadNotificationRows(nextCursor)
-  }
+  }, [loadNotificationRows, loading, loadingMore, nextCursor])
+
+  useEffect(() => {
+    const element = scrollAreaRef.current
+    if (!element) return
+
+    const handleScroll = () => loadMoreFromElement(element)
+    element.addEventListener("scroll", handleScroll)
+    return () => element.removeEventListener("scroll", handleScroll)
+  }, [loadMoreFromElement])
 
   async function markAllAsRead() {
     if (unreadCount === 0) return
@@ -292,37 +302,36 @@ export function NotificationCenter() {
         </div>
         <Separator />
 
-        <div
-          className="h-112 overflow-y-auto px-4 py-4"
-          onScroll={loadMoreOnScroll}
-        >
-          {loading ? (
-            <NotificationTraySkeleton />
-          ) : visibleNotifications.length > 0 ? (
-            <div className="space-y-3">
-              {visibleNotifications.map((item) => (
-                <NotificationRow
-                  key={item.id}
-                  item={item}
-                  onOpen={(row) => void openNotification(row)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="py-10 text-center text-sm text-muted-foreground">
-              No notifications
-            </div>
-          )}
-          {error ? (
-            <p className="mt-4 text-sm text-destructive">{error}</p>
-          ) : null}
-          {loadingMore ? (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading more
-            </div>
-          ) : null}
-        </div>
+        <ScrollArea className="h-112" viewportRef={scrollAreaRef}>
+          <div className="px-4 py-4">
+            {loading ? (
+              <NotificationTraySkeleton />
+            ) : visibleNotifications.length > 0 ? (
+              <div className="space-y-3">
+                {visibleNotifications.map((item) => (
+                  <NotificationRow
+                    key={item.id}
+                    item={item}
+                    onOpen={(row) => void openNotification(row)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                No notifications
+              </div>
+            )}
+            {error ? (
+              <p className="mt-4 text-sm text-destructive">{error}</p>
+            ) : null}
+            {loadingMore ? (
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading more
+              </div>
+            ) : null}
+          </div>
+        </ScrollArea>
         <Separator />
         <div className="flex flex-wrap items-center gap-2 p-4">
           <Button
