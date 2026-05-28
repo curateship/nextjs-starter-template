@@ -1,6 +1,7 @@
 "use client"
 
-import { createContext, useContext, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { authClient } from "@/lib/actions/auth/client"
 
 export interface SiteAuthUser {
   email?: string | null
@@ -11,6 +12,21 @@ export interface SiteAuthUser {
 
 const SiteAuthContext = createContext<SiteAuthUser | null>(null)
 
+type AuthSessionUser = SiteAuthUser & {
+  displayName?: string | null
+}
+
+function toSiteAuthUser(user?: AuthSessionUser | null): SiteAuthUser | null {
+  if (!user) return null
+
+  return {
+    email: user.email ?? null,
+    name: user.displayName || user.name || null,
+    image: user.image ?? null,
+    role: typeof user.role === "string" ? user.role : null,
+  }
+}
+
 export function SiteAuthProvider({
   children,
   user,
@@ -18,7 +34,20 @@ export function SiteAuthProvider({
   children: ReactNode
   user: SiteAuthUser | null
 }) {
-  return <SiteAuthContext.Provider value={user}>{children}</SiteAuthContext.Provider>
+  const session = authClient.useSession()
+  const [currentUser, setCurrentUser] = useState(user)
+
+  useEffect(() => {
+    setCurrentUser(user)
+  }, [user])
+
+  useEffect(() => {
+    if (session.isPending) return
+
+    setCurrentUser(toSiteAuthUser(session.data?.user as AuthSessionUser | null))
+  }, [session.data?.user, session.isPending])
+
+  return <SiteAuthContext.Provider value={currentUser}>{children}</SiteAuthContext.Provider>
 }
 
 export function useSiteAuthUser() {

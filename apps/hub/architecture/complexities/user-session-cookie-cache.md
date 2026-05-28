@@ -51,9 +51,9 @@ Practical rule:
 
 - local auth must trust both `localhost` and `*.localhost`
 
-### 4. Nav no longer uses client `useSession()`
+### 4. Nav starts from the server cookie state
 
-The shared nav no longer waits on client-side Better Auth session fetching.
+The shared nav does not wait on client-side Better Auth session fetching for its first render.
 
 Current flow:
 
@@ -61,7 +61,8 @@ Current flow:
 2. If that cache is missing or rejected but a session token exists, `layout.tsx` falls back to `auth.api.getSession()`.
 3. It maps either source into the same small user object.
 4. It passes that user object into `SiteAuthProvider`.
-5. `NavBlock` reads that user from context.
+5. `SiteAuthProvider` uses the server user immediately, then syncs the context from Better Auth client session changes after hydration.
+6. `NavBlock` reads that user from context.
 
 Relevant files:
 
@@ -72,7 +73,8 @@ Relevant files:
 Why this was done:
 
 - faster first paint for signed-in nav state
-- no nav-specific client `get-session` roundtrip
+- no blank guest-to-user flash before the server-seeded nav paints
+- login, logout, and user updates can update the mobile and desktop account menus without a manual page refresh
 - cleaner UI than rendering guest controls and replacing them later
 - same signed-in state as `/admin` when the cache cookie is stale or absent but the session token is valid
 
@@ -184,7 +186,8 @@ If bans, revocations, and role changes need to take effect quickly, the server m
 
 So the final rule is:
 
-- no client `useSession()` fetch for nav rendering
+- use the server cookie/session path for the initial nav render
+- let the client session update the auth context after login, logout, or user changes
 - but yes, a lightweight server-side live-state check is allowed for security-sensitive invalidation
 - and yes, a live session fallback is allowed when the cache is absent or invalid but the session token is present
 
@@ -206,6 +209,6 @@ If this area needs work again, inspect these first:
 
 - Treat `/admin-login` as admin/platform auth unless intentionally redesigning that flow.
 - Treat public Pages builder pages with an `auth` block as the frontend/site-user auth surface.
-- If auth UI needs immediate signed-in nav state, prefer the server-read cookie path over a client `useSession()` fetch.
+- If auth UI needs immediate signed-in nav state, prefer the server-read cookie path for first paint and keep client session sync for post-hydration auth changes.
 - Do not rely on a long cookie cache without a live invalidation/version strategy if bans and admin edits must stay effective quickly.
 - Do not treat a missing cookie-cache payload as logged out until checking whether a valid session token can resolve through Better Auth.
