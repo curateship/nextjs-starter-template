@@ -45,6 +45,8 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
           backgroundPattern: 'dots',
           backgroundPatternSize: 'medium',
           backgroundPatternOpacity: 80,
+          contentPaddingTop: undefined,
+          contentPaddingBottom: undefined,
           showParticles: false,
           githubLink: '',
         }

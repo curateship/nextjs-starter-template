@@ -278,6 +278,17 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
   const backgroundPattern = config.backgroundPattern || 'none'
   const backgroundPatternSize = config.backgroundPatternSize || 'medium'
   const backgroundPatternOpacity = config.backgroundPatternOpacity ?? 80
+  const handleNumberConfigChange = (field: string, rawValue: string) => {
+    if (rawValue === '') {
+      onConfigChange(field, undefined)
+      return
+    }
+
+    const value = parseInt(rawValue, 10)
+    if (!isNaN(value)) {
+      onConfigChange(field, Math.max(0, value))
+    }
+  }
 
   return (
     <CardGroup className="grid">
@@ -597,6 +608,41 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
             </>
           )}
         </div>
+          </section>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <section className="space-y-4">
+            <div>
+              <h3 className="text-base font-medium">Content Padding</h3>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="contentPaddingTop">Above content (px)</Label>
+                <Input
+                  id="contentPaddingTop"
+                  type="number"
+                  min="0"
+                  value={config.contentPaddingTop ?? ''}
+                  onChange={(e) => handleNumberConfigChange('contentPaddingTop', e.target.value)}
+                  placeholder="Default"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contentPaddingBottom">Below content (px)</Label>
+                <Input
+                  id="contentPaddingBottom"
+                  type="number"
+                  min="0"
+                  value={config.contentPaddingBottom ?? ''}
+                  onChange={(e) => handleNumberConfigChange('contentPaddingBottom', e.target.value)}
+                  placeholder="Default"
+                />
+              </div>
+            </div>
           </section>
         </CardContent>
       </Card>
