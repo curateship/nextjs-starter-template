@@ -74,6 +74,7 @@ export default function ImagesPage() {
   const mediaSort = useAdminSort<MediaSortColumn>()
   const [isDeleting, setIsDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<MediaData | null>(null)
 
   const loadImages = useCallback(async () => {
     try {
@@ -132,22 +133,24 @@ export default function ImagesPage() {
   }
 
   const handleDeleteImage = async (image: MediaData) => {
-    if (!currentSiteId) return
+    if (!currentSiteId) return false
 
-    if (!confirm(`Are you sure you want to delete "${image.original_name}"? This action cannot be undone.`)) {
-      return
-    }
-
+    setIsDeleting(true)
     try {
       const { error } = await deleteImageAction(image.id, currentSiteId)
       if (error) {
         toast.error(`Failed to delete image: ${error}`)
+        return false
       } else {
         toast.success("Image deleted successfully")
         loadImages()
+        return true
       }
     } catch (error) {
       toast.error("Failed to delete image")
+      return false
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -438,14 +441,13 @@ export default function ImagesPage() {
                       return (
                         <div
                           key={media.id}
-                          className={`group relative aspect-square overflow-hidden rounded-lg border bg-muted ${isSelected ? "border-green-500 ring-2 ring-green-500/25" : ""}`}
+                          className={`group relative aspect-square overflow-hidden rounded-lg border bg-muted ${isSelected ? "border-destructive ring-2 ring-destructive/25" : ""}`}
                         >
                           <button
                             type="button"
                             className="relative block h-full w-full"
-                            onClick={() => mediaSelection.toggleOne(media.id)}
-                            aria-pressed={isSelected}
-                            aria-label={`Select ${media.original_name}`}
+                            onClick={() => handleEditImage(media)}
+                            aria-label={`Edit ${media.original_name}`}
                           >
                             {media.file_type === "video" ? (
                               <div className="relative h-full w-full bg-black">
@@ -481,6 +483,14 @@ export default function ImagesPage() {
                             )}
                           </button>
                           <div className="absolute right-2 bottom-2 flex gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
+                            <div className="flex h-8 w-8 items-center justify-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => mediaSelection.toggleOne(media.id)}
+                                className="border-foreground"
+                                aria-label={`Select ${media.original_name}`}
+                              />
+                            </div>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -493,7 +503,7 @@ export default function ImagesPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDeleteImage(media)}
+                              onClick={() => setDeleteTarget(media)}
                               className="h-8 w-8 cursor-pointer p-0 text-foreground hover:text-foreground"
                               aria-label="Delete media"
                             >
@@ -646,7 +656,7 @@ export default function ImagesPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 w-8 p-0 text-foreground hover:text-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100"
-                                  onClick={() => handleDeleteImage(media)}
+                                  onClick={() => setDeleteTarget(media)}
                                   title="Delete"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -674,38 +684,44 @@ export default function ImagesPage() {
             onCancel={() => setMassDeleteConfirmOpen(false)}
             onConfirm={handleBulkDelete}
           />
+          <AdminConfirmDialog
+            open={!!deleteTarget}
+            title={`Delete ${deleteTarget?.original_name ?? "media"}?`}
+            description="This removes the media from the image library. This action cannot be undone."
+            disabled={isDeleting}
+            confirmLabel={isDeleting ? "Deleting..." : "Delete"}
+            onCancel={() => setDeleteTarget(null)}
+            onConfirm={async () => {
+              if (deleteTarget && await handleDeleteImage(deleteTarget)) {
+                setDeleteTarget(null)
+              }
+            }}
+          />
 
           {/* Edit Image Dialog */}
           <Dialog open={!!editingImage} onOpenChange={(open) => !open && setEditingImage(null)}>
-            <DialogContent>
+            <DialogContent className="max-h-[85vh] w-[710px] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[710px]">
               <DialogHeader>
                 <DialogTitle>{editingImage?.file_type === "video" ? "Edit Video" : "Edit Image"}</DialogTitle>
               </DialogHeader>
               {editingImage && (
                 <div className="space-y-4">
-                  <div
-                    className={
-                      editingImage.file_type === "video"
-                        ? "relative mx-auto aspect-video w-full max-w-xl overflow-hidden rounded-lg border bg-muted"
-                        : "relative mx-auto h-[50vh] max-h-96 min-h-48 w-full max-w-80 overflow-hidden rounded-lg border bg-muted"
-                    }
-                  >
-                    {editingImage.file_type === "video" ? (
-                      <video
-                        src={`/api/media/proxy?url=${encodeURIComponent(editingImage.public_url)}`}
-                        className="w-full h-full object-contain"
-                        controls
-                        muted
-                      />
-                    ) : (
-                      <Image
-                        src={editingImage.public_url}
-                        alt={editingImage.alt_text || editingImage.original_name}
-                        fill
-                        className="object-contain"
-                      />
-                    )}
-                  </div>
+                  {editingImage.file_type === "video" ? (
+                    <video
+                      src={`/api/media/proxy?url=${encodeURIComponent(editingImage.public_url)}`}
+                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                      controls
+                      muted
+                    />
+                  ) : (
+                    <Image
+                      src={editingImage.public_url}
+                      alt={editingImage.alt_text || editingImage.original_name}
+                      width={384}
+                      height={384}
+                      className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                    />
+                  )}
                   <div className="grid gap-2">
                     <Label htmlFor="edit-alt-text">
                       {editingImage.file_type === "video" ? "Description" : "Alt Text"}
@@ -729,6 +745,17 @@ export default function ImagesPage() {
                 </div>
               )}
               <DialogFooter>
+                {editingImage && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setDeleteTarget(editingImage)
+                      setEditingImage(null)
+                    }}
+                  >
+                    Delete
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => setEditingImage(null)}>
                   Cancel
                 </Button>

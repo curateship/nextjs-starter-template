@@ -481,20 +481,27 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       )}
 
       <Dialog open={!!editingMedia} onOpenChange={(open) => !open && setEditingMedia(null)}>
-        <DialogContent variant="admin">
+        <DialogContent variant="admin" className="max-h-[85vh] w-[710px] max-w-[calc(100vw-2rem)] sm:max-w-[710px]">
           <DialogHeader>
             <DialogTitle>{editingMedia?.file_type === "video" ? "Edit Video" : "Edit Image"}</DialogTitle>
           </DialogHeader>
           <DialogBody>
             {editingMedia ? (
               <div className="space-y-4">
-                <MediaPreview
-                  item={editingMedia}
-                  className={cn(
-                    "mx-auto w-full rounded-lg border bg-muted",
-                    editingMedia.file_type === "video" ? "aspect-video max-w-xl" : "h-[50vh] max-h-96 min-h-48 max-w-80",
-                  )}
-                />
+                {editingMedia.file_type === "video" ? (
+                  <video
+                    src={editingMedia.url}
+                    className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                    controls
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={editingMedia.url}
+                    alt={editingMedia.alt_text ?? editingMedia.original_name}
+                    className="mx-auto max-h-[50vh] w-full rounded-lg object-contain"
+                  />
+                )}
                 <div className="grid gap-2">
                   <Label htmlFor="media-alt-text">
                     {editingMedia.file_type === "video" ? "Description" : "Alt text"}
@@ -510,6 +517,18 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             ) : null}
           </DialogBody>
           <DialogFooter variant="plain">
+            {editingMedia ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  setDeleteIds([editingMedia.id])
+                  setEditingMedia(null)
+                }}
+              >
+                Delete
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" onClick={() => setEditingMedia(null)}>
               Cancel
             </Button>
@@ -609,14 +628,22 @@ function GalleryItem({
   onDelete: () => void
 }) {
   return (
-    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "border-green-500 ring-2 ring-green-500/25")}>
-      <button type="button" className="relative block aspect-[3/4] w-full bg-muted" onClick={onToggle}>
+    <div className={cn("group relative overflow-hidden rounded-lg border bg-muted", selected && "border-destructive ring-2 ring-destructive/25")}>
+      <button type="button" className="relative block aspect-[3/4] w-full bg-muted" onClick={onEdit}>
         <MediaPreview item={item} className="h-full w-full" />
         <span className="absolute top-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] capitalize">
           {item.file_type}
         </span>
       </button>
       <div className="absolute right-2 bottom-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
+        <div className="flex h-8 w-8 items-center justify-center">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggle}
+            className="border-foreground"
+            aria-label={`Select ${item.original_name}`}
+          />
+        </div>
         <Button type="button" variant="ghost" size="icon-sm" onClick={onEdit} aria-label="Edit media">
           <EditIcon className="size-4" />
         </Button>
