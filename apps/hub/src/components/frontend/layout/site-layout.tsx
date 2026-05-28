@@ -41,7 +41,7 @@ export function SiteLayout({ children, site, navigation, footer, isPreview = fal
       )}
 
       {/* Main content */}
-      <main className={navigation && !isPreview && !hideChrome ? "pt-16 lg:pt-18 [--site-page-start-offset:4rem] lg:[--site-page-start-offset:4.5rem]" : ""}>
+      <main className={navigation && !isPreview && !hideChrome ? "pt-16 lg:pt-18 [--site-page-start-offset:4rem] [--site-page-start-offset-half:2rem] lg:[--site-page-start-offset:4.5rem] lg:[--site-page-start-offset-half:2.25rem]" : ""}>
         {children}
       </main>
 
