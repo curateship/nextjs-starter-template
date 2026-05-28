@@ -14,6 +14,7 @@ const config = {
     content_blocks: 'contentBlocks',
     featured_image: 'featuredImage',
   },
+  revalidateTags: ['directory', 'listing-views'],
   transformUpdateValues: (updates: Record<string, unknown>, _entity: any, updateValues: Record<string, unknown>) => {
     if (updates.is_published === true) {
       updateValues.status = 'published'

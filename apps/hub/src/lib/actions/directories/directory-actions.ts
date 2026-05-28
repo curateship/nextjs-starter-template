@@ -303,6 +303,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
 
     // Revalidate cache
     revalidateTag('directory')
+    revalidateTag('listing-views')
     revalidateTag(`directory-${directoryId}`)
     revalidateTag(`site-${directory.siteId}`)
 
@@ -352,6 +353,7 @@ export async function deleteDirectoryAction(directoryId: string) {
 
     // Revalidate cache
     revalidateTag('directory')
+    revalidateTag('listing-views')
     revalidateTag(`directory-${directoryId}`)
     revalidateTag(`site-${directory.siteId}`)
 
@@ -409,6 +411,7 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
       .where(inArray(directories.id, directoryIds))
 
     revalidateTag('directory')
+    revalidateTag('listing-views')
 
     return { success: true, error: null }
   } catch (error) {
@@ -506,6 +509,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
 
     // Revalidate cache
     revalidateTag('directory')
+    revalidateTag('listing-views')
     revalidateTag(`site-${originalDirectory.siteId}`)
 
     return { data: toDirectory(newDirectory), error: null }

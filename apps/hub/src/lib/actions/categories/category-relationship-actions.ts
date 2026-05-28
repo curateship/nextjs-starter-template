@@ -250,6 +250,7 @@ export async function assignCategoryToContentAction(
       })
 
     revalidateTag('content-categories')
+    revalidateTag('listing-views')
     revalidateTag(`${contentType}-${contentId}`)
     revalidateTag(`category-${categoryId}`)
 
@@ -336,6 +337,7 @@ export async function removeCategoryFromContentAction(
     })
 
     revalidateTag('content-categories')
+    revalidateTag('listing-views')
     revalidateTag(`${contentType}-${contentId}`)
     revalidateTag(`category-${categoryId}`)
 
@@ -698,6 +700,7 @@ export async function bulkAssignCategoriesToContentAction(
     })
 
     revalidateTag('content-categories')
+    revalidateTag('listing-views')
     revalidateTag(`${contentType}-${contentId}`)
     new Set([...existingRelationships.map((relationship) => relationship.categoryId), ...uniqueCategoryIds])
       .forEach(id => revalidateTag(`category-${id}`))

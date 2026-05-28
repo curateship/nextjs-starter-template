@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 
-export type ListingViewsContentType = 'products' | 'posts'
+export type ListingViewsContentType = 'products' | 'posts' | 'directory'
 
 export interface ListingViewsItem {
   id: string
@@ -22,6 +22,7 @@ export interface ListingViewsData {
   items: ListingViewsItem[]
   products?: ListingViewsItem[]
   posts?: ListingViewsItem[]
+  directories?: ListingViewsItem[]
   totalCount: number
   currentPage: number
   totalPages: number
@@ -57,7 +58,7 @@ function getOrderByClause(sortBy: string, sortOrder: string) {
   return sql`created_at ${direction}`
 }
 
-function getCategoryJoin(categoryIds: string[], contentType: 'product' | 'post', contentId: ReturnType<typeof sql>) {
+function getCategoryJoin(categoryIds: string[], contentType: 'product' | 'post' | 'directory', contentId: ReturnType<typeof sql>) {
   if (categoryIds.length === 0) return sql``
 
   return sql`
@@ -171,6 +172,44 @@ async function getPostsListingData(site_id: string, sortBy: string, sortOrder: s
   return { ...data, posts: data.items }
 }
 
+async function getDirectoryListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) {
+  const rows = await db.execute<ListingViewsRow>(sql`
+    with filtered as (
+      select
+        d.id,
+        d.title,
+        d.slug,
+        d.featured_image,
+        d.meta_description as rich_text,
+        coalesce(u."displayName", u.name) as author,
+        u.image as author_image,
+        d.created_at,
+        d.display_order
+      from directory d
+      inner join sites s on s.id = d.site_id
+      inner join users u on u.id = s.user_id
+      ${getCategoryJoin(categoryIds, 'directory', sql`d.id`)}
+      where d.site_id = ${site_id}
+        and d.status = 'published'
+    ),
+    total as (
+      select count(*)::int as total_count from filtered
+    ),
+    paged as (
+      select * from filtered
+      order by ${getOrderByClause(sortBy, sortOrder)}
+      limit ${limit}
+      offset ${offset}
+    )
+    select paged.*, total.total_count
+    from total
+    left join paged on true
+  `)
+
+  const data = mapListingRows(rows.rows, limit, offset)
+  return { ...data, directories: data.items }
+}
+
 // Cached listing data function
 const getCachedListingData = unstable_cache(
   async (site_id: string, contentType: ListingViewsContentType, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) => {
@@ -178,9 +217,13 @@ const getCachedListingData = unstable_cache(
       return getPostsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
     }
 
+    if (contentType === 'directory') {
+      return getDirectoryListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
+    }
+
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v4'],
+  ['listing-data-v5'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']
@@ -211,7 +254,7 @@ export async function getListingViewsData(params: {
       return { success: false, error: 'Site ID is required' }
     }
 
-    if (contentType !== 'products' && contentType !== 'posts') {
+    if (contentType !== 'products' && contentType !== 'posts' && contentType !== 'directory') {
       return { success: false, error: 'Unsupported content type' }
     }
 

@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardFooter, CardHeader } from "@/components/ui/card"
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
 
-type ListingContentType = "products" | "posts"
+type ListingContentType = "products" | "posts" | "directory"
 type ListingStyle = "default" | "blog"
 type ImageFit = "crop" | "fit"
 
@@ -58,6 +58,7 @@ interface ListingViewsBlockProps {
   urlPrefixes?: {
     products?: string
     posts?: string
+    directory?: string
   }
   preloadedData?: any
   siteWidth?: "full" | "custom"
@@ -146,9 +147,13 @@ export function ListingViewsBlock({
     </div>
   )
 
-  const listingItems = data?.items || data?.products || data?.posts || []
+  const listingItems = data?.items || data?.products || data?.posts || data?.directories || []
   const emptyMessage =
-    contentType === "posts" ? "No posts available at the moment." : "No products available at the moment."
+    contentType === "posts"
+      ? "No posts available at the moment."
+      : contentType === "directory"
+        ? "No directory listings available at the moment."
+        : "No products available at the moment."
 
   // Get URL prefix from props (passed from parent, no API call needed)
   const urlPrefix = urlPrefixes?.[contentType] || contentType
@@ -235,7 +240,7 @@ export function ListingViewsBlock({
           key={item.id}
           href={href}
           className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label={`Read ${item.title || (contentType === "posts" ? "post" : "product")}`}
+          aria-label={`Read ${item.title || (contentType === "posts" ? "post" : contentType === "directory" ? "directory listing" : "product")}`}
         >
           <Card className="grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden">
             {showImageElement && (
@@ -243,7 +248,7 @@ export function ListingViewsBlock({
                 {item.featured_image ? (
                   <Image
                     src={item.featured_image}
-                    alt={item.title || `${contentType === "posts" ? "Post" : "Product"} image`}
+                    alt={item.title || `${contentType === "posts" ? "Post" : contentType === "directory" ? "Directory listing" : "Product"} image`}
                     width={640}
                     height={360}
                     className={`h-full w-full ${imageFitClassName} object-center transition-opacity duration-200 group-hover:opacity-75`}

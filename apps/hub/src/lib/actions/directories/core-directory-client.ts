@@ -34,7 +34,7 @@ export async function getCoreDirectoryBySlugForSite(siteId: string, slug: string
 
   const apiUrl = normalizeCoreApiUrl(config.apiUrl)
   if (!apiUrl) {
-    throw new Error('Core directory API URL is not allowed')
+    return { enabled: false, data: null as CorePublicDirectoryItem | null }
   }
 
   const response = await fetch(

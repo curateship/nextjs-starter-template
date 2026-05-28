@@ -154,7 +154,8 @@ export function BlockRenderer({
                   siteId={site.id}
                   urlPrefixes={{
                     products: 'products',
-                    posts: 'posts'
+                    posts: 'posts',
+                    directory: 'directories'
                   }}
                   preloadedData={site.listingData?.[block.id]}
                   siteWidth={siteWidth}

@@ -9,7 +9,7 @@ import { VisibilitySettings } from "../shared/VisibilitySettings"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 
-type ListingContentType = 'products' | 'posts'
+type ListingContentType = 'products' | 'posts' | 'directory'
 type ListingStyle = 'default' | 'blog'
 type ImageFit = 'crop' | 'fit'
 
@@ -233,6 +233,7 @@ export function PageListingViewBlock({
                 <SelectContent>
                   <SelectItem value="products">Products</SelectItem>
                   <SelectItem value="posts">Posts</SelectItem>
+                  <SelectItem value="directory">Directory</SelectItem>
                 </SelectContent>
               </Select>
             </div>
