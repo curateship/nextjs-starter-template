@@ -139,19 +139,19 @@ async function TopPagesCard({ siteId, range }: { siteId: string; range: Dashboar
   const topPages = await getTopPages(siteId, range).catch(() => [])
 
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader>
         <CardTitle>Top Pages</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="min-w-0">
         {topPages.length === 0 ? (
           <p className="text-sm text-muted-foreground">No data yet</p>
         ) : (
-          <div className="space-y-3">
+          <div className="min-w-0 space-y-3">
             {topPages.map((page) => (
-              <div key={page.path} className="flex items-center justify-between">
-                <span className="mr-4 truncate text-sm">{page.path}</span>
-                <span className="whitespace-nowrap text-sm text-muted-foreground">
+              <div key={page.path} className="flex min-w-0 items-center justify-between gap-4">
+                <span className="min-w-0 flex-1 truncate text-sm">{page.path}</span>
+                <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">
                   {page.views.toLocaleString()} views
                 </span>
               </div>

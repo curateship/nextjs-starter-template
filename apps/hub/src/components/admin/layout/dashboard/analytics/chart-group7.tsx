@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { DollarSign, Eye, ShoppingCart, TrendingDown, TrendingUp, Users } from "lucide-react"
 import Link from "next/link"
-import { CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts"
 
 import { Card, CardGroup, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -212,7 +212,13 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
         </CardHeader>
         <CardContent className="min-w-0">
           <ChartContainer config={chartConfig} className="h-[360px] min-w-0 w-full">
-            <LineChart accessibilityLayer data={chartDisplayData} margin={{ top: 44, right: 16, left: 0, bottom: 16 }}>
+            <AreaChart accessibilityLayer data={chartDisplayData} margin={{ top: 44, right: 16, left: 0, bottom: 16 }}>
+              <defs>
+                <linearGradient id="dashboardMetricGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--muted-foreground)" stopOpacity={0.18} />
+                  <stop offset="100%" stopColor="var(--muted-foreground)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" axisLine={false} tickLine={false} tickMargin={8} fontSize={12} />
               <YAxis
@@ -268,14 +274,16 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
                   />
                 }
               />
-              <Line
+              <Area
                 type="natural"
                 dataKey={activeMetric}
                 name={activeMetric}
-                stroke={`var(--color-${activeMetric})`}
+                stroke="var(--foreground)"
                 strokeWidth={2}
+                fill="url(#dashboardMetricGradient)"
+                fillOpacity={1}
                 isAnimationActive={false}
-                dot={{ fill: `var(--color-${activeMetric})` }}
+                dot={{ fill: "var(--foreground)" }}
                 activeDot={{ r: 6 }}
               >
                 <LabelList
@@ -285,8 +293,8 @@ const ChartGroup7 = ({ cardRange, chartData, chartRange, className, previousTota
                   fontSize={12}
                   formatter={(value) => formatAxisValue(activeMetric, Number(value ?? 0))}
                 />
-              </Line>
-            </LineChart>
+              </Area>
+            </AreaChart>
           </ChartContainer>
         </CardContent>
       </Card>
