@@ -290,7 +290,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                     <img
                       src={featuredImage}
                       alt="Featured image preview"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                     <button
                       type="button"

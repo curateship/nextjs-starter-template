@@ -280,7 +280,7 @@ export function EventSettingsModal({
                   <img
                     src={featuredImage}
                     alt="Featured image preview"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                   <button
                     type="button"

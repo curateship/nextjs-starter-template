@@ -308,7 +308,7 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
               <img
                 src={heroImage}
                 alt="Hero preview"
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
               <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50">
                 <div className="text-white text-center">

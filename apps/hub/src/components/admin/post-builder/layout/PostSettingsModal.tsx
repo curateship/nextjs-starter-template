@@ -379,7 +379,7 @@ export function PostSettingsModal({
                         <img
                           src={formData.featured_image}
                           alt="Featured image preview"
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                         <button
                           type="button"

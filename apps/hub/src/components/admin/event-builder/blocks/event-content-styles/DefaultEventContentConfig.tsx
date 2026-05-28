@@ -1,9 +1,10 @@
 "use client"
 
-import { BlockEditorSection } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
+import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import type { EventContentStyleAdminProps } from "./index"
 
@@ -14,8 +15,12 @@ export function DefaultEventContentConfig({ config, onConfigChange }: EventConte
   const titleSize = config.titleSize || 'large'
 
   return (
-    <div className="space-y-6">
-      <BlockEditorSection heading="Content Alignment">
+    <CardGroup className="grid">
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Content Alignment</DashboardModalCardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="flex gap-4">
             {(['left', 'center'] as const).map((option) => (
               <div key={option} className="flex items-center gap-2">
@@ -28,9 +33,14 @@ export function DefaultEventContentConfig({ config, onConfigChange }: EventConte
               </div>
             ))}
           </div>
-      </BlockEditorSection>
+        </CardContent>
+      </Card>
 
-      <BlockEditorSection heading="Title Size">
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Title Size</DashboardModalCardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="flex gap-4">
             {([
               { key: 'medium', label: 'Medium' },
@@ -47,9 +57,15 @@ export function DefaultEventContentConfig({ config, onConfigChange }: EventConte
               </div>
             ))}
           </div>
-      </BlockEditorSection>
+        </CardContent>
+      </Card>
 
-      <BlockEditorSection heading="Content Width">
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Content Width</DashboardModalCardTitle>
+          <CardDescription>Set the maximum width for this event content.</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="flex items-center gap-2">
             <Label htmlFor="eventContentMaxWidth" className="text-sm">Max width</Label>
             <Input
@@ -83,7 +99,8 @@ export function DefaultEventContentConfig({ config, onConfigChange }: EventConte
           <p className="text-xs text-muted-foreground mt-2">
             {config.contentMaxWidth == null ? (siteDefaultWidth ? `Using site default (${siteDefaultWidth}px)` : 'Using site default width') : 'Clear to use site default width'}
           </p>
-      </BlockEditorSection>
-    </div>
+        </CardContent>
+      </Card>
+    </CardGroup>
   )
 }

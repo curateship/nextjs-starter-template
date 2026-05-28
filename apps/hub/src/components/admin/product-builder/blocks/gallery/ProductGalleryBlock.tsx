@@ -127,7 +127,7 @@ export function ProductGalleryBlock({
                               <img
                                 src={image.url}
                                 alt={image.alt}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement
                                   target.style.display = 'none'

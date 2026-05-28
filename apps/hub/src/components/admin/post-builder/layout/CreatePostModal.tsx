@@ -304,7 +304,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                     <img
                       src={formData.featured_image}
                       alt="Featured image preview"
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                     <button
                       type="button"

@@ -122,7 +122,7 @@ function SortableFeatureItem({
                   <div className="relative w-12 h-12 rounded-lg border bg-black overflow-hidden">
                     <video 
                       src={`/api/media/proxy?url=${encodeURIComponent(feature.image)}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       muted
                       preload="metadata"
                       onLoadedMetadata={(e) => {
@@ -139,7 +139,7 @@ function SortableFeatureItem({
                   <img
                     src={feature.image}
                     alt={feature.title}
-                    className="w-12 h-12 object-cover rounded-lg border"
+                    className="w-12 h-12 object-contain rounded-lg border"
                   />
                 )
               ) : (

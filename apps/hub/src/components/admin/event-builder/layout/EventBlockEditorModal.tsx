@@ -1,7 +1,6 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
@@ -68,20 +67,14 @@ export function EventBlockEditorModal({
           }
           footerClassName="sm:justify-between"
         >
-          <CardGroup className="grid">
-            <Card>
-              <CardContent className="p-0">
-                <EventBlockEditor
-                  block={block}
-                  content={content}
-                  onContentChange={onContentChange}
-                  siteId={siteId}
-                  eventTitle={eventTitle}
-                  onEventTitleChange={onEventTitleChange}
-                />
-              </CardContent>
-            </Card>
-          </CardGroup>
+          <EventBlockEditor
+            block={block}
+            content={content}
+            onContentChange={onContentChange}
+            siteId={siteId}
+            eventTitle={eventTitle}
+            onEventTitleChange={onEventTitleChange}
+          />
         </DashboardModalContent>
       </ModalTabsProvider>
     </Dialog>

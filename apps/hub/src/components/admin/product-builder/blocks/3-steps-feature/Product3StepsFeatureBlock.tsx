@@ -61,7 +61,7 @@ function StepItemEditor({
                 <div className="relative h-full w-full bg-black">
                   <video
                     src={`/api/media/proxy?url=${encodeURIComponent(step.image)}`}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-contain"
                     muted
                     preload="metadata"
                   />
@@ -72,7 +72,7 @@ function StepItemEditor({
                   </span>
                 </div>
               ) : (
-                <img src={step.image} alt={step.title} className="h-full w-full object-cover" />
+                <img src={step.image} alt={step.title} className="h-full w-full object-contain" />
               )
             ) : (
               <ImageIcon className="h-5 w-5 text-muted-foreground" />
