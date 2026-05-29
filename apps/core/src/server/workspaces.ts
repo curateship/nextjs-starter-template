@@ -302,18 +302,19 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
 function cleanWorkspaceSettings(
   settings: Partial<WorkspaceSettings>
 ): WorkspaceSettings {
+  const fallback = defaultWorkspaceSettings()
   const cleaned: WorkspaceSettings = {
     icon: isWorkspaceIcon(settings.icon)
       ? settings.icon
       : DEFAULT_WORKSPACE_ICON,
-    favicon: typeof settings.favicon === "string" ? settings.favicon : "",
+    favicon: typeof settings.favicon === "string" ? settings.favicon : fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
-      : [],
+      : fallback.topNavigation,
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
-      : createDefaultTopRightNavigation(),
-    sections: Array.isArray(settings.sections) ? settings.sections : [],
+      : fallback.topRightNavigation,
+    sections: Array.isArray(settings.sections) ? settings.sections : fallback.sections,
   }
 
   if (isTokenHash(settings.publicReadTokenHash)) {
@@ -329,8 +330,103 @@ function defaultWorkspaceSettings(): WorkspaceSettings {
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),
-    sections: [],
+    sections: createDefaultWorkspaceSections(),
   }
+}
+
+function createDefaultWorkspaceSections(): ShellSection[] {
+  return [
+    {
+      id: "overview",
+      title: "Overview",
+      entries: [
+        {
+          type: "item",
+          id: "dashboard",
+          label: "Dashboard",
+          href: "/",
+          icon: "layoutDashboard",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "workspaces",
+          label: "Workspaces",
+          href: "/workspaces",
+          icon: "briefcaseBusiness",
+          visible: true,
+        },
+      ],
+    },
+    {
+      id: "data",
+      title: "Data",
+      entries: [
+        {
+          type: "item",
+          id: "data-sources",
+          label: "Data Sources",
+          href: "/admin/datasource",
+          icon: "library",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "media-library",
+          label: "Media Library",
+          href: "/admin/media",
+          icon: "image",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "proxies",
+          label: "Proxies",
+          href: "/admin/proxies",
+          icon: "proxy",
+          visible: true,
+        },
+      ],
+    },
+    {
+      id: "admin",
+      title: "Admin",
+      entries: [
+        {
+          type: "item",
+          id: "feedback",
+          label: "Feedback",
+          href: "/admin/feedback",
+          icon: "messageSquarePlus",
+          visible: true,
+          children: [
+            {
+              id: "feedback-comments",
+              label: "Comments",
+              href: "/admin/feedback/comments",
+              icon: "messageSquarePlus",
+            },
+          ],
+        },
+        {
+          type: "item",
+          id: "notifications",
+          label: "Notifications",
+          href: "/admin/notifications",
+          icon: "bell",
+          visible: true,
+        },
+        {
+          type: "item",
+          id: "settings",
+          label: "Settings",
+          href: "/admin/settings",
+          icon: "settings",
+          visible: true,
+        },
+      ],
+    },
+  ]
 }
 
 function isWorkspaceIcon(value: unknown): value is IconKey {

@@ -187,6 +187,9 @@ describe("core workspaces", () => {
     expect(parseWorkspaceSettings(defaultWorkspace.settings).icon).toBe(
       "briefcaseBusiness"
     )
+    expect(
+      parseWorkspaceSettings(defaultWorkspace.settings).sections.length
+    ).toBeGreaterThan(0)
 
     const secondWorkspace = await createUserWorkspace(
       userId,
@@ -198,7 +201,9 @@ describe("core workspaces", () => {
       userId,
       name: "Client leads",
     })
-    expect(parseWorkspaceSettings(secondWorkspace.settings).icon).toBe("globe")
+    const secondSettings = parseWorkspaceSettings(secondWorkspace.settings)
+    expect(secondSettings.icon).toBe("globe")
+    expect(secondSettings.sections.length).toBeGreaterThan(0)
 
     const updatedWorkspace = await updateUserWorkspace(
       userId,
