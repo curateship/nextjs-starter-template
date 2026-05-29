@@ -100,6 +100,7 @@ export function PageBlockEditorDialog({
                     onImageFitChange={(value) => onContentChange("imageFit", value)}
                     onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                     onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
+                    onMobileColumnsChange={(value) => onContentChange("mobileColumns", value)}
                     onColumnsChange={(value) => onContentChange("columns", value)}
                     onSortByChange={(value) => onContentChange("sortBy", value)}
                     onSortOrderChange={(value) => onContentChange("sortOrder", value)}

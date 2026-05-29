@@ -20,6 +20,7 @@ import { PageBlockEditorDialog } from "@/components/admin/page-builder/layout/Pa
 import { getSitePagesAction } from "@/lib/actions/pages/page-actions"
 import type { Page } from "@/lib/actions/pages/page-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function PageBuilderEditor({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
@@ -252,7 +253,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-hidden border-r bg-background">
-          <div className="h-full overflow-y-auto overflow-x-hidden">
+          <ScrollArea className="h-full">
             <PagePreview
               blocks={currentPage.blocks}
               site={site ? {
@@ -280,7 +281,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
                 })
               }}
             />
-          </div>
+          </ScrollArea>
         </div>
 
         <PageBlockEditorDialog

@@ -46,6 +46,7 @@ interface SharedListingViewsBlockProps {
   imageFit?: ImageFit
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
+  mobileColumns?: number
   columns?: number
   sortBy?: 'date' | 'title' | 'display_order'
   sortOrder?: 'asc' | 'desc'
@@ -65,6 +66,7 @@ interface SharedListingViewsBlockProps {
   onImageFitChange: (value: ImageFit) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
+  onMobileColumnsChange: (value: number) => void
   onColumnsChange: (value: number) => void
   onSortByChange: (value: 'date' | 'title' | 'display_order') => void
   onSortOrderChange: (value: 'asc' | 'desc') => void
@@ -87,6 +89,7 @@ export function PageListingViewBlock({
   imageFit = 'crop',
   displayMode = 'grid',
   itemsToShow = 6,
+  mobileColumns = 1,
   columns = 3,
   sortBy = 'date',
   sortOrder = 'desc',
@@ -106,6 +109,7 @@ export function PageListingViewBlock({
   onImageFitChange,
   onDisplayModeChange,
   onItemsToShowChange,
+  onMobileColumnsChange,
   onColumnsChange,
   onSortByChange,
   onSortOrderChange,
@@ -308,6 +312,23 @@ export function PageListingViewBlock({
                       <SelectContent>
                         <SelectItem value="grid">Grid</SelectItem>
                         <SelectItem value="list">List</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="mobileColumns">Mobile Columns</Label>
+                    <Select
+                      value={displayMode === 'grid' ? mobileColumns.toString() : 'disabled'}
+                      onValueChange={(v) => onMobileColumnsChange(parseInt(v))}
+                      disabled={displayMode === 'list'}
+                    >
+                      <SelectTrigger id="mobileColumns" size="button">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 Column</SelectItem>
+                        <SelectItem value="2">2 Columns</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

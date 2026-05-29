@@ -44,6 +44,7 @@ interface ListingViewsBlockProps {
     imageFit?: ImageFit
     displayMode?: "grid" | "list"
     itemsToShow?: number
+    mobileColumns?: number
     columns?: number
     sortBy?: "date" | "title" | "display_order"
     sortOrder?: "asc" | "desc"
@@ -92,6 +93,7 @@ export function ListingViewsBlock({
     imageFit = "crop",
     displayMode = "grid",
     itemsToShow = 6,
+    mobileColumns = 1,
     columns = 3,
     sortBy = "date",
     sortOrder = "desc",
@@ -203,7 +205,14 @@ export function ListingViewsBlock({
     preloadedData
   ])
 
-  const gridColumns = displayMode === "grid" ? `grid-cols-1 sm:grid-cols-2 lg:grid-cols-${columns}` : "grid-cols-1"
+  const mobileGridColumns = Number(mobileColumns) === 2 ? "grid-cols-2" : "grid-cols-1"
+  const desktopGridColumns = Number(columns) === 2 ? "lg:grid-cols-2" : Number(columns) === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"
+  const gridColumns = displayMode === "grid" ? `${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns}` : "grid-cols-1"
+  const mobileImageSize = Number(mobileColumns) === 2 ? "50vw" : "100vw"
+  const desktopImageSize = Number(columns) === 2 ? "50vw" : Number(columns) === 4 ? "25vw" : "33vw"
+  const gridImageSizes = `(max-width: 639px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
+  const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, 33vw`
+  const imageQuality = 25
   const imageFitClassName = imageFit === "fit" ? "object-contain" : "object-cover"
   const imageFrameClassName = imageFit === "fit" ? "bg-muted" : ""
 
@@ -252,7 +261,8 @@ export function ListingViewsBlock({
                     width={640}
                     height={360}
                     className={`h-full w-full ${imageFitClassName} object-center transition-opacity duration-200 group-hover:opacity-75`}
-                    sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    sizes={blogImageSizes}
+                    quality={imageQuality}
                     priority={isLCP}
                   />
                 ) : (
@@ -304,7 +314,8 @@ export function ListingViewsBlock({
                   alt={item.title || `${contentType === "posts" ? "Post" : "Product"} image`}
                   fill
                   className={imageFitClassName}
-                  sizes="(max-width: 640px) 384px, (max-width: 1024px) 50vw, 384px"
+                  sizes={displayMode === "list" ? "192px" : gridImageSizes}
+                  quality={imageQuality}
                   priority={isLCP}
                   loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
                   fetchPriority={isLCP ? "high" : index < columns ? "high" : "auto"}
@@ -417,7 +428,7 @@ export function ListingViewsBlock({
       {renderHeader()}
 
       <div
-        className={`grid ${listingStyle === "blog" ? "gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8" : `${gridColumns} gap-8`}`}
+        className={`grid ${listingStyle === "blog" ? `gap-6 ${mobileGridColumns} md:grid-cols-2 lg:grid-cols-3 lg:gap-8` : `${gridColumns} gap-8`}`}
       >
         {listingItems.map((item, index) => renderItem(item, index))}
       </div>
