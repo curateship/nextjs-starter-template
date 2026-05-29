@@ -174,7 +174,7 @@ export async function createAccountPageAction(
       return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
     }
 
-    const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+    const reservedSlugs = ['api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
     if (reservedSlugs.includes(slug.toLowerCase())) {
       return { data: null, error: 'This slug is reserved and cannot be used.' }
     }
@@ -276,7 +276,7 @@ export async function updateAccountPageAction(
         return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
       }
 
-      const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+      const reservedSlugs = ['api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
       if (reservedSlugs.includes(slug.toLowerCase())) {
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }

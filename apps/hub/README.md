@@ -42,7 +42,9 @@ Before you change HUB code:
 - Drizzle schema and runtime code are the current database source of truth.
 - `apps/hub/migrations/**` contains historical SQL and is not the runtime architecture authority.
 - Site rendering is block-driven with separate admin builder and frontend renderer layers.
-- Site-facing auth is provided by the public Pages builder `auth` block. Platform admin auth is handled separately at `/admin-login`.
+- Site-facing auth is provided by the public Pages builder `auth` block. Platform admin auth is handled separately at `hub.systemeverything.com/login`.
+- Platform admin is canonical on `hub.systemeverything.com`; non-Hub `/admin` URLs temporarily redirect there until a tenant dashboard exists.
+- Local development treats `localhost:3000` as the Hub admin host, so `http://localhost:3000/admin` stays local.
 - `NEXT_PUBLIC_APP_DOMAIN` is the platform base domain. It is not a site's custom domain.
 - Saving a custom domain verifies the TXT ownership record, stores the non-`www` domain as canonical, and wires root domains plus `www` into the single Coolify Hub app.
 - Directory detail pages can load `content_blocks`, but large directory list/search/admin paths should only read lean top-level columns.

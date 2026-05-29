@@ -148,7 +148,7 @@ export async function PUT(
         )
       }
 
-      const reservedSlugs = ['api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+      const reservedSlugs = ['api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
       if (reservedSlugs.includes(slug.toLowerCase())) {
         return NextResponse.json(
           { data: null, error: 'This slug is reserved and cannot be used.' },

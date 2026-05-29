@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
+import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 
 type SitePageLookup = {
   site: typeof sites.$inferSelect
@@ -25,7 +26,7 @@ function getSubdomainFromHost(host: string) {
   if (!host.includes('.')) return null
 
   const subdomain = host.split('.')[0]
-  return ['www', 'api', 'admin', 'app'].includes(subdomain) ? null : subdomain
+  return isReservedPlatformSubdomain(subdomain) ? null : subdomain
 }
 
 function orderSitesByHostMatch(host: string, subdomain: string | null) {

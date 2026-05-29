@@ -218,7 +218,7 @@ export async function updatePageAction(pageId: string, updates: UpdatePageData):
       }
 
       // Check for reserved slugs
-      const reservedSlugs = ['account', 'api', 'admin', 'admin-login', 'maintenance', 'www', 'mail', 'ftp', 'global']
+      const reservedSlugs = ['account', 'api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
       if (reservedSlugs.includes(slug.toLowerCase())) {
         return { data: null, error: 'This slug is reserved and cannot be used.' }
       }

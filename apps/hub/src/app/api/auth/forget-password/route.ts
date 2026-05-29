@@ -9,8 +9,9 @@ import {
   renderSystemEmailSubject,
 } from '@/lib/actions/email/system-email'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
+import { getHubPlatformOrigin, isHubPlatformHost } from '@/lib/utils/platform-host'
 
-const DEFAULT_REDIRECT_PATH = '/admin-login'
+const DEFAULT_REDIRECT_PATH = '/login'
 const VERIFICATION_TABLE = 'user_verifications'
 const GENERIC_RESPONSE = {
   status: true,
@@ -44,6 +45,11 @@ function isLocalBaseUrl(baseUrl: string) {
 }
 
 function getBaseUrl(request: Request) {
+  const host = request.headers.get('host') || new URL(request.url).host
+  if (isHubPlatformHost(host)) {
+    return getHubPlatformOrigin()
+  }
+
   const configuredBaseUrl = normalizeTrustedBaseUrl(
     process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL
   )

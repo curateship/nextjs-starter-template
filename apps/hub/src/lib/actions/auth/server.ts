@@ -17,6 +17,7 @@ import {
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { safeDecrypt } from '@/lib/utils/encryption'
 import { getEmailProvider } from '@/lib/actions/email/provider'
+import { getHubPlatformOrigin, isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
@@ -127,13 +128,11 @@ async function resolveSiteFromRequest(source?: Request | AuthRequestContext): Pr
   )
 
   const allowedStatuses = new Set(['active', 'draft'])
-  const reservedSubdomains = new Set(['www', 'api', 'admin', 'app'])
-
   let site = siteByDomain.rows[0]
 
   if (!site && host.includes('.')) {
     const subdomain = host.split('.')[0]
-    if (subdomain && !reservedSubdomains.has(subdomain)) {
+    if (subdomain && !isReservedPlatformSubdomain(subdomain)) {
       const siteBySubdomain = await pool.query<ResolvedRequestSite>(
         `
           select id, name, status
@@ -170,6 +169,7 @@ function getConfiguredTrustedOrigins() {
     process.env.BETTER_AUTH_URL,
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.BETTER_AUTH_TRUSTED_ORIGINS,
+    getHubPlatformOrigin(),
   ]
 
   const origins = new Set<string>()

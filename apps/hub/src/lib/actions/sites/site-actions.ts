@@ -10,6 +10,7 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { sanitizeFooterSettings, sanitizeNavigationSettings } from '@/lib/utils/site-structure'
 import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions'
 import { DEFAULT_NEWSLETTER_DRIP_CONFIG } from '@/lib/actions/newsletters/send-windows'
+import { isHubPlatformHostname, isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 
 export interface Site {
   id: string
@@ -213,6 +214,10 @@ async function prepareCustomDomain(
     return { domain: null, error: 'Invalid custom domain format' }
   }
 
+  if (isHubPlatformHostname(domain)) {
+    return { domain: null, error: 'The Hub platform domain cannot be assigned to a site' }
+  }
+
   const existing = await db.query.sites.findFirst({
     where: currentSiteId
       ? and(inArray(sites.customDomain, getCustomDomainAliases(domain)), ne(sites.id, currentSiteId))
@@ -262,7 +267,7 @@ async function getAvailableSubdomain(input: string): Promise<string> {
       where: eq(sites.subdomain, subdomain),
       columns: { id: true },
     })
-    if (!existing) return subdomain
+    if (!existing && !isReservedPlatformSubdomain(subdomain)) return subdomain
 
     attempts++
     subdomain = `${baseSubdomain}-${attempts}`
@@ -306,7 +311,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
         where: eq(sites.subdomain, testSubdomain),
         columns: { id: true },
       })
-      if (!existing) {
+      if (!existing && !isReservedPlatformSubdomain(testSubdomain)) {
         subdomain = testSubdomain
         break
       }
@@ -496,7 +501,7 @@ export async function updateSiteAction(
           where: and(eq(sites.subdomain, testSubdomain), ne(sites.id, siteId)),
           columns: { id: true },
         })
-        if (!existing) {
+        if (!existing && !isReservedPlatformSubdomain(testSubdomain)) {
           subdomain = testSubdomain
           break
         }
@@ -505,6 +510,9 @@ export async function updateSiteAction(
       }
       finalUpdates.subdomain = subdomain
     } else if (updates.subdomain) {
+      if (isReservedPlatformSubdomain(updates.subdomain)) {
+        return { data: null, error: 'This subdomain is reserved for the platform' }
+      }
       finalUpdates.subdomain = updates.subdomain
     }
 
@@ -586,7 +594,7 @@ export async function checkSubdomainAvailabilityAction(subdomain: string): Promi
       columns: { id: true },
     })
 
-    if (!existing) return { available: true, error: null }
+    if (!existing && !isReservedPlatformSubdomain(subdomain)) return { available: true, error: null }
 
     let suggestion = subdomain
     let attempts = 1
@@ -596,7 +604,7 @@ export async function checkSubdomainAvailabilityAction(subdomain: string): Promi
         where: eq(sites.subdomain, testSubdomain),
         columns: { id: true },
       })
-      if (!existingTest) {
+      if (!existingTest && !isReservedPlatformSubdomain(testSubdomain)) {
         suggestion = testSubdomain
         break
       }

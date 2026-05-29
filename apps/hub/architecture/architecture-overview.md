@@ -41,6 +41,9 @@ All app source code, configs, and `.env` files live in `apps/hub/`.
 - Sites with a custom domain are accessed directly at that domain (e.g., `https://systemeverything.com`)
 - Saving a custom domain stores the non-`www` domain as canonical and updates the single Coolify Hub app with HTTPS FQDNs, including `www` for root domains
 - `systemeverything.com` is NOT the platform — it is just one site's custom domain
+- `hub.systemeverything.com` is the canonical platform admin host for the same Hub app
+- Non-Hub `/admin` URLs redirect to `hub.systemeverything.com/admin` until a separate tenant dashboard exists
+- In local development, `localhost:3000` is also treated as the Hub admin host
 - Site resolution happens via `getSiteFromHeaders()` which reads the `Host` header and resolves the site from the database
 
 **Why sslip.io is the base URL:**
@@ -54,6 +57,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 **Environment Variables:**
 - `NEXT_PUBLIC_APP_DOMAIN` — the platform base domain (sslip.io URL in production)
 - `NEXT_PUBLIC_APP_URL` — the primary site URL (used for auth, meta tags, etc.)
+- `HUB_PLATFORM_HOST` — the canonical host for Hub platform admin, currently `hub.systemeverything.com`
 - `COOLIFY_BASE_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_HUB_APP_UUID` — server-only settings used to wire verified custom domains into Coolify
 - These are NOT the same thing
 
@@ -102,7 +106,8 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - Account-page-builder pages require an existing active site membership and resolve only under `/account/*`.
 - `/account` renders the default published account page; `/account/{slug}` renders that account page slug.
 - Site-facing auth comes from public Pages builder pages that contain an `auth` block.
-- Platform admin auth lives at `/admin-login`.
+- Platform admin auth lives at `hub.systemeverything.com/login`, with the platform admin app canonical on `hub.systemeverything.com/admin`.
+- Tenant-domain `/admin` is not a tenant dashboard yet; it redirects to the canonical Hub admin host for now.
 
 **Drizzle ORM notes:**
 - Schema files use camelCase for JS variables (e.g., `categories.isPublished`)

@@ -1,7 +1,8 @@
-
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
+import { isHubPlatformHost } from "@/lib/utils/platform-host"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { headers } from "next/headers"
 import { getSessionCookie } from "better-auth/cookies"
 import { toCdnUrl } from "@/lib/utils/cdn"
@@ -16,13 +17,56 @@ async function checkAuth() {
   return !!getSessionCookie(await headers())
 }
 
+async function isHubHomeRequest() {
+  const requestHeaders = await headers()
+  return isHubPlatformHost(requestHeaders.get("host"))
+}
+
+function HubPlatformHome() {
+  return (
+    <main className="min-h-screen bg-zinc-950 text-white">
+      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center px-6 py-16 sm:px-10">
+        <div className="max-w-2xl">
+          <p className="mb-4 text-sm font-medium uppercase text-zinc-400">
+            System Everything
+          </p>
+          <h1 className="text-4xl font-semibold tracking-normal text-white sm:text-6xl">
+            Hub platform
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-7 text-zinc-300 sm:text-lg">
+            The canonical admin home for managing sites, content, users, commerce, and platform settings.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/admin"
+              className="inline-flex h-11 items-center justify-center rounded-md bg-white px-5 text-sm font-medium text-zinc-950 transition hover:bg-zinc-200"
+            >
+              Open admin
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex h-11 items-center justify-center rounded-md border border-zinc-700 px-5 text-sm font-medium text-white transition hover:bg-zinc-900"
+            >
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 export default async function SiteHomePage() {
+  if (await isHubHomeRequest()) {
+    return <HubPlatformHome />
+  }
+
   const { success, site } = await getHomePageSite()
   const isLoggedIn = await checkAuth()
 
   // No site found for this host — redirect to login
   if (!success || !site) {
-    redirect('/admin-login')
+    redirect('/login')
   }
 
   // Check maintenance mode - only redirect if not logged in
@@ -51,6 +95,13 @@ export default async function SiteHomePage() {
 
 export async function generateMetadata() {
   try {
+    if (await isHubHomeRequest()) {
+      return {
+        title: 'System Everything Hub',
+        description: 'Platform admin home for System Everything.',
+      }
+    }
+
     const { success, site } = await getHomePageSite()
 
     if (!success || !site) {

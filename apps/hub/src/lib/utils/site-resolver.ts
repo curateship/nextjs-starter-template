@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { getSiteBySubdomain, getSiteByDomain, getSiteByHost } from '@/lib/actions/pages/page-frontend-actions'
+import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 
 /**
  * Get site data by querying database directly with host
@@ -37,5 +38,9 @@ export async function getSiteFromHeaders(pageSlug?: string) {
   
   // If domain lookup fails, try subdomain
   const subdomain = host.split('.')[0]
+  if (isReservedPlatformSubdomain(subdomain)) {
+    return { success: false, error: 'Site not found' }
+  }
+
   return await getSiteBySubdomain(subdomain, pageSlug)
 }
