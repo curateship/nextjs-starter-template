@@ -341,9 +341,11 @@ export default function SitesPage() {
                             </div>
                             <div className="min-w-0">
                               <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                {site.subdomain}.domain.com
+                                {site.name}
                               </h4>
-                              <p className="truncate text-xs text-muted-foreground sm:text-sm">{site.name}</p>
+                              <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                                {site.custom_domain || site.subdomain}
+                              </p>
                             </div>
                           </Link>
                         </TableCell>

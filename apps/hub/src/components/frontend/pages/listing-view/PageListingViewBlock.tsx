@@ -222,6 +222,7 @@ export function ListingViewsBlock({
     return new Intl.DateTimeFormat("en-US", {
       day: "numeric",
       month: "short",
+      timeZone: "UTC",
       year: "numeric"
     }).format(new Date(value))
   }
@@ -266,7 +267,7 @@ export function ListingViewsBlock({
                     priority={isLCP}
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">
+                  <div className="flex h-full w-full items-center justify-center bg-muted text-foreground">
                     No Image
                   </div>
                 )}
@@ -326,7 +327,7 @@ export function ListingViewsBlock({
                 />
               </div>
             ) : (
-              <div className="bg-muted rounded-md aspect-square flex items-center justify-center text-muted-foreground">
+              <div className="bg-muted rounded-md aspect-square flex items-center justify-center text-foreground">
                 No Image
               </div>
             )}
