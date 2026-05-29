@@ -17,7 +17,7 @@ import {
   getAdminSidebarStickyNavLinks,
   sanitizeAdminSidebarHref,
 } from "@/lib/utils/admin-sidebar"
-import { getQuickLinkIconOrNull, isQuickLinkIconUrl } from "@/lib/utils/site-quick-links"
+import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
 
 interface NavLink {
   label: string
@@ -86,13 +86,7 @@ export function StickyHeader({
       return <Icon className={className ?? "h-3.5 w-3.5"} />
     }
 
-    if (isQuickLinkIconUrl(item.iconName)) {
-      return <img src={item.iconName} alt="" className={cn(className ?? "h-3.5 w-3.5", "object-contain")} />
-    }
-
-    const Icon = item.iconName ? getQuickLinkIconOrNull(item.iconName) : null
-
-    return Icon ? <Icon className={className ?? "h-3.5 w-3.5"} /> : null
+    return renderQuickLinkIcon(item.iconName, className ?? "h-3.5 w-3.5")
   }
   const renderNavItem = (item: HeaderNavItem, showLabel: boolean) => {
     const safeHref = item.href ? sanitizeAdminSidebarHref(item.href) : ""

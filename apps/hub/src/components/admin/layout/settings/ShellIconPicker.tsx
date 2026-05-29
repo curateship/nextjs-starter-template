@@ -14,18 +14,13 @@ import { cn } from "@/lib/utils/tailwind"
 import {
   QUICK_LINK_ICON_OPTIONS,
   getQuickLinkIcon,
-  getQuickLinkIconOrNull,
   isQuickLinkIconUrl,
+  renderQuickLinkIcon,
   type QuickLinkIconValue
 } from "@/lib/utils/site-quick-links"
 
 export function ShellIconPreview({ icon, className }: { icon?: QuickLinkIconValue; className?: string }) {
-  const Icon = getQuickLinkIconOrNull(icon)
-  if (Icon) return <Icon className={className} />
-  if (isQuickLinkIconUrl(icon)) {
-    return <img src={icon} alt="" className={cn(className, "object-contain")} />
-  }
-  return null
+  return renderQuickLinkIcon(icon, className)
 }
 
 function ShellIconSelectedMark() {
@@ -395,11 +390,7 @@ export function ShellIconPickerField({
                           aria-label={`Choose ${media.original_name} icon`}
                         >
                           {isSelected ? <ShellIconSelectedMark /> : null}
-                          <img
-                            src={media.public_url}
-                            alt={media.alt_text || media.original_name}
-                            className="h-5 w-5 object-contain"
-                          />
+                          {renderQuickLinkIcon(media.public_url, "h-5 w-5")}
                           <span className="line-clamp-2 text-[11px] leading-tight">{media.original_name}</span>
                         </button>
                       )

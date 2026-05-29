@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react"
+
 import {
   AppWindowIcon,
   BarChart3Icon,
@@ -154,17 +156,14 @@ export function isIconKey(value?: string): value is IconKey {
 
 export function isShellIconUrl(value?: string) {
   if (!value) return false
+  if (!value.startsWith("/") || value.startsWith("//")) return false
 
   try {
-    const url =
-      value.startsWith("/") && !value.startsWith("//")
-        ? new URL(value, "https://core.local")
-        : new URL(value)
+    const url = new URL(value, "https://core.local")
     return (
-      (url.protocol === "https:" || url.protocol === "http:") &&
+      url.origin === "https://core.local" &&
       (url.pathname.toLowerCase().endsWith(".svg") ||
-        (url.origin === "https://core.local" &&
-          /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname)))
+        /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname))
     )
   } catch {
     return false
@@ -282,6 +281,29 @@ export function isShellItem(entry: ShellEntry): entry is ShellItem {
   return entry.type === "item"
 }
 
+function renderThemedSvgIcon(src: string, className: string) {
+  const escapedSrc = src.replace(/["\\]/g, "\\$&")
+  const maskImage = `url("${escapedSrc}")`
+  const style: CSSProperties = {
+    maskImage,
+    maskPosition: "center",
+    maskRepeat: "no-repeat",
+    maskSize: "contain",
+    WebkitMaskImage: maskImage,
+    WebkitMaskPosition: "center",
+    WebkitMaskRepeat: "no-repeat",
+    WebkitMaskSize: "contain",
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`${className} inline-block shrink-0 bg-current`}
+      style={style}
+    />
+  )
+}
+
 export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4") {
   if (isIconKey(icon)) {
     const Icon = iconMeta[icon].icon
@@ -289,7 +311,7 @@ export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4
   }
 
   if (isShellIconUrl(icon)) {
-    return <img src={icon} alt="" className={`${className} object-contain`} />
+    return renderThemedSvgIcon(icon, className)
   }
 
   const Icon = ImageIcon

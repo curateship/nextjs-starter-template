@@ -43,6 +43,10 @@ const mediaPageSize = 12
 
 type IconPickerTab = "lucide" | "media"
 
+function getMediaIconUrl(item: MediaItem) {
+  return `/api/v1/media/${item.id}/file`
+}
+
 export function ShellIconPicker({
   value,
   onValueChange,
@@ -85,8 +89,8 @@ export function ShellIconPicker({
           .includes(normalizedQuery)
       })
       .sort((left, right) => {
-        if (value && left.url === value) return -1
-        if (value && right.url === value) return 1
+        if (value && getMediaIconUrl(left) === value) return -1
+        if (value && getMediaIconUrl(right) === value) return 1
         return 0
       })
   }, [mediaData?.media, normalizedQuery, value])
@@ -118,7 +122,7 @@ export function ShellIconPicker({
 
   React.useEffect(() => {
     if (!open || selectedMedia || !value) return
-    const currentMedia = mediaItems.find((item) => item.url === value)
+    const currentMedia = mediaItems.find((item) => getMediaIconUrl(item) === value)
     if (currentMedia) setSelectedMedia(currentMedia)
   }, [mediaItems, open, selectedMedia, value])
 
@@ -154,7 +158,7 @@ export function ShellIconPicker({
     setMediaError(null)
     try {
       const item = await uploadMedia(file)
-      onValueChange(item.url)
+      onValueChange(getMediaIconUrl(item))
       closePicker()
     } catch (error) {
       setMediaError(getMediaErrorMessage(error))
@@ -294,7 +298,7 @@ export function ShellIconPicker({
                 disabled={!selectedMedia}
                 onClick={() => {
                   if (!selectedMedia) return
-                  onValueChange(selectedMedia.url)
+                  onValueChange(getMediaIconUrl(selectedMedia))
                   closePicker()
                 }}
               >
@@ -422,11 +426,7 @@ function MediaIconGrid({
                   onClick={() => onSelectMedia(item)}
                   aria-label={`Choose ${item.original_name} icon`}
                 >
-                  <img
-                    src={item.url}
-                    alt={item.alt_text ?? item.original_name}
-                    className="h-5 w-5 object-contain"
-                  />
+                  {renderShellIcon(getMediaIconUrl(item), "h-5 w-5")}
                   {isSelected ? <SelectedMark /> : null}
                   <span className="line-clamp-2 text-[11px] leading-tight">
                     {item.original_name}

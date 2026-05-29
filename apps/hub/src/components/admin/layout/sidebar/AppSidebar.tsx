@@ -19,8 +19,7 @@ import {
   getAdminSidebarIcon,
   resolveAdminSidebarSettings,
 } from "@/lib/utils/admin-sidebar"
-import { cn } from "@/lib/utils/tailwind"
-import { isQuickLinkIconUrl, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
+import { isQuickLinkIconUrl, renderQuickLinkIcon, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: { name: string; email: string; avatar?: string }
@@ -29,7 +28,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 function getSidebarIcon(icon?: QuickLinkIconValue) {
   if (isQuickLinkIconUrl(icon)) {
     return function SidebarMediaIcon({ className }: { className?: string }) {
-      return <img src={icon} alt="" className={cn(className, "object-contain")} />
+      return renderQuickLinkIcon(icon, className)
     }
   }
 

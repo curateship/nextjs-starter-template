@@ -19,8 +19,7 @@ import {
 } from '@/lib/utils/site-structure'
 import { isSafeUrl, sanitizeUrl } from '@/lib/utils/url-validator'
 import {
-  getQuickLinkIconOrNull,
-  isQuickLinkIconUrl,
+  renderQuickLinkIcon,
   type QuickLinkIconValue,
 } from '@/lib/utils/site-quick-links'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
@@ -96,14 +95,9 @@ function UserAvatar({ user }: { user: SessionUser }) {
 }
 
 function NavItemLabel({ label, icon }: { label: string; icon?: QuickLinkIconValue }) {
-  const Icon = getQuickLinkIconOrNull(icon)
-
   return (
     <span className="flex items-center gap-2">
-      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-      {!Icon && isQuickLinkIconUrl(icon) ? (
-        <img src={icon} alt="" className="h-4 w-4 shrink-0 object-contain" />
-      ) : null}
+      {renderQuickLinkIcon(icon, "h-4 w-4 shrink-0")}
       <span>{label}</span>
     </span>
   )

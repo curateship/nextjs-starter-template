@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react"
 import {
   ArrowRight,
   ArrowUpRight,
@@ -261,6 +262,36 @@ export function isQuickLinkIconUrl(value: unknown): value is string {
 
 export function isQuickLinkIconValue(value: unknown): value is QuickLinkIconValue {
   return isQuickLinkIconName(value) || isQuickLinkIconUrl(value)
+}
+
+function renderThemedSvgIcon(src: string, className: string) {
+  const escapedSrc = src.replace(/["\\]/g, "\\$&")
+  const maskImage = `url("${escapedSrc}")`
+  const style: CSSProperties = {
+    maskImage,
+    maskPosition: "center",
+    maskRepeat: "no-repeat",
+    maskSize: "contain",
+    WebkitMaskImage: maskImage,
+    WebkitMaskPosition: "center",
+    WebkitMaskRepeat: "no-repeat",
+    WebkitMaskSize: "contain",
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={`${className} inline-block shrink-0 bg-current`}
+      style={style}
+    />
+  )
+}
+
+export function renderQuickLinkIcon(icon: QuickLinkIconValue | undefined, className = "h-4 w-4") {
+  const Icon = getQuickLinkIconOrNull(icon)
+  if (Icon) return <Icon className={className} />
+  if (isQuickLinkIconUrl(icon)) return renderThemedSvgIcon(icon, className)
+  return null
 }
 
 export function normalizeSiteQuickLinks(value: unknown): SiteQuickLink[] {
