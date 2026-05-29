@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { CheckCircle } from "lucide-react"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Page, UpdatePageData } from "@/lib/actions/pages/page-actions"
@@ -29,10 +28,10 @@ export function PageSettingsModal({
   onSuccess,
 }: PageSettingsModalProps) {
   const [formData, setFormData] = useState<UpdatePageData>({})
-  const [saving, setSaving] = useState(false)
+  const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const saving = savingAction !== null
 
   const handleTitleChange = (title: string) => {
     setFormData((prev) => ({
@@ -71,7 +70,6 @@ export function PageSettingsModal({
 
   useEffect(() => {
     if (!open) {
-      setSaveMessage(null)
       setError(null)
     }
   }, [open])
@@ -88,9 +86,8 @@ export function PageSettingsModal({
     }
 
     try {
-      setSaving(true)
+      setSavingAction("draft")
       setError(null)
-      setSaveMessage(null)
 
       const draftData = { ...formData, is_published: false }
       const response = await fetch(`/api/pages/${page.id}`, {
@@ -109,16 +106,13 @@ export function PageSettingsModal({
       }
 
       if (result.data) {
-        setSaveMessage("Page saved as draft")
         onSuccess?.(result.data)
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+        onOpenChange(false)
       }
     } catch (err) {
       setError("Failed to save page as draft")
     } finally {
-      setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -134,9 +128,8 @@ export function PageSettingsModal({
     }
 
     try {
-      setSaving(true)
+      setSavingAction("publish")
       setError(null)
-      setSaveMessage(null)
 
       const publishData = { ...formData, is_published: true }
       const response = await fetch(`/api/pages/${page.id}`, {
@@ -155,17 +148,14 @@ export function PageSettingsModal({
       }
 
       if (result.data) {
-        setSaveMessage(page.is_published ? "Page updated" : "Page published")
         setFormData((prev) => ({ ...prev, is_published: true }))
         onSuccess?.(result.data)
-        setTimeout(() => {
-          setSaveMessage(null)
-        }, 3000)
+        onOpenChange(false)
       }
     } catch (err) {
       setError("Failed to publish page")
     } finally {
-      setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -193,23 +183,16 @@ export function PageSettingsModal({
           }
           footer={
             <>
-              {saveMessage ? (
-                <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-700">{saveMessage}</span>
-                </div>
-              ) : (
-                <div />
-              )}
+              <div />
               <DashboardModalFooterActions>
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                   Cancel
                 </Button>
                 <Button form="page-settings-form" type="submit" variant="outline" disabled={saving}>
-                  {saving ? "Saving..." : "Save as Draft"}
+                  {savingAction === "draft" ? "Saving..." : "Save as Draft"}
                 </Button>
                 <Button type="button" onClick={handlePublish} disabled={saving}>
-                  {saving ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
+                  {savingAction === "publish" ? (page.is_published ? "Saving..." : "Publishing...") : page.is_published ? "Save" : "Publish"}
                 </Button>
               </DashboardModalFooterActions>
             </>

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
 import { isSameOriginRequest } from '@/lib/utils/request-origin'
+import { serializePage } from '@/lib/utils/content-serializer'
 
 export async function GET(
   request: NextRequest,
@@ -56,7 +57,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ data: page, error: null })
+    return NextResponse.json({ data: serializePage(page), error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
@@ -197,7 +198,7 @@ export async function PUT(
       .where(eq(pages.id, pageId))
       .returning()
 
-    return NextResponse.json({ data: updatedPage, error: null })
+    return NextResponse.json({ data: serializePage(updatedPage), error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(

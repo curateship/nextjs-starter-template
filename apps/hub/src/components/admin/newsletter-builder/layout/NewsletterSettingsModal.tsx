@@ -135,6 +135,7 @@ export function NewsletterSettingsModal({
     }
     setSaving(true)
     setError(null)
+    setSuccessMsg(null)
 
     const dripError = drip.validate()
     if (dripError) {
@@ -163,8 +164,7 @@ export function NewsletterSettingsModal({
     }
     if (data) {
       onSuccess(data)
-      setSuccessMsg('Saved!')
-      setTimeout(() => setSuccessMsg(null), 3000)
+      onOpenChange(false)
     }
   }
 

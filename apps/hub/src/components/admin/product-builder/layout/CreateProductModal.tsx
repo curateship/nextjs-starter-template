@@ -55,6 +55,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   const [isPrivate, setIsPrivate] = useState(false)
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
@@ -144,7 +145,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
   }
 
   // Handle saving as draft, optionally signaling redirect to builder
-  const handleSave = async (continueToBuilder = false) => {
+  const handleSave = async (continueToBuilder = false, publishNow = false) => {
     if (!formData.title.trim()) {
       setError('Product title is required')
       return
@@ -157,6 +158,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
 
     try {
       setLoading(true)
+      setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
       setError(null)
 
       const selectedTemplate = selectedTemplateId !== "blank"
@@ -172,7 +174,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       const draftData = {
         ...formData,
         site_id: currentSite.id,
-        is_published: false,
+        is_published: publishNow,
         featured_image: featuredImage || null,
         meta_description: formData.meta_description?.trim() || null,
         content_blocks: {
@@ -214,6 +216,7 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
       setError(`Failed to save product: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -240,14 +243,21 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                 variant="outline"
                 disabled={loading}
               >
-                {loading ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button
                 type="button"
                 onClick={() => handleSave(true)}
                 disabled={loading}
               >
-                {loading ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleSave(false, true)}
+                disabled={loading}
+              >
+                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
               </Button>
             </DashboardModalFooterActions>
           </>

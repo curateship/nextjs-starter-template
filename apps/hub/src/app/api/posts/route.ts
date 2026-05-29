@@ -1,9 +1,11 @@
 import { posts } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
+import { serializePost } from '@/lib/utils/content-serializer'
 
 export const POST = createResourceHandler({
   entityName: 'Post',
   table: posts,
+  serializeResponse: serializePost,
   revalidateTags: ['listing-views'],
   buildInsertValues: (data, siteId, slug, nextOrder, contentBlocks) => ({
     siteId,

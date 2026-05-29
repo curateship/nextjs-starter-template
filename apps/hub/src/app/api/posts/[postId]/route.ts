@@ -1,10 +1,12 @@
 import { posts } from '@/lib/db/schema'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
+import { serializePost } from '@/lib/utils/content-serializer'
 
 const config = {
   entityName: 'Post',
   table: posts,
   paramName: 'postId',
+  serializeResponse: serializePost,
   updateFieldMap: {
     title: 'title',
     slug: 'slug',

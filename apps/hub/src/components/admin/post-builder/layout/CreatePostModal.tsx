@@ -51,6 +51,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     is_published: false,
   })
   const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
@@ -133,7 +134,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     setFormData((prev) => ({ ...prev, featured_image: "" }))
   }
 
-  const handleSave = async (continueToBuilder = false) => {
+  const handleSave = async (continueToBuilder = false, publishNow = false) => {
     if (!formData.title.trim()) {
       setError("Post title is required")
       return
@@ -146,6 +147,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
 
     try {
       setLoading(true)
+      setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
       setError(null)
 
       const selectedTemplate = selectedTemplateId !== 'blank'
@@ -166,7 +168,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
         meta_description: formData.meta_description,
         featured_image: formData.featured_image || null,
         excerpt: formData.excerpt || null,
-        is_published: false,
+        is_published: publishNow,
         content_blocks: contentBlocks,
       }
 
@@ -199,6 +201,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       setError("Failed to save post")
     } finally {
       setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -217,10 +220,13 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
           </Button>
           <DashboardModalFooterActions>
             <Button type="submit" form="create-post-form" variant="outline" disabled={loading}>
-              {loading ? "Saving..." : "Save as Draft"}
+              {loadingAction === "draft" ? "Saving..." : "Save as Draft"}
             </Button>
             <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
-              {loading ? "Saving..." : "Continue"}
+              {loadingAction === "continue" ? "Saving..." : "Continue"}
+            </Button>
+            <Button type="button" onClick={() => handleSave(false, true)} disabled={loading}>
+              {loadingAction === "publish" ? "Publishing..." : "Publish"}
             </Button>
           </DashboardModalFooterActions>
         </>

@@ -40,13 +40,14 @@ export function EventSettingsModal({
   })
   const [featuredImage, setFeaturedImage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
+  const saving = savingAction !== null
 
   // Handle title change and auto-generate slug if slug hasn't been manually edited
   const handleTitleChange = (title: string) => {
@@ -116,7 +117,7 @@ export function EventSettingsModal({
     if (!event) return
 
     try {
-      setSaving(true)
+      setSavingAction("draft")
       setError(null)
 
       const draftData = { 
@@ -155,7 +156,7 @@ export function EventSettingsModal({
     } catch (err) {
       setError('Failed to save event')
     } finally {
-      setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -164,7 +165,7 @@ export function EventSettingsModal({
     if (!event) return
 
     try {
-      setSaving(true)
+      setSavingAction("publish")
       setError(null)
 
       const publishData = { 
@@ -203,7 +204,7 @@ export function EventSettingsModal({
     } catch (err) {
       setError('Failed to publish event')
     } finally {
-      setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -382,16 +383,16 @@ export function EventSettingsModal({
               <Button 
                 type="submit" 
                 variant="outline"
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : 'Save as Draft'}
-              </Button>
+              disabled={saving}
+            >
+              {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
+            </Button>
               <Button 
                 type="button" 
                 onClick={handlePublish}
                 disabled={saving}
               >
-                {saving ? 'Saving...' : event?.is_published ? 'Save' : 'Publish'}
+                {savingAction === 'publish' ? 'Saving...' : event?.is_published ? 'Save' : 'Publish'}
               </Button>
             </div>
           </div>

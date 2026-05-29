@@ -38,6 +38,7 @@ export function CreateAccountPageModal({
     is_published: false,
   })
   const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"draft" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [slugWarning, setSlugWarning] = useState<string | null>(null)
   const [checkingSlug] = useState(false)
@@ -85,6 +86,7 @@ export function CreateAccountPageModal({
 
     try {
       setLoading(true)
+      setLoadingAction("draft")
       setError(null)
 
       const draftData = {
@@ -115,6 +117,7 @@ export function CreateAccountPageModal({
       setError("Failed to save account page as draft")
     } finally {
       setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -126,6 +129,7 @@ export function CreateAccountPageModal({
 
     try {
       setLoading(true)
+      setLoadingAction("publish")
       setError(null)
 
       const publishData = {
@@ -156,6 +160,7 @@ export function CreateAccountPageModal({
       setError("Failed to publish account page")
     } finally {
       setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -176,10 +181,10 @@ export function CreateAccountPageModal({
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-account-page-form" type="submit" variant="outline" disabled={loading}>
-                {loading ? "Saving..." : "Save as Draft"}
+                {loadingAction === "draft" ? "Saving..." : "Save as Draft"}
               </Button>
               <Button type="button" onClick={handlePublish} disabled={loading}>
-                {loading ? "Publishing..." : "Publish"}
+                {loadingAction === "publish" ? "Publishing..." : "Publish"}
               </Button>
             </DashboardModalFooterActions>
           </>

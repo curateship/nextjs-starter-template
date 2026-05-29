@@ -10,7 +10,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { ImageIcon, X, Check } from "lucide-react"
+import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { generateSlug } from "@/lib/utils/slug"
@@ -36,14 +36,14 @@ export function DirectorySettingsModal({
     meta_description: ''
   })
   const [featuredImage, setFeaturedImage] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
+  const saving = savingAction !== null
 
   const handleTitleChange = (title: string) => {
     setFormData(prev => ({
@@ -107,9 +107,8 @@ export function DirectorySettingsModal({
     if (!directory) return
 
     try {
-      setSaving(true)
+      setSavingAction("draft")
       setError(null)
-      setSaveMessage(null)
 
       const draftData = {
         ...formData,
@@ -131,15 +130,13 @@ export function DirectorySettingsModal({
           return
         }
 
-        setSaveMessage('Saved as draft')
         if (onSuccess) onSuccess(updateResult.data)
-        setTimeout(() => setSaveMessage(null), 3000)
         onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to save directory')
     } finally {
-      setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -147,9 +144,8 @@ export function DirectorySettingsModal({
     if (!directory) return
 
     try {
-      setSaving(true)
+      setSavingAction("publish")
       setError(null)
-      setSaveMessage(null)
 
       const publishData = {
         ...formData,
@@ -171,15 +167,13 @@ export function DirectorySettingsModal({
           return
         }
 
-        setSaveMessage(directory?.status === 'published' ? 'Saved' : 'Published')
         if (onSuccess) onSuccess(updateResult.data)
-        setTimeout(() => setSaveMessage(null), 3000)
         onOpenChange(false)
       }
     } catch (err) {
       setError('Failed to publish directory')
     } finally {
-      setSaving(false)
+      setSavingAction(null)
     }
   }
 
@@ -207,21 +201,16 @@ export function DirectorySettingsModal({
         footerClassName="sm:justify-between"
         footer={(
           <>
-            {saveMessage ? (
-              <div className="flex items-center gap-2 text-green-600">
-                <Check className="h-4 w-4" />
-                <span className="text-sm font-medium">{saveMessage}</span>
-              </div>
-            ) : <div />}
+            <div />
             <DashboardModalFooterActions>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Cancel
               </Button>
               <Button type="submit" form="directory-settings-form" variant="outline" disabled={saving}>
-                {saving ? 'Saving...' : 'Save as Draft'}
+                {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button type="button" onClick={handlePublish} disabled={saving}>
-                {saving ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
+                {savingAction === 'publish' ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
               </Button>
             </DashboardModalFooterActions>
           </>

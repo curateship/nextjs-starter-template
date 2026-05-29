@@ -5,6 +5,7 @@ import { siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
 import { validateContentBlocks } from '@/lib/utils/content-block-validation'
 import { isSameOriginRequest } from '@/lib/utils/request-origin'
+import { serializeAccountPage } from '@/lib/utils/content-serializer'
 
 export async function GET(
   request: NextRequest,
@@ -57,7 +58,7 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ data: page, error: null })
+    return NextResponse.json({ data: serializeAccountPage(page), error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
@@ -207,7 +208,7 @@ export async function PUT(
       .where(eq(siteAccountPages.id, pageId))
       .returning()
 
-    return NextResponse.json({ data: updatedPage, error: null })
+    return NextResponse.json({ data: serializeAccountPage(updatedPage), error: null })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(

@@ -32,6 +32,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [isPrivate, setIsPrivate] = useState(false)
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
@@ -65,7 +66,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     await handleSave(false)
   }
 
-  const handleSave = async (continueToBuilder: boolean) => {
+  const handleSave = async (continueToBuilder: boolean, publishNow = false) => {
     if (!currentSite?.id) {
       setError("No site selected")
       return
@@ -77,6 +78,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     }
 
     setLoading(true)
+    setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
     setError(null)
 
     try {
@@ -86,7 +88,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         site_id: currentSite.id,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
-        is_published: false,
+        is_published: publishNow,
         content_blocks: {
           ...(isPrivate ? { _settings: { is_private: true } } : {}),
           show_featured_image: true
@@ -106,12 +108,14 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       if (!response.ok || result.error) {
         setError(result.error || 'Failed to create event')
         setLoading(false)
+        setLoadingAction(null)
         return
       }
 
       if (!result.data) {
         setError("Failed to create event")
         setLoading(false)
+        setLoadingAction(null)
         return
       }
 
@@ -120,6 +124,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
           setLoading(false)
+          setLoadingAction(null)
           return
         }
       }
@@ -127,6 +132,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
     } catch (err) {
       setError("Failed to create event")
       setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -142,10 +148,13 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-event-form" type="submit" variant="outline" disabled={loading}>
-                {loading ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
-                {loading ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+              </Button>
+              <Button type="button" onClick={() => handleSave(false, true)} disabled={loading}>
+                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
               </Button>
             </DashboardModalFooterActions>
           </>

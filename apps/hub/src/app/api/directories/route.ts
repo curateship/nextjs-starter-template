@@ -1,9 +1,11 @@
 import { directories } from '@/lib/db/schema'
 import { createResourceHandler } from '@/lib/utils/api-resource-handler'
+import { serializeDirectory } from '@/lib/utils/content-serializer'
 
 export const POST = createResourceHandler({
   entityName: 'Directory',
   table: directories,
+  serializeResponse: serializeDirectory,
   revalidateTags: ['directory', 'listing-views'],
   buildInsertValues: (data, siteId, slug, nextOrder, contentBlocks) => ({
     siteId,

@@ -35,9 +35,10 @@ export function CreateCategoryModal({
   const [parentId, setParentId] = useState<string>("")
   const [featuredImage, setFeaturedImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittingAction, setSubmittingAction] = useState<"draft" | "continue" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const isSubmitting = submittingAction !== null
 
   const handleTitleChange = (value: string) => {
     setTitle(value)
@@ -80,14 +81,14 @@ export function CreateCategoryModal({
     return options
   }
 
-  const handleSave = async (continueToBuilder: boolean) => {
+  const handleSave = async (continueToBuilder: boolean, publishNow = false) => {
     if (!title.trim()) {
       setError('Category title is required')
       return
     }
 
     setError(null)
-    setIsSubmitting(true)
+    setSubmittingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
 
     try {
       const { data, error: createError } = await createCategoryAction(
@@ -102,13 +103,13 @@ export function CreateCategoryModal({
             _settings: { is_private: isPrivate },
             show_featured_image: true
           },
-          is_published: false
+          is_published: publishNow
         }
       )
 
       if (createError) {
         setError(createError)
-        setIsSubmitting(false)
+        setSubmittingAction(null)
         return
       }
 
@@ -118,7 +119,7 @@ export function CreateCategoryModal({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create category')
-      setIsSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
@@ -142,10 +143,13 @@ export function CreateCategoryModal({
               </Button>
               <DashboardModalFooterActions>
                 <Button form="create-category-form" type="submit" variant="outline" disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving...' : 'Save as Draft'}
+                  {submittingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
                 </Button>
                 <Button type="button" onClick={() => handleSave(true)} disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving...' : 'Continue'}
+                  {submittingAction === 'continue' ? 'Saving...' : 'Continue'}
+                </Button>
+                <Button type="button" onClick={() => handleSave(false, true)} disabled={isSubmitting}>
+                  {submittingAction === 'publish' ? 'Publishing...' : 'Publish'}
                 </Button>
               </DashboardModalFooterActions>
             </>

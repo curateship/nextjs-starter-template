@@ -1,10 +1,12 @@
 import { directories } from '@/lib/db/schema'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
+import { serializeDirectory } from '@/lib/utils/content-serializer'
 
 const config = {
   entityName: 'Directory',
   table: directories,
   paramName: 'directoryId',
+  serializeResponse: serializeDirectory,
   updateFieldMap: {
     title: 'title',
     slug: 'slug',

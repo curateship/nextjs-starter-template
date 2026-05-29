@@ -15,7 +15,6 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory-template-actions"
 import { directoryBlocksToJson, parseDirectoryBlocksFromJson } from "@/components/admin/directory-builder/config/directory-block-utils"
-import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import type { DirectoryTemplate } from "@/lib/actions/directories/directory-template-actions"
@@ -41,6 +40,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   })
   const [featuredImage, setFeaturedImage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
@@ -106,7 +106,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     await handleSave(false)
   }
 
-  const handleSave = async (continueToBuilder: boolean) => {
+  const handleSave = async (continueToBuilder: boolean, publishNow = false) => {
     if (!currentSite?.id) {
       setError("No site selected")
       return
@@ -118,6 +118,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     }
 
     setLoading(true)
+    setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
     setError(null)
 
     try {
@@ -141,7 +142,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         site_id: currentSite.id,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
-        status: 'draft',
+        status: publishNow ? 'published' : 'draft',
         content_blocks: {
           ...sanitizedTemplateContentBlocks,
           _settings: templateSettings,
@@ -162,12 +163,14 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       if (!response.ok || result.error) {
         setError(result.error || 'Failed to create directory')
         setLoading(false)
+        setLoadingAction(null)
         return
       }
 
       if (!result.data) {
         setError("Failed to create directory")
         setLoading(false)
+        setLoadingAction(null)
         return
       }
 
@@ -176,13 +179,15 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
           setLoading(false)
+          setLoadingAction(null)
           return
         }
       }
-      onSuccess(toSnakeCase(result.data) as Directory, continueToBuilder)
+      onSuccess(result.data, continueToBuilder)
     } catch (err) {
       setError("Failed to create directory")
       setLoading(false)
+      setLoadingAction(null)
     }
   }
 
@@ -198,10 +203,13 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             </Button>
             <DashboardModalFooterActions>
               <Button form="create-directory-form" type="submit" variant="outline" disabled={loading}>
-                {loading ? 'Saving...' : 'Save as Draft'}
+                {loadingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
               </Button>
               <Button type="button" onClick={() => handleSave(true)} disabled={loading}>
-                {loading ? 'Saving...' : 'Continue'}
+                {loadingAction === 'continue' ? 'Saving...' : 'Continue'}
+              </Button>
+              <Button type="button" onClick={() => handleSave(false, true)} disabled={loading}>
+                {loadingAction === 'publish' ? 'Publishing...' : 'Publish'}
               </Button>
             </DashboardModalFooterActions>
           </>

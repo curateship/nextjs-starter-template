@@ -5,6 +5,7 @@ import { siteAccountPages, sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
 import { validateContentBlocks } from '@/lib/utils/content-block-validation'
 import { isSameOriginRequest } from '@/lib/utils/request-origin'
+import { serializeAccountPage } from '@/lib/utils/content-serializer'
 
 export async function POST(request: NextRequest) {
   try {
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    return NextResponse.json({ data: newPage, error: null }, { status: 201 })
+    return NextResponse.json({ data: serializeAccountPage(newPage), error: null }, { status: 201 })
   } catch (error) {
     console.error('API Error:', error)
     return NextResponse.json(
