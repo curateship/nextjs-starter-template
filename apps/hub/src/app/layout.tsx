@@ -10,6 +10,7 @@ import type { Session as BetterAuthSession, User as BetterAuthUser } from "bette
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
 import { SiteAuthProvider, type SiteAuthUser } from "@/components/frontend/layout/site-auth-provider";
 import { headers } from "next/headers";
+import { isHubPlatformHost } from "@/lib/utils/platform-host";
 
 type SiteAuthCookieCache = {
   session: BetterAuthSession & Record<string, any>
@@ -39,6 +40,11 @@ function toSiteAuthUser(user?: SiteAuthUserSource | null): SiteAuthUser | null {
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
+    const requestHeaders = await headers()
+    if (isHubPlatformHost(requestHeaders.get("host"))) {
+      return {}
+    }
+
     const { success, site } = await getSiteFromHeaders();
 
     if (success && site) {
@@ -81,10 +87,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { success, site } = await getSiteFromHeaders()
+  const requestHeaders = await headers()
+  const isHubRequest = isHubPlatformHost(requestHeaders.get("host"))
+  const { success, site } = isHubRequest
+    ? { success: false, site: null }
+    : await getSiteFromHeaders()
   const { getFontConfig } = await import("@/lib/utils/font-config")
   let initialSessionUser: SiteAuthUser | null = null
-  const requestHeaders = await headers()
 
   try {
     const cookieCache = await getCookieCache<SiteAuthCookieCache>(requestHeaders, {
