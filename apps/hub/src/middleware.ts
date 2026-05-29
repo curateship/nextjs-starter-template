@@ -7,11 +7,17 @@ export async function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
   const host = request.headers.get('host')
   const isAdminPath = path === '/admin' || path.startsWith('/admin/')
+  const adminPath = path === '/admin' ? '/admin/sites' : path
 
   // Keep platform admin surfaces on the canonical Hub host.
   if (isAdminPath) {
     if (!isHubPlatformHost(host)) {
-      const redirectUrl = new URL(`${request.nextUrl.pathname}${request.nextUrl.search}`, getHubPlatformOrigin())
+      const redirectUrl = new URL(`${adminPath}${request.nextUrl.search}`, getHubPlatformOrigin())
+      return NextResponse.redirect(redirectUrl)
+    }
+
+    if (path === '/admin') {
+      const redirectUrl = new URL(`/admin/sites${request.nextUrl.search}`, request.url)
       return NextResponse.redirect(redirectUrl)
     }
 

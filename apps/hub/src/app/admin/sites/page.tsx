@@ -325,7 +325,7 @@ export default function SitesPage() {
                       <TableRow key={site.id} className="group">
                         <TableCell column="main">
                           <Link
-                            href={`/admin/sites/${site.id}/settings`}
+                            href={`/admin/sites/${site.id}/dashboard`}
                             className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
                           >
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
