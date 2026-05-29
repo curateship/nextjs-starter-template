@@ -107,15 +107,11 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
 
       if (!response.ok || result.error) {
         setError(result.error || 'Failed to create event')
-        setLoading(false)
-        setLoadingAction(null)
         return
       }
 
       if (!result.data) {
         setError("Failed to create event")
-        setLoading(false)
-        setLoadingAction(null)
         return
       }
 
@@ -123,14 +119,13 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
         const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds, primaryCategoryId)
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
-          setLoading(false)
-          setLoadingAction(null)
           return
         }
       }
       onSuccess(result.data, continueToBuilder)
     } catch (err) {
       setError("Failed to create event")
+    } finally {
       setLoading(false)
       setLoadingAction(null)
     }

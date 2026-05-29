@@ -162,15 +162,11 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
 
       if (!response.ok || result.error) {
         setError(result.error || 'Failed to create directory')
-        setLoading(false)
-        setLoadingAction(null)
         return
       }
 
       if (!result.data) {
         setError("Failed to create directory")
-        setLoading(false)
-        setLoadingAction(null)
         return
       }
 
@@ -178,14 +174,13 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
         if (!categoryResult.success) {
           setError(categoryResult.error || 'Failed to save categories')
-          setLoading(false)
-          setLoadingAction(null)
           return
         }
       }
       onSuccess(result.data, continueToBuilder)
     } catch (err) {
       setError("Failed to create directory")
+    } finally {
       setLoading(false)
       setLoadingAction(null)
     }
@@ -360,7 +355,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                   onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
                   placeholder="SEO meta description"
                   rows={1}
-                  className="min-h-10 [field-sizing:content]"
+                  className="min-h-10 field-sizing-content"
                 />
                 <FieldDescription>
                   Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160

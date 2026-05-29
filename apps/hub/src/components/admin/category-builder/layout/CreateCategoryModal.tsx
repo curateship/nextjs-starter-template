@@ -109,7 +109,6 @@ export function CreateCategoryModal({
 
       if (createError) {
         setError(createError)
-        setSubmittingAction(null)
         return
       }
 
@@ -119,6 +118,7 @@ export function CreateCategoryModal({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create category')
+    } finally {
       setSubmittingAction(null)
     }
   }
@@ -276,7 +276,7 @@ export function CreateCategoryModal({
                     onChange={(e) => setMetaDescription(e.target.value)}
                     placeholder="SEO meta description"
                     rows={1}
-                    className="min-h-10 [field-sizing:content]"
+                    className="min-h-10 field-sizing-content"
                   />
                   <FieldDescription>
                     Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160
