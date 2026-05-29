@@ -121,6 +121,10 @@ export default function DirectoriesPage() {
   return (
     <ContentListPage<DirectorySummary>
       builderPath="/admin/directories/builder"
+      canDeleteItem={(directory) => directory.source !== "core"}
+      canDuplicateItem={(directory) => directory.source !== "core"}
+      canEditItem={(directory) => directory.source !== "core"}
+      canSelectItem={(directory) => directory.source !== "core"}
       createButtonLabel="Create Directory"
       deleteItem={deleteDirectoryAction}
       deleteItems={deleteDirectoriesAction}

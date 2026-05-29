@@ -84,6 +84,8 @@ export type ContentListItem = {
 interface ContentListPageProps<TItem extends ContentListItem> {
   breadcrumbs?: Array<{ label: string; href?: string }>
   builderPath: string
+  canDuplicateItem?: (item: TItem) => boolean
+  canEditItem?: (item: TItem) => boolean
   canDeleteItem?: (item: TItem) => boolean
   canSelectItem?: (item: TItem) => boolean
   columnCount?: 5 | 6
@@ -144,6 +146,8 @@ interface ContentListPageProps<TItem extends ContentListItem> {
 export function ContentListPage<TItem extends ContentListItem>({
   breadcrumbs,
   builderPath,
+  canDuplicateItem,
+  canEditItem,
   canDeleteItem,
   canSelectItem,
   columnCount = 6,
@@ -378,6 +382,14 @@ export function ContentListPage<TItem extends ContentListItem>({
 
   function isDeletable(item: TItem) {
     return canDeleteItem ? canDeleteItem(item) : true
+  }
+
+  function isEditable(item: TItem) {
+    return canEditItem ? canEditItem(item) : true
+  }
+
+  function isDuplicatable(item: TItem) {
+    return canDuplicateItem ? canDuplicateItem(item) : true
   }
 
   function getDefaultStatusBadge(item: TItem) {
@@ -733,6 +745,29 @@ export function ContentListPage<TItem extends ContentListItem>({
                           : "#"
                       const previewDisabled = previewPublishedOnly && !isPublished(item)
                       const rowIcon = getRowIcon?.(item)
+                      const mainContent = (
+                        <>
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+                            {item.featured_image ? (
+                              <img
+                                src={item.featured_image}
+                                alt={item.title}
+                                className="h-full w-full object-contain"
+                              />
+                            ) : rowIcon ? (
+                              rowIcon
+                            ) : (
+                              <EmptyIcon className="h-6 w-6 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="truncate text-sm font-medium sm:text-base">{item.title}</h4>
+                            <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                              {getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
+                            </p>
+                          </div>
+                        </>
+                      )
 
                       return (
                         <TableRow
@@ -752,30 +787,18 @@ export function ContentListPage<TItem extends ContentListItem>({
                             )}
                           </TableCell>
                           <TableCell column="main">
-                            <Link
-                              href={getBuilderHref?.(item) || `${builderPath}/${item.site_id}?${itemLabel.toLowerCase()}=${item.slug}`}
-                              className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
-                            >
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
-                                {item.featured_image ? (
-                                  <img
-                                    src={item.featured_image}
-                                    alt={item.title}
-                                    className="h-full w-full object-contain"
-                                  />
-                                ) : rowIcon ? (
-                                  rowIcon
-                                ) : (
-                                  <EmptyIcon className="h-6 w-6 text-muted-foreground" />
-                                )}
+                            {isEditable(item) ? (
+                              <Link
+                                href={getBuilderHref?.(item) || `${builderPath}/${item.site_id}?${itemLabel.toLowerCase()}=${item.slug}`}
+                                className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80 [&_h4]:hover:underline"
+                              >
+                                {mainContent}
+                              </Link>
+                            ) : (
+                              <div className="flex min-w-0 items-center space-x-4">
+                                {mainContent}
                               </div>
-                              <div className="min-w-0">
-                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{item.title}</h4>
-                                <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                                  {getDisplayPath?.(item) || `/${pathPrefix}/${item.slug}`}
-                                </p>
-                              </div>
-                            </Link>
+                            )}
                           </TableCell>
                           {renderCategoryColumn && (
                             <TableCell column="content">
@@ -798,16 +821,18 @@ export function ContentListPage<TItem extends ContentListItem>({
                           </TableCell>
                           <TableCell column="meta">
                             <div className="flex items-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => setSettingsItem(item)}
-                                title={`${itemLabel} Settings`}
-                              >
-                                <Settings className="h-4 w-4" />
-                                <span className="sr-only">{itemLabel} Settings</span>
-                              </Button>
+                              {isEditable(item) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => setSettingsItem(item)}
+                                  title={`${itemLabel} Settings`}
+                                >
+                                  <Settings className="h-4 w-4" />
+                                  <span className="sr-only">{itemLabel} Settings</span>
+                                </Button>
+                              )}
                               {previewDisabled ? (
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled title={`Publish ${itemLabel.toLowerCase()} to preview`}>
                                   <Eye className="h-4 w-4" />
@@ -821,17 +846,19 @@ export function ContentListPage<TItem extends ContentListItem>({
                                   </a>
                                 </Button>
                               )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0"
-                                onClick={() => handleDuplicate(item)}
-                                disabled={duplicatingItemId === item.id}
-                                title="Duplicate"
-                              >
-                                <Copy className="h-4 w-4" />
-                                <span className="sr-only">Duplicate</span>
-                              </Button>
+                              {isDuplicatable(item) && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleDuplicate(item)}
+                                  disabled={duplicatingItemId === item.id}
+                                  title="Duplicate"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  <span className="sr-only">Duplicate</span>
+                                </Button>
+                              )}
                               {isDeletable(item) && (
                                 <Button
                                   variant="ghost"
