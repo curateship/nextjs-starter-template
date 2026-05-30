@@ -13,7 +13,7 @@ import {
 } from "@/lib/actions/directories/directory-core"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
 import { Card, CardSection } from "@/components/ui/card"
-import { getQuickLinkIconOrNull } from "@/lib/utils/site-quick-links"
+import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
 import type { HTMLAttributes } from "react"
 
@@ -89,7 +89,6 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   if (!href) return null
 
   const iconName = link.icon || getDirectoryCoreMenuDefaultIcon(link.type)
-  const Icon = getQuickLinkIconOrNull(iconName) || Globe
   const label = getDirectoryCoreMenuLabel(link)
 
   return (
@@ -99,7 +98,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
       className="flex min-h-14 items-center gap-3 px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
     >
-      <Icon className="h-5 w-5 shrink-0" />
+      {renderQuickLinkIcon(iconName, "h-5 w-5 shrink-0")}
       <span className="min-w-0 wrap-break-word text-base leading-snug">{label}</span>
     </a>
   )

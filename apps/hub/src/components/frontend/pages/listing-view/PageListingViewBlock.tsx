@@ -42,6 +42,7 @@ interface ListingViewsBlockProps {
     categoryIds?: string[]
     listingStyle?: ListingStyle
     imageFit?: ImageFit
+    imageHeight?: number
     displayMode?: "grid" | "list"
     itemsToShow?: number
     mobileColumns?: number
@@ -91,6 +92,7 @@ export function ListingViewsBlock({
     categoryIds: rawCategoryIds = [],
     listingStyle = "default",
     imageFit = "crop",
+    imageHeight,
     displayMode = "grid",
     itemsToShow = 6,
     mobileColumns = 1,
@@ -211,10 +213,14 @@ export function ListingViewsBlock({
   const mobileImageSize = Number(mobileColumns) === 2 ? "50vw" : "100vw"
   const desktopImageSize = Number(columns) === 2 ? "50vw" : Number(columns) === 4 ? "25vw" : "33vw"
   const gridImageSizes = `(max-width: 639px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
-  const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, 33vw`
+  const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
   const imageQuality = 25
   const imageFitClassName = imageFit === "fit" ? "object-contain" : "object-cover"
   const imageFrameClassName = imageFit === "fit" ? "bg-muted" : ""
+  const customImageHeight = Number(imageHeight) > 0 ? Number(imageHeight) : undefined
+  const imageFrameStyle = customImageHeight ? { aspectRatio: `100 / ${customImageHeight}` } : undefined
+  const defaultImageAspectClassName = customImageHeight ? "" : "aspect-square"
+  const blogImageAspectClassName = customImageHeight ? "" : "aspect-video"
 
   const formatDate = (value?: string | null) => {
     if (!value) return ""
@@ -254,7 +260,7 @@ export function ListingViewsBlock({
         >
           <Card className="grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden">
             {showImageElement && (
-              <div className={`aspect-video w-full ${imageFrameClassName}`}>
+              <div className={`${blogImageAspectClassName} w-full ${imageFrameClassName}`} style={imageFrameStyle}>
                 {item.featured_image ? (
                   <Image
                     src={item.featured_image}
@@ -274,7 +280,7 @@ export function ListingViewsBlock({
               </div>
             )}
             <CardHeader>
-              {showTitleElement && <h3 className="text-xl md:text-xl">{item.title}</h3>}
+              {showTitleElement && <h3 className="text-base md:text-xl">{item.title}</h3>}
               {showDescriptionElement && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
               {(showAuthorMeta || published) && (
                 <div className="mt-3 flex items-center gap-2">
@@ -309,7 +315,7 @@ export function ListingViewsBlock({
         {showImageElement && (
           <div className={displayMode === "list" ? "w-48 shrink-0" : ""}>
             {item.featured_image ? (
-              <div className={`relative rounded-md aspect-square overflow-hidden ${imageFrameClassName}`}>
+              <div className={`relative rounded-md ${defaultImageAspectClassName} overflow-hidden ${imageFrameClassName}`} style={imageFrameStyle}>
                 <Image
                   src={item.featured_image}
                   alt={item.title || `${contentType === "posts" ? "Post" : "Product"} image`}
@@ -327,14 +333,14 @@ export function ListingViewsBlock({
                 />
               </div>
             ) : (
-              <div className="bg-muted rounded-md aspect-square flex items-center justify-center text-foreground">
+              <div className={`bg-muted rounded-md ${defaultImageAspectClassName} flex items-center justify-center text-foreground`} style={imageFrameStyle}>
                 No Image
               </div>
             )}
           </div>
         )}
         <div className="flex flex-col gap-2">
-          {showTitleElement && <h3 className="text-xl tracking-tight pt-3">{item.title}</h3>}
+          {showTitleElement && <h3 className="pt-3 text-base tracking-tight md:text-xl">{item.title}</h3>}
           {showDescriptionElement && item.richText && (
             <p className="text-muted-foreground text-base py-2">{getItemSummary(item)}</p>
           )}
@@ -429,7 +435,7 @@ export function ListingViewsBlock({
       {renderHeader()}
 
       <div
-        className={`grid ${listingStyle === "blog" ? `gap-6 ${mobileGridColumns} md:grid-cols-2 lg:grid-cols-3 lg:gap-8` : `${gridColumns} gap-8`}`}
+        className={`grid ${listingStyle === "blog" ? `gap-6 ${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns} lg:gap-8` : `${gridColumns} gap-8`}`}
       >
         {listingItems.map((item, index) => renderItem(item, index))}
       </div>

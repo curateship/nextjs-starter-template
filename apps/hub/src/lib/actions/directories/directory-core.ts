@@ -1,4 +1,4 @@
-import type { QuickLinkIconName } from "@/lib/utils/site-quick-links"
+import { isQuickLinkIconValue, type QuickLinkIconName, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
 
 export const DIRECTORY_CORE_BLOCK_TYPE = "directory-core"
 
@@ -23,7 +23,7 @@ export interface DirectoryCoreMenuLink {
   type: DirectoryCoreMenuLinkType
   label?: string
   value?: string
-  icon?: QuickLinkIconName
+  icon?: QuickLinkIconValue
 }
 
 export interface DirectoryCoreCategoryContext {
@@ -204,7 +204,7 @@ export function normalizeDirectoryCoreMenuLink(
     type,
     label: typeof rawLink.label === "string" ? rawLink.label : "",
     value,
-    icon: typeof rawLink.icon === "string" ? rawLink.icon as QuickLinkIconName : undefined,
+    icon: isQuickLinkIconValue(rawLink.icon) ? rawLink.icon : undefined,
   }
 }
 

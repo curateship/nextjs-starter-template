@@ -6,7 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/select"
 import { BlockEditorEmptyState, BlockTabs } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
+import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
@@ -38,7 +38,6 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-  Check,
   Facebook,
   Github,
   Globe,
@@ -48,7 +47,6 @@ import {
   Linkedin,
   Music2,
   Plus,
-  Search,
   Trash2,
   Twitter,
   type LucideIcon,
@@ -67,12 +65,6 @@ import {
   type DirectoryCoreMenuLinkType,
   type DirectoryCoreSocialLink,
 } from "@/lib/actions/directories/directory-core"
-import {
-  getQuickLinkIcon,
-  getQuickLinkIconOrNull,
-  QUICK_LINK_ICON_OPTIONS,
-  type QuickLinkIconName,
-} from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DirectoryCoreBlockProps {
@@ -135,189 +127,6 @@ function SocialPlatformLabel({ platform }: { platform?: string }) {
   )
 }
 
-function CoreMenuIconField({
-  value,
-  defaultIcon,
-  onChange,
-}: {
-  value?: QuickLinkIconName
-  defaultIcon: QuickLinkIconName
-  onChange: (value?: QuickLinkIconName) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState("")
-
-  const SelectedIcon = getQuickLinkIconOrNull(value)
-  const DefaultIcon = getQuickLinkIcon(defaultIcon)
-  const DisplayIcon = SelectedIcon || DefaultIcon
-  const normalizedQuery = query.trim().toLowerCase()
-  const showDefaultOption =
-    !normalizedQuery || "default icon".includes(normalizedQuery)
-  const filteredOptions = useMemo(() => {
-    if (!normalizedQuery) return QUICK_LINK_ICON_OPTIONS
-
-    return QUICK_LINK_ICON_OPTIONS.filter((option) => {
-      const haystack = [
-        option.label,
-        option.value,
-        ...(option.keywords || []),
-      ].join(" ").toLowerCase()
-
-      return haystack.includes(normalizedQuery)
-    })
-  }, [normalizedQuery])
-
-  return (
-    <>
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Icon</p>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(
-            "h-9 w-9 shrink-0 p-0",
-            !SelectedIcon && "text-muted-foreground"
-          )}
-          onClick={() => setOpen(true)}
-        >
-          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-            <DisplayIcon className="h-4 w-4 shrink-0" />
-          </span>
-        </Button>
-      </div>
-
-      <Dialog
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen)
-          if (!nextOpen) {
-            setQuery("")
-          }
-        }}
-      >
-        <DashboardModalContent
-          className="max-w-xl"
-          title="Choose Icon"
-          description="Pick an icon for this menu link."
-          footer={
-            <>
-              {value ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    onChange(undefined)
-                    setOpen(false)
-                    setQuery("")
-                  }}
-                >
-                  Remove Icon
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setOpen(false)
-                  setQuery("")
-                }}
-              >
-                Back
-              </Button>
-            </>
-          }
-        >
-          <CardGroup className="grid">
-            <Card>
-              <CardContent
-                className="p-4 space-y-3"
-                onWheelCapture={(event) => event.stopPropagation()}
-              >
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    className="pl-9"
-                    placeholder="Search icons"
-                  />
-                </div>
-
-                <ScrollArea className="h-[320px] overscroll-contain pr-2">
-                  {filteredOptions.length === 0 && !showDefaultOption ? (
-                    <div className="py-10 text-center text-sm text-muted-foreground">
-                      No icons match that search.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-6 gap-2">
-                      {showDefaultOption && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onChange(undefined)
-                            setOpen(false)
-                            setQuery("")
-                          }}
-                          className={cn(
-                            "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                            !value ? "bg-primary/5" : "hover:bg-muted/50"
-                          )}
-                          aria-label="Use default icon"
-                        >
-                          {!value && (
-                            <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                              <Check className="h-3 w-3" />
-                            </span>
-                          )}
-                          <DefaultIcon className="h-5 w-5" />
-                          <span className="line-clamp-2 text-[11px] leading-tight">
-                            Default
-                          </span>
-                        </button>
-                      )}
-                      {filteredOptions.map((option) => {
-                        const Icon = getQuickLinkIcon(option.value)
-                        const isSelected = option.value === value
-
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              onChange(option.value)
-                              setOpen(false)
-                              setQuery("")
-                            }}
-                            className={cn(
-                              "relative flex aspect-square flex-col items-center justify-center gap-2 rounded-lg p-2 text-center transition-colors",
-                              isSelected ? "bg-primary/5" : "hover:bg-muted/50"
-                            )}
-                            aria-label={`Choose ${option.label} icon`}
-                          >
-                            {isSelected && (
-                              <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-primary-foreground">
-                                <Check className="h-3 w-3" />
-                              </span>
-                            )}
-                            <Icon className="h-5 w-5" />
-                            <span className="line-clamp-2 text-[11px] leading-tight">
-                              {option.label}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </CardGroup>
-        </DashboardModalContent>
-      </Dialog>
-    </>
-  )
-}
-
 function SortableSocialLinkItem({
   socialLink,
   index,
@@ -375,7 +184,7 @@ function SortableSocialLinkItem({
           variant="ghost"
           size="icon"
           onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={ACTION_BUTTON_CLASS}
           aria-label={`Delete ${socialLink.platform || "social link"}`}
         >
           <Trash2 className="h-4 w-4" />
@@ -417,7 +226,7 @@ function StaticSocialLinkItem({
           variant="ghost"
           size="icon"
           onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={ACTION_BUTTON_CLASS}
           aria-label={`Delete ${socialLink.platform || "social link"}`}
         >
           <Trash2 className="h-4 w-4" />
@@ -453,7 +262,6 @@ function SortableMenuLinkItem({
     opacity: isDragging ? 0.5 : 1,
   }
   const iconName = menuLink.icon || getDirectoryCoreMenuDefaultIcon(menuLink.type)
-  const Icon = getQuickLinkIconOrNull(iconName)
 
   return (
     <div
@@ -479,7 +287,7 @@ function SortableMenuLinkItem({
           aria-label={`Edit settings for ${menuLink.label || "menu link"}`}
           title={menuLink.label || "Menu link settings"}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={iconName} className="h-4 w-4 shrink-0" />
           <span className="truncate">{menuLink.label || getDirectoryCoreMenuTypeLabel(menuLink.type)}</span>
         </Button>
         <Button
@@ -487,7 +295,7 @@ function SortableMenuLinkItem({
           variant="ghost"
           size="icon"
           onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={ACTION_BUTTON_CLASS}
           aria-label={`Delete ${menuLink.label || "menu link"}`}
         >
           <Trash2 className="h-4 w-4" />
@@ -509,7 +317,6 @@ function StaticMenuLinkItem({
   onDelete: (index: number) => void
 }) {
   const iconName = menuLink.icon || getDirectoryCoreMenuDefaultIcon(menuLink.type)
-  const Icon = getQuickLinkIconOrNull(iconName)
 
   return (
     <div className="w-fit max-w-full rounded-lg border bg-background p-2 transition-colors hover:border-muted-foreground/50">
@@ -525,7 +332,7 @@ function StaticMenuLinkItem({
           aria-label={`Edit settings for ${menuLink.label || "menu link"}`}
           title={menuLink.label || "Menu link settings"}
         >
-          {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+          <ShellIconPreview icon={iconName} className="h-4 w-4 shrink-0" />
           <span className="truncate">{menuLink.label || getDirectoryCoreMenuTypeLabel(menuLink.type)}</span>
         </Button>
         <Button
@@ -533,7 +340,7 @@ function StaticMenuLinkItem({
           variant="ghost"
           size="icon"
           onClick={() => onDelete(index)}
-          className={cn(ACTION_BUTTON_CLASS, "hover:bg-red-50")}
+          className={ACTION_BUTTON_CLASS}
           aria-label={`Delete ${menuLink.label || "menu link"}`}
         >
           <Trash2 className="h-4 w-4" />
@@ -853,7 +660,7 @@ export function DirectoryCoreBlock({
                   <div className="space-y-3">
                     <p className="text-sm font-medium">Featured Image</p>
                     {featuredImage ? (
-                      <div className="relative h-48 w-full max-w-sm overflow-hidden rounded-lg bg-muted">
+                      <div className="relative h-48 w-48 overflow-hidden rounded-lg bg-muted">
                         <img
                           src={featuredImage}
                           alt="Featured image preview"
@@ -879,7 +686,7 @@ export function DirectoryCoreBlock({
                       </div>
                     ) : (
                       <div
-                        className="flex h-48 w-full max-w-sm cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                        className="flex h-48 w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                         onClick={() => setShowImagePicker(true)}
                       >
                         <div className="text-center">
@@ -1328,14 +1135,14 @@ export function DirectoryCoreBlock({
                 <CardDescription>Configure the action type, label, value, and optional icon.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-[92px_160px_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-                  <CoreMenuIconField
+                <div className="flex flex-wrap items-end gap-4">
+                  <ShellIconPickerField
+                    siteId={siteId}
                     value={menuLinkDraft.icon}
-                    defaultIcon={getDirectoryCoreMenuDefaultIcon(menuLinkDraft.type)}
                     onChange={(icon) => setMenuLinkDraft((current) => ({ ...current, icon }))}
                   />
 
-                  <div className="space-y-2">
+                  <div className="w-40 space-y-2">
                     <p className="text-sm font-medium">Type</p>
                     <Select
                       value={menuLinkDraft.type}
@@ -1354,7 +1161,7 @@ export function DirectoryCoreBlock({
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="w-44 space-y-2">
                     <p className="text-sm font-medium">Label</p>
                     <Input
                       value={menuLinkDraft.label || ""}
@@ -1366,7 +1173,7 @@ export function DirectoryCoreBlock({
                     />
                   </div>
 
-                  <div className="min-w-0 space-y-2">
+                  <div className="min-w-48 flex-1 space-y-2">
                     <p className="text-sm font-medium">Value</p>
                     <Input
                       value={menuLinkDraft.value || ""}

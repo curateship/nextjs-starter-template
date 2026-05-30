@@ -44,6 +44,7 @@ interface SharedListingViewsBlockProps {
   categoryIds?: string[]
   listingStyle?: ListingStyle
   imageFit?: ImageFit
+  imageHeight?: number
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   mobileColumns?: number
@@ -64,6 +65,7 @@ interface SharedListingViewsBlockProps {
   onCategoryIdsChange: (value: string[]) => void
   onListingStyleChange: (value: ListingStyle) => void
   onImageFitChange: (value: ImageFit) => void
+  onImageHeightChange: (value: number | undefined) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onMobileColumnsChange: (value: number) => void
@@ -87,6 +89,7 @@ export function PageListingViewBlock({
   categoryIds = [],
   listingStyle = 'default',
   imageFit = 'crop',
+  imageHeight,
   displayMode = 'grid',
   itemsToShow = 6,
   mobileColumns = 1,
@@ -107,6 +110,7 @@ export function PageListingViewBlock({
   onCategoryIdsChange,
   onListingStyleChange,
   onImageFitChange,
+  onImageHeightChange,
   onDisplayModeChange,
   onItemsToShowChange,
   onMobileColumnsChange,
@@ -294,6 +298,21 @@ export function PageListingViewBlock({
                       </div>
                     </button>
                   ))}
+                </div>
+                <div className="mt-4 max-w-48 space-y-2">
+                  <Label htmlFor="imageHeight">Image Height %</Label>
+                  <Input
+                    id="imageHeight"
+                    type="number"
+                    min={0}
+                    max={200}
+                    value={imageHeight ?? ''}
+                    onChange={(event) => {
+                      const value = Number(event.target.value)
+                      onImageHeightChange(value > 0 ? value : undefined)
+                    }}
+                    placeholder="Default"
+                  />
                 </div>
                   </BlockEditorSection>
                 </CardContent>

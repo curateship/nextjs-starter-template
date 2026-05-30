@@ -101,6 +101,23 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setFeaturedImage('')
   }
 
+  const resetForm = () => {
+    const defaultTemplate = templates.find((template) => template.is_default)
+
+    setFormData({
+      title: '',
+      slug: '',
+      meta_description: '',
+    })
+    setFeaturedImage('')
+    setError(null)
+    setShowImagePicker(false)
+    setSlugManuallyEdited(false)
+    setSelectedCategoryIds([])
+    setPrimaryCategoryId(null)
+    setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     await handleSave(false)
@@ -177,6 +194,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           return
         }
       }
+      resetForm()
       onSuccess(result.data, continueToBuilder)
     } catch (err) {
       setError("Failed to create directory")

@@ -377,6 +377,7 @@ export function ShellIconPickerField({
                   <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
                     {mediaItems.map((media) => {
                       const isSelected = selectedMedia?.id === media.id
+                      const mediaIconUrl = getMediaIconUrl(media)
 
                       return (
                         <button
@@ -390,7 +391,7 @@ export function ShellIconPickerField({
                           aria-label={`Choose ${media.original_name} icon`}
                         >
                           {isSelected ? <ShellIconSelectedMark /> : null}
-                          {renderQuickLinkIcon(media.public_url, "h-5 w-5")}
+                          {renderQuickLinkIcon(mediaIconUrl, "h-5 w-5")}
                           <span className="line-clamp-2 text-[11px] leading-tight">{media.original_name}</span>
                         </button>
                       )

@@ -98,6 +98,7 @@ export function PageBlockEditorDialog({
                     onCategoryIdsChange={(value) => onContentChange("categoryIds", value)}
                     onListingStyleChange={(value) => onContentChange("listingStyle", value)}
                     onImageFitChange={(value) => onContentChange("imageFit", value)}
+                    onImageHeightChange={(value) => onContentChange("imageHeight", value)}
                     onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                     onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
                     onMobileColumnsChange={(value) => onContentChange("mobileColumns", value)}
