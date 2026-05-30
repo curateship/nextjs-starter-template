@@ -10,7 +10,6 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { getDirectoryCustomBlocksBySite } from './directory-custom-block-actions'
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
-import { listCoreDirectoriesForSite } from './core-directory-client'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
 export type DirectoryStatus = 'draft' | 'published'
 
@@ -20,7 +19,6 @@ export interface Directory {
   title: string
   slug: string
   status: DirectoryStatus
-  source?: 'hub' | 'core'
   display_order: number
   content_blocks: Record<string, any>
   featured_image: string | null
@@ -130,27 +128,6 @@ export async function getSiteDirectoriesWithCategoriesAction(
 
     if (!site || site.userId !== user.id) {
       return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
-    }
-
-    const coreDirectories = await listCoreDirectoriesForSite(siteId)
-    if (coreDirectories.enabled) {
-      const now = new Date().toISOString()
-      const dirs = coreDirectories.items.map((item, index): Directory => ({
-        id: item.id,
-        site_id: siteId,
-        title: item.title,
-        slug: item.slug,
-        status: 'published',
-        source: 'core',
-        display_order: index,
-        content_blocks: {},
-        featured_image: item.featuredImage,
-        meta_description: item.metaDescription,
-        created_at: now,
-        updated_at: now,
-      }))
-
-      return { data: dirs, categories: {}, total: dirs.length, error: null }
     }
 
     const page = Math.max(1, Math.floor(options?.page ?? 1))

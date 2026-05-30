@@ -59,37 +59,6 @@ export async function getCoreDirectoryBySlugForSite(siteId: string, slug: string
   return { enabled: true, data: body?.data ?? null }
 }
 
-export async function listCoreDirectoriesForSite(siteId: string) {
-  const config = await getCoreDirectoryConfig(siteId)
-  if (!config) return { enabled: false, items: [] as CorePublicDirectoryItem[] }
-
-  const apiUrl = normalizeCoreApiUrl(config.apiUrl)
-  if (!apiUrl) return { enabled: false, items: [] as CorePublicDirectoryItem[] }
-
-  const response = await fetch(
-    `${apiUrl}/api/v1/public/workspaces/${encodeURIComponent(config.workspaceId)}/directories?limit=100`,
-    {
-      headers: {
-        Authorization: `Bearer ${config.readToken}`,
-      },
-      cache: 'no-store',
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error('Core directory data is unavailable')
-  }
-
-  const body = await response.json().catch(() => null) as {
-    data?: { items?: CorePublicDirectoryItem[] }
-  } | null
-
-  return {
-    enabled: true,
-    items: Array.isArray(body?.data?.items) ? body.data.items : [],
-  }
-}
-
 export function mapCoreDirectoryToHubDirectory(item: CorePublicDirectoryItem) {
   const business = item.business || {}
   const menuLinks = buildCoreDirectoryMenuLinks(business)

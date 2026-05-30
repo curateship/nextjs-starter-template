@@ -27,7 +27,6 @@ export interface DirectorySummary {
   title: string
   slug: string
   status: DirectoryStatus
-  source?: 'hub' | 'core'
   display_order: number
   featured_image: string | null
   meta_description: string | null
