@@ -173,21 +173,3 @@ export async function getGoogleMapsConfig(siteId: string): Promise<{
 
   return null
 }
-
-export async function getCoreDirectoryConfig(siteId: string): Promise<{
-  apiUrl: string
-  workspaceId: string
-  readToken: string
-} | null> {
-  const integration = await getServerIntegration(siteId, 'core_directory')
-
-  if (!integration) return null
-
-  const apiUrl = typeof integration.config.api_url === 'string' ? integration.config.api_url.trim() : ''
-  const workspaceId = typeof integration.config.workspace_id === 'string' ? integration.config.workspace_id.trim() : ''
-  const readToken = typeof integration.config.read_token === 'string' ? integration.config.read_token.trim() : ''
-
-  if (!apiUrl || !workspaceId || !readToken) return null
-
-  return { apiUrl, workspaceId, readToken }
-}

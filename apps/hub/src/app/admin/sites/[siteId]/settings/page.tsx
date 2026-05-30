@@ -471,7 +471,6 @@ const TABS = [
   { id: "payments", label: "Payments" },
   { id: "newsletters", label: "Newsletters" },
   { id: "email", label: "Email" },
-  { id: "data-source", label: "Data Source" },
   { id: "integrations", label: "Integrations" },
   { id: "cron-jobs", label: "Cron Jobs" },
   { id: "ai", label: "AI Providers" },
@@ -849,16 +848,6 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                   />
                   <EmailDomainHealthCard siteId={siteId} refreshSignal={domainHealthRefreshSignal} />
                 </CardGroup>
-              )}
-
-              {activeTab === "data-source" && (
-                <IntegrationTab
-                  siteId={siteId}
-                  category="data-source"
-                  saveTrigger={integrationSaveTrigger}
-                  onSuccess={showSuccess}
-                  onError={showError}
-                />
               )}
 
               {activeTab === "integrations" && (

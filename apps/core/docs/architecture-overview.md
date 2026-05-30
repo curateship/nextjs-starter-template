@@ -2,7 +2,7 @@
 
 `core` is the data-processing app.
 
-It owns extraction, provider runs, normalized public data, archives, and future workspace data-server routing. Hub owns public frontend rendering and reads only display-ready data from Core APIs.
+It owns extraction, provider runs, normalized public data, archives, and future workspace data-server routing. Hub owns public frontend rendering from Hub data.
 
 ## Principles
 
@@ -27,8 +27,6 @@ It owns extraction, provider runs, normalized public data, archives, and future 
 - provider executions and raw imported results
 - normalized public directory records
 - public publish status
-- workspace Hub read-token generation
-- server-read APIs for Hub
 
 ## Navigation Model
 
@@ -47,8 +45,6 @@ It owns extraction, provider runs, normalized public data, archives, and future 
 
 ## Current Baseline
 
-Today, `core` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, provider data-source tools, and a public directory read API.
+Today, `core` is a small Vite + React + TypeScript app using `shadcn/ui` primitives, a shared sidebar/header layout, and provider data-source tools.
 
-Provider data can be archived in raw result tables, normalized into public directory records, and exposed to Hub through token-protected server-read endpoints.
-
-Hub read tokens are generated in Core workspace settings and stored as hashes. The raw token is shown only when generated, then pasted into Hub's Data Source settings.
+Provider data can be archived in raw result tables and normalized into Core public directory records.

@@ -7,7 +7,6 @@ export type IntegrationType =
   | 'perplexity'
   | 'google_ai'
   | 'google_maps'
-  | 'core_directory'
   | 'notion_marketplace'
 
 /**
@@ -23,7 +22,6 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   perplexity: ['api_key'],
   google_ai: ['api_key'],
   google_maps: ['api_key'],
-  core_directory: ['read_token'],
   notion_marketplace: ['webhook_secret'],
 }
 
@@ -36,7 +34,7 @@ export interface IntegrationFieldDefinition {
   options?: Array<{ value: string; label: string }>
 }
 
-export type IntegrationCategory = 'payments' | 'email' | 'ai' | 'seo' | 'integrations' | 'data-source'
+export type IntegrationCategory = 'payments' | 'email' | 'ai' | 'seo' | 'integrations'
 
 export interface IntegrationRegistryEntry {
   type: IntegrationType
@@ -141,17 +139,6 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     category: 'integrations',
     fields: [
       { key: 'api_key', label: 'Google Maps API Key', type: 'password', placeholder: 'AIza...', required: true },
-    ],
-  },
-  {
-    type: 'core_directory',
-    label: 'Core Directory',
-    description: 'Read public-ready directory listings from Core',
-    category: 'data-source',
-    fields: [
-      { key: 'api_url', label: 'Core API URL', type: 'text', placeholder: 'https://core.example.com', required: true },
-      { key: 'workspace_id', label: 'Core Workspace ID', type: 'text', required: true },
-      { key: 'read_token', label: 'Read Token', type: 'password', required: true },
     ],
   },
   {

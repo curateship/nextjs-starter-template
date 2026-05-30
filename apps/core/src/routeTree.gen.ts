@@ -24,9 +24,7 @@ import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes
 import { Route as AuthenticatedAdminDatasourceSettingsRouteImport } from './routes/_authenticated/admin/datasource/settings'
 import { Route as AuthenticatedAdminDatasourceGoogleMapsRouteImport } from './routes/_authenticated/admin/datasource/google-maps'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
-import { Route as ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteImport } from './routes/api/v1/public/workspaces/$workspaceId/directories'
 import { Route as AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport } from './routes/_authenticated/admin/datasource/google-maps/runs/$runId'
-import { Route as ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRouteImport } from './routes/api/v1/public/workspaces/$workspaceId/directories/$slug'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -111,23 +109,11 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiV1PublicWorkspacesWorkspaceIdDirectoriesRoute =
-  ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteImport.update({
-    id: '/api/v1/public/workspaces/$workspaceId/directories',
-    path: '/api/v1/public/workspaces/$workspaceId/directories',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute =
   AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport.update({
     id: '/runs/$runId',
     path: '/runs/$runId',
     getParentRoute: () => AuthenticatedAdminDatasourceGoogleMapsRoute,
-  } as any)
-const ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute =
-  ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRouteImport.update({
-    id: '/$slug',
-    path: '/$slug',
-    getParentRoute: () => ApiV1PublicWorkspacesWorkspaceIdDirectoriesRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -146,8 +132,6 @@ export interface FileRoutesByFullPath {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
-  '/api/v1/public/workspaces/$workspaceId/directories': typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteWithChildren
-  '/api/v1/public/workspaces/$workspaceId/directories/$slug': typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -165,8 +149,6 @@ export interface FileRoutesByTo {
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
-  '/api/v1/public/workspaces/$workspaceId/directories': typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteWithChildren
-  '/api/v1/public/workspaces/$workspaceId/directories/$slug': typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -186,8 +168,6 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/_authenticated/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
-  '/api/v1/public/workspaces/$workspaceId/directories': typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteWithChildren
-  '/api/v1/public/workspaces/$workspaceId/directories/$slug': typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -207,8 +187,6 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
     | '/admin/datasource/google-maps/runs/$runId'
-    | '/api/v1/public/workspaces/$workspaceId/directories'
-    | '/api/v1/public/workspaces/$workspaceId/directories/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -226,8 +204,6 @@ export interface FileRouteTypes {
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
     | '/admin/datasource/google-maps/runs/$runId'
-    | '/api/v1/public/workspaces/$workspaceId/directories'
-    | '/api/v1/public/workspaces/$workspaceId/directories/$slug'
   id:
     | '__root__'
     | '/_authenticated'
@@ -246,15 +222,12 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
     | '/_authenticated/admin/datasource/google-maps/runs/$runId'
-    | '/api/v1/public/workspaces/$workspaceId/directories'
-    | '/api/v1/public/workspaces/$workspaceId/directories/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
-  ApiV1PublicWorkspacesWorkspaceIdDirectoriesRoute: typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -364,26 +337,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/v1/public/workspaces/$workspaceId/directories': {
-      id: '/api/v1/public/workspaces/$workspaceId/directories'
-      path: '/api/v1/public/workspaces/$workspaceId/directories'
-      fullPath: '/api/v1/public/workspaces/$workspaceId/directories'
-      preLoaderRoute: typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated/admin/datasource/google-maps/runs/$runId': {
       id: '/_authenticated/admin/datasource/google-maps/runs/$runId'
       path: '/runs/$runId'
       fullPath: '/admin/datasource/google-maps/runs/$runId'
       preLoaderRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRouteImport
       parentRoute: typeof AuthenticatedAdminDatasourceGoogleMapsRoute
-    }
-    '/api/v1/public/workspaces/$workspaceId/directories/$slug': {
-      id: '/api/v1/public/workspaces/$workspaceId/directories/$slug'
-      path: '/$slug'
-      fullPath: '/api/v1/public/workspaces/$workspaceId/directories/$slug'
-      preLoaderRoute: typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRouteImport
-      parentRoute: typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesRoute
     }
   }
 }
@@ -477,27 +436,10 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
 
-interface ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteChildren {
-  ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute: typeof ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute
-}
-
-const ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteChildren: ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteChildren =
-  {
-    ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute:
-      ApiV1PublicWorkspacesWorkspaceIdDirectoriesSlugRoute,
-  }
-
-const ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteWithChildren =
-  ApiV1PublicWorkspacesWorkspaceIdDirectoriesRoute._addFileChildren(
-    ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteChildren,
-  )
-
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
-  ApiV1PublicWorkspacesWorkspaceIdDirectoriesRoute:
-    ApiV1PublicWorkspacesWorkspaceIdDirectoriesRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

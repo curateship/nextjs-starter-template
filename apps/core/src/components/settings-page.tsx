@@ -6,7 +6,6 @@ import { GeneralSettings } from "@/components/general-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { ProviderSettings } from "@/providers/google-maps/settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
-import { HubAccessSettings } from "@/components/hub-access-settings"
 import { cn } from "@/lib/utils"
 import type { ShellConfig } from "@/lib/core"
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SaveIcon } from "lucide-react"
@@ -16,7 +15,6 @@ const settingsTabs = [
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
   { id: "providers", label: "Provider Settings" },
-  { id: "hub-access", label: "Hub Access" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -45,7 +43,7 @@ export function SettingsPage({
   onSaveConfig: () => Promise<boolean>
 }) {
   const isSaving = saveStatus === "saving"
-  const shellTab = activeTab !== "providers" && activeTab !== "hub-access"
+  const shellTab = activeTab !== "providers"
   const [providerAction, setProviderAction] = React.useState<React.ReactNode>(null)
   const handleProviderActionChange = React.useCallback((action: React.ReactNode) => {
     setProviderAction(action)
@@ -132,9 +130,6 @@ export function SettingsPage({
           ) : null}
           {activeTab === "providers" ? (
             <ProviderSettings onHeaderActionChange={handleProviderActionChange} />
-          ) : null}
-          {activeTab === "hub-access" ? (
-            <HubAccessSettings />
           ) : null}
         </div>
       </div>
