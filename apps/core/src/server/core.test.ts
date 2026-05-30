@@ -911,6 +911,22 @@ describe("core providers", () => {
     }
   })
 
+  it("reports when provider tokens were encrypted with another key", () => {
+    const previousKey = process.env.CORE_PROVIDER_ENCRYPTION_KEY
+    process.env.CORE_PROVIDER_ENCRYPTION_KEY = "first provider encryption key with enough length"
+    const encrypted = encryptProviderSecret("apify-secret")
+    process.env.CORE_PROVIDER_ENCRYPTION_KEY = "second provider encryption key with enough length"
+
+    try {
+      expect(() => decryptProviderSecret(encrypted)).toThrow(
+        "Re-save the Apify API token"
+      )
+    } finally {
+      if (previousKey === undefined) delete process.env.CORE_PROVIDER_ENCRYPTION_KEY
+      else process.env.CORE_PROVIDER_ENCRYPTION_KEY = previousKey
+    }
+  })
+
   it("maps Apify input, statuses, and Google Maps result data", () => {
     expect(buildActorInput({
       keyword: "Dentists",
@@ -935,6 +951,7 @@ describe("core providers", () => {
       totalScore: "4.8",
       reviewsCount: "42",
       website: "javascript:alert(1)",
+      imageUrl: "https://lh3.googleusercontent.com/place-image",
       placeId: "place-123",
       location: { lat: 30.2, lng: -97.7 },
     })).toMatchObject({
@@ -946,6 +963,16 @@ describe("core providers", () => {
         reviewCount: 42,
         website: null,
         latitude: 30.2,
+        sourceImageUrl: "https://lh3.googleusercontent.com/place-image",
+      },
+    })
+
+    expect(normalizeResult({
+      title: "Photo Array",
+      photos: [{ url: "https://streetviewpixels-pa.googleapis.com/photo" }],
+    })).toMatchObject({
+      data: {
+        sourceImageUrl: "https://streetviewpixels-pa.googleapis.com/photo",
       },
     })
   })

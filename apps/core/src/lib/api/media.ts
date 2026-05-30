@@ -5,13 +5,10 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import {
   cleanAltText,
-  cleanOriginalName,
-  getMediaFileType,
+  createMediaFromBytes,
   getOwnedMedia,
   listOwnedMedia,
-  prepareMediaContent,
   serializeMedia,
-  storedFilename,
   validateMediaFile,
   type MediaFileType,
   type MediaItem,
@@ -19,11 +16,10 @@ import {
   type MediaSortBy,
   type MediaSortDirection,
 } from "@/server/media"
-import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
+import { deleteFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { media } from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
-import { uuid } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse, MediaSortBy, MediaSortDirection }
 
@@ -89,49 +85,20 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     const user = await requireUser()
     const mimeType = data.file.type || "application/octet-stream"
     validateMediaFile(mimeType, data.file.size)
-
     const rawFileData = new Uint8Array(await data.file.arrayBuffer())
     if (!rawFileData.byteLength) {
       throw new Error("File is empty")
     }
-    const fileData = prepareMediaContent(mimeType, rawFileData)
-
-    const originalName = cleanOriginalName(data.file.name)
-    const filename = storedFilename(originalName, mimeType)
-    const storagePath = `${user.id}/${filename}`
-
-    try {
-      await uploadToR2(storagePath, fileData, mimeType)
-    } catch (error) {
-      if (error instanceof R2StorageNotConfiguredError) {
-        throw new Error(
-          "R2 storage is not configured. Set the CORE_R2_* environment variables for core."
-        )
-      }
-      throw new Error("Upload failed")
-    }
 
     const createdAt = now()
-    const row = {
-      id: uuid(),
+    const row = await createMediaFromBytes({
       userId: user.id,
-      filename,
-      originalName,
-      altText: cleanAltText(data.altText),
-      fileSize: fileData.byteLength,
+      originalName: data.file.name,
+      altText: data.altText,
       mimeType,
-      fileType: getMediaFileType(mimeType),
-      storagePath,
+      data: rawFileData,
       createdAt,
-      updatedAt: createdAt,
-    }
-
-    try {
-      await db.insert(media).values(row)
-    } catch (error) {
-      await deleteFromR2(storagePath).catch(() => undefined)
-      throw error
-    }
+    })
 
     return serializeMedia(row)
   })

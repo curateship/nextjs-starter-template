@@ -27,12 +27,16 @@ export function decryptProviderSecret(value: string) {
     throw new Error("Invalid encrypted provider secret.")
   }
 
-  const decipher = createDecipheriv(algorithm, getKey(), iv)
-  decipher.setAuthTag(tag)
-  return Buffer.concat([
-    decipher.update(Buffer.from(encryptedBase64, "base64")),
-    decipher.final(),
-  ]).toString("utf8")
+  try {
+    const decipher = createDecipheriv(algorithm, getKey(), iv)
+    decipher.setAuthTag(tag)
+    return Buffer.concat([
+      decipher.update(Buffer.from(encryptedBase64, "base64")),
+      decipher.final(),
+    ]).toString("utf8")
+  } catch {
+    throw new Error("Unable to decrypt provider secret. Re-save the Apify API token in provider settings.")
+  }
 }
 
 function getKey() {

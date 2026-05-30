@@ -2,7 +2,12 @@ import sanitizeHtml from "sanitize-html"
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { getPublicMediaUrl } from "@/server/media-storage"
+import {
+  deleteFromR2,
+  getPublicMediaUrl,
+  R2StorageNotConfiguredError,
+  uploadToR2,
+} from "@/server/media-storage"
 import { media, type CoreMedia } from "@/server/schema"
 import { uuid } from "@/server/security"
 
@@ -161,6 +166,75 @@ export function storedFilename(originalName: string, mimeType: string) {
 export function cleanAltText(value?: string | null) {
   const cleaned = value?.trim() || ""
   return cleaned ? cleaned.slice(0, 500) : null
+}
+
+export async function createMediaFromBytes({
+  userId,
+  originalName,
+  altText,
+  mimeType,
+  data,
+  storagePath,
+  createdAt = new Date(),
+}: {
+  userId: string
+  originalName: string
+  altText?: string | null
+  mimeType: string
+  data: Uint8Array
+  storagePath?: string
+  createdAt?: Date
+}) {
+  validateMediaFile(mimeType, data.byteLength)
+  const fileData = prepareMediaContent(mimeType, data)
+  const cleanName = cleanOriginalName(originalName)
+  const requestedStoragePath = storagePath?.replace(/^\/+/, "")
+  const filename = requestedStoragePath?.replace(/\/+$/, "").split("/").pop() || storedFilename(cleanName, mimeType)
+  const finalStoragePath = requestedStoragePath || `${userId}/${filename}`
+  if (!finalStoragePath.startsWith(`${userId}/`)) {
+    throw new Error("Invalid media storage path.")
+  }
+  const [existing] = await db
+    .select()
+    .from(media)
+    .where(and(eq(media.userId, userId), eq(media.storagePath, finalStoragePath)))
+    .limit(1)
+
+  if (existing) return existing
+
+  try {
+    await uploadToR2(finalStoragePath, fileData, mimeType)
+  } catch (error) {
+    if (error instanceof R2StorageNotConfiguredError) {
+      throw new Error(
+        "R2 storage is not configured. Set the CORE_R2_* environment variables for core."
+      )
+    }
+    throw new Error("Upload failed")
+  }
+
+  const row = {
+    id: uuid(),
+    userId,
+    filename,
+    originalName: cleanName,
+    altText: cleanAltText(altText),
+    fileSize: fileData.byteLength,
+    mimeType,
+    fileType: getMediaFileType(mimeType),
+    storagePath: finalStoragePath,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  try {
+    await db.insert(media).values(row)
+  } catch (error) {
+    await deleteFromR2(finalStoragePath).catch(() => undefined)
+    throw error
+  }
+
+  return row
 }
 
 function hasPrefix(data: Uint8Array, prefix: number[]) {

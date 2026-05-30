@@ -1,8 +1,15 @@
+import { createHash } from "node:crypto"
+
 import { createServerFn } from "@tanstack/react-start"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
+import {
+  createMediaFromBytes,
+  serializeMedia,
+  validateMediaFile,
+} from "@/server/media"
 import { requireAppOrigin } from "@/server/origin"
 import {
   providerExecutions,
@@ -62,6 +69,19 @@ type GoogleMapsRunResponse = {
   latest_execution: ProviderExecutionItem | null
   results: ProviderResultItem[]
 }
+const remoteImageMaxBytes = 10 * 1024 * 1024
+const remoteImageTypes = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+])
+const googleImageHosts = [
+  "googleusercontent.com",
+  "googleapis.com",
+  "gstatic.com",
+]
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
   resultIds: z.array(z.string().min(1)).min(1),
@@ -195,7 +215,7 @@ const startRunFn = createServerFn({ method: "POST" })
       updatedAt: createdAt,
     }).returning()
 
-    return { execution: serializeExecution(await importIfReady(execution, run, token)) }
+    return { execution: serializeExecution(await importIfReady(execution, run, token, workspace.userId)) }
   })
 
 const refreshExecutionFn = createServerFn({ method: "POST" })
@@ -226,7 +246,7 @@ const refreshExecutionFn = createServerFn({ method: "POST" })
       updatedAt: now(),
     }).where(eq(providerExecutions.id, execution.id)).returning()
 
-    return { execution: serializeExecution(await importIfReady(updated, run, token)) }
+    return { execution: serializeExecution(await importIfReady(updated, run, token, workspace.userId)) }
   })
 
 const loadRunFn = createServerFn({ method: "GET" })
@@ -448,18 +468,27 @@ async function resultCount(runId: string) {
   return (await resultCountsByRun([runId])).get(runId) ?? 0
 }
 
-async function importIfReady(execution: CoreProviderExecution, run: CoreProviderRunConfig, token: string) {
+async function importIfReady(execution: CoreProviderExecution, run: CoreProviderRunConfig, token: string, userId: string) {
   if (execution.status !== "succeeded" || !execution.providerDatasetId) return execution
 
   const items = await getDatasetItems(token, execution.providerDatasetId, parseRunInput(run.input).maxResults)
   const createdAt = now()
-  const rows = items.map((item) => ({
-    id: uuid(),
-    runConfigId: run.id,
-    executionId: execution.id,
-    createdAt,
-    ...normalizeResult(item),
-  }))
+  const rows = []
+  let importedImages = 0
+
+  for (const item of items) {
+    const normalized = normalizeResult(item)
+    const imageResult = await saveResultImage(userId, normalized.title, record(normalized.data))
+    if (imageResult.saved) importedImages += 1
+    rows.push({
+      id: uuid(),
+      runConfigId: run.id,
+      executionId: execution.id,
+      createdAt,
+      ...normalized,
+      data: imageResult.data,
+    })
+  }
 
   return db.transaction(async (tx) => {
     await tx.delete(providerResults).where(eq(providerResults.executionId, execution.id))
@@ -489,11 +518,117 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
         })
     }
     const [updated] = await tx.update(providerExecutions).set({
-      stats: { importedResults: rows.length },
+      stats: { importedResults: rows.length, importedImages },
       updatedAt: now(),
     }).where(eq(providerExecutions.id, execution.id)).returning()
     return updated
   })
+}
+
+async function saveResultImage(userId: string, title: string, data: Record<string, unknown>) {
+  const sourceUrl = stringValue(data.sourceImageUrl)
+  if (!sourceUrl) return { data, saved: false }
+
+  try {
+    const image = await downloadGoogleImage(sourceUrl)
+    const extension = extensionForImageMimeType(image.mimeType)
+    const hash = createHash("sha1").update(sourceUrl).digest("hex")
+    const media = serializeMedia(await createMediaFromBytes({
+      userId,
+      originalName: `${title || "google-maps-image"}.${extension}`,
+      altText: title,
+      mimeType: image.mimeType,
+      data: image.data,
+      storagePath: `${userId}/imports/google-maps/${hash}.${extension}`,
+      createdAt: now(),
+    }))
+
+    return {
+      data: {
+        ...data,
+        featuredImage: media.url,
+        featuredImageMediaId: media.id,
+      },
+      saved: true,
+    }
+  } catch {
+    return { data, saved: false }
+  }
+}
+
+async function downloadGoogleImage(sourceUrl: string) {
+  const url = safeGoogleImageUrl(sourceUrl)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000)
+
+  try {
+    const response = await fetch(url, {
+      redirect: "error",
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error("Image download failed.")
+
+    const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase()
+    if (!mimeType || !remoteImageTypes.has(mimeType)) {
+      throw new Error("Unsupported image type.")
+    }
+
+    const contentLength = Number(response.headers.get("content-length") ?? 0)
+    if (contentLength > remoteImageMaxBytes) {
+      throw new Error("Image file is too large.")
+    }
+
+    const data = await responseBytes(response)
+    validateMediaFile(mimeType, data.byteLength)
+    return { data, mimeType }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function responseBytes(response: Response) {
+  const reader = response.body?.getReader()
+  if (!reader) return new Uint8Array(await response.arrayBuffer())
+
+  const chunks: Uint8Array[] = []
+  let total = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > remoteImageMaxBytes) {
+      throw new Error("Image file is too large.")
+    }
+    chunks.push(value)
+  }
+
+  const data = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    data.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return data
+}
+
+function safeGoogleImageUrl(sourceUrl: string) {
+  const parsed = new URL(sourceUrl)
+  const hostname = parsed.hostname.toLowerCase()
+  if (
+    parsed.protocol !== "https:" ||
+    !googleImageHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`))
+  ) {
+    throw new Error("Unsupported image host.")
+  }
+  return parsed.toString()
+}
+
+function extensionForImageMimeType(mimeType: string) {
+  if (mimeType === "image/png") return "png"
+  if (mimeType === "image/gif") return "gif"
+  if (mimeType === "image/webp") return "webp"
+  return "jpg"
 }
 
 function date(value: string | null | undefined) {
@@ -506,6 +641,10 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {}
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null
 }
 
 function cleanOptional(value: string | undefined) {

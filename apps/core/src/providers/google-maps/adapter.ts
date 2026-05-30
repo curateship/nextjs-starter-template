@@ -92,6 +92,7 @@ export function normalizeResult(item: Record<string, unknown>) {
       latitude: locationNumber(item, ["lat", "latitude"]),
       longitude: locationNumber(item, ["lng", "longitude"]),
       placeId,
+      sourceImageUrl: imageUrl(item),
       raw: item,
     },
   }
@@ -155,6 +156,39 @@ function category(item: Record<string, unknown>) {
   return Array.isArray(item.categories)
     ? item.categories.filter((value) => typeof value === "string").join(", ") || null
     : text(item, ["category", "type"])
+}
+
+function imageUrl(item: Record<string, unknown>) {
+  const direct = url(item, [
+    "imageUrl",
+    "image",
+    "photoUrl",
+    "thumbnailUrl",
+    "mainImageUrl",
+  ])
+  if (direct) return direct
+
+  for (const key of ["imageUrls", "images", "photos", "photoUrls"]) {
+    const value = item[key]
+    if (!Array.isArray(value)) continue
+    for (const entry of value) {
+      if (typeof entry === "string") {
+        const parsed = url({ entry }, ["entry"])
+        if (parsed) return parsed
+      }
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const parsed = url(entry as Record<string, unknown>, [
+          "url",
+          "imageUrl",
+          "photoUrl",
+          "thumbnailUrl",
+        ])
+        if (parsed) return parsed
+      }
+    }
+  }
+
+  return null
 }
 
 function locationNumber(item: Record<string, unknown>, keys: string[]) {

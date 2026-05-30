@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   TableCell,
   TableHead,
@@ -90,6 +91,7 @@ type ResultForm = {
   website: string
 }
 type ResultSortColumn = "title" | "address" | "rating" | "reviews" | "phone" | "website" | "created"
+type ResultModalTab = "fields" | "json"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
 
@@ -100,6 +102,10 @@ const statusLabels = {
   inactive: "Inactive",
 } as const
 const pageSizes = [10, 25, 50]
+const resultModalTabs: { id: ResultModalTab; label: string }[] = [
+  { id: "fields", label: "Fields" },
+  { id: "json", label: "JSON" },
+]
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -445,6 +451,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [deletingResults, setDeletingResults] = React.useState(false)
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>(emptyResultForm())
+  const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
 
   const load = React.useCallback(async () => {
     try {
@@ -547,6 +554,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
 
   const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
+    setResultModalTab("fields")
     setResultForm({
       title: result.title,
       category: text(result.data.category) ?? "",
@@ -696,14 +704,22 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       >
         {visibleResults.map((result) => {
           const websiteHref = safeExternalHref(text(result.data.website))
+          const featuredImage = safeExternalHref(text(result.data.featuredImage))
           return (
             <TableRow key={result.id} data-state={selectedIds.has(result.id) ? "selected" : undefined}>
               <TableCell column="select">
                 <Checkbox checked={selectedIds.has(result.id)} onCheckedChange={(checked) => toggleResult(result.id, checked === true)} aria-label={`Select ${result.title}`} />
               </TableCell>
               <TableCell column="main">
-                <button type="button" className="font-medium text-left hover:underline" onClick={() => editResult(result)}>{result.title}</button>
-                <div className="text-xs text-muted-foreground">{text(result.data.categoryName) ?? text(result.data.category) ?? "Uncategorized"}</div>
+                <div className="flex min-w-0 items-center gap-3">
+                  {featuredImage ? (
+                    <img src={featuredImage} alt="" className="size-12 shrink-0 rounded-md border bg-muted object-cover" loading="lazy" />
+                  ) : null}
+                  <div className="min-w-0">
+                    <button type="button" className="max-w-full truncate text-left font-medium hover:underline" onClick={() => editResult(result)}>{result.title}</button>
+                    <div className="truncate text-xs text-muted-foreground">{text(result.data.categoryName) ?? text(result.data.category) ?? "Uncategorized"}</div>
+                  </div>
+                </div>
               </TableCell>
               <TableCell column="preview" className="w-64 max-w-64 truncate">{locationText(result.data)}</TableCell>
               <TableCell column="meta">{typeof result.data.rating === "number" ? result.data.rating : "Unknown"}</TableCell>
@@ -737,23 +753,48 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       <Dialog open={Boolean(editingResult)} onOpenChange={(open) => !open && setEditingResult(null)}>
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>Edit Result</DialogTitle>
+            <div className="flex flex-wrap items-center gap-3 pr-10">
+              <DialogTitle>Edit Result</DialogTitle>
+              <div role="tablist" aria-label="Result modal view" className="flex items-center gap-1 rounded-lg bg-muted p-1">
+                {resultModalTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={resultModalTab === tab.id}
+                    onClick={() => setResultModalTab(tab.id)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm ${resultModalTab === tab.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <DialogDescription>Update the saved Google Maps result.</DialogDescription>
           </DialogHeader>
-          <DialogBody className="grid gap-4 sm:grid-cols-2">
-            <RunField id="result-title" label="Business" value={resultForm.title} onChange={(value) => setResultForm({ ...resultForm, title: value })} />
-            <RunField id="result-category" label="Category" value={resultForm.category} onChange={(value) => setResultForm({ ...resultForm, category: value })} />
-            <RunField id="result-category-name" label="Primary category" value={resultForm.categoryName} onChange={(value) => setResultForm({ ...resultForm, categoryName: value })} />
-            <RunField id="result-address" label="Address" value={resultForm.address} onChange={(value) => setResultForm({ ...resultForm, address: value })} />
-            <RunField id="result-street" label="Street" value={resultForm.street} onChange={(value) => setResultForm({ ...resultForm, street: value })} />
-            <RunField id="result-city" label="City" value={resultForm.city} onChange={(value) => setResultForm({ ...resultForm, city: value })} />
-            <RunField id="result-state" label="State" value={resultForm.state} onChange={(value) => setResultForm({ ...resultForm, state: value })} />
-            <RunField id="result-country" label="Country code" value={resultForm.countryCode} onChange={(value) => setResultForm({ ...resultForm, countryCode: value })} />
-            <RunField id="result-rating" label="Rating" type="number" value={resultForm.rating} onChange={(value) => setResultForm({ ...resultForm, rating: value })} />
-            <RunField id="result-reviews" label="Reviews" type="number" value={resultForm.reviewCount} onChange={(value) => setResultForm({ ...resultForm, reviewCount: value })} />
-            <RunField id="result-phone" label="Phone" value={resultForm.phone} onChange={(value) => setResultForm({ ...resultForm, phone: value })} />
-            <RunField id="result-website" label="Website" value={resultForm.website} onChange={(value) => setResultForm({ ...resultForm, website: value })} />
-          </DialogBody>
+          {resultModalTab === "fields" ? (
+            <DialogBody className="grid gap-4 sm:grid-cols-2">
+              <RunField id="result-title" label="Business" value={resultForm.title} onChange={(value) => setResultForm({ ...resultForm, title: value })} />
+              <RunField id="result-category" label="Category" value={resultForm.category} onChange={(value) => setResultForm({ ...resultForm, category: value })} />
+              <RunField id="result-category-name" label="Primary category" value={resultForm.categoryName} onChange={(value) => setResultForm({ ...resultForm, categoryName: value })} />
+              <RunField id="result-address" label="Address" value={resultForm.address} onChange={(value) => setResultForm({ ...resultForm, address: value })} />
+              <RunField id="result-street" label="Street" value={resultForm.street} onChange={(value) => setResultForm({ ...resultForm, street: value })} />
+              <RunField id="result-city" label="City" value={resultForm.city} onChange={(value) => setResultForm({ ...resultForm, city: value })} />
+              <RunField id="result-state" label="State" value={resultForm.state} onChange={(value) => setResultForm({ ...resultForm, state: value })} />
+              <RunField id="result-country" label="Country code" value={resultForm.countryCode} onChange={(value) => setResultForm({ ...resultForm, countryCode: value })} />
+              <RunField id="result-rating" label="Rating" type="number" value={resultForm.rating} onChange={(value) => setResultForm({ ...resultForm, rating: value })} />
+              <RunField id="result-reviews" label="Reviews" type="number" value={resultForm.reviewCount} onChange={(value) => setResultForm({ ...resultForm, reviewCount: value })} />
+              <RunField id="result-phone" label="Phone" value={resultForm.phone} onChange={(value) => setResultForm({ ...resultForm, phone: value })} />
+              <RunField id="result-website" label="Website" value={resultForm.website} onChange={(value) => setResultForm({ ...resultForm, website: value })} />
+            </DialogBody>
+          ) : (
+            <div className="min-h-0 flex-1 px-6 pt-6 pb-6">
+              <ScrollArea type="hover" className="h-[60vh] rounded-md border bg-muted/40">
+                <pre className="w-max min-w-full p-3 font-mono text-xs leading-relaxed text-foreground">{editingResult ? JSON.stringify(editingResult, null, 2) : ""}</pre>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </div>
+          )}
           <DialogFooter variant="plain">
             <Button variant="outline" onClick={() => setEditingResult(null)}>Cancel</Button>
             <Button disabled={savingResult} onClick={() => void saveResult()}>{savingResult ? "Saving..." : "Save"}</Button>

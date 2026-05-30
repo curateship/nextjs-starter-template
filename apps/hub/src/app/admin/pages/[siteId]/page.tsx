@@ -253,7 +253,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 overflow-hidden border-r bg-background">
-          <ScrollArea className="h-full">
+          <ScrollArea className="h-full [&>[data-slot=scroll-area-viewport]>div]:!block [&>[data-slot=scroll-area-viewport]>div]:!min-w-0 [&>[data-slot=scroll-area-viewport]>div]:!w-full">
             <PagePreview
               blocks={currentPage.blocks}
               site={site ? {
