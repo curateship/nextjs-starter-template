@@ -533,7 +533,7 @@ export const NavBlock = memo(function NavBlock({
     () => getAccountMenuSignedInLinks(resolvedAccountMenu),
     [resolvedAccountMenu]
   )
-  const adminHref = site?.id ? `/admin?site=${encodeURIComponent(site.id)}` : '/admin'
+  const adminHref = site?.id ? `/admin/sites/${encodeURIComponent(site.id)}/dashboard` : '/admin/sites'
 
   const sessionUser = useSiteAuthUser() as SessionUser | null
   const showAdminLink = sessionUser?.role === 'super_admin'

@@ -548,7 +548,7 @@ export function ProductSettingsModal({
                     }}
                     placeholder="SEO meta description"
                     rows={1}
-                    className="min-h-10 [field-sizing:content]"
+                    className="min-h-10 field-sizing-content"
                   />
                   <FieldDescription>
                     Keep it under 160 characters. Currently: {(formData.meta_description || '').length}/160

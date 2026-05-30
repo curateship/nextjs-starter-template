@@ -11,6 +11,8 @@ import {
   runStatuses,
   type ProviderExecutionItem,
   type ProviderExecutionStatus,
+  type JsonRecord,
+  type JsonValue,
   type ProviderResultItem,
   type ProviderRunConfigItem,
   type ProviderRunConfigStatus,
@@ -115,7 +117,7 @@ export function serializeResultWithPublicStatus(
   }
 }
 
-export function importedCount(stats: Record<string, unknown>) {
+export function importedCount(stats: JsonRecord) {
   return typeof stats.importedResults === "number" ? stats.importedResults : 0
 }
 
@@ -125,8 +127,33 @@ export function isTerminalStatus(status: string) {
   ) && !["queued", "running"].includes(status)
 }
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
+function record(value: unknown): JsonRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, jsonValue(item)])
+  )
+}
+
+function jsonValue(value: unknown): JsonValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(jsonValue)
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, jsonValue(item)])
+    )
+  }
+
+  return null
 }

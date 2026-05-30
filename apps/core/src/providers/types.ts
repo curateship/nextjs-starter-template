@@ -18,11 +18,21 @@ export type ProviderModule = {
   icon: LucideIcon
 }
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
+
+export type JsonRecord = Record<string, JsonValue>
+
 export type ProviderRunConfigItem = {
   id: string
   name: string
   status: ProviderRunConfigStatus
-  input: Record<string, unknown>
+  input: JsonRecord
   amount: number
   created_at: string
 }
@@ -32,7 +42,7 @@ export type ProviderExecutionItem = {
   status: ProviderExecutionStatus
   message: string | null
   error: string | null
-  stats: Record<string, unknown>
+  stats: JsonRecord
   started_at: string | null
   created_at: string
 }
@@ -41,7 +51,7 @@ export type ProviderResultItem = {
   id: string
   external_id: string | null
   title: string
-  data: Record<string, unknown>
+  data: JsonRecord
   public_status: "draft" | "published" | null
   created_at: string
 }
