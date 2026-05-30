@@ -52,6 +52,5 @@ export type ProviderResultItem = {
   external_id: string | null
   title: string
   data: JsonRecord
-  public_status: "draft" | "published" | null
   created_at: string
 }

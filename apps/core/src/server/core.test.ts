@@ -766,6 +766,28 @@ describe("core providers", () => {
     ]))
   })
 
+  it("removes public directories from Core migrations", async () => {
+    const publicDirectoriesMigration = await readFile(
+      new URL("../../drizzle/0009_public_directories.sql", import.meta.url),
+      "utf8"
+    )
+    const dropPublicDirectoriesMigration = await readFile(
+      new URL("../../drizzle/0010_drop_public_directories.sql", import.meta.url),
+      "utf8"
+    )
+
+    await client.exec(publicDirectoriesMigration)
+    await client.exec(dropPublicDirectoriesMigration)
+
+    const result = await client.query<{ table_name: string }>(`
+      select table_name
+      from information_schema.tables
+      where table_schema = 'public' and table_name = 'public_directories'
+    `)
+
+    expect(result.rows).toEqual([])
+  })
+
   it("scopes provider settings and runs by workspace", async () => {
     const createdAt = now()
     const userId = uuid()

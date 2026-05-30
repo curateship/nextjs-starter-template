@@ -8,7 +8,6 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
-  UploadCloudIcon,
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
@@ -63,7 +62,6 @@ import {
   providerError,
   startGoogleMapsRun,
   updateGoogleMapsResult,
-  updateGoogleMapsResultPublicStatus,
 } from "@/providers/google-maps/api"
 import { parseRunInput } from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
@@ -76,20 +74,7 @@ type RunForm = {
   maxResults: number
   status: ProviderRunConfigStatus
 }
-type ResultForm = {
-  title: string
-  category: string
-  categoryName: string
-  address: string
-  street: string
-  city: string
-  state: string
-  countryCode: string
-  rating: string
-  reviewCount: string
-  phone: string
-  website: string
-}
+type ResultForm = Record<string, string | boolean>
 type ResultSortColumn = "title" | "address" | "rating" | "reviews" | "phone" | "website" | "created"
 type ResultModalTab = "fields" | "json"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
@@ -106,6 +91,36 @@ const resultModalTabs: { id: ResultModalTab; label: string }[] = [
   { id: "fields", label: "Fields" },
   { id: "json", label: "JSON" },
 ]
+const orderedResultKeys = [
+  "businessName",
+  "category",
+  "categoryName",
+  "address",
+  "street",
+  "city",
+  "state",
+  "countryCode",
+  "rating",
+  "reviewCount",
+  "phone",
+  "website",
+] as const
+const resultKeyOrder = new Map<string, number>(orderedResultKeys.map((key, index) => [key, index]))
+const resultFieldLabels: Record<string, string> = {
+  businessName: "Business",
+  categoryName: "Primary category",
+  countryCode: "Country code",
+  reviewCount: "Reviews",
+}
+const resultNumberFields = new Set(["rating", "reviewCount"])
+const readOnlyResultFields = new Set([
+  "raw",
+  "mapsUrl",
+  "placeId",
+  "latitude",
+  "longitude",
+  "sourceImageUrl",
+])
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -225,7 +240,8 @@ export function GoogleMapsDashboard() {
   const toggleRun = (id: string, checked: boolean) => {
     setSelectedRunIds((current) => {
       const next = new Set(current)
-      checked ? next.add(id) : next.delete(id)
+      if (checked) next.add(id)
+      else next.delete(id)
       return next
     })
   }
@@ -450,7 +466,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [deleteIds, setDeleteIds] = React.useState<string[]>([])
   const [deletingResults, setDeletingResults] = React.useState(false)
   const [savingResult, setSavingResult] = React.useState(false)
-  const [resultForm, setResultForm] = React.useState<ResultForm>(emptyResultForm())
+  const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
 
   const load = React.useCallback(async () => {
@@ -547,7 +563,8 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const toggleResult = (id: string, checked: boolean) => {
     setSelectedIds((current) => {
       const next = new Set(current)
-      checked ? next.add(id) : next.delete(id)
+      if (checked) next.add(id)
+      else next.delete(id)
       return next
     })
   }
@@ -555,20 +572,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
     setResultModalTab("fields")
-    setResultForm({
-      title: result.title,
-      category: text(result.data.category) ?? "",
-      categoryName: text(result.data.categoryName) ?? "",
-      address: text(result.data.address) ?? "",
-      street: text(result.data.street) ?? "",
-      city: text(result.data.city) ?? "",
-      state: text(result.data.state) ?? "",
-      countryCode: text(result.data.countryCode) ?? "",
-      rating: typeof result.data.rating === "number" ? String(result.data.rating) : "",
-      reviewCount: typeof result.data.reviewCount === "number" ? String(result.data.reviewCount) : "",
-      phone: text(result.data.phone) ?? "",
-      website: text(result.data.website) ?? "",
-    })
+    setResultForm(resultFormFromData(result))
   }
 
   const saveResult = async () => {
@@ -576,21 +580,13 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     setSavingResult(true)
     setMessage(null)
     try {
+      const title = resultTitle(resultForm)
+      if (!title) throw new Error("Business is required.")
       await updateGoogleMapsResult({
         runId,
         resultId: editingResult.id,
-        title: resultForm.title,
-        category: resultForm.category,
-        categoryName: resultForm.categoryName,
-        address: resultForm.address,
-        street: resultForm.street,
-        city: resultForm.city,
-        state: resultForm.state,
-        countryCode: resultForm.countryCode,
-        rating: resultForm.rating.trim() ? Number(resultForm.rating) : null,
-        reviewCount: resultForm.reviewCount.trim() ? Number(resultForm.reviewCount) : null,
-        phone: resultForm.phone,
-        website: resultForm.website,
+        title,
+        data: resultDataFromForm(resultForm, editingResult),
       })
       setEditingResult(null)
       await load()
@@ -621,22 +617,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       setMessage({ tone: "error", text: providerError(error) })
     } finally {
       setDeletingResults(false)
-    }
-  }
-
-  const updatePublicStatus = async (result: ProviderResultItem) => {
-    const nextStatus = result.public_status === "published" ? "draft" : "published"
-    setMessage(null)
-    try {
-      await updateGoogleMapsResultPublicStatus({
-        runId,
-        resultId: result.id,
-        status: nextStatus,
-      })
-      await load()
-      setMessage({ tone: "success", text: nextStatus === "published" ? "Result published." : "Result unpublished." })
-    } catch (error) {
-      setMessage({ tone: "error", text: providerError(error) })
     }
   }
 
@@ -680,7 +660,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <TableHead column="preview" className="w-64 max-w-64"><TableSortButton active={sortColumn === "address"} direction={sortDirection} onClick={() => toggleSort("address")}>Address</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "rating"} direction={sortDirection} onClick={() => toggleSort("rating")}>Rating</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "reviews"} direction={sortDirection} onClick={() => toggleSort("reviews")}>Reviews</TableSortButton></TableHead>
-              <TableHead column="meta">Public</TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "phone"} direction={sortDirection} onClick={() => toggleSort("phone")}>Phone</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "website"} direction={sortDirection} onClick={() => toggleSort("website")}>Website</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>Date added</TableSortButton></TableHead>
@@ -690,7 +669,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         }
         isEmpty={results.length === 0}
         emptyText="No results found."
-        emptyColSpan={10}
+        emptyColSpan={9}
         footer={{
           type: "pagination",
           page,
@@ -724,19 +703,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <TableCell column="preview" className="w-64 max-w-64 truncate">{locationText(result.data)}</TableCell>
               <TableCell column="meta">{typeof result.data.rating === "number" ? result.data.rating : "Unknown"}</TableCell>
               <TableCell column="meta">{typeof result.data.reviewCount === "number" ? result.data.reviewCount : "Unknown"}</TableCell>
-              <TableCell column="meta">
-                <Badge variant={result.public_status === "published" ? "default" : "secondary"}>
-                  {result.public_status === "published" ? "Published" : "Draft"}
-                </Badge>
-              </TableCell>
               <TableCell column="meta">{text(result.data.phone) ?? "Unknown"}</TableCell>
               <TableCell column="meta">{websiteHref ? <Button asChild variant="outline" size="sm" className="h-8 sm:h-9"><a href={websiteHref} target="_blank" rel="noopener noreferrer">Visit</a></Button> : "None"}</TableCell>
               <TableCell column="meta">{dateFormatter.format(new Date(result.created_at))}</TableCell>
               <TableCell column="meta">
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon-sm" onClick={() => void updatePublicStatus(result)} aria-label={`${result.public_status === "published" ? "Unpublish" : "Publish"} ${result.title}`}>
-                    <UploadCloudIcon className="size-4" />
-                  </Button>
                   <Button variant="ghost" size="icon-sm" onClick={() => editResult(result)} aria-label={`Edit ${result.title}`}>
                     <SettingsIcon className="size-4" />
                   </Button>
@@ -774,18 +745,16 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           </DialogHeader>
           {resultModalTab === "fields" ? (
             <DialogBody className="grid gap-4 sm:grid-cols-2">
-              <RunField id="result-title" label="Business" value={resultForm.title} onChange={(value) => setResultForm({ ...resultForm, title: value })} />
-              <RunField id="result-category" label="Category" value={resultForm.category} onChange={(value) => setResultForm({ ...resultForm, category: value })} />
-              <RunField id="result-category-name" label="Primary category" value={resultForm.categoryName} onChange={(value) => setResultForm({ ...resultForm, categoryName: value })} />
-              <RunField id="result-address" label="Address" value={resultForm.address} onChange={(value) => setResultForm({ ...resultForm, address: value })} />
-              <RunField id="result-street" label="Street" value={resultForm.street} onChange={(value) => setResultForm({ ...resultForm, street: value })} />
-              <RunField id="result-city" label="City" value={resultForm.city} onChange={(value) => setResultForm({ ...resultForm, city: value })} />
-              <RunField id="result-state" label="State" value={resultForm.state} onChange={(value) => setResultForm({ ...resultForm, state: value })} />
-              <RunField id="result-country" label="Country code" value={resultForm.countryCode} onChange={(value) => setResultForm({ ...resultForm, countryCode: value })} />
-              <RunField id="result-rating" label="Rating" type="number" value={resultForm.rating} onChange={(value) => setResultForm({ ...resultForm, rating: value })} />
-              <RunField id="result-reviews" label="Reviews" type="number" value={resultForm.reviewCount} onChange={(value) => setResultForm({ ...resultForm, reviewCount: value })} />
-              <RunField id="result-phone" label="Phone" value={resultForm.phone} onChange={(value) => setResultForm({ ...resultForm, phone: value })} />
-              <RunField id="result-website" label="Website" value={resultForm.website} onChange={(value) => setResultForm({ ...resultForm, website: value })} />
+              {Object.entries(resultForm).map(([key, value]) => (
+                <ResultField
+                  key={key}
+                  id={`result-${key}`}
+                  label={resultFieldLabel(key)}
+                  type={resultFieldType(key, editingResult)}
+                  value={value}
+                  onChange={(nextValue) => setResultForm({ ...resultForm, [key]: nextValue })}
+                />
+              ))}
             </DialogBody>
           ) : (
             <div className="min-h-0 flex-1 px-6 pt-6 pb-6">
@@ -876,25 +845,93 @@ function RunField({ id, label, type = "text", value, onChange }: { id: string; l
   return <div className="grid gap-2"><Label htmlFor={id}>{label}</Label><Input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></div>
 }
 
+function ResultField({
+  id,
+  label,
+  type,
+  value,
+  onChange,
+}: {
+  id: string
+  label: string
+  type: "text" | "number" | "boolean"
+  value: string | boolean
+  onChange: (value: string | boolean) => void
+}) {
+  if (type === "boolean") {
+    return (
+      <div className="flex items-center gap-2 self-end rounded-md border px-3 py-2">
+        <Checkbox id={id} checked={value === true} onCheckedChange={(checked) => onChange(checked === true)} />
+        <Label htmlFor={id}>{label}</Label>
+      </div>
+    )
+  }
+
+  return <RunField id={id} label={label} type={type} value={String(value)} onChange={onChange} />
+}
+
 function emptyForm(maxResults: number): RunForm {
   return { name: "", keyword: "", location: "", language: "en", maxResults, status: "active" }
 }
 
-function emptyResultForm(): ResultForm {
-  return {
-    title: "",
-    category: "",
-    categoryName: "",
-    address: "",
-    street: "",
-    city: "",
-    state: "",
-    countryCode: "",
-    rating: "",
-    reviewCount: "",
-    phone: "",
-    website: "",
-  }
+function resultFormFromData(result: ProviderResultItem): ResultForm {
+  const data = { ...result.data, businessName: text(result.data.businessName) ?? result.title }
+  const form: ResultForm = {}
+
+  editableResultKeys(data).forEach((key) => {
+    const value = data[key]
+    form[key] = typeof value === "boolean" ? value : value === null ? "" : String(value)
+  })
+
+  return form
+}
+
+function editableResultKeys(data: Record<string, unknown>) {
+  return Object.keys(data)
+    .filter((key) => isEditableResultField(key, data[key]))
+    .sort((a, b) => {
+      const aOrder = resultKeyOrder.get(a) ?? Number.MAX_SAFE_INTEGER
+      const bOrder = resultKeyOrder.get(b) ?? Number.MAX_SAFE_INTEGER
+      return aOrder - bOrder
+    })
+}
+
+function isEditableResultField(key: string, value: unknown) {
+  return !readOnlyResultFields.has(key) &&
+    (value === null || ["string", "number", "boolean"].includes(typeof value))
+}
+
+function resultTitle(form: ResultForm) {
+  const value = form.businessName
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function resultDataFromForm(form: ResultForm, result: ProviderResultItem) {
+  return Object.fromEntries(
+    Object.entries(form).map(([key, value]) => [key, resultValueFromForm(key, value, result)])
+  )
+}
+
+function resultValueFromForm(key: string, value: string | boolean, result: ProviderResultItem) {
+  if (typeof value === "boolean") return value
+
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (resultFieldType(key, result) !== "number") return trimmed
+
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed)) throw new Error(`${resultFieldLabel(key)} must be a number.`)
+  return parsed
+}
+
+function resultFieldType(key: string, result: ProviderResultItem | null): "text" | "number" | "boolean" {
+  const value = key === "businessName" ? result?.data.businessName ?? result?.title : result?.data[key]
+  if (typeof value === "boolean") return "boolean"
+  return typeof value === "number" || resultNumberFields.has(key) ? "number" : "text"
+}
+
+function resultFieldLabel(key: string) {
+  return resultFieldLabels[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (char) => char.toUpperCase())
 }
 
 function text(value: unknown) {

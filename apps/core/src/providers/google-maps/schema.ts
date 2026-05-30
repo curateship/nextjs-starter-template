@@ -100,19 +100,11 @@ export function serializeExecution(row: CoreProviderExecution): ProviderExecutio
 }
 
 export function serializeResult(row: CoreProviderResult): ProviderResultItem {
-  return serializeResultWithPublicStatus(row, null)
-}
-
-export function serializeResultWithPublicStatus(
-  row: CoreProviderResult,
-  publicStatus: "draft" | "published" | null
-): ProviderResultItem {
   return {
     id: row.id,
     external_id: row.externalId,
     title: row.title,
     data: record(row.data),
-    public_status: publicStatus,
     created_at: row.createdAt.toISOString(),
   }
 }
