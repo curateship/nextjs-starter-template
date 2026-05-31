@@ -60,10 +60,11 @@ import {
   refreshGoogleMapsExecution,
   saveGoogleMapsRun,
   providerError,
+  saveGoogleMapsFieldSettings,
   startGoogleMapsRun,
   updateGoogleMapsResult,
 } from "@/providers/google-maps/api"
-import { parseRunInput } from "@/providers/google-maps/schema"
+import { parseRunInput, type GoogleMapsFieldSetting, type GoogleMapsFieldType } from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
 
 type RunForm = {
@@ -75,8 +76,10 @@ type RunForm = {
   status: ProviderRunConfigStatus
 }
 type ResultForm = Record<string, string | boolean>
+type ResultFormValue = string | boolean
 type ResultSortColumn = "title" | "address" | "rating" | "reviews" | "phone" | "website" | "created"
 type ResultModalTab = "fields" | "json"
+type FieldSettingsTab = "selected" | "other"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
 
@@ -90,6 +93,10 @@ const pageSizes = [10, 25, 50]
 const resultModalTabs: { id: ResultModalTab; label: string }[] = [
   { id: "fields", label: "Fields" },
   { id: "json", label: "JSON" },
+]
+const fieldSettingsTabs: { id: FieldSettingsTab; label: string }[] = [
+  { id: "selected", label: "Selected Fields" },
+  { id: "other", label: "Other Fields" },
 ]
 const orderedResultKeys = [
   "businessName",
@@ -145,13 +152,20 @@ export function GoogleMapsDashboard() {
   const [deletingRuns, setDeletingRuns] = React.useState(false)
   const [open, setOpen] = React.useState(false)
   const [form, setForm] = React.useState<RunForm>(() => emptyForm(25))
+  const [fieldSettings, setFieldSettings] = React.useState<GoogleMapsFieldSetting[]>([])
+  const [fieldSamples, setFieldSamples] = React.useState<ProviderResultItem[]>([])
+  const [fieldSettingsOpen, setFieldSettingsOpen] = React.useState(false)
+  const [fieldSettingsDraft, setFieldSettingsDraft] = React.useState<GoogleMapsFieldSetting[]>([])
+  const [savingFieldSettings, setSavingFieldSettings] = React.useState(false)
 
   React.useEffect(() => {
     void loadGoogleMapsRuns()
-      .then(({ runs, settings }) => {
+      .then(({ runs, settings, field_samples }) => {
         setRuns(runs)
         setHasToken(settings.has_token)
         setDefaultMax(settings.default_max_results)
+        setFieldSettings(settings.field_settings)
+        setFieldSamples(field_samples)
       })
       .catch((error) => setMessage({ tone: "error", text: providerError(error) }))
   }, [])
@@ -268,6 +282,27 @@ export function GoogleMapsDashboard() {
     }
   }
 
+  const openFieldSettings = () => {
+    if (!fieldSamples.length && !fieldSettings.length) return
+    setFieldSettingsDraft(fieldSamples.length ? fieldSettingsForResults(fieldSamples, fieldSettings) : fieldSettings)
+    setFieldSettingsOpen(true)
+  }
+
+  const saveFieldSettings = async () => {
+    setSavingFieldSettings(true)
+    setMessage(null)
+    try {
+      const response = await saveGoogleMapsFieldSettings({ fieldSettings: fieldSettingsDraft })
+      setFieldSettings(response.field_settings)
+      setFieldSettingsOpen(false)
+      setMessage({ tone: "success", text: "Field settings saved." })
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setSavingFieldSettings(false)
+    }
+  }
+
   return (
     <div className="w-full pb-8">
       <DashboardTable
@@ -299,6 +334,10 @@ export function GoogleMapsDashboard() {
                 <SettingsIcon className="size-4" />
                 Settings
               </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" disabled={!fieldSamples.length && !fieldSettings.length} onClick={openFieldSettings}>
+              <SettingsIcon className="size-4" />
+              Field settings
             </Button>
             <Button size="sm" className="h-8 gap-2 sm:h-9" onClick={() => edit()}>
               <PlusIcon className="size-4" />
@@ -411,6 +450,14 @@ export function GoogleMapsDashboard() {
         open={deleteRunIds.length > 0}
         onOpenChange={(open) => !open && setDeleteRunIds([])}
         onConfirm={() => void deleteRuns(deleteRunIds)}
+      />
+      <FieldSettingsDialog
+        open={fieldSettingsOpen}
+        settings={fieldSettingsDraft}
+        saving={savingFieldSettings}
+        onOpenChange={setFieldSettingsOpen}
+        onChange={setFieldSettingsDraft}
+        onSave={() => void saveFieldSettings()}
       />
     </div>
   )
@@ -572,7 +619,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
     setResultModalTab("fields")
-    setResultForm(resultFormFromData(result))
+    setResultForm(resultFormFromData(result, data?.field_settings ?? []))
   }
 
   const saveResult = async () => {
@@ -580,13 +627,13 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     setSavingResult(true)
     setMessage(null)
     try {
-      const title = resultTitle(resultForm)
+      const title = resultTitle(resultForm, editingResult)
       if (!title) throw new Error("Business is required.")
       await updateGoogleMapsResult({
         runId,
         resultId: editingResult.id,
         title,
-        data: resultDataFromForm(resultForm, editingResult),
+        data: resultDataFromForm(resultForm, editingResult, data?.field_settings ?? []),
       })
       setEditingResult(null)
       await load()
@@ -745,16 +792,16 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           </DialogHeader>
           {resultModalTab === "fields" ? (
             <DialogBody className="grid gap-4 sm:grid-cols-2">
-              {Object.entries(resultForm).map(([key, value]) => (
+              {editingResult ? resultFieldsForResult(editingResult, data?.field_settings ?? []).map((setting) => (
                 <ResultField
-                  key={key}
-                  id={`result-${key}`}
-                  label={resultFieldLabel(key)}
-                  type={resultFieldType(key, editingResult)}
-                  value={value}
-                  onChange={(nextValue) => setResultForm({ ...resultForm, [key]: nextValue })}
+                  key={setting.key}
+                  id={`result-${setting.key}`}
+                  label={setting.label}
+                  type={setting.type}
+                  value={resultForm[setting.key] ?? ""}
+                  onChange={(nextValue) => setResultForm({ ...resultForm, [setting.key]: nextValue })}
                 />
-              ))}
+              )) : null}
             </DialogBody>
           ) : (
             <div className="min-h-0 flex-1 px-6 pt-6 pb-6">
@@ -819,6 +866,127 @@ function DeleteResultsDialog({
   )
 }
 
+function FieldSettingsDialog({
+  open,
+  settings,
+  saving,
+  onOpenChange,
+  onChange,
+  onSave,
+}: {
+  open: boolean
+  settings: GoogleMapsFieldSetting[]
+  saving: boolean
+  onOpenChange: (open: boolean) => void
+  onChange: (settings: GoogleMapsFieldSetting[]) => void
+  onSave: () => void
+}) {
+  const [fieldQuery, setFieldQuery] = React.useState("")
+  const [fieldSettingsTab, setFieldSettingsTab] = React.useState<FieldSettingsTab>("selected")
+  const selectedCount = settings.filter((setting) => setting.visible).length
+  const otherCount = settings.length - selectedCount
+  const matchingSettings = settings
+    .map((setting, index) => ({ setting, index }))
+    .filter(({ setting }) => fieldSettingsTab === "selected" ? setting.visible : !setting.visible)
+    .filter(({ setting }) => fieldSettingMatchesQuery(setting, fieldQuery))
+
+  const update = (index: number, changes: Partial<GoogleMapsFieldSetting>) => {
+    onChange(settings.map((setting, itemIndex) => {
+      if (itemIndex !== index) return setting
+      const next = { ...setting, ...changes }
+      return { ...next, editable: next.visible && !readOnlyResultFields.has(next.key) }
+    }))
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin" className="max-h-[85vh] w-[920px] max-w-[calc(100vw-2rem)] sm:max-w-[920px]">
+        <DialogHeader>
+          <DialogTitle>Field Settings</DialogTitle>
+          <DialogDescription>Choose which JSON fields appear in the Fields tab.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid min-h-0 gap-3">
+          <div>
+            <Input
+              id="field-settings-search"
+              aria-label="Search fields"
+              value={fieldQuery}
+              placeholder="Search label, key, JSON path, or type..."
+              onChange={(event) => setFieldQuery(event.target.value)}
+            />
+          </div>
+          <div role="tablist" aria-label="Field settings view" className="flex w-fit items-center gap-1 rounded-lg bg-muted p-1">
+            {fieldSettingsTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={fieldSettingsTab === tab.id}
+                onClick={() => setFieldSettingsTab(tab.id)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm ${fieldSettingsTab === tab.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {tab.label} {tab.id === "selected" ? selectedCount : otherCount}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-3">
+            {matchingSettings.length ? matchingSettings.map(({ setting, index }) => (
+              <div key={`${setting.sourcePath}-${index}`} className="grid gap-3 rounded-md border p-3">
+                <div className="min-w-0 text-xs font-medium text-muted-foreground">
+                  {setting.sourcePath}
+                </div>
+                <div className="grid gap-3 lg:grid-cols-[minmax(140px,1fr)_minmax(140px,1fr)_130px_120px]">
+                  <div className="grid gap-2">
+                    <Label htmlFor={`field-label-${index}`}>Label</Label>
+                    <Input id={`field-label-${index}`} value={setting.label} onChange={(event) => update(index, { label: event.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor={`field-key-${index}`}>Save key</Label>
+                    <Input id={`field-key-${index}`} value={setting.key} onChange={(event) => update(index, { key: event.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Type</Label>
+                    <Select value={setting.type} onValueChange={(value) => update(index, { type: value as GoogleMapsFieldType })}>
+                      <SelectTrigger size="default" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="number">Number</SelectItem>
+                        <SelectItem value="boolean">Boolean</SelectItem>
+                        <SelectItem value="tags">Tags</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant={fieldSettingsTab === "selected" ? "outline" : "secondary"}
+                      className="w-full"
+                      onClick={() => update(index, { visible: fieldSettingsTab === "other" })}
+                    >
+                      {fieldSettingsTab === "selected" ? <Trash2Icon className="size-4" /> : <PlusIcon className="size-4" />}
+                      {fieldSettingsTab === "selected" ? "Remove" : "Select"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                No fields match your search.
+              </div>
+            )}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={onSave} disabled={saving}>{saving ? "Saving..." : "Save settings"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function GoogleMapsResultsBreadcrumb({ title }: { title: string }) {
   return (
     <Breadcrumb>
@@ -854,9 +1022,9 @@ function ResultField({
 }: {
   id: string
   label: string
-  type: "text" | "number" | "boolean"
-  value: string | boolean
-  onChange: (value: string | boolean) => void
+  type: GoogleMapsFieldType
+  value: ResultFormValue
+  onChange: (value: ResultFormValue) => void
 }) {
   if (type === "boolean") {
     return (
@@ -867,33 +1035,149 @@ function ResultField({
     )
   }
 
-  return <RunField id={id} label={label} type={type} value={String(value)} onChange={onChange} />
+  return (
+    <div className="grid gap-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type={type === "number" ? "number" : "text"}
+        value={String(value)}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  )
 }
 
 function emptyForm(maxResults: number): RunForm {
   return { name: "", keyword: "", location: "", language: "en", maxResults, status: "active" }
 }
 
-function resultFormFromData(result: ProviderResultItem): ResultForm {
-  const data = { ...result.data, businessName: text(result.data.businessName) ?? result.title }
+function resultFormFromData(result: ProviderResultItem, fieldSettings: GoogleMapsFieldSetting[]): ResultForm {
   const form: ResultForm = {}
 
-  editableResultKeys(data).forEach((key) => {
-    const value = data[key]
-    form[key] = typeof value === "boolean" ? value : value === null ? "" : String(value)
+  resultFieldsForResult(result, fieldSettings).forEach((setting) => {
+    form[setting.key] = formValue(resultFieldValue(result, setting))
   })
 
   return form
 }
 
-function editableResultKeys(data: Record<string, unknown>) {
-  return Object.keys(data)
-    .filter((key) => isEditableResultField(key, data[key]))
-    .sort((a, b) => {
-      const aOrder = resultKeyOrder.get(a) ?? Number.MAX_SAFE_INTEGER
-      const bOrder = resultKeyOrder.get(b) ?? Number.MAX_SAFE_INTEGER
-      return aOrder - bOrder
-    })
+function resultFieldsForResult(result: ProviderResultItem, fieldSettings: GoogleMapsFieldSetting[]) {
+  const settings = fieldSettingsForResults([result], fieldSettings)
+  return settings
+    .filter((setting) => setting.key === "businessName" || (setting.visible && resultFieldHasValue(result, setting)))
+    .sort((a, b) => a.order - b.order)
+}
+
+function fieldSettingsForResults(results: ProviderResultItem[], savedSettings: GoogleMapsFieldSetting[]) {
+  const discovered = mergeDiscoveredFieldSettings(results.flatMap(discoverFieldSettings))
+  if (!savedSettings.length) return discovered
+
+  const savedSourcePaths = new Set(savedSettings.map((setting) => setting.sourcePath))
+  const savedKeys = new Set(savedSettings.map((setting) => setting.key))
+  const missing = discovered
+    .filter((setting) => !savedSourcePaths.has(setting.sourcePath) && !savedKeys.has(setting.key))
+    .map((setting, index) => ({ ...setting, visible: false, editable: false, order: savedSettings.length + index }))
+
+  return [...savedSettings, ...missing].sort((a, b) => a.order - b.order)
+}
+
+function mergeDiscoveredFieldSettings(settings: GoogleMapsFieldSetting[]) {
+  const usedKeys = new Set<string>()
+  const paths = new Set<string>()
+  const merged: GoogleMapsFieldSetting[] = []
+
+  settings.forEach((setting) => {
+    if (paths.has(setting.sourcePath)) return
+    paths.add(setting.sourcePath)
+    const key = uniqueFieldKey(setting.key, usedKeys)
+    merged.push({ ...setting, key, editable: setting.visible && !readOnlyResultFields.has(key), order: merged.length })
+  })
+
+  return merged
+}
+
+function discoverFieldSettings(result: ProviderResultItem): GoogleMapsFieldSetting[] {
+  const data = resultDataWithTitle(result)
+  const usedKeys = new Set<string>()
+  const settings: GoogleMapsFieldSetting[] = []
+
+  Object.entries(data).sort(([a], [b]) => {
+    const aOrder = resultKeyOrder.get(a) ?? Number.MAX_SAFE_INTEGER
+    const bOrder = resultKeyOrder.get(b) ?? Number.MAX_SAFE_INTEGER
+    return aOrder === bOrder ? 0 : aOrder - bOrder
+  }).forEach(([key, value]) => {
+    if (key === "raw" || readOnlyResultFields.has(key)) return
+    if (!isSupportedFieldValue(value)) return
+    settings.push(candidateFieldSetting({
+      key,
+      sourcePath: key,
+      value,
+      visible: isEditableResultField(key, value),
+      editable: isEditableResultField(key, value),
+      usedKeys,
+      order: settings.length,
+    }))
+  })
+
+  collectRawFieldSettings(data.raw, "raw", usedKeys, settings)
+
+  return settings
+}
+
+function collectRawFieldSettings(
+  value: unknown,
+  sourcePath: string,
+  usedKeys: Set<string>,
+  settings: GoogleMapsFieldSetting[]
+) {
+  if (isSupportedFieldValue(value)) {
+    settings.push(candidateFieldSetting({
+      key: fieldKeyFromPath(sourcePath, usedKeys),
+      sourcePath,
+      value,
+      visible: false,
+      editable: false,
+      usedKeys,
+      order: settings.length,
+    }))
+    return
+  }
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) return
+
+  Object.entries(value as Record<string, unknown>).forEach(([key, item]) => {
+    collectRawFieldSettings(item, `${sourcePath}.${key}`, usedKeys, settings)
+  })
+}
+
+function candidateFieldSetting({
+  key,
+  sourcePath,
+  value,
+  visible,
+  editable,
+  usedKeys,
+  order,
+}: {
+  key: string
+  sourcePath: string
+  value: unknown
+  visible: boolean
+  editable: boolean
+  usedKeys: Set<string>
+  order: number
+}): GoogleMapsFieldSetting {
+  const cleanKey = uniqueFieldKey(key, usedKeys)
+  return {
+    key: cleanKey,
+    sourcePath,
+    label: resultFieldLabel(cleanKey),
+    visible,
+    editable: visible && editable && !readOnlyResultFields.has(cleanKey),
+    type: fieldTypeFromValue(cleanKey, value),
+    order,
+  }
 }
 
 function isEditableResultField(key: string, value: unknown) {
@@ -901,33 +1185,162 @@ function isEditableResultField(key: string, value: unknown) {
     (value === null || ["string", "number", "boolean"].includes(typeof value))
 }
 
-function resultTitle(form: ResultForm) {
+function isSupportedFieldValue(value: unknown) {
+  return value === null ||
+    ["string", "number", "boolean"].includes(typeof value) ||
+    isStringArray(value)
+}
+
+function resultTitle(form: ResultForm, result: ProviderResultItem) {
+  if (!Object.prototype.hasOwnProperty.call(form, "businessName")) return result.title.trim()
   const value = form.businessName
   return typeof value === "string" ? value.trim() : ""
 }
 
-function resultDataFromForm(form: ResultForm, result: ProviderResultItem) {
+function resultDataFromForm(
+  form: ResultForm,
+  result: ProviderResultItem,
+  fieldSettings: GoogleMapsFieldSetting[]
+) {
   return Object.fromEntries(
-    Object.entries(form).map(([key, value]) => [key, resultValueFromForm(key, value, result)])
+    resultFieldsForResult(result, fieldSettings)
+      .filter((setting) => setting.visible && Object.prototype.hasOwnProperty.call(form, setting.key))
+      .map((setting) => [setting.key, resultValueFromForm(form[setting.key], setting)])
   )
 }
 
-function resultValueFromForm(key: string, value: string | boolean, result: ProviderResultItem) {
+function resultValueFromForm(value: ResultFormValue, setting: GoogleMapsFieldSetting) {
   if (typeof value === "boolean") return value
 
   const trimmed = value.trim()
   if (!trimmed) return null
-  if (resultFieldType(key, result) !== "number") return trimmed
+  if (setting.type === "tags") return trimmed.split(/[,\n]/).map((item) => item.trim()).filter(Boolean)
+  if (setting.type !== "number") return trimmed
 
   const parsed = Number(trimmed)
-  if (!Number.isFinite(parsed)) throw new Error(`${resultFieldLabel(key)} must be a number.`)
+  if (!Number.isFinite(parsed)) throw new Error(`${setting.label} must be a number.`)
   return parsed
 }
 
-function resultFieldType(key: string, result: ProviderResultItem | null): "text" | "number" | "boolean" {
-  const value = key === "businessName" ? result?.data.businessName ?? result?.title : result?.data[key]
+function resultFieldValue(result: ProviderResultItem, setting: GoogleMapsFieldSetting) {
+  const data = resultDataWithTitle(result)
+  return Object.prototype.hasOwnProperty.call(data, setting.key)
+    ? data[setting.key]
+    : valueAtPath(data, setting.sourcePath)
+}
+
+function resultFieldHasValue(result: ProviderResultItem, setting: GoogleMapsFieldSetting) {
+  const value = resultFieldValue(result, setting)
+  if (value === null || value === undefined) return false
+  if (typeof value === "string") return value.trim().length > 0
+  if (Array.isArray(value)) return value.some((item) => typeof item === "string" ? item.trim().length > 0 : item !== null && item !== undefined)
+  return true
+}
+
+function resultDataWithTitle(result: ProviderResultItem) {
+  return { ...result.data, businessName: text(result.data.businessName) ?? result.title }
+}
+
+function fieldTypeFromValue(key: string, value: unknown): GoogleMapsFieldType {
+  if (isStringArray(value) || key === "tags") return "tags"
   if (typeof value === "boolean") return "boolean"
   return typeof value === "number" || resultNumberFields.has(key) ? "number" : "text"
+}
+
+function fieldSettingMatchesQuery(setting: GoogleMapsFieldSetting, query: string) {
+  const term = query.trim().toLowerCase()
+  if (!term) return true
+  return [setting.label, setting.key, setting.sourcePath, setting.type]
+    .some((value) => fieldSearchTextMatches(value, term))
+}
+
+function fieldSearchTextMatches(value: string, term: string) {
+  const text = value.toLowerCase()
+  if (text.includes(term)) return true
+  if (term.length < 3) return false
+
+  const words = text.split(/[^a-z0-9]+/).filter(Boolean)
+  return words.some((word) => isCloseFieldSearchMatch(word, term))
+}
+
+function isCloseFieldSearchMatch(word: string, term: string) {
+  const prefix = word.slice(0, term.length)
+  if (prefix.length === term.length && fieldSearchDistance(prefix, term) <= 1) return true
+  if (Math.abs(word.length - term.length) > 2) return false
+  return fieldSearchDistance(word, term) <= 2
+}
+
+function fieldSearchDistance(a: string, b: string) {
+  let edits = 0
+  let aIndex = 0
+  let bIndex = 0
+
+  while (aIndex < a.length && bIndex < b.length) {
+    if (a[aIndex] === b[bIndex]) {
+      aIndex += 1
+      bIndex += 1
+      continue
+    }
+
+    edits += 1
+    if (edits > 2) return edits
+    if (a.length > b.length) aIndex += 1
+    else if (b.length > a.length) bIndex += 1
+    else {
+      aIndex += 1
+      bIndex += 1
+    }
+  }
+
+  return edits + a.length - aIndex + b.length - bIndex
+}
+
+function fieldKeyFromPath(sourcePath: string, usedKeys: Set<string>) {
+  if (sourcePath === "raw.categories") return "tags"
+  if (sourcePath === "raw.description") return "description"
+
+  const parts = sourcePath.split(".")
+  const leaf = parts[parts.length - 1] ?? sourcePath
+  return usedKeys.has(leaf) ? toFieldKey(sourcePath) : leaf
+}
+
+function uniqueFieldKey(key: string, usedKeys: Set<string>) {
+  const baseKey = toFieldKey(key)
+  let nextKey = baseKey
+  let count = 2
+  while (usedKeys.has(nextKey)) {
+    nextKey = `${baseKey}${count}`
+    count += 1
+  }
+  usedKeys.add(nextKey)
+  return nextKey
+}
+
+function toFieldKey(value: string) {
+  const parts = value.split(/[^A-Za-z0-9]+/).filter(Boolean)
+  const key = parts.map((part, index) => {
+    const clean = part.replace(/^[0-9]+/, "")
+    if (!clean) return ""
+    return index === 0 ? clean.charAt(0).toLowerCase() + clean.slice(1) : clean.charAt(0).toUpperCase() + clean.slice(1)
+  }).join("")
+  return key || "field"
+}
+
+function formValue(value: unknown): ResultFormValue {
+  if (typeof value === "boolean") return value
+  if (isStringArray(value)) return value.join(", ")
+  return value === null || value === undefined ? "" : String(value)
+}
+
+function valueAtPath(data: Record<string, unknown>, path: string) {
+  return path.split(".").reduce<unknown>((current, key) => {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
+    return (current as Record<string, unknown>)[key]
+  }, data)
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
 }
 
 function resultFieldLabel(key: string) {

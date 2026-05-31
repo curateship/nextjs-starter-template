@@ -24,13 +24,32 @@ export const defaultApifyActorId = "compass/crawler-google-places"
 export const defaultMaxResults = 25
 const requiredText = (max: number) => z.string().trim().min(1).max(max)
 
+export const fieldSettingTypes = ["text", "number", "boolean", "tags"] as const
+export const fieldSettingSchema = z.object({
+  key: z.string().trim().min(1).max(100).regex(/^[A-Za-z][A-Za-z0-9_]*$/),
+  sourcePath: z.string().trim().min(1).max(255),
+  label: z.string().trim().min(1).max(120),
+  visible: z.boolean(),
+  editable: z.boolean(),
+  type: z.enum(fieldSettingTypes),
+  order: z.number().int().min(0).max(500),
+})
+export const fieldSettingsSchema = z.array(fieldSettingSchema).max(100)
 export const apifyConfigSchema = z.object({
   actorId: requiredText(255),
   defaultMaxResults: z.number().int().min(1).max(500),
+  fieldSettings: fieldSettingsSchema.catch([]).default([]),
 })
-export const settingsPayloadSchema = apifyConfigSchema.extend({
+export const settingsPayloadSchema = z.object({
+  actorId: requiredText(255),
+  defaultMaxResults: z.number().int().min(1).max(500),
   token: z.string().max(4000).optional(),
 })
+export const fieldSettingsPayloadSchema = z.object({
+  fieldSettings: fieldSettingsSchema,
+})
+export type GoogleMapsFieldSetting = z.infer<typeof fieldSettingSchema>
+export type GoogleMapsFieldType = GoogleMapsFieldSetting["type"]
 export const runInputSchema = z.object({
   keyword: requiredText(500),
   location: requiredText(500),
@@ -51,6 +70,7 @@ export function parseConfig(value: unknown) {
   return apifyConfigSchema.catch({
     actorId: defaultApifyActorId,
     defaultMaxResults,
+    fieldSettings: [],
   }).parse(value)
 }
 
@@ -72,6 +92,7 @@ export function serializeSettings(row: CoreProviderSettings | null) {
   return {
     actor_id: config.actorId,
     default_max_results: config.defaultMaxResults,
+    field_settings: config.fieldSettings,
     has_token: Boolean(row?.secretEncrypted),
   }
 }

@@ -38,6 +38,7 @@ import {
   defaultApifyActorId,
   defaultMaxResults,
   executionIdSchema,
+  fieldSettingsPayloadSchema,
   googleMapsProviderKey,
   parseConfig,
   parseRunInput,
@@ -49,6 +50,8 @@ import {
   serializeSettings,
   settingsPayloadSchema,
   updateRunSchema,
+  type GoogleMapsFieldSetting,
+  type GoogleMapsFieldType,
 } from "@/providers/google-maps/schema"
 import type {
   ProviderExecutionItem,
@@ -60,11 +63,16 @@ type ProviderSettingsItem = ReturnType<typeof serializeSettings>
 type ProviderSettingsResponse = { settings: ProviderSettingsItem }
 type GoogleMapsRunsResponse = ProviderSettingsResponse & {
   runs: ProviderRunConfigItem[]
+  field_samples: ProviderResultItem[]
 }
 type GoogleMapsRunResponse = {
   run: ProviderRunConfigItem
   latest_execution: ProviderExecutionItem | null
   results: ProviderResultItem[]
+  field_settings: GoogleMapsFieldSetting[]
+}
+type FieldSettingsResponse = {
+  field_settings: GoogleMapsFieldSetting[]
 }
 const remoteImageMaxBytes = 10 * 1024 * 1024
 const remoteImageTypes = new Set([
@@ -91,6 +99,7 @@ const simpleResultValueSchema = z.union([
   z.number(),
   z.boolean(),
   z.null(),
+  z.array(z.string().trim().max(500)).max(100),
 ])
 const resultPayloadSchema = z.object({
   runId: z.string().min(1),
@@ -125,8 +134,13 @@ const saveSettingsFn = createServerFn({ method: "POST" })
     const existing = await settingsRow(workspace.id)
     const updatedAt = now()
     const token = data.token?.trim()
+    const existingConfig = parseConfig(existing?.config)
     const values = {
-      config: { actorId: data.actorId.trim(), defaultMaxResults: data.defaultMaxResults },
+      config: {
+        actorId: data.actorId.trim(),
+        defaultMaxResults: data.defaultMaxResults,
+        fieldSettings: existingConfig.fieldSettings,
+      },
       secretEncrypted: token ? encryptProviderSecret(token) : existing?.secretEncrypted ?? null,
       updatedAt,
     }
@@ -138,14 +152,47 @@ const saveSettingsFn = createServerFn({ method: "POST" })
     return { settings: serializeSettings(row) }
   })
 
+const saveFieldSettingsFn = createServerFn({ method: "POST" })
+  .inputValidator(fieldSettingsPayloadSchema)
+  .handler(async ({ data }): Promise<FieldSettingsResponse> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const existing = await settingsRow(workspace.id)
+    const updatedAt = now()
+    const config = parseConfig(existing?.config)
+    const fieldSettings = cleanFieldSettings(data.fieldSettings)
+    const values = {
+      config: { ...config, fieldSettings },
+      secretEncrypted: existing?.secretEncrypted ?? null,
+      updatedAt,
+    }
+
+    const [row] = existing
+      ? await db.update(providerSettings).set(values).where(and(eq(providerSettings.workspaceId, workspace.id), eq(providerSettings.providerKey, apifyProviderKey))).returning()
+      : await db.insert(providerSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
+
+    return { field_settings: parseConfig(row.config).fieldSettings }
+  })
+
 const loadRunsFn = createServerFn({ method: "GET" }).handler(async (): Promise<GoogleMapsRunsResponse> => {
   const workspace = await findWorkspace()
   if (!workspace) {
-    return { settings: serializeSettings(null), runs: [] }
+    return { settings: serializeSettings(null), runs: [], field_samples: [] }
   }
   const runs = await db.select().from(providerRunConfigs).where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).orderBy(desc(providerRunConfigs.createdAt))
   const amountByRun = await resultCountsByRun(runs.map((run) => run.id))
-  return { settings: serializeSettings(await settingsRow(workspace.id)), runs: runs.map((run) => ({ ...serializeRun(run), amount: amountByRun.get(run.id) ?? 0 })) }
+  const sampleRows = await db
+    .select({ result: providerResults })
+    .from(providerResults)
+    .innerJoin(providerRunConfigs, eq(providerResults.runConfigId, providerRunConfigs.id))
+    .where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey)))
+    .orderBy(desc(providerResults.createdAt))
+    .limit(100)
+  return {
+    settings: serializeSettings(await settingsRow(workspace.id)),
+    runs: runs.map((run) => ({ ...serializeRun(run), amount: amountByRun.get(run.id) ?? 0 })),
+    field_samples: sampleRows.map(({ result }) => serializeResult(result)),
+  }
 })
 
 const saveRunFn = createServerFn({ method: "POST" })
@@ -261,6 +308,7 @@ const loadRunFn = createServerFn({ method: "GET" })
       run: serializeRun(run),
       latest_execution: latest ? serializeExecution(latest) : null,
       results: results.map(serializeResult),
+      field_settings: parseConfig((await settingsRow(workspace.id))?.config).fieldSettings,
     }
   })
 
@@ -275,9 +323,10 @@ const updateResultFn = createServerFn({ method: "POST" })
 
     const title = data.title.trim()
     const currentData = record(result.data)
+    const fieldTypes = editableFieldTypes(parseConfig((await settingsRow(workspace.id))?.config).fieldSettings)
     const [updated] = await db.update(providerResults).set({
       title,
-      data: mergeResultData(currentData, data.data, title),
+      data: mergeResultData(currentData, data.data, title, fieldTypes),
     }).where(eq(providerResults.id, result.id)).returning()
 
     return { result: serializeResult(updated) }
@@ -302,6 +351,7 @@ const deleteResultsFn = createServerFn({ method: "POST" })
 
 export const loadProviderSettings = () => loadSettingsFn()
 export const saveProviderSettings = (data: z.infer<typeof settingsPayloadSchema>) => saveSettingsFn({ data })
+export const saveGoogleMapsFieldSettings = (data: z.infer<typeof fieldSettingsPayloadSchema>) => saveFieldSettingsFn({ data })
 export const loadGoogleMapsRuns = () => loadRunsFn()
 export const saveGoogleMapsRun = (data: z.infer<typeof runPayloadSchema> & { runId?: string }) => saveRunFn({ data })
 export const deleteGoogleMapsRuns = (runIds: string[]) => deleteRunsFn({ data: { runIds } })
@@ -517,32 +567,61 @@ function record(value: unknown): Record<string, unknown> {
 
 function mergeResultData(
   currentData: Record<string, unknown>,
-  updates: Record<string, string | number | boolean | null>,
-  title: string
+  updates: Record<string, string | number | boolean | null | string[]>,
+  title: string,
+  fieldTypes: Map<string, GoogleMapsFieldType>
 ) {
   const merged = { ...currentData, businessName: title }
 
   Object.entries(updates).forEach(([key, value]) => {
-    if (!canUpdateResultField(key, currentData)) return
-    merged[key] = key === "businessName" ? title : cleanResultValue(key, value)
+    if (!canUpdateResultField(key, currentData, fieldTypes)) return
+    merged[key] = key === "businessName" ? title : cleanResultValue(key, value, fieldTypes.get(key))
   })
 
   return merged
 }
 
-function canUpdateResultField(key: string, currentData: Record<string, unknown>) {
+function canUpdateResultField(
+  key: string,
+  currentData: Record<string, unknown>,
+  fieldTypes: Map<string, GoogleMapsFieldType>
+) {
   if (readOnlyResultFields.has(key)) return false
   if (key === "businessName") return true
+  if (fieldTypes.has(key)) return true
   if (!Object.prototype.hasOwnProperty.call(currentData, key)) return false
 
   const value = currentData[key]
   return value === null || ["string", "number", "boolean"].includes(typeof value)
 }
 
-function cleanResultValue(key: string, value: string | number | boolean | null) {
+function cleanResultValue(key: string, value: string | number | boolean | null | string[], type?: GoogleMapsFieldType) {
+  if (type === "tags") return Array.isArray(value) ? value.map((item) => item.trim()).filter(Boolean) : []
+  if (Array.isArray(value)) return null
   if (key === "website") return typeof value === "string" ? cleanUrl(value) : null
   if (typeof value === "string") return cleanOptional(value)
   return value
+}
+
+function editableFieldTypes(fieldSettings: GoogleMapsFieldSetting[]) {
+  return new Map(
+    fieldSettings
+      .filter((setting) => setting.visible && !readOnlyResultFields.has(setting.key))
+      .map((setting) => [setting.key, setting.type])
+  )
+}
+
+function cleanFieldSettings(fieldSettings: GoogleMapsFieldSetting[]) {
+  const keys = new Set<string>()
+  return fieldSettings.map((setting, index) => {
+    if (keys.has(setting.key)) throw new Error("Field keys must be unique.")
+    keys.add(setting.key)
+    return {
+      ...setting,
+      editable: setting.visible && !readOnlyResultFields.has(setting.key),
+      order: index,
+    }
+  })
 }
 
 function stringValue(value: unknown) {

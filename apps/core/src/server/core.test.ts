@@ -66,7 +66,7 @@ import {
   mapApifyStatus,
   normalizeResult,
 } from "@/providers/google-maps/adapter"
-import { serializeSettings } from "@/providers/google-maps/schema"
+import { parseConfig, serializeSettings } from "@/providers/google-maps/schema"
 import {
   decryptProviderSecret,
   encryptProviderSecret,
@@ -924,13 +924,44 @@ describe("core providers", () => {
       }).returning()
 
       const serialized = serializeSettings(row)
-      expect(serialized).toMatchObject({ has_token: true, default_max_results: 25 })
+      expect(serialized).toMatchObject({ has_token: true, default_max_results: 25, field_settings: [] })
       expect(JSON.stringify(serialized)).not.toContain("apify-secret")
       expect(JSON.stringify(serialized)).not.toContain(encrypted)
     } finally {
       if (previousKey === undefined) delete process.env.CORE_PROVIDER_ENCRYPTION_KEY
       else process.env.CORE_PROVIDER_ENCRYPTION_KEY = previousKey
     }
+  })
+
+  it("keeps Google Maps field settings in provider config", async () => {
+    const config = parseConfig({
+      actorId: "compass/crawler-google-places",
+      defaultMaxResults: 25,
+      fieldSettings: [
+        {
+          key: "tags",
+          sourcePath: "raw.categories",
+          label: "Tags",
+          visible: true,
+          editable: true,
+          type: "tags",
+          order: 0,
+        },
+      ],
+    })
+
+    expect(config.fieldSettings).toEqual([
+      {
+        key: "tags",
+        sourcePath: "raw.categories",
+        label: "Tags",
+        visible: true,
+        editable: true,
+        type: "tags",
+        order: 0,
+      },
+    ])
+    expect(parseConfig({ actorId: "actor", defaultMaxResults: 5 }).fieldSettings).toEqual([])
   })
 
   it("reports when provider tokens were encrypted with another key", () => {
