@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  ImageIcon,
   MapPinnedIcon,
   Loader2Icon,
   PlayIcon,
@@ -9,6 +10,7 @@ import {
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
+  XIcon,
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
@@ -16,6 +18,7 @@ import {
   DashboardToolbarSearch,
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
+import { MediaPicker } from "@/components/media-picker"
 import { Badge } from "@/components/ui/badge"
 import {
   Breadcrumb,
@@ -521,6 +524,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
+  const [resultImagePickerOpen, setResultImagePickerOpen] = React.useState(false)
   const [hubExportOpen, setHubExportOpen] = React.useState(false)
   const [hubExportSites, setHubExportSites] = React.useState<HubExportSite[]>([])
   const [hubExportSiteId, setHubExportSiteId] = React.useState("")
@@ -630,6 +634,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
     setResultModalTab("fields")
+    setResultImagePickerOpen(false)
     setResultForm(resultFormFromData(result, data?.field_settings ?? []))
   }
 
@@ -828,7 +833,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         })}
       </DashboardTable>
 
-      <Dialog open={Boolean(editingResult)} onOpenChange={(open) => !open && setEditingResult(null)}>
+      <Dialog open={Boolean(editingResult)} onOpenChange={(open) => {
+        if (open) return
+        setEditingResult(null)
+        setResultImagePickerOpen(false)
+      }}>
         <DialogContent variant="admin">
           <DialogHeader>
             <div className="flex flex-wrap items-center gap-3 pr-10">
@@ -852,7 +861,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           </DialogHeader>
           {resultModalTab === "fields" ? (
             <DialogBody className="grid gap-4 sm:grid-cols-2">
-              {editingResult ? resultFieldsForResult(editingResult, data?.field_settings ?? []).map((setting) => (
+              <FeaturedImageField
+                value={typeof resultForm.featuredImage === "string" ? resultForm.featuredImage : ""}
+                onChange={(nextValue) => setResultForm({ ...resultForm, featuredImage: nextValue })}
+                onOpenPicker={() => setResultImagePickerOpen(true)}
+              />
+              {editingResult ? resultFieldsForResult(editingResult, data?.field_settings ?? []).filter((setting) => setting.key !== "featuredImage").map((setting) => (
                 <ResultField
                   key={setting.key}
                   id={`result-${setting.key}`}
@@ -877,6 +891,17 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <MediaPicker
+        open={resultImagePickerOpen && Boolean(editingResult)}
+        onOpenChange={setResultImagePickerOpen}
+        onSelectMedia={(mediaUrl) => {
+          setResultForm({ ...resultForm, featuredImage: mediaUrl })
+          setResultImagePickerOpen(false)
+        }}
+        currentMediaUrl={typeof resultForm.featuredImage === "string" ? resultForm.featuredImage : ""}
+        showVideos={false}
+      />
 
       <DeleteResultsDialog
         count={deleteIds.length}
@@ -1168,6 +1193,58 @@ function RunField({ id, label, type = "text", value, onChange }: { id: string; l
   return <div className="grid gap-2"><Label htmlFor={id}>{label}</Label><Input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></div>
 }
 
+function FeaturedImageField({
+  value,
+  onChange,
+  onOpenPicker,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onOpenPicker: () => void
+}) {
+  return (
+    <div className="grid gap-2 sm:col-span-2">
+      <Label>Featured image</Label>
+      {value ? (
+        <div className="relative aspect-square w-48 overflow-hidden rounded-lg bg-muted">
+          <img src={value} alt="Featured image preview" className="h-full w-full object-contain" />
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon-sm"
+            className="absolute top-2 right-2 z-10 rounded-full"
+            onClick={() => onChange("")}
+          >
+            <XIcon className="size-4" />
+            <span className="sr-only">Remove featured image</span>
+          </Button>
+          <button
+            type="button"
+            className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 text-white opacity-0 transition-opacity hover:opacity-100"
+            onClick={onOpenPicker}
+          >
+            <span className="text-center">
+              <ImageIcon className="mx-auto mb-2 size-8" />
+              <span className="text-sm font-medium">Click to change image</span>
+            </span>
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+          onClick={onOpenPicker}
+        >
+          <span className="text-center">
+            <ImageIcon className="mx-auto size-8 text-muted-foreground/50" />
+            <span className="mt-2 block text-sm text-muted-foreground">Click to select featured image</span>
+          </span>
+        </button>
+      )}
+    </div>
+  )
+}
+
 function ResultField({
   id,
   label,
@@ -1213,6 +1290,7 @@ function resultFormFromData(result: ProviderResultItem, fieldSettings: GoogleMap
   resultFieldsForResult(result, fieldSettings).forEach((setting) => {
     form[setting.key] = formValue(resultFieldValue(result, setting))
   })
+  form.featuredImage = text(result.data.featuredImage) ?? ""
 
   return form
 }
@@ -1357,11 +1435,14 @@ function resultDataFromForm(
   result: ProviderResultItem,
   fieldSettings: GoogleMapsFieldSetting[]
 ) {
-  return Object.fromEntries(
+  const data = Object.fromEntries(
     resultFieldsForResult(result, fieldSettings)
+      .filter((setting) => setting.key !== "featuredImage")
       .filter((setting) => setting.visible && Object.prototype.hasOwnProperty.call(form, setting.key))
       .map((setting) => [setting.key, resultValueFromForm(form[setting.key], setting)])
   )
+  data.featuredImage = typeof form.featuredImage === "string" ? form.featuredImage.trim() || null : null
+  return data
 }
 
 function resultValueFromForm(value: ResultFormValue, setting: GoogleMapsFieldSetting) {

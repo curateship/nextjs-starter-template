@@ -712,6 +712,7 @@ function canUpdateResultField(
 ) {
   if (readOnlyResultFields.has(key)) return false
   if (key === "businessName") return true
+  if (key === "featuredImage") return true
   if (fieldTypes.has(key)) return true
   if (!Object.prototype.hasOwnProperty.call(currentData, key)) return false
 
@@ -722,7 +723,7 @@ function canUpdateResultField(
 function cleanResultValue(key: string, value: string | number | boolean | null | string[], type?: GoogleMapsFieldType) {
   if (type === "tags") return Array.isArray(value) ? value.map((item) => item.trim()).filter(Boolean) : []
   if (Array.isArray(value)) return null
-  if (key === "website") return typeof value === "string" ? cleanUrl(value) : null
+  if (key === "website" || key === "featuredImage") return typeof value === "string" ? cleanUrl(value) : null
   if (typeof value === "string") return cleanOptional(value)
   return value
 }
