@@ -4,6 +4,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm"
 import { db } from "@/server/db"
 import {
   deleteFromR2,
+  existsInR2,
   getPublicMediaUrl,
   R2StorageNotConfiguredError,
   uploadToR2,
@@ -200,7 +201,21 @@ export async function createMediaFromBytes({
     .where(and(eq(media.userId, userId), eq(media.storagePath, finalStoragePath)))
     .limit(1)
 
-  if (existing) return existing
+  if (existing) {
+    try {
+      if (!(await existsInR2(finalStoragePath))) {
+        await uploadToR2(finalStoragePath, fileData, mimeType)
+      }
+    } catch (error) {
+      if (error instanceof R2StorageNotConfiguredError) {
+        throw new Error(
+          "R2 storage is not configured. Set the CORE_R2_* environment variables for core."
+        )
+      }
+      throw new Error("Upload failed")
+    }
+    return existing
+  }
 
   try {
     await uploadToR2(finalStoragePath, fileData, mimeType)

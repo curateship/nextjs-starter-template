@@ -6,7 +6,6 @@ import {
   Loader2Icon,
   PlayIcon,
   PlusIcon,
-  RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
@@ -48,6 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   TableCell,
@@ -79,6 +79,8 @@ type RunForm = {
   name: string
   keyword: string
   location: string
+  type: string
+  neighborhood: string
   language: string
   maxResults: number
   status: ProviderRunConfigStatus
@@ -107,13 +109,18 @@ const fieldSettingsTabs: { id: FieldSettingsTab; label: string }[] = [
   { id: "selected", label: "Selected Fields" },
   { id: "other", label: "Other Fields" },
 ]
+const activeExecutionStatuses = new Set(["queued", "running"])
 const orderedResultKeys = [
   "businessName",
+  "type",
   "category",
   "categoryName",
+  "neighborhood",
   "address",
   "street",
   "city",
+  "region",
+  "country",
   "state",
   "countryCode",
   "rating",
@@ -124,10 +131,22 @@ const orderedResultKeys = [
 const resultKeyOrder = new Map<string, number>(orderedResultKeys.map((key, index) => [key, index]))
 const resultFieldLabels: Record<string, string> = {
   businessName: "Business",
+  type: "Type",
   categoryName: "Primary category",
+  neighborhood: "Neighborhood",
+  region: "Region",
+  country: "Country",
   countryCode: "Country code",
   reviewCount: "Reviews",
 }
+const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
+  { key: "type", sourcePath: "type", label: "Type", visible: true, editable: true, type: "text", order: 1 },
+  { key: "neighborhood", sourcePath: "neighborhood", label: "Neighborhood", visible: true, editable: true, type: "text", order: 4 },
+  { key: "city", sourcePath: "city", label: "City", visible: true, editable: true, type: "text", order: 7 },
+  { key: "region", sourcePath: "region", label: "Region", visible: true, editable: true, type: "text", order: 8 },
+  { key: "country", sourcePath: "country", label: "Country", visible: true, editable: true, type: "text", order: 9 },
+]
+const fixedResultFieldKeys = new Set(fixedResultFieldSettings.map((setting) => setting.key))
 const resultNumberFields = new Set(["rating", "reviewCount"])
 const readOnlyResultFields = new Set([
   "raw",
@@ -166,6 +185,7 @@ export function GoogleMapsDashboard() {
   const [fieldSettingsOpen, setFieldSettingsOpen] = React.useState(false)
   const [fieldSettingsDraft, setFieldSettingsDraft] = React.useState<GoogleMapsFieldSetting[]>([])
   const [savingFieldSettings, setSavingFieldSettings] = React.useState(false)
+  const [loadingRuns, setLoadingRuns] = React.useState(true)
 
   React.useEffect(() => {
     void loadGoogleMapsRuns()
@@ -177,6 +197,7 @@ export function GoogleMapsDashboard() {
         setFieldSamples(field_samples)
       })
       .catch((error) => setMessage({ tone: "error", text: providerError(error) }))
+      .finally(() => setLoadingRuns(false))
   }, [])
 
   const filtered = runs.filter((run) => {
@@ -361,7 +382,7 @@ export function GoogleMapsDashboard() {
                 <Checkbox checked={visibleRunsSelected ? true : visibleRunsIndeterminate ? "indeterminate" : false} onCheckedChange={(checked) => toggleVisibleRuns(checked === true)} aria-label="Select visible runs" />
               </TableHead>
               <TableHead column="main"><TableSortButton active={runSortColumn === "name"} direction={runSortDirection} onClick={() => toggleRunSort("name")}>Run Name</TableSortButton></TableHead>
-              <TableHead column="meta"><TableSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Location</TableSortButton></TableHead>
+              <TableHead column="meta"><TableSortButton active={runSortColumn === "location"} direction={runSortDirection} onClick={() => toggleRunSort("location")}>Search area</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "limit"} direction={runSortDirection} onClick={() => toggleRunSort("limit")}>Limit</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "amount"} direction={runSortDirection} onClick={() => toggleRunSort("amount")}>Amount</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={runSortColumn === "status"} direction={runSortDirection} onClick={() => toggleRunSort("status")}>Status</TableSortButton></TableHead>
@@ -369,7 +390,7 @@ export function GoogleMapsDashboard() {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={visible.length === 0}
+        isEmpty={!loadingRuns && visible.length === 0}
         emptyText="No data sources found."
         emptyColSpan={7}
         footer={{
@@ -383,7 +404,7 @@ export function GoogleMapsDashboard() {
           onPageSizeChange: setPageSize,
         }}
       >
-        {visible.map((run) => {
+        {loadingRuns ? <GoogleMapsRunsSkeletonRows count={pageSize} /> : visible.map((run) => {
           const input = parseRunInput(run.input)
           return (
             <TableRow key={run.id} data-state={selectedRunIds.has(run.id) ? "selected" : undefined}>
@@ -426,8 +447,10 @@ export function GoogleMapsDashboard() {
           </DialogHeader>
           <DialogBody className="grid gap-4 sm:grid-cols-2">
           <RunField id="name" label="Name (optional)" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-          <RunField id="keyword" label="Keyword" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
-          <RunField id="location" label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
+          <RunField id="keyword" label="Search term" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
+          <RunField id="location" label="Search area" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
+          <RunField id="type" label="Type" value={form.type} onChange={(value) => setForm({ ...form, type: value })} />
+          <RunField id="neighborhood" label="Neighborhood" value={form.neighborhood} onChange={(value) => setForm({ ...form, neighborhood: value })} />
           <RunField id="language" label="Language" value={form.language} onChange={(value) => setForm({ ...form, language: value })} />
           <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => setForm({ ...form, maxResults: Number(value) })} />
           <div className="grid gap-2">
@@ -511,6 +534,7 @@ function DeleteRunsDialog({
 
 export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [data, setData] = React.useState<Awaited<ReturnType<typeof loadGoogleMapsRun>> | null>(null)
+  const [loadingResults, setLoadingResults] = React.useState(true)
   const [query, setQuery] = React.useState("")
   const [sortColumn, setSortColumn] = React.useState<ResultSortColumn | null>("created")
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("desc")
@@ -521,6 +545,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [editingResult, setEditingResult] = React.useState<ProviderResultItem | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[]>([])
   const [deletingResults, setDeletingResults] = React.useState(false)
+  const [runningRun, setRunningRun] = React.useState(false)
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
@@ -530,12 +555,15 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [hubExportSiteId, setHubExportSiteId] = React.useState("")
   const [hubExportStatus, setHubExportStatus] = React.useState<HubExportStatus>("draft")
   const [hubExportState, setHubExportState] = React.useState<HubExportDialogStatus>("idle")
+  const pollingExecutionIds = React.useRef<Set<string>>(new Set())
 
   const load = React.useCallback(async () => {
     try {
       setData(await loadGoogleMapsRun(runId))
     } catch (error) {
       setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setLoadingResults(false)
     }
   }, [runId])
 
@@ -544,11 +572,23 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     void load()
   }, [load])
 
+  const waitForExecution = React.useCallback(async (executionId: string) => {
+    let status = "running"
+    while (isActiveExecutionStatus(status)) {
+      await wait(3000)
+      status = (await refreshGoogleMapsExecution(executionId)).execution.status
+    }
+  }, [])
+
   React.useEffect(() => {
-    if (message?.text !== "Run refreshed.") return
-    const timeout = window.setTimeout(() => setMessage(null), 3000)
-    return () => window.clearTimeout(timeout)
-  }, [message])
+    const execution = data?.latest_execution
+    if (!execution || pollingExecutionIds.current.has(execution.id) || !isActiveExecutionStatus(execution.status)) return
+
+    pollingExecutionIds.current.add(execution.id)
+    void waitForExecution(execution.id)
+      .then(load)
+      .catch((error) => setMessage({ tone: "error", text: providerError(error) }))
+  }, [data?.latest_execution, load, waitForExecution])
 
   const results = (data?.results ?? []).filter((result) => {
     const term = query.trim().toLowerCase()
@@ -570,6 +610,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const visibleIds = visibleResults.map((result) => result.id)
   const visibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const visibleIndeterminate = !visibleSelected && visibleIds.some((id) => selectedIds.has(id))
+  const runButtonRunning = runningRun || isActiveExecutionStatus(data?.latest_execution?.status)
 
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -592,25 +633,20 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   }
 
   const startRun = async () => {
+    if (runningRun) return
+    setRunningRun(true)
     setMessage(null)
     try {
-      await startGoogleMapsRun(runId)
-      await load()
+      const response = await startGoogleMapsRun(runId)
       setMessage({ tone: "success", text: "Run started." })
-    } catch (error) {
-      setMessage({ tone: "error", text: providerError(error) })
-    }
-  }
-
-  const refreshLatestExecution = async () => {
-    if (!data?.latest_execution) return
-    setMessage(null)
-    try {
-      await refreshGoogleMapsExecution(data.latest_execution.id)
+      if (isActiveExecutionStatus(response.execution.status)) {
+        await waitForExecution(response.execution.id)
+      }
       await load()
-      setMessage({ tone: "success", text: "Run refreshed." })
     } catch (error) {
       setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setRunningRun(false)
     }
   }
 
@@ -750,15 +786,9 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               </Button>
             ) : null}
             <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />
-            {data?.latest_execution ? (
-              <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => void refreshLatestExecution()}>
-                <RefreshCwIcon className="size-4" />
-                Refresh
-              </Button>
-            ) : null}
-            <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={!data || data.run.status !== "active"} onClick={() => void startRun()}>
-              <PlayIcon className="size-4" />
-              Run now
+            <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={!data || data.run.status !== "active" || runButtonRunning} onClick={() => void startRun()}>
+              {runButtonRunning ? <Loader2Icon className="size-4 animate-spin" /> : <PlayIcon className="size-4" />}
+              {runButtonRunning ? "Running" : "Run now"}
             </Button>
           </>
         }
@@ -779,7 +809,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
             </TableRow>
           </TableHeader>
         }
-        isEmpty={results.length === 0}
+        isEmpty={!loadingResults && results.length === 0}
         emptyText="No results found."
         emptyColSpan={9}
         footer={{
@@ -793,7 +823,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
           onPageSizeChange: setPageSize,
         }}
       >
-        {visibleResults.map((result) => {
+        {loadingResults ? <GoogleMapsResultsSkeletonRows count={pageSize} /> : visibleResults.map((result) => {
           const websiteHref = safeExternalHref(text(result.data.website))
           const featuredImage = safeExternalHref(text(result.data.featuredImage))
           return (
@@ -1193,6 +1223,49 @@ function RunField({ id, label, type = "text", value, onChange }: { id: string; l
   return <div className="grid gap-2"><Label htmlFor={id}>{label}</Label><Input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} /></div>
 }
 
+function GoogleMapsRunsSkeletonRows({ count }: { count: number }) {
+  return Array.from({ length: count }).map((_, index) => (
+    <TableRow key={index}>
+      <TableCell column="select"><Skeleton className="size-4" /></TableCell>
+      <TableCell column="main">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-44" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+      </TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-5 w-16" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-8 w-24" /></TableCell>
+    </TableRow>
+  ))
+}
+
+function GoogleMapsResultsSkeletonRows({ count }: { count: number }) {
+  return Array.from({ length: count }).map((_, index) => (
+    <TableRow key={index}>
+      <TableCell column="select"><Skeleton className="size-4" /></TableCell>
+      <TableCell column="main">
+        <div className="flex items-center gap-3">
+          <Skeleton className="size-12 shrink-0 rounded-md" />
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-3 w-28" />
+          </div>
+        </div>
+      </TableCell>
+      <TableCell column="preview"><Skeleton className="h-4 w-56" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-12" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-28" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-8 w-14" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-8 w-16" /></TableCell>
+    </TableRow>
+  ))
+}
+
 function FeaturedImageField({
   value,
   onChange,
@@ -1281,7 +1354,7 @@ function ResultField({
 }
 
 function emptyForm(maxResults: number): RunForm {
-  return { name: "", keyword: "", location: "", language: "en", maxResults, status: "active" }
+  return { name: "", keyword: "", location: "", type: "", neighborhood: "", language: "en", maxResults, status: "active" }
 }
 
 function resultFormFromData(result: ProviderResultItem, fieldSettings: GoogleMapsFieldSetting[]): ResultForm {
@@ -1296,9 +1369,13 @@ function resultFormFromData(result: ProviderResultItem, fieldSettings: GoogleMap
 }
 
 function resultFieldsForResult(result: ProviderResultItem, fieldSettings: GoogleMapsFieldSetting[]) {
-  const settings = fieldSettingsForResults([result], fieldSettings)
-  return settings
-    .filter((setting) => setting.key === "businessName" || (setting.visible && resultFieldHasValue(result, setting)))
+  const settingsByKey = new Map(fieldSettingsForResults([result], fieldSettings).map((setting) => [setting.key, setting]))
+  fixedResultFieldSettings.forEach((setting) => {
+    settingsByKey.set(setting.key, { ...setting, order: settingsByKey.get(setting.key)?.order ?? setting.order })
+  })
+
+  return Array.from(settingsByKey.values())
+    .filter((setting) => setting.key === "businessName" || fixedResultFieldKeys.has(setting.key) || (setting.visible && resultFieldHasValue(result, setting)))
     .sort((a, b) => a.order - b.order)
 }
 
@@ -1589,6 +1666,14 @@ function text(value: unknown) {
 
 function number(value: unknown) {
   return typeof value === "number" ? value : 0
+}
+
+function isActiveExecutionStatus(status: unknown) {
+  return typeof status === "string" && activeExecutionStatuses.has(status)
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
 function locationText(data: Record<string, unknown>) {

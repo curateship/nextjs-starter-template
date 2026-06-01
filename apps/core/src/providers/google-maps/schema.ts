@@ -53,6 +53,8 @@ export type GoogleMapsFieldType = GoogleMapsFieldSetting["type"]
 export const runInputSchema = z.object({
   keyword: requiredText(500),
   location: requiredText(500),
+  type: z.string().trim().max(255).default(""),
+  neighborhood: z.string().trim().max(255).default(""),
   language: z.string().trim().min(2).max(20),
   maxResults: z.number().int().min(1).max(500),
 })
@@ -82,6 +84,8 @@ export function cleanRunInput(data: z.infer<typeof runPayloadSchema>) {
   return {
     keyword: data.keyword.trim(),
     location: data.location.trim(),
+    type: data.type.trim(),
+    neighborhood: data.neighborhood.trim(),
     language: data.language.trim().toLowerCase(),
     maxResults: data.maxResults,
   }

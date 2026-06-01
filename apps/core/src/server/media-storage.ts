@@ -1,6 +1,7 @@
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
@@ -53,6 +54,21 @@ export async function uploadToR2(
       CacheControl: "public, max-age=31536000, immutable",
     })
   )
+}
+
+export async function existsInR2(storagePath: string) {
+  try {
+    await getR2Client().send(
+      new HeadObjectCommand({
+        Bucket: getBucketName(),
+        Key: storagePath,
+      })
+    )
+    return true
+  } catch (error) {
+    if (error && typeof error === "object" && "name" in error && error.name === "NotFound") return false
+    throw error
+  }
 }
 
 export async function deleteFromR2(storagePath: string) {

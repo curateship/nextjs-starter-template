@@ -21,10 +21,14 @@ interface GoogleMapsImportRecord {
   description?: unknown
   category?: unknown
   categoryName?: unknown
+  type?: unknown
+  neighborhood?: unknown
   address?: unknown
   street?: unknown
   city?: unknown
   state?: unknown
+  region?: unknown
+  country?: unknown
   countryCode?: unknown
   phone?: unknown
   website?: unknown
@@ -303,7 +307,12 @@ function normalizeRecord(value: unknown) {
     description: cleanText(record.description, 2000),
     category: cleanText(record.category, 255),
     categoryName: cleanText(record.categoryName, 255),
+    type: cleanText(record.type, 255),
+    neighborhood: cleanText(record.neighborhood, 255),
     address: cleanText(record.address, 500),
+    city: cleanText(record.city, 255),
+    region: cleanText(record.region, 255) || cleanText(record.state, 255),
+    country: cleanText(record.country, 255) || cleanText(record.countryCode, 255),
     phone: cleanText(record.phone, 100),
     website: safeUrl(record.website),
     rating: numberValue(record.rating),
@@ -550,6 +559,11 @@ function buildDirectoryData(record: ReturnType<typeof normalizeRecord>): Directo
   addNumberField(fields, 'reviewCount', record.reviewCount)
   addTextField(fields, 'category', record.category)
   addTextField(fields, 'categoryName', record.categoryName)
+  addTextField(fields, 'type', record.type)
+  addTextField(fields, 'neighborhood', record.neighborhood)
+  addTextField(fields, 'city', record.city)
+  addTextField(fields, 'region', record.region)
+  addTextField(fields, 'country', record.country)
   addTextField(fields, 'featuredImage', record.featuredImage)
   addTextField(fields, 'mapsUrl', record.mapsUrl)
 

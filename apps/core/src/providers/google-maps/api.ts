@@ -95,6 +95,7 @@ const googleImageHosts = [
   "googleapis.com",
   "gstatic.com",
 ]
+const fixedResultFieldKeys = new Set(["type", "neighborhood", "city", "region", "country"])
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
   resultIds: z.array(z.string().min(1)).min(1),
@@ -477,14 +478,16 @@ async function resultCount(runId: string) {
 async function importIfReady(execution: CoreProviderExecution, run: CoreProviderRunConfig, token: string, userId: string) {
   if (execution.status !== "succeeded" || !execution.providerDatasetId) return execution
 
-  const items = await getDatasetItems(token, execution.providerDatasetId, parseRunInput(run.input).maxResults)
+  const runInput = parseRunInput(run.input)
+  const items = await getDatasetItems(token, execution.providerDatasetId, runInput.maxResults)
   const createdAt = now()
   const rows = []
   let importedImages = 0
 
   for (const item of items) {
     const normalized = normalizeResult(item)
-    const imageResult = await saveResultImage(userId, normalized.title, record(normalized.data))
+    const fixedData = fixedResultData(record(normalized.data), runInput)
+    const imageResult = await saveResultImage(userId, normalized.title, fixedData)
     if (imageResult.saved) importedImages += 1
     rows.push({
       id: uuid(),
@@ -549,6 +552,11 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
   const hubRecord: Record<string, unknown> = {
     google_maps_place_id: stringValue(data.placeId),
     businessName: dataWithTitle.businessName,
+    type: stringValue(dataWithTitle.type),
+    neighborhood: stringValue(dataWithTitle.neighborhood),
+    city: stringValue(dataWithTitle.city),
+    region: stringValue(dataWithTitle.region) ?? stringValue(dataWithTitle.state),
+    country: stringValue(dataWithTitle.country) ?? stringValue(dataWithTitle.countryCode),
   }
 
   fieldSettings
@@ -562,6 +570,20 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
     })
 
   return hubRecord
+}
+
+function fixedResultData(data: Record<string, unknown>, runInput: ReturnType<typeof parseRunInput>) {
+  const type = cleanOptional(runInput.type)
+  const neighborhood = stringValue(data.neighborhood) ?? cleanOptional(runInput.neighborhood)
+
+  return {
+    ...data,
+    type: type ?? null,
+    neighborhood,
+    city: stringValue(data.city),
+    region: stringValue(data.region) ?? stringValue(data.state),
+    country: stringValue(data.country) ?? stringValue(data.countryCode),
+  }
 }
 
 function valueAtPath(data: Record<string, unknown>, path: string) {
@@ -713,6 +735,7 @@ function canUpdateResultField(
   if (readOnlyResultFields.has(key)) return false
   if (key === "businessName") return true
   if (key === "featuredImage") return true
+  if (fixedResultFieldKeys.has(key)) return true
   if (fieldTypes.has(key)) return true
   if (!Object.prototype.hasOwnProperty.call(currentData, key)) return false
 
