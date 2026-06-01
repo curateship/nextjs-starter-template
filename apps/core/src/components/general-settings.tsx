@@ -12,7 +12,17 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { ShellConfig } from "@/lib/core"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  type ShellConfig,
+} from "@/lib/core"
 
 type GeneralSettingsProps = {
   config: ShellConfig
@@ -68,6 +78,33 @@ export function GeneralSettings({
               }
               placeholder="Project"
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="dashboard-rows-per-page">
+              Default dashboard rows per page
+            </Label>
+            <Select
+              value={String(config.dashboardRowsPerPage)}
+              disabled={isSaving}
+              onValueChange={(value) =>
+                onConfigChange({
+                  ...config,
+                  dashboardRowsPerPage: Number(value),
+                })
+              }
+            >
+              <SelectTrigger id="dashboard-rows-per-page" className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DASHBOARD_ROWS_PER_PAGE_OPTIONS.map((value) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2">

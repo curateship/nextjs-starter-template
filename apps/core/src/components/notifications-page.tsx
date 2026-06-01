@@ -38,8 +38,6 @@ type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
 type NotificationSortColumn = "activity" | "feedback" | "recipient" | "type" | "status" | "created"
 
-const ADMIN_NOTIFICATION_PAGE_SIZE = 50
-
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
@@ -54,10 +52,12 @@ const notificationTypeLabels: Record<NotificationType, string> = {
 }
 
 type NotificationsPageProps = {
+  defaultRowsPerPage: number
   onOpenFeedbackThread: (feedbackId: string) => void
 }
 
 export function NotificationsPage({
+  defaultRowsPerPage,
   onOpenFeedbackThread,
 }: NotificationsPageProps) {
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
@@ -81,7 +81,7 @@ export function NotificationsPage({
     try {
       const data = await listAllNotifications({
         cursor,
-        limit: ADMIN_NOTIFICATION_PAGE_SIZE,
+        limit: defaultRowsPerPage,
       })
       setNotifications((current) =>
         cursor ? [...current, ...data.notifications] : data.notifications
@@ -92,7 +92,7 @@ export function NotificationsPage({
     } finally {
       setLoadingMore(false)
     }
-  }, [])
+  }, [defaultRowsPerPage])
 
   React.useEffect(() => {
     void loadNotifications()

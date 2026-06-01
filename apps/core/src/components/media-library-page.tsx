@@ -55,11 +55,13 @@ import {
   type MediaListResponse,
   type MediaSortBy,
 } from "@/lib/api/media"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/core"
 import { cn } from "@/lib/utils"
+import { useShellRuntime } from "@/components/shell-layout"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
-const pageSizeOptions = [10, 20, 50]
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 const pageTabs = ["all", "images", "videos"] as const
 
 export type MediaTabId = (typeof pageTabs)[number]
@@ -74,13 +76,14 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 })
 
 export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
+  const { config } = useShellRuntime()
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [mediaTypeFilter, setMediaTypeFilter] = React.useState<MediaTypeFilter>(() => activeTabToFileType(activeTab) ?? "all")
   const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")

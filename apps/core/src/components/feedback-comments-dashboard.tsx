@@ -52,12 +52,14 @@ import {
   type FeedbackCommentItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/core"
+import { useShellRuntime } from "@/components/shell-layout"
 import { cn } from "@/lib/utils"
 
 type FeedbackPeriod = "1year" | "3months" | "30days"
 type CommentSortColumn = "message" | "feedback" | "type" | "author" | "created"
 
-const pageSizeOptions = [10, 25, 50]
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 const feedbackPeriodLabels: Record<FeedbackPeriod, string> = {
   "1year": "1 Year",
@@ -102,6 +104,7 @@ export function FeedbackCommentsDashboard({
 }: {
   initialComments: FeedbackCommentItem[]
 }) {
+  const { config } = useShellRuntime()
   const [comments, setComments] = React.useState<FeedbackCommentItem[]>(initialComments)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
@@ -110,7 +113,7 @@ export function FeedbackCommentsDashboard({
   const [sortColumn, setSortColumn] = React.useState<CommentSortColumn>("created")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [error, setError] = React.useState<string | null>(null)
   const [editingComment, setEditingComment] =
     React.useState<FeedbackCommentItem | null>(null)

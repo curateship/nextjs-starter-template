@@ -8,6 +8,7 @@ import { AppSidebar } from "@/pages/dashboard/sidebar/sidebar"
 import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   isShellItem,
   normalizeTopRightNavigation,
   renderShellIcon,
@@ -209,6 +210,11 @@ function normalizeConfig(settings: ShellConfig | null) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    dashboardRowsPerPage: DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+      settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+    )
+      ? settings.dashboardRowsPerPage
+      : fallback.dashboardRowsPerPage,
     favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation

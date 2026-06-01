@@ -229,11 +229,15 @@ export type ShellConfig = {
   appName: string
   workspaceName: string
   workspacePlan: string
+  dashboardRowsPerPage: number
   favicon: string
   topNavigation: ShellTopNavigationItem[]
   topRightNavigation: ShellTopRightNavigationItem[]
   sections: ShellSection[]
 }
+
+export const DASHBOARD_ROWS_PER_PAGE_OPTIONS = [10, 20, 25, 50] as const
+export const DEFAULT_DASHBOARD_ROWS_PER_PAGE = 10
 
 export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
   return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
@@ -247,6 +251,7 @@ export function createDefaultShellConfig(): ShellConfig {
     appName: "",
     workspaceName: "",
     workspacePlan: "",
+    dashboardRowsPerPage: DEFAULT_DASHBOARD_ROWS_PER_PAGE,
     favicon: "",
     topNavigation: [],
     topRightNavigation: createDefaultTopRightNavigation(),

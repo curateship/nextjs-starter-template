@@ -18,6 +18,7 @@ function NotificationsRoute() {
   const runtime = useShellRuntime()
   return (
     <NotificationsPage
+      defaultRowsPerPage={runtime.config.dashboardRowsPerPage}
       onOpenFeedbackThread={runtime.onOpenFeedbackThread}
     />
   )

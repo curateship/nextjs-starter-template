@@ -4,9 +4,7 @@ import { z } from "zod"
 
 import {
   createDefaultShellConfig,
-  iconMeta,
-  isShellIconUrl,
-  type IconKey,
+  DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   type ShellConfig,
 } from "@/lib/core"
 import { db } from "@/server/db"
@@ -16,14 +14,7 @@ import { findCurrentUser, now } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
 
-const iconSchema = z.custom<IconKey>(
-  (value) => typeof value === "string" && Object.prototype.hasOwnProperty.call(iconMeta, value),
-  { message: "Invalid icon." }
-)
-const shellIconSchema = z.union([
-  iconSchema,
-  z.string().trim().max(2048).refine(isShellIconUrl),
-])
+const shellIconSchema = z.string().trim().min(1).max(2048)
 
 const shellChildItemSchema = z.object({
   id: z.string().min(1),
@@ -53,6 +44,11 @@ const shellConfigSchema = z.object({
   appName: z.string(),
   workspaceName: z.string(),
   workspacePlan: z.string(),
+  dashboardRowsPerPage: z.number().int().refine((value) =>
+    DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+      value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+    )
+  ),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -203,6 +199,13 @@ function parseShellGlobals(value: unknown) {
     appName: settings.appName ?? fallback.appName,
     workspaceName: settings.workspaceName ?? fallback.workspaceName,
     workspacePlan: settings.workspacePlan ?? fallback.workspacePlan,
+    dashboardRowsPerPage:
+      typeof settings.dashboardRowsPerPage === "number" &&
+      DASHBOARD_ROWS_PER_PAGE_OPTIONS.includes(
+        settings.dashboardRowsPerPage as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
+      )
+        ? settings.dashboardRowsPerPage
+        : fallback.dashboardRowsPerPage,
   }
 }
 
@@ -211,5 +214,6 @@ function pickShellGlobals(settings: ShellConfig) {
     appName: settings.appName,
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
+    dashboardRowsPerPage: settings.dashboardRowsPerPage,
   }
 }

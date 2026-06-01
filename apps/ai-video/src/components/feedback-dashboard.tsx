@@ -54,6 +54,8 @@ import {
   type FeedbackItem,
   type FeedbackType,
 } from "@/lib/api/feedback"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
+import { useShellRuntime } from "@/components/shell-layout"
 
 const feedbackTypeLabels: Record<FeedbackType, string> = {
   suggestion: "Suggestion",
@@ -81,7 +83,7 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
     "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
 }
 
-const pageSizeOptions = [10, 25, 50]
+const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
 
@@ -100,13 +102,14 @@ export function FeedbackDashboard({
   refreshToken,
   onOpenFeedback,
 }: FeedbackDashboardProps) {
+  const { config } = useShellRuntime()
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
   const [typeFilter, setTypeFilter] = React.useState<string>("all")
   const [sortColumn, setSortColumn] = React.useState<FeedbackSortColumn>("created")
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(pageSizeOptions[0])
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =

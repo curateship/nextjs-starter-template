@@ -158,7 +158,7 @@ export default function PlatformSettingsPage() {
             )}
           </AdminCard>
 
-          {/* Dashboard Settings */}
+          {/* General Settings */}
           <AdminCard>
             {loading ? (
               <div className="p-6 space-y-6">
@@ -171,15 +171,15 @@ export default function PlatformSettingsPage() {
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <LayoutGrid className="h-5 w-5 text-primary" />
-                  <h3 className="text-lg font-semibold">Dashboard Settings</h3>
+                  <h3 className="text-lg font-semibold">General Settings</h3>
                 </div>
 
                 <p className="text-sm text-muted-foreground mb-6">
-                  Configure how many items are shown per page on admin dashboard listing pages.
+                  Configure dashboard defaults for the admin panel.
                 </p>
 
                 <div className="max-w-xs">
-                  <label className="text-sm font-medium mb-2 block">Items Per Page</label>
+                  <label className="text-sm font-medium mb-2 block">Default dashboard rows per page</label>
                   <Select
                     value={String(dashboardPageSize)}
                     onValueChange={(value) => { setDashboardPageSize(Number(value)); setHasChanges(true) }}

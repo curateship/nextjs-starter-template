@@ -81,6 +81,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video";
 import { useShellRuntime } from "@/components/shell-layout";
 import {
   Select,
@@ -1010,7 +1011,7 @@ const transactionRecords: Transaction[] = [
   },
 ];
 
-const PAGE_SIZE_OPTIONS = [5, 10, 20];
+const PAGE_SIZE_OPTIONS = [5, ...DASHBOARD_ROWS_PER_PAGE_OPTIONS];
 
 const SidebarLogo = ({ logo }: { logo: SidebarData["logo"] }) => {
   return (
@@ -1731,6 +1732,7 @@ function transactionDateRank(date: string) {
 }
 
 const TransactionsTable = () => {
+  const { config } = useShellRuntime();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [dateFilter, setDateFilter] = React.useState<string>("all");
@@ -1739,7 +1741,7 @@ const TransactionsTable = () => {
   const [sortColumn, setSortColumn] = React.useState<TransactionSortColumn>("date");
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(10);
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage);
 
   const hasActiveFilters =
     statusFilter !== "all" ||
