@@ -336,7 +336,6 @@ export function PostSettingsModal({
                 </Field>
 
                 <Field className="[&>div]:w-fit">
-                  <FieldLabel>Featured Image</FieldLabel>
                   <div>
                     {formData.featured_image ? (
                       <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
@@ -364,7 +363,7 @@ export function PostSettingsModal({
                       </div>
                     ) : (
                       <div
-                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                         onClick={() => setShowImagePicker(true)}
                       >
                         <div className="text-center">
@@ -374,7 +373,6 @@ export function PostSettingsModal({
                       </div>
                     )}
                   </div>
-                  <FieldDescription>Optional featured image for this post</FieldDescription>
                 </Field>
 
                 <Field>
@@ -397,7 +395,6 @@ export function PostSettingsModal({
                 </CardHeader>
                 <CardContent>
                   <Field>
-                    <FieldLabel>Categories</FieldLabel>
                     <CategoryPicker
                       siteId={post.site_id}
                       selectedCategoryIds={selectedCategoryIds}

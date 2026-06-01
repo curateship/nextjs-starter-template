@@ -205,7 +205,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           <Card>
             <CardHeader>
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
-              <CardDescription>Optional featured image for this event.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="w-48">
@@ -268,7 +267,6 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
 
               {currentSite?.id && (
                 <Field>
-                  <FieldLabel>Categories</FieldLabel>
                   <CategoryPicker
                     siteId={currentSite.id}
                     selectedCategoryIds={selectedCategoryIds}

@@ -272,9 +272,7 @@ export function EventSettingsModal({
             </div>
           </div>
 
-          {/* Featured Image */}
           <div>
-            <Label htmlFor="featured_image">Featured Image</Label>
             <div className="mt-2">
               {featuredImage ? (
                 <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
@@ -301,7 +299,7 @@ export function EventSettingsModal({
                 </div>
               ) : (
                 <div
-                  className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                  className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                   onClick={() => setShowImagePicker(true)}
                 >
                   <div className="text-center">
@@ -311,9 +309,6 @@ export function EventSettingsModal({
                 </div>
               )}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Optional featured image for this event
-            </p>
           </div>
 
           {/* Privacy Settings */}
@@ -336,7 +331,6 @@ export function EventSettingsModal({
           {/* Categories */}
           {event?.site_id && (
             <Field>
-              <FieldLabel>Categories</FieldLabel>
               <CategoryPicker
                 siteId={event.site_id}
                 selectedCategoryIds={selectedCategoryIds}

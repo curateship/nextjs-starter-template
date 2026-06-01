@@ -18,6 +18,7 @@ import { generateSlug } from "@/lib/utils/slug"
 interface CreateCategoryModalProps {
   siteId: string
   existingCategories: Category[]
+  defaultParentId?: string | null
   onClose: () => void
   onCreated: (category: Category, continueToBuilder?: boolean) => void
 }
@@ -25,6 +26,7 @@ interface CreateCategoryModalProps {
 export function CreateCategoryModal({
   siteId,
   existingCategories,
+  defaultParentId,
   onClose,
   onCreated
 }: CreateCategoryModalProps) {
@@ -32,7 +34,7 @@ export function CreateCategoryModal({
   const [slug, setSlug] = useState("")
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [metaDescription, setMetaDescription] = useState("")
-  const [parentId, setParentId] = useState<string>("")
+  const [parentId, setParentId] = useState<string>(defaultParentId || "")
   const [featuredImage, setFeaturedImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
   const [submittingAction, setSubmittingAction] = useState<"draft" | "continue" | "publish" | null>(null)
@@ -213,9 +215,9 @@ export function CreateCategoryModal({
                 <DashboardModalCardTitle>Image</DashboardModalCardTitle>
               </CardHeader>
               <CardContent>
-                <div className="w-48">
+                <Field className="w-48">
                   {featuredImage ? (
-                    <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
+                    <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
                       <img
                         src={featuredImage}
                         alt="Featured image preview"
@@ -224,15 +226,16 @@ export function CreateCategoryModal({
                       <button
                         type="button"
                         onClick={() => setFeaturedImage('')}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
                       >
                         <X className="h-4 w-4" />
                       </button>
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                      <div
+                        className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
                         onClick={() => setShowImagePicker(true)}
                       >
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                        <div className="text-center text-white">
+                          <ImageIcon className="mx-auto mb-2 h-8 w-8" />
                           <p className="text-sm font-medium">Click to change image</p>
                         </div>
                       </div>
@@ -248,8 +251,7 @@ export function CreateCategoryModal({
                       </div>
                     </div>
                   )}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Optional featured image for this category</p>
+                </Field>
               </CardContent>
             </Card>
 

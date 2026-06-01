@@ -229,35 +229,35 @@ export function CategorySettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <form id="category-settings-form" onSubmit={handleSubmit} className="contents">
-        <DashboardModalContent
-          title={
-            <span className="flex items-center gap-3">
-              Configure settings for &quot;{category.title}&quot;
-              <span className="flex items-center space-x-2">
-                <span className={`w-2 h-2 rounded-full ${category?.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
-                <span className="text-sm font-medium">{category?.is_published ? 'Published' : 'Draft'}</span>
-              </span>
+      <DashboardModalContent
+        title={
+          <span className="flex items-center gap-3">
+            Configure settings for &quot;{category.title}&quot;
+            <span className="flex items-center space-x-2">
+              <span className={`w-2 h-2 rounded-full ${category?.is_published ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <span className="text-sm font-medium">{category?.is_published ? 'Published' : 'Draft'}</span>
             </span>
-          }
-          footer={
-            <>
-              <div />
-              <DashboardModalFooterActions>
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                  Cancel
-                </Button>
-                <Button form="category-settings-form" type="submit" variant="outline" disabled={saving}>
-                  {savingAction === "draft" ? "Saving..." : "Save as Draft"}
-                </Button>
-                <Button type="button" onClick={handlePublish} disabled={saving}>
-                  {savingAction === "publish" ? "Saving..." : category?.is_published ? "Save" : "Publish"}
-                </Button>
-              </DashboardModalFooterActions>
-            </>
-          }
-          footerClassName="sm:justify-between"
-        >
+          </span>
+        }
+        footer={
+          <>
+            <div />
+            <DashboardModalFooterActions>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+                Cancel
+              </Button>
+              <Button form="category-settings-form" type="submit" variant="outline" disabled={saving}>
+                {savingAction === "draft" ? "Saving..." : "Save as Draft"}
+              </Button>
+              <Button type="button" onClick={handlePublish} disabled={saving}>
+                {savingAction === "publish" ? "Saving..." : category?.is_published ? "Save" : "Publish"}
+              </Button>
+            </DashboardModalFooterActions>
+          </>
+        }
+        footerClassName="sm:justify-between"
+      >
+        <form id="category-settings-form" onSubmit={handleSubmit} className="contents">
           {error && (
             <div className="px-6 pb-2">
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
@@ -318,33 +318,34 @@ export function CategorySettingsModal({
                 <DashboardModalCardTitle>Image</DashboardModalCardTitle>
               </CardHeader>
               <CardContent>
-                <div className="[&>div]:w-fit">
+                <Field className="w-48">
                   {featuredImage ? (
-                    <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
+                    <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
                       <img
                         src={featuredImage}
                         alt="Featured image preview"
-                        className="w-full h-full object-contain"
+                        className="h-full w-full object-contain"
                       />
                       <button
                         type="button"
                         onClick={handleRemoveImage}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                        className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
                       >
                         <X className="h-4 w-4" />
                       </button>
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+                      <div
+                        className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
                         onClick={() => setShowImagePicker(true)}
                       >
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+                        <div className="text-center text-white">
+                          <ImageIcon className="mx-auto mb-2 h-8 w-8" />
                           <p className="text-sm font-medium">Click to change image</p>
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div
-                      className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                      className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                       onClick={() => setShowImagePicker(true)}
                     >
                       <div className="text-center">
@@ -353,8 +354,7 @@ export function CategorySettingsModal({
                       </div>
                     </div>
                   )}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">Optional featured image for this category</p>
+                </Field>
               </CardContent>
             </Card>
 
@@ -404,8 +404,8 @@ export function CategorySettingsModal({
             }}
             currentMediaUrl={featuredImage || ''}
           />
-        </DashboardModalContent>
-      </form>
+        </form>
+      </DashboardModalContent>
     </Dialog>
   )
 }

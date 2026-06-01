@@ -302,7 +302,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           <Card>
             <CardHeader>
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
-              <CardDescription>Optional featured image for this directory.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="w-48">
@@ -351,7 +350,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
             <CardContent>
               {currentSite?.id && (
                 <Field>
-                  <FieldLabel>Categories</FieldLabel>
                   <CategoryPicker
                     siteId={currentSite.id}
                     selectedCategoryIds={selectedCategoryIds}
@@ -360,9 +358,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                     onPrimaryCategoryChange={setPrimaryCategoryId}
                     variant="combobox"
                   />
-                  <FieldDescription>
-                    Assign this directory to one or more categories
-                  </FieldDescription>
                 </Field>
               )}
               <Field>

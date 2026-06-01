@@ -4,6 +4,7 @@ import { useState } from "react"
 import type { Category } from "@/lib/actions/categories/category-actions"
 import { deleteCategoryAction } from "@/lib/actions/categories/category-actions"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   Edit,
   Trash2,
@@ -30,6 +31,8 @@ interface CategoryTreeProps {
   categories: Category[]
   allCategories: Category[]
   assignmentCounts: Record<string, number>
+  childCounts: Record<string, number>
+  parentPath: Category[]
   siteId: string
   onCategoryDeleted: (categoryId: string) => void
   onCategoryUpdated: (category: Category) => void
@@ -41,6 +44,8 @@ export function CategoryTree({
   categories,
   allCategories,
   assignmentCounts,
+  childCounts,
+  parentPath,
   siteId,
   onCategoryDeleted,
   onCategoryUpdated,
@@ -95,28 +100,25 @@ export function CategoryTree({
     return `${Math.ceil(diffDays / 30)} months ago`
   }
 
-  const getFullParentPath = (category: Category): string[] => {
-    if (!category.parent_id) return []
-
-    const path: string[] = []
-    let current: Category | undefined = allCategories.find(c => c.id === category.parent_id)
-
-    while (current) {
-      path.unshift(current.title)
-      current = allCategories.find(c => c.id === current?.parent_id)
+  const getCategoryHref = (category: Category) => {
+    if ((childCounts[category.id] || 0) > 0) {
+      return `/admin/categories/${siteId}?parent=${encodeURIComponent(category.slug)}`
     }
 
-    return path
+    return `/admin/categories/builder/${siteId}?category=${category.slug}`
   }
 
   return (
     <>
-      {categories.map((category) => (
-        <TableRow
-          key={category.id}
-          data-state={selectedIds?.has(category.id) ? "selected" : undefined}
-          className="group"
-        >
+      {categories.map((category) => {
+        const childCount = childCounts[category.id] || 0
+
+        return (
+          <TableRow
+            key={category.id}
+            data-state={selectedIds?.has(category.id) ? "selected" : undefined}
+            className="group"
+          >
           <TableCell column="select">
             {onToggleSelect && (
               <Checkbox
@@ -128,7 +130,7 @@ export function CategoryTree({
           </TableCell>
           <TableCell column="main">
             <Link
-              href={`/admin/categories/builder/${siteId}?category=${category.slug}`}
+              href={getCategoryHref(category)}
               className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
             >
               {category.featured_image ? (
@@ -145,7 +147,14 @@ export function CategoryTree({
                 </div>
               )}
               <div className="min-w-0">
-                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{category.title}</h4>
+                <div className="flex min-w-0 items-center gap-2">
+                  <h4 className="truncate text-sm font-medium hover:underline sm:text-base">{category.title}</h4>
+                  {childCount > 0 ? (
+                    <Badge variant="secondary" className="hidden sm:inline-flex">
+                      {childCount} {childCount === 1 ? "child" : "children"}
+                    </Badge>
+                  ) : null}
+                </div>
                 <p className="truncate text-xs text-muted-foreground sm:text-sm">
                   {category.meta_description || 'No meta description'}
                 </p>
@@ -153,12 +162,12 @@ export function CategoryTree({
             </Link>
           </TableCell>
           <TableCell column="content">
-            {getFullParentPath(category).length > 0 ? (
+            {parentPath.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-                {getFullParentPath(category).map((parent, index) => (
-                  <span key={index} className="inline-flex min-w-0 items-center gap-1">
+                {parentPath.map((parent, index) => (
+                  <span key={parent.id} className="inline-flex min-w-0 items-center gap-1">
                     {index > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
-                    <span className="truncate">{parent}</span>
+                    <span className="truncate">{parent.title}</span>
                   </span>
                 ))}
               </div>
@@ -214,8 +223,9 @@ export function CategoryTree({
               </Button>
             </div>
           </TableCell>
-        </TableRow>
-      ))}
+          </TableRow>
+        )
+      })}
 
       <CategorySettingsModal
         open={settingsModalOpen}
@@ -234,15 +244,11 @@ export function CategoryTree({
                 Are you sure you want to delete &quot;{categoryToDelete?.title}&quot;?
                 {(() => {
                   if (!categoryToDelete) return null
-                  const countDescendants = (parentId: string): number => {
-                    const children = allCategories.filter(c => c.parent_id === parentId)
-                    return children.reduce((sum, child) => sum + 1 + countDescendants(child.id), 0)
-                  }
-                  const count = countDescendants(categoryToDelete.id)
+                  const count = childCounts[categoryToDelete.id] || 0
                   if (count === 0) return null
                   return (
                     <span className="block mt-2 text-red-600 font-medium">
-                      Deleting this will also delete {count} child {count === 1 ? 'category' : 'categories'}.
+                      Deleting this will also delete {count} child {count === 1 ? 'category' : 'categories'} and anything nested under them.
                     </span>
                   )
                 })()}

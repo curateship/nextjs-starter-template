@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef, use } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import dynamic from "next/dynamic"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -43,7 +44,7 @@ import {
 } from "@/lib/actions/categories/category-actions"
 import { CategoryTree } from "@/components/admin/category-builder/layout/CategoryTree"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Tag, Plus } from "lucide-react"
+import { ChevronRight, Tag, Plus } from "lucide-react"
 
 const CreateCategoryModal = dynamic(
   () =>
@@ -58,14 +59,17 @@ type CategorySortColumn = "title" | "parent" | "status" | "assigned" | "modified
 export default function CategoriesPage({ params }: { params: Promise<{ siteId: string }> }) {
   const { siteId } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
   const [categories, setCategories] = useState<Category[]>([])
   const [assignmentCounts, setAssignmentCounts] = useState<Record<string, number>>({})
+  const [childCounts, setChildCounts] = useState<Record<string, number>>({})
+  const [parentPath, setParentPath] = useState<Category[]>([])
+  const [allCategories, setAllCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filterStatus, setFilterStatus] = useState<"all" | "published" | "draft">("all")
-  const [filterLevel, setFilterLevel] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const categorySelection = useAdminBulkSelection()
   const categorySort = useAdminSort<CategorySortColumn>()
@@ -76,6 +80,9 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = contextPageSize
+  const parentSlug = searchParams.get("parent") || ""
+  const currentParent = parentPath[parentPath.length - 1] || null
+  const currentParentId = currentParent?.id || null
 
   // Redirect when site changes in sidebar
   useEffect(() => {
@@ -84,10 +91,15 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     }
   }, [currentSite, siteId, router])
 
+  useEffect(() => {
+    setCurrentPage(1)
+    categorySelection.clearSelection()
+  }, [categorySelection.clearSelection, parentSlug])
+
   // Load categories and assignment counts in a single server action
   const loadedRef = useRef<string | null>(null)
   useEffect(() => {
-    const key = `${siteId}-${currentPage}-${pageSize}`
+    const key = `${siteId}-${currentPage}-${pageSize}-${parentSlug}`
     if (loadedRef.current === key) return
     loadedRef.current = key
 
@@ -100,20 +112,33 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           data: categoriesData,
           total: categoriesTotal,
           counts,
+          childCounts: categoryChildCounts,
+          parentPath: categoryParentPath,
+          allCategories: categoryContext,
           error: categoriesError
         } = await getCategoriesWithCountsAction(siteId, {
           page: currentPage,
-          pageSize
+          pageSize,
+          parentSlug: parentSlug || null
         })
 
         if (categoriesError) {
+          setCategories([])
+          setTotal(0)
+          setAssignmentCounts({})
+          setChildCounts({})
+          setParentPath([])
+          setAllCategories([])
           setError(categoriesError)
           return
         }
 
         setCategories(categoriesData || [])
         setTotal(categoriesTotal)
-        setAssignmentCounts(counts)
+        setAssignmentCounts(counts || {})
+        setChildCounts(categoryChildCounts || {})
+        setParentPath(categoryParentPath || [])
+        setAllCategories(categoryContext || [])
       } catch (err) {
         setError("Failed to load categories")
       } finally {
@@ -122,10 +147,15 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     }
 
     loadData()
-  }, [siteId, currentPage, pageSize])
+  }, [siteId, currentPage, pageSize, parentSlug])
 
   const handleCategoryCreated = (newCategory: Category, continueToBuilder?: boolean) => {
-    setCategories((prev) => [...prev, newCategory])
+    setAllCategories((prev) => [...prev, newCategory])
+    if ((newCategory.parent_id || null) === currentParentId) {
+      setCategories((prev) => [...prev, newCategory])
+      setChildCounts((prev) => ({ ...prev, [newCategory.id]: 0 }))
+      setTotal((prev) => prev + 1)
+    }
     setShowCreateModal(false)
     if (continueToBuilder) {
       router.push(`/admin/categories/builder/${siteId}?category=${newCategory.slug}`)
@@ -134,6 +164,21 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
 
   const handleCategoryDeleted = (categoryId: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== categoryId))
+    setAllCategories((prev) => {
+      const removedIds = new Set([categoryId])
+      let changed = true
+      while (changed) {
+        changed = false
+        prev.forEach((category) => {
+          if (category.parent_id && removedIds.has(category.parent_id) && !removedIds.has(category.id)) {
+            removedIds.add(category.id)
+            changed = true
+          }
+        })
+      }
+      return prev.filter((category) => !removedIds.has(category.id))
+    })
+    setTotal((prev) => Math.max(0, prev - 1))
     categorySelection.remove(categoryId)
   }
 
@@ -149,17 +194,20 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
         return
       }
       if (success) {
-        // Remove selected categories and their descendants from state
         const removedIds = new Set(ids)
-        const removeDescendants = (parentIds: string[]) => {
-          const children = categories.filter((c) => c.parent_id && parentIds.includes(c.parent_id))
-          children.forEach((c) => removedIds.add(c.id))
-          if (children.length > 0) {
-            removeDescendants(children.map((c) => c.id))
-          }
+        let changed = true
+        while (changed) {
+          changed = false
+          allCategories.forEach((category) => {
+            if (category.parent_id && removedIds.has(category.parent_id) && !removedIds.has(category.id)) {
+              removedIds.add(category.id)
+              changed = true
+            }
+          })
         }
-        removeDescendants(ids)
         setCategories((prev) => prev.filter((c) => !removedIds.has(c.id)))
+        setAllCategories((prev) => prev.filter((c) => !removedIds.has(c.id)))
+        setTotal((prev) => Math.max(0, prev - ids.length))
         categorySelection.clearSelection()
       }
     } catch (err) {
@@ -170,36 +218,18 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     }
   }
 
-  // Compute depth level for a category
-  const getDepth = (category: Category): number => {
-    let depth = 0
-    let current = category
-    while (current.parent_id) {
-      depth++
-      const parent = categories.find((c) => c.id === current.parent_id)
-      if (!parent) break
-      current = parent
-    }
-    return depth
-  }
-
-  // Get unique depth levels present in the data
-  const depthLevels = [...new Set(categories.map(getDepth))].sort((a, b) => a - b)
-
-  // Filter categories
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredCategories = categories.filter((category) => {
     let statusMatch = true
     if (filterStatus === "published") statusMatch = category.is_published
     if (filterStatus === "draft") statusMatch = !category.is_published
 
-    const levelMatch = filterLevel === "all" || getDepth(category) === Number(filterLevel)
-    const parentTitle = categories.find((c) => c.id === category.parent_id)?.title ?? ""
+    const parentTitle = currentParent?.title ?? ""
     const searchText =
       `${category.title} ${category.slug} ${category.meta_description ?? ""} ${parentTitle}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
 
-    return statusMatch && levelMatch && searchMatch
+    return statusMatch && searchMatch
   })
 
   const sortedCategories = [...filteredCategories].sort((a, b) => {
@@ -208,8 +238,8 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     if (categorySort.sortColumn === "title") return a.title.localeCompare(b.title) * dir
     if (categorySort.sortColumn === "status") return (Number(a.is_published) - Number(b.is_published)) * dir
     if (categorySort.sortColumn === "parent") {
-      const aParent = categories.find((c) => c.id === a.parent_id)?.title || "\uffff"
-      const bParent = categories.find((c) => c.id === b.parent_id)?.title || "\uffff"
+      const aParent = currentParent?.title || "\uffff"
+      const bParent = currentParent?.title || "\uffff"
       return aParent.localeCompare(bParent) * dir
     }
     if (categorySort.sortColumn === "assigned") {
@@ -228,6 +258,37 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
     draft: categories.filter((c) => !c.is_published).length
   }
 
+  const categoryTitle = (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      {parentPath.length > 0 ? (
+        <Link href={`/admin/categories/${siteId}`} className="text-muted-foreground hover:text-foreground">
+          Categories
+        </Link>
+      ) : (
+        <span>Categories</span>
+      )}
+      {parentPath.map((parent, index) => {
+        const isLast = index === parentPath.length - 1
+
+        return (
+          <span key={parent.id} className="inline-flex min-w-0 items-center gap-1.5">
+            <ChevronRight className="size-3 text-muted-foreground" />
+            {isLast ? (
+              <span className="truncate">{parent.title}</span>
+            ) : (
+              <Link
+                href={`/admin/categories/${siteId}?parent=${encodeURIComponent(parent.slug)}`}
+                className="truncate text-muted-foreground hover:text-foreground"
+              >
+                {parent.title}
+              </Link>
+            )}
+          </span>
+        )
+      })}
+    </span>
+  )
+
   return (
     <>
       <StickyHeader />
@@ -238,7 +299,7 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           />
 
           <AdminTableShell
-            title="Categories"
+            title={categoryTitle}
             icon={<Tag className="size-4 text-muted-foreground sm:size-[18px]" />}
             count={filteredCategories.length}
             selectedCount={categorySelection.selectedCount}
@@ -272,19 +333,6 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                     <SelectItem value="all">All ({statusCounts.all})</SelectItem>
                     <SelectItem value="published">Published ({statusCounts.published})</SelectItem>
                     <SelectItem value="draft">Draft ({statusCounts.draft})</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterLevel} onValueChange={setFilterLevel}>
-                  <TableRightActionsSelectTrigger aria-label="Category level filter">
-                    <SelectValue placeholder="All levels" />
-                  </TableRightActionsSelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All levels</SelectItem>
-                    {depthLevels.map((level) => (
-                      <SelectItem key={level} value={String(level)}>
-                        {level === 0 ? "Top-level" : `Level ${level + 1}`}
-                      </SelectItem>
-                    ))}
                   </SelectContent>
                 </Select>
                 <TableRightActionsButton onClick={() => setShowCreateModal(true)}>
@@ -393,11 +441,21 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
                   ) : (
                     <CategoryTree
                       categories={sortedCategories}
-                      allCategories={categories}
+                      allCategories={allCategories}
                       assignmentCounts={assignmentCounts}
+                      childCounts={childCounts}
+                      parentPath={parentPath}
                       siteId={siteId}
                       onCategoryDeleted={handleCategoryDeleted}
                       onCategoryUpdated={(updated) => {
+                        setAllCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+
+                        if ((updated.parent_id || null) !== currentParentId) {
+                          setCategories((prev) => prev.filter((c) => c.id !== updated.id))
+                          setTotal((prev) => Math.max(0, prev - 1))
+                          return
+                        }
+
                         setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
                       }}
                       selectedIds={categorySelection.selectedIds}
@@ -414,7 +472,8 @@ export default function CategoriesPage({ params }: { params: Promise<{ siteId: s
           {showCreateModal && (
             <CreateCategoryModal
               siteId={siteId}
-              existingCategories={categories}
+              existingCategories={allCategories}
+              defaultParentId={currentParentId}
               onClose={() => setShowCreateModal(false)}
               onCreated={handleCategoryCreated}
             />

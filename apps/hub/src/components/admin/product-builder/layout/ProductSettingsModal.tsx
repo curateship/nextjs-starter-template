@@ -447,7 +447,6 @@ export function ProductSettingsModal({
                 </Field>
 
                 <Field className="[&>div]:w-fit">
-                  <FieldLabel>Featured Image</FieldLabel>
                   <div>
                     {featuredImage ? (
                       <div className="relative aspect-square w-48 overflow-hidden rounded-lg bg-muted">
@@ -475,7 +474,7 @@ export function ProductSettingsModal({
                       </div>
                     ) : (
                       <div
-                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                         onClick={() => setShowImagePicker(true)}
                       >
                         <div className="text-center">
@@ -485,7 +484,6 @@ export function ProductSettingsModal({
                       </div>
                     )}
                   </div>
-                  <FieldDescription>Optional featured image for this product.</FieldDescription>
                 </Field>
               </CardContent>
             </Card>
@@ -515,7 +513,6 @@ export function ProductSettingsModal({
 
                 {product.site_id && (
                   <Field>
-                    <FieldLabel>Categories</FieldLabel>
                     <CategoryPicker
                       siteId={product.site_id}
                       selectedCategoryIds={selectedCategoryIds}

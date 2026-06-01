@@ -257,7 +257,6 @@ export function DirectorySettingsModal({
                 </Field>
 
                 <Field className="[&>div]:w-fit">
-                  <FieldLabel>Featured Image</FieldLabel>
                   {featuredImage ? (
                     <div className="relative aspect-square w-48! rounded-lg overflow-hidden bg-muted">
                       <img
@@ -284,7 +283,7 @@ export function DirectorySettingsModal({
                     </div>
                   ) : (
                     <div
-                      className="flex aspect-square w-48! cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+                      className="flex aspect-square w-48! cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
                       onClick={() => setShowImagePicker(true)}
                     >
                       <div className="text-center">
@@ -293,7 +292,6 @@ export function DirectorySettingsModal({
                       </div>
                     </div>
                   )}
-                  <FieldDescription>Optional featured image for this directory</FieldDescription>
                 </Field>
               </CardContent>
             </Card>
@@ -306,7 +304,6 @@ export function DirectorySettingsModal({
                 </CardHeader>
                 <CardContent>
                   <Field>
-                    <FieldLabel>Categories</FieldLabel>
                     <CategoryPicker
                       siteId={directory.site_id}
                       selectedCategoryIds={selectedCategoryIds}
@@ -316,7 +313,6 @@ export function DirectorySettingsModal({
                       loadingSelectedCategories={loadingCategories}
                       variant="combobox"
                     />
-                    <FieldDescription>Assign this directory to one or more categories</FieldDescription>
                   </Field>
                 </CardContent>
               </Card>

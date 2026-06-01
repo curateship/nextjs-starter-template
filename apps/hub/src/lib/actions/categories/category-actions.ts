@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, desc, ne, inArray, sql } from 'drizzle-orm'
+import { eq, and, desc, ne, inArray, isNull, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
@@ -97,11 +97,11 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
 /**
  * Get categories with assignment counts in a single action (1 auth check, parallel queries)
  */
-export async function getCategoriesWithCountsAction(siteId: string, options?: { page?: number; pageSize?: number }) {
+export async function getCategoriesWithCountsAction(siteId: string, options?: { page?: number; pageSize?: number; parentSlug?: string | null }) {
   try {
     const user = await getAuthenticatedUser()
     if (!user) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Authentication required' }
+      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Authentication required' }
     }
 
     const site = await db.query.sites.findFirst({
@@ -110,19 +110,50 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
     })
 
     if (!site) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Site not found' }
+      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Site not found' }
     }
 
     if (site.userId !== user.id) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Unauthorized' }
+      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Unauthorized' }
     }
 
     // Pagination
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const offset = (page - 1) * pageSize
+    const parentSlug = options?.parentSlug?.trim() || null
+    const parentCategory = parentSlug
+      ? await db.query.categories.findFirst({
+          where: and(eq(categories.siteId, siteId), eq(categories.slug, parentSlug)),
+        })
+      : null
 
-    const [categoriesResult, countResult] = await Promise.all([
+    if (parentSlug && !parentCategory) {
+      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Category not found' }
+    }
+
+    const parentPath: Category[] = []
+    let currentParent = parentCategory
+    const seenParentIds = new Set<string>()
+    while (currentParent) {
+      if (seenParentIds.has(currentParent.id)) {
+        return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Circular parent relationship detected' }
+      }
+
+      seenParentIds.add(currentParent.id)
+      parentPath.unshift(serializeCategory(currentParent))
+      currentParent = currentParent.parentId
+        ? (await db.query.categories.findFirst({
+            where: and(eq(categories.id, currentParent.parentId), eq(categories.siteId, siteId)),
+          })) ?? null
+        : null
+    }
+
+    const levelFilter = parentCategory
+      ? and(eq(categories.siteId, siteId), eq(categories.parentId, parentCategory.id))
+      : and(eq(categories.siteId, siteId), isNull(categories.parentId))
+
+    const [categoriesResult, countResult, allCategoryRows] = await Promise.all([
       db
         .select({
           id: categories.id,
@@ -139,29 +170,50 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
           updated_at: categories.updatedAt,
         })
         .from(categories)
-        .where(eq(categories.siteId, siteId))
+        .where(levelFilter)
         .orderBy(desc(categories.displayOrder))
         .limit(pageSize)
         .offset(offset),
       db
         .select({ count: sql<number>`count(*)` })
         .from(categories)
-        .where(eq(categories.siteId, siteId)),
+        .where(levelFilter),
+      db
+        .select()
+        .from(categories)
+        .where(eq(categories.siteId, siteId))
+        .orderBy(desc(categories.displayOrder)),
     ])
 
     const total = Number(countResult[0]?.count ?? 0)
 
     // Fetch assignment counts for the returned categories
     const counts: Record<string, number> = {}
+    const childCounts: Record<string, number> = {}
     const categoryIds = categoriesResult.map(c => c.id)
     if (categoryIds.length > 0) {
-      const relationships = await db
-        .select({ categoryId: contentCategoryRelationships.categoryId })
-        .from(contentCategoryRelationships)
-        .where(inArray(contentCategoryRelationships.categoryId, categoryIds))
+      const [relationships, children] = await Promise.all([
+        db
+          .select({ categoryId: contentCategoryRelationships.categoryId })
+          .from(contentCategoryRelationships)
+          .where(inArray(contentCategoryRelationships.categoryId, categoryIds)),
+        db
+          .select({
+            parentId: categories.parentId,
+            count: sql<number>`count(*)`,
+          })
+          .from(categories)
+          .where(and(eq(categories.siteId, siteId), inArray(categories.parentId, categoryIds)))
+          .groupBy(categories.parentId),
+      ])
 
       for (const rel of relationships) {
         counts[rel.categoryId] = (counts[rel.categoryId] || 0) + 1
+      }
+      for (const child of children) {
+        if (child.parentId) {
+          childCounts[child.parentId] = Number(child.count)
+        }
       }
     }
 
@@ -169,11 +221,14 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
       data: categoriesResult.map(serializeCategory),
       total,
       counts,
+      childCounts,
+      parentPath,
+      allCategories: allCategoryRows.map(serializeCategory),
       error: null
     }
   } catch (error) {
     console.error('Error fetching categories with counts:', error)
-    return { data: null, total: 0, counts: {} as Record<string, number>, error: 'Failed to fetch categories' }
+    return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Failed to fetch categories' }
   }
 }
 
@@ -338,9 +393,16 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
         return { data: null, error: 'A category cannot be its own parent' }
       }
 
-      if (data.parent_id) {
+      let currentParentId = data.parent_id
+      const seenParentIds = new Set<string>()
+      while (currentParentId) {
+        if (currentParentId === categoryId || seenParentIds.has(currentParentId)) {
+          return { data: null, error: 'Circular parent relationship detected' }
+        }
+
+        seenParentIds.add(currentParentId)
         const parentCategory = await db.query.categories.findFirst({
-          where: and(eq(categories.id, data.parent_id), eq(categories.siteId, category.siteId)),
+          where: and(eq(categories.id, currentParentId), eq(categories.siteId, category.siteId)),
           columns: { id: true, parentId: true },
         })
 
@@ -348,10 +410,7 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
           return { data: null, error: 'Parent category not found' }
         }
 
-        // Check for circular reference
-        if (parentCategory.parentId === categoryId) {
-          return { data: null, error: 'Circular parent relationship detected' }
-        }
+        currentParentId = parentCategory.parentId
       }
     }
 

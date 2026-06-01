@@ -166,7 +166,7 @@ export async function assignCategoryToContentAction(
     // Fetch category and verify ownership
     const category = await db.query.categories.findFirst({
       where: eq(categories.id, categoryId),
-      columns: { id: true, siteId: true, isPublished: true },
+      columns: { id: true, siteId: true, isPublished: true, parentId: true },
     })
 
     if (!category) {
@@ -184,6 +184,10 @@ export async function assignCategoryToContentAction(
 
     if (!category.isPublished) {
       return { success: false, error: 'Draft categories cannot be assigned to content' }
+    }
+
+    if (!category.parentId) {
+      return { success: false, error: 'Parent categories cannot be assigned to content' }
     }
 
     const contentTable = getTableForContentType(contentType)
@@ -647,14 +651,16 @@ export async function bulkAssignCategoriesToContentAction(
     }
 
     const uniqueCategoryIds = [...new Set(categoryIds)]
-    const requestedPrimaryCategoryId = primaryCategoryId || null
-    const resolvedPrimaryCategoryId = requestedPrimaryCategoryId && uniqueCategoryIds.includes(requestedPrimaryCategoryId)
-      ? requestedPrimaryCategoryId
-      : uniqueCategoryIds[0] || null
+    let assignableCategoryIds = uniqueCategoryIds
 
     if (uniqueCategoryIds.length > 0) {
       const categoryRows = await db
-        .select({ id: categories.id, siteId: categories.siteId, isPublished: categories.isPublished })
+        .select({
+          id: categories.id,
+          siteId: categories.siteId,
+          isPublished: categories.isPublished,
+          parentId: categories.parentId,
+        })
         .from(categories)
         .where(inArray(categories.id, uniqueCategoryIds))
 
@@ -669,7 +675,18 @@ export async function bulkAssignCategoriesToContentAction(
       if (categoryRows.some((category) => !category.isPublished)) {
         return { success: false, error: 'Draft categories cannot be assigned to content' }
       }
+
+      const categoryById = new Map(categoryRows.map((category) => [category.id, category]))
+      assignableCategoryIds = uniqueCategoryIds.filter((categoryId) => {
+        const category = categoryById.get(categoryId)
+        return Boolean(category?.parentId)
+      })
     }
+
+    const requestedPrimaryCategoryId = primaryCategoryId || null
+    const resolvedPrimaryCategoryId = requestedPrimaryCategoryId && assignableCategoryIds.includes(requestedPrimaryCategoryId)
+      ? requestedPrimaryCategoryId
+      : assignableCategoryIds[0] || null
 
     const existingRelationships = await db
       .select({ categoryId: contentCategoryRelationships.categoryId })
@@ -687,8 +704,8 @@ export async function bulkAssignCategoriesToContentAction(
           eq(contentCategoryRelationships.contentType, contentType)
         ))
 
-      if (uniqueCategoryIds.length > 0) {
-        const newRelationships = uniqueCategoryIds.map(catId => ({
+      if (assignableCategoryIds.length > 0) {
+        const newRelationships = assignableCategoryIds.map(catId => ({
           contentId,
           contentType,
           categoryId: catId,
@@ -702,7 +719,11 @@ export async function bulkAssignCategoriesToContentAction(
     revalidateTag('content-categories')
     revalidateTag('listing-views')
     revalidateTag(`${contentType}-${contentId}`)
-    new Set([...existingRelationships.map((relationship) => relationship.categoryId), ...uniqueCategoryIds])
+    new Set([
+      ...existingRelationships.map((relationship) => relationship.categoryId),
+      ...uniqueCategoryIds,
+      ...assignableCategoryIds,
+    ])
       .forEach(id => revalidateTag(`category-${id}`))
 
     return { success: true, error: null }

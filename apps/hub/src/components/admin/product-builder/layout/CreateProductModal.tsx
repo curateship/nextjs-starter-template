@@ -348,10 +348,9 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
             <CardHeader>
               <DashboardModalCardTitle>Image</DashboardModalCardTitle>
             </CardHeader>
-            <CardContent>
-              <Field className="w-48">
-                <FieldLabel>Featured Image</FieldLabel>
-                {featuredImage ? (
+              <CardContent>
+                <Field className="w-48">
+                  {featuredImage ? (
                   <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
                     <img
                       src={featuredImage}
@@ -385,10 +384,9 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
                       <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
                     </div>
                   </div>
-                )}
-                <FieldDescription>Optional featured image for this product.</FieldDescription>
-              </Field>
-            </CardContent>
+                  )}
+                </Field>
+              </CardContent>
           </Card>
 
           <Card>
@@ -417,7 +415,6 @@ export function CreateProductModal({ onSuccess, onCancel }: CreateProductModalPr
 
               {currentSite?.id && (
                 <Field>
-                  <FieldLabel>Categories</FieldLabel>
                   <CategoryPicker
                     siteId={currentSite.id}
                     selectedCategoryIds={selectedCategoryIds}

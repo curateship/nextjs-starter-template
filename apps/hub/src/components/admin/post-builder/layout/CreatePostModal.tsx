@@ -304,7 +304,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
               </Field>
 
               <Field className="w-48">
-                <FieldLabel htmlFor="featured_image">Featured Image</FieldLabel>
                 {formData.featured_image ? (
                   <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
                     <img
@@ -340,7 +339,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                     </div>
                   </div>
                 )}
-                <FieldDescription>Optional featured image for this post</FieldDescription>
               </Field>
 
               <Field>
@@ -365,7 +363,6 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
               </CardHeader>
               <CardContent>
                 <Field>
-                  <FieldLabel>Categories</FieldLabel>
                   <CategoryPicker
                     siteId={currentSite.id}
                     selectedCategoryIds={selectedCategoryIds}
