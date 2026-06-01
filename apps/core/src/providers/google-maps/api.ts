@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto"
+import { lookup } from "node:dns/promises"
+import { request as httpRequest, type IncomingHttpHeaders } from "node:http"
+import { request as httpsRequest } from "node:https"
+import { isIP } from "node:net"
 
 import { createServerFn } from "@tanstack/react-start"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
@@ -74,6 +78,12 @@ type GoogleMapsRunResponse = {
 type FieldSettingsResponse = {
   field_settings: GoogleMapsFieldSetting[]
 }
+export type GoogleMapsSocialPlatform = (typeof socialPlatforms)[number]
+export type GoogleMapsEnhanceResponse = {
+  enhanced: number
+  skipped: number
+  failed: number
+}
 export type HubExportSite = {
   id: string
   name: string
@@ -83,6 +93,9 @@ export type HubExportSite = {
 }
 export type HubExportStatus = "draft" | "published"
 const remoteImageMaxBytes = 10 * 1024 * 1024
+const websiteHtmlMaxBytes = 1024 * 1024
+const websiteFetchTimeoutMs = 10_000
+const enhanceResultsMax = 50
 const remoteImageTypes = new Set([
   "image/jpeg",
   "image/jpg",
@@ -95,10 +108,16 @@ const googleImageHosts = [
   "googleapis.com",
   "gstatic.com",
 ]
-const fixedResultFieldKeys = new Set(["type", "neighborhood", "city", "region", "country"])
+const socialPlatforms = ["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"] as const
+const fixedResultFieldKeys = new Set(["type", "neighborhood", "city", "region", "country", ...socialPlatforms])
+const socialPlatformSchema = z.enum(socialPlatforms)
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
   resultIds: z.array(z.string().min(1)).min(1),
+})
+const enhanceResultsSchema = resultIdsSchema.extend({
+  resultIds: z.array(z.string().min(1)).min(1).max(enhanceResultsMax),
+  platforms: z.array(socialPlatformSchema).min(1),
 })
 const hubExportSchema = resultIdsSchema.extend({
   siteId: z.string().min(1),
@@ -362,6 +381,60 @@ const deleteResultsFn = createServerFn({ method: "POST" })
     return { deleted: deleted.length }
   })
 
+const enhanceResultsFn = createServerFn({ method: "POST" })
+  .inputValidator(enhanceResultsSchema)
+  .handler(async ({ data }): Promise<GoogleMapsEnhanceResponse> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
+    const rows = await db
+      .select()
+      .from(providerResults)
+      .where(and(eq(providerResults.runConfigId, run.id), inArray(providerResults.id, data.resultIds)))
+    const platforms = Array.from(new Set(data.platforms))
+    let enhanced = 0
+    let skipped = 0
+    let failed = 0
+
+    for (const result of rows) {
+      const currentData = record(result.data)
+      const website = cleanUrl(stringValue(currentData.website) ?? undefined)
+      const missingPlatforms = platforms.filter((platform) => !stringValue(currentData[platform]))
+
+      if (!website || !missingPlatforms.length) {
+        skipped += 1
+        continue
+      }
+
+      try {
+        const directSocialLink = socialLinkForHref(website, new URL(website))
+        const found = directSocialLink
+          ? { [directSocialLink.platform]: directSocialLink.url }
+          : await findSocialLinks(website, missingPlatforms)
+        const updates = Object.fromEntries(
+          missingPlatforms
+            .map((platform) => [platform, found[platform]] as const)
+            .filter(([, value]) => Boolean(value))
+        )
+
+        if (!Object.keys(updates).length) {
+          skipped += 1
+          continue
+        }
+
+        await db.update(providerResults).set({
+          data: { ...currentData, ...updates },
+        }).where(eq(providerResults.id, result.id))
+        enhanced += 1
+      } catch {
+        failed += 1
+      }
+    }
+
+    skipped += Math.max(0, data.resultIds.length - rows.length)
+    return { enhanced, skipped, failed }
+  })
+
 const loadHubExportSitesFn = createServerFn({ method: "GET" }).handler(async (): Promise<{ sites: HubExportSite[] }> => {
   await requireAdmin()
   const response = await hubBridgeFetch("/api/core/sites")
@@ -419,6 +492,7 @@ export const refreshGoogleMapsExecution = (executionId: string) => refreshExecut
 export const loadGoogleMapsRun = (runId: string) => loadRunFn({ data: { runId } })
 export const updateGoogleMapsResult = (data: z.infer<typeof resultPayloadSchema>) => updateResultFn({ data })
 export const deleteGoogleMapsResults = (runId: string, resultIds: string[]) => deleteResultsFn({ data: { runId, resultIds } })
+export const enhanceGoogleMapsResults = (data: z.infer<typeof enhanceResultsSchema>) => enhanceResultsFn({ data })
 export const loadHubExportSites = () => loadHubExportSitesFn()
 export const exportGoogleMapsResultsToHub = (data: z.infer<typeof hubExportSchema>) => exportResultsToHubFn({ data })
 
@@ -558,6 +632,9 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
     region: stringValue(dataWithTitle.region) ?? stringValue(dataWithTitle.state),
     country: stringValue(dataWithTitle.country) ?? stringValue(dataWithTitle.countryCode),
   }
+  socialPlatforms.forEach((platform) => {
+    hubRecord[platform] = stringValue(dataWithTitle[platform])
+  })
 
   fieldSettings
     .filter((setting) => setting.visible)
@@ -697,6 +774,253 @@ function extensionForImageMimeType(mimeType: string) {
   if (mimeType === "image/gif") return "gif"
   if (mimeType === "image/webp") return "webp"
   return "jpg"
+}
+
+async function findSocialLinks(website: string, platforms: GoogleMapsSocialPlatform[]) {
+  let url = new URL(website)
+  let triedApexFallback = false
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    let response: WebsiteResponse
+    try {
+      response = await fetchPublicWebsite(url)
+    } catch (error) {
+      if (!triedApexFallback && url.hostname.toLowerCase().startsWith("www.")) {
+        triedApexFallback = true
+        url.hostname = url.hostname.slice(4)
+        continue
+      }
+      throw error
+    }
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = headerValue(response.headers.location)
+      if (!location) throw new Error("Website redirect is missing a location.")
+      url = new URL(location, url)
+      continue
+    }
+
+    if (response.status < 200 || response.status >= 300) throw new Error("Website request failed.")
+
+    const contentType = headerValue(response.headers["content-type"])?.split(";")[0]?.trim().toLowerCase()
+    if (contentType && !["text/html", "application/xhtml+xml"].includes(contentType)) {
+      throw new Error("Website is not HTML.")
+    }
+
+    const contentLength = Number(headerValue(response.headers["content-length"]) ?? 0)
+    if (contentLength > websiteHtmlMaxBytes) throw new Error("Website HTML is too large.")
+
+    return extractSocialLinks(response.body, url, platforms)
+  }
+
+  throw new Error("Website redirected too many times.")
+}
+
+type PublicAddress = { address: string; family: 4 | 6 }
+type WebsiteResponse = {
+  status: number
+  headers: IncomingHttpHeaders
+  body: string
+}
+
+async function fetchPublicWebsite(url: URL): Promise<WebsiteResponse> {
+  const pinnedAddress = await assertPublicWebsiteUrl(url)
+  const request = url.protocol === "https:" ? httpsRequest : httpRequest
+
+  return new Promise((resolve, reject) => {
+    const req = request({
+      protocol: url.protocol,
+      hostname: url.hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      method: "GET",
+      headers: { Accept: "text/html,application/xhtml+xml" },
+      servername: url.hostname,
+      lookup: (_hostname, _options, callback) => {
+        callback(null, pinnedAddress.address, pinnedAddress.family)
+      },
+    }, (res) => {
+      const chunks: Uint8Array[] = []
+      let total = 0
+
+      res.on("data", (chunk: Uint8Array) => {
+        total += chunk.byteLength
+        if (total > websiteHtmlMaxBytes) {
+          req.destroy(new Error("Website HTML is too large."))
+          return
+        }
+        chunks.push(chunk)
+      })
+
+      res.on("end", () => {
+        resolve({
+          status: res.statusCode ?? 0,
+          headers: res.headers,
+          body: new TextDecoder().decode(concatBytes(chunks, total)),
+        })
+      })
+    })
+
+    req.setTimeout(websiteFetchTimeoutMs, () => {
+      req.destroy(new Error("Website request timed out."))
+    })
+    req.on("error", reject)
+    req.end()
+  })
+}
+
+async function assertPublicWebsiteUrl(url: URL): Promise<PublicAddress> {
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+    throw new Error("Invalid website URL.")
+  }
+
+  const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase()
+  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || isPrivateAddress(hostname)) {
+    throw new Error("Invalid website host.")
+  }
+
+  const addresses = await lookup(hostname, { all: true })
+  if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address))) {
+    throw new Error("Invalid website host.")
+  }
+
+  return addresses[0]
+}
+
+function headerValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function concatBytes(chunks: Uint8Array[], total: number) {
+  const data = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    data.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return data
+}
+
+function extractSocialLinks(html: string, baseUrl: URL, platforms: GoogleMapsSocialPlatform[]) {
+  const selected = new Set(platforms)
+  const links: Partial<Record<GoogleMapsSocialPlatform, string>> = {}
+  const hrefPattern = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi
+
+  for (const match of html.matchAll(hrefPattern)) {
+    const rawHref = normalizeCandidateHref(match[1] ?? match[2] ?? match[3] ?? "")
+    const socialLink = socialLinkForHref(rawHref, baseUrl)
+    if (!socialLink || !selected.has(socialLink.platform) || links[socialLink.platform]) continue
+    links[socialLink.platform] = socialLink.url
+  }
+
+  const socialUrlPattern = /https?:\\?\/\\?\/(?:www\.)?(?:instagram\.com|facebook\.com|fb\.com|tiktok\.com|twitter\.com|x\.com|linkedin\.com|youtube\.com|youtu\.be)[^\s"'<>)]*/gi
+  for (const match of html.matchAll(socialUrlPattern)) {
+    const socialLink = socialLinkForHref(normalizeCandidateHref(match[0]), baseUrl)
+    if (!socialLink || !selected.has(socialLink.platform) || links[socialLink.platform]) continue
+    links[socialLink.platform] = socialLink.url
+  }
+
+  return links
+}
+
+function socialLinkForHref(rawHref: string, baseUrl: URL): { platform: GoogleMapsSocialPlatform; url: string } | null {
+  try {
+    const url = new URL(rawHref, baseUrl)
+    if (!["http:", "https:"].includes(url.protocol)) return null
+
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "")
+    const platform = socialPlatformForHost(hostname)
+    if (!platform || !isSocialProfileUrl(platform, url)) return null
+
+    url.hash = ""
+    return { platform, url: url.toString() }
+  } catch {
+    return null
+  }
+}
+
+function socialPlatformForHost(hostname: string): GoogleMapsSocialPlatform | null {
+  if (hostname === "instagram.com" || hostname.endsWith(".instagram.com")) return "instagram"
+  if (hostname === "facebook.com" || hostname.endsWith(".facebook.com") || hostname === "fb.com") return "facebook"
+  if (hostname === "tiktok.com" || hostname.endsWith(".tiktok.com")) return "tiktok"
+  if (hostname === "twitter.com" || hostname.endsWith(".twitter.com") || hostname === "x.com") return "twitter"
+  if (hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")) return "linkedin"
+  if (hostname === "youtube.com" || hostname.endsWith(".youtube.com") || hostname === "youtu.be") return "youtube"
+  return null
+}
+
+function isSocialProfileUrl(platform: GoogleMapsSocialPlatform, url: URL) {
+  const segments = url.pathname.split("/").filter(Boolean)
+  const first = segments[0]?.toLowerCase() ?? ""
+  if (!first) return false
+
+  if (platform === "instagram") return !["p", "reel", "explore", "stories", "share"].includes(first)
+  if (platform === "facebook") return !["sharer", "share", "dialog", "plugins", "events", "groups"].includes(first)
+  if (platform === "tiktok") return first.startsWith("@")
+  if (platform === "twitter") return !["intent", "share", "home", "i", "search"].includes(first)
+  if (platform === "linkedin") return ["company", "in", "school", "showcase"].includes(first) && Boolean(segments[1])
+  if (platform === "youtube") return first.startsWith("@") || ["channel", "c", "user"].includes(first)
+  return false
+}
+
+function normalizeCandidateHref(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/\\u002f/gi, "/")
+    .replace(/\\\//g, "/")
+    .trim()
+}
+
+function isPrivateAddress(address: string) {
+  const ipVersion = isIP(address)
+  if (ipVersion === 4) return isPrivateIpv4(address)
+  if (ipVersion === 6) return isPrivateIpv6(address)
+  return false
+}
+
+function isPrivateIpv4(address: string) {
+  const parts = address.split(".").map((part) => Number(part))
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true
+
+  const [a, b, c] = parts
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0) ||
+    (a === 192 && b === 0 && c === 2) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224
+  )
+}
+
+function isPrivateIpv6(address: string) {
+  const normalized = address.toLowerCase()
+  const mappedIpv4 = normalized.match(/(?:^|:)ffff:(\d{1,3}(?:\.\d{1,3}){3})$/)?.[1] || ""
+  if (mappedIpv4) return isPrivateIpv4(mappedIpv4)
+
+  if (normalized === "::" || normalized === "::1") return true
+  if (/^(?:0+:){7}(?:0+|1)$/.test(normalized)) return true
+
+  const firstSegment = normalized.split(":")[0]
+  const firstValue = Number.parseInt(firstSegment, 16)
+  if (!Number.isFinite(firstValue)) return false
+
+  return (
+    (firstValue & 0xfe00) === 0xfc00 ||
+    (firstValue & 0xffc0) === 0xfe80 ||
+    (firstValue & 0xff00) === 0xff00 ||
+    normalized.startsWith("2001:db8:")
+  )
 }
 
 function date(value: string | null | undefined) {

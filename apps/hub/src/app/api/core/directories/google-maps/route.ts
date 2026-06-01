@@ -30,6 +30,12 @@ interface GoogleMapsImportRecord {
   region?: unknown
   country?: unknown
   countryCode?: unknown
+  instagram?: unknown
+  facebook?: unknown
+  tiktok?: unknown
+  twitter?: unknown
+  linkedin?: unknown
+  youtube?: unknown
   phone?: unknown
   website?: unknown
   rating?: unknown
@@ -313,6 +319,12 @@ function normalizeRecord(value: unknown) {
     city: cleanText(record.city, 255),
     region: cleanText(record.region, 255) || cleanText(record.state, 255),
     country: cleanText(record.country, 255) || cleanText(record.countryCode, 255),
+    instagram: safeUrl(record.instagram),
+    facebook: safeUrl(record.facebook),
+    tiktok: safeUrl(record.tiktok),
+    twitter: safeUrl(record.twitter),
+    linkedin: safeUrl(record.linkedin),
+    youtube: safeUrl(record.youtube),
     phone: cleanText(record.phone, 100),
     website: safeUrl(record.website),
     rating: numberValue(record.rating),
@@ -564,6 +576,12 @@ function buildDirectoryData(record: ReturnType<typeof normalizeRecord>): Directo
   addTextField(fields, 'city', record.city)
   addTextField(fields, 'region', record.region)
   addTextField(fields, 'country', record.country)
+  addTextField(fields, 'instagram', record.instagram)
+  addTextField(fields, 'facebook', record.facebook)
+  addTextField(fields, 'tiktok', record.tiktok)
+  addTextField(fields, 'twitter', record.twitter)
+  addTextField(fields, 'linkedin', record.linkedin)
+  addTextField(fields, 'youtube', record.youtube)
   addTextField(fields, 'featuredImage', record.featuredImage)
   addTextField(fields, 'mapsUrl', record.mapsUrl)
 

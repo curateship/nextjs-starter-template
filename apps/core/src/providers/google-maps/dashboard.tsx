@@ -6,6 +6,7 @@ import {
   Loader2Icon,
   PlayIcon,
   PlusIcon,
+  SparklesIcon,
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
@@ -28,6 +29,14 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardGroup,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -67,8 +76,10 @@ import {
   saveGoogleMapsFieldSettings,
   startGoogleMapsRun,
   updateGoogleMapsResult,
+  enhanceGoogleMapsResults,
   loadHubExportSites,
   exportGoogleMapsResultsToHub,
+  type GoogleMapsSocialPlatform,
   type HubExportSite,
   type HubExportStatus,
 } from "@/providers/google-maps/api"
@@ -89,10 +100,12 @@ type ResultForm = Record<string, string | boolean>
 type ResultFormValue = string | boolean
 type ResultSortColumn = "title" | "address" | "rating" | "reviews" | "phone" | "website" | "created"
 type ResultModalTab = "fields" | "json"
+type StaticFieldTab = "filled" | "empty"
 type FieldSettingsTab = "selected" | "other"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
 type HubExportDialogStatus = "idle" | "loading" | "exporting"
+type EnhanceDialogStatus = "idle" | "enhancing"
 
 const statusLabels = {
   all: "All statuses",
@@ -105,11 +118,23 @@ const resultModalTabs: { id: ResultModalTab; label: string }[] = [
   { id: "fields", label: "Fields" },
   { id: "json", label: "JSON" },
 ]
+const staticFieldTabs: { id: StaticFieldTab; label: string }[] = [
+  { id: "filled", label: "Filled" },
+  { id: "empty", label: "Empty Fields" },
+]
 const fieldSettingsTabs: { id: FieldSettingsTab; label: string }[] = [
   { id: "selected", label: "Selected Fields" },
   { id: "other", label: "Other Fields" },
 ]
 const activeExecutionStatuses = new Set(["queued", "running"])
+const socialPlatformOptions: { id: GoogleMapsSocialPlatform; label: string }[] = [
+  { id: "instagram", label: "Instagram" },
+  { id: "facebook", label: "Facebook" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "twitter", label: "X/Twitter" },
+  { id: "linkedin", label: "LinkedIn" },
+  { id: "youtube", label: "YouTube" },
+]
 const orderedResultKeys = [
   "businessName",
   "type",
@@ -127,6 +152,12 @@ const orderedResultKeys = [
   "reviewCount",
   "phone",
   "website",
+  "instagram",
+  "facebook",
+  "tiktok",
+  "twitter",
+  "linkedin",
+  "youtube",
 ] as const
 const resultKeyOrder = new Map<string, number>(orderedResultKeys.map((key, index) => [key, index]))
 const resultFieldLabels: Record<string, string> = {
@@ -137,6 +168,12 @@ const resultFieldLabels: Record<string, string> = {
   region: "Region",
   country: "Country",
   countryCode: "Country code",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+  twitter: "X/Twitter",
+  linkedin: "LinkedIn",
+  youtube: "YouTube",
   reviewCount: "Reviews",
 }
 const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
@@ -145,6 +182,12 @@ const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
   { key: "city", sourcePath: "city", label: "City", visible: true, editable: true, type: "text", order: 7 },
   { key: "region", sourcePath: "region", label: "Region", visible: true, editable: true, type: "text", order: 8 },
   { key: "country", sourcePath: "country", label: "Country", visible: true, editable: true, type: "text", order: 9 },
+  { key: "instagram", sourcePath: "instagram", label: "Instagram", visible: true, editable: true, type: "text", order: 20 },
+  { key: "facebook", sourcePath: "facebook", label: "Facebook", visible: true, editable: true, type: "text", order: 21 },
+  { key: "tiktok", sourcePath: "tiktok", label: "TikTok", visible: true, editable: true, type: "text", order: 22 },
+  { key: "twitter", sourcePath: "twitter", label: "X/Twitter", visible: true, editable: true, type: "text", order: 23 },
+  { key: "linkedin", sourcePath: "linkedin", label: "LinkedIn", visible: true, editable: true, type: "text", order: 24 },
+  { key: "youtube", sourcePath: "youtube", label: "YouTube", visible: true, editable: true, type: "text", order: 25 },
 ]
 const fixedResultFieldKeys = new Set(fixedResultFieldSettings.map((setting) => setting.key))
 const resultNumberFields = new Set(["rating", "reviewCount"])
@@ -549,12 +592,16 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
+  const [staticFieldTab, setStaticFieldTab] = React.useState<StaticFieldTab>("filled")
   const [resultImagePickerOpen, setResultImagePickerOpen] = React.useState(false)
   const [hubExportOpen, setHubExportOpen] = React.useState(false)
   const [hubExportSites, setHubExportSites] = React.useState<HubExportSite[]>([])
   const [hubExportSiteId, setHubExportSiteId] = React.useState("")
   const [hubExportStatus, setHubExportStatus] = React.useState<HubExportStatus>("draft")
   const [hubExportState, setHubExportState] = React.useState<HubExportDialogStatus>("idle")
+  const [enhanceOpen, setEnhanceOpen] = React.useState(false)
+  const [enhancePlatforms, setEnhancePlatforms] = React.useState<GoogleMapsSocialPlatform[]>(socialPlatformOptions.map((option) => option.id))
+  const [enhanceState, setEnhanceState] = React.useState<EnhanceDialogStatus>("idle")
   const pollingExecutionIds = React.useRef<Set<string>>(new Set())
 
   const load = React.useCallback(async () => {
@@ -607,6 +654,13 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   })
   const totalPages = Math.ceil(results.length / pageSize)
   const visibleResults = results.slice((page - 1) * pageSize, page * pageSize)
+  const resultFields = editingResult ? resultFieldsForResult(editingResult, data?.field_settings ?? []) : []
+  const dynamicResultFields = resultFields.filter((setting) => setting.key !== "featuredImage" && !fixedResultFieldKeys.has(setting.key))
+  const staticResultFields = editingResult
+    ? resultFields
+      .filter((setting) => fixedResultFieldKeys.has(setting.key))
+      .filter((setting) => staticFieldTab === "filled" ? resultFieldHasValue(editingResult, setting) : !resultFieldHasValue(editingResult, setting))
+    : []
   const visibleIds = visibleResults.map((result) => result.id)
   const visibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const visibleIndeterminate = !visibleSelected && visibleIds.some((id) => selectedIds.has(id))
@@ -670,6 +724,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
     setResultModalTab("fields")
+    setStaticFieldTab("filled")
     setResultImagePickerOpen(false)
     setResultForm(resultFormFromData(result, data?.field_settings ?? []))
   }
@@ -715,6 +770,37 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     } finally {
       setHubExportState("idle")
     }
+  }
+
+  const enhanceData = async () => {
+    if (!selectedIds.size || !enhancePlatforms.length) return
+
+    setEnhanceState("enhancing")
+    setMessage(null)
+    try {
+      const response = await enhanceGoogleMapsResults({
+        runId,
+        resultIds: Array.from(selectedIds),
+        platforms: enhancePlatforms,
+      })
+      setEnhanceOpen(false)
+      await load()
+      setMessage({
+        tone: response.failed > 0 ? "error" : "success",
+        text: `Enhance data complete: ${response.enhanced} updated, ${response.skipped} skipped, ${response.failed} failed.`,
+      })
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setEnhanceState("idle")
+    }
+  }
+
+  const toggleEnhancePlatform = (platform: GoogleMapsSocialPlatform, checked: boolean) => {
+    setEnhancePlatforms((current) => {
+      if (checked) return current.includes(platform) ? current : [...current, platform]
+      return current.filter((item) => item !== platform)
+    })
   }
 
   const saveResult = async () => {
@@ -783,6 +869,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => void openHubExport()}>
                 <UploadIcon className="size-4" />
                 Export ({selectedIds.size})
+              </Button>
+            ) : null}
+            {selectedIds.size ? (
+              <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => setEnhanceOpen(true)}>
+                <SparklesIcon className="size-4" />
+                Enhance Data ({selectedIds.size})
               </Button>
             ) : null}
             <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />
@@ -889,23 +981,74 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
             </div>
             <DialogDescription>Update the saved Google Maps result.</DialogDescription>
           </DialogHeader>
-          {resultModalTab === "fields" ? (
-            <DialogBody className="grid gap-4 sm:grid-cols-2">
-              <FeaturedImageField
-                value={typeof resultForm.featuredImage === "string" ? resultForm.featuredImage : ""}
-                onChange={(nextValue) => setResultForm({ ...resultForm, featuredImage: nextValue })}
-                onOpenPicker={() => setResultImagePickerOpen(true)}
-              />
-              {editingResult ? resultFieldsForResult(editingResult, data?.field_settings ?? []).filter((setting) => setting.key !== "featuredImage").map((setting) => (
-                <ResultField
-                  key={setting.key}
-                  id={`result-${setting.key}`}
-                  label={setting.label}
-                  type={setting.type}
-                  value={resultForm[setting.key] ?? ""}
-                  onChange={(nextValue) => setResultForm({ ...resultForm, [setting.key]: nextValue })}
-                />
-              )) : null}
+          {resultModalTab === "fields" && editingResult ? (
+            <DialogBody>
+              <CardGroup className="grid">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Dynamic fields</CardTitle>
+                    <CardDescription>Fields coming from Google Maps data and selected field settings.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-2">
+                    <FeaturedImageField
+                      value={typeof resultForm.featuredImage === "string" ? resultForm.featuredImage : ""}
+                      onChange={(nextValue) => setResultForm({ ...resultForm, featuredImage: nextValue })}
+                      onOpenPicker={() => setResultImagePickerOpen(true)}
+                    />
+                    {dynamicResultFields.map((setting) => (
+                        <ResultField
+                          key={setting.key}
+                          id={`result-${setting.key}`}
+                          label={setting.label}
+                          type={setting.type}
+                          value={resultForm[setting.key] ?? ""}
+                          onChange={(nextValue) => setResultForm({ ...resultForm, [setting.key]: nextValue })}
+                        />
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="gap-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="grid gap-1">
+                        <CardTitle>Static fields</CardTitle>
+                        <CardDescription>Manual fields used consistently across Core and Hub.</CardDescription>
+                      </div>
+                      <div role="tablist" aria-label="Static field view" className="flex items-center gap-1 rounded-lg bg-muted p-1">
+                        {staticFieldTabs.map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={staticFieldTab === tab.id}
+                            onClick={() => setStaticFieldTab(tab.id)}
+                            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm ${staticFieldTab === tab.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-2">
+                    {staticResultFields.length ? staticResultFields.map((setting) => (
+                        <ResultField
+                          key={setting.key}
+                          id={`result-${setting.key}`}
+                          label={setting.label}
+                          type={setting.type}
+                          value={resultForm[setting.key] ?? ""}
+                          onChange={(nextValue) => setResultForm({ ...resultForm, [setting.key]: nextValue })}
+                        />
+                    )) : (
+                      <div className="text-sm text-muted-foreground sm:col-span-2">
+                        No {staticFieldTab === "filled" ? "filled" : "empty"} static fields.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </CardGroup>
             </DialogBody>
           ) : (
             <div className="min-h-0 flex-1 px-6 pt-6 pb-6">
@@ -953,7 +1096,79 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         onStatusChange={setHubExportStatus}
         onExport={() => void exportToHub()}
       />
+
+      <EnhanceDataDialog
+        count={selectedIds.size}
+        open={enhanceOpen}
+        platforms={enhancePlatforms}
+        state={enhanceState}
+        onOpenChange={setEnhanceOpen}
+        onPlatformChange={toggleEnhancePlatform}
+        onEnhance={() => void enhanceData()}
+      />
     </div>
+  )
+}
+
+function EnhanceDataDialog({
+  count,
+  open,
+  platforms,
+  state,
+  onOpenChange,
+  onPlatformChange,
+  onEnhance,
+}: {
+  count: number
+  open: boolean
+  platforms: GoogleMapsSocialPlatform[]
+  state: EnhanceDialogStatus
+  onOpenChange: (open: boolean) => void
+  onPlatformChange: (platform: GoogleMapsSocialPlatform, checked: boolean) => void
+  onEnhance: () => void
+}) {
+  const enhancing = state === "enhancing"
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Enhance Data</DialogTitle>
+          <DialogDescription>Find social media accounts from each selected venue website.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Method</Label>
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">Website homepage</div>
+          </div>
+          <div className="grid gap-3">
+            <Label>Social accounts</Label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {socialPlatformOptions.map((platform) => (
+                <label key={platform.id} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={platforms.includes(platform.id)}
+                    onCheckedChange={(checked) => onPlatformChange(platform.id, checked === true)}
+                    disabled={enhancing}
+                  />
+                  {platform.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            Enhancing fills blank social fields only. Existing values will stay unchanged.
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={enhancing}>Cancel</Button>
+          <Button onClick={onEnhance} disabled={enhancing || count === 0 || platforms.length === 0}>
+            {enhancing ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
+            Enhance {count}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

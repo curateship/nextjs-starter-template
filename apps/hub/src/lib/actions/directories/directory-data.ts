@@ -14,6 +14,12 @@ export interface DirectoryData {
     city?: string
     region?: string
     country?: string
+    instagram?: string
+    facebook?: string
+    tiktok?: string
+    twitter?: string
+    linkedin?: string
+    youtube?: string
     featuredImage?: string
     mapsUrl?: string
   }
