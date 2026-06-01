@@ -14,11 +14,17 @@ export const directories = pgTable('directory', {
   status: directoryStatusEnum('status').notNull().default('draft'),
   displayOrder: integer('display_order').notNull().default(0),
   contentBlocks: jsonb('content_blocks').default({}),
+  directoryData: jsonb('directory_data').notNull().default({}),
   featuredImage: text('featured_image'),
+  sourceType: varchar('source_type', { length: 50 }),
+  sourceId: varchar('source_id', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex('idx_directories_site_slug').on(table.siteId, table.slug),
+  uniqueIndex('idx_directories_site_source')
+    .on(table.siteId, table.sourceType, table.sourceId)
+    .where(sql`${table.sourceType} is not null and ${table.sourceType} <> '' and ${table.sourceId} is not null and ${table.sourceId} <> ''`),
   index('idx_directories_site_display_created').on(table.siteId, table.displayOrder, table.createdAt.desc(), table.id),
   index('idx_directories_site_status').on(table.siteId, table.status, table.displayOrder, table.createdAt.desc(), table.id),
   index('idx_directories_site_updated').on(table.siteId, table.updatedAt.desc(), table.id),

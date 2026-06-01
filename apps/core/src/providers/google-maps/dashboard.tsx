@@ -8,6 +8,7 @@ import {
   RefreshCwIcon,
   SettingsIcon,
   Trash2Icon,
+  UploadIcon,
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
@@ -63,6 +64,10 @@ import {
   saveGoogleMapsFieldSettings,
   startGoogleMapsRun,
   updateGoogleMapsResult,
+  loadHubExportSites,
+  exportGoogleMapsResultsToHub,
+  type HubExportSite,
+  type HubExportStatus,
 } from "@/providers/google-maps/api"
 import { parseRunInput, type GoogleMapsFieldSetting, type GoogleMapsFieldType } from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
@@ -82,6 +87,7 @@ type ResultModalTab = "fields" | "json"
 type FieldSettingsTab = "selected" | "other"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
+type HubExportDialogStatus = "idle" | "loading" | "exporting"
 
 const statusLabels = {
   all: "All statuses",
@@ -515,6 +521,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
+  const [hubExportOpen, setHubExportOpen] = React.useState(false)
+  const [hubExportSites, setHubExportSites] = React.useState<HubExportSite[]>([])
+  const [hubExportSiteId, setHubExportSiteId] = React.useState("")
+  const [hubExportStatus, setHubExportStatus] = React.useState<HubExportStatus>("draft")
+  const [hubExportState, setHubExportState] = React.useState<HubExportDialogStatus>("idle")
 
   const load = React.useCallback(async () => {
     try {
@@ -622,6 +633,49 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     setResultForm(resultFormFromData(result, data?.field_settings ?? []))
   }
 
+  const openHubExport = async () => {
+    setHubExportOpen(true)
+    if (hubExportSites.length) return
+
+    setHubExportState("loading")
+    setMessage(null)
+    try {
+      const response = await loadHubExportSites()
+      setHubExportSites(response.sites)
+      setHubExportSiteId((current) => current || response.sites[0]?.id || "")
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setHubExportState("idle")
+    }
+  }
+
+  const exportToHub = async () => {
+    if (!selectedIds.size || !hubExportSiteId) return
+
+    setHubExportState("exporting")
+    setMessage(null)
+    try {
+      const response = await exportGoogleMapsResultsToHub({
+        runId,
+        siteId: hubExportSiteId,
+        status: hubExportStatus,
+        resultIds: Array.from(selectedIds),
+      })
+      setHubExportOpen(false)
+      setSelectedIds(new Set())
+      const tone = response.errors > 0 ? "error" : "success"
+      setMessage({
+        tone,
+        text: `Hub export complete: ${response.created} created, ${response.updated} updated, ${response.errors} errors.`,
+      })
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setHubExportState("idle")
+    }
+  }
+
   const saveResult = async () => {
     if (!editingResult) return
     setSavingResult(true)
@@ -682,6 +736,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <Button variant="destructive" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => setDeleteIds(Array.from(selectedIds))}>
                 <Trash2Icon className="size-4" />
                 Delete ({selectedIds.size})
+              </Button>
+            ) : null}
+            {selectedIds.size ? (
+              <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => void openHubExport()}>
+                <UploadIcon className="size-4" />
+                Export ({selectedIds.size})
               </Button>
             ) : null}
             <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />
@@ -825,7 +885,97 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         onOpenChange={(open) => !open && setDeleteIds([])}
         onConfirm={() => void deleteResults(deleteIds)}
       />
+
+      <HubExportDialog
+        count={selectedIds.size}
+        open={hubExportOpen}
+        sites={hubExportSites}
+        siteId={hubExportSiteId}
+        status={hubExportStatus}
+        state={hubExportState}
+        onOpenChange={setHubExportOpen}
+        onSiteChange={setHubExportSiteId}
+        onStatusChange={setHubExportStatus}
+        onExport={() => void exportToHub()}
+      />
     </div>
+  )
+}
+
+function HubExportDialog({
+  count,
+  open,
+  sites,
+  siteId,
+  status,
+  state,
+  onOpenChange,
+  onSiteChange,
+  onStatusChange,
+  onExport,
+}: {
+  count: number
+  open: boolean
+  sites: HubExportSite[]
+  siteId: string
+  status: HubExportStatus
+  state: HubExportDialogStatus
+  onOpenChange: (open: boolean) => void
+  onSiteChange: (siteId: string) => void
+  onStatusChange: (status: HubExportStatus) => void
+  onExport: () => void
+}) {
+  const loading = state === "loading"
+  const exporting = state === "exporting"
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Export to Hub</DialogTitle>
+          <DialogDescription>Send selected Google Maps results into a Hub directory.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Hub site</Label>
+            <Select value={siteId} onValueChange={onSiteChange} disabled={loading || exporting || !sites.length}>
+              <SelectTrigger size="default" className="w-full">
+                <SelectValue placeholder={loading ? "Loading sites..." : "Select a site"} />
+              </SelectTrigger>
+              <SelectContent>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>{hubSiteLabel(site)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(value) => onStatusChange(value as HubExportStatus)} disabled={loading || exporting}>
+              <SelectTrigger size="default" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="published">Published</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {!loading && !sites.length ? (
+            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              No Hub sites are available for export.
+            </div>
+          ) : null}
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={exporting}>Cancel</Button>
+          <Button onClick={onExport} disabled={loading || exporting || !siteId || count === 0}>
+            {exporting ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
+            Export {count}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -1003,6 +1153,11 @@ function GoogleMapsResultsBreadcrumb({ title }: { title: string }) {
       </BreadcrumbList>
     </Breadcrumb>
   )
+}
+
+function hubSiteLabel(site: HubExportSite) {
+  const domain = site.custom_domain || site.subdomain
+  return domain ? `${site.name} - ${domain}` : site.name
 }
 
 function StatusBadge({ status }: { status: ProviderRunConfigStatus | string }) {

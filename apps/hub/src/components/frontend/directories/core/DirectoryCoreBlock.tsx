@@ -11,6 +11,7 @@ import {
   type DirectoryCoreMenuLink,
   type DirectoryCoreSocialLink
 } from "@/lib/actions/directories/directory-core"
+import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
 import { Card, CardSection } from "@/components/ui/card"
 import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
@@ -26,6 +27,7 @@ interface DirectoryCoreBlockProps {
     featured_image?: string | null
     category_context?: DirectoryCoreCategoryContext | null
   }
+  directoryData?: DirectoryData
   claimAuthPath?: string | null
   cardProps?: HTMLAttributes<HTMLDivElement>
 }
@@ -104,7 +106,32 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   )
 }
 
-export function DirectoryCoreBlock({ content, directory, claimAuthPath, cardProps }: DirectoryCoreBlockProps) {
+function getDataMenuLinkConfig(content: Record<string, any> | undefined, type: DirectoryCoreMenuLink["type"]) {
+  const links = Array.isArray(content?.menuLinks) ? content.menuLinks : []
+  return links
+    .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
+    .find((link): link is DirectoryCoreMenuLink => Boolean(link && link.type === type))
+}
+
+function buildDataMenuLink(
+  content: Record<string, any> | undefined,
+  type: DirectoryCoreMenuLink["type"],
+  value?: string | null
+): DirectoryCoreMenuLink | null {
+  const trimmedValue = value?.trim()
+  if (!trimmedValue) return null
+
+  const config = getDataMenuLinkConfig(content, type)
+  return {
+    id: config?.id || `${type}-directory-data`,
+    type,
+    label: config?.label,
+    value: trimmedValue,
+    icon: config?.icon,
+  }
+}
+
+export function DirectoryCoreBlock({ content, directory, directoryData, claimAuthPath, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
@@ -115,15 +142,16 @@ export function DirectoryCoreBlock({ content, directory, claimAuthPath, cardProp
         .map((link, index) => normalizeDirectoryCoreSocialLink(link, index))
         .filter((link): link is DirectoryCoreSocialLink => !!link)
     : []
-  const menuLinks = Array.isArray(content?.menuLinks)
-    ? content.menuLinks
-        .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
-        .filter((link): link is DirectoryCoreMenuLink => !!link)
-    : []
-  const title = directory.title || "Directory Listing"
+  const fields = directoryData?.fields || {}
+  const menuLinks = [
+    buildDataMenuLink(content, "directions", fields.mapsUrl || fields.address),
+    buildDataMenuLink(content, "phone", fields.phone),
+    buildDataMenuLink(content, "website", fields.website),
+  ].filter((link): link is DirectoryCoreMenuLink => Boolean(link))
+  const title = fields.businessName || directory.title || "Directory Listing"
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
   const showClaimButton = content?.claimEnabled !== false && Boolean(directory.id)
-  const introTemplate = typeof content?.introText === "string" ? content.introText : ""
+  const introTemplate = typeof fields.description === "string" ? fields.description : ""
   const introText = renderDirectoryCoreIntroText(introTemplate, {
     directoryTitle: title,
     parentCategory: directory.category_context?.parent_title,

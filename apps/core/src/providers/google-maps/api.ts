@@ -74,6 +74,14 @@ type GoogleMapsRunResponse = {
 type FieldSettingsResponse = {
   field_settings: GoogleMapsFieldSetting[]
 }
+export type HubExportSite = {
+  id: string
+  name: string
+  subdomain: string
+  custom_domain: string | null
+  status: string
+}
+export type HubExportStatus = "draft" | "published"
 const remoteImageMaxBytes = 10 * 1024 * 1024
 const remoteImageTypes = new Set([
   "image/jpeg",
@@ -90,6 +98,10 @@ const googleImageHosts = [
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
   resultIds: z.array(z.string().min(1)).min(1),
+})
+const hubExportSchema = resultIdsSchema.extend({
+  siteId: z.string().min(1),
+  status: z.enum(["draft", "published"]),
 })
 const runIdsSchema = z.object({
   runIds: z.array(z.string().min(1)).min(1),
@@ -349,6 +361,52 @@ const deleteResultsFn = createServerFn({ method: "POST" })
     return { deleted: deleted.length }
   })
 
+const loadHubExportSitesFn = createServerFn({ method: "GET" }).handler(async (): Promise<{ sites: HubExportSite[] }> => {
+  await requireAdmin()
+  const response = await hubBridgeFetch("/api/core/sites")
+  const payload = await response.json() as { sites?: HubExportSite[] }
+  return { sites: Array.isArray(payload.sites) ? payload.sites : [] }
+})
+
+const exportResultsToHubFn = createServerFn({ method: "POST" })
+  .inputValidator(hubExportSchema)
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const run = await getGoogleMapsRun(data.runId, workspace.id)
+    const rows = await db
+      .select()
+      .from(providerResults)
+      .where(and(eq(providerResults.runConfigId, run.id), inArray(providerResults.id, data.resultIds)))
+
+    if (!rows.length) throw new Error("Select at least one result to export.")
+
+    const fieldSettings = parseConfig((await settingsRow(workspace.id))?.config).fieldSettings
+    const response = await hubBridgeFetch("/api/core/directories/google-maps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        site_id: data.siteId,
+        status: data.status,
+        items: rows.map((result) => resultToHubRecord(result, fieldSettings)),
+      }),
+    })
+
+    return response.json() as Promise<{
+      created: number
+      updated: number
+      errors: number
+      results: Array<{
+        source_type: string
+        source_id: string | null
+        action: "created" | "updated" | "error"
+        directory_id?: string
+        slug?: string
+        error?: string
+      }>
+    }>
+  })
+
 export const loadProviderSettings = () => loadSettingsFn()
 export const saveProviderSettings = (data: z.infer<typeof settingsPayloadSchema>) => saveSettingsFn({ data })
 export const saveGoogleMapsFieldSettings = (data: z.infer<typeof fieldSettingsPayloadSchema>) => saveFieldSettingsFn({ data })
@@ -360,6 +418,8 @@ export const refreshGoogleMapsExecution = (executionId: string) => refreshExecut
 export const loadGoogleMapsRun = (runId: string) => loadRunFn({ data: { runId } })
 export const updateGoogleMapsResult = (data: z.infer<typeof resultPayloadSchema>) => updateResultFn({ data })
 export const deleteGoogleMapsResults = (runId: string, resultIds: string[]) => deleteResultsFn({ data: { runId, resultIds } })
+export const loadHubExportSites = () => loadHubExportSitesFn()
+export const exportGoogleMapsResultsToHub = (data: z.infer<typeof hubExportSchema>) => exportResultsToHubFn({ data })
 
 async function settingsRow(workspaceId: string) {
   const [row] = await db.select().from(providerSettings).where(and(eq(providerSettings.workspaceId, workspaceId), eq(providerSettings.providerKey, apifyProviderKey))).limit(1)
@@ -445,6 +505,70 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
     }).where(eq(providerExecutions.id, execution.id)).returning()
     return updated
   })
+}
+
+async function hubBridgeFetch(path: string, init: RequestInit = {}) {
+  const baseUrl = hubBridgeBaseUrl()
+  const token = process.env.CORE_HUB_BRIDGE_TOKEN?.trim()
+
+  if (!baseUrl) throw new Error("Core Hub bridge URL is not configured.")
+  if (!token) throw new Error("CORE_HUB_BRIDGE_TOKEN is not configured.")
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      ...init.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (response.ok) return response
+
+  const error = await response.json().catch(() => null) as { error?: string } | null
+  throw new Error(error?.error || `Hub bridge request failed (${response.status}).`)
+}
+
+function hubBridgeBaseUrl() {
+  const override = cleanBaseUrl(process.env.CORE_HUB_BASE_URL)
+  if (override) return override
+
+  const localUrl = cleanBaseUrl(process.env.CORE_HUB_LOCAL_BASE_URL)
+  const productionUrl = cleanBaseUrl(process.env.CORE_HUB_PRODUCTION_BASE_URL)
+  return process.env.NODE_ENV === "production"
+    ? productionUrl || localUrl
+    : localUrl || productionUrl
+}
+
+function cleanBaseUrl(value?: string) {
+  return value?.trim().replace(/\/+$/, "") || ""
+}
+
+function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMapsFieldSetting[]) {
+  const data = record(result.data)
+  const dataWithTitle = { ...data, businessName: stringValue(data.businessName) || result.title }
+  const hubRecord: Record<string, unknown> = {
+    google_maps_place_id: stringValue(data.placeId),
+    businessName: dataWithTitle.businessName,
+  }
+
+  fieldSettings
+    .filter((setting) => setting.visible)
+    .forEach((setting) => {
+      const value = Object.prototype.hasOwnProperty.call(dataWithTitle, setting.key)
+        ? dataWithTitle[setting.key]
+        : valueAtPath(dataWithTitle, setting.sourcePath)
+
+      if (value !== undefined) hubRecord[setting.key] = value
+    })
+
+  return hubRecord
+}
+
+function valueAtPath(data: Record<string, unknown>, path: string) {
+  return path.split(".").reduce<unknown>((current, key) => {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
+    return (current as Record<string, unknown>)[key]
+  }, data)
 }
 
 async function saveResultImage(userId: string, title: string, data: Record<string, unknown>) {

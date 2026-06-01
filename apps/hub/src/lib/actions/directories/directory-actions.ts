@@ -9,6 +9,7 @@ import { contentCategoryRelationships, categories } from '@/lib/db/schema/catego
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { getDirectoryCustomBlocksBySite } from './directory-custom-block-actions'
+import type { DirectoryData } from './directory-data'
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
 export type DirectoryStatus = 'draft' | 'published'
@@ -21,8 +22,11 @@ export interface Directory {
   status: DirectoryStatus
   display_order: number
   content_blocks: Record<string, any>
+  directory_data: DirectoryData
   featured_image: string | null
   meta_description: string | null
+  source_type: string | null
+  source_id: string | null
   created_at: string
   updated_at: string
 }
@@ -57,8 +61,11 @@ function toDirectory(row: typeof directories.$inferSelect): Directory {
     status: row.status,
     display_order: row.displayOrder,
     content_blocks: (row.contentBlocks ?? {}) as Record<string, any>,
+    directory_data: (row.directoryData ?? {}) as DirectoryData,
     featured_image: row.featuredImage,
     meta_description: row.metaDescription,
+    source_type: row.sourceType,
+    source_id: row.sourceId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }

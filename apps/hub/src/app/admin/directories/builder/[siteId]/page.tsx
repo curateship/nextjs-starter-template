@@ -346,6 +346,9 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
                 meta_description: currentDirectoryData.meta_description || undefined,
                 site_id: currentDirectoryData.site_id,
                 featured_image: previewDirectoryFeaturedImage,
+                source_type: currentDirectoryData.source_type,
+                source_id: currentDirectoryData.source_id,
+                directory_data: currentDirectoryData.directory_data,
                 status: currentDirectoryData.status || 'draft',
                 updated_at: currentDirectoryData.updated_at,
               } : undefined}

@@ -48,6 +48,20 @@ CORE_PROVIDER_ENCRYPTION_KEY=""
 
 Use a random server-only value with at least 32 characters. Do not expose it with a `VITE_` prefix.
 
+## Hub Export Bridge
+
+Core exports cleaned Google Maps records to Hub through Hub's bridge API.
+
+```bash
+CORE_HUB_LOCAL_BASE_URL="http://localhost:3000"
+CORE_HUB_PRODUCTION_BASE_URL="https://hub.systemeverything.com"
+CORE_HUB_BRIDGE_TOKEN=""
+```
+
+Use the same token value as Hub's `HUB_CORE_BRIDGE_TOKEN`. `CORE_HUB_BASE_URL` can still be set as an explicit override. Keep all bridge values server-only and do not expose them with a `VITE_` prefix.
+
+Google Maps exports always include Place ID and business name, then include only fields selected in the Google Maps field settings.
+
 ## Adding components
 
 To add components to your app, run the following command:

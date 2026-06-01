@@ -59,6 +59,8 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - `NEXT_PUBLIC_APP_URL` — the primary site URL (used for auth, meta tags, etc.)
 - `HUB_PLATFORM_HOST` — the canonical host for Hub platform admin, currently `hub.systemeverything.com`
 - `COOLIFY_BASE_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_HUB_APP_UUID` — server-only settings used to wire verified custom domains into Coolify
+- `HUB_CORE_BRIDGE_TOKEN` — server-only token for Core-to-Hub internal bridge APIs
+- `HUB_CORE_BRIDGE_SITE_IDS` — optional comma-separated list of site IDs Core may list/export to
 - These are NOT the same thing
 
 **Runtime files to inspect for tenant changes:**
@@ -96,8 +98,13 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 
 **Directory data:**
 - Hub renders directory pages from Hub `directory` rows.
+- Core exports cleaned Google Maps records to Hub through bridge APIs, and Hub upserts directory rows by `site_id + source_type + source_id`.
+- Core export sends the required identity fields plus fields selected in Core's Google Maps field settings.
+- Venue/business values live in `directory.directory_data`; `content_blocks` stores only Hub block layout and display settings.
+- Exported featured images are copied into Hub media/R2 before Hub stores the directory image URL.
+- New Core-created directory rows start from the Hub site's default directory template blocks without adding blocks missing from the template.
 - Core provider/import data stays in Core and is not read by Hub at request time.
-- Hub's Directory Core block remains a Hub builder block.
+- Hub directory blocks read values from `directory_data` at render time.
 
 **Frontend slug resolution:**
 - Public page-builder pages own the normal frontend root slug space.

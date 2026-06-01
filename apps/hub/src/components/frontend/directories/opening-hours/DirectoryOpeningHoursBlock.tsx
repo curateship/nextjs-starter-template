@@ -17,6 +17,8 @@ interface DirectoryOpeningHoursBlockProps {
     placeId?: string
     visibility?: Record<string, boolean>
   }
+  sourceType?: string | null
+  sourceId?: string | null
   isPreview?: boolean
   siteId?: string
   cardProps?: HTMLAttributes<HTMLDivElement>
@@ -84,13 +86,15 @@ function AttributionText({ attributions }: { attributions: DirectoryOpeningHours
 
 export function DirectoryOpeningHoursBlock({
   content,
+  sourceType,
+  sourceId,
   isPreview = false,
   siteId,
   cardProps
 }: DirectoryOpeningHoursBlockProps) {
   const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
   const hideBlock = visibility.hideBlock === true
-  const placeId = normalizeDirectoryOpeningHoursPlaceId(content?.placeId)
+  const placeId = sourceType === "google_maps" ? normalizeDirectoryOpeningHoursPlaceId(sourceId) : ""
   const title = typeof content?.title === "string" && content.title.trim() ? content.title.trim() : "Business Hours"
   const [data, setData] = useState<DirectoryOpeningHoursData | null>(null)
 

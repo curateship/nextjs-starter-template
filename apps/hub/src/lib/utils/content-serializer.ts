@@ -5,6 +5,7 @@ import type { Post } from '@/lib/actions/posts/post-actions'
 import type { Page } from '@/lib/actions/pages/page-actions'
 import type { AccountPage } from '@/lib/actions/account-pages/account-pages-actions'
 import type { Directory } from '@/lib/actions/directories/directory-actions'
+import type { DirectoryData } from '@/lib/actions/directories/directory-data'
 import { categories, directories, events, pages, posts, products, siteAccountPages } from '@/lib/db/schema'
 
 type CategoryRow = typeof categories.$inferSelect
@@ -29,9 +30,15 @@ type ContentRow = {
   display_order?: number
   contentBlocks?: unknown
   content_blocks?: unknown
+  directoryData?: unknown
+  directory_data?: unknown
   excerpt?: string | null
   featuredImage?: string | null
   featured_image?: string | null
+  sourceType?: string | null
+  source_type?: string | null
+  sourceId?: string | null
+  source_id?: string | null
   isDefault?: boolean
   is_default?: boolean
   isHomepage?: boolean
@@ -142,8 +149,11 @@ export function serializeDirectory(row: DirectoryRow | ContentRow): Directory {
     status: requireValue(contentRow.status, 'status'),
     display_order: requireValue(contentRow.displayOrder ?? contentRow.display_order, 'display_order'),
     content_blocks: (contentRow.contentBlocks ?? contentRow.content_blocks ?? {}) as Record<string, any>,
+    directory_data: (contentRow.directoryData ?? contentRow.directory_data ?? {}) as DirectoryData,
     featured_image: contentRow.featuredImage ?? contentRow.featured_image ?? null,
     meta_description: contentRow.metaDescription ?? contentRow.meta_description ?? null,
+    source_type: contentRow.sourceType ?? contentRow.source_type ?? null,
+    source_id: contentRow.sourceId ?? contentRow.source_id ?? null,
     created_at: toIsoString(requireValue(contentRow.createdAt ?? contentRow.created_at, 'created_at')),
     updated_at: toIsoString(requireValue(contentRow.updatedAt ?? contentRow.updated_at, 'updated_at')),
   } as Directory
