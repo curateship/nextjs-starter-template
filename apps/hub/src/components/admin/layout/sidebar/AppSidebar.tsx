@@ -16,23 +16,21 @@ import {
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import {
   getAdminSidebarSiteIdFromPathname,
-  getAdminSidebarIcon,
   resolveAdminSidebarSettings,
 } from "@/lib/utils/admin-sidebar"
-import { isQuickLinkIconUrl, renderQuickLinkIcon, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
+import {
+  renderQuickLinkIcon,
+  type QuickLinkIconValue,
+} from "@/lib/utils/site-quick-links"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user: { name: string; email: string; avatar?: string }
 }
 
 function getSidebarIcon(icon?: QuickLinkIconValue) {
-  if (isQuickLinkIconUrl(icon)) {
-    return function SidebarMediaIcon({ className }: { className?: string }) {
-      return renderQuickLinkIcon(icon, className)
-    }
+  return function SidebarIcon({ className }: { className?: string }) {
+    return renderQuickLinkIcon(icon || "imagePlus", className)
   }
-
-  return getAdminSidebarIcon(icon)
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {

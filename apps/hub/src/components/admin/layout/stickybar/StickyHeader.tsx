@@ -57,7 +57,9 @@ export function StickyHeader({
   const { setSlot, setMobileOverflowSlot } = useDashboardHeaderActionsSlot()
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
   const routeSite = routeSiteId
-    ? sites.find((site) => site.id === routeSiteId) ?? null
+    ? currentSite?.id === routeSiteId
+      ? currentSite
+      : sites.find((site) => site.id === routeSiteId) ?? null
     : null
   const headerSite = routeSite ?? currentSite
   const sidebarNavLinks = React.useMemo(

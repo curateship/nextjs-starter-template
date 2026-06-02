@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AdminSidebarSettingsCard } from "@/components/admin/layout/settings/AdminSidebarSettingsCard"
 import { QuickLinksSettingsCard } from "@/components/admin/layout/settings/QuickLinksSettingsCard"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
@@ -22,7 +22,7 @@ interface SiteAdminSettingsTabProps {
 export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdminSettingsTabProps) {
   const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
   const contextSite = useMemo(
-    () => sites.find((candidate) => candidate.id === siteId) || (currentSite?.id === siteId ? currentSite : null),
+    () => (currentSite?.id === siteId ? currentSite : sites.find((candidate) => candidate.id === siteId) || null),
     [currentSite, siteId, sites]
   )
 
@@ -35,6 +35,8 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
       siteId
     })
   )
+  const quickLinksRef = useRef(quickLinks)
+  const adminSidebarRef = useRef(adminSidebar)
   const [loading, setLoading] = useState(!contextSite)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,13 +48,16 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
 
   useEffect(() => {
     if (contextSite) {
+      const nextQuickLinks = normalizeSiteQuickLinks(contextSite.settings?.quick_links)
+      const nextAdminSidebar = resolveAdminSidebarSettings(contextSite.settings?.admin_sidebar, {
+        siteId
+      })
+
       setSite(contextSite as Site)
-      setQuickLinks(normalizeSiteQuickLinks(contextSite.settings?.quick_links))
-      setAdminSidebar(
-        resolveAdminSidebarSettings(contextSite.settings?.admin_sidebar, {
-          siteId
-        })
-      )
+      quickLinksRef.current = nextQuickLinks
+      adminSidebarRef.current = nextAdminSidebar
+      setQuickLinks(nextQuickLinks)
+      setAdminSidebar(nextAdminSidebar)
       setLoading(false)
       return
     }
@@ -73,13 +78,16 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
           return
         }
 
+        const nextQuickLinks = normalizeSiteQuickLinks(result.data.settings?.quick_links)
+        const nextAdminSidebar = resolveAdminSidebarSettings(result.data.settings?.admin_sidebar, {
+          siteId
+        })
+
         setSite(result.data)
-        setQuickLinks(normalizeSiteQuickLinks(result.data.settings?.quick_links))
-        setAdminSidebar(
-          resolveAdminSidebarSettings(result.data.settings?.admin_sidebar, {
-            siteId
-          })
-        )
+        quickLinksRef.current = nextQuickLinks
+        adminSidebarRef.current = nextAdminSidebar
+        setQuickLinks(nextQuickLinks)
+        setAdminSidebar(nextAdminSidebar)
       } catch (loadError) {
         if (!cancelled) {
           console.error("Error loading site admin settings:", loadError)
@@ -99,6 +107,34 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
     }
   }, [contextSite, siteId])
 
+  const updateCachedSiteSettings = useCallback(
+    (settingsPatch: Record<string, unknown>) => {
+      setSite((prev) =>
+        prev
+          ? {
+              ...prev,
+              settings: {
+                ...prev.settings,
+                ...settingsPatch
+              }
+            }
+          : prev
+      )
+
+      const nextCurrentSite = contextSite ?? currentSite
+      if (nextCurrentSite) {
+        setCurrentSite({
+          ...nextCurrentSite,
+          settings: {
+            ...nextCurrentSite.settings,
+            ...settingsPatch
+          }
+        })
+      }
+    },
+    [contextSite, currentSite, setCurrentSite]
+  )
+
   const handleSave = useCallback(async () => {
     if (!site || saving) return false
 
@@ -107,12 +143,12 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
       setError(null)
       setSaveMessage(null)
 
-      const normalizedQuickLinks = normalizeSiteQuickLinks(quickLinks)
+      const normalizedQuickLinks = normalizeSiteQuickLinks(quickLinksRef.current)
       const nextSettings =
         mode === "sidebar"
           ? {
               ...site.settings,
-              admin_sidebar: serializeAdminSidebarSettings(adminSidebar)
+              admin_sidebar: serializeAdminSidebarSettings(adminSidebarRef.current)
             }
           : {
               ...site.settings,
@@ -130,17 +166,16 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
       if (data) {
         setSite(data)
         if (mode === "sidebar") {
-          setAdminSidebar(
-            resolveAdminSidebarSettings(data.settings?.admin_sidebar, {
-              siteId
-            })
-          )
+          const nextAdminSidebar = resolveAdminSidebarSettings(data.settings?.admin_sidebar, {
+            siteId
+          })
+          adminSidebarRef.current = nextAdminSidebar
+          setAdminSidebar(nextAdminSidebar)
         } else {
+          quickLinksRef.current = normalizedQuickLinks
           setQuickLinks(normalizedQuickLinks)
         }
-        if (currentSite?.id === siteId) {
-          setCurrentSite({ ...currentSite, ...data })
-        }
+        setCurrentSite({ ...(contextSite ?? currentSite ?? data), ...data })
         setSaveMessage("Settings saved")
         window.setTimeout(() => setSaveMessage(null), 3000)
         return true
@@ -154,36 +189,30 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
     } finally {
       setSaving(false)
     }
-  }, [adminSidebar, currentSite, mode, quickLinks, saving, setCurrentSite, site, siteId])
+  }, [contextSite, currentSite, mode, saving, setCurrentSite, site, siteId])
 
   const handleAdminSidebarChange = useCallback(
     (nextSidebar: AdminSidebarSettings) => {
+      adminSidebarRef.current = nextSidebar
       setAdminSidebar(nextSidebar)
 
       const nextAdminSidebar = serializeAdminSidebarSettings(nextSidebar)
-      setSite((prev) =>
-        prev
-          ? {
-              ...prev,
-              settings: {
-                ...prev.settings,
-                admin_sidebar: nextAdminSidebar
-              }
-            }
-          : prev
-      )
+      updateCachedSiteSettings({ admin_sidebar: nextAdminSidebar })
+    },
+    [updateCachedSiteSettings]
+  )
 
-      if (currentSite?.id === siteId) {
-        setCurrentSite({
-          ...currentSite,
-          settings: {
-            ...currentSite.settings,
-            admin_sidebar: nextAdminSidebar
-          }
-        })
+  const handleQuickLinksChange = useCallback(
+    (nextQuickLinks: SiteQuickLink[]) => {
+      quickLinksRef.current = nextQuickLinks
+      setQuickLinks(nextQuickLinks)
+
+      const normalizedQuickLinks = normalizeSiteQuickLinks(nextQuickLinks)
+      if (normalizedQuickLinks.length === nextQuickLinks.length) {
+        updateCachedSiteSettings({ quick_links: normalizedQuickLinks })
       }
     },
-    [currentSite, setCurrentSite, siteId]
+    [updateCachedSiteSettings]
   )
 
   if (loading) {
@@ -234,7 +263,11 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
             onSave={handleSave}
           />
         ) : (
-          <QuickLinksSettingsCard quickLinks={quickLinks} siteId={siteId} onQuickLinksChange={setQuickLinks} />
+          <QuickLinksSettingsCard
+            quickLinks={quickLinks}
+            siteId={siteId}
+            onQuickLinksChange={handleQuickLinksChange}
+          />
         )}
       </CardGroup>
     </form>

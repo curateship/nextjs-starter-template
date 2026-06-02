@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
-import { Check, ImageIcon, Loader2, Search, Upload } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react"
+import { Check, ImageIcon, Loader2, Plus, Search, Upload } from "lucide-react"
 
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { getPaginatedMediaAction, type MediaData, type PaginatedMediaResponse } from "@/lib/actions/media/media-actions"
@@ -14,7 +15,9 @@ import { cn } from "@/lib/utils/tailwind"
 import {
   QUICK_LINK_ICON_OPTIONS,
   getQuickLinkIcon,
+  getQuickLinkIconLabel,
   isQuickLinkIconUrl,
+  normalizeDynamicLucideIconName,
   renderQuickLinkIcon,
   type QuickLinkIconValue
 } from "@/lib/utils/site-quick-links"
@@ -53,15 +56,20 @@ export function ShellIconPickerField({
   const [selectedMedia, setSelectedMedia] = useState<MediaData | null>(null)
   const [mediaPage, setMediaPage] = useState(1)
   const [uploading, setUploading] = useState(false)
+  const [customIconOpen, setCustomIconOpen] = useState(false)
+  const [customIconName, setCustomIconName] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const DefaultIcon = getQuickLinkIcon()
   const selectedMediaUrl = isQuickLinkIconUrl(value) ? value : undefined
   const normalizedQuery = query.trim().toLowerCase()
   const showDefaultOption = allowEmpty && (!normalizedQuery || "default icon".includes(normalizedQuery))
-  const currentLabel = value
-    ? QUICK_LINK_ICON_OPTIONS.find((option) => option.value === value)?.label || "Media icon"
-    : "No icon"
+  const currentLabel = value ? getQuickLinkIconLabel(value) : "No icon"
+  const customLucideIcon = normalizeDynamicLucideIconName(customIconName)
+  const customIconError =
+    customIconName.trim() && !customLucideIcon
+      ? "No Lucide icon found with that name."
+      : null
 
   const filteredOptions = useMemo(() => {
     if (!normalizedQuery) return QUICK_LINK_ICON_OPTIONS
@@ -91,6 +99,8 @@ export function ShellIconPickerField({
     setMediaError(null)
     setSelectedMedia(null)
     setMediaPage(1)
+    setCustomIconOpen(false)
+    setCustomIconName("")
   }, [])
 
   const closePicker = useCallback(() => {
@@ -160,6 +170,13 @@ export function ShellIconPickerField({
     } finally {
       setUploading(false)
     }
+  }
+
+  function handleCustomIconSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!customLucideIcon) return
+    onChange(customLucideIcon)
+    closePicker()
   }
 
   const trigger = (
@@ -280,6 +297,52 @@ export function ShellIconPickerField({
                 placeholder={activeTab === "media" ? "Search SVGs" : "Search icons"}
               />
             </div>
+            {activeTab === "lucide" ? (
+              <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Add Lucide icon"
+                    title="Add Lucide icon"
+                    className="shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80">
+                  <div className="mb-3 text-sm font-medium">Add Lucide Icon</div>
+                  <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
+                    <Input
+                      autoFocus
+                      value={customIconName}
+                      onChange={(event) => setCustomIconName(event.target.value)}
+                      placeholder="octagon-x"
+                    />
+                    {customIconError ? (
+                      <p className="text-xs text-destructive">{customIconError}</p>
+                    ) : customLucideIcon ? (
+                      <p className="text-xs text-muted-foreground">
+                        Found {getQuickLinkIconLabel(customLucideIcon)}.
+                      </p>
+                    ) : null}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setCustomIconOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={!customLucideIcon}>
+                        Use Icon
+                      </Button>
+                    </div>
+                  </form>
+                </PopoverContent>
+              </Popover>
+            ) : null}
             {activeTab === "media" ? (
               <>
                 <input

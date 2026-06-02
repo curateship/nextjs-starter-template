@@ -131,6 +131,13 @@ export function SiteSwitcherProvider({
 
   const handleSetCurrentSite = (site: SiteWithTheme | null) => {
     setCurrentSite(site)
+    if (site) {
+      setSites((currentSites) =>
+        currentSites.some((current) => current.id === site.id)
+          ? currentSites.map((current) => (current.id === site.id ? site : current))
+          : [site, ...currentSites]
+      )
+    }
     persistResolvedSite(site)
   }
 

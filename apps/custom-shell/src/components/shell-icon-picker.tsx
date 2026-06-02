@@ -3,6 +3,7 @@ import {
   CheckIcon,
   ImageIcon,
   Loader2Icon,
+  PlusIcon,
   SearchIcon,
   UploadIcon,
 } from "lucide-react"
@@ -17,6 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getMediaErrorMessage,
@@ -28,6 +36,7 @@ import {
 import {
   getShellIconLabel,
   iconMeta,
+  normalizeDynamicLucideIconName,
   renderShellIcon,
   type IconKey,
   type ShellIcon,
@@ -69,9 +78,16 @@ export function ShellIconPicker({
   const [selectedMedia, setSelectedMedia] = React.useState<MediaItem | null>(null)
   const [mediaPage, setMediaPage] = React.useState(1)
   const [uploading, setUploading] = React.useState(false)
+  const [customIconOpen, setCustomIconOpen] = React.useState(false)
+  const [customIconName, setCustomIconName] = React.useState("")
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const currentLabel = getShellIconLabel(value)
   const normalizedQuery = query.trim().toLowerCase()
+  const customLucideIcon = normalizeDynamicLucideIconName(customIconName)
+  const customIconError =
+    customIconName.trim() && !customLucideIcon
+      ? "No Lucide icon found with that name."
+      : null
 
   const filteredIcons = React.useMemo(() => {
     if (!normalizedQuery) return iconOptions
@@ -132,6 +148,8 @@ export function ShellIconPicker({
     setMediaError(null)
     setSelectedMedia(null)
     setMediaPage(1)
+    setCustomIconOpen(false)
+    setCustomIconName("")
   }
 
   function closePicker() {
@@ -165,6 +183,13 @@ export function ShellIconPicker({
     } finally {
       setUploading(false)
     }
+  }
+
+  function handleCustomIconSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!customLucideIcon) return
+    onValueChange(customLucideIcon)
+    closePicker()
   }
 
   return (
@@ -230,6 +255,53 @@ export function ShellIconPicker({
                   placeholder={activeTab === "media" ? "Search SVGs" : "Search icons"}
                 />
               </div>
+              {activeTab === "lucide" ? (
+                <Popover open={customIconOpen} onOpenChange={setCustomIconOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Add Lucide icon"
+                      title="Add Lucide icon"
+                    >
+                      <PlusIcon className="size-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80">
+                    <PopoverHeader>
+                      <PopoverTitle>Add Lucide Icon</PopoverTitle>
+                    </PopoverHeader>
+                    <form className="space-y-3" onSubmit={handleCustomIconSubmit}>
+                      <Input
+                        autoFocus
+                        value={customIconName}
+                        onChange={(event) => setCustomIconName(event.target.value)}
+                        placeholder="octagon-x"
+                      />
+                      {customIconError ? (
+                        <p className="text-xs text-destructive">{customIconError}</p>
+                      ) : customLucideIcon ? (
+                        <p className="text-xs text-muted-foreground">
+                          Found {getShellIconLabel(customLucideIcon)}.
+                        </p>
+                      ) : null}
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setCustomIconOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={!customLucideIcon}>
+                          Use Icon
+                        </Button>
+                      </div>
+                    </form>
+                  </PopoverContent>
+                </Popover>
+              ) : null}
               {activeTab === "media" ? (
                 <>
                   <input

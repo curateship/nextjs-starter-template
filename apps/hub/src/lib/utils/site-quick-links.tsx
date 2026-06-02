@@ -1,4 +1,7 @@
-import type { CSSProperties } from "react"
+import { lazy, Suspense, type CSSProperties } from "react"
+import {
+  dynamicIconImports,
+} from "lucide-react/dynamic"
 import {
   ArrowRight,
   ArrowUpRight,
@@ -215,6 +218,12 @@ export const QUICK_LINK_ICON_OPTIONS: QuickLinkIconOption[] = [
 
 const DEFAULT_ICON: QuickLinkIconName = "imagePlus"
 const EXTERNAL_PROTOCOL_PATTERN = /^https?:\/\//i
+const dynamicLucideIconNames = new Set<string>(Object.keys(dynamicIconImports))
+type DynamicLucideIconName = keyof typeof dynamicIconImports
+const dynamicLucideIconComponentCache = new Map<
+  DynamicLucideIconName,
+  ReturnType<typeof lazy<LucideIcon>>
+>()
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
@@ -237,7 +246,11 @@ export function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
 }
 
 export function getQuickLinkIconLabel(icon?: string): string {
-  return QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label || "No icon"
+  const staticLabel = QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label
+  if (staticLabel) return staticLabel
+  if (isQuickLinkIconUrl(icon)) return "Media icon"
+  const dynamicIconName = getDynamicLucideIconName(icon)
+  return dynamicIconName ? getDynamicLucideIconLabel(dynamicIconName) : "No icon"
 }
 
 export function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
@@ -261,7 +274,55 @@ export function isQuickLinkIconUrl(value: unknown): value is string {
 }
 
 export function isQuickLinkIconValue(value: unknown): value is QuickLinkIconValue {
-  return isQuickLinkIconName(value) || isQuickLinkIconUrl(value)
+  return (
+    isQuickLinkIconName(value) ||
+    isQuickLinkIconUrl(value) ||
+    isDynamicLucideIconName(value)
+  )
+}
+
+export function normalizeDynamicLucideIconName(
+  value: string
+): DynamicLucideIconName | undefined {
+  const cleaned = value
+    .trim()
+    .replace(/^https?:\/\/lucide\.dev\/icons\//i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/Icon$/, "")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([a-zA-Z])([0-9])/g, "$1-$2")
+    .replace(/[\s_]+/g, "-")
+    .toLowerCase()
+
+  return dynamicLucideIconNames.has(cleaned)
+    ? (cleaned as DynamicLucideIconName)
+    : undefined
+}
+
+function isDynamicLucideIconName(value: unknown): value is DynamicLucideIconName {
+  return typeof value === "string" && dynamicLucideIconNames.has(value)
+}
+
+function getDynamicLucideIconName(value?: string) {
+  if (!value || isQuickLinkIconUrl(value)) return undefined
+  return normalizeDynamicLucideIconName(value)
+}
+
+function getDynamicLucideIconLabel(value: string) {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function getDynamicLucideIconComponent(name: DynamicLucideIconName) {
+  const cached = dynamicLucideIconComponentCache.get(name)
+  if (cached) return cached
+
+  const Icon = lazy(dynamicIconImports[name])
+  dynamicLucideIconComponentCache.set(name, Icon)
+  return Icon
 }
 
 function renderThemedSvgIcon(src: string, className: string) {
@@ -291,6 +352,15 @@ export function renderQuickLinkIcon(icon: QuickLinkIconValue | undefined, classN
   const Icon = getQuickLinkIconOrNull(icon)
   if (Icon) return <Icon className={className} />
   if (isQuickLinkIconUrl(icon)) return renderThemedSvgIcon(icon, className)
+  const dynamicIconName = getDynamicLucideIconName(icon)
+  if (dynamicIconName) {
+    const LucideIconComponent = getDynamicLucideIconComponent(dynamicIconName)
+    return (
+      <Suspense fallback={<ImagePlus className={className} />}>
+        <LucideIconComponent className={className} />
+      </Suspense>
+    )
+  }
   return null
 }
 

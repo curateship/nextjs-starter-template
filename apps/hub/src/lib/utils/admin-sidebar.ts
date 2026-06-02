@@ -1,7 +1,5 @@
-import type { LucideIcon } from "lucide-react"
 import {
   QUICK_LINK_ICON_OPTIONS,
-  getQuickLinkIcon,
   type QuickLinkIconName,
   isQuickLinkIconValue,
   type QuickLinkIconValue,
@@ -483,10 +481,6 @@ export function serializeAdminSidebarSettings(settings: AdminSidebarSettings): A
       })),
     })),
   }
-}
-
-export function getAdminSidebarIcon(iconName?: string): LucideIcon {
-  return getQuickLinkIcon(iconName)
 }
 
 export function isExternalAdminSidebarHref(href: string) {
