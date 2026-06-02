@@ -84,6 +84,7 @@ export type ContentListItem = {
 interface ContentListPageProps<TItem extends ContentListItem> {
   breadcrumbs?: Array<{ label: string; href?: string }>
   builderPath: string
+  builderQueryParam?: string
   canDeleteItem?: (item: TItem) => boolean
   canSelectItem?: (item: TItem) => boolean
   columnCount?: 5 | 6
@@ -144,6 +145,7 @@ interface ContentListPageProps<TItem extends ContentListItem> {
 export function ContentListPage<TItem extends ContentListItem>({
   breadcrumbs,
   builderPath,
+  builderQueryParam,
   canDeleteItem,
   canSelectItem,
   columnCount = 6,
@@ -533,7 +535,7 @@ export function ContentListPage<TItem extends ContentListItem>({
     }
     setShowCreateDialog(false)
     if (continueToBuilder && effectiveSiteId) {
-      router.push(`${builderPath}/${effectiveSiteId}?${itemLabel.toLowerCase()}=${item.slug}`)
+      router.push(`${builderPath}/${effectiveSiteId}?${builderQueryParam || itemLabel.toLowerCase()}=${item.slug}`)
     }
   }
 
@@ -753,7 +755,7 @@ export function ContentListPage<TItem extends ContentListItem>({
                           </TableCell>
                           <TableCell column="main">
                             <Link
-                              href={getBuilderHref?.(item) || `${builderPath}/${item.site_id}?${itemLabel.toLowerCase()}=${item.slug}`}
+                              href={getBuilderHref?.(item) || `${builderPath}/${item.site_id}?${builderQueryParam || itemLabel.toLowerCase()}=${item.slug}`}
                               className="flex min-w-0 items-center space-x-4 transition-opacity hover:opacity-80"
                             >
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">

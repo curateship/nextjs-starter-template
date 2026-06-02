@@ -100,7 +100,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
   }, [contextSite, siteId])
 
   const handleSave = useCallback(async () => {
-    if (!site || saving) return
+    if (!site || saving) return false
 
     try {
       setSaving(true)
@@ -124,7 +124,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
 
       if (updateError) {
         setError(updateError)
-        return
+        return false
       }
 
       if (data) {
@@ -143,10 +143,14 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
         }
         setSaveMessage("Settings saved")
         window.setTimeout(() => setSaveMessage(null), 3000)
+        return true
       }
+
+      return false
     } catch (saveError) {
       console.error("Error saving site admin settings:", saveError)
       setError("Failed to save settings")
+      return false
     } finally {
       setSaving(false)
     }
@@ -223,7 +227,12 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
           </div>
         )}
         {mode === "sidebar" ? (
-          <AdminSidebarSettingsCard config={adminSidebar} siteId={siteId} onConfigChange={handleAdminSidebarChange} />
+          <AdminSidebarSettingsCard
+            config={adminSidebar}
+            siteId={siteId}
+            onConfigChange={handleAdminSidebarChange}
+            onSave={handleSave}
+          />
         ) : (
           <QuickLinksSettingsCard quickLinks={quickLinks} siteId={siteId} onQuickLinksChange={setQuickLinks} />
         )}

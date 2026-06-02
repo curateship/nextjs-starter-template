@@ -120,21 +120,22 @@ function DirectorySettingsBridge({
 export default function DirectoriesPage() {
   return (
     <ContentListPage<DirectorySummary>
-      builderPath="/admin/directories/builder"
-      createButtonLabel="Create Directory"
+      builderPath="/admin/directory/builder"
+      builderQueryParam="directory"
+      createButtonLabel="Add Listing"
       deleteItem={deleteDirectoryAction}
       deleteItems={deleteDirectoriesAction}
       duplicateItem={duplicateDirectorySummaryAction}
-      duplicateTitle={(directory) => `${directory.title || "Directory"} Copy`}
-      emptyButtonLabel="Create Your First Directory"
-      emptyTitle={() => "No directories found for the current filters."}
+      duplicateTitle={(directory) => `${directory.title || "Listing"} Copy`}
+      emptyButtonLabel="Add Your First Listing"
+      emptyTitle={() => "No listings found for the current filters."}
       getItems={getSiteDirectoriesWithCategoriesAction}
       getIsPublished={(directory) => directory.status === "published"}
       icon={FolderOpen}
-      itemLabel="Directory"
-      itemLabelPlural="Directories"
-      listLabel="Directories"
-      pathPrefix="directories"
+      itemLabel="Listing"
+      itemLabelPlural="Listings"
+      listLabel="Directory"
+      pathPrefix="directory"
       refreshAfterCreate
       refreshAfterDelete
       refreshAfterDuplicate
@@ -148,7 +149,7 @@ export default function DirectoriesPage() {
       renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
         <DirectorySettingsBridge item={item} open={open} onOpenChange={onOpenChange} onSuccess={onSuccess} />
       )}
-      searchPlaceholder="Search directories"
+      searchPlaceholder="Search Directory"
       showClearSortAction
       showEmptyButtonWhenFiltered
       sortableColumns={{ category: false, status: false }}

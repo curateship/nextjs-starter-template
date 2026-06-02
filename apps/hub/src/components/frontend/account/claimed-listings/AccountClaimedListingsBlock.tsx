@@ -365,7 +365,7 @@ export function AccountClaimedListingsBlock({
           <div className="flex flex-wrap items-center justify-between gap-3">
             {selectedItem ? (
               <Button variant="outline" asChild>
-                <a href={`/directories/${selectedItem.slug}`} target="_blank" rel="noopener noreferrer">
+                <a href={`/directory/${selectedItem.slug}`} target="_blank" rel="noopener noreferrer">
                   View Listing
                   <ExternalLink className="ml-2 h-4 w-4" />
                 </a>

@@ -226,28 +226,28 @@ export function DirectorySettingsModal({
           <CardGroup className="grid">
             <Card>
               <CardHeader>
-                <DashboardModalCardTitle>Directory details</DashboardModalCardTitle>
-                <CardDescription>Name the directory, set its URL, and featured image.</CardDescription>
+                <DashboardModalCardTitle>Listing details</DashboardModalCardTitle>
+                <CardDescription>Name the listing, set its URL, and featured image.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Field>
-                  <FieldLabel htmlFor="modal-title">Directory Title *</FieldLabel>
+                  <FieldLabel htmlFor="modal-title">Listing Title *</FieldLabel>
                   <Input
                     id="modal-title"
                     value={formData.title}
                     onChange={(e) => handleTitleChange(e.target.value)}
-                    placeholder="Enter directory title"
+                    placeholder="Enter listing title"
                     required
                   />
                 </Field>
 
                 <Field>
-                  <FieldLabel htmlFor="modal-slug">Directory URL</FieldLabel>
+                  <FieldLabel htmlFor="modal-slug">Listing URL</FieldLabel>
                   <Input
                     id="modal-slug"
                     value={formData.slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
-                    placeholder="directory-url-slug"
+                    placeholder="listing-url-slug"
                   />
                   <FieldDescription>
                     {slugManuallyEdited
@@ -300,7 +300,7 @@ export function DirectorySettingsModal({
               <Card>
                 <CardHeader>
                   <DashboardModalCardTitle>Categories</DashboardModalCardTitle>
-                  <CardDescription>Organize this directory by topic.</CardDescription>
+                  <CardDescription>Organize this listing by topic.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Field>
@@ -321,7 +321,7 @@ export function DirectorySettingsModal({
             <Card>
               <CardHeader>
                 <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
-                <CardDescription>Set the search description for this directory.</CardDescription>
+                <CardDescription>Set the search description for this listing.</CardDescription>
               </CardHeader>
               <CardContent>
                 <Field>

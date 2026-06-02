@@ -146,7 +146,7 @@ export function ContentAuditTab({ siteId, searchQuery }: ContentAuditTabProps) {
                   <SelectItem value="post">Posts</SelectItem>
                   <SelectItem value="product">Products</SelectItem>
                   <SelectItem value="category">Categories</SelectItem>
-                  <SelectItem value="directory">Directories</SelectItem>
+                  <SelectItem value="directory">Directory</SelectItem>
                   <SelectItem value="event">Events</SelectItem>
                 </SelectContent>
               </Select>

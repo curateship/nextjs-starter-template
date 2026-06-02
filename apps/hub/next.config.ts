@@ -105,7 +105,7 @@ const nextConfig: NextConfig = {
       '/posts/:slug*',
       '/products/:slug',
       '/categories/:slug*',
-      '/directories/:slug*',
+      '/directory/:slug*',
       '/events/:slug*',
       '/pages/:slug*',
     ]

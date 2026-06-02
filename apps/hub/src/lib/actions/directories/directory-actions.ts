@@ -204,7 +204,7 @@ export async function getSiteDirectoriesWithCategoriesAction(
 
     return { data: dirs, categories: categoryMap, total: count ?? 0, error: null }
   } catch (error) {
-    return { data: null, categories: {}, total: 0, error: 'Failed to fetch directories' }
+    return { data: null, categories: {}, total: 0, error: 'Failed to fetch listings' }
   }
 }
 
@@ -377,7 +377,7 @@ export async function deleteDirectoryAction(directoryId: string) {
 export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!directoryIds.length) {
-      return { success: false, error: 'No directories selected' }
+      return { success: false, error: 'No listings selected' }
     }
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -397,7 +397,7 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
       .where(inArray(directories.id, directoryIds))
 
     if (!foundDirectories.length) {
-      return { success: false, error: 'Directories not found' }
+      return { success: false, error: 'Listings not found' }
     }
 
     const siteIds = [...new Set(foundDirectories.map(d => d.siteId))]
@@ -411,7 +411,7 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
       )
 
     if (!ownedSites.length || ownedSites.length !== siteIds.length) {
-      return { success: false, error: 'Access denied to one or more directories' }
+      return { success: false, error: 'Access denied to one or more listings' }
     }
 
     await db.delete(directories)
@@ -438,7 +438,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
     }
 
     if (!newTitle?.trim()) {
-      return { data: null, error: 'New directory title is required' }
+      return { data: null, error: 'New listing title is required' }
     }
 
     const user = await getAuthenticatedUser()

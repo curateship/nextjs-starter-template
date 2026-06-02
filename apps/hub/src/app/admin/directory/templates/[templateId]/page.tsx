@@ -333,7 +333,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={() => router.push("/admin/directories/templates")} variant="outline">
+            <Button onClick={() => router.push("/admin/directory/templates")} variant="outline">
               Back to Templates
             </Button>
           </div>

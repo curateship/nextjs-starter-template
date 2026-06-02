@@ -48,7 +48,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
     if (currentSite) {
       const directoryQuery = directoryFromUrl ? `?directory=${encodeURIComponent(directoryFromUrl)}` : ''
-      router.push(`/admin/directories/builder/${currentSite.id}${directoryQuery}`)
+      router.push(`/admin/directory/builder/${currentSite.id}${directoryQuery}`)
     }
   }, [currentSite, directoryFromUrl, router, setCurrentSite, siteId, sites])
 
@@ -69,7 +69,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
     const directoryExists = directoryOptions.some((directory) => directory.slug === directoryFromUrl)
     if (!directoryExists) {
-      router.replace(`/admin/directories/builder/${siteId}?directory=${encodeURIComponent(directoryOptions[0].slug)}`)
+      router.replace(`/admin/directory/builder/${siteId}?directory=${encodeURIComponent(directoryOptions[0].slug)}`)
     }
   }, [directoryFromUrl, directoryOptions, router, siteId])
 
@@ -145,7 +145,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       })
 
       // Update selected directory and URL
-      router.replace(`/admin/directories/builder/${siteId}?directory=${updatedDirectory.slug}`)
+      router.replace(`/admin/directory/builder/${siteId}?directory=${updatedDirectory.slug}`)
     }
 
     await reloadBlocks()
@@ -302,7 +302,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     ? draftDirectoryFeaturedImage.trim() || null
     : currentDirectoryData?.featured_image || null
   const viewPageHref = site && currentDirectoryData
-    ? `${getSiteUrl(site)}/directories/${currentDirectoryData.slug}`
+    ? `${getSiteUrl(site)}/directory/${currentDirectoryData.slug}`
     : null
 
   return (

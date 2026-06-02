@@ -132,7 +132,7 @@ export function DirectoryCustomBlock({
                     <span className="font-medium text-foreground">Fields:</span> {template.fields.length}
                   </div>
                   <Button asChild variant="outline" size="sm" className="w-fit">
-                    <Link href={`/admin/directories/custom-blocks/${template.id}`}>
+                    <Link href={`/admin/directory/custom-blocks/${template.id}`}>
                       <ExternalLink className="mr-2 h-4 w-4" />
                       Edit Template
                     </Link>

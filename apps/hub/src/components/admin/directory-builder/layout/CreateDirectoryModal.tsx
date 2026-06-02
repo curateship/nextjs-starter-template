@@ -197,7 +197,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
       resetForm()
       onSuccess(result.data, continueToBuilder)
     } catch (err) {
-      setError("Failed to create directory")
+      setError("Failed to create listing")
     } finally {
       setLoading(false)
       setLoadingAction(null)
@@ -207,8 +207,8 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   return (
     <form id="create-directory-form" onSubmit={handleSubmit} className="contents">
       <DashboardModalContent
-        title="Create New Directory Item"
-        description="Add a new item to your directory. You can customize the content after creation."
+        title="Add Listing"
+        description="Add a new listing to your directory. You can customize the content after creation."
         footer={
           <>
             <Button type="button" variant="outline" onClick={onCancel}>
@@ -239,7 +239,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
           <Card>
             <CardHeader>
               <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
-              <CardDescription>Choose a template and set the title and URL for this directory.</CardDescription>
+              <CardDescription>Choose a template and set the title and URL for this listing.</CardDescription>
             </CardHeader>
             <CardContent>
               <Field>
@@ -267,23 +267,23 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="title">Directory Title *</FieldLabel>
+                <FieldLabel htmlFor="title">Listing Title *</FieldLabel>
                 <Input
                   id="title"
                   value={formData.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter directory title"
+                  placeholder="Enter listing title"
                   required
                 />
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="slug">Directory URL</FieldLabel>
+                <FieldLabel htmlFor="slug">Listing URL</FieldLabel>
                 <Input
                   id="slug"
                   value={formData.slug}
                   onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="directory-url-slug"
+                  placeholder="listing-url-slug"
                 />
                 <FieldDescription>
                   {slugManuallyEdited
@@ -292,7 +292,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                 </FieldDescription>
                 {formData.slug && (
                   <FieldDescription className="text-blue-600">
-                    Directory URL: /directories/{formData.slug}
+                    Listing URL: /directory/{formData.slug}
                   </FieldDescription>
                 )}
               </Field>

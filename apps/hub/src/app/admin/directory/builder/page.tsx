@@ -13,7 +13,7 @@ export default function DirectoryBuilderRootPage() {
   // Redirect to current site directory builder if site is available
   useEffect(() => {
     if (currentSite) {
-      router.push(`/admin/directories/builder/${currentSite.id}`)
+      router.push(`/admin/directory/builder/${currentSite.id}`)
     }
   }, [currentSite, router])
 

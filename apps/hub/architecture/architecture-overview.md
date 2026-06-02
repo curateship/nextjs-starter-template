@@ -98,6 +98,8 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 
 **Directory data:**
 - Hub renders directory pages from Hub `directory` rows.
+- Public directory listings resolve under `/directory/{slug}`.
+- The admin Directory section resolves under `/admin/directory`.
 - Core exports cleaned Google Maps records to Hub through bridge APIs, and Hub upserts directory rows by `site_id + source_type + source_id`.
 - Core export sends the required identity fields plus fields selected in Core's Google Maps field settings.
 - Venue/business values live in `directory.directory_data`; `content_blocks` stores only Hub block layout and display settings.

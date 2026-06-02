@@ -137,7 +137,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
     setIsSaving(false)
 
     if (!templateId) {
-      router.replace(`/admin/directories/custom-blocks/${result.data.id}`)
+      router.replace(`/admin/directory/custom-blocks/${result.data.id}`)
     }
   }
 
@@ -177,7 +177,7 @@ export function DirectoryCustomBlockBuilder({ templateId }: DirectoryCustomBlock
           <div className="space-y-4 text-center">
             <p className="text-red-600">{error}</p>
             <Button asChild variant="outline">
-              <Link href="/admin/directories/custom-blocks">Back to Custom Blocks</Link>
+              <Link href="/admin/directory/custom-blocks">Back to Custom Blocks</Link>
             </Button>
           </div>
         </div>

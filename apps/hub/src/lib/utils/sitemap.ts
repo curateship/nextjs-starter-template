@@ -104,7 +104,7 @@ export async function getDirectorySitemapEntries(siteId: string, baseUrl: string
     .offset(offset)
 
   return rows.map((row) => ({
-    loc: `${baseUrl}/directories/${row.slug}`,
+    loc: `${baseUrl}/directory/${row.slug}`,
     lastModified: row.updatedAt,
     changeFrequency: 'weekly',
     priority: 0.5,

@@ -181,8 +181,8 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
 
     if (!siteSuccess || !site) {
       return {
-        title: 'Directory Not Found',
-        description: 'The requested directory could not be found.',
+        title: 'Listing Not Found',
+        description: 'The requested listing could not be found.',
       }
     }
 
@@ -200,20 +200,20 @@ export async function generateMetadata({ params }: DirectoryPageProps) {
 
     if (!directory) {
       return {
-        title: 'Directory Not Found',
-        description: 'The requested directory could not be found.',
+        title: 'Listing Not Found',
+        description: 'The requested listing could not be found.',
       }
     }
 
     return {
       title: `${directory.title} | ${site.name}`,
       description: directory.metaDescription || `${directory.title} on ${site.name}`,
-      ...buildSeoMetadata(site, directory as any, 'directory', `/directories/${slug}`),
+      ...buildSeoMetadata(site, directory as any, 'directory', `/directory/${slug}`),
     }
   } catch (error) {
     return {
-      title: 'Directory Not Found',
-      description: 'The requested directory could not be found.',
+      title: 'Listing Not Found',
+      description: 'The requested listing could not be found.',
     }
   }
 }

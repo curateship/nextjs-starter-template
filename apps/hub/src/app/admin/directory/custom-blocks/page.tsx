@@ -101,7 +101,7 @@ export default function DirectoryCustomBlocksPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader items={[{ label: "Directory", href: "/admin/directories" }, { label: "Custom Blocks" }]} />
+          <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Custom Blocks" }]} />
 
           <AdminTableShell
             title="Custom Blocks"
@@ -114,7 +114,7 @@ export default function DirectoryCustomBlocksPage() {
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search custom blocks"
                 />
-                <TableRightActionsButton onClick={() => router.push("/admin/directories/custom-blocks/new")}>
+                <TableRightActionsButton onClick={() => router.push("/admin/directory/custom-blocks/new")}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Custom Block</span>
                 </TableRightActionsButton>
@@ -151,7 +151,7 @@ export default function DirectoryCustomBlocksPage() {
                         <TableCell column="main">
                           <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-3">
-                              <Link href={`/admin/directories/custom-blocks/${template.id}`} className="font-medium hover:underline">
+                              <Link href={`/admin/directory/custom-blocks/${template.id}`} className="font-medium hover:underline">
                                 {template.name}
                               </Link>
                               {template.used_in_count ? <Badge variant="secondary">Active</Badge> : null}
@@ -168,7 +168,7 @@ export default function DirectoryCustomBlocksPage() {
                         <TableCell column="meta">
                           <div className="flex items-center gap-1">
                             <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <Link href={`/admin/directories/custom-blocks/${template.id}`}>
+                              <Link href={`/admin/directory/custom-blocks/${template.id}`}>
                                 <Pencil className="h-3.5 w-3.5" />
                                 <span className="sr-only">Edit {template.name}</span>
                               </Link>

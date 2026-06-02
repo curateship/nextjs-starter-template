@@ -114,11 +114,11 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-product-orders", "Purchases", "/admin/orders", "cart"),
             child("child-product-templates", "Templates", "/admin/products/templates", "file"),
           ], ["/admin/products/builder", "/admin/products/new", "/admin/products/analytics"]),
-          item("item-directory", "Directory", "/admin/directories", "directory", [
-            child("child-directory-claims", "Claims", "/admin/directories/claims", "clipboard"),
-            child("child-directory-custom-blocks", "Custom Blocks", "/admin/directories/custom-blocks", "grid"),
-            child("child-directory-templates", "Templates", "/admin/directories/templates", "file"),
-          ], ["/admin/directories/builder", "/admin/directories/claims"]),
+          item("item-directory", "Directory", "/admin/directory", "directory", [
+            child("child-directory-claims", "Claims", "/admin/directory/claims", "clipboard"),
+            child("child-directory-custom-blocks", "Custom Blocks", "/admin/directory/custom-blocks", "grid"),
+            child("child-directory-templates", "Templates", "/admin/directory/templates", "file"),
+          ], ["/admin/directory/builder", "/admin/directory/claims"]),
           item("item-newsletters", "Newsletters", "/admin/newsletters", "newsletters", [
             child("child-newsletter-contacts", "Contacts", "/admin/newsletters/contacts", "users"),
             child("child-newsletter-tags", "Tags", "/admin/newsletters/tags", "categories"),

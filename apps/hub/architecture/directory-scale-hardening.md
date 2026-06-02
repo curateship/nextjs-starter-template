@@ -99,7 +99,7 @@ The directory admin page now:
 
 Relevant file:
 
-- `src/app/admin/directories/page.tsx`
+- `src/app/admin/directory/page.tsx`
 
 ### 5. Updated Directory Builder Loading
 
@@ -112,7 +112,7 @@ Instead it:
 
 Relevant files:
 
-- `src/app/admin/directories/builder/[siteId]/page.tsx`
+- `src/app/admin/directory/builder/[siteId]/page.tsx`
 - `src/components/admin/directory-builder/config/useDirectoryData.ts`
 
 ### 6. Unified Directory State Around `status`

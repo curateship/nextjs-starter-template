@@ -51,6 +51,7 @@ type AdminSidebarSettingsCardProps = {
   config: AdminSidebarSettings
   siteId: string
   onConfigChange: (config: AdminSidebarSettings) => void
+  onSave?: () => Promise<boolean>
 }
 
 type SortableItemProps = {
@@ -63,6 +64,7 @@ type SortableItemProps = {
   onChildChange: (sectionId: string, itemId: string, childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onChildDelete: (sectionId: string, itemId: string, childId: string) => void
   onChildDragEnd: (sectionId: string, itemId: string, event: DragEndEvent) => void
+  onSave?: () => Promise<boolean>
 }
 
 type SortableChildProps = {
@@ -85,6 +87,7 @@ type SortableSectionProps = {
   onChildChange: (sectionId: string, itemId: string, childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onChildDelete: (sectionId: string, itemId: string, childId: string) => void
   onChildDragEnd: (sectionId: string, itemId: string, event: DragEndEvent) => void
+  onSave?: () => Promise<boolean>
 }
 
 const sectionDropPrefix = "section-drop:"
@@ -182,9 +185,11 @@ function SortableSidebarItem({
   onChildAdd,
   onChildChange,
   onChildDelete,
-  onChildDragEnd
+  onChildDragEnd,
+  onSave
 }: SortableItemProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false)
+  const [savingDialog, setSavingDialog] = React.useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
 
   const sensors = useSensors(
@@ -201,6 +206,18 @@ function SortableSidebarItem({
   }
 
   const children = item.children ?? []
+
+  const handleSaveAndClose = async () => {
+    if (!onSave) {
+      setDialogOpen(false)
+      return
+    }
+
+    setSavingDialog(true)
+    const saved = await onSave()
+    setSavingDialog(false)
+    if (saved) setDialogOpen(false)
+  }
 
   return (
     <div ref={setNodeRef} style={style} className="group rounded-lg bg-background transition-colors hover:bg-muted/40">
@@ -336,8 +353,8 @@ function SortableSidebarItem({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-              Done
+            <Button type="button" onClick={handleSaveAndClose} disabled={savingDialog}>
+              {savingDialog ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -358,7 +375,8 @@ function SortableSectionCard({
   onChildAdd,
   onChildChange,
   onChildDelete,
-  onChildDragEnd
+  onChildDragEnd,
+  onSave
 }: SortableSectionProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id })
   const { setNodeRef: setDropNodeRef, isOver } = useDroppable({
@@ -423,6 +441,7 @@ function SortableSectionCard({
                 onChildChange={onChildChange}
                 onChildDelete={onChildDelete}
                 onChildDragEnd={onChildDragEnd}
+                onSave={onSave}
               />
             ))}
             {!sortableItemIds.length ? (
@@ -437,7 +456,7 @@ function SortableSectionCard({
   )
 }
 
-export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: AdminSidebarSettingsCardProps) {
+export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSave }: AdminSidebarSettingsCardProps) {
   const [activeDragId, setActiveDragId] = React.useState<string | null>(null)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -795,6 +814,7 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange }: Adm
                 onChildChange={handleChildChange}
                 onChildDelete={handleChildDelete}
                 onChildDragEnd={handleChildDragEnd}
+                onSave={onSave}
               />
             ))}
           </CardGroup>

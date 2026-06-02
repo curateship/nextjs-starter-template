@@ -18,7 +18,7 @@ function getDirectoryBlockCount(template: DirectoryTemplate) {
 export default function DirectoryTemplatesPage() {
   return (
     <TemplateListPage
-      breadcrumbParent={{ label: "Directory", href: "/admin/directories" }}
+      breadcrumbParent={{ label: "Directory", href: "/admin/directory" }}
       createPlaceholder="e.g. Featured Listing Layout"
       createTemplate={createDirectoryTemplate}
       deleteTemplates={deleteDirectoryTemplates}
@@ -26,7 +26,7 @@ export default function DirectoryTemplatesPage() {
       getBlockCount={getDirectoryBlockCount}
       getTemplateIds={getDirectoryTemplateIdsAction}
       getTemplatesBySite={getDirectoryTemplatesBySite}
-      routeBase="/admin/directories/templates"
+      routeBase="/admin/directory/templates"
       setDefaultTemplate={setDefaultDirectoryTemplate}
     />
   )

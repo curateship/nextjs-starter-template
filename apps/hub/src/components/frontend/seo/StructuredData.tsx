@@ -68,7 +68,7 @@ export function StructuredData({ site, content, contentType }: StructuredDataPro
 
   // Content-specific schema
   if (content && contentType !== 'home') {
-    const contentUrl = `${baseUrl}/${contentType === 'post' ? 'posts' : contentType === 'product' ? 'products' : contentType === 'category' ? 'categories' : contentType === 'directory' ? 'directories' : contentType === 'event' ? 'events' : 'pages'}/${content.slug || ''}`
+    const contentUrl = `${baseUrl}/${contentType === 'post' ? 'posts' : contentType === 'product' ? 'products' : contentType === 'category' ? 'categories' : contentType === 'directory' ? 'directory' : contentType === 'event' ? 'events' : 'pages'}/${content.slug || ''}`
     const description = content.meta_description || content.metaDescription || content.description || content.excerpt || ''
     const cleanDescription = description.replace(/<[^>]*>/g, '').trim()
     const image = content.featured_image || content.featuredImage || content.image

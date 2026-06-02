@@ -652,7 +652,7 @@ export async function verifyDirectoryClaimEmailToken(token: string): Promise<{
     sourceId: row.claim.id,
     title: 'Directory claim ready for review',
     message: `${row.claim.businessEmail} verified a claim for ${row.directoryTitle}.`,
-    targetHref: '/admin/directories/claims',
+    targetHref: '/admin/directory/claims',
     metadata: {
       directory_id: row.claim.directoryId,
       directory_slug: row.directorySlug,

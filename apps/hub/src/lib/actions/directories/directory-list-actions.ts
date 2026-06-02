@@ -356,7 +356,7 @@ export async function getDirectoryListPageAction(query: DirectoryListQuery): Pro
     }
   } catch (error) {
     console.error('Error loading directory list page:', error)
-    return { data: null, error: 'Failed to load directories' }
+    return { data: null, error: 'Failed to load listings' }
   }
 }
 

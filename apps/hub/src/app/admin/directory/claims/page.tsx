@@ -129,7 +129,7 @@ export default function DirectoryClaimsPage() {
       <StickyHeader />
       <AdminLayout>
         <div className="w-full">
-          <DashboardSubheader items={[{ label: "Directory", href: "/admin/directories" }, { label: "Claims" }]} />
+          <DashboardSubheader items={[{ label: "Directory", href: "/admin/directory" }, { label: "Claims" }]} />
 
           <AdminTableShell
             title="Claims"
@@ -187,9 +187,9 @@ export default function DirectoryClaimsPage() {
                     claims.map((claim) => (
                       <TableRow key={claim.id} className="group">
                         <TableCell column="main">
-                          <Link href={`/directories/${claim.directory_slug}`} className="block hover:opacity-80">
+                          <Link href={`/directory/${claim.directory_slug}`} className="block hover:opacity-80">
                             <h4 className="truncate font-medium hover:underline">{claim.directory_title}</h4>
-                            <p className="truncate text-sm text-muted-foreground">/directories/{claim.directory_slug}</p>
+                            <p className="truncate text-sm text-muted-foreground">/directory/{claim.directory_slug}</p>
                           </Link>
                         </TableCell>
                         <TableCell column="content">
@@ -216,7 +216,7 @@ export default function DirectoryClaimsPage() {
                           <div className="flex items-center gap-1">
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
                               <a
-                                href={`/directories/${claim.directory_slug}`}
+                                href={`/directory/${claim.directory_slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title="View Listing"

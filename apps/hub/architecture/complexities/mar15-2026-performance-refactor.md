@@ -57,7 +57,7 @@ const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() => {
 **Files cleaned**:
 - `src/app/admin/posts/page.tsx`
 - `src/app/admin/products/page.tsx`
-- `src/app/admin/directories/page.tsx`
+- `src/app/admin/directory/page.tsx`
 - `src/app/admin/events/page.tsx`
 - `src/app/admin/sites/[siteId]/pages/page.tsx`
 - `src/app/admin/user-pages/[siteId]/page.tsx`
@@ -83,7 +83,7 @@ const CreatePostModal = dynamic(() =>
 **Files modified** (14 modal components across 7 pages):
 - `src/app/admin/posts/page.tsx` — CreatePostModal, PostSettingsModal
 - `src/app/admin/products/page.tsx` — CreateProductModal, ProductSettingsModal
-- `src/app/admin/directories/page.tsx` — CreateDirectoryModal, DirectorySettingsModal
+- `src/app/admin/directory/page.tsx` — CreateDirectoryModal, DirectorySettingsModal
 - `src/app/admin/events/page.tsx` — CreateEventModal, EventSettingsModal
 - `src/app/admin/newsletters/page.tsx` — CreateNewsletterModal, NewsletterSettingsModal
 - `src/app/admin/sites/[siteId]/pages/page.tsx` — CreatePageModal, PageSettingsModal
