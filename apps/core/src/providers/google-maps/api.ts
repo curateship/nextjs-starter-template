@@ -234,7 +234,7 @@ const saveRunFn = createServerFn({ method: "POST" })
     const workspace = await requireWorkspace()
     const updatedAt = now()
     const values = {
-      name: data.name.trim() || data.keyword.trim(),
+      name: data.name.trim() || `${data.keyword.trim()} in ${data.location.trim()}`,
       status: data.status,
       input: cleanRunInput(data),
       metadata: {},

@@ -125,7 +125,7 @@ export function SiteDashboard({
       <CardGroup className="grid">
         {[...Array(4)].map((_, i) => (
           <Card key={i}>
-            <CardContent className="space-y-6">
+            <CardContent>
               {[...Array(3)].map((_, j) => (
                 <div key={j} className="space-y-2">
                   <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
@@ -145,7 +145,7 @@ export function SiteDashboard({
         <CardHeader>
           <CardTitle>Site Information</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent>
           {/* Site Name */}
           <div className="space-y-2">
             <Label htmlFor="siteName">Site Name *</Label>

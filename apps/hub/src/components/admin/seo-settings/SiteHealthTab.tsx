@@ -74,7 +74,7 @@ export function SiteHealthTab({ refreshSignal, onLoadingChange }: SiteHealthTabP
       <CardGroup className="grid">
         <Card>
           <CardHeader><Skeleton className="h-5 w-32" /></CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent>
             {[1, 2, 3].map((item) => <Skeleton key={item} className="h-12 w-full" />)}
           </CardContent>
         </Card>

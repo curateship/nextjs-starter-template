@@ -185,7 +185,7 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
   if (loading) {
     return (
       <Card>
-        <CardContent className="space-y-4">
+        <CardContent>
           {[1, 2, 3].map((item) => (
             <div key={item} className="space-y-2">
               <div className="h-4 w-40 animate-pulse rounded bg-muted" />

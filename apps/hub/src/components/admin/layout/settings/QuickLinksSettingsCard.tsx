@@ -250,7 +250,7 @@ export function QuickLinksSettingsCard({ quickLinks, siteId, onQuickLinksChange 
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {quickLinks.length === 0 ? (
           <div className="flex items-center gap-2">
             <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">

@@ -19,6 +19,7 @@ import {
   DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import { MediaPicker } from "@/components/media-picker"
+import { useShellRuntime } from "@/components/shell-layout"
 import { Badge } from "@/components/ui/badge"
 import {
   Breadcrumb,
@@ -83,6 +84,7 @@ import {
   type HubExportSite,
   type HubExportStatus,
 } from "@/providers/google-maps/api"
+import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/core"
 import { parseRunInput, type GoogleMapsFieldSetting, type GoogleMapsFieldType } from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
 
@@ -113,7 +115,7 @@ const statusLabels = {
   draft: "Draft",
   inactive: "Inactive",
 } as const
-const pageSizes = [10, 25, 50]
+const pageSizes = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 const resultModalTabs: { id: ResultModalTab; label: string }[] = [
   { id: "fields", label: "Fields" },
   { id: "json", label: "JSON" },
@@ -206,6 +208,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 })
 
 export function GoogleMapsDashboard() {
+  const { config } = useShellRuntime()
   const [runs, setRuns] = React.useState<ProviderRunConfigItem[]>([])
   const [hasToken, setHasToken] = React.useState<boolean | null>(null)
   const [defaultMax, setDefaultMax] = React.useState(25)
@@ -214,7 +217,7 @@ export function GoogleMapsDashboard() {
   const [runSortColumn, setRunSortColumn] = React.useState<RunSortColumn | null>(null)
   const [runSortDirection, setRunSortDirection] = React.useState<SortDirection>("asc")
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [saving, setSaving] = React.useState(false)
   const [message, setMessage] = React.useState<{ tone: "error" | "success"; text: string } | null>(null)
   const [editing, setEditing] = React.useState<ProviderRunConfigItem | null>(null)
@@ -576,13 +579,14 @@ function DeleteRunsDialog({
 }
 
 export function GoogleMapsRunResults({ runId }: { runId: string }) {
+  const { config } = useShellRuntime()
   const [data, setData] = React.useState<Awaited<ReturnType<typeof loadGoogleMapsRun>> | null>(null)
   const [loadingResults, setLoadingResults] = React.useState(true)
   const [query, setQuery] = React.useState("")
   const [sortColumn, setSortColumn] = React.useState<ResultSortColumn | null>("created")
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("desc")
   const [page, setPage] = React.useState(1)
-  const [pageSize, setPageSize] = React.useState(10)
+  const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [message, setMessage] = React.useState<{ tone: "error" | "success"; text: string } | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [editingResult, setEditingResult] = React.useState<ProviderResultItem | null>(null)

@@ -117,7 +117,7 @@ function IntegrationCard({ entry, integration, formValues, onFormChange, siteId 
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent>
         {entry.fields.map((field) => (
           <div key={field.key} className="space-y-2">
             {entry.type === "stripe" && field.key === "secret_key" && (
@@ -340,7 +340,7 @@ function IntegrationTab({ siteId, category, saveTrigger, onSuccess, onError }: I
                 <div className="h-3 bg-muted/60 rounded animate-pulse w-56" />
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               {entry.fields.map((field) => (
                 <div key={field.key} className="space-y-2">
                   {entry.type === "stripe" && (field.key === "secret_key" || field.key === "sandbox_secret_key") && (

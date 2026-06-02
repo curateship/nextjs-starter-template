@@ -66,7 +66,7 @@ export function CacheSettingsCard() {
       <CardHeader>
         <CardTitle>Cache</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">Clear all cached pages (app cache + proxy cache).</p>
           <Button onClick={handleClear} disabled={clearing}>

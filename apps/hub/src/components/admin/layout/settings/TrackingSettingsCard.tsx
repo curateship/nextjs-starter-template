@@ -23,7 +23,7 @@ export function TrackingSettingsCard({
       <CardHeader>
         <CardTitle>Tracking Settings</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent>
         {/* Custom Analytics */}
         {onCustomAnalyticsEnabledChange && (
           <div className="flex items-center justify-between">

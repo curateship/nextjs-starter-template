@@ -47,7 +47,7 @@ export function StylingSettingsCard({
         <CardHeader>
           <CardTitle>Styling Settings</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent>
           {/* Default Theme (Light/Dark Mode) */}
           {onDefaultThemeChange && (
             <div className="space-y-2">
