@@ -43,7 +43,9 @@ import {
   defaultMaxResults,
   executionIdSchema,
   fieldSettingsPayloadSchema,
+  googleMapsFieldValue,
   googleMapsProviderKey,
+  hasGoogleMapsAdditionalInfoGroupKey,
   parseConfig,
   parseRunInput,
   runIdSchema,
@@ -639,9 +641,7 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
   fieldSettings
     .filter((setting) => setting.visible)
     .forEach((setting) => {
-      const value = Object.prototype.hasOwnProperty.call(dataWithTitle, setting.key)
-        ? dataWithTitle[setting.key]
-        : valueAtPath(dataWithTitle, setting.sourcePath)
+      const value = googleMapsFieldValue(dataWithTitle, setting.key, setting.sourcePath)
 
       if (value !== undefined) hubRecord[setting.key] = value
     })
@@ -661,13 +661,6 @@ function fixedResultData(data: Record<string, unknown>, runInput: ReturnType<typ
     region: stringValue(data.region) ?? stringValue(data.state),
     country: stringValue(data.country) ?? stringValue(data.countryCode),
   }
-}
-
-function valueAtPath(data: Record<string, unknown>, path: string) {
-  return path.split(".").reduce<unknown>((current, key) => {
-    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
-    return (current as Record<string, unknown>)[key]
-  }, data)
 }
 
 async function saveResultImage(userId: string, title: string, data: Record<string, unknown>) {
@@ -1044,8 +1037,9 @@ function mergeResultData(
   const merged = { ...currentData, businessName: title }
 
   Object.entries(updates).forEach(([key, value]) => {
-    if (!canUpdateResultField(key, currentData, fieldTypes)) return
-    merged[key] = key === "businessName" ? title : cleanResultValue(key, value, fieldTypes.get(key))
+    const type = fieldTypes.get(key) ?? (hasGoogleMapsAdditionalInfoGroupKey(currentData, key) ? "tags" : undefined)
+    if (!canUpdateResultField(key, currentData, fieldTypes, type)) return
+    merged[key] = key === "businessName" ? title : cleanResultValue(key, value, type)
   })
 
   return merged
@@ -1054,13 +1048,15 @@ function mergeResultData(
 function canUpdateResultField(
   key: string,
   currentData: Record<string, unknown>,
-  fieldTypes: Map<string, GoogleMapsFieldType>
+  fieldTypes: Map<string, GoogleMapsFieldType>,
+  type?: GoogleMapsFieldType
 ) {
   if (readOnlyResultFields.has(key)) return false
   if (key === "businessName") return true
   if (key === "featuredImage") return true
   if (fixedResultFieldKeys.has(key)) return true
   if (fieldTypes.has(key)) return true
+  if (type === "tags" && hasGoogleMapsAdditionalInfoGroupKey(currentData, key)) return true
   if (!Object.prototype.hasOwnProperty.call(currentData, key)) return false
 
   const value = currentData[key]

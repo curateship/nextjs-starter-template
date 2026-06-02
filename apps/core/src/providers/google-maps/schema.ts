@@ -50,6 +50,58 @@ export const fieldSettingsPayloadSchema = z.object({
 })
 export type GoogleMapsFieldSetting = z.infer<typeof fieldSettingSchema>
 export type GoogleMapsFieldType = GoogleMapsFieldSetting["type"]
+
+export function googleMapsFieldValue(data: Record<string, unknown>, key: string, sourcePath: string) {
+  if (Object.prototype.hasOwnProperty.call(data, key)) return data[key]
+
+  const value = valueAtPath(data, sourcePath)
+  if (!sourcePath.includes(".additionalInfo.")) return value
+
+  const tags = googleMapsAdditionalInfoTags(value)
+  return tags.length ? tags : undefined
+}
+
+export function hasGoogleMapsAdditionalInfoGroupKey(data: Record<string, unknown>, key: string) {
+  return Object.keys(rawAdditionalInfo(data)).some((group) => googleMapsFieldKey(group) === key)
+}
+
+export function googleMapsFieldKey(value: string) {
+  const parts = value.split(/[^A-Za-z0-9]+/).filter(Boolean)
+  const key = parts.map((part, index) => {
+    const clean = part.replace(/^[0-9]+/, "")
+    if (!clean) return ""
+    return index === 0 ? clean.charAt(0).toLowerCase() + clean.slice(1) : clean.charAt(0).toUpperCase() + clean.slice(1)
+  }).join("")
+  return key || "field"
+}
+
+export function googleMapsAdditionalInfoTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return []
+    return Object.entries(item as Record<string, unknown>)
+      .filter(([, enabled]) => enabled === true)
+      .map(([label]) => label)
+  })
+}
+
+function rawAdditionalInfo(data: Record<string, unknown>): Record<string, unknown> {
+  const raw = data.raw
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
+  const additionalInfo = (raw as Record<string, unknown>).additionalInfo
+  return additionalInfo && typeof additionalInfo === "object" && !Array.isArray(additionalInfo)
+    ? additionalInfo as Record<string, unknown>
+    : {}
+}
+
+function valueAtPath(data: Record<string, unknown>, path: string) {
+  return path.split(".").reduce<unknown>((current, key) => {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
+    return (current as Record<string, unknown>)[key]
+  }, data)
+}
+
 export const runInputSchema = z.object({
   keyword: requiredText(500),
   location: requiredText(500),

@@ -85,7 +85,14 @@ import {
   type HubExportStatus,
 } from "@/providers/google-maps/api"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/core"
-import { parseRunInput, type GoogleMapsFieldSetting, type GoogleMapsFieldType } from "@/providers/google-maps/schema"
+import {
+  googleMapsAdditionalInfoTags,
+  googleMapsFieldKey,
+  googleMapsFieldValue,
+  parseRunInput,
+  type GoogleMapsFieldSetting,
+  type GoogleMapsFieldType,
+} from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
 
 type RunForm = {
@@ -1602,13 +1609,34 @@ function fieldSettingsForResults(results: ProviderResultItem[], savedSettings: G
   const discovered = mergeDiscoveredFieldSettings(results.flatMap(discoverFieldSettings))
   if (!savedSettings.length) return discovered
 
+  const discoveredAdditionalInfoSettings = discovered.filter((setting) => isAdditionalInfoFieldSetting(setting))
   const savedSourcePaths = new Set(savedSettings.map((setting) => setting.sourcePath))
   const savedKeys = new Set(savedSettings.map((setting) => setting.key))
+  const mergedSavedSettings = savedSettings.map((setting) => {
+    const discoveredSetting = discoveredAdditionalInfoSettings.find((item) => (
+      item.sourcePath === setting.sourcePath || (isAdditionalInfoFieldSetting(setting) && item.key === setting.key)
+    ))
+    if (!discoveredSetting) return setting
+
+    return {
+      ...setting,
+      visible: true,
+      editable: true,
+      type: "tags" as const,
+    }
+  })
   const missing = discovered
     .filter((setting) => !savedSourcePaths.has(setting.sourcePath) && !savedKeys.has(setting.key))
-    .map((setting, index) => ({ ...setting, visible: false, editable: false, order: savedSettings.length + index }))
+    .map((setting, index) => {
+      const visible = isAdditionalInfoFieldSetting(setting) ? setting.visible : false
+      return { ...setting, visible, editable: visible && setting.editable, order: savedSettings.length + index }
+    })
 
-  return [...savedSettings, ...missing].sort((a, b) => a.order - b.order)
+  return [...mergedSavedSettings, ...missing].sort((a, b) => a.order - b.order)
+}
+
+function isAdditionalInfoFieldSetting(setting: GoogleMapsFieldSetting) {
+  return setting.sourcePath.includes(".additionalInfo.")
 }
 
 function mergeDiscoveredFieldSettings(settings: GoogleMapsFieldSetting[]) {
@@ -1637,7 +1665,9 @@ function discoverFieldSettings(result: ProviderResultItem): GoogleMapsFieldSetti
     return aOrder === bOrder ? 0 : aOrder - bOrder
   }).forEach(([key, value]) => {
     if (key === "raw" || readOnlyResultFields.has(key)) return
-    if (!isSupportedFieldValue(value)) return
+    if (!isSupportedFieldValue(value)) {
+      return
+    }
     settings.push(candidateFieldSetting({
       key,
       sourcePath: key,
@@ -1654,12 +1684,42 @@ function discoverFieldSettings(result: ProviderResultItem): GoogleMapsFieldSetti
   return settings
 }
 
+function collectAdditionalInfoFieldSettings(
+  value: unknown,
+  sourcePath: string,
+  usedKeys: Set<string>,
+  settings: GoogleMapsFieldSetting[]
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return
+
+  Object.entries(value as Record<string, unknown>).forEach(([group, groupValue]) => {
+    const tags = googleMapsAdditionalInfoTags(groupValue)
+    if (!tags.length) return
+
+    settings.push(candidateFieldSetting({
+      key: group,
+      sourcePath: `${sourcePath}.${group}`,
+      label: group,
+      value: tags,
+      visible: true,
+      editable: true,
+      usedKeys,
+      order: settings.length,
+    }))
+  })
+}
+
 function collectRawFieldSettings(
   value: unknown,
   sourcePath: string,
   usedKeys: Set<string>,
   settings: GoogleMapsFieldSetting[]
 ) {
+  if (sourcePath === "raw.additionalInfo") {
+    collectAdditionalInfoFieldSettings(value, sourcePath, usedKeys, settings)
+    return
+  }
+
   if (isSupportedFieldValue(value)) {
     settings.push(candidateFieldSetting({
       key: fieldKeyFromPath(sourcePath, usedKeys),
@@ -1688,6 +1748,7 @@ function candidateFieldSetting({
   editable,
   usedKeys,
   order,
+  label,
 }: {
   key: string
   sourcePath: string
@@ -1696,12 +1757,13 @@ function candidateFieldSetting({
   editable: boolean
   usedKeys: Set<string>
   order: number
+  label?: string
 }): GoogleMapsFieldSetting {
   const cleanKey = uniqueFieldKey(key, usedKeys)
   return {
     key: cleanKey,
     sourcePath,
-    label: resultFieldLabel(cleanKey),
+    label: label ?? resultFieldLabel(cleanKey),
     visible,
     editable: visible && editable && !readOnlyResultFields.has(cleanKey),
     type: fieldTypeFromValue(cleanKey, value),
@@ -1756,9 +1818,7 @@ function resultValueFromForm(value: ResultFormValue, setting: GoogleMapsFieldSet
 
 function resultFieldValue(result: ProviderResultItem, setting: GoogleMapsFieldSetting) {
   const data = resultDataWithTitle(result)
-  return Object.prototype.hasOwnProperty.call(data, setting.key)
-    ? data[setting.key]
-    : valueAtPath(data, setting.sourcePath)
+  return googleMapsFieldValue(data, setting.key, setting.sourcePath)
 }
 
 function resultFieldHasValue(result: ProviderResultItem, setting: GoogleMapsFieldSetting) {
@@ -1849,26 +1909,13 @@ function uniqueFieldKey(key: string, usedKeys: Set<string>) {
 }
 
 function toFieldKey(value: string) {
-  const parts = value.split(/[^A-Za-z0-9]+/).filter(Boolean)
-  const key = parts.map((part, index) => {
-    const clean = part.replace(/^[0-9]+/, "")
-    if (!clean) return ""
-    return index === 0 ? clean.charAt(0).toLowerCase() + clean.slice(1) : clean.charAt(0).toUpperCase() + clean.slice(1)
-  }).join("")
-  return key || "field"
+  return googleMapsFieldKey(value)
 }
 
 function formValue(value: unknown): ResultFormValue {
   if (typeof value === "boolean") return value
   if (isStringArray(value)) return value.join(", ")
   return value === null || value === undefined ? "" : String(value)
-}
-
-function valueAtPath(data: Record<string, unknown>, path: string) {
-  return path.split(".").reduce<unknown>((current, key) => {
-    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
-    return (current as Record<string, unknown>)[key]
-  }, data)
 }
 
 function isStringArray(value: unknown): value is string[] {
