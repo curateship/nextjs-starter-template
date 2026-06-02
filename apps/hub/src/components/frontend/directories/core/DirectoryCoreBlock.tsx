@@ -42,6 +42,9 @@ const SOCIAL_ICON_MAP: Record<string, { label: string; Icon: LucideIcon }> = {
   github: { label: "GitHub", Icon: Github }
 }
 
+const ACTION_ROW_CLASS = "flex min-h-8 items-center gap-3 px-6 py-2 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+const MUTED_ACTION_ROW_CLASS = "flex min-h-8 items-center gap-3 px-6 py-2 text-muted-foreground"
+
 function resolveMediaUrl(url?: string | null) {
   const trimmedUrl = url?.trim() || ""
   if (!trimmedUrl) return ""
@@ -98,7 +101,7 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
       href={href}
       target={isExternalHref(href) ? "_blank" : undefined}
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
-      className="flex min-h-14 items-center gap-3 px-6 py-3 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
+      className={ACTION_ROW_CLASS}
     >
       {renderQuickLinkIcon(iconName, "h-5 w-5 shrink-0")}
       <span className="min-w-0 wrap-break-word text-base leading-snug">{label}</span>
@@ -122,12 +125,26 @@ function buildDataMenuLink(
   if (!trimmedValue) return null
 
   const config = getDataMenuLinkConfig(content, type)
+  const label = config?.label?.trim() || (type === "phone" ? trimmedValue : "")
   return {
     id: config?.id || `${type}-directory-data`,
     type,
-    label: config?.label,
+    label,
     value: trimmedValue,
     icon: config?.icon,
+  }
+}
+
+function getDirectoryFieldValue(fields: DirectoryData["fields"], type: DirectoryCoreMenuLink["type"]) {
+  switch (type) {
+    case "directions":
+      return fields?.mapsUrl || fields?.address
+    case "phone":
+      return fields?.phone
+    case "website":
+      return fields?.website
+    default:
+      return ""
   }
 }
 
@@ -143,14 +160,30 @@ export function DirectoryCoreBlock({ content, directory, directoryData, claimAut
         .filter((link): link is DirectoryCoreSocialLink => !!link)
     : []
   const fields = directoryData?.fields || {}
-  const menuLinks = [
-    buildDataMenuLink(content, "directions", fields.mapsUrl || fields.address),
-    buildDataMenuLink(content, "phone", fields.phone),
-    buildDataMenuLink(content, "website", fields.website),
-  ].filter((link): link is DirectoryCoreMenuLink => Boolean(link))
+  const configuredMenuLinks = Array.isArray(content?.menuLinks)
+    ? content.menuLinks
+        .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
+        .filter((link): link is DirectoryCoreMenuLink => !!link)
+    : []
+  const menuLinks = (configuredMenuLinks.length > 0
+    ? configuredMenuLinks
+    : [
+        { id: "directions-directory-data", type: "directions" as const },
+        { id: "phone-directory-data", type: "phone" as const },
+        { id: "website-directory-data", type: "website" as const },
+        { id: "claim-directory-data", type: "claim" as const, label: "Claim Listing", icon: "building" },
+      ]
+  ).filter((link, index, links) => {
+    if (link.type === "claim" && links.findIndex((item) => item.type === "claim") !== index) return false
+    if (link.type === "claim") return Boolean(directory.id) && content?.claimEnabled !== false
+    if (link.type === "custom" || link.type === "email") return Boolean(link.value?.trim())
+    return Boolean(getDirectoryFieldValue(fields, link.type)?.trim())
+  }).map((link) => {
+    if (link.type === "claim" || link.type === "custom" || link.type === "email") return link
+    return buildDataMenuLink(content, link.type, getDirectoryFieldValue(fields, link.type)) || link
+  })
   const title = fields.businessName || directory.title || "Directory Listing"
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
-  const showClaimButton = content?.claimEnabled !== false && Boolean(directory.id)
   const introTemplate = typeof fields.description === "string" ? fields.description : ""
   const introText = renderDirectoryCoreIntroText(introTemplate, {
     directoryTitle: title,
@@ -184,30 +217,36 @@ export function DirectoryCoreBlock({ content, directory, directoryData, claimAut
         ) : null}
       </CardSection>
 
-      {(menuLinks.length > 0 && visibility.menuLinks !== false) || showClaimButton ? (
-        <div className={cn(featuredImage || title || socialLinks.length ? "" : "border-t-0")}>
-          {menuLinks.map((link, index) => (
-            <MenuLink key={link.id || `${link.type}-${index}`} link={link} />
-          ))}
-          {showClaimButton ? (
-            <DirectoryClaimButton
-              directoryId={directory.id!}
-              authPath={claimAuthPath}
-              ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
-              buttonText={typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing"}
-              pendingEmailText={
-                typeof content?.claimPendingEmailText === "string"
-                  ? content.claimPendingEmailText
-                  : "Check Business Email"
-              }
-              pendingReviewText={
-                typeof content?.claimPendingReviewText === "string"
-                  ? content.claimPendingReviewText
-                  : "Claim Pending Review"
-              }
-              approvedText={typeof content?.claimApprovedText === "string" ? content.claimApprovedText : "Edit Listing"}
-            />
-          ) : null}
+      {menuLinks.length > 0 && visibility.menuLinks !== false ? (
+        <div className={cn("pb-5", featuredImage || title || socialLinks.length ? "" : "border-t-0")}>
+          {menuLinks.map((link, index) => {
+            if (link.type === "claim") {
+              return (
+                <DirectoryClaimButton
+                  key="claim"
+                  directoryId={directory.id!}
+                  authPath={claimAuthPath}
+                  ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
+                  buttonText={link.label?.trim() || (typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing")}
+                  pendingEmailText={
+                    typeof content?.claimPendingEmailText === "string"
+                      ? content.claimPendingEmailText
+                      : "Check Business Email"
+                  }
+                  pendingReviewText={
+                    typeof content?.claimPendingReviewText === "string"
+                      ? content.claimPendingReviewText
+                      : "Claim Pending Review"
+                  }
+                  approvedText={typeof content?.claimApprovedText === "string" ? content.claimApprovedText : "Edit Listing"}
+                  rowClassName={ACTION_ROW_CLASS}
+                  mutedRowClassName={MUTED_ACTION_ROW_CLASS}
+                />
+              )
+            }
+
+            return <MenuLink key={link.id || `${link.type}-${index}`} link={link} />
+          })}
         </div>
       ) : null}
     </Card>

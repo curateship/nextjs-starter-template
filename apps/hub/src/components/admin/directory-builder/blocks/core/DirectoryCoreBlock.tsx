@@ -566,7 +566,12 @@ export function DirectoryCoreBlock({
 
     if (!creatingMenuLink && editingMenuLinkIndex === null) return
 
-    onContentChange("menuLinks", nextMenuLinks)
+    onContentChange(
+      "menuLinks",
+      nextMenuLinks.filter((link, index, links) =>
+        link.type !== "claim" || links.findIndex((item) => item.type === "claim") === index
+      )
+    )
     setCreatingMenuLink(false)
     setEditingMenuLinkIndex(null)
   }
@@ -586,6 +591,7 @@ export function DirectoryCoreBlock({
     setMenuLinkDraft((current) => ({
       ...current,
       type,
+      value: type === "claim" ? "" : current.value,
     }))
   }
 
@@ -940,33 +946,13 @@ export function DirectoryCoreBlock({
 
           <Card>
             <CardHeader>
-              <DashboardModalCardTitle>Claim Listing</DashboardModalCardTitle>
+              <DashboardModalCardTitle>Claim Flow</DashboardModalCardTitle>
               <CardDescription>
-                Let verified business owners request access to edit this listing.
+                Configure the owner path and pending labels for the Claim Listing action.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="directory-core-claim-enabled"
-                  checked={content.claimEnabled !== false}
-                  onCheckedChange={(checked) => onContentChange("claimEnabled", checked === true)}
-                />
-                <label htmlFor="directory-core-claim-enabled" className="text-sm font-medium cursor-pointer">
-                  Show claim listing action
-                </label>
-              </div>
-
               <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="directory-core-claim-button">Button Text</FieldLabel>
-                  <Input
-                    id="directory-core-claim-button"
-                    value={content.claimButtonText ?? "Claim Listing"}
-                    onChange={(event) => onContentChange("claimButtonText", event.target.value)}
-                  />
-                </Field>
-
                 <Field>
                   <FieldLabel htmlFor="directory-core-claim-edit-path">Owner Edit Path</FieldLabel>
                   <Input
@@ -1132,7 +1118,7 @@ export function DirectoryCoreBlock({
             <Card>
               <CardHeader>
                 <DashboardModalCardTitle>Menu link</DashboardModalCardTitle>
-                <CardDescription>Configure the action type, label, value, and optional icon.</CardDescription>
+                <CardDescription>Configure the action type, label, and optional icon.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap items-end gap-4">
@@ -1173,17 +1159,19 @@ export function DirectoryCoreBlock({
                     />
                   </div>
 
-                  <div className="min-w-48 flex-1 space-y-2">
-                    <p className="text-sm font-medium">Value</p>
-                    <Input
-                      value={menuLinkDraft.value || ""}
-                      onChange={(event) =>
-                        setMenuLinkDraft((current) => ({ ...current, value: event.target.value }))
-                      }
-                      placeholder={getDirectoryCoreMenuValuePlaceholder(menuLinkDraft.type)}
-                      aria-label="Menu link value"
-                    />
-                  </div>
+                  {menuLinkDraft.type !== "claim" ? (
+                    <div className="min-w-48 flex-1 space-y-2">
+                      <p className="text-sm font-medium">Value</p>
+                      <Input
+                        value={menuLinkDraft.value || ""}
+                        onChange={(event) =>
+                          setMenuLinkDraft((current) => ({ ...current, value: event.target.value }))
+                        }
+                        placeholder={getDirectoryCoreMenuValuePlaceholder(menuLinkDraft.type)}
+                        aria-label="Menu link value"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

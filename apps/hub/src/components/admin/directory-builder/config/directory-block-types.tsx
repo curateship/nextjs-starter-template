@@ -17,7 +17,12 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
       sticky: false,
       introText: '',
       socialLinks: [],
-      menuLinks: [],
+      menuLinks: [
+        { type: 'directions', label: '', value: '', icon: 'map' },
+        { type: 'phone', label: '', value: '', icon: 'phone' },
+        { type: 'website', label: '', value: '', icon: 'site' },
+        { type: 'claim', label: 'Claim Listing', value: '', icon: 'building' },
+      ],
       claimEnabled: true,
       claimButtonText: 'Claim Listing',
       claimPendingEmailText: 'Check Business Email',

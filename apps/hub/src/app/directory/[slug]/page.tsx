@@ -39,11 +39,14 @@ function directoryBlocksNeedGoogleMapsConfig(blocks: any[]) {
 }
 
 function directoryBlocksNeedClaimAuthPath(blocks: any[]) {
-  return blocks.some((block) =>
-    block.type === DIRECTORY_CORE_BLOCK_TYPE &&
-    block.content?.visibility?.hideBlock !== true &&
-    block.content?.claimEnabled !== false
-  )
+  return blocks.some((block) => {
+    if (block.type !== DIRECTORY_CORE_BLOCK_TYPE) return false
+    if (block.content?.visibility?.hideBlock === true || block.content?.visibility?.menuLinks === false) return false
+    if (block.content?.claimEnabled === false) return false
+
+    const menuLinks = Array.isArray(block.content?.menuLinks) ? block.content.menuLinks : []
+    return menuLinks.length === 0 || menuLinks.some((link) => link?.type === "claim")
+  })
 }
 
 function directoryBlocksNeedCategoryContext(blocks: any[]) {

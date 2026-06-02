@@ -7,6 +7,7 @@ export const DIRECTORY_CORE_MENU_LINK_TYPES = [
   "phone",
   "website",
   "email",
+  "claim",
   "custom",
 ] as const
 
@@ -94,6 +95,8 @@ export function getDirectoryCoreMenuTypeLabel(type?: string): string {
       return "Website"
     case "email":
       return "Email"
+    case "claim":
+      return "Claim Listing"
     case "custom":
       return "Custom"
     default:
@@ -111,6 +114,8 @@ export function getDirectoryCoreMenuValuePlaceholder(type?: string): string {
       return "hello@example.com"
     case "website":
       return "example.com"
+    case "claim":
+      return "Claim Listing"
     case "custom":
       return "/about or https://example.com"
     default:
@@ -128,6 +133,8 @@ export function getDirectoryCoreMenuDefaultIcon(type?: string): QuickLinkIconNam
       return "newsletters"
     case "website":
       return "site"
+    case "claim":
+      return "building"
     case "custom":
       return "link"
     default:
@@ -164,6 +171,8 @@ export function buildDirectoryCoreMenuHref(link: DirectoryCoreMenuLink): string 
     case "website":
     case "custom":
       return buildDirectoryCoreUrlHref(value)
+    case "claim":
+      return ""
   }
 }
 
