@@ -45,6 +45,7 @@ interface SharedListingViewsBlockProps {
   listingStyle?: ListingStyle
   imageFit?: ImageFit
   imageHeight?: number
+  imageQuality?: number
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   mobileColumns?: number
@@ -66,6 +67,7 @@ interface SharedListingViewsBlockProps {
   onListingStyleChange: (value: ListingStyle) => void
   onImageFitChange: (value: ImageFit) => void
   onImageHeightChange: (value: number | undefined) => void
+  onImageQualityChange: (value: number | undefined) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onMobileColumnsChange: (value: number) => void
@@ -90,6 +92,7 @@ export function PageListingViewBlock({
   listingStyle = 'default',
   imageFit = 'crop',
   imageHeight,
+  imageQuality = 25,
   displayMode = 'grid',
   itemsToShow = 6,
   mobileColumns = 1,
@@ -111,6 +114,7 @@ export function PageListingViewBlock({
   onListingStyleChange,
   onImageFitChange,
   onImageHeightChange,
+  onImageQualityChange,
   onDisplayModeChange,
   onItemsToShowChange,
   onMobileColumnsChange,
@@ -231,11 +235,11 @@ export function PageListingViewBlock({
               <Card>
                 <CardContent>
                   <BlockEditorSection heading="Content Settings">
-          <div className="flex gap-4">
-            <div className="shrink-0 space-y-2">
+          <div className="grid gap-4">
+            <div className="w-40 space-y-2">
               <Label htmlFor="contentType">Content Type</Label>
               <Select value={contentType} onValueChange={(value) => onContentTypeChange(value as ListingContentType)}>
-                <SelectTrigger id="contentType" size="button" className="min-h-10">
+                <SelectTrigger id="contentType" size="button" className="w-full min-h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -246,7 +250,7 @@ export function PageListingViewBlock({
               </Select>
             </div>
 
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label>Category</Label>
               <CategoryPicker
                 siteId={siteId}
@@ -299,20 +303,37 @@ export function PageListingViewBlock({
                     </button>
                   ))}
                 </div>
-                <div className="mt-4 max-w-48 space-y-2">
-                  <Label htmlFor="imageHeight">Image Height %</Label>
-                  <Input
-                    id="imageHeight"
-                    type="number"
-                    min={0}
-                    max={200}
-                    value={imageHeight ?? ''}
-                    onChange={(event) => {
-                      const value = Number(event.target.value)
-                      onImageHeightChange(value > 0 ? value : undefined)
-                    }}
-                    placeholder="Default"
-                  />
+                <div className="mt-4 grid max-w-sm grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="imageHeight">Image Height %</Label>
+                    <Input
+                      id="imageHeight"
+                      type="number"
+                      min={0}
+                      max={200}
+                      value={imageHeight ?? ''}
+                      onChange={(event) => {
+                        const value = Number(event.target.value)
+                        onImageHeightChange(value > 0 ? value : undefined)
+                      }}
+                      placeholder="Default"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="imageQuality">Image Quality</Label>
+                    <Input
+                      id="imageQuality"
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={imageQuality ?? ''}
+                      onChange={(event) => {
+                        const value = Number(event.target.value)
+                        onImageQualityChange(value > 0 ? Math.min(100, value) : undefined)
+                      }}
+                      placeholder="25"
+                    />
+                  </div>
                 </div>
                   </BlockEditorSection>
                 </CardContent>

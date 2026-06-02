@@ -111,7 +111,7 @@ const googleImageHosts = [
   "gstatic.com",
 ]
 const socialPlatforms = ["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"] as const
-const fixedResultFieldKeys = new Set(["type", "neighborhood", "city", "region", "country", ...socialPlatforms])
+const fixedResultFieldKeys = new Set(["description", "type", "neighborhood", "city", "region", "country", ...socialPlatforms])
 const socialPlatformSchema = z.enum(socialPlatforms)
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
@@ -628,6 +628,7 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
   const hubRecord: Record<string, unknown> = {
     google_maps_place_id: stringValue(data.placeId),
     businessName: dataWithTitle.businessName,
+    description: stringValue(dataWithTitle.description),
     type: stringValue(dataWithTitle.type),
     neighborhood: stringValue(dataWithTitle.neighborhood),
     city: stringValue(dataWithTitle.city),

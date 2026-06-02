@@ -66,6 +66,7 @@ import {
   TableSortButton,
   TableRow,
 } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import {
   deleteGoogleMapsResults,
   deleteGoogleMapsRuns,
@@ -186,6 +187,7 @@ const resultFieldLabels: Record<string, string> = {
   reviewCount: "Reviews",
 }
 const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
+  { key: "description", sourcePath: "description", label: "Discription", visible: true, editable: true, type: "text", order: 0 },
   { key: "type", sourcePath: "type", label: "Type", visible: true, editable: true, type: "text", order: 1 },
   { key: "neighborhood", sourcePath: "neighborhood", label: "Neighborhood", visible: true, editable: true, type: "text", order: 4 },
   { key: "city", sourcePath: "city", label: "City", visible: true, editable: true, type: "text", order: 7 },
@@ -1565,16 +1567,27 @@ function ResultField({
       </div>
     )
   }
+  const isDescription = id === "result-description"
 
   return (
-    <div className="grid gap-2">
+    <div className={`grid gap-2 ${isDescription ? "sm:col-span-2" : ""}`}>
       <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type={type === "number" ? "number" : "text"}
-        value={String(value)}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      {isDescription ? (
+        <Textarea
+          id={id}
+          className="h-10 min-h-10 shadow-none"
+          value={String(value)}
+          rows={1}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <Input
+          id={id}
+          type={type === "number" ? "number" : "text"}
+          value={String(value)}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
     </div>
   )
 }
@@ -1597,7 +1610,7 @@ function resultFormFromData(result: ProviderResultItem, fieldSettings: GoogleMap
 function resultFieldsForResult(result: ProviderResultItem, fieldSettings: GoogleMapsFieldSetting[]) {
   const settingsByKey = new Map(fieldSettingsForResults([result], fieldSettings).map((setting) => [setting.key, setting]))
   fixedResultFieldSettings.forEach((setting) => {
-    settingsByKey.set(setting.key, { ...setting, order: settingsByKey.get(setting.key)?.order ?? setting.order })
+    settingsByKey.set(setting.key, { ...setting, order: setting.key === "description" ? setting.order : settingsByKey.get(setting.key)?.order ?? setting.order })
   })
 
   return Array.from(settingsByKey.values())

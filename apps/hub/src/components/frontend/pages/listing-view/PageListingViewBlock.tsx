@@ -43,6 +43,7 @@ interface ListingViewsBlockProps {
     listingStyle?: ListingStyle
     imageFit?: ImageFit
     imageHeight?: number
+    imageQuality?: number
     displayMode?: "grid" | "list"
     itemsToShow?: number
     mobileColumns?: number
@@ -93,6 +94,7 @@ export function ListingViewsBlock({
     listingStyle = "default",
     imageFit = "crop",
     imageHeight,
+    imageQuality = 25,
     displayMode = "grid",
     itemsToShow = 6,
     mobileColumns = 1,
@@ -214,7 +216,7 @@ export function ListingViewsBlock({
   const desktopImageSize = Number(columns) === 2 ? "50vw" : Number(columns) === 4 ? "25vw" : "33vw"
   const gridImageSizes = `(max-width: 639px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
   const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
-  const imageQuality = 25
+  const resolvedImageQuality = Math.min(100, Math.max(1, Number(imageQuality) || 25))
   const imageFitClassName = imageFit === "fit" ? "object-contain" : "object-cover"
   const imageFrameClassName = imageFit === "fit" ? "bg-muted" : ""
   const customImageHeight = Number(imageHeight) > 0 ? Number(imageHeight) : undefined
@@ -269,7 +271,7 @@ export function ListingViewsBlock({
                     height={360}
                     className={`h-full w-full ${imageFitClassName} object-center transition-opacity duration-200 group-hover:opacity-75`}
                     sizes={blogImageSizes}
-                    quality={imageQuality}
+                    quality={resolvedImageQuality}
                     priority={isLCP}
                   />
                 ) : (
@@ -322,7 +324,7 @@ export function ListingViewsBlock({
                   fill
                   className={imageFitClassName}
                   sizes={displayMode === "list" ? "192px" : gridImageSizes}
-                  quality={imageQuality}
+                  quality={resolvedImageQuality}
                   priority={isLCP}
                   loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
                   fetchPriority={isLCP ? "high" : index < columns ? "high" : "auto"}
