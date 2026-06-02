@@ -3,9 +3,6 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import { usePostBuilder } from "@/components/admin/post-builder/config/usePostBuilder"
 import { getSiteByIdAction, type SiteWithTheme } from "@/lib/actions/sites/site-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -264,33 +261,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     } finally {
       setIsSavingBlock(false)
     }
-  }
-
-  // Only show loading state for critical errors (not during normal loading)
-  if (!site && error) {
-    return (
-      <AdminLayout noPadding>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-red-600 mb-2">{error}</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Site ID: <code>{siteId}</code>
-            </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Please go to Sites page to get a valid site ID, or create a new site.
-            </p>
-            <div className="space-x-2">
-              <Button asChild>
-                <Link href="/admin/sites">Go to Sites</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/admin/sites/new">Create New Site</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </AdminLayout>
-    )
   }
 
   const viewPageHref = site && currentPostData

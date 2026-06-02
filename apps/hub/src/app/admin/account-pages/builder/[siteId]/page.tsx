@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import { useAccountPageData } from "@/components/admin/account-page-builder/config/useAccountPageData"
 import { useAccountPageBuilder } from "@/components/admin/account-page-builder/config/useAccountPageBuilder"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -197,33 +195,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     if (saved) {
       builderState.setSelectedBlock(null)
     }
-  }
-
-  // Only show error state for critical failures
-  if ((configError || pagesError) && !site && !configLoading) {
-    return (
-      <AdminLayout noPadding>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-red-600 mb-2">{configError || pagesError || 'Account page configuration not found'}</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Site ID: <code>{siteId}</code>
-            </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Please go to Sites page to get a valid site ID, or create a new site.
-            </p>
-            <div className="space-x-2">
-              <Button asChild>
-                <Link href="/admin/sites">Go to Sites</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/admin/sites/new">Create New Site</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </AdminLayout>
-    )
   }
 
   const viewPageHref = site && currentPageData

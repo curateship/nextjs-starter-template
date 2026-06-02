@@ -4,7 +4,7 @@ import {
   DynamicIcon,
   iconNames,
   type IconName as DynamicLucideIconName,
-} from "lucide-react/dynamic"
+} from "lucide-react/dynamic.mjs"
 import {
   AppWindowIcon,
   BarChart3Icon,

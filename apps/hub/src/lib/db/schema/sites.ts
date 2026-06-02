@@ -34,6 +34,7 @@ export interface SiteSeoSettings {
 
 // Full site settings shape (extends existing settings)
 export interface SiteSettings extends SiteSeoSettings {
+  site_tag?: string
   favicon?: string
   font_family?: string
   secondary_font_family?: string

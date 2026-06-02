@@ -2,12 +2,21 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog } from "@/components/ui/dialog"
+import {
+  DashboardModalContent,
+  DashboardModalFooterActions
+} from "@/components/admin/layout/dashboard/modals"
+import { SiteDashboard } from "@/components/admin/layout/dashboard/SiteDashboard"
+import { StylingSettingsCard } from "@/components/admin/layout/settings/StylingSettingsCard"
 import {
   AdminConfirmDialog,
   AdminListSkeleton,
@@ -48,21 +57,32 @@ import {
   getAllSitesAction,
   deleteSiteAction,
   cloneSiteAction,
+  createSiteAction,
   type SiteWithTheme
 } from "@/lib/actions/sites/site-actions"
+import { applyThemeToSiteAction, getTemplateSitesAction } from "@/lib/actions/themes/user-theme-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 type FilterStatus = "all" | "active" | "inactive" | "draft"
+type TagFilter = "all-tags" | "untagged" | string
 type SiteSortColumn = "name" | "created" | "status"
 
+function getSiteTag(site: SiteWithTheme) {
+  return typeof site.settings?.site_tag === "string" ? site.settings.site_tag.trim() : ""
+}
+
 export default function SitesPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { refreshSites } = useSiteSwitcher()
   const [sites, setSites] = useState<SiteWithTheme[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterStatus>("all")
+  const [tagFilter, setTagFilter] = useState<TagFilter>("all-tags")
   const [searchQuery, setSearchQuery] = useState("")
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: string
@@ -83,6 +103,12 @@ export default function SitesPage() {
   useEffect(() => {
     loadSites()
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      setShowCreateModal(true)
+    }
+  }, [searchParams])
 
   const loadSites = async () => {
     try {
@@ -126,6 +152,13 @@ export default function SitesPage() {
       setDeleting(null)
       setDeleteConfirm(null)
     }
+  }
+
+  const handleCreatedSite = async (site: SiteWithTheme) => {
+    setSites((prev) => [site, ...prev.filter((item) => item.id !== site.id)])
+    localStorage.setItem("selectedSiteId", site.id)
+    await refreshSites()
+    router.push(`/admin/pages/${site.id}`)
   }
 
   // Start each duplicate from the original name and default to copying the safe site surface.
@@ -183,11 +216,13 @@ export default function SitesPage() {
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSites = sites.filter((site) => {
+    const tag = getSiteTag(site)
     const statusMatch = filter === "all" || site.status === filter
-    const searchText = `${site.name} ${site.subdomain} ${site.status}`.toLowerCase()
+    const tagMatch = tagFilter === "all-tags" || (tagFilter === "untagged" ? !tag : tag === tagFilter)
+    const searchText = `${site.name} ${site.subdomain} ${site.status} ${tag}`.toLowerCase()
     const searchMatch = !normalizedSearchQuery || searchText.includes(normalizedSearchQuery)
 
-    return statusMatch && searchMatch
+    return statusMatch && tagMatch && searchMatch
   })
 
   const sortedSites = [...filteredSites].sort((a, b) => {
@@ -205,6 +240,9 @@ export default function SitesPage() {
     inactive: sites.filter((site) => site.status === "inactive").length,
     draft: sites.filter((site) => site.status === "draft").length
   }
+
+  const siteTags = Array.from(new Set(sites.map(getSiteTag).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  const untaggedCount = sites.filter((site) => !getSiteTag(site)).length
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -250,11 +288,21 @@ export default function SitesPage() {
                     <SelectItem value="draft">Draft ({siteCounts.draft})</SelectItem>
                   </SelectContent>
                 </Select>
-                <TableRightActionsButton asChild>
-                  <Link href="/admin/sites/new">
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden sm:inline">Create Site</span>
-                  </Link>
+                <Select value={tagFilter} onValueChange={setTagFilter}>
+                  <TableRightActionsSelectTrigger aria-label="Site tag filter">
+                    <SelectValue />
+                  </TableRightActionsSelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all-tags">All Tags</SelectItem>
+                    {siteTags.map((tag) => (
+                      <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                    ))}
+                    {untaggedCount > 0 && <SelectItem value="untagged">Untagged ({untaggedCount})</SelectItem>}
+                  </SelectContent>
+                </Select>
+                <TableRightActionsButton onClick={() => setShowCreateModal(true)}>
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">Create Site</span>
                 </TableRightActionsButton>
               </TableRightActions>
             }
@@ -313,10 +361,10 @@ export default function SitesPage() {
                       <TableCell colSpan={5} className="h-32 text-center">
                         <Globe className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="mb-4 text-muted-foreground">
-                          {filter === "all" ? "No sites found" : `No ${filter} sites found`}
+                          {filter === "all" && tagFilter === "all-tags" ? "No sites found" : "No matching sites found"}
                         </p>
-                        <Button asChild variant="outline">
-                          <Link href="/admin/sites/new">Create Your First Site</Link>
+                        <Button onClick={() => setShowCreateModal(true)} variant="outline">
+                          Create Your First Site
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -340,9 +388,12 @@ export default function SitesPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
-                                {site.name}
-                              </h4>
+                              <div className="flex min-w-0 items-center gap-2">
+                                <h4 className="truncate text-sm font-medium hover:underline sm:text-base">
+                                  {site.name}
+                                </h4>
+                                {getSiteTag(site) && <Badge variant="secondary">{getSiteTag(site)}</Badge>}
+                              </div>
                               <p className="truncate text-xs text-muted-foreground sm:text-sm">
                                 {site.custom_domain || site.subdomain}
                               </p>
@@ -422,6 +473,18 @@ export default function SitesPage() {
           onConfirm={() => deleteConfirm && handleDelete(deleteConfirm.id)}
         />
 
+        {showCreateModal && (
+          <Dialog open onOpenChange={setShowCreateModal}>
+            <CreateSiteModal
+              onCancel={() => setShowCreateModal(false)}
+              onCreated={(site) => {
+                setShowCreateModal(false)
+                void handleCreatedSite(site)
+              }}
+            />
+          </Dialog>
+        )}
+
         {/* Site clones are draft-only and intentionally exclude business/runtime data. */}
         {duplicateConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -496,5 +559,166 @@ export default function SitesPage() {
         )}
       </AdminLayout>
     </>
+  )
+}
+
+function CreateSiteModal({
+  onCancel,
+  onCreated
+}: {
+  onCancel: () => void
+  onCreated: (site: SiteWithTheme) => void
+}) {
+  const [siteName, setSiteName] = useState("")
+  const [subdomain, setSubdomain] = useState("")
+  const [customDomain, setCustomDomain] = useState("")
+  const [status, setStatus] = useState("draft")
+  const [siteTag, setSiteTag] = useState("")
+  const [fontFamily, setFontFamily] = useState("playfair-display")
+  const [secondaryFontFamily, setSecondaryFontFamily] = useState("inter")
+  const [favicon, setFavicon] = useState("")
+  const [defaultTheme, setDefaultTheme] = useState<"system" | "light" | "dark">("system")
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+  const [templates, setTemplates] = useState<SiteWithTheme[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const hasTemplate = selectedTemplateId && selectedTemplateId !== "none"
+
+  useEffect(() => {
+    getTemplateSitesAction().then(({ data }) => {
+      if (data) setTemplates(data)
+    })
+  }, [])
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (!siteName.trim()) {
+      setError("Site name is required")
+      return
+    }
+
+    if (!subdomain.trim()) {
+      setError("Subdomain is required")
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      setError(null)
+
+      const { data, error: createError } = await createSiteAction({
+        name: siteName.trim(),
+        subdomain: subdomain.trim(),
+        custom_domain: customDomain.trim() || undefined,
+        status: status as "active" | "inactive" | "draft",
+        site_tag: siteTag.trim() || undefined,
+        font_family: fontFamily,
+        secondary_font_family: secondaryFontFamily,
+        favicon: favicon || undefined,
+        default_theme: defaultTheme,
+        settings: {
+          site_title: siteName.trim(),
+          analytics_enabled: false,
+          seo_enabled: true,
+          site_tag: siteTag.trim() || undefined
+        }
+      })
+
+      if (createError || !data) {
+        setError(createError || "Failed to create site")
+        return
+      }
+
+      if (hasTemplate) {
+        const { error: themeError } = await applyThemeToSiteAction(data.id, selectedTemplateId)
+        if (themeError) {
+          setError(`Site created but failed to apply template: ${themeError}`)
+          return
+        }
+      }
+
+      onCreated(data)
+    } catch {
+      setError("Failed to create site. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form id="create-site-form" onSubmit={handleSubmit} className="contents">
+      <DashboardModalContent
+        title="Create Site"
+        description="Create a new site and choose its initial settings."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <DashboardModalFooterActions>
+              <Button form="create-site-form" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : "Create Site"}
+              </Button>
+            </DashboardModalFooterActions>
+          </>
+        }
+      >
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            {error}
+          </div>
+        )}
+
+        <SiteDashboard
+          siteName={siteName}
+          subdomain={subdomain}
+          customDomain={customDomain}
+          status={status}
+          siteTag={siteTag}
+          onSiteNameChange={setSiteName}
+          onSubdomainChange={setSubdomain}
+          onCustomDomainChange={setCustomDomain}
+          onStatusChange={setStatus}
+          onSiteTagChange={setSiteTag}
+        />
+
+        {templates.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Start from Template</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <TableRightActionsSelectTrigger aria-label="Template">
+                  <SelectValue placeholder="No template (blank site)" />
+                </TableRightActionsSelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No template (blank site)</SelectItem>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        )}
+
+        {!hasTemplate && (
+          <StylingSettingsCard
+            fontFamily={fontFamily}
+            secondaryFontFamily={secondaryFontFamily}
+            favicon={favicon}
+            defaultTheme={defaultTheme}
+            onFontFamilyChange={setFontFamily}
+            onSecondaryFontFamilyChange={setSecondaryFontFamily}
+            onFaviconChange={setFavicon}
+            onDefaultThemeChange={setDefaultTheme}
+          />
+        )}
+      </DashboardModalContent>
+    </form>
   )
 }

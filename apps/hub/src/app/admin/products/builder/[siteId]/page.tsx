@@ -3,9 +3,7 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import { useProductData } from "@/components/admin/product-builder/config/useProductData"
 import { useProductBuilder } from "@/components/admin/product-builder/config/useProductBuilder"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -221,33 +219,6 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     } finally {
       setIsPublishing(false)
     }
-  }
-
-  // Only show loading state for critical errors (not during normal loading)
-  if (!site && siteError) {
-    return (
-      <AdminLayout noPadding>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <p className="text-red-600 mb-2">{siteError}</p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Site ID: <code>{siteId}</code>
-            </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              Please go to Sites page to get a valid site ID, or create a new site.
-            </p>
-            <div className="space-x-2">
-              <Button asChild>
-                <Link href="/admin/sites">Go to Sites</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/admin/sites/new">Create New Site</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </AdminLayout>
-    )
   }
 
   const viewPageHref = site && currentProductData

@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch"
 interface SiteDashboardProps {
   siteName: string
   status: string
+  siteTag?: string
   subdomain?: string
   customDomain?: string
   trackingScripts?: string
@@ -23,6 +24,7 @@ interface SiteDashboardProps {
   loading?: boolean
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
+  onSiteTagChange?: (value: string) => void
   onSubdomainChange?: (value: string) => void
   onCustomDomainChange?: (value: string) => void
   onTrackingScriptsChange?: (value: string) => void
@@ -33,6 +35,7 @@ interface SiteDashboardProps {
 export function SiteDashboard({
   siteName,
   status,
+  siteTag = "",
   subdomain = "",
   customDomain = "",
   trackingScripts = "",
@@ -42,6 +45,7 @@ export function SiteDashboard({
   loading = false,
   onSiteNameChange,
   onStatusChange,
+  onSiteTagChange,
   onSubdomainChange,
   onCustomDomainChange,
   onTrackingScriptsChange,
@@ -264,6 +268,20 @@ export function SiteDashboard({
                   </p>
                 )}
               </div>
+            </div>
+          )}
+
+          {onSiteTagChange && (
+            <div className="space-y-2">
+              <Label htmlFor="siteTag">Site Tag</Label>
+              <Input
+                id="siteTag"
+                value={siteTag}
+                onChange={(e) => onSiteTagChange(e.target.value)}
+                placeholder="directory, store, client"
+                maxLength={50}
+              />
+              <p className="text-xs text-muted-foreground">Used to filter sites in the dashboard.</p>
             </div>
           )}
 

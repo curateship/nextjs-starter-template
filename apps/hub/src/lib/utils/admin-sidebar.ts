@@ -176,7 +176,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
         entries: [
           item("item-sites", "Sites", "/admin/sites", "site", [
             child("child-site-themes", "Themes", "/admin/themes", "palette"),
-          ], ["/admin/sites/new"]),
+          ], ["/admin/sites?create=1"]),
           item("item-platform-users", "Users", "/admin/users", "users"),
           item("item-platform-automations", "Automations", "/admin/automations", "automations"),
           item("item-platform-settings", "Platform Settings", "/admin/platforms/settings", "settings", [

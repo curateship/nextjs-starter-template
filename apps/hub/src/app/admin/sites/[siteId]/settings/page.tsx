@@ -499,6 +499,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const [subdomain, setSubdomain] = useState(contextSite?.subdomain || "")
   const [customDomain, setCustomDomain] = useState(contextSite?.custom_domain || "")
   const [status, setStatus] = useState<string>(contextSite?.status || "draft")
+  const [siteTag, setSiteTag] = useState(contextSite?.settings?.site_tag || "")
   const [fontFamily, setFontFamily] = useState(contextSite?.settings?.font_family || "playfair-display")
   const [secondaryFontFamily, setSecondaryFontFamily] = useState(
     contextSite?.settings?.secondary_font_family || "inter"
@@ -591,6 +592,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             site_title: site?.settings?.site_title || siteName.trim(),
             analytics_enabled: false,
             seo_enabled: true,
+            site_tag: siteTag.trim() || undefined,
             maintenance: { enabled: maintenanceEnabled },
             font_family: fontFamily,
             secondary_font_family: secondaryFontFamily,
@@ -754,6 +756,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     subdomain={subdomain}
                     customDomain={customDomain}
                     status={status}
+                    siteTag={siteTag}
                     trackingScripts={trackingScripts}
                     customAnalyticsEnabled={customAnalyticsEnabled}
                     maintenanceEnabled={maintenanceEnabled}
@@ -763,6 +766,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     onSubdomainChange={setSubdomain}
                     onCustomDomainChange={setCustomDomain}
                     onStatusChange={setStatus}
+                    onSiteTagChange={setSiteTag}
                     onTrackingScriptsChange={setTrackingScripts}
                     onCustomAnalyticsEnabledChange={setCustomAnalyticsEnabled}
                     onMaintenanceChange={setMaintenanceEnabled}

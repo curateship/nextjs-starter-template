@@ -50,6 +50,7 @@ export interface CreateSiteData {
   status?: 'active' | 'inactive' | 'draft'
   is_template?: boolean
   settings?: Record<string, any>
+  site_tag?: string
   font_family?: string
   font_weights?: string[]
   secondary_font_family?: string
@@ -69,6 +70,11 @@ export interface CloneSiteData {
 
 const CUSTOM_DOMAIN_VERIFICATION_RECORD = '_site-verification'
 const CUSTOM_DOMAIN_VERIFICATION_VALUE_PREFIX = 'site-verification'
+
+function sanitizeSiteTag(input?: string | null): string | undefined {
+  const tag = input?.trim()
+  return tag ? tag.slice(0, 50) : undefined
+}
 
 function sanitizeCustomDomain(input?: string | null): string | null {
   if (!input) return null
@@ -328,6 +334,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
         analytics_enabled: false,
         seo_enabled: true
       }),
+      site_tag: sanitizeSiteTag(siteData.site_tag ?? siteData.settings?.site_tag),
       newsletter_drip_defaults: siteData.settings?.newsletter_drip_defaults || DEFAULT_NEWSLETTER_DRIP_CONFIG,
       font_family: siteData.font_family || 'playfair-display',
       font_weights: siteData.font_weights || ['400', '500', '600', '700', '800', '900'],

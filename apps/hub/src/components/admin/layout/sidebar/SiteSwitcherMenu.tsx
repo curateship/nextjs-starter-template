@@ -67,7 +67,7 @@ export function SiteSwitcherMenu() {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <Link href="/admin/sites/new">
+          <Link href="/admin/sites?create=1">
             <SidebarMenuButton size="lg">
               <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                 <Plus className="size-4" />
@@ -164,7 +164,7 @@ export function SiteSwitcherMenu() {
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/admin/sites/new" className="gap-2 p-2">
+                  <Link href="/admin/sites?create=1" className="gap-2 p-2">
                     <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
                       <Plus className="size-4" />
                     </div>
