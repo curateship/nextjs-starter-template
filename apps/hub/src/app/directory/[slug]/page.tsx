@@ -14,7 +14,7 @@ import {
   getContentCategoryContext,
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
+import { DIRECTORY_CORE_BLOCK_TYPE, type DirectoryCoreMenuLink } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { getGoogleMapsConfig } from "@/lib/actions/integrations/config-helpers"
 import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
@@ -44,7 +44,7 @@ function directoryBlocksNeedClaimAuthPath(blocks: any[]) {
     if (block.content?.visibility?.hideBlock === true || block.content?.visibility?.menuLinks === false) return false
     if (block.content?.claimEnabled === false) return false
 
-    const menuLinks = Array.isArray(block.content?.menuLinks) ? block.content.menuLinks : []
+    const menuLinks: DirectoryCoreMenuLink[] = Array.isArray(block.content?.menuLinks) ? block.content.menuLinks : []
     return menuLinks.length === 0 || menuLinks.some((link) => link?.type === "claim")
   })
 }
