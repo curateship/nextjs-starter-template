@@ -1123,7 +1123,6 @@ export function DirectoryCoreBlock({
               <CardContent>
                 <div className="flex flex-wrap items-end gap-4">
                   <ShellIconPickerField
-                    siteId={siteId}
                     value={menuLinkDraft.icon}
                     onChange={(icon) => setMenuLinkDraft((current) => ({ ...current, icon }))}
                   />

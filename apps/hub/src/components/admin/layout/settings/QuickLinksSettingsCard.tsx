@@ -31,13 +31,11 @@ import { type QuickLinkIconValue, type SiteQuickLink } from "@/lib/utils/site-qu
 
 interface QuickLinksSettingsCardProps {
   quickLinks: SiteQuickLink[]
-  siteId: string
   onQuickLinksChange: (quickLinks: SiteQuickLink[]) => void
 }
 
 interface SortableQuickLinkItemProps {
   link: SiteQuickLink
-  siteId: string
   onChange: (id: string, patch: Partial<SiteQuickLink>) => void
   onDelete: (id: string) => void
 }
@@ -48,13 +46,11 @@ function QuickLinkSettingsButton({
   label,
   value,
   href,
-  siteId,
   onSave
 }: {
   label: string
   value?: QuickLinkIconValue
   href: string
-  siteId: string
   onSave: (patch: Pick<SiteQuickLink, "label" | "href" | "icon">) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -123,7 +119,7 @@ function QuickLinkSettingsButton({
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
-                  <ShellIconPickerField siteId={siteId} value={draftIcon} onChange={setDraftIcon} />
+                  <ShellIconPickerField value={draftIcon} onChange={setDraftIcon} />
                   <Field>
                     <FieldLabel>Name</FieldLabel>
                     <Input
@@ -152,7 +148,7 @@ function QuickLinkSettingsButton({
   )
 }
 
-function SortableQuickLinkItem({ link, siteId, onChange, onDelete }: SortableQuickLinkItemProps) {
+function SortableQuickLinkItem({ link, onChange, onDelete }: SortableQuickLinkItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id })
 
   const style = {
@@ -181,7 +177,6 @@ function SortableQuickLinkItem({ link, siteId, onChange, onDelete }: SortableQui
           label={link.label}
           value={link.icon}
           href={link.href}
-          siteId={siteId}
           onSave={(patch) => onChange(link.id, patch)}
         />
         <Button
@@ -199,7 +194,7 @@ function SortableQuickLinkItem({ link, siteId, onChange, onDelete }: SortableQui
   )
 }
 
-export function QuickLinksSettingsCard({ quickLinks, siteId, onQuickLinksChange }: QuickLinksSettingsCardProps) {
+export function QuickLinksSettingsCard({ quickLinks, onQuickLinksChange }: QuickLinksSettingsCardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
@@ -273,7 +268,6 @@ export function QuickLinksSettingsCard({ quickLinks, siteId, onQuickLinksChange 
                   <SortableQuickLinkItem
                     key={link.id}
                     link={link}
-                    siteId={siteId}
                     onChange={handleUpdateLink}
                     onDelete={handleDeleteLink}
                   />

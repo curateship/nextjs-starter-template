@@ -265,7 +265,6 @@ export function SiteAdminSettingsTab({ siteId, mode, onStatusChange }: SiteAdmin
         ) : (
           <QuickLinksSettingsCard
             quickLinks={quickLinks}
-            siteId={siteId}
             onQuickLinksChange={handleQuickLinksChange}
           />
         )}

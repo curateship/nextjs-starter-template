@@ -80,7 +80,6 @@ interface NavigationProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
   onContentPersist?: (nextContent: Record<string, any>) => Promise<boolean>
-  siteId: string
   blockId: string
   siteFavicon?: string
   onBack?: () => void
@@ -128,17 +127,15 @@ function ensureSignedInLinkIds(links: NavigationSignedInLinkSettings[]): Navigat
 function NavigationActionSettingsFields({
   action,
   fieldPrefix,
-  siteId,
   onChange
 }: {
   action: NavigationActionSettings
   fieldPrefix: string
-  siteId: string
   onChange: (nextAction: NavigationActionSettings) => void
 }) {
   return (
     <div className="flex flex-wrap items-end gap-4">
-      <ShellIconPickerField siteId={siteId} value={action.icon} onChange={(value) => onChange({ ...action, icon: value })} />
+      <ShellIconPickerField value={action.icon} onChange={(value) => onChange({ ...action, icon: value })} />
 
       <Field className="w-full sm:w-[140px]">
         <FieldLabel htmlFor={`${fieldPrefix}-label`}>Name</FieldLabel>
@@ -197,14 +194,12 @@ function NavigationActionSettingsSection({
   description,
   action,
   fieldPrefix,
-  siteId,
   onChange
 }: {
   title: string
   description: string
   action: NavigationActionSettings
   fieldPrefix: string
-  siteId: string
   onChange: (nextAction: NavigationActionSettings) => void
 }) {
   return (
@@ -214,7 +209,7 @@ function NavigationActionSettingsSection({
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
 
-      <NavigationActionSettingsFields action={action} fieldPrefix={fieldPrefix} siteId={siteId} onChange={onChange} />
+      <NavigationActionSettingsFields action={action} fieldPrefix={fieldPrefix} onChange={onChange} />
     </div>
   )
 }
@@ -328,7 +323,6 @@ function UserPanelChildLinkRow({
   index,
   onChange,
   onDelete,
-  siteId,
   dragHandle,
   setNodeRef,
   style
@@ -337,7 +331,6 @@ function UserPanelChildLinkRow({
   index: number
   onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
   onDelete: (index: number) => void
-  siteId: string
   dragHandle: ReactNode
   setNodeRef?: (node: HTMLElement | null) => void
   style?: CSSProperties
@@ -349,7 +342,7 @@ function UserPanelChildLinkRow({
       className="grid items-center gap-2 rounded-md border bg-background p-2 sm:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1fr)_auto]"
     >
       {dragHandle}
-      <ShellIconPickerField siteId={siteId} value={link.icon} onChange={(icon) => onChange(index, { icon })} compact />
+      <ShellIconPickerField value={link.icon} onChange={(icon) => onChange(index, { icon })} compact />
       <Input
         value={link.text}
         onChange={(event) => onChange(index, { text: event.target.value })}
@@ -382,13 +375,11 @@ function SortableUserPanelChildLink({
   index,
   onChange,
   onDelete,
-  siteId
 }: {
   link: NavigationSignedInLinkSettings
   index: number
   onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
   onDelete: (index: number) => void
-  siteId: string
 }) {
   const itemId = link.id || `user-panel-child-${index}`
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: itemId })
@@ -405,7 +396,6 @@ function SortableUserPanelChildLink({
       index={index}
       onChange={onChange}
       onDelete={onDelete}
-      siteId={siteId}
       setNodeRef={setNodeRef}
       style={style}
       dragHandle={
@@ -428,13 +418,11 @@ function StaticUserPanelChildLink({
   index,
   onChange,
   onDelete,
-  siteId
 }: {
   link: NavigationSignedInLinkSettings
   index: number
   onChange: (index: number, patch: Partial<NavigationSignedInLinkSettings>) => void
   onDelete: (index: number) => void
-  siteId: string
 }) {
   return (
     <UserPanelChildLinkRow
@@ -442,7 +430,6 @@ function StaticUserPanelChildLink({
       index={index}
       onChange={onChange}
       onDelete={onDelete}
-      siteId={siteId}
       dragHandle={
         <div className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground">
           <GripVertical className="h-4 w-4" />
@@ -645,7 +632,7 @@ function StaticBuiltInActionItem({
   )
 }
 
-export function Navigation({ content, onContentChange, onContentPersist, siteId, siteFavicon, onBack }: NavigationProps) {
+export function Navigation({ content, onContentChange, onContentPersist, siteFavicon, onBack }: NavigationProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingLinkIndex, setEditingLinkIndex] = useState<number | null>(null)
@@ -1493,7 +1480,6 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-[auto_minmax(0,180px)_minmax(0,1fr)] md:items-end">
                   <ShellIconPickerField
-                    siteId={siteId}
                     value={linkDraft.icon}
                     onChange={(icon) => setLinkDraft((prev) => ({ ...prev, icon }))}
                   />
@@ -1569,7 +1555,6 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] md:items-end">
                   <ShellIconPickerField
-                    siteId={siteId}
                     value={buttonDraft.icon}
                     onChange={(icon) => setButtonDraft((prev) => ({ ...prev, icon }))}
                   />
@@ -1683,7 +1668,6 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
                       description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
                       action={accountMenuDraft.login}
                       fieldPrefix="navigation-account-menu-login"
-                      siteId={siteId}
                       onChange={(nextAction) => updateAccountMenuActionDraft("login", nextAction)}
                     />
                   </CardContent>
@@ -1696,7 +1680,6 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
                       description="Desktop shows this as a button. Mobile shows it in the account dropdown when enabled for mobile."
                       action={accountMenuDraft.register}
                       fieldPrefix="navigation-account-menu-register"
-                      siteId={siteId}
                       onChange={(nextAction) => updateAccountMenuActionDraft("register", nextAction)}
                     />
                   </CardContent>
@@ -1735,7 +1718,6 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
                                     key={link.id || `user-panel-child-${index}`}
                                     link={link}
                                     index={index}
-                                    siteId={siteId}
                                     onChange={updateAccountMenuSignedInLinkDraft}
                                     onDelete={removeAccountMenuSignedInLinkDraft}
                                   />
@@ -1750,7 +1732,6 @@ export function Navigation({ content, onContentChange, onContentPersist, siteId,
                                 key={link.id || `user-panel-child-static-${index}`}
                                 link={link}
                                 index={index}
-                                siteId={siteId}
                                 onChange={updateAccountMenuSignedInLinkDraft}
                                 onDelete={removeAccountMenuSignedInLinkDraft}
                               />

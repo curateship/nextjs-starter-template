@@ -1,4 +1,4 @@
-import { lazy, Suspense, type CSSProperties } from "react"
+import { lazy, Suspense } from "react"
 import {
   dynamicIconImports,
 } from "lucide-react/dynamic"
@@ -248,7 +248,6 @@ export function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
 export function getQuickLinkIconLabel(icon?: string): string {
   const staticLabel = QUICK_LINK_ICON_OPTIONS.find((option) => option.value === icon)?.label
   if (staticLabel) return staticLabel
-  if (isQuickLinkIconUrl(icon)) return "Media icon"
   const dynamicIconName = getDynamicLucideIconName(icon)
   return dynamicIconName ? getDynamicLucideIconLabel(dynamicIconName) : "No icon"
 }
@@ -257,26 +256,9 @@ export function isQuickLinkIconName(value: unknown): value is QuickLinkIconName 
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, value)
 }
 
-export function isQuickLinkIconUrl(value: unknown): value is string {
-  if (typeof value !== "string" || !value) return false
-  if (!value.startsWith("/") || value.startsWith("//")) return false
-
-  try {
-    const url = new URL(value, "https://hub.local")
-    return (
-      url.origin === "https://hub.local" &&
-      url.pathname.startsWith("/cdn/") &&
-      url.pathname.toLowerCase().endsWith(".svg")
-    )
-  } catch {
-    return false
-  }
-}
-
 export function isQuickLinkIconValue(value: unknown): value is QuickLinkIconValue {
   return (
     isQuickLinkIconName(value) ||
-    isQuickLinkIconUrl(value) ||
     isDynamicLucideIconName(value)
   )
 }
@@ -305,7 +287,7 @@ function isDynamicLucideIconName(value: unknown): value is DynamicLucideIconName
 }
 
 function getDynamicLucideIconName(value?: string) {
-  if (!value || isQuickLinkIconUrl(value)) return undefined
+  if (!value) return undefined
   return normalizeDynamicLucideIconName(value)
 }
 
@@ -325,33 +307,9 @@ function getDynamicLucideIconComponent(name: DynamicLucideIconName) {
   return Icon
 }
 
-function renderThemedSvgIcon(src: string, className: string) {
-  const escapedSrc = src.replace(/["\\]/g, "\\$&")
-  const maskImage = `url("${escapedSrc}")`
-  const style: CSSProperties = {
-    maskImage,
-    maskPosition: "center",
-    maskRepeat: "no-repeat",
-    maskSize: "contain",
-    WebkitMaskImage: maskImage,
-    WebkitMaskPosition: "center",
-    WebkitMaskRepeat: "no-repeat",
-    WebkitMaskSize: "contain",
-  }
-
-  return (
-    <span
-      aria-hidden="true"
-      className={`${className} inline-block shrink-0 bg-current`}
-      style={style}
-    />
-  )
-}
-
 export function renderQuickLinkIcon(icon: QuickLinkIconValue | undefined, className = "h-4 w-4") {
   const Icon = getQuickLinkIconOrNull(icon)
   if (Icon) return <Icon className={className} />
-  if (isQuickLinkIconUrl(icon)) return renderThemedSvgIcon(icon, className)
   const dynamicIconName = getDynamicLucideIconName(icon)
   if (dynamicIconName) {
     const LucideIconComponent = getDynamicLucideIconComponent(dynamicIconName)

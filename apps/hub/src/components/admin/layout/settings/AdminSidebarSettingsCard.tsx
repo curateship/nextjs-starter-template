@@ -57,7 +57,6 @@ type AdminSidebarSettingsCardProps = {
 type SortableItemProps = {
   sectionId: string
   item: AdminSidebarItem
-  siteId: string
   onItemChange: (sectionId: string, itemId: string, patch: Partial<AdminSidebarItem>) => void
   onItemDelete: (sectionId: string, itemId: string) => void
   onChildAdd: (sectionId: string, itemId: string) => void
@@ -69,14 +68,12 @@ type SortableItemProps = {
 
 type SortableChildProps = {
   child: AdminSidebarChildItem
-  siteId: string
   onChange: (childId: string, patch: Partial<AdminSidebarChildItem>) => void
   onDelete: (childId: string) => void
 }
 
 type SortableSectionProps = {
   section: AdminSidebarSection
-  siteId: string
   isDraggingItem: boolean
   onSectionTitleChange: (sectionId: string, title: string) => void
   onReset: () => void
@@ -119,7 +116,7 @@ function updateSection(
   }
 }
 
-function SortableChild({ child, siteId, onChange, onDelete }: SortableChildProps) {
+function SortableChild({ child, onChange, onDelete }: SortableChildProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: child.id })
 
   const style: React.CSSProperties = {
@@ -144,7 +141,6 @@ function SortableChild({ child, siteId, onChange, onDelete }: SortableChildProps
         <GripVertical className="h-4 w-4" />
       </button>
       <ShellIconPickerField
-        siteId={siteId}
         value={child.icon}
         onChange={(icon) => onChange(child.id, { icon })}
         compact
@@ -179,7 +175,6 @@ function SortableChild({ child, siteId, onChange, onDelete }: SortableChildProps
 function SortableSidebarItem({
   sectionId,
   item,
-  siteId,
   onItemChange,
   onItemDelete,
   onChildAdd,
@@ -286,7 +281,6 @@ function SortableSidebarItem({
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)]">
               <ShellIconPickerField
-                siteId={siteId}
                 value={item.icon}
                 onChange={(icon) => (icon ? onItemChange(sectionId, item.id, { icon }) : undefined)}
                 compact
@@ -336,7 +330,6 @@ function SortableSidebarItem({
                         <SortableChild
                           key={child.id}
                           child={child}
-                          siteId={siteId}
                           onChange={(childId, patch) => onChildChange(sectionId, item.id, childId, patch)}
                           onDelete={(childId) => onChildDelete(sectionId, item.id, childId)}
                         />
@@ -365,7 +358,6 @@ function SortableSidebarItem({
 
 function SortableSectionCard({
   section,
-  siteId,
   isDraggingItem,
   onSectionTitleChange,
   onReset,
@@ -434,7 +426,6 @@ function SortableSectionCard({
                 key={entry.id}
                 sectionId={section.id}
                 item={entry}
-                siteId={siteId}
                 onItemChange={onItemChange}
                 onItemDelete={onItemDelete}
                 onChildAdd={onChildAdd}
@@ -803,7 +794,6 @@ export function AdminSidebarSettingsCard({ config, siteId, onConfigChange, onSav
               <SortableSectionCard
                 key={section.id}
                 section={section}
-                siteId={siteId}
                 isDraggingItem={isDraggingItem}
                 onSectionTitleChange={handleSectionTitleChange}
                 onReset={() => onConfigChange(createDefaultAdminSidebarSettings(siteId))}

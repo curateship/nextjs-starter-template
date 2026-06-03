@@ -324,7 +324,6 @@ export function SiteChromeEditorPage({ siteId, mode, publicAuthPagePath }: SiteC
                 setNavigationContent((prev) => ({ ...prev, [field]: value }))
               }}
               onContentPersist={persistNavigationContent}
-              siteId={site.id}
               blockId="site-structure-navigation"
               siteFavicon={site.settings?.favicon}
             />

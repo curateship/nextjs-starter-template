@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react"
-
 import {
   DynamicIcon,
   iconNames,
@@ -176,30 +174,13 @@ export function normalizeDynamicLucideIconName(
 }
 
 function getDynamicLucideIconName(value?: string) {
-  if (!value || isShellIconUrl(value)) return undefined
+  if (!value) return undefined
   return normalizeDynamicLucideIconName(value)
-}
-
-export function isShellIconUrl(value?: string) {
-  if (!value) return false
-  if (!value.startsWith("/") || value.startsWith("//")) return false
-
-  try {
-    const url = new URL(value, "https://ai-video.local")
-    return (
-      url.origin === "https://ai-video.local" &&
-      (url.pathname.toLowerCase().endsWith(".svg") ||
-        /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname))
-    )
-  } catch {
-    return false
-  }
 }
 
 export function getShellIconLabel(value?: ShellIcon) {
   if (!value) return "No icon"
   if (isIconKey(value)) return iconMeta[value].label
-  if (isShellIconUrl(value)) return "Media icon"
   const dynamicIconName = getDynamicLucideIconName(value)
   if (dynamicIconName) return getDynamicLucideIconLabel(dynamicIconName)
   return "Custom icon"
@@ -321,37 +302,10 @@ export function isShellItem(entry: ShellEntry): entry is ShellItem {
   return entry.type === "item"
 }
 
-function renderThemedSvgIcon(src: string, className: string) {
-  const escapedSrc = src.replace(/["\\]/g, "\\$&")
-  const maskImage = `url("${escapedSrc}")`
-  const style: CSSProperties = {
-    maskImage,
-    maskPosition: "center",
-    maskRepeat: "no-repeat",
-    maskSize: "contain",
-    WebkitMaskImage: maskImage,
-    WebkitMaskPosition: "center",
-    WebkitMaskRepeat: "no-repeat",
-    WebkitMaskSize: "contain",
-  }
-
-  return (
-    <span
-      aria-hidden="true"
-      className={`${className} inline-block shrink-0 bg-current`}
-      style={style}
-    />
-  )
-}
-
 export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4") {
   if (isIconKey(icon)) {
     const Icon = iconMeta[icon].icon
     return <Icon className={className} />
-  }
-
-  if (isShellIconUrl(icon)) {
-    return renderThemedSvgIcon(icon, className)
   }
 
   const dynamicIconName = getDynamicLucideIconName(icon)
