@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react"
-
 import {
   DynamicIcon,
   iconNames,
@@ -181,27 +179,10 @@ export function isDynamicLucideIconName(
   return Boolean(value && dynamicLucideIconNames.has(value))
 }
 
-export function isShellIconUrl(value?: string) {
-  if (!value) return false
-  if (!value.startsWith("/") || value.startsWith("//")) return false
-
-  try {
-    const url = new URL(value, "https://custom-shell.local")
-    return (
-      url.origin === "https://custom-shell.local" &&
-      (url.pathname.toLowerCase().endsWith(".svg") ||
-        /^\/api\/v1\/media\/[^/]+\/file$/i.test(url.pathname))
-    )
-  } catch {
-    return false
-  }
-}
-
 export function getShellIconLabel(value?: ShellIcon) {
   if (!value) return "No icon"
   if (isIconKey(value)) return iconMeta[value].label
   if (isDynamicLucideIconName(value)) return getDynamicLucideIconLabel(value)
-  if (isShellIconUrl(value)) return "Media icon"
   return "Custom icon"
 }
 
@@ -321,29 +302,6 @@ export function isShellItem(entry: ShellEntry): entry is ShellItem {
   return entry.type === "item"
 }
 
-function renderThemedSvgIcon(src: string, className: string) {
-  const escapedSrc = src.replace(/["\\]/g, "\\$&")
-  const maskImage = `url("${escapedSrc}")`
-  const style: CSSProperties = {
-    maskImage,
-    maskPosition: "center",
-    maskRepeat: "no-repeat",
-    maskSize: "contain",
-    WebkitMaskImage: maskImage,
-    WebkitMaskPosition: "center",
-    WebkitMaskRepeat: "no-repeat",
-    WebkitMaskSize: "contain",
-  }
-
-  return (
-    <span
-      aria-hidden="true"
-      className={`${className} inline-block shrink-0 bg-current`}
-      style={style}
-    />
-  )
-}
-
 export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4") {
   if (isIconKey(icon)) {
     const Icon = iconMeta[icon].icon
@@ -358,10 +316,6 @@ export function renderShellIcon(icon: ShellIcon | undefined, className = "size-4
         fallback={() => <ImageIcon className={className} />}
       />
     )
-  }
-
-  if (isShellIconUrl(icon)) {
-    return renderThemedSvgIcon(icon, className)
   }
 
   const Icon = ImageIcon
