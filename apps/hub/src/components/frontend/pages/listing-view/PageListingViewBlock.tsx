@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardFooter, CardHeader } from "@/components/ui/card"
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
+import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
 
 type ListingContentType = "products" | "posts" | "directory"
 type ListingStyle = "default" | "blog"
@@ -44,6 +45,7 @@ interface ListingViewsBlockProps {
     imageFit?: ImageFit
     imageHeight?: number
     imageQuality?: number
+    saveIconOpacity?: number
     displayMode?: "grid" | "list"
     itemsToShow?: number
     mobileColumns?: number
@@ -95,6 +97,7 @@ export function ListingViewsBlock({
     imageFit = "crop",
     imageHeight,
     imageQuality = 25,
+    saveIconOpacity = 100,
     displayMode = "grid",
     itemsToShow = 6,
     mobileColumns = 1,
@@ -118,6 +121,7 @@ export function ListingViewsBlock({
   const showAuthorElement = visibility?.showAuthor !== false
   const showDateElement = visibility?.showDate !== false
   const showReadMoreElement = visibility?.showReadMore !== false
+  const showSaveButton = contentType === "directory" && showImageElement && visibility?.showSaveButton !== false
 
   // Create responsive alignment classes
   const getResponsiveAlignmentClass = () => {
@@ -217,6 +221,8 @@ export function ListingViewsBlock({
   const gridImageSizes = `(max-width: 639px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
   const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
   const resolvedImageQuality = Math.min(100, Math.max(1, Number(imageQuality) || 25))
+  const saveIconOpacityNumber = Number(saveIconOpacity)
+  const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
   const imageFitClassName = imageFit === "fit" ? "object-contain" : "object-cover"
   const imageFrameClassName = imageFit === "fit" ? "bg-muted" : ""
   const customImageHeight = Number(imageHeight) > 0 ? Number(imageHeight) : undefined
@@ -245,31 +251,43 @@ export function ListingViewsBlock({
   const renderItem = (item: ListingViewsItem, index: number) => {
     // First image in grid is likely LCP element - prioritize it aggressively
     const isLCP = index === 0
+    const href = `/${urlPrefix ? `${urlPrefix}/` : ""}${item.slug}`
+    const itemLabel = item.title || (contentType === "posts" ? "post" : contentType === "directory" ? "directory listing" : "product")
+    const imageAlt = item.title || `${contentType === "posts" ? "Post" : contentType === "directory" ? "Directory listing" : "Product"} image`
+    const saveButton = showSaveButton ? (
+      <DirectorySaveDropdown
+        siteId={siteId}
+        directoryId={item.id}
+        opacity={resolvedSaveIconOpacity}
+        className="absolute right-2 top-2 z-10 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      />
+    ) : null
 
     if (listingStyle === "blog") {
-      const href = `/${urlPrefix ? `${urlPrefix}/` : ""}${item.slug}`
       const summary = getItemSummary(item)
       const published = showDateElement ? formatDate(item.created_at) : ""
       const authorName = item.author?.trim() || ""
       const showAuthorMeta = showAuthorElement && Boolean(authorName)
 
       return (
-        <Link
+        <Card
           key={item.id}
-          href={href}
-          className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label={`Read ${item.title || (contentType === "posts" ? "post" : contentType === "directory" ? "directory listing" : "product")}`}
+          className="group/card grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden"
         >
-          <Card className="grid h-full grid-rows-[auto_auto_1fr_auto] overflow-hidden">
-            {showImageElement && (
-              <div className={`${blogImageAspectClassName} w-full ${imageFrameClassName}`} style={imageFrameStyle}>
+          {showImageElement && (
+            <div className={`group relative ${blogImageAspectClassName} w-full overflow-hidden ${imageFrameClassName}`} style={imageFrameStyle}>
+              <Link
+                href={href}
+                tabIndex={-1}
+                className="absolute inset-0 outline-none"
+                aria-label={`Read ${itemLabel}`}
+              >
                 {item.featured_image ? (
                   <Image
                     src={item.featured_image}
-                    alt={item.title || `${contentType === "posts" ? "Post" : contentType === "directory" ? "Directory listing" : "Product"} image`}
-                    width={640}
-                    height={360}
-                    className={`h-full w-full ${imageFitClassName} object-center transition-opacity duration-200 group-hover:opacity-75`}
+                    alt={imageAlt}
+                    fill
+                    className={`${imageFitClassName} object-center transition-opacity duration-200 group-hover/card:opacity-75`}
                     sizes={blogImageSizes}
                     quality={resolvedImageQuality}
                     priority={isLCP}
@@ -279,8 +297,15 @@ export function ListingViewsBlock({
                     No Image
                   </div>
                 )}
-              </div>
-            )}
+              </Link>
+              {saveButton}
+            </div>
+          )}
+          <Link
+            href={href}
+            className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label={`Read ${itemLabel}`}
+          >
             <CardHeader>
               {showTitleElement && <h3 className="text-base md:text-xl">{item.title}</h3>}
               {showDescriptionElement && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
@@ -299,16 +324,16 @@ export function ListingViewsBlock({
                 </div>
               )}
             </CardHeader>
-            {showReadMoreElement && (
-              <CardFooter>
-                <span className="flex items-center text-muted-foreground">
-                  Read more
-                  <ArrowRight className="ml-1 size-4" />
-                </span>
-              </CardFooter>
-            )}
-          </Card>
-        </Link>
+          </Link>
+          {showReadMoreElement && (
+            <CardFooter>
+              <Link href={href} className="flex items-center text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                Read more
+                <ArrowRight className="ml-1 size-4" />
+              </Link>
+            </CardFooter>
+          )}
+        </Card>
       )
     }
 
@@ -317,47 +342,52 @@ export function ListingViewsBlock({
         {showImageElement && (
           <div className={displayMode === "list" ? "w-48 shrink-0" : ""}>
             {item.featured_image ? (
-              <div className={`relative rounded-md ${defaultImageAspectClassName} overflow-hidden ${imageFrameClassName}`} style={imageFrameStyle}>
-                <Image
-                  src={item.featured_image}
-                  alt={item.title || `${contentType === "posts" ? "Post" : "Product"} image`}
-                  fill
-                  className={imageFitClassName}
-                  sizes={displayMode === "list" ? "192px" : gridImageSizes}
-                  quality={resolvedImageQuality}
-                  priority={isLCP}
-                  loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
-                  fetchPriority={isLCP ? "high" : index < columns ? "high" : "auto"}
-                  onError={(e) => {
-                    // Hide broken image via opacity (avoids forced reflow from style.display)
-                    ;(e.target as HTMLElement).style.opacity = "0"
-                  }}
-                />
+              <div className={`group relative rounded-md ${defaultImageAspectClassName} overflow-hidden ${imageFrameClassName}`} style={imageFrameStyle}>
+                <Link href={href} tabIndex={-1} className="absolute inset-0 outline-none">
+                  <Image
+                    src={item.featured_image}
+                    alt={imageAlt}
+                    fill
+                    className={imageFitClassName}
+                    sizes={displayMode === "list" ? "192px" : gridImageSizes}
+                    quality={resolvedImageQuality}
+                    priority={isLCP}
+                    loading={isLCP ? "eager" : index < columns ? "eager" : "lazy"}
+                    fetchPriority={isLCP ? "high" : index < columns ? "high" : "auto"}
+                    onError={(e) => {
+                      // Hide broken image via opacity (avoids forced reflow from style.display)
+                      ;(e.target as HTMLElement).style.opacity = "0"
+                    }}
+                  />
+                </Link>
+                {saveButton}
               </div>
             ) : (
-              <div className={`bg-muted rounded-md ${defaultImageAspectClassName} flex items-center justify-center text-foreground`} style={imageFrameStyle}>
-                No Image
+              <div className={`group relative bg-muted rounded-md ${defaultImageAspectClassName} flex items-center justify-center overflow-hidden text-foreground`} style={imageFrameStyle}>
+                <Link href={href} tabIndex={-1} className="absolute inset-0 flex items-center justify-center outline-none">
+                  No Image
+                </Link>
+                {saveButton}
               </div>
             )}
           </div>
         )}
-        <div className="flex flex-col gap-2">
+        <Link href={href} className="flex flex-col gap-2 hover:opacity-75 transition-opacity">
           {showTitleElement && <h3 className="pt-3 text-base tracking-tight md:text-xl">{item.title}</h3>}
           {showDescriptionElement && item.richText && (
             <p className="text-muted-foreground text-base py-2">{getItemSummary(item)}</p>
           )}
-        </div>
+        </Link>
       </div>
     )
 
     return (
-      <Link
+      <div
         key={item.id}
-        href={`/${urlPrefix ? `${urlPrefix}/` : ""}${item.slug}`}
-        className="block hover:opacity-75 transition-opacity"
+        className="block"
       >
         {itemContent}
-      </Link>
+      </div>
     )
   }
 

@@ -46,6 +46,7 @@ interface SharedListingViewsBlockProps {
   imageFit?: ImageFit
   imageHeight?: number
   imageQuality?: number
+  saveIconOpacity?: number
   displayMode?: 'grid' | 'list'
   itemsToShow?: number
   mobileColumns?: number
@@ -68,6 +69,7 @@ interface SharedListingViewsBlockProps {
   onImageFitChange: (value: ImageFit) => void
   onImageHeightChange: (value: number | undefined) => void
   onImageQualityChange: (value: number | undefined) => void
+  onSaveIconOpacityChange: (value: number | undefined) => void
   onDisplayModeChange: (value: 'grid' | 'list') => void
   onItemsToShowChange: (value: number) => void
   onMobileColumnsChange: (value: number) => void
@@ -93,6 +95,7 @@ export function PageListingViewBlock({
   imageFit = 'crop',
   imageHeight,
   imageQuality = 25,
+  saveIconOpacity = 100,
   displayMode = 'grid',
   itemsToShow = 6,
   mobileColumns = 1,
@@ -115,6 +118,7 @@ export function PageListingViewBlock({
   onImageFitChange,
   onImageHeightChange,
   onImageQualityChange,
+  onSaveIconOpacityChange,
   onDisplayModeChange,
   onItemsToShowChange,
   onMobileColumnsChange,
@@ -334,6 +338,23 @@ export function PageListingViewBlock({
                       placeholder="25"
                     />
                   </div>
+                  {contentType === 'directory' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="saveIconOpacity">Save Icon Opacity</Label>
+                      <Input
+                        id="saveIconOpacity"
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={saveIconOpacity ?? ''}
+                        onChange={(event) => {
+                          const value = Number(event.target.value)
+                          onSaveIconOpacityChange(Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined)
+                        }}
+                        placeholder="100"
+                      />
+                    </div>
+                  )}
                 </div>
                   </BlockEditorSection>
                 </CardContent>
@@ -488,6 +509,9 @@ export function PageListingViewBlock({
                   useCard
                   fields={[
                     { key: 'showImage', label: 'Show Image' },
+                    ...(contentType === 'directory' ? [
+                      { key: 'showSaveButton', label: 'Show Save Button' },
+                    ] : []),
                     { key: 'showTitle', label: 'Show Title' },
                     { key: 'showDescription', label: 'Show Description' },
                     ...(listingStyle === 'blog' ? [

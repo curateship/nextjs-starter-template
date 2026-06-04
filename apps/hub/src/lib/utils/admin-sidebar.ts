@@ -113,10 +113,11 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-product-templates", "Templates", "/admin/products/templates", "file"),
           ], ["/admin/products/builder", "/admin/products/new", "/admin/products/analytics"]),
           item("item-directory", "Directory", "/admin/directory", "directory", [
+            child("child-directory-saved", "Saved", "/admin/directory/saved", "bookmark"),
             child("child-directory-claims", "Claims", "/admin/directory/claims", "clipboard"),
             child("child-directory-custom-blocks", "Custom Blocks", "/admin/directory/custom-blocks", "grid"),
             child("child-directory-templates", "Templates", "/admin/directory/templates", "file"),
-          ], ["/admin/directory/builder", "/admin/directory/claims"]),
+          ], ["/admin/directory/builder", "/admin/directory/claims", "/admin/directory/saved"]),
           item("item-newsletters", "Newsletters", "/admin/newsletters", "newsletters", [
             child("child-newsletter-contacts", "Contacts", "/admin/newsletters/contacts", "users"),
             child("child-newsletter-tags", "Tags", "/admin/newsletters/tags", "categories"),
@@ -225,6 +226,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "post-templates": "child-post-templates",
   "directory-custom-blocks": "child-directory-custom-blocks",
   "directory-claims": "child-directory-claims",
+  "directory-saved": "child-directory-saved",
   "directory-templates": "child-directory-templates",
   "newsletter-contacts": "child-newsletter-contacts",
   "newsletter-tags": "child-newsletter-tags",
@@ -426,6 +428,22 @@ export function resolveAdminSidebarSettings(
       id: getAliasedDefaultId(section.id),
       entries: section.entries.flatMap((entry) => {
         const defaultEntry = resolveDefault(metadata.items, entry.id)
+        const resolvedChildren = entry.children?.map((childItem) => {
+          const defaultChild = resolveDefault(metadata.children, childItem.id)
+
+          return {
+            ...childItem,
+            id: getAliasedDefaultId(childItem.id),
+            href: hydrateHref(childItem.href, defaultChild?.href, siteId),
+            ...(defaultChild?.activePaths?.length
+              ? { activePaths: defaultChild.activePaths }
+              : {}),
+          }
+        })
+        const hasSavedDirectoryChild = resolvedChildren?.some((childItem) => childItem.id === "child-directory-saved")
+        const savedDirectoryChild = defaultEntry?.id === "item-directory" && !hasSavedDirectoryChild
+          ? resolveDefault(metadata.children, "child-directory-saved")
+          : null
 
         const resolvedEntry = {
           ...entry,
@@ -434,18 +452,12 @@ export function resolveAdminSidebarSettings(
           ...(defaultEntry?.activePaths?.length
             ? { activePaths: defaultEntry.activePaths }
             : {}),
-          children: entry.children?.map((childItem) => {
-            const defaultChild = resolveDefault(metadata.children, childItem.id)
-
-            return {
-              ...childItem,
-              id: getAliasedDefaultId(childItem.id),
-              href: hydrateHref(childItem.href, defaultChild?.href, siteId),
-              ...(defaultChild?.activePaths?.length
-                ? { activePaths: defaultChild.activePaths }
-                : {}),
-            }
-          }),
+          children: savedDirectoryChild
+            ? [
+                savedDirectoryChild,
+                ...(resolvedChildren ?? []),
+              ]
+            : resolvedChildren,
         }
 
         return isRemovedAnalyticsEntry(resolvedEntry) ? [] : [resolvedEntry]

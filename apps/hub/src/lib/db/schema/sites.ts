@@ -50,6 +50,10 @@ export interface SiteSettings extends SiteSeoSettings {
   }>
   breadcrumbs?: Record<string, boolean>
   maintenance?: { enabled?: boolean }
+  directory_save_default_collections?: Array<{
+    key: string
+    label: string
+  }>
   newsletter_drip_defaults?: Record<string, any>
   newsletter_cold_threshold_emails?: number
   tracking_scripts?: string
