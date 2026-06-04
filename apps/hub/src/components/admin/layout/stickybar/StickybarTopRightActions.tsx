@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { type LucideIcon, Save, Settings, PanelRight, PanelRightClose, CheckCircle, AlertCircle, ExternalLink, ChevronDown, Search, ListFilter } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -139,10 +139,20 @@ export function StickybarTopRightActions({
   onToggleBlockList,
 }: StickybarTopRightActionsProps) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const openedDesktopBlockList = useRef(false)
   const activeItem = filterMenu?.items.find((item) => item.value === filterMenu.value) ?? filterMenu?.items[0]
   const { mobileOverflowSlot } = useDashboardHeaderActionsSlot()
   const hasMobileOverflow = Boolean(search || preActions || filterMenu || rightActions || viewPageHref || renderSettingsModal || (onPublish && !isPublished) || onToggleBlockList)
   const mobileMenuItemClassName = "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+
+  useEffect(() => {
+    if (!onToggleBlockList || blockListOpen || openedDesktopBlockList.current) return
+    if (!window.matchMedia("(min-width: 1024px)").matches) return
+
+    openedDesktopBlockList.current = true
+    onToggleBlockList()
+  }, [blockListOpen, onToggleBlockList])
+
   const renderSaveButton = (showLabel: boolean) => (
     <Button
       size="sm"

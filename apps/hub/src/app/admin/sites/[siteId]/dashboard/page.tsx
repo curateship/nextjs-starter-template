@@ -47,6 +47,47 @@ const rangeOptions: Array<{ value: DashboardRange; label: string }> = [
   { value: "365d", label: "Year" },
 ]
 
+function sumDashboardPoints(points: SiteDashboardMetrics["chartData"]): SiteDashboardMetrics["totals"] {
+  return points.reduce(
+    (totals, point) => ({
+      visitors: totals.visitors + point.visitors,
+      contacts: totals.contacts + point.contacts,
+      orders: totals.orders + point.orders,
+      revenue: totals.revenue + point.revenue,
+    }),
+    { visitors: 0, contacts: 0, orders: 0, revenue: 0 }
+  )
+}
+
+function deriveCardMetricsFromThirtyDay(
+  metrics: SiteDashboardMetrics,
+  range: DashboardRange
+): SiteDashboardMetrics | null {
+  if (range === "30d") return metrics
+  if (range === "today") {
+    return {
+      ...metrics,
+      totals: sumDashboardPoints(metrics.chartData.slice(-1)),
+      previousTotals: sumDashboardPoints(metrics.chartData.slice(-2, -1)),
+    }
+  }
+  if (range === "yesterday") {
+    return {
+      ...metrics,
+      totals: sumDashboardPoints(metrics.chartData.slice(-2, -1)),
+      previousTotals: sumDashboardPoints(metrics.chartData.slice(-3, -2)),
+    }
+  }
+  if (range === "7d") {
+    return {
+      ...metrics,
+      totals: sumDashboardPoints(metrics.chartData.slice(-7)),
+      previousTotals: sumDashboardPoints(metrics.chartData.slice(-14, -7)),
+    }
+  }
+  return null
+}
+
 function normalizeDashboardRange(value?: string | null): DashboardRange {
   return value === "today" ||
     value === "yesterday" ||
@@ -201,15 +242,16 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
     ? resolvedSearchParams.range[0]
     : resolvedSearchParams.range
   const selectedRange = normalizeDashboardRange(rawRange)
-  const cardMetricsPromise = getSiteDashboardMetrics(siteId, selectedRange).catch(() => emptyMetrics)
-  const chartMetricsPromise = selectedRange === "30d"
-    ? cardMetricsPromise
-    : getSiteDashboardMetrics(siteId, "30d").catch(() => emptyMetrics)
-  const [site, cardMetrics, chartMetrics] = await Promise.all([
+  const chartMetricsPromise = getSiteDashboardMetrics(siteId, "30d").catch(() => emptyMetrics)
+  const selectedMetricsPromise = selectedRange === "365d"
+    ? getSiteDashboardMetrics(siteId, selectedRange).catch(() => emptyMetrics)
+    : null
+  const [site, chartMetrics, selectedMetrics] = await Promise.all([
     getSiteForDashboard(siteId),
-    cardMetricsPromise,
     chartMetricsPromise,
+    selectedMetricsPromise,
   ])
+  const cardMetrics = selectedMetrics ?? deriveCardMetricsFromThirtyDay(chartMetrics, selectedRange) ?? emptyMetrics
 
   const siteSettings = (site?.settings ?? {}) as {
     quick_links?: unknown
@@ -281,10 +323,10 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
 
             <CardGroup className="grid lg:grid-cols-2">
               <Suspense fallback={<TopListFallback title="Top Pages" />}>
-                <TopPagesCard siteId={siteId} range={selectedRange} />
+                <TopPagesCard siteId={siteId} range="30d" />
               </Suspense>
               <Suspense fallback={<TopListFallback title="Top Referrers" />}>
-                <TopReferrersCard siteId={siteId} range={selectedRange} />
+                <TopReferrersCard siteId={siteId} range="30d" />
               </Suspense>
             </CardGroup>
           </CardGroup>
