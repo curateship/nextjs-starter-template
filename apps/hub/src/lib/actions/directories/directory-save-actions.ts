@@ -6,8 +6,8 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions'
 import { db } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { authUsers, directories, directorySaveCollections, directorySaveItems, sites } from '@/lib/db/schema'
-import { getActiveSiteMembership, touchSiteMembershipActivity } from '@/lib/utils/site-membership-runtime'
+import { authUsers, directories, directorySaveCollections, directorySaveItems, siteMemberships, sites } from '@/lib/db/schema'
+import { touchSiteMembershipActivity } from '@/lib/utils/site-membership-runtime'
 
 export interface DirectorySaveCollectionState {
   id: string | null
@@ -176,7 +176,7 @@ function buildFolderItemDashboardWhere(input: {
   return and(...filters)
 }
 
-async function getDirectoryAndSite(siteId: string, directoryId: string) {
+async function getDirectoryAndSite(siteId: string, directoryId: string, userId: string) {
   const [row] = await db
     .select({
       site: {
@@ -186,9 +186,15 @@ async function getDirectoryAndSite(siteId: string, directoryId: string) {
       directory: {
         id: directories.id,
       },
+      membershipId: siteMemberships.id,
     })
     .from(directories)
     .innerJoin(sites, eq(sites.id, directories.siteId))
+    .leftJoin(siteMemberships, and(
+      eq(siteMemberships.siteId, sites.id),
+      eq(siteMemberships.userId, userId),
+      eq(siteMemberships.status, 'active')
+    ))
     .where(and(
       eq(sites.id, siteId),
       eq(directories.id, directoryId),
@@ -204,54 +210,42 @@ async function ensureSaveAccess(siteId: string, directoryId: string) {
     return { user: null, row: null, authPath: null, error: 'Invalid listing ID' }
   }
 
-  const row = await getDirectoryAndSite(siteId, directoryId)
-  if (!row) return { user: null, row: null, authPath: null, error: 'Listing not found' }
-
   const user = await getAuthenticatedUser()
   if (!user) {
     const authPathResult = await getPublicAuthPagePath(siteId)
-    return { user: null, row, authPath: authPathResult.path || '/', error: null }
+    return { user: null, row: null, authPath: authPathResult.path || '/', error: null }
   }
 
-  const membership = await getActiveSiteMembership(siteId, user.id)
-  if (!membership) {
+  const row = await getDirectoryAndSite(siteId, directoryId, user.id)
+  if (!row) return { user: null, row: null, authPath: null, error: 'Listing not found' }
+  if (!row.membershipId) {
     return { user: null, row, authPath: null, error: 'Membership required' }
   }
 
   return { user, row, authPath: null, error: null }
 }
 
-async function getCollectionRows(siteId: string, userId: string) {
-  return db
+async function buildState(siteId: string, userId: string, directoryId: string, settings: unknown) {
+  const collectionRows = await db
     .select({
       id: directorySaveCollections.id,
       name: directorySaveCollections.name,
       defaultKey: directorySaveCollections.defaultKey,
       createdAt: directorySaveCollections.createdAt,
+      savedItemId: directorySaveItems.id,
     })
     .from(directorySaveCollections)
+    .leftJoin(directorySaveItems, and(
+      eq(directorySaveItems.siteId, siteId),
+      eq(directorySaveItems.userId, userId),
+      eq(directorySaveItems.directoryId, directoryId),
+      eq(directorySaveItems.collectionId, directorySaveCollections.id)
+    ))
     .where(and(
       eq(directorySaveCollections.siteId, siteId),
       eq(directorySaveCollections.userId, userId)
     ))
     .orderBy(sql`${directorySaveCollections.defaultKey} asc nulls last`, asc(directorySaveCollections.createdAt), asc(directorySaveCollections.id))
-}
-
-async function buildState(siteId: string, userId: string, directoryId: string, settings: unknown) {
-  const collectionRows = await getCollectionRows(siteId, userId)
-  const collectionIds = collectionRows.map((collection) => collection.id)
-  const savedRows = collectionIds.length > 0
-    ? await db
-        .select({ collectionId: directorySaveItems.collectionId })
-        .from(directorySaveItems)
-        .where(and(
-          eq(directorySaveItems.siteId, siteId),
-          eq(directorySaveItems.userId, userId),
-          eq(directorySaveItems.directoryId, directoryId),
-          inArray(directorySaveItems.collectionId, collectionIds)
-        ))
-    : []
-  const savedIds = new Set(savedRows.map((row) => row.collectionId))
   const rowsByDefaultKey = new Map(collectionRows.map((row) => [row.defaultKey, row]))
   const defaultCollections = getDefaultCollections(settings).map((item) => {
     const row = rowsByDefaultKey.get(item.key)
@@ -259,7 +253,7 @@ async function buildState(siteId: string, userId: string, directoryId: string, s
       id: row?.id || null,
       name: item.label,
       default_key: item.key,
-      saved: row ? savedIds.has(row.id) : false,
+      saved: Boolean(row?.savedItemId),
     }
   })
   const customCollections = collectionRows
@@ -268,7 +262,7 @@ async function buildState(siteId: string, userId: string, directoryId: string, s
       id: row.id,
       name: row.name,
       default_key: null,
-      saved: savedIds.has(row.id),
+      saved: Boolean(row.savedItemId),
     }))
 
   return [...defaultCollections, ...customCollections]

@@ -13,6 +13,7 @@ import {
 } from "@/lib/actions/directories/directory-core"
 import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
+import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
 import { Card, CardSection } from "@/components/ui/card"
 import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
@@ -29,6 +30,7 @@ interface DirectoryCoreBlockProps {
   }
   directoryData?: DirectoryData
   claimAuthPath?: string | null
+  siteId?: string | null
   cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
@@ -148,7 +150,7 @@ function getDirectoryFieldValue(fields: DirectoryData["fields"], type: Directory
   }
 }
 
-export function DirectoryCoreBlock({ content, directory, directoryData, claimAuthPath, cardProps }: DirectoryCoreBlockProps) {
+export function DirectoryCoreBlock({ content, directory, directoryData, claimAuthPath, siteId, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
@@ -184,6 +186,9 @@ export function DirectoryCoreBlock({ content, directory, directoryData, claimAut
   })
   const title = fields.businessName || directory.title || "Directory Listing"
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
+  const showSaveButton = Boolean(siteId && directory.id && featuredImage && visibility.image !== false)
+  const saveIconOpacityNumber = Number(content?.saveIconOpacity)
+  const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
   const introTemplate = typeof fields.description === "string" ? fields.description : ""
   const introText = renderDirectoryCoreIntroText(introTemplate, {
     directoryTitle: title,
@@ -196,7 +201,17 @@ export function DirectoryCoreBlock({ content, directory, directoryData, claimAut
   return (
     <Card {...rootProps} className={cn("overflow-hidden", cardClassName)}>
       {featuredImage && visibility.image !== false ? (
-        <img src={featuredImage} alt={title} className="h-auto w-full object-cover" />
+        <div className="relative">
+          <img src={featuredImage} alt={title} className="h-auto w-full object-cover" />
+          {showSaveButton ? (
+            <DirectorySaveDropdown
+              siteId={siteId!}
+              directoryId={directory.id!}
+              opacity={resolvedSaveIconOpacity}
+              className="absolute right-3 top-3 z-10"
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <CardSection>

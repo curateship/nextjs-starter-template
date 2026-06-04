@@ -410,6 +410,8 @@ export function DirectoryCoreBlock({
   const sortableMenuLinksReady = sortableReady && menuLinks.every((link) => !!link.id)
   const featuredImage = directoryData?.featured_image || ""
   const introText = typeof content.introText === "string" ? content.introText : ""
+  const saveIconOpacityNumber = Number(content.saveIconOpacity)
+  const saveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
 
   useEffect(() => {
     setSortableReady(true)
@@ -920,6 +922,28 @@ export function DirectoryCoreBlock({
             useCard
             fields={[]}
           />
+
+          <Card>
+            <CardHeader>
+              <DashboardModalCardTitle>Save Button</DashboardModalCardTitle>
+            </CardHeader>
+            <CardContent>
+              <Field>
+                <FieldLabel htmlFor="directory-core-save-icon-opacity">Save Icon Opacity</FieldLabel>
+                <Input
+                  id="directory-core-save-icon-opacity"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={saveIconOpacity}
+                  onChange={(event) => {
+                    const value = Number(event.target.value)
+                    onContentChange("saveIconOpacity", Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined)
+                  }}
+                />
+              </Field>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

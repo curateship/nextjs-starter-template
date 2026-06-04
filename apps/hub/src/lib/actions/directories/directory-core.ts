@@ -261,6 +261,7 @@ export function normalizeDirectoryCoreContent(
     claimPendingReviewText: typeof nextContent.claimPendingReviewText === "string" ? nextContent.claimPendingReviewText : "Claim Pending Review",
     claimApprovedText: typeof nextContent.claimApprovedText === "string" ? nextContent.claimApprovedText : "Edit Listing",
     ownerEditPath: typeof nextContent.ownerEditPath === "string" ? nextContent.ownerEditPath : "/account",
+    saveIconOpacity: typeof nextContent.saveIconOpacity === "number" ? Math.min(100, Math.max(0, nextContent.saveIconOpacity)) : 100,
     visibility,
   }
 }

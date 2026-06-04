@@ -145,6 +145,7 @@ export function DirectoryBlockRenderer({
           directory={directory}
           directoryData={directory.directory_data}
           claimAuthPath={claimAuthPath}
+          siteId={site.id}
           cardProps={getBlockCardProps(block, "overflow-hidden")}
         />
       )

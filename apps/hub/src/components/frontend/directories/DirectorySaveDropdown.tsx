@@ -135,6 +135,8 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
     })
   }
 
+  const sortedCollections = [...collections].sort((a, b) => Number(b.saved) - Number(a.saved))
+
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -152,80 +154,82 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
           <Bookmark className="size-7 fill-current drop-shadow-sm" style={{ opacity: resolvedOpacity }} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-64"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <DropdownMenuLabel>Save to</DropdownMenuLabel>
-        {loading ? (
-          <div className="space-y-2 px-2 py-1.5">
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-5 w-40" />
-          </div>
-        ) : authPath && collections.length === 0 ? (
-          <DropdownMenuItem
-            onSelect={(event) => {
-              event.preventDefault()
-              window.location.href = buildAuthRedirect(authPath)
-            }}
-          >
-            Sign in to save
-          </DropdownMenuItem>
-        ) : (
-          collections.map((collection) => {
-            const key = collection.id || collection.default_key || collection.name
-            const pending = pendingKey === key && isPending
-
-            return (
-              <DropdownMenuCheckboxItem
-                key={key}
-                checked={collection.saved}
-                disabled={pending}
-                className="pl-2 [&>span:first-child]:hidden"
-                onSelect={(event) => event.preventDefault()}
-                onCheckedChange={(checked) => handleToggle(collection, checked === true)}
-              >
-                <Bookmark className={cn("size-4", collection.saved && "fill-current")} />
-                <span className="min-w-0 flex-1 truncate">{collection.name}</span>
-                {pending && <Loader2 className="ml-auto size-3 animate-spin" />}
-              </DropdownMenuCheckboxItem>
-            )
-          })
-        )}
-
-        <div className="mt-3 space-y-2 p-2" onKeyDown={(event) => event.stopPropagation()}>
-          <Input
-            value={newFolderName}
-            onChange={(event) => setNewFolderName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
+      {open ? (
+        <DropdownMenuContent
+          align="end"
+          className="w-64"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <DropdownMenuLabel>Save to</DropdownMenuLabel>
+          {loading ? (
+            <div className="space-y-2 px-2 py-1.5">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-5 w-40" />
+            </div>
+          ) : authPath && collections.length === 0 ? (
+            <DropdownMenuItem
+              onSelect={(event) => {
                 event.preventDefault()
-                handleCreateFolder()
-              }
-            }}
-            placeholder="New folder"
-            disabled={Boolean(authPath) || pendingKey === "new"}
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="w-full"
-            disabled={Boolean(authPath) || pendingKey === "new" || !newFolderName.trim()}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              handleCreateFolder()
-            }}
-          >
-            {pendingKey === "new" ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            Create folder
-          </Button>
-        </div>
+                window.location.href = buildAuthRedirect(authPath)
+              }}
+            >
+              Sign in to save
+            </DropdownMenuItem>
+          ) : (
+            sortedCollections.map((collection) => {
+              const key = collection.id || collection.default_key || collection.name
+              const pending = pendingKey === key && isPending
 
-        {error && <p className="px-2 pb-2 text-xs text-destructive">{error}</p>}
-      </DropdownMenuContent>
+              return (
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  checked={collection.saved}
+                  disabled={pending}
+                  className="pl-2 [&>span:first-child]:hidden"
+                  onSelect={(event) => event.preventDefault()}
+                  onCheckedChange={(checked) => handleToggle(collection, checked === true)}
+                >
+                  <Bookmark className={cn("size-4", collection.saved && "fill-current")} />
+                  <span className="min-w-0 flex-1 truncate">{collection.name}</span>
+                  {pending && <Loader2 className="ml-auto size-3 animate-spin" />}
+                </DropdownMenuCheckboxItem>
+              )
+            })
+          )}
+
+          <div className="mt-3 space-y-2 p-2" onKeyDown={(event) => event.stopPropagation()}>
+            <Input
+              value={newFolderName}
+              onChange={(event) => setNewFolderName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  handleCreateFolder()
+                }
+              }}
+              placeholder="New folder"
+              disabled={Boolean(authPath) || pendingKey === "new"}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="w-full"
+              disabled={Boolean(authPath) || pendingKey === "new" || !newFolderName.trim()}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                handleCreateFolder()
+              }}
+            >
+              {pendingKey === "new" ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              Create folder
+            </Button>
+          </div>
+
+          {error && <p className="px-2 pb-2 text-xs text-destructive">{error}</p>}
+        </DropdownMenuContent>
+      ) : null}
     </DropdownMenu>
   )
 }
