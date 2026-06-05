@@ -60,6 +60,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - `HUB_PLATFORM_HOST` — the canonical host for Hub platform admin, currently `hub.systemeverything.com`
 - `TRAEFIK_DYNAMIC_CONFIG_ENDPOINT`, `TRAEFIK_DYNAMIC_CONFIG_TOKEN`, `TRAEFIK_HUB_SERVICE` — server-only settings used to wire verified custom domains into Traefik without restarting Hub
 - `TRAEFIK_DYNAMIC_CONFIG_DIR` — optional direct-write path when the Hub container can write to Traefik's dynamic config directory
+- `CLOUDFLARE_DNS_API_TOKEN`, `CLOUDFLARE_DNS_TARGET`, `CLOUDFLARE_DNS_ZONES` — optional server-only settings used to create DNS records automatically for domains managed in our Cloudflare account
 - `COOLIFY_BASE_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_HUB_APP_UUID` — legacy server-only fallback settings used to wire verified custom domains into Coolify
 - `HUB_CORE_BRIDGE_TOKEN` — server-only token for Core-to-Hub internal bridge APIs
 - `HUB_CORE_BRIDGE_SITE_IDS` — optional comma-separated list of site IDs Core may list/export to

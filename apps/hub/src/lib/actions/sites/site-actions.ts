@@ -13,6 +13,7 @@ import { sanitizeFooterSettings, sanitizeNavigationSettings } from '@/lib/utils/
 import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions'
 import { DEFAULT_NEWSLETTER_DRIP_CONFIG } from '@/lib/actions/newsletters/send-windows'
 import { isHubPlatformHostname, isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
+import { ensureCloudflareCustomDomainDns } from '@/lib/utils/cloudflare-dns'
 
 export interface Site {
   id: string
@@ -328,7 +329,8 @@ async function verifyCustomDomainDns(domain: string, userId: string) {
 async function prepareCustomDomain(
   input: string | null | undefined,
   userId: string,
-  currentSiteId?: string
+  currentSiteId?: string,
+  canManageCloudflareDns = false
 ): Promise<{ domain: string | null; error: string | null }> {
   const domain = sanitizeCustomDomain(input)
   if (!domain) return { domain: null, error: null }
@@ -351,13 +353,23 @@ async function prepareCustomDomain(
     return { domain: null, error: 'Custom domain is already assigned to another site' }
   }
 
+  const verificationValue = getCustomDomainVerificationValue(domain, userId)
+  if (!verificationValue) {
+    return { domain: null, error: 'Custom domain verification is not configured' }
+  }
+
+  if (canManageCloudflareDns) {
+    const cloudflareError = await ensureCloudflareCustomDomainDns({
+      domain,
+      aliases: getCustomDomainAliases(domain),
+      verificationName: getCustomDomainVerificationRecord(domain),
+      verificationValue,
+    })
+    if (cloudflareError) return { domain: null, error: cloudflareError }
+  }
+
   const verified = await verifyCustomDomainDns(domain, userId)
   if (!verified) {
-    const verificationValue = getCustomDomainVerificationValue(domain, userId)
-    if (!verificationValue) {
-      return { domain: null, error: 'Custom domain verification is not configured' }
-    }
-
     return {
       domain: null,
       error: `Add TXT record ${getCustomDomainVerificationRecord(domain)} with value ${verificationValue} before using this domain`,
@@ -442,7 +454,7 @@ export async function createSiteAction(siteData: CreateSiteData): Promise<{ data
       subdomainSuffix = `-${attempts}`
     }
 
-    const customDomain = await prepareCustomDomain(siteData.custom_domain ?? null, user.id)
+    const customDomain = await prepareCustomDomain(siteData.custom_domain ?? null, user.id, undefined, user.role === 'super_admin')
     if (customDomain.error) return { data: null, error: customDomain.error }
 
     const settings = {
@@ -643,7 +655,7 @@ export async function updateSiteAction(
     if (updates.hasOwnProperty('custom_domain')) {
       const requestedDomain = sanitizeCustomDomain(updates.custom_domain)
       if (requestedDomain !== (ownedSite.customDomain || null)) {
-        const customDomain = await prepareCustomDomain(updates.custom_domain, user.id, siteId)
+        const customDomain = await prepareCustomDomain(updates.custom_domain, user.id, siteId, user.role === 'super_admin')
         if (customDomain.error) return { data: null, error: customDomain.error }
         finalUpdates.customDomain = customDomain.domain
       }

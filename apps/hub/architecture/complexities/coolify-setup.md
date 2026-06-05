@@ -82,6 +82,22 @@ When a user saves a custom domain in Hub:
 
 The DNS records still need to exist in Cloudflare. Hub does not create customer DNS records unless a separate Cloudflare integration is built for that domain owner.
 
+## Managed Cloudflare DNS
+
+For domains in our Cloudflare account, Hub can create the DNS records before checking TXT verification. This automatic DNS write only runs for `super_admin` users; other users still get the manual TXT instructions.
+
+Hub env vars:
+
+```env
+CLOUDFLARE_DNS_API_TOKEN=
+CLOUDFLARE_DNS_TARGET=5.78.189.158
+CLOUDFLARE_DNS_RECORD_TYPE=A
+CLOUDFLARE_DNS_PROXIED=true
+CLOUDFLARE_DNS_ZONES=eatdrinktoronto.com:zone_id,example.com:zone_id
+```
+
+`CLOUDFLARE_DNS_ZONES` is optional if the token can list zones. Keep this token server-only and scoped to Cloudflare DNS edit permissions for the managed zones.
+
 ## When This Breaks
 
 If saving a custom domain returns:
