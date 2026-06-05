@@ -10,7 +10,7 @@ import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 
 type ListingContentType = 'products' | 'posts' | 'directory'
-type ListingStyle = 'default' | 'blog'
+type ListingStyle = 'default' | 'blog' | 'directory'
 type ImageFit = 'crop' | 'fit'
 
 const LISTING_STYLES: Record<ListingStyle, { label: string; description: string }> = {
@@ -21,6 +21,10 @@ const LISTING_STYLES: Record<ListingStyle, { label: string; description: string 
   blog: {
     label: 'Blog',
     description: 'Editorial cards with images and read-more links',
+  },
+  directory: {
+    label: 'Directory',
+    description: 'Directory cards with rating and address',
   },
 }
 
@@ -338,27 +342,34 @@ export function PageListingViewBlock({
                       placeholder="25"
                     />
                   </div>
-                  {contentType === 'directory' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="saveIconOpacity">Save Icon Opacity</Label>
-                      <Input
-                        id="saveIconOpacity"
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={saveIconOpacity ?? ''}
-                        onChange={(event) => {
-                          const value = Number(event.target.value)
-                          onSaveIconOpacityChange(Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined)
-                        }}
-                        placeholder="100"
-                      />
-                    </div>
-                  )}
                 </div>
                   </BlockEditorSection>
                 </CardContent>
               </Card>
+
+              {contentType === 'directory' && (
+                <Card>
+                  <CardContent>
+                    <BlockEditorSection heading="Save Button">
+                      <div className="max-w-xs space-y-2">
+                        <Label htmlFor="saveIconOpacity">Save Icon Opacity</Label>
+                        <Input
+                          id="saveIconOpacity"
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={saveIconOpacity ?? ''}
+                          onChange={(event) => {
+                            const value = Number(event.target.value)
+                            onSaveIconOpacityChange(Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined)
+                          }}
+                          placeholder="100"
+                        />
+                      </div>
+                    </BlockEditorSection>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardContent>
@@ -453,12 +464,18 @@ export function PageListingViewBlock({
               <Card>
                 <CardContent>
                   <BlockEditorSection heading="Listing Style">
-                <div className="grid grid-cols-2 gap-2 max-w-sm">
+                <div className="grid max-w-3xl grid-cols-3 gap-2">
                   {Object.entries(LISTING_STYLES).map(([key, style]) => (
                     <button
                       key={key}
                       type="button"
-                      onClick={() => onListingStyleChange(key as ListingStyle)}
+                      onClick={() => {
+                        const nextStyle = key as ListingStyle
+                        onListingStyleChange(nextStyle)
+                        if (nextStyle === 'directory') {
+                          onContentTypeChange('directory')
+                        }
+                      }}
                       className={cn(
                         "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                         listingStyle === key
@@ -518,6 +535,10 @@ export function PageListingViewBlock({
                       { key: 'showAuthor', label: 'Show Author' },
                       { key: 'showDate', label: 'Show Date' },
                       { key: 'showReadMore', label: 'Show Read More' },
+                    ] : []),
+                    ...(listingStyle === 'directory' ? [
+                      { key: 'showRating', label: 'Show Rating' },
+                      { key: 'showAddress', label: 'Show Address' },
                     ] : []),
                   ]}
                 />

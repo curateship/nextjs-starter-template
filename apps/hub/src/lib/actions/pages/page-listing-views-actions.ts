@@ -16,6 +16,8 @@ export interface ListingViewsItem {
   author_image: string | null
   created_at: string
   display_order: number
+  rating: number | null
+  address: string | null
 }
 
 export interface ListingViewsData {
@@ -41,6 +43,9 @@ interface ListingViewsRow extends Record<string, unknown> {
   created_at: Date | string | null
   display_order: number | null
   total_count: number | null
+  rating?: number | string | null
+  address?: string | null
+  country?: string | null
 }
 
 function normalizeCategoryIds(categoryIds?: string[]) {
@@ -71,6 +76,24 @@ function getCategoryJoin(categoryIds: string[], contentType: 'product' | 'post' 
   `
 }
 
+function formatDirectoryAddress(address?: string | null, country?: string | null) {
+  const parts = (address || '').split(',').map((part) => part.trim()).filter(Boolean)
+  const countryNames = [country, 'United States', 'USA', 'US', 'Canada', 'CA']
+    .filter(Boolean)
+    .map((value) => value!.toLowerCase())
+
+  return parts
+    .filter((part, index) => index !== parts.length - 1 || !countryNames.includes(part.toLowerCase()))
+    .map((part) => part
+      .replace(/\b[A-Z]\d[A-Z][ -]?\d[A-Z]\d\b/gi, '')
+      .replace(/\b\d{5}(?:-\d{4})?\b/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    )
+    .filter(Boolean)
+    .join(', ')
+}
+
 function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) {
   const totalCount = Number(rows[0]?.total_count ?? 0)
   const items = rows
@@ -85,6 +108,8 @@ function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) 
       author_image: row.author_image || null,
       created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
       display_order: row.display_order || 0,
+      rating: row.rating == null ? null : Number(row.rating),
+      address: formatDirectoryAddress(row.address, row.country) || null,
     }))
 
   return {
@@ -184,7 +209,14 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         coalesce(u."displayName", u.name) as author,
         u.image as author_image,
         d.created_at,
-        d.display_order
+        d.display_order,
+        case
+          when d.directory_data #>> '{fields,rating}' ~ '^[0-9]+(\\.[0-9]+)?$'
+          then (d.directory_data #>> '{fields,rating}')::numeric
+          else null
+        end as rating,
+        nullif(d.directory_data #>> '{fields,address}', '') as address,
+        nullif(d.directory_data #>> '{fields,country}', '') as country
       from directory d
       inner join sites s on s.id = d.site_id
       inner join users u on u.id = s.user_id
@@ -223,7 +255,7 @@ const getCachedListingData = unstable_cache(
 
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v5'],
+  ['listing-data-v7'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']

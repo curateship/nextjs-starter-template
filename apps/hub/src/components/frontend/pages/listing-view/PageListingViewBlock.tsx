@@ -14,11 +14,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardFooter, CardHeader } from "@/components/ui/card"
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowRight, ChevronLeft, ChevronRight, MapPin } from "lucide-react"
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
+import { Rating } from "@/components/shadcnblocks/rating"
 
 type ListingContentType = "products" | "posts" | "directory"
-type ListingStyle = "default" | "blog"
+type ListingStyle = "default" | "blog" | "directory"
 type ImageFit = "crop" | "fit"
 
 function getInitials(name?: string | null) {
@@ -121,6 +122,8 @@ export function ListingViewsBlock({
   const showAuthorElement = visibility?.showAuthor !== false
   const showDateElement = visibility?.showDate !== false
   const showReadMoreElement = visibility?.showReadMore !== false
+  const showRatingElement = visibility?.showRating !== false
+  const showAddressElement = visibility?.showAddress !== false
   const showSaveButton = contentType === "directory" && showImageElement && visibility?.showSaveButton !== false
 
   // Create responsive alignment classes
@@ -229,6 +232,7 @@ export function ListingViewsBlock({
   const imageFrameStyle = customImageHeight ? { aspectRatio: `100 / ${customImageHeight}` } : undefined
   const defaultImageAspectClassName = customImageHeight ? "" : "aspect-square"
   const blogImageAspectClassName = customImageHeight ? "" : "aspect-video"
+  const isCardListingStyle = listingStyle === "blog" || listingStyle === "directory"
 
   const formatDate = (value?: string | null) => {
     if (!value) return ""
@@ -248,6 +252,12 @@ export function ListingViewsBlock({
     return plainText.length > 150 ? plainText.substring(0, 150) + "..." : plainText
   }
 
+  const getRatingValue = (rating?: number | null) => {
+    const value = Number(rating)
+    if (!Number.isFinite(value) || value <= 0) return null
+    return Math.min(5, value)
+  }
+
   const renderItem = (item: ListingViewsItem, index: number) => {
     // First image in grid is likely LCP element - prioritize it aggressively
     const isLCP = index === 0
@@ -263,11 +273,13 @@ export function ListingViewsBlock({
       />
     ) : null
 
-    if (listingStyle === "blog") {
+    if (isCardListingStyle) {
       const summary = getItemSummary(item)
       const published = showDateElement ? formatDate(item.created_at) : ""
       const authorName = item.author?.trim() || ""
       const showAuthorMeta = showAuthorElement && Boolean(authorName)
+      const rating = listingStyle === "directory" && showRatingElement ? getRatingValue(item.rating) : null
+      const address = listingStyle === "directory" && showAddressElement ? item.address?.trim() : ""
 
       return (
         <Card
@@ -308,8 +320,21 @@ export function ListingViewsBlock({
           >
             <CardHeader>
               {showTitleElement && <h3 className="text-base md:text-xl">{item.title}</h3>}
+              {(rating || address) && (
+                <div className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
+                  {rating && (
+                    <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
+                  )}
+                  {address && (
+                    <div className="flex items-start gap-1.5">
+                      <MapPin className="mt-0.5 size-4 shrink-0 text-foreground" />
+                      <span className="min-w-0">{address}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {showDescriptionElement && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
-              {(showAuthorMeta || published) && (
+              {listingStyle === "blog" && (showAuthorMeta || published) && (
                 <div className="mt-3 flex items-center gap-2">
                   {showAuthorMeta && (
                     <Avatar className="size-9 border">
@@ -325,7 +350,7 @@ export function ListingViewsBlock({
               )}
             </CardHeader>
           </Link>
-          {showReadMoreElement && (
+          {listingStyle === "blog" && showReadMoreElement && (
             <CardFooter>
               <Link href={href} className="flex items-center text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                 Read more
@@ -467,7 +492,7 @@ export function ListingViewsBlock({
       {renderHeader()}
 
       <div
-        className={`grid ${listingStyle === "blog" ? `gap-6 ${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns} lg:gap-8` : `${gridColumns} gap-8`}`}
+        className={`grid ${isCardListingStyle ? `gap-6 ${mobileGridColumns} sm:grid-cols-2 ${desktopGridColumns} lg:gap-8` : `${gridColumns} gap-8`}`}
       >
         {listingItems.map((item, index) => renderItem(item, index))}
       </div>
