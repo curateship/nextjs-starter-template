@@ -4,6 +4,7 @@ import {
   ImageIcon,
   MapPinnedIcon,
   Loader2Icon,
+  MailIcon,
   PlayIcon,
   PlusIcon,
   SparklesIcon,
@@ -81,7 +82,7 @@ import {
   enhanceGoogleMapsResults,
   loadHubExportSites,
   exportGoogleMapsResultsToHub,
-  type GoogleMapsSocialPlatform,
+  type GoogleMapsEnhanceField,
   type HubExportSite,
   type HubExportStatus,
 } from "@/providers/google-maps/api"
@@ -131,13 +132,14 @@ const fieldSettingsTabs: { id: FieldSettingsTab; label: string }[] = [
   { id: "other", label: "Other Fields" },
 ]
 const activeExecutionStatuses = new Set(["queued", "running"])
-const socialPlatformOptions: { id: GoogleMapsSocialPlatform; label: string }[] = [
+const enhanceFieldOptions: { id: GoogleMapsEnhanceField; label: string }[] = [
   { id: "instagram", label: "Instagram" },
   { id: "facebook", label: "Facebook" },
   { id: "tiktok", label: "TikTok" },
   { id: "twitter", label: "X/Twitter" },
   { id: "linkedin", label: "LinkedIn" },
   { id: "youtube", label: "YouTube" },
+  { id: "email", label: "Email" },
 ]
 const orderedResultKeys = [
   "businessName",
@@ -156,6 +158,7 @@ const orderedResultKeys = [
   "reviewCount",
   "phone",
   "website",
+  "email",
   "instagram",
   "facebook",
   "tiktok",
@@ -171,6 +174,7 @@ const resultFieldLabels: Record<string, string> = {
   region: "Region",
   country: "Country",
   countryCode: "Country code",
+  email: "Email",
   instagram: "Instagram",
   facebook: "Facebook",
   tiktok: "TikTok",
@@ -185,6 +189,7 @@ const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
   { key: "city", sourcePath: "city", label: "City", visible: true, editable: true, type: "text", order: 7 },
   { key: "region", sourcePath: "region", label: "Region", visible: true, editable: true, type: "text", order: 8 },
   { key: "country", sourcePath: "country", label: "Country", visible: true, editable: true, type: "text", order: 9 },
+  { key: "email", sourcePath: "email", label: "Email", visible: true, editable: true, type: "text", order: 19 },
   { key: "instagram", sourcePath: "instagram", label: "Instagram", visible: true, editable: true, type: "text", order: 20 },
   { key: "facebook", sourcePath: "facebook", label: "Facebook", visible: true, editable: true, type: "text", order: 21 },
   { key: "tiktok", sourcePath: "tiktok", label: "TikTok", visible: true, editable: true, type: "text", order: 22 },
@@ -194,7 +199,7 @@ const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
 ]
 const fixedResultFieldKeys = new Set(fixedResultFieldSettings.map((setting) => setting.key))
 const descriptionResultFieldKeys = new Set(["description"])
-const socialResultFieldKeys = new Set(socialPlatformOptions.map((option) => option.id))
+const contactResultFieldKeys = new Set(enhanceFieldOptions.map((option) => option.id))
 const resultNumberFields = new Set(["rating", "reviewCount"])
 const readOnlyResultFields = new Set([
   "raw",
@@ -624,7 +629,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [hubExportStatus, setHubExportStatus] = React.useState<HubExportStatus>("draft")
   const [hubExportState, setHubExportState] = React.useState<HubExportDialogStatus>("idle")
   const [enhanceOpen, setEnhanceOpen] = React.useState(false)
-  const [enhancePlatforms, setEnhancePlatforms] = React.useState<GoogleMapsSocialPlatform[]>(socialPlatformOptions.map((option) => option.id))
+  const [enhanceFields, setEnhanceFields] = React.useState<GoogleMapsEnhanceField[]>(enhanceFieldOptions.map((option) => option.id))
   const [enhanceState, setEnhanceState] = React.useState<EnhanceDialogStatus>("idle")
   const pollingExecutionIds = React.useRef<Set<string>>(new Set())
 
@@ -683,9 +688,9 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const dynamicResultFields = resultFields.filter((setting) => (
     setting.key !== "featuredImage" &&
     !descriptionResultFieldKeys.has(setting.key) &&
-    !socialResultFieldKeys.has(setting.key)
+    !contactResultFieldKeys.has(setting.key)
   ))
-  const socialResultFields = resultFields.filter((setting) => socialResultFieldKeys.has(setting.key))
+  const contactResultFields = resultFields.filter((setting) => contactResultFieldKeys.has(setting.key))
   const visibleIds = visibleResults.map((result) => result.id)
   const visibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const visibleIndeterminate = !visibleSelected && visibleIds.some((id) => selectedIds.has(id))
@@ -797,7 +802,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   }
 
   const enhanceData = async () => {
-    if (!selectedIds.size || !enhancePlatforms.length) return
+    if (!selectedIds.size || !enhanceFields.length) return
 
     setEnhanceState("enhancing")
     setMessage(null)
@@ -805,7 +810,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       const response = await enhanceGoogleMapsResults({
         runId,
         resultIds: Array.from(selectedIds),
-        platforms: enhancePlatforms,
+        platforms: enhanceFields,
       })
       setEnhanceOpen(false)
       await load()
@@ -820,10 +825,10 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     }
   }
 
-  const toggleEnhancePlatform = (platform: GoogleMapsSocialPlatform, checked: boolean) => {
-    setEnhancePlatforms((current) => {
-      if (checked) return current.includes(platform) ? current : [...current, platform]
-      return current.filter((item) => item !== platform)
+  const toggleEnhanceField = (field: GoogleMapsEnhanceField, checked: boolean) => {
+    setEnhanceFields((current) => {
+      if (checked) return current.includes(field) ? current : [...current, field]
+      return current.filter((item) => item !== field)
     })
   }
 
@@ -915,11 +920,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                 <Checkbox checked={visibleSelected ? true : visibleIndeterminate ? "indeterminate" : false} onCheckedChange={(checked) => toggleVisible(checked === true)} aria-label="Select visible results" />
               </TableHead>
               <TableHead column="main"><TableSortButton active={sortColumn === "title"} direction={sortDirection} onClick={() => toggleSort("title")}>Business</TableSortButton></TableHead>
-              <TableHead column="preview" className="w-64 max-w-64"><TableSortButton active={sortColumn === "address"} direction={sortDirection} onClick={() => toggleSort("address")}>Address</TableSortButton></TableHead>
+              <TableHead column="meta">Google Map</TableHead>
+              <TableHead column="meta"><TableSortButton active={sortColumn === "website"} direction={sortDirection} onClick={() => toggleSort("website")}>Website</TableSortButton></TableHead>
+              <TableHead column="meta">Contact</TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "rating"} direction={sortDirection} onClick={() => toggleSort("rating")}>Rating</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "reviews"} direction={sortDirection} onClick={() => toggleSort("reviews")}>Reviews</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "phone"} direction={sortDirection} onClick={() => toggleSort("phone")}>Phone</TableSortButton></TableHead>
-              <TableHead column="meta"><TableSortButton active={sortColumn === "website"} direction={sortDirection} onClick={() => toggleSort("website")}>Website</TableSortButton></TableHead>
               <TableHead column="meta"><TableSortButton active={sortColumn === "created"} direction={sortDirection} onClick={() => toggleSort("created")}>Date added</TableSortButton></TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -927,7 +933,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         }
         isEmpty={!loadingResults && results.length === 0}
         emptyText="No results found."
-        emptyColSpan={9}
+        emptyColSpan={10}
         footer={{
           type: "pagination",
           page,
@@ -941,6 +947,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       >
         {loadingResults ? <GoogleMapsResultsSkeletonRows count={pageSize} /> : visibleResults.map((result) => {
           const websiteHref = safeExternalHref(text(result.data.website))
+          const mapsHref = safeExternalHref(text(result.data.mapsUrl))
           const featuredImage = safeExternalHref(text(result.data.featuredImage))
           return (
             <TableRow key={result.id} data-state={selectedIds.has(result.id) ? "selected" : undefined}>
@@ -958,11 +965,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                   </div>
                 </div>
               </TableCell>
-              <TableCell column="preview" className="w-64 max-w-64 truncate">{locationText(result.data)}</TableCell>
+              <TableCell column="meta">{mapsHref ? <Button asChild variant="outline" size="sm" className="h-8"><a href={mapsHref} target="_blank" rel="noopener noreferrer">Map</a></Button> : "None"}</TableCell>
+              <TableCell column="meta">{websiteHref ? <Button asChild variant="outline" size="sm" className="h-8"><a href={websiteHref} target="_blank" rel="noopener noreferrer">Visit</a></Button> : "None"}</TableCell>
+              <TableCell column="meta"><ContactLinks data={result.data} /></TableCell>
               <TableCell column="meta">{typeof result.data.rating === "number" ? result.data.rating : "Unknown"}</TableCell>
               <TableCell column="meta">{typeof result.data.reviewCount === "number" ? result.data.reviewCount : "Unknown"}</TableCell>
               <TableCell column="meta">{text(result.data.phone) ?? "Unknown"}</TableCell>
-              <TableCell column="meta">{websiteHref ? <Button asChild variant="outline" size="sm" className="h-8 sm:h-9"><a href={websiteHref} target="_blank" rel="noopener noreferrer">Visit</a></Button> : "None"}</TableCell>
               <TableCell column="meta">{dateFormatter.format(new Date(result.created_at))}</TableCell>
               <TableCell column="meta">
                 <div className="flex items-center gap-1">
@@ -1053,11 +1061,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Social fields</CardTitle>
-                    <CardDescription>Fields filled by the manual social scrape.</CardDescription>
+                    <CardTitle>Contact fields</CardTitle>
+                    <CardDescription>Fields filled by the manual enhancement.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4 sm:grid-cols-2">
-                    {socialResultFields.map((setting) => (
+                    {contactResultFields.map((setting) => (
                         <ResultField
                           key={setting.key}
                           id={`result-${setting.key}`}
@@ -1121,10 +1129,10 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       <EnhanceDataDialog
         count={selectedIds.size}
         open={enhanceOpen}
-        platforms={enhancePlatforms}
+        fields={enhanceFields}
         state={enhanceState}
         onOpenChange={setEnhanceOpen}
-        onPlatformChange={toggleEnhancePlatform}
+        onFieldChange={toggleEnhanceField}
         onEnhance={() => void enhanceData()}
       />
     </div>
@@ -1134,18 +1142,18 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
 function EnhanceDataDialog({
   count,
   open,
-  platforms,
+  fields,
   state,
   onOpenChange,
-  onPlatformChange,
+  onFieldChange,
   onEnhance,
 }: {
   count: number
   open: boolean
-  platforms: GoogleMapsSocialPlatform[]
+  fields: GoogleMapsEnhanceField[]
   state: EnhanceDialogStatus
   onOpenChange: (open: boolean) => void
-  onPlatformChange: (platform: GoogleMapsSocialPlatform, checked: boolean) => void
+  onFieldChange: (field: GoogleMapsEnhanceField, checked: boolean) => void
   onEnhance: () => void
 }) {
   const enhancing = state === "enhancing"
@@ -1155,7 +1163,7 @@ function EnhanceDataDialog({
       <DialogContent variant="admin">
         <DialogHeader>
           <DialogTitle>Enhance Data</DialogTitle>
-          <DialogDescription>Find social media accounts from each selected venue website.</DialogDescription>
+          <DialogDescription>Find social accounts and contact emails from each selected venue website.</DialogDescription>
         </DialogHeader>
         <DialogBody className="grid gap-4">
           <div className="grid gap-2">
@@ -1163,16 +1171,16 @@ function EnhanceDataDialog({
             <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">Website homepage</div>
           </div>
           <div className="grid gap-3">
-            <Label>Social accounts</Label>
+            <Label>Contact fields</Label>
             <div className="flex flex-wrap gap-3">
-              {socialPlatformOptions.map((platform) => (
-                <label key={platform.id} className="flex w-fit items-center gap-2 rounded-md border px-3 py-2 text-sm">
+              {enhanceFieldOptions.map((field) => (
+                <label key={field.id} className="flex w-fit items-center gap-2 rounded-md border px-3 py-2 text-sm">
                   <Checkbox
-                    checked={platforms.includes(platform.id)}
-                    onCheckedChange={(checked) => onPlatformChange(platform.id, checked === true)}
+                    checked={fields.includes(field.id)}
+                    onCheckedChange={(checked) => onFieldChange(field.id, checked === true)}
                     disabled={enhancing}
                   />
-                  {platform.label}
+                  {field.label}
                 </label>
               ))}
             </div>
@@ -1180,7 +1188,7 @@ function EnhanceDataDialog({
         </DialogBody>
         <DialogFooter variant="plain">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={enhancing}>Cancel</Button>
-          <Button onClick={onEnhance} disabled={enhancing || count === 0 || platforms.length === 0}>
+          <Button onClick={onEnhance} disabled={enhancing || count === 0 || fields.length === 0}>
             {enhancing ? <Loader2Icon className="size-4 animate-spin" /> : <SparklesIcon className="size-4" />}
             Enhance {count}
           </Button>
@@ -1488,11 +1496,12 @@ function GoogleMapsResultsSkeletonRows({ count }: { count: number }) {
           </div>
         </div>
       </TableCell>
-      <TableCell column="preview"><Skeleton className="h-4 w-56" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-8 w-14" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-7 w-20" /></TableCell>
+      <TableCell column="meta"><Skeleton className="h-8 w-14" /></TableCell>
       <TableCell column="meta"><Skeleton className="h-4 w-10" /></TableCell>
       <TableCell column="meta"><Skeleton className="h-4 w-12" /></TableCell>
       <TableCell column="meta"><Skeleton className="h-4 w-28" /></TableCell>
-      <TableCell column="meta"><Skeleton className="h-8 w-14" /></TableCell>
       <TableCell column="meta"><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell column="meta"><Skeleton className="h-8 w-16" /></TableCell>
     </TableRow>
@@ -2013,6 +2022,81 @@ function locationText(data: Record<string, unknown>) {
     .join(", ")
 
   return text(data.address) ?? (location || "Unknown")
+}
+
+function ContactLinks({ data }: { data: Record<string, unknown> }) {
+  const links = contactLinks(data)
+  if (!links.length) return <span className="text-muted-foreground">None</span>
+
+  return (
+    <div className="flex items-center gap-1">
+      {links.map((link) => (
+        <Button key={`${link.type}-${link.href}`} asChild variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground">
+          <a href={link.href} target={link.type === "email" ? undefined : "_blank"} rel={link.type === "email" ? undefined : "noopener noreferrer"} aria-label={link.label} title={link.label}>
+            <ContactIcon type={link.type} />
+          </a>
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+function ContactIcon({ type }: { type: ContactLink["type"] }) {
+  if (type === "email") return <MailIcon className="size-4" />
+  return <BrandIcon type={type} />
+}
+
+function BrandIcon({ type }: { type: Exclude<ContactLink["type"], "email"> }) {
+  const path = brandIconPaths[type]
+
+  return (
+    <svg viewBox="0 0 24 24" className="size-3.5 fill-current" aria-hidden="true">
+      <path d={path} />
+    </svg>
+  )
+}
+
+type ContactLink = {
+  href: string
+  label: string
+  type: "email" | "instagram" | "facebook" | "tiktok" | "twitter" | "linkedin" | "youtube"
+}
+
+const brandIconPaths: Record<Exclude<ContactLink["type"], "email">, string> = {
+  instagram: "M7.8 2h8.4A5.8 5.8 0 0 1 22 7.8v8.4a5.8 5.8 0 0 1-5.8 5.8H7.8A5.8 5.8 0 0 1 2 16.2V7.8A5.8 5.8 0 0 1 7.8 2Zm0 2A3.8 3.8 0 0 0 4 7.8v8.4A3.8 3.8 0 0 0 7.8 20h8.4a3.8 3.8 0 0 0 3.8-3.8V7.8A3.8 3.8 0 0 0 16.2 4H7.8Zm8.7 2.1a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8ZM12 7.1a4.9 4.9 0 1 1 0 9.8 4.9 4.9 0 0 1 0-9.8Zm0 2a2.9 2.9 0 1 0 0 5.8 2.9 2.9 0 0 0 0-5.8Z",
+  facebook: "M14 8.3V6.8c0-.8.3-1.2 1.3-1.2h1.5V2.2c-.8-.1-1.7-.2-2.5-.2-2.6 0-4.4 1.6-4.4 4.5v1.8H7v3.8h2.9V22H14v-9.9h2.8l.5-3.8H14Z",
+  tiktok: "M16.6 2c.4 3 2.1 4.8 5.1 5v3.4a8.8 8.8 0 0 1-5.1-1.6v6.4c0 8.1-8.8 10.6-12.4 4.8-2.3-3.7-.9-10.2 6.5-10.5V13c-1 .2-2 .6-2.6 1.3-1.7 1.8-1.2 5 1.2 5.8 2.3.8 4.3-.9 4.3-3.4V2h3Z",
+  twitter: "M13.9 10.5 21.4 2h-1.8l-6.5 7.4L7.9 2H2l7.8 11.2L2 22h1.8l6.8-7.7 5.5 7.7H22l-8.1-11.5Zm-2.4 2.7-.8-1.1L4.4 3.3h2.7l5.1 7.1.8 1.1 6.6 9.2h-2.7l-5.4-7.5Z",
+  linkedin: "M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9.8h4v11.7H3V9.8Zm6.4 0h3.8v1.6h.1c.5-.9 1.8-1.9 3.7-1.9 4 0 4.7 2.6 4.7 6v6h-4v-5.3c0-1.3 0-2.9-1.8-2.9s-2.1 1.4-2.1 2.8v5.4h-4V9.8Z",
+  youtube: "M23.5 6.2s-.2-1.7-1-2.4c-1-1-2-1-2.5-1.1C16.5 2.5 12 2.5 12 2.5s-4.5 0-8 .2c-.5.1-1.6.1-2.5 1.1-.8.7-1 2.4-1 2.4S0 8.1 0 10v1.8c0 1.9.5 3.8.5 3.8s.2 1.7 1 2.4c1 1 2.2 1 2.8 1.1 2 .2 7.7.2 7.7.2s4.5 0 8-.3c.5 0 1.6 0 2.5-1 .8-.7 1-2.4 1-2.4s.5-1.9.5-3.8V10c0-1.9-.5-3.8-.5-3.8ZM9.5 14.8V7.9l6.5 3.5-6.5 3.4Z",
+}
+
+function contactLinks(data: Record<string, unknown>): ContactLink[] {
+  const links: ContactLink[] = []
+  const email = emailHref(text(data.email))
+  if (email) links.push({ href: email, label: "Email", type: "email" })
+
+  contactSocialFields.forEach((field) => {
+    const href = safeExternalHref(text(data[field.type]))
+    if (href) links.push({ href, label: field.label, type: field.type })
+  })
+
+  return links
+}
+
+const contactSocialFields: Array<Pick<ContactLink, "label" | "type">> = [
+  { type: "instagram", label: "Instagram" },
+  { type: "facebook", label: "Facebook" },
+  { type: "tiktok", label: "TikTok" },
+  { type: "twitter", label: "X/Twitter" },
+  { type: "linkedin", label: "LinkedIn" },
+  { type: "youtube", label: "YouTube" },
+]
+
+function emailHref(value: string | null) {
+  if (!value) return null
+  const email = value.trim()
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? `mailto:${email}` : null
 }
 
 function safeExternalHref(value: string | null) {

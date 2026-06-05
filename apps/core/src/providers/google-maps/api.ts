@@ -3,6 +3,7 @@ import { lookup } from "node:dns/promises"
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http"
 import { request as httpsRequest } from "node:https"
 import { isIP } from "node:net"
+import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib"
 
 import { createServerFn } from "@tanstack/react-start"
 import { and, desc, eq, inArray, sql } from "drizzle-orm"
@@ -82,6 +83,7 @@ type FieldSettingsResponse = {
   field_settings: GoogleMapsFieldSetting[]
 }
 export type GoogleMapsSocialPlatform = (typeof socialPlatforms)[number]
+export type GoogleMapsEnhanceField = (typeof enhanceFields)[number]
 export type GoogleMapsEnhanceResponse = {
   enhanced: number
   skipped: number
@@ -96,7 +98,7 @@ export type HubExportSite = {
 }
 export type HubExportStatus = "draft" | "published"
 const remoteImageMaxBytes = 10 * 1024 * 1024
-const websiteHtmlMaxBytes = 1024 * 1024
+const websiteHtmlMaxBytes = 5 * 1024 * 1024
 const websiteFetchTimeoutMs = 10_000
 const enhanceResultsMax = 50
 const remoteImageTypes = new Set([
@@ -112,15 +114,16 @@ const googleImageHosts = [
   "gstatic.com",
 ]
 const socialPlatforms = ["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"] as const
-const fixedResultFieldKeys = new Set(["description", "neighborhood", "city", "region", "country", ...socialPlatforms])
-const socialPlatformSchema = z.enum(socialPlatforms)
+const enhanceFields = [...socialPlatforms, "email"] as const
+const fixedResultFieldKeys = new Set(["description", "neighborhood", "city", "region", "country", "email", ...socialPlatforms])
+const enhanceFieldSchema = z.enum(enhanceFields)
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
   resultIds: z.array(z.string().min(1)).min(1),
 })
 const enhanceResultsSchema = resultIdsSchema.extend({
   resultIds: z.array(z.string().min(1)).min(1).max(enhanceResultsMax),
-  platforms: z.array(socialPlatformSchema).min(1),
+  platforms: z.array(enhanceFieldSchema).min(1),
 })
 const hubExportSchema = resultIdsSchema.extend({
   siteId: z.string().min(1),
@@ -394,7 +397,7 @@ const enhanceResultsFn = createServerFn({ method: "POST" })
       .select()
       .from(providerResults)
       .where(and(eq(providerResults.runConfigId, run.id), inArray(providerResults.id, data.resultIds)))
-    const platforms = Array.from(new Set(data.platforms))
+    const fields = Array.from(new Set(data.platforms))
     let enhanced = 0
     let skipped = 0
     let failed = 0
@@ -402,9 +405,9 @@ const enhanceResultsFn = createServerFn({ method: "POST" })
     for (const result of rows) {
       const currentData = record(result.data)
       const website = cleanUrl(stringValue(currentData.website) ?? undefined)
-      const missingPlatforms = platforms.filter((platform) => !stringValue(currentData[platform]))
+      const missingFields = fields.filter((field) => !stringValue(currentData[field]))
 
-      if (!website || !missingPlatforms.length) {
+      if (!website || !missingFields.length) {
         skipped += 1
         continue
       }
@@ -413,10 +416,10 @@ const enhanceResultsFn = createServerFn({ method: "POST" })
         const directSocialLink = socialLinkForHref(website, new URL(website))
         const found = directSocialLink
           ? { [directSocialLink.platform]: directSocialLink.url }
-          : await findSocialLinks(website, missingPlatforms)
+          : await findContactDetails(website, missingFields)
         const updates = Object.fromEntries(
-          missingPlatforms
-            .map((platform) => [platform, found[platform]] as const)
+          missingFields
+            .map((field) => [field, found[field]] as const)
             .filter(([, value]) => Boolean(value))
         )
 
@@ -634,6 +637,7 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
     businessName: dataWithTitle.businessName,
     description: stringValue(dataWithTitle.description),
     type: stringValue(dataWithTitle.type),
+    email: stringValue(dataWithTitle.email),
     neighborhood: stringValue(dataWithTitle.neighborhood),
     city: stringValue(dataWithTitle.city),
     region: stringValue(dataWithTitle.region) ?? stringValue(dataWithTitle.state),
@@ -771,7 +775,7 @@ function extensionForImageMimeType(mimeType: string) {
   return "jpg"
 }
 
-async function findSocialLinks(website: string, platforms: GoogleMapsSocialPlatform[]) {
+async function findContactDetails(website: string, fields: GoogleMapsEnhanceField[]) {
   let url = new URL(website)
   let triedApexFallback = false
 
@@ -805,7 +809,18 @@ async function findSocialLinks(website: string, platforms: GoogleMapsSocialPlatf
     const contentLength = Number(headerValue(response.headers["content-length"]) ?? 0)
     if (contentLength > websiteHtmlMaxBytes) throw new Error("Website HTML is too large.")
 
-    return extractSocialLinks(response.body, url, platforms)
+    const details = extractContactDetails(response.body, url, fields)
+    const missingFields = fields.filter((field) => !details[field])
+
+    for (const widgetUrl of contactWidgetUrls(response.body, url)) {
+      if (!missingFields.length) break
+      const widgetResponse = await fetchPublicWebsite(widgetUrl)
+      if (widgetResponse.status < 200 || widgetResponse.status >= 300) continue
+      Object.assign(details, extractContactDetails(widgetResponse.body, widgetUrl, missingFields))
+      missingFields.splice(0, missingFields.length, ...fields.filter((field) => !details[field]))
+    }
+
+    return details
   }
 
   throw new Error("Website redirected too many times.")
@@ -829,9 +844,17 @@ async function fetchPublicWebsite(url: URL): Promise<WebsiteResponse> {
       port: url.port,
       path: `${url.pathname}${url.search}`,
       method: "GET",
-      headers: { Accept: "text/html,application/xhtml+xml" },
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Encoding": "identity",
+        "User-Agent": "Mozilla/5.0 (compatible; CoreEnhance/1.0)",
+      },
       servername: url.hostname,
-      lookup: (_hostname, _options, callback) => {
+      lookup: (_hostname, options, callback) => {
+        if (options.all) {
+          callback(null, [pinnedAddress])
+          return
+        }
         callback(null, pinnedAddress.address, pinnedAddress.family)
       },
     }, (res) => {
@@ -848,10 +871,11 @@ async function fetchPublicWebsite(url: URL): Promise<WebsiteResponse> {
       })
 
       res.on("end", () => {
+        const body = decodeWebsiteBody(chunks, total, headerValue(res.headers["content-encoding"]))
         resolve({
           status: res.statusCode ?? 0,
           headers: res.headers,
-          body: new TextDecoder().decode(concatBytes(chunks, total)),
+          body,
         })
       })
     })
@@ -879,10 +903,10 @@ async function assertPublicWebsiteUrl(url: URL): Promise<PublicAddress> {
     throw new Error("Invalid website host.")
   }
 
-  const firstAddress = addresses[0]
+  const address = addresses.find((item) => item.family === 4) ?? addresses[0]
   return {
-    address: firstAddress.address,
-    family: firstAddress.family === 6 ? 6 : 4,
+    address: address.address,
+    family: address.family === 6 ? 6 : 4,
   }
 }
 
@@ -900,13 +924,33 @@ function concatBytes(chunks: Uint8Array[], total: number) {
   return data
 }
 
-function extractSocialLinks(html: string, baseUrl: URL, platforms: GoogleMapsSocialPlatform[]) {
-  const selected = new Set(platforms)
-  const links: Partial<Record<GoogleMapsSocialPlatform, string>> = {}
+function decodeWebsiteBody(chunks: Uint8Array[], total: number, encoding?: string) {
+  const data = concatBytes(chunks, total)
+  const normalized = encoding?.split(",")[0]?.trim().toLowerCase()
+  const decoded = normalized === "gzip"
+    ? gunzipSync(data)
+    : normalized === "deflate"
+      ? inflateSync(data)
+      : normalized === "br"
+        ? brotliDecompressSync(data)
+        : data
+
+  if (decoded.byteLength > websiteHtmlMaxBytes) throw new Error("Website HTML is too large.")
+  return new TextDecoder().decode(decoded)
+}
+
+function extractContactDetails(html: string, baseUrl: URL, fields: GoogleMapsEnhanceField[]) {
+  const selected = new Set(fields)
+  const links: Partial<Record<GoogleMapsEnhanceField, string>> = {}
   const hrefPattern = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi
+  const hrefs: string[] = []
 
   for (const match of html.matchAll(hrefPattern)) {
     const rawHref = normalizeCandidateHref(match[1] ?? match[2] ?? match[3] ?? "")
+    hrefs.push(rawHref)
+    const email = emailFromMailto(rawHref)
+    if (selected.has("email") && email && !links.email) links.email = email
+
     const socialLink = socialLinkForHref(rawHref, baseUrl)
     if (!socialLink || !selected.has(socialLink.platform) || links[socialLink.platform]) continue
     links[socialLink.platform] = socialLink.url
@@ -919,7 +963,36 @@ function extractSocialLinks(html: string, baseUrl: URL, platforms: GoogleMapsSoc
     links[socialLink.platform] = socialLink.url
   }
 
+  if (selected.has("email") && !links.email) links.email = emailFromText(html) ?? undefined
+  if (selected.has("instagram") && !links.instagram) {
+    links.instagram = hrefs.map((href) => instagramMediaLinkForHref(href, baseUrl)).find(Boolean) ?? undefined
+  }
+
   return links
+}
+
+function contactWidgetUrls(html: string, baseUrl: URL) {
+  const iframePattern = /<iframe\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/gi
+  const urls: URL[] = []
+
+  for (const match of html.matchAll(iframePattern)) {
+    const rawSrc = normalizeCandidateHref(match[1] ?? match[2] ?? match[3] ?? "")
+    const url = safeWidgetUrl(rawSrc, baseUrl)
+    if (url) urls.push(url)
+  }
+
+  return urls.slice(0, 3)
+}
+
+function safeWidgetUrl(rawSrc: string, baseUrl: URL) {
+  try {
+    const url = new URL(rawSrc, baseUrl)
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "")
+    if (url.protocol !== "https:" || hostname !== "cdn.lightwidget.com" || !url.pathname.startsWith("/widgets/")) return null
+    return url
+  } catch {
+    return null
+  }
 }
 
 function socialLinkForHref(rawHref: string, baseUrl: URL): { platform: GoogleMapsSocialPlatform; url: string } | null {
@@ -933,6 +1006,22 @@ function socialLinkForHref(rawHref: string, baseUrl: URL): { platform: GoogleMap
 
     url.hash = ""
     return { platform, url: url.toString() }
+  } catch {
+    return null
+  }
+}
+
+function instagramMediaLinkForHref(rawHref: string, baseUrl: URL) {
+  try {
+    const url = new URL(rawHref, baseUrl)
+    const hostname = url.hostname.toLowerCase().replace(/^www\./, "")
+    if (!["http:", "https:"].includes(url.protocol) || hostname !== "instagram.com") return null
+
+    const first = url.pathname.split("/").filter(Boolean)[0]?.toLowerCase() ?? ""
+    if (!["p", "reel", "tv"].includes(first)) return null
+
+    url.hash = ""
+    return url.toString()
   } catch {
     return null
   }
@@ -971,6 +1060,30 @@ function normalizeCandidateHref(value: string) {
     .replace(/\\u002f/gi, "/")
     .replace(/\\\//g, "/")
     .trim()
+}
+
+function emailFromMailto(value: string) {
+  if (!value.toLowerCase().startsWith("mailto:")) return null
+  return cleanEmail(value.slice(7).split("?")[0])
+}
+
+function emailFromText(value: string) {
+  return cleanEmail(normalizeCandidateHref(value))
+}
+
+function cleanEmail(value: string | undefined) {
+  if (!value) return null
+  const decoded = decodeURIComponentSafe(value)
+  const match = decoded.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+  return match ? match[0].toLowerCase() : null
+}
+
+function decodeURIComponentSafe(value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
 }
 
 function isPrivateAddress(address: string) {
@@ -1072,6 +1185,7 @@ function canUpdateResultField(
 function cleanResultValue(key: string, value: string | number | boolean | null | string[], type?: GoogleMapsFieldType) {
   if (type === "tags") return Array.isArray(value) ? value.map((item) => item.trim()).filter(Boolean) : []
   if (Array.isArray(value)) return null
+  if (key === "email") return typeof value === "string" ? cleanEmail(value) : null
   if (key === "website" || key === "featuredImage") return typeof value === "string" ? cleanUrl(value) : null
   if (typeof value === "string") return cleanOptional(value)
   return value
