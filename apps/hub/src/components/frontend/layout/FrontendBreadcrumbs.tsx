@@ -34,18 +34,18 @@ export function FrontendBreadcrumbs({
   return (
     <div className={containerClassName} style={containerStyle}>
       <Breadcrumb>
-        <BreadcrumbList className="gap-2 rounded-md text-sm">
+        <BreadcrumbList className="flex-nowrap gap-2 overflow-hidden rounded-md text-sm whitespace-nowrap">
           {breadcrumbItems.map((item, index) => {
             const isLast = index === breadcrumbItems.length - 1
 
             return (
               <span key={`${item.label}-${index}`} className="contents">
-                {index > 0 && <BreadcrumbSeparator />}
-                <BreadcrumbItem>
+                {index > 0 && <BreadcrumbSeparator className="shrink-0" />}
+                <BreadcrumbItem className={isLast ? "min-w-0 shrink" : "shrink-0"}>
                   {item.href && !isLast ? (
                     <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
                   ) : (
-                    <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                    <BreadcrumbPage className="block truncate">{item.label}</BreadcrumbPage>
                   )}
                 </BreadcrumbItem>
               </span>
