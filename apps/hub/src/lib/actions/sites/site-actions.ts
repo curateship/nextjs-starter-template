@@ -1,7 +1,9 @@
 'use server'
 
-import { createHmac } from 'node:crypto'
+import { createHash, createHmac } from 'node:crypto'
 import { resolveTxt } from 'node:dns/promises'
+import { mkdir, rename, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { eq, and, ne, desc, asc, inArray } from 'drizzle-orm'
 import { revalidateTag, revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
@@ -98,6 +100,114 @@ function getCustomDomainCoolifyFqdns(domain: string) {
   return getCustomDomainAliases(domain).map((alias) => `https://${alias}`)
 }
 
+function getTraefikHubService() {
+  const explicitService = process.env.TRAEFIK_HUB_SERVICE?.trim()
+  if (explicitService) return explicitService
+
+  const appUuid = process.env.COOLIFY_HUB_APP_UUID?.trim()
+  return appUuid ? `http-3-${appUuid}@docker` : null
+}
+
+function isValidTraefikService(service: string) {
+  return /^[a-zA-Z0-9_.-]+(?:@[a-zA-Z0-9_.-]+)?$/.test(service)
+}
+
+function getTraefikRouteSlug(domain: string) {
+  return createHash('sha256').update(domain).digest('hex').slice(0, 12)
+}
+
+function getTraefikDynamicConfig(domain: string) {
+  const aliases = getCustomDomainAliases(domain)
+  const routeSlug = getTraefikRouteSlug(domain)
+  const routeName = `hub-custom-domain-${routeSlug}`
+  const hostRule = aliases.map((alias) => `Host(\`${alias}\`)`).join(' || ')
+  const service = getTraefikHubService()
+
+  if (!service || !isValidTraefikService(service)) return null
+
+  return {
+    aliases,
+    filename: `${routeName}.yml`,
+    config: `http:
+  routers:
+    ${routeName}-http:
+      entryPoints:
+        - http
+      rule: ${hostRule}
+      middlewares:
+        - ${routeName}-redirect
+      service: ${service}
+
+    ${routeName}-https:
+      entryPoints:
+        - https
+      rule: ${hostRule}
+      middlewares:
+        - ${routeName}-gzip
+      service: ${service}
+      tls:
+        certResolver: letsencrypt
+
+  middlewares:
+    ${routeName}-redirect:
+      redirectScheme:
+        scheme: https
+    ${routeName}-gzip:
+      compress: {}
+`,
+  }
+}
+
+async function wireCustomDomainInTraefik(domain: string): Promise<{ configured: boolean; error: string | null }> {
+  const configDir = process.env.TRAEFIK_DYNAMIC_CONFIG_DIR?.trim()
+  const endpoint = process.env.TRAEFIK_DYNAMIC_CONFIG_ENDPOINT?.trim().replace(/\/+$/, '')
+  const token = process.env.TRAEFIK_DYNAMIC_CONFIG_TOKEN?.trim()
+
+  if (!configDir && !endpoint) return { configured: false, error: null }
+
+  const dynamicConfig = getTraefikDynamicConfig(domain)
+  if (!dynamicConfig) {
+    return { configured: true, error: 'Traefik domain wiring is misconfigured' }
+  }
+
+  try {
+    if (configDir) {
+      await mkdir(configDir, { recursive: true })
+      const targetPath = join(configDir, dynamicConfig.filename)
+      const tempPath = join(configDir, `${dynamicConfig.filename}.${Date.now()}.tmp`)
+      await writeFile(tempPath, dynamicConfig.config, 'utf8')
+      await rename(tempPath, targetPath)
+      return { configured: true, error: null }
+    }
+
+    if (!token) {
+      return { configured: true, error: 'Traefik domain wiring token is not configured' }
+    }
+
+    if (!endpoint) {
+      return { configured: true, error: 'Traefik domain wiring endpoint is not configured' }
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ domain }),
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      return { configured: true, error: `Traefik rejected the custom domain route (${response.status})` }
+    }
+  } catch {
+    return { configured: true, error: 'Failed to wire custom domain in Traefik' }
+  }
+
+  return { configured: true, error: null }
+}
+
 function getCoolifyApiBaseUrl() {
   const baseUrl = process.env.COOLIFY_BASE_URL?.trim().replace(/\/+$/, '')
   if (!baseUrl) return null
@@ -169,6 +279,13 @@ async function wireCustomDomainInCoolify(domain: string): Promise<string | null>
   }
 
   return null
+}
+
+async function wireCustomDomain(domain: string): Promise<string | null> {
+  const traefikResult = await wireCustomDomainInTraefik(domain)
+  if (traefikResult.configured) return traefikResult.error
+
+  return wireCustomDomainInCoolify(domain)
 }
 
 function getCustomDomainVerificationSecret() {
@@ -247,8 +364,8 @@ async function prepareCustomDomain(
     }
   }
 
-  const coolifyError = await wireCustomDomainInCoolify(domain)
-  if (coolifyError) return { domain: null, error: coolifyError }
+  const wiringError = await wireCustomDomain(domain)
+  if (wiringError) return { domain: null, error: wiringError }
 
   return { domain, error: null }
 }

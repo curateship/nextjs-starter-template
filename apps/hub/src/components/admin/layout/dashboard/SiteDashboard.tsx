@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
+import { AlertCircle, CheckCircle2, Copy } from "lucide-react"
 import { checkSubdomainAvailabilityAction } from "@/lib/actions/sites/site-actions"
 import { CacheSettingsCard } from "@/components/admin/layout/settings/CacheSettingsCard"
 import { TrackingSettingsCard } from "@/components/admin/layout/settings/TrackingSettingsCard"
@@ -22,6 +23,7 @@ interface SiteDashboardProps {
   isEditMode?: boolean
   maintenanceEnabled?: boolean
   loading?: boolean
+  customDomainError?: string | null
   onSiteNameChange: (value: string) => void
   onStatusChange: (value: string) => void
   onSiteTagChange?: (value: string) => void
@@ -43,6 +45,7 @@ export function SiteDashboard({
   isEditMode = false,
   maintenanceEnabled = false,
   loading = false,
+  customDomainError = null,
   onSiteNameChange,
   onStatusChange,
   onSiteTagChange,
@@ -53,11 +56,17 @@ export function SiteDashboard({
   onMaintenanceChange
 }: SiteDashboardProps) {
   const [subdomainManuallyEdited, setSubdomainManuallyEdited] = useState(false)
+  const [copiedDnsField, setCopiedDnsField] = useState<"name" | "value" | null>(null)
   const [subdomainStatus, setSubdomainStatus] = useState<{
     checking: boolean
     available: boolean | null
     suggestion?: string
   }>({ checking: false, available: null })
+  const customDomainVerification = customDomainError?.match(
+    /^Add TXT record (.+) with value (.+) before using this domain$/
+  )
+  const dnsRecordName = customDomainVerification?.[1] || ""
+  const dnsRecordValue = customDomainVerification?.[2] || ""
 
   // Generate subdomain from site name
   const generateSubdomain = (name: string) => {
@@ -122,6 +131,13 @@ export function SiteDashboard({
       console.error("Error checking subdomain:", err)
       setSubdomainStatus({ checking: false, available: null })
     }
+  }
+
+  const copyDnsValue = async (field: "name" | "value", value: string) => {
+    if (!value) return
+    await navigator.clipboard.writeText(value)
+    setCopiedDnsField(field)
+    window.setTimeout(() => setCopiedDnsField(null), 1500)
   }
 
   if (loading) {
@@ -268,6 +284,49 @@ export function SiteDashboard({
                   </p>
                 )}
               </div>
+              {dnsRecordName && dnsRecordValue && (
+                <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-medium text-amber-900">
+                    Add this TXT record at your DNS provider, then save again.
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="customDomainTxtName" className="text-xs text-amber-900">
+                      TXT name
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input id="customDomainTxtName" value={dnsRecordName} readOnly className="font-mono text-xs" />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => copyDnsValue("name", dnsRecordName)}
+                        title={copiedDnsField === "name" ? "Copied" : "Copy TXT name"}
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span className="sr-only">{copiedDnsField === "name" ? "Copied" : "Copy TXT name"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="customDomainTxtValue" className="text-xs text-amber-900">
+                      TXT value
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input id="customDomainTxtValue" value={dnsRecordValue} readOnly className="font-mono text-xs" />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => copyDnsValue("value", dnsRecordValue)}
+                        title={copiedDnsField === "value" ? "Copied" : "Copy TXT value"}
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span className="sr-only">{copiedDnsField === "value" ? "Copied" : "Copy TXT value"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -583,6 +583,7 @@ function CreateSiteModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const hasTemplate = selectedTemplateId && selectedTemplateId !== "none"
+  const isCustomDomainVerificationError = /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
 
   useEffect(() => {
     getTemplateSitesAction().then(({ data }) => {
@@ -664,7 +665,7 @@ function CreateSiteModal({
           </>
         }
       >
-        {error && (
+        {error && !isCustomDomainVerificationError && (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
             {error}
           </div>
@@ -676,6 +677,7 @@ function CreateSiteModal({
           customDomain={customDomain}
           status={status}
           siteTag={siteTag}
+          customDomainError={error}
           onSiteNameChange={setSiteName}
           onSubdomainChange={setSubdomain}
           onCustomDomainChange={setCustomDomain}

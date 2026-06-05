@@ -537,6 +537,8 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const isCronJobsTab = activeTab === "cron-jobs"
   const activeTabConfig = TABS.find((tab) => tab.id === activeTab) || TABS[0]
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
+  const isCustomDomainVerificationError =
+    activeTab === "general" && /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
 
   useEffect(() => {
     if (site?.settings?.newsletter_drip_defaults) {
@@ -724,7 +726,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
             ) : undefined}
           />
 
-          {error && (
+          {error && !isCustomDomainVerificationError && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-800 text-sm">{error}</p>
             </div>
@@ -760,6 +762,7 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
                     trackingScripts={trackingScripts}
                     customAnalyticsEnabled={customAnalyticsEnabled}
                     maintenanceEnabled={maintenanceEnabled}
+                    customDomainError={error}
                     isEditMode={true}
                     loading={loading}
                     onSiteNameChange={setSiteName}

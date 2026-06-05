@@ -39,7 +39,7 @@ All app source code, configs, and `.env` files live in `apps/hub/`.
 - The platform base URL is the Coolify sslip.io URL (e.g., `a5nnhgrzwx83prpn63pagwix.5.78.189.158.sslip.io`)
 - Sites without a custom domain are accessed at `{subdomain}.{sslip.io-base-url}`
 - Sites with a custom domain are accessed directly at that domain (e.g., `https://systemeverything.com`)
-- Saving a custom domain stores the non-`www` domain as canonical and updates the single Coolify Hub app with HTTPS FQDNs, including `www` for root domains
+- Saving a custom domain stores the non-`www` domain as canonical and wires root domains plus `www` into Traefik live dynamic config when configured, with Coolify app FQDN updates as the legacy fallback
 - `systemeverything.com` is NOT the platform — it is just one site's custom domain
 - `hub.systemeverything.com` is the canonical platform admin host for the same Hub app
 - Non-Hub `/admin` URLs redirect to `hub.systemeverything.com/admin/sites` until a separate tenant dashboard exists
@@ -58,7 +58,9 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - `NEXT_PUBLIC_APP_DOMAIN` — the platform base domain (sslip.io URL in production)
 - `NEXT_PUBLIC_APP_URL` — the primary site URL (used for auth, meta tags, etc.)
 - `HUB_PLATFORM_HOST` — the canonical host for Hub platform admin, currently `hub.systemeverything.com`
-- `COOLIFY_BASE_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_HUB_APP_UUID` — server-only settings used to wire verified custom domains into Coolify
+- `TRAEFIK_DYNAMIC_CONFIG_ENDPOINT`, `TRAEFIK_DYNAMIC_CONFIG_TOKEN`, `TRAEFIK_HUB_SERVICE` — server-only settings used to wire verified custom domains into Traefik without restarting Hub
+- `TRAEFIK_DYNAMIC_CONFIG_DIR` — optional direct-write path when the Hub container can write to Traefik's dynamic config directory
+- `COOLIFY_BASE_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_HUB_APP_UUID` — legacy server-only fallback settings used to wire verified custom domains into Coolify
 - `HUB_CORE_BRIDGE_TOKEN` — server-only token for Core-to-Hub internal bridge APIs
 - `HUB_CORE_BRIDGE_SITE_IDS` — optional comma-separated list of site IDs Core may list/export to
 - These are NOT the same thing
