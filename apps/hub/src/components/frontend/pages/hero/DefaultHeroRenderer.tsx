@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Image from "next/image";
 import DotPattern from "@/components/ui/dot-pattern";
 import { cn } from "@/lib/utils/tailwind";
 import { TrustedByAvatars } from "@/components/ui/trusted-by-avatars";
@@ -110,56 +109,26 @@ const SocialProof = ({ trustedByText, trustedByAvatars, alignment }: { trustedBy
   </div>
 );
 
-// Hero Background Image component
-const HeroBackgroundImage = ({ heroImage, heroImageAlign = 'center', heroImageSize, isFixedWidth, contentMaxWidth, hideMobile, mobileOpacity }: { heroImage?: string; heroImageAlign?: string; heroImageSize?: number; isFixedWidth?: boolean; contentMaxWidth?: number; hideMobile?: boolean; mobileOpacity?: number }) => {
+// Hero image column component
+const HeroImageColumn = ({ heroImage, heroImageAlign = 'right', heroImageSize, hideMobile }: { heroImage?: string; heroImageAlign?: string; heroImageSize?: number; hideMobile?: boolean }) => {
   if (!heroImage) return null;
 
-  const objectPosition = heroImageAlign === 'left' ? 'left' : heroImageAlign === 'right' ? 'right' : 'center';
-  const mobileClass = hideMobile ? 'hidden md:block' : '';
-  const mobileOpacityStyle = !hideMobile && mobileOpacity !== undefined && mobileOpacity < 100
-    ? { '--hero-img-opacity': mobileOpacity / 100 } as React.CSSProperties
-    : undefined;
-  const mobileOpacityClass = !hideMobile && mobileOpacity !== undefined && mobileOpacity < 100
-    ? 'opacity-[var(--hero-img-opacity)] md:opacity-100'
-    : '';
-
-  if (heroImageSize) {
-    const horizontalPos = heroImageAlign === 'left' ? 'left-0' : heroImageAlign === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2';
-    return (
-      <div className={cn("absolute inset-0 z-0 pointer-events-none", mobileClass, mobileOpacityClass)} style={mobileOpacityStyle}>
-        <div
-          className={cn("absolute inset-0", isFixedWidth && "mx-auto px-6")}
-          style={isFixedWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
-        >
-          <div className={cn("absolute top-[calc(var(--site-page-start-offset,0px)+1.5rem)] max-md:scale-[0.7] max-md:origin-top md:top-[calc(var(--site-page-start-offset,0px)+3rem)]", horizontalPos)} style={{ width: `${heroImageSize}px`, height: `${heroImageSize}px` }}>
-            <Image
-              className="object-contain object-top"
-              src={heroImage}
-              alt=""
-              fill
-              priority
-              fetchPriority="high"
-              sizes={`${heroImageSize}px`}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const imageFirst = heroImageAlign === 'left';
+  const mobileClass = hideMobile ? 'hidden md:flex' : 'flex';
 
   return (
-    <div className={cn("absolute inset-0 z-0 pointer-events-none", mobileClass, mobileOpacityClass)} style={mobileOpacityStyle}>
-      <Image
-        className="object-cover"
+    <div
+      className={cn("relative z-10 w-full justify-center pointer-events-none md:ml-auto md:w-[var(--hero-image-width)] md:self-start md:justify-end", imageFirst && "md:order-first", mobileClass)}
+      style={{
+        '--hero-image-width': heroImageSize ? `${heroImageSize}px` : 'min(45vw, 680px)',
+      } as React.CSSProperties}
+    >
+      <img
+        className="block h-auto w-full object-contain"
         src={heroImage}
         alt=""
-        fill
-        priority
         fetchPriority="high"
-        sizes="100vw"
-        style={{ objectPosition }}
       />
-      <div className="absolute inset-0 bg-background/60" />
     </div>
   );
 };
@@ -178,16 +147,20 @@ export const DefaultHeroRenderer = ({ config, visibility, children }: HeroStyleR
     alignment = 'center',
     contentWidth = 'full',
     contentMaxWidth = 1152,
-    heroImageAlign = 'center',
+    heroImageAlign = 'right',
     heroImageSize,
     heroImageHideMobile,
-    heroImageMobileOpacity,
   } = config;
 
   const alignItems = alignment === 'left' ? 'items-start' : alignment === 'right' ? 'items-end' : 'items-center';
   const textAlign = alignment === 'left' ? 'text-left' : alignment === 'right' ? 'text-right' : 'text-center';
+  const contentJustify = alignment === 'left' ? 'justify-self-start' : alignment === 'right' ? 'justify-self-end' : 'justify-self-center';
   const isFixedWidth = contentWidth === 'fixed';
   const heroBackgroundColor = getHeroBackgroundColor(backgroundColor, backgroundCustomColor, backgroundMutedShade);
+  const showHeroImage = visibility?.heroImage !== false && Boolean(heroImage);
+  const heroGridColumns = heroImageAlign === 'left'
+    ? 'md:grid-cols-[auto_minmax(0,1fr)]'
+    : 'md:grid-cols-[minmax(0,1fr)_auto]';
 
   return (
     <>
@@ -205,25 +178,26 @@ export const DefaultHeroRenderer = ({ config, visibility, children }: HeroStyleR
         />
       </div>
 
-      {/* Background image layer - above pattern */}
-      {visibility?.heroImage !== false && (
-        <HeroBackgroundImage heroImage={heroImage} heroImageAlign={heroImageAlign} heroImageSize={heroImageSize} isFixedWidth={isFixedWidth} contentMaxWidth={contentMaxWidth} hideMobile={heroImageHideMobile} mobileOpacity={heroImageMobileOpacity} />
-      )}
-
       {/* Content layer above background */}
       <div
         className={cn(
-          "relative z-10 w-full flex flex-col",
-          alignItems,
+          "relative z-10 w-full",
+          !showHeroImage && "flex flex-col",
+          !showHeroImage && alignItems,
           isFixedWidth && "mx-auto px-6"
         )}
         style={isFixedWidth ? { maxWidth: `${contentMaxWidth}px` } : undefined}
       >
-        <div className={cn("relative z-10 max-w-3xl space-y-6", textAlign)}>
-          {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
-          {children}
-          {visibility?.trustedByBadges !== false && trustedByAvatars && trustedByAvatars.length > 0 && (
-            <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} alignment={alignment} />
+        <div className={cn(showHeroImage && "grid w-full items-start gap-8 lg:gap-10", showHeroImage && heroGridColumns)}>
+          <div className={cn("relative z-10 w-full space-y-6", !showHeroImage && "max-w-3xl", textAlign, showHeroImage && contentJustify, heroImageAlign === 'left' && "md:order-last")}>
+            {/* Shared content (title, subtitle, CTAs) injected by orchestrator */}
+            {children}
+            {visibility?.trustedByBadges !== false && trustedByAvatars && trustedByAvatars.length > 0 && (
+              <SocialProof trustedByText={trustedByText} trustedByAvatars={trustedByAvatars} alignment={alignment} />
+            )}
+          </div>
+          {showHeroImage && (
+            <HeroImageColumn heroImage={heroImage} heroImageAlign={heroImageAlign} heroImageSize={heroImageSize} hideMobile={heroImageHideMobile} />
           )}
         </div>
       </div>

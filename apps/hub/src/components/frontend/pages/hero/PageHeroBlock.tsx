@@ -80,7 +80,7 @@ const HeroTitle = ({ title }: { title?: string }) => {
 const HeroSubtitle = ({ subtitle, alignment }: { subtitle?: string; alignment?: string }) => {
   if (!subtitle || !subtitle.trim()) return null;
   return (
-    <p className={`text-lg text-muted-foreground max-w-xl ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}>
+    <p className={`text-lg text-muted-foreground ${alignment === 'left' ? 'mr-auto' : alignment === 'right' ? 'ml-auto' : 'mx-auto'}`}>
       {subtitle}
     </p>
   );

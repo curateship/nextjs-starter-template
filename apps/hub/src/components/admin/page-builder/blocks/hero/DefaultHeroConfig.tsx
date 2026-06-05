@@ -367,25 +367,6 @@ export function DefaultHeroConfig({ config, onConfigChange }: HeroStyleAdminProp
                 />
                 <Label htmlFor="heroImageHideMobile" className="text-sm cursor-pointer">Hide on mobile</Label>
               </div>
-              {!config.heroImageHideMobile && (
-                <div className="flex items-center gap-2 mt-2">
-                  <Label className="text-sm whitespace-nowrap">Mobile Opacity</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={config.heroImageMobileOpacity ?? 100}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value);
-                      if (!isNaN(value) && value >= 0 && value <= 100) {
-                        onConfigChange('heroImageMobileOpacity', value);
-                      }
-                    }}
-                    className="h-auto w-16 px-2 py-1 text-sm"
-                  />
-                  <span className="text-sm text-muted-foreground">%</span>
-                </div>
-              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm">Image Size</Label>
