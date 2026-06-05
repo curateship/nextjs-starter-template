@@ -59,7 +59,7 @@ interface NavBlockProps {
   logoUrl?: string;
   site?: PublicSiteClientProps;
   links?: Array<{ text: string; url: string; icon?: QuickLinkIconValue }>;
-  buttons?: Array<{ id?: string; text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnMobile?: boolean; icon?: QuickLinkIconValue }>;
+  buttons?: Array<{ id?: string; text: string; url: string; style: 'primary' | 'outline' | 'ghost'; showOnDesktop?: boolean; showOnMobile?: boolean; icon?: QuickLinkIconValue }>;
   accountMenu?: NavigationAccountMenuSettings;
   actionItemOrder?: string[];
   navigationStyle?: string;
@@ -254,6 +254,7 @@ interface ResolvedNavigationButton {
   text: string
   url: string
   style: 'primary' | 'outline' | 'ghost'
+  showOnDesktop?: boolean
   showOnMobile?: boolean
   icon?: QuickLinkIconValue
 }
@@ -559,7 +560,9 @@ export const NavBlock = memo(function NavBlock({
 
       const button = buttonById.get(itemId)
       if (button && ctaButtonsVisible) {
-        items.push({ id: itemId, kind: 'button', button })
+        if (button.showOnDesktop !== false) {
+          items.push({ id: itemId, kind: 'button', button })
+        }
       }
 
       return items

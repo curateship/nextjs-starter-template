@@ -142,7 +142,7 @@ export function ListingViewsBlock({
   const titleClasses = `text-3xl font-bold md:text-5xl max-w-3xl ${getResponsiveMarginClass()}`
   const subtitleClasses = `mt-2 md:mt-4 text-lg text-muted-foreground max-w-3xl ${getResponsiveMarginClass()}`
 
-  const renderHeader = (className = "mb-12") => (
+  const renderHeader = (className = "mb-6 md:mb-12") => (
     <div className={className}>
       <div
         className={`${getResponsiveAlignmentClass()} ${hasViewAll ? "md:flex md:justify-between md:items-start" : ""}`}
@@ -233,6 +233,7 @@ export function ListingViewsBlock({
   const defaultImageAspectClassName = customImageHeight ? "" : "aspect-square"
   const blogImageAspectClassName = customImageHeight ? "" : "aspect-video"
   const isCardListingStyle = listingStyle === "blog" || listingStyle === "directory"
+  const isCompactMobileCard = listingStyle === "directory" && Number(mobileColumns) === 2
 
   const formatDate = (value?: string | null) => {
     if (!value) return ""
@@ -318,16 +319,20 @@ export function ListingViewsBlock({
             className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label={`Read ${itemLabel}`}
           >
-            <CardHeader>
-              {showTitleElement && <h3 className="text-base md:text-xl">{item.title}</h3>}
+            <CardHeader className={isCompactMobileCard ? "p-3 pb-3 md:p-4 md:pb-3" : undefined}>
+              {showTitleElement && <h3 className={isCompactMobileCard ? "text-sm font-semibold leading-snug md:text-xl" : "text-base md:text-xl"}>{item.title}</h3>}
               {(rating || address) && (
-                <div className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
+                <div className={isCompactMobileCard ? "mt-2 flex flex-col gap-1.5 text-xs text-muted-foreground md:mt-3 md:gap-2 md:text-sm" : "mt-3 flex flex-col gap-2 text-sm text-muted-foreground"}>
                   {rating && (
-                    <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
+                    <Rating
+                      rate={rating}
+                      showScore
+                      className={isCompactMobileCard ? "gap-1 [&_span]:text-xs [&_svg]:size-3 [&>div]:size-3 md:gap-2 md:[&_span]:text-sm md:[&_svg]:size-4 md:[&>div]:size-4" : "[&_svg]:size-4 [&>div]:size-4"}
+                    />
                   )}
                   {address && (
-                    <div className="flex items-start gap-1.5">
-                      <MapPin className="mt-0.5 size-4 shrink-0 text-foreground" />
+                    <div className={isCompactMobileCard ? "flex items-start gap-1 md:gap-1.5" : "flex items-start gap-1.5"}>
+                      <MapPin className={isCompactMobileCard ? "mt-0.5 size-3.5 shrink-0 text-foreground md:size-4" : "mt-0.5 size-4 shrink-0 text-foreground"} />
                       <span className="min-w-0">{address}</span>
                     </div>
                   )}

@@ -71,6 +71,7 @@ interface NavigationButton {
   text: string
   url: string
   style: "primary" | "outline" | "ghost"
+  showOnDesktop?: boolean
   showOnMobile?: boolean
   id?: string
   icon?: QuickLinkIconValue
@@ -647,6 +648,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
     text: "",
     url: "",
     style: "primary",
+    showOnDesktop: true,
     showOnMobile: false,
     icon: undefined
   })
@@ -897,6 +899,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
       text: "",
       url: "",
       style: "primary" as const,
+      showOnDesktop: true,
       showOnMobile: false,
       id: createNavigationItemId("button")
     }
@@ -915,6 +918,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
 
     setButtonDraft({
       ...button,
+      showOnDesktop: button.showOnDesktop !== false,
       showOnMobile: button.showOnMobile === true
     })
     setEditingButtonIndex(index)
@@ -955,6 +959,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
       ...(buttons[editingButtonIndex] || {}),
       ...buttonDraft,
       url: buttonDraft.url.trim(),
+      showOnDesktop: buttonDraft.showOnDesktop !== false,
       showOnMobile: buttonDraft.showOnMobile === true
     }
 
@@ -1530,7 +1535,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
       >
         <DashboardModalContent
           title="Action Button Settings"
-          description="Update the label, destination URL, style, mobile visibility, and optional icon."
+          description="Update the label, destination URL, style, visibility, and optional icon."
           footer={
             <>
               <Button type="button" variant="outline" onClick={() => setEditingButtonIndex(null)}>
@@ -1553,7 +1558,7 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
           <CardGroup className="grid">
             <Card>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-[92px_140px_minmax(0,1fr)_120px_auto] md:items-end">
+                <div className="grid gap-4 md:grid-cols-[92px_140px_minmax(0,1fr)_120px_auto_auto] md:items-end">
                   <ShellIconPickerField
                     value={buttonDraft.icon}
                     onChange={(icon) => setButtonDraft((prev) => ({ ...prev, icon }))}
@@ -1606,6 +1611,23 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
                         <SelectItem value="ghost">Ghost</SelectItem>
                       </SelectContent>
                     </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>Show on desktop</FieldLabel>
+                    <div className="flex h-9 items-center gap-3 rounded-md border border-input px-3 shadow-xs">
+                      <Checkbox
+                        checked={buttonDraft.showOnDesktop !== false}
+                        onCheckedChange={(checked) =>
+                          setButtonDraft((prev) => ({
+                            ...prev,
+                            showOnDesktop: checked === true
+                          }))
+                        }
+                        id="navigation-button-show-desktop"
+                      />
+                      <span className="text-sm font-medium">Enabled</span>
+                    </div>
                   </Field>
 
                   <Field>
