@@ -21,6 +21,7 @@ import {
   providerResults,
   providerRunConfigs,
   type CoreProviderExecution,
+  type CoreProviderResult,
   type CoreProviderRunConfig,
 } from "@/server/schema"
 import { findCurrentUser, now, uuid } from "@/server/security"
@@ -111,7 +112,7 @@ const googleImageHosts = [
   "gstatic.com",
 ]
 const socialPlatforms = ["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"] as const
-const fixedResultFieldKeys = new Set(["description", "type", "neighborhood", "city", "region", "country", ...socialPlatforms])
+const fixedResultFieldKeys = new Set(["description", "neighborhood", "city", "region", "country", ...socialPlatforms])
 const socialPlatformSchema = z.enum(socialPlatforms)
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
@@ -557,12 +558,12 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
   const runInput = parseRunInput(run.input)
   const items = await getDatasetItems(token, execution.providerDatasetId, runInput.maxResults)
   const createdAt = now()
-  const rows = []
+  const rows: (typeof providerResults.$inferInsert)[] = []
   let importedImages = 0
 
   for (const item of items) {
     const normalized = normalizeResult(item)
-    const fixedData = fixedResultData(record(normalized.data), runInput)
+    const fixedData = fixedResultData(record(normalized.data))
     const imageResult = await saveResultImage(userId, normalized.title, fixedData)
     if (imageResult.saved) importedImages += 1
     rows.push({
@@ -624,7 +625,10 @@ function cleanBaseUrl(value?: string) {
 
 function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMapsFieldSetting[]) {
   const data = record(result.data)
-  const dataWithTitle = { ...data, businessName: stringValue(data.businessName) || result.title }
+  const dataWithTitle: Record<string, unknown> = {
+    ...data,
+    businessName: stringValue(data.businessName) || result.title,
+  }
   const hubRecord: Record<string, unknown> = {
     google_maps_place_id: stringValue(data.placeId),
     businessName: dataWithTitle.businessName,
@@ -650,14 +654,10 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
   return hubRecord
 }
 
-function fixedResultData(data: Record<string, unknown>, runInput: ReturnType<typeof parseRunInput>) {
-  const type = cleanOptional(runInput.type)
-  const neighborhood = stringValue(data.neighborhood) ?? cleanOptional(runInput.neighborhood)
-
+function fixedResultData(data: Record<string, unknown>) {
   return {
     ...data,
-    type: type ?? null,
-    neighborhood,
+    neighborhood: stringValue(data.neighborhood),
     city: stringValue(data.city),
     region: stringValue(data.region) ?? stringValue(data.state),
     country: stringValue(data.country) ?? stringValue(data.countryCode),
@@ -755,11 +755,12 @@ function safeGoogleImageUrl(sourceUrl: string) {
   const parsed = new URL(sourceUrl)
   const hostname = parsed.hostname.toLowerCase()
   if (
-    parsed.protocol !== "https:" ||
+    !["http:", "https:"].includes(parsed.protocol) ||
     !googleImageHosts.some((host) => hostname === host || hostname.endsWith(`.${host}`))
   ) {
     throw new Error("Unsupported image host.")
   }
+  parsed.protocol = "https:"
   return parsed.toString()
 }
 
@@ -878,7 +879,11 @@ async function assertPublicWebsiteUrl(url: URL): Promise<PublicAddress> {
     throw new Error("Invalid website host.")
   }
 
-  return addresses[0]
+  const firstAddress = addresses[0]
+  return {
+    address: firstAddress.address,
+    family: firstAddress.family === 6 ? 6 : 4,
+  }
 }
 
 function headerValue(value: string | string[] | undefined) {
@@ -1035,7 +1040,7 @@ function mergeResultData(
   title: string,
   fieldTypes: Map<string, GoogleMapsFieldType>
 ) {
-  const merged = { ...currentData, businessName: title }
+  const merged: Record<string, unknown> = { ...currentData, businessName: title }
 
   Object.entries(updates).forEach(([key, value]) => {
     const type = fieldTypes.get(key) ?? (hasGoogleMapsAdditionalInfoGroupKey(currentData, key) ? "tags" : undefined)

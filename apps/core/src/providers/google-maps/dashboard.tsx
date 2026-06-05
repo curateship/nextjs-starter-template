@@ -100,8 +100,7 @@ type RunForm = {
   name: string
   keyword: string
   location: string
-  type: string
-  neighborhood: string
+  coordinates: string
   language: string
   maxResults: number
   status: ProviderRunConfigStatus
@@ -110,7 +109,6 @@ type ResultForm = Record<string, string | boolean>
 type ResultFormValue = string | boolean
 type ResultSortColumn = "title" | "address" | "rating" | "reviews" | "phone" | "website" | "created"
 type ResultModalTab = "fields" | "json"
-type StaticFieldTab = "filled" | "empty"
 type FieldSettingsTab = "selected" | "other"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
@@ -127,10 +125,6 @@ const pageSizes = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 const resultModalTabs: { id: ResultModalTab; label: string }[] = [
   { id: "fields", label: "Fields" },
   { id: "json", label: "JSON" },
-]
-const staticFieldTabs: { id: StaticFieldTab; label: string }[] = [
-  { id: "filled", label: "Filled" },
-  { id: "empty", label: "Empty Fields" },
 ]
 const fieldSettingsTabs: { id: FieldSettingsTab; label: string }[] = [
   { id: "selected", label: "Selected Fields" },
@@ -172,7 +166,6 @@ const orderedResultKeys = [
 const resultKeyOrder = new Map<string, number>(orderedResultKeys.map((key, index) => [key, index]))
 const resultFieldLabels: Record<string, string> = {
   businessName: "Business",
-  type: "Type",
   categoryName: "Primary category",
   neighborhood: "Neighborhood",
   region: "Region",
@@ -187,8 +180,7 @@ const resultFieldLabels: Record<string, string> = {
   reviewCount: "Reviews",
 }
 const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
-  { key: "description", sourcePath: "description", label: "Discription", visible: true, editable: true, type: "text", order: 0 },
-  { key: "type", sourcePath: "type", label: "Type", visible: true, editable: true, type: "text", order: 1 },
+  { key: "description", sourcePath: "description", label: "Description", visible: true, editable: true, type: "text", order: 0 },
   { key: "neighborhood", sourcePath: "neighborhood", label: "Neighborhood", visible: true, editable: true, type: "text", order: 4 },
   { key: "city", sourcePath: "city", label: "City", visible: true, editable: true, type: "text", order: 7 },
   { key: "region", sourcePath: "region", label: "Region", visible: true, editable: true, type: "text", order: 8 },
@@ -201,6 +193,8 @@ const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
   { key: "youtube", sourcePath: "youtube", label: "YouTube", visible: true, editable: true, type: "text", order: 25 },
 ]
 const fixedResultFieldKeys = new Set(fixedResultFieldSettings.map((setting) => setting.key))
+const descriptionResultFieldKeys = new Set(["description"])
+const socialResultFieldKeys = new Set(socialPlatformOptions.map((option) => option.id))
 const resultNumberFields = new Set(["rating", "reviewCount"])
 const readOnlyResultFields = new Set([
   "raw",
@@ -299,7 +293,7 @@ export function GoogleMapsDashboard() {
 
   const edit = (run?: ProviderRunConfigItem) => {
     setEditing(run ?? null)
-    setForm(run ? { name: run.name, status: run.status, ...parseRunInput(run.input) } : emptyForm(defaultMax))
+    setForm(run ? runFormFromRun(run) : emptyForm(defaultMax))
     setOpen(true)
   }
 
@@ -307,7 +301,7 @@ export function GoogleMapsDashboard() {
     setSaving(true)
     setMessage(null)
     try {
-      const { run } = await saveGoogleMapsRun({ ...form, runId: editing?.id })
+      const { run } = await saveGoogleMapsRun({ ...runPayloadFromForm(form), runId: editing?.id })
       setRuns((current) => editing ? current.map((item) => item.id === run.id ? run : item) : [run, ...current])
       setMessage({ tone: "success", text: editing ? "Run updated." : "Run created." })
       setOpen(false)
@@ -500,25 +494,43 @@ export function GoogleMapsDashboard() {
               Save a reusable Google Maps search.
             </DialogDescription>
           </DialogHeader>
-          <DialogBody className="grid gap-4 sm:grid-cols-2">
-          <RunField id="name" label="Name (optional)" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-          <RunField id="keyword" label="Search term" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
-          <RunField id="location" label="Search area" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
-          <RunField id="type" label="Type" value={form.type} onChange={(value) => setForm({ ...form, type: value })} />
-          <RunField id="neighborhood" label="Neighborhood" value={form.neighborhood} onChange={(value) => setForm({ ...form, neighborhood: value })} />
-          <RunField id="language" label="Language" value={form.language} onChange={(value) => setForm({ ...form, language: value })} />
-          <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => setForm({ ...form, maxResults: Number(value) })} />
-          <div className="grid gap-2">
-            <Label htmlFor="status">Status</Label>
-            <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ProviderRunConfigStatus })}>
-              <SelectTrigger id="status"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <DialogBody>
+            <CardGroup className="grid">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Apify query</CardTitle>
+                  <CardDescription>Fields sent to the Google Maps actor.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <RunField id="keyword" label="Search term" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
+                  <RunField id="location" label="Search area" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
+                  <RunField id="language" label="Language" value={form.language} onChange={(value) => setForm({ ...form, language: value })} />
+                  <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => setForm({ ...form, maxResults: Number(value) })} />
+                  <RunField id="coordinates" label="Coordinates" value={form.coordinates} onChange={(value) => setForm({ ...form, coordinates: value })} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Core data and functions</CardTitle>
+                  <CardDescription>Fields saved and applied inside Core.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <RunField id="name" label="Name (optional)" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+                  <div className="grid gap-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ProviderRunConfigStatus })}>
+                      <SelectTrigger id="status" className="h-8 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+            </CardGroup>
           </DialogBody>
           <DialogFooter variant="plain">
             <Button variant="outline" onClick={() => setOpen(false)}>
@@ -605,7 +617,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
-  const [staticFieldTab, setStaticFieldTab] = React.useState<StaticFieldTab>("filled")
   const [resultImagePickerOpen, setResultImagePickerOpen] = React.useState(false)
   const [hubExportOpen, setHubExportOpen] = React.useState(false)
   const [hubExportSites, setHubExportSites] = React.useState<HubExportSite[]>([])
@@ -668,12 +679,13 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const totalPages = Math.ceil(results.length / pageSize)
   const visibleResults = results.slice((page - 1) * pageSize, page * pageSize)
   const resultFields = editingResult ? resultFieldsForResult(editingResult, data?.field_settings ?? []) : []
-  const dynamicResultFields = resultFields.filter((setting) => setting.key !== "featuredImage" && !fixedResultFieldKeys.has(setting.key))
-  const staticResultFields = editingResult
-    ? resultFields
-      .filter((setting) => fixedResultFieldKeys.has(setting.key))
-      .filter((setting) => staticFieldTab === "filled" ? resultFieldHasValue(editingResult, setting) : !resultFieldHasValue(editingResult, setting))
-    : []
+  const descriptionResultFields = resultFields.filter((setting) => descriptionResultFieldKeys.has(setting.key))
+  const dynamicResultFields = resultFields.filter((setting) => (
+    setting.key !== "featuredImage" &&
+    !descriptionResultFieldKeys.has(setting.key) &&
+    !socialResultFieldKeys.has(setting.key)
+  ))
+  const socialResultFields = resultFields.filter((setting) => socialResultFieldKeys.has(setting.key))
   const visibleIds = visibleResults.map((result) => result.id)
   const visibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const visibleIndeterminate = !visibleSelected && visibleIds.some((id) => selectedIds.has(id))
@@ -737,7 +749,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const editResult = (result: ProviderResultItem) => {
     setEditingResult(result)
     setResultModalTab("fields")
-    setStaticFieldTab("filled")
     setResultImagePickerOpen(false)
     setResultForm(resultFormFromData(result, data?.field_settings ?? []))
   }
@@ -999,8 +1010,27 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               <CardGroup className="grid">
                 <Card>
                   <CardHeader>
+                    <CardTitle>Description</CardTitle>
+                    <CardDescription>Core fields applied to the saved result.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-2">
+                    {descriptionResultFields.map((setting) => (
+                        <ResultField
+                          key={setting.key}
+                          id={`result-${setting.key}`}
+                          label={setting.label}
+                          type={setting.type}
+                          value={resultForm[setting.key] ?? ""}
+                          onChange={(nextValue) => setResultForm({ ...resultForm, [setting.key]: nextValue })}
+                        />
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
                     <CardTitle>Dynamic fields</CardTitle>
-                    <CardDescription>Fields coming from Google Maps data and selected field settings.</CardDescription>
+                    <CardDescription>Fields saved on the Google Maps result.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4 sm:grid-cols-2">
                     <FeaturedImageField
@@ -1022,30 +1052,12 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                 </Card>
 
                 <Card>
-                  <CardHeader className="gap-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="grid gap-1">
-                        <CardTitle>Static fields</CardTitle>
-                        <CardDescription>Manual fields used consistently across Core and Hub.</CardDescription>
-                      </div>
-                      <div role="tablist" aria-label="Static field view" className="flex items-center gap-1 rounded-lg bg-muted p-1">
-                        {staticFieldTabs.map((tab) => (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={staticFieldTab === tab.id}
-                            onClick={() => setStaticFieldTab(tab.id)}
-                            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all sm:text-sm ${staticFieldTab === tab.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                          >
-                            {tab.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                  <CardHeader>
+                    <CardTitle>Social fields</CardTitle>
+                    <CardDescription>Fields filled by the manual social scrape.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4 sm:grid-cols-2">
-                    {staticResultFields.length ? staticResultFields.map((setting) => (
+                    {socialResultFields.map((setting) => (
                         <ResultField
                           key={setting.key}
                           id={`result-${setting.key}`}
@@ -1054,11 +1066,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                           value={resultForm[setting.key] ?? ""}
                           onChange={(nextValue) => setResultForm({ ...resultForm, [setting.key]: nextValue })}
                         />
-                    )) : (
-                      <div className="text-sm text-muted-foreground sm:col-span-2">
-                        No {staticFieldTab === "filled" ? "filled" : "empty"} static fields.
-                      </div>
-                    )}
+                    ))}
                   </CardContent>
                 </Card>
               </CardGroup>
@@ -1156,9 +1164,9 @@ function EnhanceDataDialog({
           </div>
           <div className="grid gap-3">
             <Label>Social accounts</Label>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-wrap gap-3">
               {socialPlatformOptions.map((platform) => (
-                <label key={platform.id} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                <label key={platform.id} className="flex w-fit items-center gap-2 rounded-md border px-3 py-2 text-sm">
                   <Checkbox
                     checked={platforms.includes(platform.id)}
                     onCheckedChange={(checked) => onPlatformChange(platform.id, checked === true)}
@@ -1168,9 +1176,6 @@ function EnhanceDataDialog({
                 </label>
               ))}
             </div>
-          </div>
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            Enhancing fills blank social fields only. Existing values will stay unchanged.
           </div>
         </DialogBody>
         <DialogFooter variant="plain">
@@ -1593,7 +1598,54 @@ function ResultField({
 }
 
 function emptyForm(maxResults: number): RunForm {
-  return { name: "", keyword: "", location: "", type: "", neighborhood: "", language: "en", maxResults, status: "active" }
+  return { name: "", keyword: "", location: "", coordinates: "", language: "en", maxResults, status: "active" }
+}
+
+function runFormFromRun(run: ProviderRunConfigItem): RunForm {
+  const input = parseRunInput(run.input)
+  return {
+    name: run.name,
+    status: run.status,
+    keyword: input.keyword,
+    location: input.location,
+    coordinates: coordinatesValue(input.latitude, input.longitude),
+    language: input.language,
+    maxResults: input.maxResults,
+  }
+}
+
+function runPayloadFromForm(form: RunForm) {
+  const coordinates = parseCoordinates(form.coordinates)
+  return {
+    name: form.name,
+    keyword: form.keyword,
+    location: form.location,
+    latitude: coordinates?.latitude ?? null,
+    longitude: coordinates?.longitude ?? null,
+    language: form.language,
+    maxResults: form.maxResults,
+    status: form.status,
+  }
+}
+
+function coordinatesValue(latitude: number | null, longitude: number | null) {
+  return latitude === null || longitude === null ? "" : `${latitude}, ${longitude}`
+}
+
+function parseCoordinates(value: string) {
+  if (!value.trim()) return null
+
+  const parts = value.split(",")
+  if (parts.length !== 2) throw new Error("Coordinates must use latitude, longitude.")
+
+  const [latitudeText, longitudeText] = parts
+  const latitude = Number(latitudeText?.trim())
+  const longitude = Number(longitudeText?.trim())
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error("Coordinates must use latitude, longitude.")
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw new Error("Coordinates are outside the valid latitude/longitude range.")
+  }
+  return { latitude, longitude }
 }
 
 function resultFormFromData(result: ProviderResultItem, fieldSettings: GoogleMapsFieldSetting[]): ResultForm {

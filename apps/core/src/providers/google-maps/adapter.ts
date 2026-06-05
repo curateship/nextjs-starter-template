@@ -1,10 +1,21 @@
 import type { ProviderExecutionStatus } from "@/providers/types"
 
 const apiBase = "https://api.apify.com/v2"
+const categoryFilterWordsByKeyword: Record<string, string> = {
+  bar: "bar",
+  bars: "bar",
+  cafe: "cafe",
+  cafes: "cafe",
+  restaurant: "restaurant",
+  restaurants: "restaurant",
+}
+const customGeolocationRadiusKm = 0.5
 
 export type GoogleMapsInput = {
   keyword: string
   location: string
+  latitude: number | null
+  longitude: number | null
   language: string
   maxResults: number
 }
@@ -19,11 +30,18 @@ type ApifyRun = {
 }
 
 export function buildActorInput(input: GoogleMapsInput) {
+  const keyword = input.keyword.trim()
+  const location = input.location.trim()
+  const customGeolocation = customGeolocationForInput(input)
+  const categoryFilterWords = categoryFilterWordsForKeyword(keyword)
+
   return {
-    searchStringsArray: [input.keyword],
-    locationQuery: input.location,
+    searchStringsArray: [customGeolocation ? keyword : `${keyword} in ${location}`],
+    ...(!customGeolocation ? { locationQuery: location } : {}),
     maxCrawledPlacesPerSearch: input.maxResults,
     language: input.language,
+    ...(customGeolocation ? { customGeolocation } : {}),
+    ...(categoryFilterWords.length ? { categoryFilterWords } : {}),
   }
 }
 
@@ -103,6 +121,32 @@ export function normalizeResult(item: Record<string, unknown>) {
 
 function encodeActorId(actorId: string) {
   return encodeURIComponent(actorId.trim().replace("/", "~"))
+}
+
+function customGeolocationForInput(input: GoogleMapsInput) {
+  if (input.latitude === null || input.longitude === null) return null
+  const latitudeOffset = customGeolocationRadiusKm / 111.32
+  const longitudeOffset = customGeolocationRadiusKm / (111.32 * Math.cos(input.latitude * Math.PI / 180))
+  const north = input.latitude + latitudeOffset
+  const south = input.latitude - latitudeOffset
+  const east = input.longitude + longitudeOffset
+  const west = input.longitude - longitudeOffset
+
+  return {
+    type: "Polygon",
+    coordinates: [[
+      [west, south],
+      [east, south],
+      [east, north],
+      [west, north],
+      [west, south],
+    ]],
+  }
+}
+
+function categoryFilterWordsForKeyword(keyword: string) {
+  const category = categoryFilterWordsByKeyword[keyword.trim().toLowerCase()]
+  return category ? [category] : []
 }
 
 async function apifyRequest<T>(url: URL, token: string, init: RequestInit = {}) {

@@ -1,4 +1,4 @@
-import { Facebook, Github, Globe, Instagram, Linkedin, Music2, Twitter, type LucideIcon, Youtube } from "lucide-react"
+import { Facebook, Github, Globe, Instagram, Linkedin, MapPin, Music2, Twitter, type LucideIcon, Youtube } from "lucide-react"
 import {
   buildDirectoryCoreMenuHref,
   buildDirectoryCoreUrlHref,
@@ -14,6 +14,7 @@ import {
 import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
+import { Rating } from "@/components/shadcnblocks/rating"
 import { Card, CardSection } from "@/components/ui/card"
 import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
 import { cn } from "@/lib/utils/tailwind"
@@ -150,6 +151,24 @@ function getDirectoryFieldValue(fields: DirectoryData["fields"], type: Directory
   }
 }
 
+function formatDirectoryAddress(address?: string | null, country?: string | null) {
+  const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean)
+  const countryNames = [country, "United States", "USA", "US", "Canada", "CA"]
+    .filter(Boolean)
+    .map((value) => value!.toLowerCase())
+
+  return parts
+    .filter((part, index) => index !== parts.length - 1 || !countryNames.includes(part.toLowerCase()))
+    .map((part) => part
+      .replace(/\b[A-Z]\d[A-Z][ -]?\d[A-Z]\d\b/gi, "")
+      .replace(/\b\d{5}(?:-\d{4})?\b/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+    )
+    .filter(Boolean)
+    .join(", ")
+}
+
 export function DirectoryCoreBlock({ content, directory, directoryData, claimAuthPath, siteId, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
@@ -185,6 +204,9 @@ export function DirectoryCoreBlock({ content, directory, directoryData, claimAut
     return buildDataMenuLink(content, link.type, getDirectoryFieldValue(fields, link.type)) || link
   })
   const title = fields.businessName || directory.title || "Directory Listing"
+  const ratingValue = Number(fields.rating)
+  const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? Math.min(5, ratingValue) : null
+  const address = formatDirectoryAddress(fields.address, fields.country)
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
   const showSaveButton = Boolean(siteId && directory.id && featuredImage && visibility.image !== false)
   const saveIconOpacityNumber = Number(content?.saveIconOpacity)
@@ -217,6 +239,20 @@ export function DirectoryCoreBlock({ content, directory, directoryData, claimAut
       <CardSection>
         {visibility.title !== false ? (
           <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
+        ) : null}
+
+        {(rating || address) ? (
+          <div className="mt-5 flex flex-col gap-2 text-sm text-muted-foreground">
+            {rating ? (
+              <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
+            ) : null}
+            {address ? (
+              <div className="flex items-start gap-1.5">
+                <MapPin className="mt-0.5 size-4 shrink-0 text-foreground" />
+                <span className="min-w-0">{address}</span>
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {introText.trim() && visibility.introText !== false ? (
