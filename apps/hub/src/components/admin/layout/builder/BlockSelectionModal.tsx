@@ -162,7 +162,7 @@ export function BlockSelectionModal({
             <div className="flex items-center justify-between mb-1">
               <h4 className="font-semibold text-sm">{blockType.name}</h4>
               {isDisabled && (
-                <Info className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Info className="w-4 h-4 text-muted-foreground shrink-0" />
               )}
             </div>
             <p className="text-xs text-muted-foreground line-clamp-2">

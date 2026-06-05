@@ -160,7 +160,7 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
           className="w-64"
           onClick={(event) => event.stopPropagation()}
         >
-          <DropdownMenuLabel>Save to</DropdownMenuLabel>
+          <DropdownMenuLabel className="mb-2">Save to</DropdownMenuLabel>
           {loading ? (
             <div className="space-y-2 px-2 py-1.5">
               <Skeleton className="h-5 w-32" />
@@ -197,7 +197,7 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
             })
           )}
 
-          <div className="mt-3 space-y-2 p-2" onKeyDown={(event) => event.stopPropagation()}>
+          <div className="mt-1 flex gap-2 px-2 pt-2 pb-2" onKeyDown={(event) => event.stopPropagation()}>
             <Input
               value={newFolderName}
               onChange={(event) => setNewFolderName(event.target.value)}
@@ -208,22 +208,25 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
                 }
               }}
               placeholder="New folder"
+              className="h-8 min-w-0 flex-1 bg-background text-muted-foreground shadow-none placeholder:text-muted-foreground"
               disabled={Boolean(authPath) || pendingKey === "new"}
             />
             <Button
               type="button"
               size="sm"
               variant="outline"
-              className="w-full"
-              disabled={Boolean(authPath) || pendingKey === "new" || !newFolderName.trim()}
+              className="shrink-0 cursor-pointer text-muted-foreground shadow-none disabled:opacity-100"
+              aria-disabled={Boolean(authPath) || pendingKey === "new" || !newFolderName.trim()}
+              disabled={Boolean(authPath) || pendingKey === "new"}
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
+                if (!newFolderName.trim()) return
                 handleCreateFolder()
               }}
             >
               {pendingKey === "new" ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Create folder
+              Create
             </Button>
           </div>
 

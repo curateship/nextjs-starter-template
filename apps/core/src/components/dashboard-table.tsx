@@ -265,7 +265,7 @@ function DashboardTablePaginationFooter({
           onValueChange={(value) => onPageSizeChange?.(Number(value))}
           disabled={!onPageSizeChange}
         >
-          <SelectTrigger className="h-8 w-[70px]">
+          <SelectTrigger className="h-8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -358,7 +358,7 @@ export function AdminListFooter({
           onValueChange={handlePageSizeChange}
           disabled={isSavingPageSize}
         >
-          <SelectTrigger className="h-8 w-[70px]">
+          <SelectTrigger className="h-8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
