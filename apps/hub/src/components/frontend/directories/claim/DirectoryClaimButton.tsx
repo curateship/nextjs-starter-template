@@ -14,10 +14,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { useSiteAuthUser } from "@/components/frontend/layout/site-auth-provider"
 
 interface DirectoryClaimButtonProps {
   directoryId: string
-  authPath?: string | null
   ownerEditPath?: string
   buttonText?: string
   pendingEmailText?: string
@@ -28,7 +28,6 @@ interface DirectoryClaimButtonProps {
 }
 
 interface ClaimState {
-  authenticated: boolean
   status: DirectoryClaimStatus | null
   claimedByOther: boolean
   canEdit: boolean
@@ -36,7 +35,7 @@ interface ClaimState {
 
 function buildAuthHref(authPath: string, redirectPath: string) {
   const separator = authPath.includes("?") ? "&" : "?"
-  return `${authPath}${separator}tab=register&redirect=${encodeURIComponent(redirectPath)}`
+  return `${authPath}${separator}tab=login&redirect=${encodeURIComponent(redirectPath)}`
 }
 
 function normalizeOwnerEditPath(value?: string) {
@@ -49,7 +48,6 @@ function normalizeOwnerEditPath(value?: string) {
 
 export function DirectoryClaimButton({
   directoryId,
-  authPath = "/",
   ownerEditPath = "/account",
   buttonText = "Claim Listing",
   pendingEmailText = "Check Business Email",
@@ -60,8 +58,10 @@ export function DirectoryClaimButton({
 }: DirectoryClaimButtonProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const user = useSiteAuthUser()
   const [state, setState] = useState<ClaimState | null>(null)
   const [open, setOpen] = useState(false)
+  const [checkingState, setCheckingState] = useState(false)
   const [businessEmail, setBusinessEmail] = useState("")
   const [claimantName, setClaimantName] = useState("")
   const [roleTitle, setRoleTitle] = useState("")
@@ -74,42 +74,53 @@ export function DirectoryClaimButton({
   const claimParam = searchParams.get("claim")
 
   useEffect(() => {
-    let cancelled = false
-
-    getDirectoryClaimStateAction(directoryId).then((result) => {
-      if (cancelled) return
-      if (!result.error) {
-        setState({
-          authenticated: result.authenticated,
-          status: result.status,
-          claimedByOther: result.claimedByOther,
-          canEdit: result.canEdit,
-        })
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [directoryId])
-
-  useEffect(() => {
     if (claimParam === "verified") {
       setNotice("Business email confirmed. Your claim is waiting for review.")
     }
   }, [claimParam])
 
-  useEffect(() => {
-    if (!state?.authenticated || claimParam !== "1") return
-    if (state.claimedByOther || state.canEdit) return
-    if (state.status === "pending_email" || state.status === "pending_review") return
-    setOpen(true)
-  }, [claimParam, state])
-
-  if (!state || state.claimedByOther) return null
-
-  const redirectPath = `${pathname || "/"}?claim=1`
+  const redirectPath = pathname || "/"
   const editPath = normalizeOwnerEditPath(ownerEditPath)
+  const authHref = buildAuthHref("/login", redirectPath)
+
+  const handleClaimClick = async () => {
+    setError(null)
+    setNotice(null)
+    setCheckingState(true)
+
+    const result = await getDirectoryClaimStateAction(directoryId)
+    setCheckingState(false)
+
+    if (result.error) {
+      setNotice(result.error)
+      return
+    }
+
+    if (!result.authenticated) {
+      window.location.href = authHref
+      return
+    }
+
+    if (result.claimedByOther) {
+      setNotice("This listing has already been claimed.")
+      return
+    }
+
+    if (result.canEdit) {
+      window.location.href = editPath
+      return
+    }
+
+    setState({
+      status: result.status,
+      claimedByOther: result.claimedByOther,
+      canEdit: result.canEdit,
+    })
+
+    if (result.status !== "pending_email" && result.status !== "pending_review") {
+      setOpen(true)
+    }
+  }
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -138,10 +149,10 @@ export function DirectoryClaimButton({
     })
   }
 
-  if (!state.authenticated) {
+  if (!user) {
     return (
       <a
-        href={buildAuthHref(authPath || "/", redirectPath)}
+        href={authHref}
         className={rowClassName}
       >
         <Building2 className="h-5 w-5 shrink-0" />
@@ -150,7 +161,7 @@ export function DirectoryClaimButton({
     )
   }
 
-  if (state.canEdit) {
+  if (state?.canEdit) {
     return (
       <a
         href={editPath}
@@ -162,9 +173,9 @@ export function DirectoryClaimButton({
     )
   }
 
-  const disabledText = state.status === "pending_email"
+  const disabledText = state?.status === "pending_email"
     ? pendingEmailText
-    : state.status === "pending_review"
+    : state?.status === "pending_review"
       ? pendingReviewText
       : null
 
@@ -181,10 +192,11 @@ export function DirectoryClaimButton({
       ) : (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={handleClaimClick}
+          disabled={checkingState}
           className={`${rowClassName} w-full text-left`}
         >
-          <Building2 className="h-5 w-5 shrink-0" />
+          {checkingState ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Building2 className="h-5 w-5 shrink-0" />}
           <span className="min-w-0 wrap-break-word text-base leading-snug">{buttonText}</span>
         </button>
       )}

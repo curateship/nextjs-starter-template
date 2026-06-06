@@ -14,10 +14,9 @@ import {
   getContentCategoryContext,
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { DIRECTORY_CORE_BLOCK_TYPE, type DirectoryCoreMenuLink } from "@/lib/actions/directories/directory-core"
+import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { getGoogleMapsConfig } from "@/lib/actions/integrations/config-helpers"
-import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -35,17 +34,6 @@ function directoryBlocksNeedGoogleMapsConfig(blocks: any[]) {
     const locationQuery = typeof block.content?.locationQuery === "string" ? block.content.locationQuery.trim() : ""
 
     return visibility.hideBlock !== true && visibility.map !== false && locationQuery.length > 0
-  })
-}
-
-function directoryBlocksNeedClaimAuthPath(blocks: any[]) {
-  return blocks.some((block) => {
-    if (block.type !== DIRECTORY_CORE_BLOCK_TYPE) return false
-    if (block.content?.visibility?.hideBlock === true || block.content?.visibility?.menuLinks === false) return false
-    if (block.content?.claimEnabled === false) return false
-
-    const menuLinks: DirectoryCoreMenuLink[] = Array.isArray(block.content?.menuLinks) ? block.content.menuLinks : []
-    return menuLinks.length === 0 || menuLinks.some((link) => link?.type === "claim")
   })
 }
 
@@ -99,8 +87,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
 
   const needsCategoryContext = directoryBlocksNeedCategoryContext(blocks)
   const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
-  const needsClaimAuthPath = directoryBlocksNeedClaimAuthPath(blocks)
-  const [breadcrumbs, categoryContext, googleMapsConfig, authPathResult] = await Promise.all([
+  const [breadcrumbs, categoryContext, googleMapsConfig] = await Promise.all([
     shouldShowFrontendBreadcrumbs(site.settings, 'directories')
       ? getContentBreadcrumbItems({
         siteId: site.id,
@@ -119,9 +106,6 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     needsGoogleMapsConfig
       ? getGoogleMapsConfig(site.id)
       : Promise.resolve(null),
-    needsClaimAuthPath
-      ? getPublicAuthPagePath(site.id)
-      : Promise.resolve({ path: null, error: null }),
   ])
 
   const directoryWithBlocks = {
@@ -170,7 +154,6 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         customBlockTemplates={customBlockTemplates}
         breadcrumbs={breadcrumbs}
         googleMapsEmbedApiKey={googleMapsConfig?.apiKey || ''}
-        claimAuthPath={authPathResult.path || '/'}
       />
     </>
   )
