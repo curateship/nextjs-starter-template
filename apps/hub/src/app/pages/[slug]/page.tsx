@@ -1,8 +1,5 @@
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
-import { db } from "@/lib/db"
-import { pages } from "@/lib/db/schema"
-import { eq, and } from "drizzle-orm"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
@@ -34,7 +31,7 @@ export async function generateMetadata({ params }: PagePageProps) {
   const { slug } = await params
 
   try {
-    const { success: siteSuccess, site } = await getSiteFromHeaders()
+    const { success: siteSuccess, site } = await getSiteFromHeaders(slug)
 
     if (!siteSuccess || !site) {
       return {
@@ -43,17 +40,7 @@ export async function generateMetadata({ params }: PagePageProps) {
       }
     }
 
-    const [page] = await db
-      .select()
-      .from(pages)
-      .where(
-        and(
-          eq(pages.siteId, site.id),
-          eq(pages.slug, slug),
-          eq(pages.isPublished, true)
-        )
-      )
-      .limit(1)
+    const page = site.page
 
     if (!page) {
       return {

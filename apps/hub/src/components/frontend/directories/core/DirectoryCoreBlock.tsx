@@ -230,6 +230,7 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
               siteId={siteId!}
               directoryId={directory.id!}
               opacity={resolvedSaveIconOpacity}
+              loginPath={loginPath}
               className="absolute right-3 top-3 z-10"
             />
           ) : null}

@@ -47,6 +47,13 @@ export interface UpdateProductData {
   created_at?: string
 }
 
+function revalidateProductFrontend(siteId: string, productId?: string) {
+  revalidateTag('listing-views')
+  revalidateTag('products')
+  revalidateTag(`site-${siteId}`)
+  if (productId) revalidateTag(`product-${productId}`)
+}
+
 /**
  * Get all products for a site
  */
@@ -427,8 +434,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       return { data: null, error: 'Failed to update product' }
     }
 
-    // Invalidate listing views cache since product data may have changed
-    revalidateTag('listing-views')
+    revalidateProductFrontend(product.site_id, productId)
 
     return {
       data: serializeProduct(updated),
@@ -482,8 +488,7 @@ export async function deleteProductAction(productId: string): Promise<{ success:
     // Delete the product
     await db.delete(products).where(eq(products.id, productId))
 
-    // Invalidate listing views cache since a product was deleted
-    revalidateTag('listing-views')
+    revalidateProductFrontend(product.siteId, productId)
 
     return { success: true, error: null }
   } catch (error) {
@@ -537,6 +542,9 @@ export async function deleteProductsAction(productIds: string[]): Promise<{ succ
     await db.delete(products).where(inArray(products.id, productIds))
 
     revalidateTag('listing-views')
+    revalidateTag('products')
+    productRows.forEach((product) => revalidateTag(`product-${product.id}`))
+    siteIds.forEach((siteId) => revalidateTag(`site-${siteId}`))
 
     return { success: true, error: null }
   } catch (error) {
@@ -641,6 +649,8 @@ export async function duplicateProductAction(productId: string, newTitle: string
       return { data: null, error: 'Failed to duplicate product' }
     }
 
+    revalidateProductFrontend(originalProduct.siteId, newProduct.id)
+
     return { data: serializeProduct(newProduct), error: null }
   } catch (error) {
     return {
@@ -725,8 +735,7 @@ export async function updateProductBlocksAction(productId: string, contentBlocks
       })
       .where(eq(products.id, productId))
 
-    // Invalidate listing views cache since product content may have changed
-    revalidateTag('listing-views')
+    revalidateProductFrontend(product.siteId, productId)
 
     return { success: true }
 

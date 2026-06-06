@@ -1,6 +1,7 @@
 'use server'
 
 import { eq, and, asc } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
 import { encrypt } from '@/lib/utils/encryption'
 import { db } from '@/lib/db'
 import { siteIntegrations, sites } from '@/lib/db/schema'
@@ -190,6 +191,9 @@ export async function createOrUpdateIntegration(
     if (!result) {
       throw new Error('Failed to save integration')
     }
+
+    revalidateTag(`site-${siteId}`)
+    revalidateTag('all')
 
     return {
       ...result,

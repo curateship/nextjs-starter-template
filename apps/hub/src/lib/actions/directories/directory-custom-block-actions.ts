@@ -1,6 +1,7 @@
 'use server'
 
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { directories, directoryCustomBlocks, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
@@ -250,6 +251,9 @@ export async function createDirectoryCustomBlock(input: {
 
     if (!row) return { data: null, error: 'Failed to create custom block' }
 
+    revalidateTag('directory')
+    revalidateTag(`site-${input.siteId}`)
+
     return { data: rowToTemplate(row), error: null }
   } catch (error) {
     console.error('createDirectoryCustomBlock error:', error)
@@ -314,6 +318,9 @@ export async function updateDirectoryCustomBlock(templateId: string, updates: {
 
     const usedInCount = await getUsedInCount(existing.id, existing.siteId)
 
+    revalidateTag('directory')
+    revalidateTag(`site-${existing.siteId}`)
+
     return { data: rowToTemplate(row, usedInCount), error: null }
   } catch (error) {
     console.error('updateDirectoryCustomBlock error:', error)
@@ -348,6 +355,9 @@ export async function deleteDirectoryCustomBlock(templateId: string): Promise<{ 
     await db
       .delete(directoryCustomBlocks)
       .where(eq(directoryCustomBlocks.id, templateId))
+
+    revalidateTag('directory')
+    revalidateTag(`site-${row.siteId}`)
 
     return { success: true, error: null }
   } catch (error) {

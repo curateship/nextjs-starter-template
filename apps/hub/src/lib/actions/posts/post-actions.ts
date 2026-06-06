@@ -73,6 +73,13 @@ function rowToPost(row: typeof posts.$inferSelect): Post {
   }
 }
 
+function revalidatePostFrontend(siteId: string, postId?: string) {
+  revalidateTag('listing-views')
+  revalidateTag('posts')
+  revalidateTag(`site-${siteId}`)
+  if (postId) revalidateTag(`post-${postId}`)
+}
+
 /**
  * Get all posts for a site
  */
@@ -376,7 +383,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
       return { data: null, error: 'Failed to update post' }
     }
 
-    revalidateTag('listing-views')
+    revalidatePostFrontend(post.siteId, postId)
 
     return {
       data: rowToPost(updated),
@@ -430,7 +437,7 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
     // Delete the post
     await db.delete(posts).where(eq(posts.id, postId))
 
-    revalidateTag('listing-views')
+    revalidatePostFrontend(post.siteId, postId)
 
     return { success: true, error: null }
   } catch (error) {
@@ -485,6 +492,9 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
     await db.delete(posts).where(inArray(posts.id, postIds))
 
     revalidateTag('listing-views')
+    revalidateTag('posts')
+    postRows.forEach((post) => revalidateTag(`post-${post.id}`))
+    siteIds.forEach((siteId) => revalidateTag(`site-${siteId}`))
 
     return { success: true, error: null }
   } catch (error) {
@@ -591,7 +601,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
       return { data: null, error: 'Failed to duplicate post' }
     }
 
-    revalidateTag('listing-views')
+    revalidatePostFrontend(originalPost.siteId, newPost.id)
 
     return { data: rowToPost(newPost), error: null }
   } catch (error) {
@@ -704,6 +714,8 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
         updatedAt: new Date(),
       })
       .where(eq(posts.id, postId))
+
+    revalidatePostFrontend(post.siteId, postId)
 
     return { success: true, error: null }
   } catch (error) {

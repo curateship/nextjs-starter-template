@@ -1,4 +1,5 @@
 import { and, asc, desc, eq } from 'drizzle-orm'
+import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships } from '@/lib/db/schema'
 import type { DirectoryCoreCategoryContext } from '@/lib/actions/directories/directory-core'
@@ -68,33 +69,42 @@ export async function getContentBreadcrumbItems({
   contentType: BreadcrumbContentType
   currentLabel: string
 }): Promise<FrontendBreadcrumbItem[]> {
-  const [primaryCategory] = await db
-    .select({
-      id: categories.id,
-    })
-    .from(contentCategoryRelationships)
-    .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
-    .where(and(
-      eq(contentCategoryRelationships.contentId, contentId),
-      eq(contentCategoryRelationships.contentType, contentType),
-      eq(contentCategoryRelationships.isPrimary, true),
-      eq(categories.siteId, siteId),
-      eq(categories.isPublished, true)
-    ))
-    .limit(1)
+  return unstable_cache(
+    async () => {
+      const [primaryCategory] = await db
+        .select({
+          id: categories.id,
+        })
+        .from(contentCategoryRelationships)
+        .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
+        .where(and(
+          eq(contentCategoryRelationships.contentId, contentId),
+          eq(contentCategoryRelationships.contentType, contentType),
+          eq(contentCategoryRelationships.isPrimary, true),
+          eq(categories.siteId, siteId),
+          eq(categories.isPublished, true)
+        ))
+        .limit(1)
 
-  if (!primaryCategory) return []
+      if (!primaryCategory) return []
 
-  const categoryTrail = await getPublishedCategoryTrail(siteId, primaryCategory.id)
-  if (categoryTrail.length === 0) return []
+      const categoryTrail = await getPublishedCategoryTrail(siteId, primaryCategory.id)
+      if (categoryTrail.length === 0) return []
 
-  return [
-    ...categoryTrail.map((category) => ({
-      label: category.title,
-      href: `/categories/${category.slug}`,
-    })),
-    { label: currentLabel },
-  ]
+      return [
+        ...categoryTrail.map((category) => ({
+          label: category.title,
+          href: `/categories/${category.slug}`,
+        })),
+        { label: currentLabel },
+      ]
+    },
+    ['content-breadcrumb-items', siteId, contentType, contentId, currentLabel],
+    {
+      revalidate: false,
+      tags: ['categories', 'content-categories', `${contentType}-${contentId}`, `site-${siteId}`, 'all'],
+    }
+  )()
 }
 
 export async function getContentCategoryContext({
@@ -151,10 +161,19 @@ export async function getCategoryBreadcrumbItems({
   siteId: string
   categoryId: string
 }): Promise<FrontendBreadcrumbItem[]> {
-  const categoryTrail = await getPublishedCategoryTrail(siteId, categoryId)
+  return unstable_cache(
+    async () => {
+      const categoryTrail = await getPublishedCategoryTrail(siteId, categoryId)
 
-  return categoryTrail.map((category, index) => ({
-    label: category.title,
-    href: index < categoryTrail.length - 1 ? `/categories/${category.slug}` : undefined,
-  }))
+      return categoryTrail.map((category, index) => ({
+        label: category.title,
+        href: index < categoryTrail.length - 1 ? `/categories/${category.slug}` : undefined,
+      }))
+    },
+    ['category-breadcrumb-items', siteId, categoryId],
+    {
+      revalidate: false,
+      tags: ['categories', `category-${categoryId}`, `site-${siteId}`, 'all'],
+    }
+  )()
 }

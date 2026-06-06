@@ -12,6 +12,8 @@ type SitePageLookup = {
   page: typeof pages.$inferSelect | null
 }
 
+const PAGE_LOOKUP_NOT_FOUND_ERROR = 'PAGE_LOOKUP_NOT_FOUND'
+
 function normalizeSiteHost(hostname: string) {
   return hostname
     .trim()
@@ -27,6 +29,19 @@ function getSubdomainFromHost(host: string) {
 
   const subdomain = host.split('.')[0]
   return isReservedPlatformSubdomain(subdomain) ? null : subdomain
+}
+
+function isValidPageLookupSlug(pageSlug: string) {
+  if (pageSlug === 'home') return true
+  if (pageSlug.length === 0 || pageSlug.length > 200) return false
+
+  return pageSlug
+    .split('/')
+    .every((segment) => /^[a-zA-Z0-9_-]{1,100}$/.test(segment))
+}
+
+function isPageLookupNotFoundError(error: unknown) {
+  return error instanceof Error && error.message === PAGE_LOOKUP_NOT_FOUND_ERROR
 }
 
 function orderSitesByHostMatch(host: string, subdomain: string | null) {
@@ -99,6 +114,10 @@ async function getCachedSiteAndPageByHost(hostname: string, pageSlug: string) {
         .orderBy(orderSitesByHostMatch(host, subdomain))
         .limit(1)
 
+      if (row && pageSlug !== 'home' && !row.page) {
+        throw new Error(PAGE_LOOKUP_NOT_FOUND_ERROR)
+      }
+
       return row || null
     },
     ['site-page-by-host', host, pageSlug],
@@ -122,6 +141,10 @@ async function getCachedSiteAndPageBySubdomain(subdomain: string, pageSlug: stri
         )
         .where(eq(sites.subdomain, subdomain))
         .limit(1)
+
+      if (row && pageSlug !== 'home' && !row.page) {
+        throw new Error(PAGE_LOOKUP_NOT_FOUND_ERROR)
+      }
 
       return row || null
     },
@@ -149,6 +172,10 @@ async function getCachedSiteAndPageByDomain(domain: string, pageSlug: string) {
         .where(eq(sites.customDomain, host))
         .limit(1)
 
+      if (row && pageSlug !== 'home' && !row.page) {
+        throw new Error(PAGE_LOOKUP_NOT_FOUND_ERROR)
+      }
+
       return row || null
     },
     ['site-page-by-domain', host, pageSlug],
@@ -162,6 +189,17 @@ export interface SiteWithBlocks {
   subdomain: string
   custom_domain: string | null
   settings?: Record<string, any>
+  page?: {
+    id: string
+    title: string
+    slug: string
+    metaDescription: string | null
+    meta_description: string | null
+    metaKeywords: string | null
+    meta_keywords: string | null
+    isHomepage: boolean
+    is_homepage: boolean
+  } | null
   blocks: Array<{
     id: string
     type: string
@@ -323,6 +361,17 @@ async function buildSiteWithBlocksResult(
       subdomain: site.subdomain,
       custom_domain: site.customDomain,
       settings: site.settings as Record<string, any>,
+      page: page ? {
+        id: page.id,
+        title: page.title,
+        slug: page.slug,
+        metaDescription: page.metaDescription,
+        meta_description: page.metaDescription,
+        metaKeywords: page.metaKeywords,
+        meta_keywords: page.metaKeywords,
+        isHomepage: page.isHomepage,
+        is_homepage: page.isHomepage,
+      } : null,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
     },
@@ -343,10 +392,18 @@ export async function getSiteByHost(hostname: string, pageSlug?: string): Promis
     }
 
     const actualPageSlug = pageSlug || 'home'
+    if (!isValidPageLookupSlug(actualPageSlug)) {
+      return { success: false, error: 'Page not found' }
+    }
+
     const lookup = await getCachedSiteAndPageByHost(hostname, actualPageSlug)
 
     return await buildSiteWithBlocksResult(lookup, actualPageSlug)
   } catch (error) {
+    if (isPageLookupNotFoundError(error)) {
+      return { success: false, error: 'Page not found' }
+    }
+
     return { success: false, error: 'Failed to load site' }
   }
 }
@@ -365,11 +422,19 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
     }
 
     const actualPageSlug = pageSlug || 'home'
+    if (!isValidPageLookupSlug(actualPageSlug)) {
+      return { success: false, error: 'Page not found' }
+    }
+
     const lookup = await getCachedSiteAndPageBySubdomain(subdomain, actualPageSlug)
 
     return await buildSiteWithBlocksResult(lookup, actualPageSlug)
 
   } catch (error) {
+    if (isPageLookupNotFoundError(error)) {
+      return { success: false, error: 'Page not found' }
+    }
+
     return { success: false, error: 'Failed to load site' }
   }
 }
@@ -440,11 +505,19 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
     }
 
     const actualPageSlug = pageSlug || 'home'
+    if (!isValidPageLookupSlug(actualPageSlug)) {
+      return { success: false, error: 'Page not found' }
+    }
+
     const lookup = await getCachedSiteAndPageByDomain(domain, actualPageSlug)
 
     return await buildSiteWithBlocksResult(lookup, actualPageSlug)
 
   } catch (error) {
+    if (isPageLookupNotFoundError(error)) {
+      return { success: false, error: 'Page not found' }
+    }
+
     return { success: false, error: 'Failed to load site' }
   }
 }

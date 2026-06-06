@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import { Bookmark, Loader2, Plus } from "lucide-react"
 
 import {
@@ -14,40 +15,44 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useSiteAuthUser } from "@/components/frontend/layout/site-auth-provider"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DirectorySaveDropdownProps {
   siteId: string
   directoryId: string
   opacity?: number
+  loginPath?: string
   className?: string
 }
 
-function buildAuthRedirect(authPath: string | null) {
-  const path = authPath || "/"
-  const currentPath = `${window.location.pathname}${window.location.search}`
-  const separator = path.includes("?") ? "&" : "?"
-  return `${path}${separator}redirect=${encodeURIComponent(currentPath)}`
+function buildAuthHref(authPath: string, redirectPath: string) {
+  const separator = authPath.includes("?") ? "&" : "?"
+  return `${authPath}${separator}tab=login&redirect=${encodeURIComponent(redirectPath)}`
 }
 
-export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, className }: DirectorySaveDropdownProps) {
+export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, loginPath = "/account", className }: DirectorySaveDropdownProps) {
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const user = useSiteAuthUser()
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [collections, setCollections] = useState<DirectorySaveCollectionState[]>([])
-  const [authPath, setAuthPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [newFolderName, setNewFolderName] = useState("")
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const opacityNumber = Number(opacity)
   const resolvedOpacity = Math.min(100, Math.max(0, Number.isFinite(opacityNumber) ? opacityNumber : 100)) / 100
+  const search = searchParams.toString()
+  const redirectPath = `${pathname || "/"}${search ? `?${search}` : ""}`
+  const authHref = buildAuthHref(loginPath, redirectPath)
 
   const loadState = async () => {
     setLoading(true)
@@ -55,11 +60,15 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
     const result = await getDirectorySaveStateAction({ siteId, directoryId })
     setLoading(false)
     setLoaded(true)
-    setAuthPath(result.authPath)
 
     if (result.error) {
       setError(result.error)
       setCollections(result.collections)
+      return
+    }
+
+    if (!result.authenticated) {
+      window.location.href = authHref
       return
     }
 
@@ -90,15 +99,14 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
       })
 
       setPendingKey(null)
-      setAuthPath(result.authPath)
-
-      if (!result.authenticated) {
-        window.location.href = buildAuthRedirect(result.authPath)
-        return
-      }
 
       if (result.error) {
         setError(result.error)
+        return
+      }
+
+      if (!result.authenticated) {
+        window.location.href = authHref
         return
       }
 
@@ -117,16 +125,15 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
       const result = await createDirectorySaveCollectionAction({ siteId, directoryId, name })
 
       setPendingKey(null)
-      setAuthPath(result.authPath)
-
-      if (!result.authenticated) {
-        window.location.href = buildAuthRedirect(result.authPath)
-        return
-      }
 
       if (result.error) {
         setError(result.error)
         setCollections(result.collections)
+        return
+      }
+
+      if (!result.authenticated) {
+        window.location.href = authHref
         return
       }
 
@@ -136,6 +143,20 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
   }
 
   const sortedCollections = [...collections].sort((a, b) => Number(b.saved) - Number(a.saved))
+  const triggerClassName = cn(
+    "inline-flex h-auto w-auto items-center justify-center rounded-none bg-transparent p-0 text-white shadow-none hover:bg-transparent hover:text-white",
+    className,
+    "data-[state=open]:opacity-100 md:data-[state=open]:opacity-100"
+  )
+  const icon = <Bookmark className="size-7 fill-current drop-shadow-sm" style={{ opacity: resolvedOpacity }} />
+
+  if (!user) {
+    return (
+      <a href={authHref} aria-label="Save listing" className={triggerClassName}>
+        {icon}
+      </a>
+    )
+  }
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={handleOpenChange}>
@@ -145,13 +166,9 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
           size="icon"
           variant="ghost"
           aria-label="Save listing"
-          className={cn(
-            "h-auto w-auto rounded-none bg-transparent p-0 text-white shadow-none hover:bg-transparent hover:text-white",
-            className,
-            "data-[state=open]:opacity-100 md:data-[state=open]:opacity-100"
-          )}
+          className={triggerClassName}
         >
-          <Bookmark className="size-7 fill-current drop-shadow-sm" style={{ opacity: resolvedOpacity }} />
+          {icon}
         </Button>
       </DropdownMenuTrigger>
       {open ? (
@@ -166,15 +183,6 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-5 w-40" />
             </div>
-          ) : authPath && collections.length === 0 ? (
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault()
-                window.location.href = buildAuthRedirect(authPath)
-              }}
-            >
-              Sign in to save
-            </DropdownMenuItem>
           ) : (
             sortedCollections.map((collection) => {
               const key = collection.id || collection.default_key || collection.name
@@ -209,15 +217,15 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
               }}
               placeholder="New folder"
               className="h-8 min-w-0 flex-1 bg-background text-muted-foreground shadow-none placeholder:text-muted-foreground"
-              disabled={Boolean(authPath) || pendingKey === "new"}
+              disabled={pendingKey === "new"}
             />
             <Button
               type="button"
               size="sm"
               variant="outline"
               className="shrink-0 cursor-pointer text-muted-foreground shadow-none disabled:opacity-100"
-              aria-disabled={Boolean(authPath) || pendingKey === "new" || !newFolderName.trim()}
-              disabled={Boolean(authPath) || pendingKey === "new"}
+              aria-disabled={pendingKey === "new" || !newFolderName.trim()}
+              disabled={pendingKey === "new"}
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
