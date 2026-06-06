@@ -157,7 +157,7 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
       {open ? (
         <DropdownMenuContent
           align="end"
-          className="w-64"
+          className="w-52"
           onClick={(event) => event.stopPropagation()}
         >
           <DropdownMenuLabel className="mb-2">Save to</DropdownMenuLabel>
@@ -226,7 +226,7 @@ export function DirectorySaveDropdown({ siteId, directoryId, opacity = 100, clas
               }}
             >
               {pendingKey === "new" ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Create
+              <span className="sr-only">Create folder</span>
             </Button>
           </div>
 

@@ -66,7 +66,11 @@ import {
   mapApifyStatus,
   normalizeResult,
 } from "@/providers/google-maps/adapter"
-import { parseConfig, serializeSettings } from "@/providers/google-maps/schema"
+import {
+  googleMapsFieldValue,
+  parseConfig,
+  serializeSettings,
+} from "@/providers/google-maps/schema"
 import {
   decryptProviderSecret,
   encryptProviderSecret,
@@ -962,6 +966,23 @@ describe("core providers", () => {
       },
     ])
     expect(parseConfig({ actorId: "actor", defaultMaxResults: 5 }).fieldSettings).toEqual([])
+  })
+
+  it("formats Google Maps opening hours as tag values", () => {
+    expect(googleMapsFieldValue({
+      raw: {
+        openingHours: [
+          { day: "Monday", hours: "Closed" },
+          { day: "Tuesday", hours: "11 AM to 9 PM" },
+        ],
+      },
+    }, "openingHours", "raw.openingHours")).toEqual([
+      "Monday: Closed",
+      "Tuesday: 11 AM to 9 PM",
+    ])
+    expect(googleMapsFieldValue({
+      raw: { openingHours: [{}] },
+    }, "openingHours", "raw.openingHours")).toEqual([])
   })
 
   it("reports when provider tokens were encrypted with another key", () => {

@@ -52,9 +52,15 @@ export type GoogleMapsFieldSetting = z.infer<typeof fieldSettingSchema>
 export type GoogleMapsFieldType = GoogleMapsFieldSetting["type"]
 
 export function googleMapsFieldValue(data: Record<string, unknown>, key: string, sourcePath: string) {
-  if (Object.prototype.hasOwnProperty.call(data, key)) return data[key]
+  if (Object.prototype.hasOwnProperty.call(data, key)) {
+    const directValue = data[key]
+    return googleMapsStructuredFieldValue(sourcePath, directValue) ?? directValue
+  }
 
   const value = valueAtPath(data, sourcePath)
+  const structuredValue = googleMapsStructuredFieldValue(sourcePath, value)
+  if (structuredValue !== undefined) return structuredValue
+
   if (!sourcePath.includes(".additionalInfo.")) return value
 
   const tags = googleMapsAdditionalInfoTags(value)
@@ -100,6 +106,21 @@ function valueAtPath(data: Record<string, unknown>, path: string) {
     if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
     return (current as Record<string, unknown>)[key]
   }, data)
+}
+
+function googleMapsStructuredFieldValue(sourcePath: string, value: unknown) {
+  if (!sourcePath.endsWith("openingHours") || !Array.isArray(value)) return undefined
+
+  const hours = value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return []
+    const record = item as Record<string, unknown>
+    const day = typeof record.day === "string" ? record.day.trim() : ""
+    const text = typeof record.hours === "string" ? record.hours.trim() : ""
+    if (day && text) return `${day}: ${text}`
+    return text ? [text] : []
+  })
+
+  return hours
 }
 
 export const runInputSchema = z.object({

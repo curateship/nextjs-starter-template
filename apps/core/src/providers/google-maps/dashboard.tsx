@@ -376,7 +376,7 @@ export function GoogleMapsDashboard() {
     setSavingFieldSettings(true)
     setMessage(null)
     try {
-      const response = await saveGoogleMapsFieldSettings({ fieldSettings: fieldSettingsDraft })
+      const response = await saveGoogleMapsFieldSettings({ fieldSettings: fieldSettingsForSave(fieldSettingsDraft, fieldSettings) })
       setFieldSettings(response.field_settings)
       setFieldSettingsOpen(false)
       setMessage({ tone: "success", text: "Field settings saved." })
@@ -1707,6 +1707,15 @@ function fieldSettingsForResults(results: ProviderResultItem[], savedSettings: G
     })
 
   return [...mergedSavedSettings, ...missing].sort((a, b) => a.order - b.order)
+}
+
+function fieldSettingsForSave(settings: GoogleMapsFieldSetting[], savedSettings: GoogleMapsFieldSetting[]) {
+  const savedSourcePaths = new Set(savedSettings.map((setting) => setting.sourcePath))
+  const savedKeys = new Set(savedSettings.map((setting) => setting.key))
+
+  return settings
+    .filter((setting) => setting.visible || savedSourcePaths.has(setting.sourcePath) || savedKeys.has(setting.key))
+    .map((setting, index) => ({ ...setting, order: index }))
 }
 
 function isAdditionalInfoFieldSetting(setting: GoogleMapsFieldSetting) {
