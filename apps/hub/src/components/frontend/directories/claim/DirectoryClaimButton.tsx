@@ -18,6 +18,7 @@ import { useSiteAuthUser } from "@/components/frontend/layout/site-auth-provider
 
 interface DirectoryClaimButtonProps {
   directoryId: string
+  loginPath?: string
   ownerEditPath?: string
   buttonText?: string
   pendingEmailText?: string
@@ -48,6 +49,7 @@ function normalizeOwnerEditPath(value?: string) {
 
 export function DirectoryClaimButton({
   directoryId,
+  loginPath = "/account",
   ownerEditPath = "/account",
   buttonText = "Claim Listing",
   pendingEmailText = "Check Business Email",
@@ -81,7 +83,7 @@ export function DirectoryClaimButton({
 
   const redirectPath = pathname || "/"
   const editPath = normalizeOwnerEditPath(ownerEditPath)
-  const authHref = buildAuthHref("/login", redirectPath)
+  const authHref = buildAuthHref(loginPath, redirectPath)
 
   const handleClaimClick = async () => {
     setError(null)

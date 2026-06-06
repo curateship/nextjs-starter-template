@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { cronJobs, cronJobRuns } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
+
+const CRON_RUN_RETENTION_LIMIT = 30
+
+async function pruneCronJobRuns(jobId: string) {
+  await db.execute(sql`
+    delete from cron_job_runs
+    where job_id = ${jobId}
+      and id not in (
+        select id
+        from cron_job_runs
+        where job_id = ${jobId}
+        order by started_at desc
+        limit ${CRON_RUN_RETENTION_LIMIT}
+      )
+  `)
+}
 
 /**
  * GET /api/cron/runner
@@ -62,6 +78,7 @@ export async function GET(request: NextRequest) {
       response: response?.substring(0, 5000),
       startedAt: new Date(startTime),
     })
+    await pruneCronJobRuns(job.id)
 
     // Update job with last run time and calculate next run
     const nextRunAt = getNextRunTime(job.schedule, now)

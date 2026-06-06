@@ -30,6 +30,7 @@ interface DirectoryCoreBlockProps {
     category_context?: DirectoryCoreCategoryContext | null
   }
   directoryData?: DirectoryData
+  loginPath?: string
   siteId?: string | null
   cardProps?: HTMLAttributes<HTMLDivElement>
 }
@@ -168,7 +169,7 @@ function formatDirectoryAddress(address?: string | null, country?: string | null
     .join(", ")
 }
 
-export function DirectoryCoreBlock({ content, directory, directoryData, siteId, cardProps }: DirectoryCoreBlockProps) {
+export function DirectoryCoreBlock({ content, directory, directoryData, loginPath, siteId, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
@@ -275,6 +276,7 @@ export function DirectoryCoreBlock({ content, directory, directoryData, siteId, 
                 <DirectoryClaimButton
                   key="claim"
                   directoryId={directory.id!}
+                  loginPath={loginPath}
                   ownerEditPath={typeof content?.ownerEditPath === "string" ? content.ownerEditPath : "/account"}
                   buttonText={link.label?.trim() || (typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing")}
                   pendingEmailText={

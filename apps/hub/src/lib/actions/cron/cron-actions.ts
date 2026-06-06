@@ -2,8 +2,10 @@
 
 import { db } from '@/lib/db'
 import { cronJobs, cronJobRuns } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, sql } from 'drizzle-orm'
 import { getAuthenticatedUser, requireSiteOwnership } from '@/lib/db/helpers'
+
+const CRON_RUN_RETENTION_LIMIT = 30
 
 export interface CronJob {
   id: string
@@ -45,6 +47,20 @@ function getCronFreshnessWindowMs(schedule: string) {
   }
 
   return 15 * 60 * 1000
+}
+
+async function pruneCronJobRuns(jobId: string) {
+  await db.execute(sql`
+    delete from cron_job_runs
+    where job_id = ${jobId}
+      and id not in (
+        select id
+        from cron_job_runs
+        where job_id = ${jobId}
+        order by started_at desc
+        limit ${CRON_RUN_RETENTION_LIMIT}
+      )
+  `)
 }
 
 export async function getCronStatus(siteId: string): Promise<{
@@ -219,6 +235,7 @@ export async function runCronJobManually(jobId: string): Promise<{ success: bool
       response: response?.substring(0, 5000),
       startedAt: new Date(startTime),
     })
+    await pruneCronJobRuns(job.id)
 
     await db
       .update(cronJobs)

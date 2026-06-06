@@ -103,6 +103,9 @@ export function DirectoryBlockRenderer({
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
   const customWidth = site.settings?.custom_width;
   const publicSite = toPublicSiteClientProps(site)
+  const loginPath = typeof siteChrome.navigation?.accountMenu?.login?.url === 'string' && siteChrome.navigation.accountMenu.login.url.trim()
+    ? siteChrome.navigation.accountMenu.login.url
+    : "/account"
   const mainBlocks = visibleBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'main')
   const sidebarBlocks = visibleBlocks.filter((block) => getDirectoryLayoutColumn(block) === 'sidebar')
   const outerContainerStyle = siteWidth === 'custom'
@@ -142,6 +145,7 @@ export function DirectoryBlockRenderer({
           content={blockContent}
           directory={directory}
           directoryData={directory.directory_data}
+          loginPath={loginPath}
           siteId={site.id}
           cardProps={getBlockCardProps(block, "overflow-hidden")}
         />
