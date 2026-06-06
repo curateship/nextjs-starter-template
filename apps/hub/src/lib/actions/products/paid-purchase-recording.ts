@@ -40,6 +40,7 @@ async function markMatchingAutomationGoalsMet(params: {
     .set({
       status: 'goal_met',
       goalMetAt: new Date(),
+      endedAt: new Date(),
       lastStepSentAt: new Date(),
       metadata: sql`coalesce(${emailAutomationEnrollments.metadata}, '{}'::jsonb) || ${JSON.stringify({
         source: 'paid_purchase',

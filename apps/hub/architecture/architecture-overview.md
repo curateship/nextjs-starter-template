@@ -139,7 +139,7 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 
 **Newsletter event retention:**
 - Newsletter reporting uses `newsletter_source_stats` as the permanent rollup per broadcast or automation step.
-- `newsletter_deliveries` stores one row per sent email for webhook lookup/dedupe and is retained for 60 days.
+- `newsletter_deliveries` stores one row per sent email for webhook lookup/dedupe. Broadcast delivery rows are kept while the broadcast is sending or paused, then for a 7-day webhook window after `sent_at`. Automation delivery rows are kept while the matching enrollment is active, then for a 7-day webhook window after the enrollment `ended_at`.
 - Contact open filters read `newsletter_contacts.metadata.recent_email_activity`, capped at 50 entries per contact.
 - `newsletter_events` is legacy raw history for migration/backfill only; new runtime code should not depend on it.
 

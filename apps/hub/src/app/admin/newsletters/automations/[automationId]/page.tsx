@@ -72,17 +72,19 @@ interface PageProps {
 
 const EMPTY_TRIGGER_NODE: AutomationTriggerNode = { type: "none", config: {} }
 type EmailStepStats = { sent: number; duplicateSends: number; opened: number; clicked: number }
-type CheckpointAction = "continue" | "pause" | "end"
+type CheckpointAction = "continue" | "end"
 
-function getCheckpointAction(config: AutomationStep["node_config"] | undefined): CheckpointAction {
-  if (config?.checkpoint_action === "pause" || config?.keep_active_when_no_next_node === true) return "pause"
-  return config?.checkpoint_action === "end" ? "end" : "continue"
+function getCheckpointAction(config: AutomationStep["node_config"] | undefined): CheckpointAction | "" {
+  if (config?.checkpoint_action === "continue" || config?.checkpoint_action === "end") {
+    return config.checkpoint_action
+  }
+  return ""
 }
 
-function getCheckpointActionLabel(action: CheckpointAction) {
+function getCheckpointActionLabel(action: CheckpointAction | "") {
   if (action === "end") return "End automation"
-  if (action === "pause") return "Pause here"
-  return "Continue"
+  if (action === "continue") return "Continue"
+  return "Select action"
 }
 
 export default function AutomationBuilderPage({ params }: PageProps) {
@@ -119,7 +121,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   const [delayDay, setDelayDay] = useState("1")
   const [delayDate, setDelayDate] = useState("")
   const [editingEndRules, setEditingEndRules] = useState<AutomationStep | null>(null)
-  const [checkpointAction, setCheckpointAction] = useState<CheckpointAction>("continue")
+  const [checkpointAction, setCheckpointAction] = useState<CheckpointAction | "">("")
   const [savingNode, setSavingNode] = useState(false)
   const [pendingInsertIndex, setPendingInsertIndex] = useState(0)
   const [emailCreateOpen, setEmailCreateOpen] = useState(false)
@@ -303,7 +305,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
 
     if (nodeType === "end_rules") {
       setEditingEndRules({ id: "__new__" } as AutomationStep)
-      setCheckpointAction("continue")
+      setCheckpointAction("")
       return
     }
 
@@ -430,7 +432,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
   }
 
   const saveEndRulesNode = async () => {
-    if (!editingEndRules) return
+    if (!editingEndRules || !checkpointAction) return
 
     setSavingNode(true)
     const node_config = {
@@ -1471,7 +1473,7 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <Button variant="outline" onClick={() => setEditingEndRules(null)}>
                   Cancel
                 </Button>
-                <Button onClick={saveEndRulesNode} disabled={savingNode}>
+                <Button onClick={saveEndRulesNode} disabled={savingNode || !checkpointAction}>
                   {savingNode ? "Saving..." : "Save"}
                 </Button>
               </>
@@ -1485,13 +1487,12 @@ export default function AutomationBuilderPage({ params }: PageProps) {
                 <CardContent>
                   <Field>
                     <FieldLabel>Action</FieldLabel>
-                    <Select value={checkpointAction} onValueChange={(value: CheckpointAction) => setCheckpointAction(value)}>
+                    <Select value={checkpointAction} onValueChange={(value) => setCheckpointAction(value as CheckpointAction)}>
                       <SelectTrigger className="w-full">
-                        <SelectValue />
+                        <SelectValue placeholder="Select action" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="continue">Continue</SelectItem>
-                        <SelectItem value="pause">Pause here</SelectItem>
                         <SelectItem value="end">End automation</SelectItem>
                       </SelectContent>
                     </Select>

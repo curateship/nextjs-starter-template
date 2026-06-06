@@ -92,6 +92,8 @@ export const newsletterDeliveries = pgTable('newsletter_deliveries', {
   index('idx_newsletter_deliveries_site_sent').on(table.siteId, table.sentAt),
   index('idx_newsletter_deliveries_contact_sent').on(table.contactId, table.sentAt),
   index('idx_newsletter_deliveries_source').on(table.sourceType, table.sourceId, table.stepOrder),
+  index('idx_newsletter_deliveries_type_sent').on(table.sourceType, table.sentAt),
+  index('idx_newsletter_deliveries_source_contact').on(table.sourceType, table.sourceId, table.contactId),
 ])
 
 export const newsletterTemplates = pgTable('newsletter_templates', {

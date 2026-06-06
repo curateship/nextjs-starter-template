@@ -45,6 +45,7 @@ export const emailAutomationEnrollments = pgTable('email_automation_enrollments'
   enrolledAt: timestamp('enrolled_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   goalMetAt: timestamp('goal_met_at', { withTimezone: true }),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
   lastStepSentAt: timestamp('last_step_sent_at', { withTimezone: true }),
   metadata: jsonb('metadata').default({}),
 }, (table) => [

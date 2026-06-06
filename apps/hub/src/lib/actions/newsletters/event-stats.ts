@@ -9,7 +9,7 @@ export type NewsletterDeliveryEventType = 'delivered' | 'opened' | 'clicked' | '
 export type NewsletterSourceEventType = NewsletterDeliveryEventType | 'sent' | 'unsubscribed'
 
 export const RECENT_EMAIL_ACTIVITY_LIMIT = 50
-export const NEWSLETTER_DELIVERY_RETENTION_DAYS = 60
+export const NEWSLETTER_DELIVERY_WEBHOOK_WINDOW_DAYS = 7
 
 type DbExecutor = typeof db | any
 

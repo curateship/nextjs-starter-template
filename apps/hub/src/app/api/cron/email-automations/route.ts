@@ -241,17 +241,14 @@ export async function GET(request: NextRequest) {
             ))
 
           const currentNodeConfig = getNodeConfig(currentStep)
-          if (
-            currentStep?.nodeType === 'end_rules' &&
-            (currentNodeConfig.checkpoint_action === 'pause' || currentNodeConfig.keep_active_when_no_next_node === true)
-          ) {
+          if (currentStep?.nodeType === 'end_rules' && currentNodeConfig.checkpoint_action !== 'end') {
             continue
           }
 
-          // No more steps — mark completed
+          // No more steps. Checkpoints only finish here when they explicitly say "end".
           await db
             .update(emailAutomationEnrollments)
-            .set({ status: 'completed', completedAt: now })
+            .set({ status: 'completed', completedAt: now, endedAt: now })
             .where(eq(emailAutomationEnrollments.id, enrollment.id))
           processed++
           continue
@@ -283,7 +280,7 @@ export async function GET(request: NextRequest) {
           if (!contact || contact.status !== 'active') {
             await db
               .update(emailAutomationEnrollments)
-              .set({ status: 'cancelled' })
+              .set({ status: 'cancelled', endedAt: now })
               .where(eq(emailAutomationEnrollments.id, enrollment.id))
             continue
           }
@@ -296,6 +293,7 @@ export async function GET(request: NextRequest) {
                 status: 'completed',
                 currentStepOrder: nextStepOrder,
                 completedAt: now,
+                endedAt: now,
                 lastStepSentAt: now,
               })
               .where(eq(emailAutomationEnrollments.id, enrollment.id))
@@ -303,15 +301,7 @@ export async function GET(request: NextRequest) {
             continue
           }
 
-          if (nodeConfig.checkpoint_action === 'pause' || nodeConfig.keep_active_when_no_next_node === true) {
-            await db
-              .update(emailAutomationEnrollments)
-              .set({
-                currentStepOrder: nextStepOrder,
-                lastStepSentAt: now,
-              })
-              .where(eq(emailAutomationEnrollments.id, enrollment.id))
-            processed++
+          if (nodeConfig.checkpoint_action !== 'continue') {
             continue
           }
 
@@ -375,7 +365,7 @@ export async function GET(request: NextRequest) {
         if (!contact || contact.status !== 'active') {
           await db
             .update(emailAutomationEnrollments)
-            .set({ status: 'cancelled' })
+            .set({ status: 'cancelled', endedAt: now })
             .where(eq(emailAutomationEnrollments.id, enrollment.id))
           continue
         }

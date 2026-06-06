@@ -69,6 +69,7 @@ export interface AutomationEnrollment {
   enrolled_at: string
   completed_at: string | null
   goal_met_at: string | null
+  ended_at: string | null
   last_step_sent_at: string | null
   metadata: Record<string, any>
 }
@@ -785,7 +786,7 @@ export async function cancelEnrollment(enrollmentId: string): Promise<{ success:
 
     await db
       .update(emailAutomationEnrollments)
-      .set({ status: 'cancelled' })
+      .set({ status: 'cancelled', endedAt: new Date() })
       .where(eq(emailAutomationEnrollments.id, enrollmentId))
 
     return { success: true, error: null }
