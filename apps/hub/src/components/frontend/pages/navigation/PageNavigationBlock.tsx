@@ -691,7 +691,7 @@ export const NavBlock = memo(function NavBlock({
     if (style?.containerWidth === 'full') {
       return 'w-full px-3 sm:px-4 lg:px-6'
     }
-    return 'mx-auto px-3 sm:px-4 lg:px-6'
+    return 'mx-auto px-5 sm:px-4 lg:px-6'
   }
 
   const getNavContainerStyle = () => {
