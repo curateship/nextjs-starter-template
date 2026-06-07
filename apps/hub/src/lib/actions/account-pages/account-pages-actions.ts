@@ -61,7 +61,7 @@ function toAccountPage(row: any): AccountPage {
 /**
  * Get all account pages for a site
  */
-export async function getAccountPagesAction(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: AccountPage[] | null; total: number; error: string | null }> {
+export async function getAccountPagesAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: AccountPage[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -89,13 +89,22 @@ export async function getAccountPagesAction(siteId: string, options?: { page?: n
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
+    const selectedSlug = options?.selectedSlug?.trim()
 
-    const [countResult, result] = await Promise.all([
+    const [countResult, result, selectedRows] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(siteAccountPages).where(eq(siteAccountPages.siteId, siteId)),
       db.select().from(siteAccountPages).where(eq(siteAccountPages.siteId, siteId)).orderBy(desc(siteAccountPages.displayOrder)).limit(pageSize).offset(from),
+      selectedSlug
+        ? db.select().from(siteAccountPages).where(and(eq(siteAccountPages.siteId, siteId), eq(siteAccountPages.slug, selectedSlug))).limit(1)
+        : Promise.resolve([]),
     ])
 
-    return { data: result.map(toAccountPage), total: countResult[0]?.count ?? 0, error: null }
+    const selectedRow = selectedRows[0]
+    const rows = selectedRow && !result.some((page) => page.id === selectedRow.id)
+      ? [selectedRow, ...result]
+      : result
+
+    return { data: rows.map(toAccountPage), total: countResult[0]?.count ?? 0, error: null }
   } catch (error: any) {
     console.error('Exception in getAccountPagesAction:', error)
     return { data: null, total: 0, error: 'Failed to fetch account pages' }

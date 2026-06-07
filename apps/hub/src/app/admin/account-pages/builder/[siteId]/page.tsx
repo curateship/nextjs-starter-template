@@ -63,7 +63,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
       try {
         setPagesLoading(true)
         setPagesError(null)
-        const { data, error } = await getAccountPagesAction(siteId)
+        const { data, error } = await getAccountPagesAction(siteId, { selectedSlug: pageFromUrl })
         if (error) {
           setPagesError(error)
           return
@@ -78,7 +78,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     }
 
     loadPages()
-  }, [siteId])
+  }, [pageFromUrl, siteId])
 
   useEffect(() => {
     if (pages.length === 0) return
@@ -101,7 +101,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   }, [pageFromUrl, pages, router, selectedPage, siteId])
 
   // Custom hooks for data and state management
-  const { site, pages: dataPages, blocks, configLoading, blocksLoading, configError, reloadBlocks } = useAccountPageData(siteId)
+  const { site, pages: dataPages, blocks, configLoading, blocksLoading, configError, reloadBlocks } = useAccountPageData(siteId, selectedPage)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change

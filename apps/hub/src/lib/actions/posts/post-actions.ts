@@ -83,7 +83,7 @@ function revalidatePostFrontend(siteId: string, postId?: string) {
 /**
  * Get all posts for a site
  */
-export async function getSitePostsAction(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: Post[] | null; total: number; error: string | null }> {
+export async function getSitePostsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Post[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -110,13 +110,22 @@ export async function getSitePostsAction(siteId: string, options?: { page?: numb
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
+    const selectedSlug = options?.selectedSlug?.trim()
 
-    const [countResult, data] = await Promise.all([
+    const [countResult, data, selectedRows] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(posts).where(eq(posts.siteId, siteId)),
       db.select().from(posts).where(eq(posts.siteId, siteId)).orderBy(asc(posts.displayOrder)).limit(pageSize).offset(from),
+      selectedSlug
+        ? db.select().from(posts).where(and(eq(posts.siteId, siteId), eq(posts.slug, selectedSlug))).limit(1)
+        : Promise.resolve([]),
     ])
 
-    return { data: data.map(rowToPost), total: countResult[0]?.count ?? 0, error: null }
+    const selectedRow = selectedRows[0]
+    const rows = selectedRow && !data.some((post) => post.id === selectedRow.id)
+      ? [selectedRow, ...data]
+      : data
+
+    return { data: rows.map(rowToPost), total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return {
       data: null,

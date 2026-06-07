@@ -205,8 +205,8 @@ const fixedResultFieldSettings: GoogleMapsFieldSetting[] = [
   { key: "youtube", sourcePath: "youtube", label: "YouTube", visible: true, editable: true, type: "text", order: 25 },
 ]
 const fixedResultFieldKeys = new Set(fixedResultFieldSettings.map((setting) => setting.key))
-const descriptionResultFieldKeys = new Set(["description"])
-const contactResultFieldKeys = new Set(enhanceFieldOptions.map((option) => option.id))
+const descriptionResultFieldKeys = new Set<string>(["description"])
+const contactResultFieldKeys = new Set<string>(enhanceFieldOptions.map((option) => option.id))
 const resultNumberFields = new Set(["rating", "reviewCount"])
 const readOnlyResultFields = new Set([
   "raw",
@@ -711,7 +711,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     () => hubWiringTargetFields(hubWiringTemplate),
     [hubWiringTemplate]
   )
-  const selectedHubMappings = (data?.hub_export_mappings ?? []).filter((mapping) => mapping.siteId === hubExportSiteId)
+  const selectedHubMappings = hubWiringMappingsForSite(data?.hub_export_mappings ?? [], hubExportSiteId)
   const visibleIds = visibleResults.map((result) => result.id)
   const visibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const visibleIndeterminate = !visibleSelected && visibleIds.some((id) => selectedIds.has(id))
@@ -824,7 +824,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     const siteId = hubWiringSiteId || hubExportSiteId || sites[0]?.id || ""
     if (siteId) {
       setHubWiringSiteId(siteId)
-      setHubWiringDraft((data?.hub_export_mappings ?? []).filter((mapping) => mapping.siteId === siteId))
+      setHubWiringDraft(hubWiringMappingsForSite(data?.hub_export_mappings ?? [], siteId))
       await loadHubWiringTemplate(siteId)
     }
   }
@@ -832,7 +832,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const changeHubWiringSite = (siteId: string) => {
     setHubWiringSiteId(siteId)
     setHubExportSiteId((current) => current || siteId)
-    setHubWiringDraft((data?.hub_export_mappings ?? []).filter((mapping) => mapping.siteId === siteId))
+    setHubWiringDraft(hubWiringMappingsForSite(data?.hub_export_mappings ?? [], siteId))
     void loadHubWiringTemplate(siteId)
   }
 
@@ -844,7 +844,9 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     try {
       const response = await saveGoogleMapsHubExportMappings({
         siteId: hubWiringSiteId,
-        mappings: hubWiringDraft.map((mapping) => ({ ...mapping, siteId: hubWiringSiteId })),
+        mappings: hubWiringDraft
+          .filter(isValidHubWiringMapping)
+          .map((mapping) => ({ ...mapping, siteId: hubWiringSiteId })),
       })
       setData((current) => current ? { ...current, hub_export_mappings: response.hub_export_mappings } : current)
       setHubWiringOpen(false)
@@ -871,9 +873,10 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       setHubExportOpen(false)
       setSelectedIds(new Set())
       const tone = response.errors > 0 ? "error" : "success"
+      const firstError = response.results.find((result) => result.action === "error")?.error
       setMessage({
         tone,
-        text: `Hub export complete: ${response.created} created, ${response.updated} updated, ${response.errors} errors.`,
+        text: `Hub export complete: ${response.created} created, ${response.updated} updated, ${response.errors} errors.${firstError ? ` First error: ${firstError}` : ""}`,
       })
     } catch (error) {
       setMessage({ tone: "error", text: providerError(error) })
@@ -1441,6 +1444,7 @@ function HubWiringDialog({
     const target = targetOptions.find((option) => option.value === value)
     if (!target) return
     updateMapping(index, {
+      ...(target.kind === "directoryCategory" ? { sourceKey: "neighborhood" } : {}),
       targetBlockId: target.blockId,
       targetKind: target.kind,
       targetFieldKey: target.fieldKey,
@@ -1502,7 +1506,11 @@ function HubWiringDialog({
                   <div key={`${mapping.sourceKey}-${mapping.targetBlockId}-${mapping.targetFieldKey}-${index}`} className="grid gap-3 rounded-md border p-3 lg:grid-cols-[minmax(160px,1fr)_minmax(220px,1.5fr)_auto]">
                     <div className="grid gap-2">
                       <Label>Core field</Label>
-                      <Select value={mapping.sourceKey} onValueChange={(sourceKey) => updateMapping(index, { sourceKey })} disabled={saving}>
+                      <Select
+                        value={mapping.targetKind === "directoryCategory" ? "neighborhood" : mapping.sourceKey}
+                        onValueChange={(sourceKey) => updateMapping(index, { sourceKey })}
+                        disabled={saving || mapping.targetKind === "directoryCategory"}
+                      >
                         <SelectTrigger size="default" className="w-full">
                           <SelectValue />
                         </SelectTrigger>
@@ -1810,6 +1818,13 @@ type HubWiringAutoMapResult = {
 }
 
 const hubWiringSocialFieldKeys = new Set(["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"])
+function isValidHubWiringMapping(mapping: GoogleMapsHubExportMapping) {
+  return mapping.targetKind !== "directoryDataField"
+}
+
+function hubWiringMappingsForSite(mappings: GoogleMapsHubExportMapping[], siteId: string) {
+  return mappings.filter((mapping) => mapping.siteId === siteId && isValidHubWiringMapping(mapping))
+}
 
 function hubWiringSourceFields(fieldSettings: GoogleMapsFieldSetting[]): HubWiringSourceOption[] {
   const options = new Map<string, string>([
@@ -1817,7 +1832,10 @@ function hubWiringSourceFields(fieldSettings: GoogleMapsFieldSetting[]): HubWiri
     ["featuredImage", "Featured image"],
     ["google_maps_place_id", "Google Maps Place ID"],
     ["description", "Description"],
+    ["neighborhood", "Neighborhood"],
     ["address", "Address"],
+    ["rating", "Rating"],
+    ["reviewCount", "Reviews"],
     ["phone", "Phone"],
     ["website", "Website"],
     ["email", "Email"],
@@ -1855,6 +1873,13 @@ function hubWiringTargetFields(template: HubDirectoryTemplateScan | null): HubWi
       kind: "directoryFeaturedImage",
       fieldKey: "featuredImage",
       label: "Built-in - Featured image",
+    },
+    {
+      value: hubWiringTargetOptionValue("__directory__", { kind: "directoryCategory", field_key: "category" }),
+      blockId: "__directory__",
+      kind: "directoryCategory",
+      fieldKey: "category",
+      label: "Built-in - Category",
     },
   ]
   const blockTargets = (template.blocks ?? []).flatMap((block) => (
@@ -1923,10 +1948,13 @@ function hubWiringAutoTargetScore(source: HubWiringSourceOption, target: HubWiri
   if (sourceKey === "description" && target.kind === "richTextBody") return 0
   if (sourceKey === "businessName" && target.kind === "directoryTitle") return 0
   if (sourceKey === "featuredImage" && target.kind === "directoryFeaturedImage") return 0
+  if (sourceKey === "neighborhood" && target.kind === "directoryCategory") return 0
+  if (target.kind === "coreContentField" && target.fieldKey === sourceKey) return 0
   if (sourceKey === "google_maps_place_id" && target.kind === "openingHoursPlaceId") return 0
-  if (sourceKey === "address" && target.kind === "googleMapLocationQuery") return 0
-  if (sourceKey === "mapsUrl" && target.kind === "coreMenuLink" && target.fieldKey === "directions") return 0
-  if ((sourceKey === "phone" || sourceKey === "website" || sourceKey === "email") && target.kind === "coreMenuLink" && target.fieldKey === sourceKey) return 0
+  if (sourceKey === "address" && target.kind === "googleMapLocationQuery") return 1
+  if (sourceKey === "mapsUrl" && target.kind === "coreMenuLink" && target.fieldKey === "directions") return 1
+  if ((sourceKey === "phone" || sourceKey === "website") && target.kind === "coreMenuLink" && target.fieldKey === sourceKey) return 1
+  if (sourceKey === "email" && target.kind === "coreMenuLink" && target.fieldKey === sourceKey) return 0
   if (hubWiringSocialFieldKeys.has(sourceKey) && target.kind === "coreSocialLink" && target.fieldKey === sourceKey) return 0
   if (target.kind === "customField" && target.fieldKey === sourceKey) return 5
   if (target.kind === "customField" && targetLabel.endsWith(sourceLabel)) return 6
@@ -1949,6 +1977,7 @@ function hubWiringTargetValue(mapping: GoogleMapsHubExportMapping) {
 function hubWiringDefaultTargetFieldKey(targetKind: GoogleMapsHubExportMapping["targetKind"]) {
   if (targetKind === "directoryTitle") return "title"
   if (targetKind === "directoryFeaturedImage") return "featuredImage"
+  if (targetKind === "directoryCategory") return "category"
   if (targetKind === "richTextBody") return "body"
   if (targetKind === "googleMapLocationQuery") return "locationQuery"
   if (targetKind === "openingHoursPlaceId") return "placeId"
@@ -2434,7 +2463,7 @@ function resultFieldHasValue(result: ProviderResultItem, setting: GoogleMapsFiel
   return true
 }
 
-function resultDataWithTitle(result: ProviderResultItem) {
+function resultDataWithTitle(result: ProviderResultItem): Record<string, unknown> {
   return { ...result.data, businessName: text(result.data.businessName) ?? result.title }
 }
 

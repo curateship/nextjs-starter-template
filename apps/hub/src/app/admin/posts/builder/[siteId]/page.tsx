@@ -73,7 +73,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         setSite(siteResult.data)
         
         // Load posts data
-        const postsResult = await getSitePostsAction(siteId)
+        const postsResult = await getSitePostsAction(siteId, { selectedSlug: postFromUrl })
         if (!postsResult.data) {
           setError(postsResult.error || 'Failed to load posts')
           return
@@ -89,7 +89,7 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     }
     
     loadData()
-  }, [siteId])
+  }, [postFromUrl, siteId])
 
   useEffect(() => {
     if (posts.length === 0) return

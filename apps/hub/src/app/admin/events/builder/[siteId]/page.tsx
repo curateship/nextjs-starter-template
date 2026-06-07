@@ -50,7 +50,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   useEffect(() => {
     async function loadEvents() {
       try {
-        const { data, error } = await getSiteEventsAction(siteId)
+        const { data, error } = await getSiteEventsAction(siteId, { selectedSlug: eventFromUrl })
         if (error) {
           return
         }
@@ -62,7 +62,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     }
 
     loadEvents()
-  }, [siteId])
+  }, [eventFromUrl, siteId])
 
   useEffect(() => {
     if (events.length === 0) return
@@ -85,7 +85,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }, [eventFromUrl, events, router, selectedEvent, siteId])
 
   // Custom hooks for data and state management
-  const { site, blocks, blocksLoading, siteError } = useEventData(siteId)
+  const { site, blocks, blocksLoading, siteError } = useEventData(siteId, selectedEvent)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change

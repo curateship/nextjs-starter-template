@@ -34,8 +34,10 @@ export async function GET(request: NextRequest) {
   const contentBlocks = template?.contentBlocks && typeof template.contentBlocks === 'object' && !Array.isArray(template.contentBlocks)
     ? template.contentBlocks as Record<string, any>
     : {}
-  const customTemplateIds = Array.from(new Set(Object.values(contentBlocks)
-    .map((block) => block?.content?.templateId)
+  const blockEntries = Object.entries(contentBlocks)
+    .filter(([key, block]) => !key.startsWith('_') && block && typeof block === 'object' && !Array.isArray(block))
+  const customTemplateIds = Array.from(new Set(blockEntries
+    .map(([, block]) => block?.content?.templateId)
     .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id))))
   const customTemplates = customTemplateIds.length
     ? await db.select({
@@ -50,8 +52,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     template: template ? { id: template.id, name: template.name } : null,
-    blocks: Object.values(contentBlocks)
-      .filter((block) => block && typeof block === 'object' && !Array.isArray(block))
+    blocks: blockEntries
+      .map(([, block]) => block)
       .sort((a, b) => Number(a.display_order ?? 0) - Number(b.display_order ?? 0))
       .map((block) => {
         const type = typeof block.type === 'string' ? block.type : ''
@@ -117,6 +119,10 @@ function blockTargets(type: string, customTemplate?: { fields: unknown }) {
 }
 
 function coreBlockTargets() {
+  const contentTargets = [
+    { kind: 'coreContentField', field_key: 'address', label: 'Address', value_type: 'text' },
+    { kind: 'coreContentField', field_key: 'rating', label: 'Rating', value_type: 'number' },
+  ]
   const menuTargets = ['directions', 'phone', 'website', 'email'].map((type) => ({
     kind: 'coreMenuLink',
     field_key: type,
@@ -130,7 +136,7 @@ function coreBlockTargets() {
     value_type: 'url',
   }))
 
-  return [...menuTargets, ...socialTargets]
+  return [...contentTargets, ...menuTargets, ...socialTargets]
 }
 
 function coreMenuLabel(type: string) {

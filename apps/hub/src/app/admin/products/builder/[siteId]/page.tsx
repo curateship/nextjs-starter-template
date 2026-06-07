@@ -70,7 +70,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   useEffect(() => {
     async function loadProducts() {
       try {
-        const { data, error } = await getSiteProductsAction(siteId)
+        const { data, error } = await getSiteProductsAction(siteId, { selectedSlug: productFromUrl })
         if (error) {
           return
         }
@@ -82,7 +82,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
     }
     
     loadProducts()
-  }, [siteId])
+  }, [productFromUrl, siteId])
 
   useEffect(() => {
     if (products.length === 0) return
@@ -105,7 +105,7 @@ export default function ProductBuilderEditor({ params }: { params: Promise<{ sit
   }, [productFromUrl, products, router, selectedProduct, siteId])
   
   // Custom hooks for data and state management
-  const { site, blocks, blocksLoading, siteError } = useProductData(siteId)
+  const { site, blocks, blocksLoading, siteError } = useProductData(siteId, selectedProduct)
   const [localBlocks, setLocalBlocks] = useState(blocks)
   
   // Update local blocks when server blocks change

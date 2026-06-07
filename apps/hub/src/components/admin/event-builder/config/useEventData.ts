@@ -35,7 +35,7 @@ function getEventBlocksBySlug(events: Array<{ id: string; slug: string; content_
   return convertedBlocks
 }
 
-export function useEventData(siteId: string): UseEventDataReturn {
+export function useEventData(siteId: string, selectedEvent = ""): UseEventDataReturn {
   const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<SiteWithTheme | null>(currentSite)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
@@ -50,7 +50,7 @@ export function useEventData(siteId: string): UseEventDataReturn {
 
     try {
       // Use site from context, only fetch events
-      const eventsResult = await getSiteEventsAction(siteId)
+      const eventsResult = await getSiteEventsAction(siteId, { selectedSlug: selectedEvent })
       const siteResult = { data: currentSite, error: null }
 
       if (siteResult.data) {
@@ -73,11 +73,11 @@ export function useEventData(siteId: string): UseEventDataReturn {
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }, [currentSite, siteId])
+  }, [currentSite, selectedEvent, siteId])
 
   const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
-    const eventsResult = await getSiteEventsAction(siteId)
+    const eventsResult = await getSiteEventsAction(siteId, { selectedSlug: selectedEvent })
 
     if (eventsResult.data) {
       setBlocks(getEventBlocksBySlug(eventsResult.data))
@@ -86,7 +86,7 @@ export function useEventData(siteId: string): UseEventDataReturn {
     }
 
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedEvent, siteId])
 
 
   useEffect(() => {

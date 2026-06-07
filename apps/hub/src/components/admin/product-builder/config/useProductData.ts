@@ -24,7 +24,7 @@ function getProductBlocksBySlug(products: Array<{ id: string; slug: string; cont
   return convertedBlocks
 }
 
-export function useProductData(siteId: string): UseProductDataReturn {
+export function useProductData(siteId: string, selectedProduct = ""): UseProductDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [siteLoading, setSiteLoading] = useState(true)
   const [siteError, setSiteError] = useState("")
@@ -39,7 +39,7 @@ export function useProductData(siteId: string): UseProductDataReturn {
     try {
       const [siteResult, productsResult] = await Promise.all([
         getSiteByIdAction(siteId),
-        getSiteProductsAction(siteId)
+        getSiteProductsAction(siteId, { selectedSlug: selectedProduct })
       ])
       
       if (siteResult.data) {
@@ -62,13 +62,13 @@ export function useProductData(siteId: string): UseProductDataReturn {
     
     setSiteLoading(false)
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedProduct, siteId])
 
   const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
     const [siteResult, productsResult] = await Promise.all([
       getSiteByIdAction(siteId),
-      getSiteProductsAction(siteId)
+      getSiteProductsAction(siteId, { selectedSlug: selectedProduct })
     ])
 
     if (siteResult.data) {
@@ -82,7 +82,7 @@ export function useProductData(siteId: string): UseProductDataReturn {
     }
     
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedProduct, siteId])
 
 
   useEffect(() => {

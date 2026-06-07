@@ -57,7 +57,7 @@ function revalidateProductFrontend(siteId: string, productId?: string) {
 /**
  * Get all products for a site
  */
-export async function getSiteProductsAction(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: Product[] | null; total: number; error: string | null }> {
+export async function getSiteProductsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Product[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -84,13 +84,21 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
+    const selectedSlug = options?.selectedSlug?.trim()
 
-    const [countResult, data] = await Promise.all([
+    const [countResult, data, selectedRows] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
       db.select().from(products).where(eq(products.siteId, siteId)).orderBy(asc(products.displayOrder)).limit(pageSize).offset(from),
+      selectedSlug
+        ? db.select().from(products).where(and(eq(products.siteId, siteId), eq(products.slug, selectedSlug))).limit(1)
+        : Promise.resolve([]),
     ])
 
-    const mapped = data.map(serializeProduct)
+    const selectedRow = selectedRows[0]
+    const rows = selectedRow && !data.some((product) => product.id === selectedRow.id)
+      ? [selectedRow, ...data]
+      : data
+    const mapped = rows.map(serializeProduct)
 
     return { data: mapped, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {

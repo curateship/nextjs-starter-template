@@ -37,7 +37,7 @@ function getCategoryBlocksBySlug(categories: Category[]) {
   return convertedBlocks
 }
 
-export function useCategoryData(siteId: string): UseCategoryDataReturn {
+export function useCategoryData(siteId: string, selectedCategory = ""): UseCategoryDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [siteLoading, setSiteLoading] = useState(true)
@@ -53,7 +53,7 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
     try {
       const [siteResult, categoriesResult] = await Promise.all([
         getSiteByIdAction(siteId),
-        getCategoriesForSiteAction(siteId)
+        getCategoriesForSiteAction(siteId, { selectedSlug: selectedCategory })
       ])
 
       if (siteResult.data) {
@@ -77,11 +77,11 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedCategory, siteId])
 
   const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
-    const categoriesResult = await getCategoriesForSiteAction(siteId)
+    const categoriesResult = await getCategoriesForSiteAction(siteId, { selectedSlug: selectedCategory })
 
     if (categoriesResult.data) {
       setBlocks(getCategoryBlocksBySlug(categoriesResult.data))
@@ -90,7 +90,7 @@ export function useCategoryData(siteId: string): UseCategoryDataReturn {
     }
 
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedCategory, siteId])
 
   useEffect(() => {
     loadSiteAndCategories()

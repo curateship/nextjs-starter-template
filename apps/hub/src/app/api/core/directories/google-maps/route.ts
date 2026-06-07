@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { createHash } from 'node:crypto'
 import { lookup } from 'node:dns/promises'
+import { request as httpRequest, type IncomingHttpHeaders } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 import { isIP } from 'node:net'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { categories, contentCategoryRelationships } from '@/lib/db/schema/categories'
 import { directories } from '@/lib/db/schema/directories'
 import { directoryCustomBlocks } from '@/lib/db/schema/directory-custom-blocks'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
@@ -20,29 +23,7 @@ interface GoogleMapsImportRecord {
   businessName?: unknown
   title?: unknown
   description?: unknown
-  category?: unknown
-  categoryName?: unknown
-  type?: unknown
-  neighborhood?: unknown
-  address?: unknown
-  street?: unknown
-  city?: unknown
-  state?: unknown
-  region?: unknown
-  country?: unknown
-  countryCode?: unknown
-  instagram?: unknown
-  facebook?: unknown
-  tiktok?: unknown
-  twitter?: unknown
-  linkedin?: unknown
-  youtube?: unknown
-  phone?: unknown
-  website?: unknown
-  rating?: unknown
-  reviewCount?: unknown
   featuredImage?: unknown
-  mapsUrl?: unknown
 }
 
 interface GoogleMapsBlockMapping {
@@ -55,22 +36,31 @@ interface GoogleMapsBlockMapping {
 type NormalizedBlockMapping = {
   sourceKey: string
   targetBlockId: string
-  targetKind: 'directoryTitle' | 'directoryFeaturedImage' | 'richTextBody' | 'googleMapLocationQuery' | 'openingHoursPlaceId' | 'customField' | 'coreMenuLink' | 'coreSocialLink'
+  targetKind: 'directoryTitle' | 'directoryFeaturedImage' | 'directoryCategory' | 'richTextBody' | 'googleMapLocationQuery' | 'openingHoursPlaceId' | 'customField' | 'coreContentField' | 'coreMenuLink' | 'coreSocialLink'
   targetFieldKey: string
 }
+
+type PublicAddress = { address: string; family: 4 | 6 }
+type AssignableCategory = { id: string; title: string; parentId: string | null; isPublished: boolean }
 
 const TARGET_KINDS = new Set([
   'directoryTitle',
   'directoryFeaturedImage',
+  'directoryCategory',
   'richTextBody',
   'googleMapLocationQuery',
   'openingHoursPlaceId',
   'customField',
+  'coreContentField',
   'coreMenuLink',
   'coreSocialLink',
 ])
-const FIELD_KEY_TARGET_KINDS = new Set(['customField', 'coreMenuLink', 'coreSocialLink'])
-const DIRECTORY_TARGET_KINDS = new Set(['directoryTitle', 'directoryFeaturedImage'])
+const FIELD_KEY_TARGET_KINDS = new Set(['customField', 'coreContentField', 'coreMenuLink', 'coreSocialLink'])
+const DIRECTORY_TARGET_KINDS = new Set(['directoryTitle', 'directoryFeaturedImage', 'directoryCategory'])
+const CORE_CONTENT_FIELD_TYPES: Record<string, 'text' | 'number'> = {
+  address: 'text',
+  rating: 'number',
+}
 const CORE_MENU_LINK_TYPES = new Set(['directions', 'phone', 'website', 'email'])
 const CORE_SOCIAL_LINK_TYPES = new Set(['instagram', 'facebook', 'tiktok', 'twitter', 'linkedin', 'youtube'])
 
@@ -128,6 +118,7 @@ export async function POST(request: NextRequest) {
   const customBlockTemplates = mappings.some((mapping) => mapping.targetKind === 'customField')
     ? await getDirectoryCustomBlockTemplates(siteId)
     : new Map<string, { fields: any[] }>()
+  const categoryCache = new Map<string, AssignableCategory | null>()
   const results = []
 
   for (const item of items) {
@@ -135,6 +126,7 @@ export async function POST(request: NextRequest) {
     const directoryMappingValues = getDirectoryMappingValues(item, mappings)
     const mappedTitle = cleanText(directoryMappingValues.title, 255)
     const mappedFeaturedImage = safeUrl(directoryMappingValues.featuredImage)
+    const mappedCategory = cleanText(directoryMappingValues.category, 255)
 
     if (!record.placeId) {
       results.push({ source_type: GOOGLE_MAPS_SOURCE_TYPE, source_id: null, action: 'error', error: 'Missing Google Maps Place ID' })
@@ -157,26 +149,20 @@ export async function POST(request: NextRequest) {
         userId: site.userId,
         altText: title,
       })
-      const importedRecord = {
-        ...record,
-        placeId,
-        title,
-        featuredImage: hubFeaturedImage,
-      }
       const sourceBlocks = cloneContentBlocks(existing?.contentBlocks ?? defaultTemplate.contentBlocks)
       const contentBlocks = cleanContentBlocks(sourceBlocks)
       applyBlockMappings(contentBlocks, item, mappings, customBlockTemplates)
-      const directoryData = buildDirectoryData(importedRecord)
+      const directoryData = buildDirectoryData()
       const values = {
-        title: importedRecord.title,
+        title,
         status,
         sourceType: GOOGLE_MAPS_SOURCE_TYPE,
-        sourceId: importedRecord.placeId,
+        sourceId: placeId,
         contentBlocks,
         directoryData,
         updatedAt: new Date(),
-        ...(existing?.metaDescription === importedRecord.description ? { metaDescription: null } : {}),
-        ...(featuredImageSource ? { featuredImage: importedRecord.featuredImage } : {}),
+        ...(existing?.metaDescription === record.description ? { metaDescription: null } : {}),
+        ...(featuredImageSource ? { featuredImage: hubFeaturedImage } : {}),
       }
 
       if (existing) {
@@ -184,10 +170,11 @@ export async function POST(request: NextRequest) {
           .set(values)
           .where(eq(directories.id, existing.id))
           .returning({ id: directories.id, slug: directories.slug })
+        await assignMappedDirectoryCategory(siteId, updated.id, mappedCategory, defaultTemplate.defaultBreadcrumbParentId, categoryCache)
 
         results.push({
           source_type: GOOGLE_MAPS_SOURCE_TYPE,
-          source_id: record.placeId,
+          source_id: placeId,
           action: 'updated',
           directory_id: updated.id,
           slug: updated.slug,
@@ -199,35 +186,37 @@ export async function POST(request: NextRequest) {
       const [created] = await db.insert(directories)
         .values({
           siteId,
-          title: importedRecord.title,
+          title,
           slug,
           status,
           displayOrder: nextDisplayOrder,
-          featuredImage: importedRecord.featuredImage,
+          featuredImage: hubFeaturedImage,
           sourceType: GOOGLE_MAPS_SOURCE_TYPE,
-          sourceId: importedRecord.placeId,
+          sourceId: placeId,
           contentBlocks,
           directoryData,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning({ id: directories.id, slug: directories.slug })
+      await assignMappedDirectoryCategory(siteId, created.id, mappedCategory, defaultTemplate.defaultBreadcrumbParentId, categoryCache)
 
       nextDisplayOrder += 1
       results.push({
         source_type: GOOGLE_MAPS_SOURCE_TYPE,
-        source_id: record.placeId,
+        source_id: placeId,
         action: 'created',
         directory_id: created.id,
         slug: created.slug,
       })
     } catch (error) {
-      console.error('Core Google Maps directory import failed:', error)
+      const safeError = hubImportErrorMessage(error)
+      console.error('Core Google Maps directory import failed:', { sourceId: placeId, error: safeError })
       results.push({
         source_type: GOOGLE_MAPS_SOURCE_TYPE,
-        source_id: record.placeId,
+        source_id: placeId,
         action: 'error',
-        error: hubImportErrorMessage(error),
+        error: safeError,
       })
     }
   }
@@ -300,7 +289,18 @@ async function getDefaultDirectoryTemplateBlocks(siteId: string) {
 
   return {
     contentBlocks: cloneContentBlocks(template?.contentBlocks),
+    defaultBreadcrumbParentId: getDefaultBreadcrumbParentId(template?.contentBlocks),
   }
+}
+
+function getDefaultBreadcrumbParentId(contentBlocks: unknown) {
+  if (!contentBlocks || typeof contentBlocks !== 'object' || Array.isArray(contentBlocks)) return null
+  const settings = (contentBlocks as Record<string, any>)._settings
+  const parentId = settings && typeof settings === 'object' && !Array.isArray(settings)
+    ? settings.default_breadcrumb_parent_id
+    : null
+
+  return typeof parentId === 'string' && UUID_REGEX.test(parentId) ? parentId : null
 }
 
 function cloneContentBlocks(value: unknown): Record<string, any> {
@@ -328,6 +328,7 @@ function normalizeMappings(value: unknown) {
 
       if (!sourceKey || !targetBlockId) return null
       if (FIELD_KEY_TARGET_KINDS.has(targetKind) && !targetFieldKey) return null
+      if (targetKind === 'coreContentField' && !CORE_CONTENT_FIELD_TYPES[targetFieldKey]) return null
 
       return { sourceKey, targetBlockId, targetKind: targetKind as NormalizedBlockMapping['targetKind'], targetFieldKey }
     })
@@ -349,7 +350,7 @@ function getDirectoryMappingValues(record: unknown, mappings: ReturnType<typeof 
   const source = record && typeof record === 'object' && !Array.isArray(record)
     ? record as Record<string, unknown>
     : {}
-  const values: { title?: unknown; featuredImage?: unknown } = {}
+  const values: { title?: unknown; featuredImage?: unknown; category?: unknown } = {}
 
   mappings.forEach((mapping) => {
     if (!DIRECTORY_TARGET_KINDS.has(mapping.targetKind)) return
@@ -359,9 +360,139 @@ function getDirectoryMappingValues(record: unknown, mappings: ReturnType<typeof 
 
     if (mapping.targetKind === 'directoryTitle') values.title = sourceValue
     if (mapping.targetKind === 'directoryFeaturedImage') values.featuredImage = sourceValue
+    if (mapping.targetKind === 'directoryCategory' && mapping.sourceKey === 'neighborhood') values.category = sourceValue
   })
 
   return values
+}
+
+async function assignMappedDirectoryCategory(
+  siteId: string,
+  directoryId: string,
+  categoryTitle: string | null,
+  parentCategoryId: string | null,
+  categoryCache: Map<string, AssignableCategory | null>
+) {
+  if (!categoryTitle) return
+
+  const normalizedTitle = normalizeCategoryTitle(categoryTitle)
+  if (!normalizedTitle) return
+
+  const cacheKey = `${parentCategoryId || ''}:${normalizedTitle}`
+  if (!categoryCache.has(cacheKey)) {
+    categoryCache.set(cacheKey, await findOrCreateAssignableCategory(siteId, categoryTitle, parentCategoryId, normalizedTitle))
+  }
+
+  const category = categoryCache.get(cacheKey)
+  if (!category) {
+    return
+  }
+
+  await db.transaction(async (tx) => {
+    const directoryRelationship = and(
+      eq(contentCategoryRelationships.contentId, directoryId),
+      eq(contentCategoryRelationships.contentType, 'directory')
+    )
+
+    await tx.update(contentCategoryRelationships)
+      .set({ isPrimary: false })
+      .where(and(directoryRelationship, eq(contentCategoryRelationships.isPrimary, true)))
+
+    await tx.delete(contentCategoryRelationships)
+      .where(and(
+        directoryRelationship,
+        eq(contentCategoryRelationships.categoryId, category.id)
+      ))
+
+    await tx.insert(contentCategoryRelationships).values({
+      contentId: directoryId,
+      contentType: 'directory',
+      categoryId: category.id,
+      isPrimary: true,
+    })
+  })
+
+  revalidateTag('content-categories')
+  revalidateTag(`category-${category.id}`)
+}
+
+async function findOrCreateAssignableCategory(siteId: string, title: string, parentCategoryId: string | null, normalizedTitle: string) {
+  const rows = await db.select({
+    id: categories.id,
+    title: categories.title,
+    parentId: categories.parentId,
+    isPublished: categories.isPublished,
+  })
+    .from(categories)
+    .where(eq(categories.siteId, siteId))
+
+  const existing = rows
+    .filter((category) => category.isPublished && category.parentId)
+    .find((category) => {
+      if (normalizeCategoryTitle(category.title) !== normalizedTitle) return false
+      return parentCategoryId ? category.parentId === parentCategoryId : true
+    })
+
+  if (existing) return existing
+  if (!parentCategoryId) return null
+
+  const parentCategory = rows.find((category) => category.id === parentCategoryId && category.isPublished && !category.parentId)
+  if (!parentCategory) return null
+
+  return createHubCategory(siteId, title, parentCategoryId)
+}
+
+function normalizeCategoryTitle(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+async function createHubCategory(siteId: string, title: string, parentCategoryId: string) {
+  const slug = await createUniqueCategorySlug(siteId, title)
+  const [maxOrderCategory] = await db.select({ displayOrder: categories.displayOrder })
+    .from(categories)
+    .where(eq(categories.siteId, siteId))
+    .orderBy(desc(categories.displayOrder))
+    .limit(1)
+
+  const [category] = await db.insert(categories)
+    .values({
+      siteId,
+      title,
+      slug,
+      parentId: parentCategoryId,
+      contentBlocks: {},
+      isPublished: true,
+      displayOrder: maxOrderCategory ? maxOrderCategory.displayOrder + 1 : 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning({ id: categories.id, title: categories.title, parentId: categories.parentId, isPublished: categories.isPublished })
+
+  revalidateTag('categories')
+  revalidateTag(`site-${siteId}`)
+  return category || null
+}
+
+async function createUniqueCategorySlug(siteId: string, title: string) {
+  const baseSlug = generateSlug(title) || 'category'
+  let slug = baseSlug
+  let suffix = 2
+
+  while (await categorySlugExists(siteId, slug)) {
+    slug = `${baseSlug}-${suffix}`
+    suffix += 1
+  }
+
+  return slug
+}
+
+async function categorySlugExists(siteId: string, slug: string) {
+  const [row] = await db.select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.siteId, siteId), eq(categories.slug, slug)))
+    .limit(1)
+
+  return Boolean(row)
 }
 
 function applyBlockMappings(
@@ -424,6 +555,11 @@ function applyBlockMappings(
       continue
     }
 
+    if (mapping.targetKind === 'coreContentField') {
+      applyCoreContentFieldMapping(block, mapping, sourceValue)
+      continue
+    }
+
     if (mapping.targetKind === 'coreMenuLink') {
       applyCoreMenuLinkMapping(block, mapping, sourceValue)
       continue
@@ -435,6 +571,31 @@ function applyBlockMappings(
     }
 
     applyCustomFieldMapping(block, mapping, sourceValue, customBlockTemplates)
+  }
+}
+
+function applyCoreContentFieldMapping(
+  block: Record<string, any>,
+  mapping: ReturnType<typeof normalizeMappings>[number],
+  sourceValue: unknown
+) {
+  if (block.type !== 'directory-core') {
+    throw new Error(`Mapped block "${mapping.targetBlockId}" is not a Core block.`)
+  }
+
+  const fieldType = CORE_CONTENT_FIELD_TYPES[mapping.targetFieldKey]
+  if (!fieldType) {
+    throw new Error(`Mapped Core field "${mapping.targetFieldKey}" is not supported.`)
+  }
+
+  const value = fieldType === 'number'
+    ? numberValue(sourceValue)
+    : cleanText(sourceValue, 2000)
+  if (value === null) return
+
+  block.content = {
+    ...(block.content || {}),
+    [mapping.targetFieldKey]: value,
   }
 }
 
@@ -620,26 +781,7 @@ function normalizeRecord(value: unknown) {
     placeId: cleanText(record.google_maps_place_id, 255),
     title: cleanText(record.businessName, 255) || cleanText(record.title, 255),
     description: cleanText(record.description, 2000),
-    category: cleanText(record.category, 255),
-    categoryName: cleanText(record.categoryName, 255),
-    type: cleanText(record.type, 255),
-    neighborhood: cleanText(record.neighborhood, 255),
-    address: cleanText(record.address, 500),
-    city: cleanText(record.city, 255),
-    region: cleanText(record.region, 255) || cleanText(record.state, 255),
-    country: cleanText(record.country, 255) || cleanText(record.countryCode, 255),
-    instagram: safeUrl(record.instagram),
-    facebook: safeUrl(record.facebook),
-    tiktok: safeUrl(record.tiktok),
-    twitter: safeUrl(record.twitter),
-    linkedin: safeUrl(record.linkedin),
-    youtube: safeUrl(record.youtube),
-    phone: cleanText(record.phone, 100),
-    website: safeUrl(record.website),
-    rating: numberValue(record.rating),
-    reviewCount: integerValue(record.reviewCount),
     featuredImage: safeUrl(record.featuredImage),
-    mapsUrl: safeUrl(record.mapsUrl),
   }
 }
 
@@ -713,33 +855,11 @@ async function findMediaByStoragePath(scope: { siteId: string; userId: string },
 
 async function downloadRemoteImage(sourceUrl: string) {
   const url = new URL(sourceUrl)
-  await assertPublicRemoteUrl(url)
+  const pinnedAddress = await assertPublicRemoteUrl(url)
+  const image = await requestPinnedRemoteImage(url, pinnedAddress)
+  validateImageContent(image.mimeType, image.data)
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 10_000)
-
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'image/jpeg,image/png,image/gif,image/webp' },
-      redirect: 'error',
-      signal: controller.signal,
-    })
-
-    if (!response.ok) throw new Error('Image download failed')
-
-    const mimeType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() || ''
-    if (!REMOTE_IMAGE_TYPES.has(mimeType)) throw new Error('Unsupported image type')
-
-    const contentLength = Number(response.headers.get('content-length') || 0)
-    if (contentLength > REMOTE_IMAGE_MAX_BYTES) throw new Error('Image is too large')
-
-    const data = await readLimitedResponseBody(response)
-    validateImageContent(mimeType, data)
-
-    return { data, mimeType }
-  } finally {
-    clearTimeout(timeout)
-  }
+  return image
 }
 
 async function assertPublicRemoteUrl(url: URL) {
@@ -747,7 +867,7 @@ async function assertPublicRemoteUrl(url: URL) {
     throw new Error('Invalid image URL')
   }
 
-  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  const hostname = remoteHostname(url)
   if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost') || isPrivateAddress(hostname)) {
     throw new Error('Invalid image host')
   }
@@ -756,29 +876,93 @@ async function assertPublicRemoteUrl(url: URL) {
   if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error('Invalid image host')
   }
+
+  const address = addresses.find((item) => item.family === 4) || addresses[0]
+  return {
+    address: address.address,
+    family: address.family === 6 ? 6 : 4,
+  } satisfies PublicAddress
 }
 
-async function readLimitedResponseBody(response: Response) {
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error('Image response is empty')
+async function requestPinnedRemoteImage(url: URL, pinnedAddress: PublicAddress) {
+  const request = url.protocol === 'https:' ? httpsRequest : httpRequest
+  const hostname = remoteHostname(url)
 
-  const chunks: Buffer[] = []
-  let totalBytes = 0
+  return new Promise<{ data: Buffer; mimeType: string }>((resolve, reject) => {
+    const req = request({
+      protocol: url.protocol,
+      hostname,
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
+      method: 'GET',
+      headers: { Accept: 'image/jpeg,image/png,image/gif,image/webp' },
+      servername: isIP(hostname) ? undefined : hostname,
+      lookup: (_hostname, options, callback) => {
+        if (options.all) {
+          callback(null, [pinnedAddress])
+          return
+        }
 
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    if (!value) continue
+        callback(null, pinnedAddress.address, pinnedAddress.family)
+      },
+    }, (res) => {
+      if ((res.statusCode || 0) < 200 || (res.statusCode || 0) >= 300) {
+        res.resume()
+        reject(new Error('Image download failed'))
+        return
+      }
 
-    totalBytes += value.byteLength
-    if (totalBytes > REMOTE_IMAGE_MAX_BYTES) {
-      throw new Error('Image is too large')
-    }
+      const mimeType = normalizedContentType(res.headers)
+      if (!REMOTE_IMAGE_TYPES.has(mimeType)) {
+        res.resume()
+        reject(new Error('Unsupported image type'))
+        return
+      }
 
-    chunks.push(Buffer.from(value))
-  }
+      const contentLength = Number(headerValue(res.headers['content-length']) || 0)
+      if (contentLength > REMOTE_IMAGE_MAX_BYTES) {
+        res.resume()
+        reject(new Error('Image is too large'))
+        return
+      }
 
-  return Buffer.concat(chunks, totalBytes)
+      const chunks: Buffer[] = []
+      let totalBytes = 0
+
+      res.on('data', (chunk: Buffer) => {
+        totalBytes += chunk.byteLength
+        if (totalBytes > REMOTE_IMAGE_MAX_BYTES) {
+          req.destroy(new Error('Image is too large'))
+          return
+        }
+
+        chunks.push(Buffer.from(chunk))
+      })
+
+      res.on('end', () => {
+        resolve({ data: Buffer.concat(chunks, totalBytes), mimeType })
+      })
+      res.on('error', reject)
+    })
+
+    req.setTimeout(10_000, () => {
+      req.destroy(new Error('Image download timed out'))
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+function remoteHostname(url: URL) {
+  return url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+}
+
+function normalizedContentType(headers: IncomingHttpHeaders) {
+  return headerValue(headers['content-type'])?.split(';')[0]?.trim().toLowerCase() || ''
+}
+
+function headerValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value
 }
 
 function validateImageContent(mimeType: string, data: Buffer) {
@@ -867,59 +1051,13 @@ function isPrivateIpv6(address: string) {
   )
 }
 
-function buildDirectoryData(record: ReturnType<typeof normalizeRecord>): DirectoryData {
-  const fields: NonNullable<DirectoryData['fields']> = {
-    businessName: record.title || '',
-  }
-
-  addTextField(fields, 'phone', record.phone)
-  addTextField(fields, 'website', record.website)
-  addTextField(fields, 'address', record.address)
-  addNumberField(fields, 'rating', record.rating)
-  addNumberField(fields, 'reviewCount', record.reviewCount)
-  addTextField(fields, 'category', record.category)
-  addTextField(fields, 'categoryName', record.categoryName)
-  addTextField(fields, 'type', record.type)
-  addTextField(fields, 'neighborhood', record.neighborhood)
-  addTextField(fields, 'city', record.city)
-  addTextField(fields, 'region', record.region)
-  addTextField(fields, 'country', record.country)
-  addTextField(fields, 'instagram', record.instagram)
-  addTextField(fields, 'facebook', record.facebook)
-  addTextField(fields, 'tiktok', record.tiktok)
-  addTextField(fields, 'twitter', record.twitter)
-  addTextField(fields, 'linkedin', record.linkedin)
-  addTextField(fields, 'youtube', record.youtube)
-  addTextField(fields, 'featuredImage', record.featuredImage)
-  addTextField(fields, 'mapsUrl', record.mapsUrl)
-
+function buildDirectoryData(): DirectoryData {
   return {
-    fields,
     sources: {
       googleMaps: {
         importedAt: new Date().toISOString(),
       },
     },
-  }
-}
-
-function addTextField(
-  fields: NonNullable<DirectoryData['fields']>,
-  key: keyof NonNullable<DirectoryData['fields']>,
-  value: string | null
-) {
-  if (value) {
-    (fields as Record<string, string | number>)[key] = value
-  }
-}
-
-function addNumberField(
-  fields: NonNullable<DirectoryData['fields']>,
-  key: keyof NonNullable<DirectoryData['fields']>,
-  value: number | null
-) {
-  if (typeof value === 'number') {
-    (fields as Record<string, string | number>)[key] = value
   }
 }
 
@@ -929,6 +1067,7 @@ function cleanContentBlocks(existingBlocks: unknown) {
     : {}
 
   delete blocks._googleMaps
+  delete blocks._settings
 
   return blocks
 }
@@ -954,9 +1093,4 @@ function safeUrl(value: unknown) {
 function numberValue(value: unknown) {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function integerValue(value: unknown) {
-  const parsed = numberValue(value)
-  return parsed === null ? null : Math.trunc(parsed)
 }

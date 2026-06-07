@@ -8,6 +8,7 @@ import {
   getDirectoryTemplateIdsAction,
   getDirectoryTemplatesBySite,
   setDefaultDirectoryTemplate,
+  updateDirectoryTemplate,
   type DirectoryTemplate,
 } from "@/lib/actions/directories/directory-template-actions"
 
@@ -23,11 +24,13 @@ export default function DirectoryTemplatesPage() {
       createTemplate={createDirectoryTemplate}
       deleteTemplates={deleteDirectoryTemplates}
       emptyText="No templates yet. Create one to save reusable block layouts."
+      enableDefaultBreadcrumb
       getBlockCount={getDirectoryBlockCount}
       getTemplateIds={getDirectoryTemplateIdsAction}
       getTemplatesBySite={getDirectoryTemplatesBySite}
       routeBase="/admin/directory/templates"
       setDefaultTemplate={setDefaultDirectoryTemplate}
+      updateTemplate={updateDirectoryTemplate}
     />
   )
 }

@@ -32,7 +32,7 @@ export interface UpdateEventData {
   meta_description?: string | null
 }
 
-export async function getSiteEventsAction(siteId: string, options?: { page?: number; pageSize?: number }) {
+export async function getSiteEventsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
   try {
     const user = await getAuthenticatedUser()
     if (!user) {
@@ -58,13 +58,22 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
+    const selectedSlug = options?.selectedSlug?.trim()
 
-    const [countResult, result] = await Promise.all([
+    const [countResult, result, selectedRows] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(events).where(eq(events.siteId, siteId)),
       db.select().from(events).where(eq(events.siteId, siteId)).orderBy(asc(events.displayOrder), desc(events.createdAt)).limit(pageSize).offset(from),
+      selectedSlug
+        ? db.select().from(events).where(and(eq(events.siteId, siteId), eq(events.slug, selectedSlug))).limit(1)
+        : Promise.resolve([]),
     ])
 
-    return { data: result.map(serializeEvent), total: countResult[0]?.count ?? 0, error: null }
+    const selectedRow = selectedRows[0]
+    const rows = selectedRow && !result.some((event) => event.id === selectedRow.id)
+      ? [selectedRow, ...result]
+      : result
+
+    return { data: rows.map(serializeEvent), total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     console.error('Error fetching events:', error)
     return { data: null, total: 0, error: 'Failed to fetch events' }

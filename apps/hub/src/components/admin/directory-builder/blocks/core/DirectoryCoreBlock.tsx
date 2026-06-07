@@ -65,6 +65,7 @@ import {
   type DirectoryCoreMenuLinkType,
   type DirectoryCoreSocialLink,
 } from "@/lib/actions/directories/directory-core"
+import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { cn } from "@/lib/utils/tailwind"
 
 interface DirectoryCoreBlockProps {
@@ -74,6 +75,7 @@ interface DirectoryCoreBlockProps {
   directoryData?: {
     title?: string
     featured_image?: string | null
+    fields?: DirectoryData["fields"]
   }
   onDirectoryTitleChange?: (title: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
@@ -409,6 +411,10 @@ export function DirectoryCoreBlock({
   const sortableSocialLinksReady = sortableReady && socialLinks.every((link) => !!link.id)
   const sortableMenuLinksReady = sortableReady && menuLinks.every((link) => !!link.id)
   const featuredImage = directoryData?.featured_image || ""
+  const fields = directoryData?.fields || {}
+  const address = typeof content.address === "string" ? content.address : fields.address || ""
+  const fieldRating = typeof fields.rating === "number" || typeof fields.rating === "string" ? String(fields.rating) : ""
+  const rating = typeof content.rating === "number" || typeof content.rating === "string" ? String(content.rating) : fieldRating
   const introText = typeof content.introText === "string" ? content.introText : ""
   const saveIconOpacityNumber = Number(content.saveIconOpacity)
   const saveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
@@ -640,6 +646,36 @@ export function DirectoryCoreBlock({
       </div>
     </div>
   )
+  const addressRatingFields = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field>
+        <FieldLabel htmlFor="directory-core-address">Address</FieldLabel>
+        <Input
+          id="directory-core-address"
+          value={address}
+          onChange={(event) => onContentChange("address", event.target.value)}
+          placeholder="175 Bloor St E, Toronto, ON"
+        />
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="directory-core-rating">Rating</FieldLabel>
+        <Input
+          id="directory-core-rating"
+          type="number"
+          min="0"
+          max="5"
+          step="0.1"
+          value={rating}
+          onChange={(event) => {
+            const value = event.target.value
+            onContentChange("rating", value === "" ? "" : Number(value))
+          }}
+          placeholder="4.3"
+        />
+      </Field>
+    </div>
+  )
 
   const tabs = [
     {
@@ -715,6 +751,7 @@ export function DirectoryCoreBlock({
                     />
                   </div>
 
+                  {addressRatingFields}
                   {introTextField}
                 </>
               ) : (
@@ -723,6 +760,7 @@ export function DirectoryCoreBlock({
                     Title and featured image come from each real directory item.
                   </BlockEditorEmptyState>
 
+                  {addressRatingFields}
                   {introTextField}
                 </>
               )}
@@ -908,6 +946,8 @@ export function DirectoryCoreBlock({
                 fields={[
                   { key: "image", label: "Image" },
                   { key: "title", label: "Title" },
+                  { key: "address", label: "Address" },
+                  { key: "rating", label: "Rating" },
                   { key: "introText", label: "Intro Text" },
                   { key: "socialLinks", label: "Social Links" },
                   { key: "menuLinks", label: "Menu Links" },

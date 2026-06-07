@@ -46,7 +46,7 @@ export interface UpdateCategoryData {
 /**
  * Get all categories for a site
  */
-export async function getCategoriesForSiteAction(siteId: string, options?: { page?: number; pageSize?: number }) {
+export async function getCategoriesForSiteAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
   try {
     const user = await getAuthenticatedUser()
     if (!user) {
@@ -70,8 +70,9 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const offset = (page - 1) * pageSize
+    const selectedSlug = options?.selectedSlug?.trim()
 
-    const [categoryRows, countResult] = await Promise.all([
+    const [categoryRows, countResult, selectedRows] = await Promise.all([
       db
         .select()
         .from(categories)
@@ -83,11 +84,18 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
         .select({ count: sql<number>`count(*)` })
         .from(categories)
         .where(eq(categories.siteId, siteId)),
+      selectedSlug
+        ? db.select().from(categories).where(and(eq(categories.siteId, siteId), eq(categories.slug, selectedSlug))).limit(1)
+        : Promise.resolve([]),
     ])
 
     const total = Number(countResult[0]?.count ?? 0)
+    const selectedRow = selectedRows[0]
+    const rows = selectedRow && !categoryRows.some((category) => category.id === selectedRow.id)
+      ? [selectedRow, ...categoryRows]
+      : categoryRows
 
-    return { data: categoryRows.map(serializeCategory), total, error: null }
+    return { data: rows.map(serializeCategory), total, error: null }
   } catch (error) {
     console.error('Error fetching categories:', error)
     return { data: null, total: 0, error: 'Failed to fetch categories' }

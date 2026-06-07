@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { FileText, Plus, Settings, Star, Trash2 } from "lucide-react"
@@ -32,13 +32,16 @@ import { Dialog } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
 import { cn } from "@/lib/utils/tailwind"
 
 type TemplateSortColumn = "name" | "blocks" | "modified"
 
 export type AdminTemplateRecord = {
   id: string
+  site_id: string
   name: string
   content_blocks: Record<string, any>
   is_default: boolean
@@ -66,6 +69,31 @@ interface TemplateListPageProps<TTemplate extends AdminTemplateRecord> {
   }>
   routeBase: string
   setDefaultTemplate: (templateId: string) => Promise<{ success: boolean; error: string | null }>
+  updateTemplate?: (templateId: string, updates: { name?: string; content_blocks?: Record<string, any> }) => Promise<{ data: TTemplate | null; error: string | null }>
+  enableDefaultBreadcrumb?: boolean
+}
+
+function getTemplateSettings(contentBlocks: Record<string, any>) {
+  return contentBlocks?._settings && typeof contentBlocks._settings === "object" ? contentBlocks._settings : {}
+}
+
+async function getAllCategoriesForSite(siteId: string) {
+  const pageSize = 100
+  let page = 1
+  let total = 0
+  const allCategories: Category[] = []
+
+  do {
+    const { data, total: categoryTotal, error } = await getCategoriesForSiteAction(siteId, { page, pageSize })
+    if (error) throw new Error(error)
+    if (!data || data.length === 0) break
+
+    allCategories.push(...data)
+    total = categoryTotal
+    page += 1
+  } while (allCategories.length < total)
+
+  return allCategories
 }
 
 function formatDate(dateString: string) {
@@ -87,7 +115,9 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   getTemplateIds,
   getTemplatesBySite,
   routeBase,
-  setDefaultTemplate
+  setDefaultTemplate,
+  updateTemplate,
+  enableDefaultBreadcrumb = false
 }: TemplateListPageProps<TTemplate>) {
   const { currentSite, pageSize } = useSiteSwitcher()
   const router = useRouter()
@@ -104,6 +134,16 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [settingsTemplate, setSettingsTemplate] = useState<TTemplate | null>(null)
+  const [settingsName, setSettingsName] = useState("")
+  const [settingsBreadcrumbParentId, setSettingsBreadcrumbParentId] = useState("none")
+  const [settingsCategories, setSettingsCategories] = useState<Category[]>([])
+  const [savingSettings, setSavingSettings] = useState(false)
+
+  const topLevelCategories = useMemo(
+    () => settingsCategories.filter((category) => category.is_published && !category.parent_id),
+    [settingsCategories]
+  )
 
   const loadTemplates = useCallback(async () => {
     if (!currentSite?.id) {
@@ -140,6 +180,21 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   useEffect(() => {
     loadTemplates()
   }, [loadTemplates])
+
+  useEffect(() => {
+    if (!enableDefaultBreadcrumb || !settingsTemplate?.site_id) return
+
+    let cancelled = false
+    getAllCategoriesForSite(settingsTemplate.site_id).then((categories) => {
+      if (!cancelled) setSettingsCategories(categories)
+    }).catch((categoryError) => {
+      if (!cancelled) setError(categoryError instanceof Error ? categoryError.message : "Failed to fetch categories")
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [enableDefaultBreadcrumb, settingsTemplate?.site_id])
 
   async function handleCreate() {
     if (!currentSite?.id || !formName.trim()) return
@@ -237,6 +292,47 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   function openCreateModal() {
     setFormName("")
     setCreateModalOpen(true)
+  }
+
+  function openSettingsModal(template: TTemplate) {
+    const templateSettings = getTemplateSettings(template.content_blocks || {})
+    const defaultBreadcrumbParentId = typeof templateSettings.default_breadcrumb_parent_id === "string"
+      ? templateSettings.default_breadcrumb_parent_id
+      : "none"
+
+    setSettingsTemplate(template)
+    setSettingsName(template.name)
+    setSettingsBreadcrumbParentId(defaultBreadcrumbParentId)
+    setSettingsCategories([])
+  }
+
+  async function handleSaveSettings() {
+    if (!settingsTemplate || !settingsName.trim() || !updateTemplate) return
+    setSavingSettings(true)
+    setError(null)
+
+    const updates: { name: string; content_blocks?: Record<string, any> } = { name: settingsName.trim() }
+    if (enableDefaultBreadcrumb) {
+      const contentBlocks = settingsTemplate.content_blocks || {}
+      updates.content_blocks = {
+        ...contentBlocks,
+        _settings: {
+          ...getTemplateSettings(contentBlocks),
+          default_breadcrumb_parent_id: settingsBreadcrumbParentId === "none" ? null : settingsBreadcrumbParentId,
+        },
+      }
+    }
+
+    const { error: updateError } = await updateTemplate(settingsTemplate.id, updates)
+    if (updateError) {
+      setError(updateError)
+      setSavingSettings(false)
+      return
+    }
+
+    setSavingSettings(false)
+    setSettingsTemplate(null)
+    loadTemplates()
   }
 
   return (
@@ -381,11 +477,11 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0"
-                              onClick={() => router.push(`${routeBase}/${template.id}`)}
-                              title="Edit Template"
+                              onClick={() => updateTemplate ? openSettingsModal(template) : router.push(`${routeBase}/${template.id}`)}
+                              title={updateTemplate ? "Template Settings" : "Edit Template"}
                             >
                               <Settings className="h-4 w-4" />
-                              <span className="sr-only">Edit Template</span>
+                              <span className="sr-only">{updateTemplate ? "Template Settings" : "Edit Template"}</span>
                             </Button>
                             {!template.is_default && (
                               <Button
@@ -451,6 +547,66 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                     }}
                   />
                 </Field>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DashboardModalContent>
+      </Dialog>
+
+      <Dialog open={!!settingsTemplate} onOpenChange={(open) => !open && setSettingsTemplate(null)}>
+        <DashboardModalContent
+          className="max-w-xl"
+          title="Template Settings"
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setSettingsTemplate(null)} disabled={savingSettings}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveSettings} disabled={savingSettings || !settingsName.trim()}>
+                {savingSettings ? "Saving..." : "Save"}
+              </Button>
+            </>
+          }
+        >
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader>
+                <DashboardModalCardTitle>Template</DashboardModalCardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Field>
+                  <FieldLabel htmlFor="settings-template-name">Title *</FieldLabel>
+                  <Input
+                    id="settings-template-name"
+                    value={settingsName}
+                    onChange={(event) => setSettingsName(event.target.value)}
+                    placeholder={createPlaceholder}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        handleSaveSettings()
+                      }
+                    }}
+                  />
+                </Field>
+                {enableDefaultBreadcrumb && (
+                  <Field>
+                    <FieldLabel htmlFor="settings-template-breadcrumb">Default breadcrumb</FieldLabel>
+                    <Select value={settingsBreadcrumbParentId} onValueChange={setSettingsBreadcrumbParentId}>
+                      <SelectTrigger id="settings-template-breadcrumb" className="w-full">
+                        <SelectValue placeholder="Select category group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No default group</SelectItem>
+                        {topLevelCategories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
               </CardContent>
             </Card>
           </CardGroup>

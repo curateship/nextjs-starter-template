@@ -26,7 +26,7 @@ interface UsePageDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function usePageData(siteId: string): UsePageDataReturn {
+export function usePageData(siteId: string, selectedPage = ""): UsePageDataReturn {
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [pages, setPages] = useState<Page[]>([])
   const [siteLoading, setSiteLoading] = useState(true)
@@ -47,7 +47,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
       // Load site and pages in parallel for speed
       const [siteResult, pagesResult] = await Promise.all([
         getSiteByIdAction(siteId),
-        getSitePagesAction(siteId)
+        getSitePagesAction(siteId, { selectedSlug: selectedPage })
       ])
 
       if (siteResult.data) {
@@ -69,7 +69,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
 
     setSiteLoading(false)
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedPage, siteId])
 
   const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
@@ -77,7 +77,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
     // Need to reload both site and pages data to get updated navigation/footer
     const [siteResult, pagesResult] = await Promise.all([
       getSiteByIdAction(siteId),
-      getSitePagesAction(siteId)
+      getSitePagesAction(siteId, { selectedSlug: selectedPage })
     ])
     
     if (siteResult.data) {
@@ -89,7 +89,7 @@ export function usePageData(siteId: string): UsePageDataReturn {
       setBlocks(getBlocksBySlug(pagesResult.data))
     }
     setBlocksLoading(false)
-  }, [siteId])
+  }, [selectedPage, siteId])
 
   useEffect(() => {
     loadSiteAndBlocks()

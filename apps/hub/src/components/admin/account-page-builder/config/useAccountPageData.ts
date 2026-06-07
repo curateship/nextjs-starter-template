@@ -32,7 +32,7 @@ interface UseAccountPagesDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
+export function useAccountPageData(siteId: string, selectedPage = ""): UseAccountPagesDataReturn {
   const { currentSite } = useSiteSwitcher()
   const [site, setSite] = useState<Site | null>(currentSite)
   const [pages, setPages] = useState<AccountPage[]>([])
@@ -48,7 +48,7 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
 
     try {
       // Use site from context, only fetch pages
-      const pagesResult = await getAccountPagesAction(siteId)
+      const pagesResult = await getAccountPagesAction(siteId, { selectedSlug: selectedPage })
       const siteResult = { data: currentSite, error: null }
 
       if (siteResult.data) {
@@ -70,12 +70,12 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
 
     setConfigLoading(false)
     setBlocksLoading(false)
-  }, [currentSite, siteId])
+  }, [currentSite, selectedPage, siteId])
 
   const reloadBlocks = useCallback(async () => {
     setBlocksLoading(true)
 
-    const pagesResult = await getAccountPagesAction(siteId)
+    const pagesResult = await getAccountPagesAction(siteId, { selectedSlug: selectedPage })
     const siteData = currentSite
 
     if (siteData) {
@@ -87,7 +87,7 @@ export function useAccountPageData(siteId: string): UseAccountPagesDataReturn {
       setBlocks(getBlocksBySlug(pagesResult.data))
     }
     setBlocksLoading(false)
-  }, [currentSite, siteId])
+  }, [currentSite, selectedPage, siteId])
 
   useEffect(() => {
     loadAccountPagesAndBlocks()

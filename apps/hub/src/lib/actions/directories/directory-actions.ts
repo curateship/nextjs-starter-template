@@ -605,10 +605,28 @@ export async function getDirectoryBuilderDataAction(
       return { data: null, error: optionsResult.error }
     }
 
+    const directoryOptions = optionsResult.data || []
+    const selectedOption = directoryResult.data
+      ? {
+          id: directoryResult.data.id,
+          site_id: directoryResult.data.site_id,
+          title: directoryResult.data.title,
+          slug: directoryResult.data.slug,
+          status: directoryResult.data.status,
+          display_order: directoryResult.data.display_order,
+          featured_image: directoryResult.data.featured_image,
+          meta_description: directoryResult.data.meta_description,
+          created_at: directoryResult.data.created_at,
+          updated_at: directoryResult.data.updated_at,
+        }
+      : null
+
     return {
       data: {
         directory: directoryResult.data,
-        directoryOptions: optionsResult.data || [],
+        directoryOptions: selectedOption && !directoryOptions.some((item) => item.id === selectedOption.id)
+          ? [selectedOption, ...directoryOptions]
+          : directoryOptions,
         customBlockTemplates: customBlocksResult.data || [],
       },
       error: null,

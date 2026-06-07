@@ -36,7 +36,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   // Custom hooks for data and state management
-  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId)
+  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId, selectedPage)
 
   // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
@@ -60,7 +60,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
       try {
         setPagesLoading(true)
         setPagesError(null)
-        const { data, error } = await getSitePagesAction(siteId)
+        const { data, error } = await getSitePagesAction(siteId, { selectedSlug: pageFromUrl })
         if (error) {
           setPagesError(error)
           return
@@ -75,7 +75,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     }
 
     loadPages()
-  }, [siteId])
+  }, [pageFromUrl, siteId])
 
   useEffect(() => {
     if (pages.length === 0) return

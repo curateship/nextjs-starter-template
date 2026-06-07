@@ -204,9 +204,13 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
     return buildDataMenuLink(content, link.type, getDirectoryFieldValue(fields, link.type)) || link
   })
   const title = fields.businessName || directory.title || "Directory Listing"
-  const ratingValue = Number(fields.rating)
+  const hasContentRating = typeof content?.rating === "number" || typeof content?.rating === "string"
+  const ratingValue = hasContentRating ? Number(content.rating) : Number(fields.rating)
   const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? Math.min(5, ratingValue) : null
-  const address = formatDirectoryAddress(fields.address, fields.country)
+  const addressValue = typeof content?.address === "string" ? content.address : fields.address
+  const address = formatDirectoryAddress(addressValue, fields.country)
+  const showRating = visibility.rating !== false
+  const showAddress = visibility.address !== false
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
   const showSaveButton = Boolean(siteId && directory.id && featuredImage && visibility.image !== false)
   const saveIconOpacityNumber = Number(content?.saveIconOpacity)
@@ -242,12 +246,12 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
           <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
         ) : null}
 
-        {(rating || address) ? (
+        {((showRating && rating) || (showAddress && address)) ? (
           <div className="mt-5 flex flex-col gap-2 text-sm text-muted-foreground">
-            {rating ? (
+            {showRating && rating ? (
               <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
             ) : null}
-            {address ? (
+            {showAddress && address ? (
               <div className="flex items-start gap-1.5">
                 <MapPin className="mt-0.5 size-4 shrink-0 text-foreground" />
                 <span className="min-w-0">{address}</span>

@@ -248,9 +248,10 @@ const saveHubExportMappingsFn = createServerFn({ method: "POST" })
     const updatedAt = now()
     const config = parseConfig(existing?.config)
     const siteMappings = data.mappings
-      .filter((mapping) => mapping.siteId === data.siteId)
+      .filter((mapping) => mapping.siteId === data.siteId && mapping.targetKind !== "directoryDataField")
       .map((mapping) => ({
         ...mapping,
+        sourceKey: mapping.targetKind === "directoryCategory" ? "neighborhood" : mapping.sourceKey,
         targetFieldKey: mapping.targetFieldKey || hubExportTargetDefaultFieldKey(mapping.targetKind),
       }))
     const hubExportMappings = [
@@ -532,9 +533,9 @@ const exportResultsToHubFn = createServerFn({ method: "POST" })
     const config = parseConfig((await settingsRow(workspace.id))?.config)
     const fieldSettings = config.fieldSettings
     const mappings = config.hubExportMappings
-      .filter((mapping) => mapping.siteId === data.siteId)
+      .filter((mapping) => mapping.siteId === data.siteId && mapping.targetKind !== "directoryDataField")
       .map(({ sourceKey, targetBlockId, targetKind, targetFieldKey }) => ({
-        sourceKey,
+        sourceKey: targetKind === "directoryCategory" ? "neighborhood" : sourceKey,
         targetBlockId,
         targetKind,
         targetFieldKey,
@@ -586,6 +587,7 @@ export const exportGoogleMapsResultsToHub = (data: z.infer<typeof hubExportSchem
 function hubExportTargetDefaultFieldKey(targetKind: GoogleMapsHubExportMapping["targetKind"]) {
   if (targetKind === "directoryTitle") return "title"
   if (targetKind === "directoryFeaturedImage") return "featuredImage"
+  if (targetKind === "directoryCategory") return "category"
   if (targetKind === "richTextBody") return "body"
   if (targetKind === "googleMapLocationQuery") return "locationQuery"
   if (targetKind === "openingHoursPlaceId") return "placeId"
@@ -725,20 +727,10 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
   const hubRecord: Record<string, unknown> = {
     google_maps_place_id: stringValue(data.placeId),
     businessName: dataWithTitle.businessName,
-    description: stringValue(dataWithTitle.description),
-    type: stringValue(dataWithTitle.type),
-    email: stringValue(dataWithTitle.email),
-    neighborhood: stringValue(dataWithTitle.neighborhood),
-    city: stringValue(dataWithTitle.city),
-    region: stringValue(dataWithTitle.region) ?? stringValue(dataWithTitle.state),
-    country: stringValue(dataWithTitle.country) ?? stringValue(dataWithTitle.countryCode),
   }
-  socialPlatforms.forEach((platform) => {
-    hubRecord[platform] = stringValue(dataWithTitle[platform])
-  })
 
   fieldSettings
-    .filter((setting) => setting.visible || mappingSourceKeys.has(setting.key))
+    .filter((setting) => mappingSourceKeys.has(setting.key))
     .forEach((setting) => {
       const value = googleMapsFieldValue(dataWithTitle, setting.key, setting.sourcePath)
 

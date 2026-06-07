@@ -51,7 +51,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   useEffect(() => {
     async function loadCategories() {
       try {
-        const { data, error } = await getCategoriesForSiteAction(siteId)
+        const { data, error } = await getCategoriesForSiteAction(siteId, { selectedSlug: urlCategory })
         if (error) {
           console.error('Failed to load categories:', error)
           return
@@ -64,7 +64,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     }
 
     loadCategories()
-  }, [siteId])
+  }, [siteId, urlCategory])
 
   useEffect(() => {
     if (categories.length === 0) return
@@ -87,7 +87,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   }, [categories, router, selectedCategory, siteId, urlCategory])
 
   // Custom hooks for data and state management
-  const { site, blocks, blocksLoading, siteError } = useCategoryData(siteId)
+  const { site, blocks, blocksLoading, siteError } = useCategoryData(siteId, selectedCategory)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change

@@ -48,7 +48,7 @@ export interface UpdatePageData {
 /**
  * Get all pages for a site
  */
-export async function getSitePagesAction(siteId: string, options?: { page?: number; pageSize?: number }): Promise<{ data: Page[] | null; total: number; error: string | null }> {
+export async function getSitePagesAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Page[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -74,13 +74,22 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
     const page = Math.max(1, Math.floor(options?.page ?? 1))
     const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
     const from = (page - 1) * pageSize
+    const selectedSlug = options?.selectedSlug?.trim()
 
-    const [countResult, data] = await Promise.all([
+    const [countResult, data, selectedRows] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(pages).where(eq(pages.siteId, siteId)),
       db.select().from(pages).where(eq(pages.siteId, siteId)).orderBy(desc(pages.displayOrder)).limit(pageSize).offset(from),
+      selectedSlug
+        ? db.select().from(pages).where(and(eq(pages.siteId, siteId), eq(pages.slug, selectedSlug))).limit(1)
+        : Promise.resolve([]),
     ])
 
-    const serialized: Page[] = data.map(p => ({
+    const selectedRow = selectedRows[0]
+    const rows = selectedRow && !data.some((page) => page.id === selectedRow.id)
+      ? [selectedRow, ...data]
+      : data
+
+    const serialized: Page[] = rows.map(p => ({
       id: p.id,
       site_id: p.siteId,
       title: p.title,

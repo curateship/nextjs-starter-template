@@ -356,6 +356,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           siteId={siteId}
           directoryTitle={draftDirectoryTitle}
           directoryFeaturedImage={draftDirectoryFeaturedImage}
+          directoryData={currentDirectoryData?.directory_data}
           onDirectoryTitleChange={setDraftDirectoryTitle}
           onDirectoryFeaturedImageChange={handleDraftFeaturedImageChange}
           onContentChange={handleDraftChange}
