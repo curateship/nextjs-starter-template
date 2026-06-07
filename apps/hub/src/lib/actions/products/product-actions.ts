@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { products, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
@@ -87,14 +87,10 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
 
     const [countResult, data] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
-      db.execute<{
-        id: string; site_id: string; title: string; slug: string;
-        is_published: boolean; display_order: number; content_blocks: Record<string, any>;
-        featured_image: string | null; meta_description: string | null; created_at: string; updated_at: string;
-      }>(sql`SELECT * FROM products WHERE site_id = ${siteId} ORDER BY display_order ASC LIMIT ${pageSize} OFFSET ${from}`),
+      db.select().from(products).where(eq(products.siteId, siteId)).orderBy(asc(products.displayOrder)).limit(pageSize).offset(from),
     ])
 
-    const mapped = (data.rows || []).map(serializeProduct)
+    const mapped = data.map(serializeProduct)
 
     return { data: mapped, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
@@ -144,28 +140,11 @@ export async function getSiteProductsWithCategoriesAction(
 
     const [countPromise, data] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
-      db.execute<{
-      id: string
-      site_id: string
-      title: string
-      slug: string
-      is_published: boolean
-      display_order: number
-      content_blocks: Record<string, any>
-      featured_image: string | null
-      meta_description: string | null
-      created_at: string
-      updated_at: string
-    }>(sql`
-      SELECT * FROM products
-      WHERE site_id = ${siteId}
-      ORDER BY display_order DESC
-      LIMIT ${pageSize} OFFSET ${from}
-    `),
+      db.select().from(products).where(eq(products.siteId, siteId)).orderBy(desc(products.displayOrder)).limit(pageSize).offset(from),
     ])
 
     const countResult = countPromise[0]
-    const productRows = (data.rows || []).map(serializeProduct)
+    const productRows = data.map(serializeProduct)
 
     // Fetch categories via Drizzle
     let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}

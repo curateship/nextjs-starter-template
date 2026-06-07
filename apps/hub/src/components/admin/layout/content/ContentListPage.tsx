@@ -190,7 +190,7 @@ export function ContentListPage<TItem extends ContentListItem>({
   sortableColumns,
 }: ContentListPageProps<TItem>) {
   const router = useRouter()
-  const { currentSite, pageSize: contextPageSize } = useSiteSwitcher()
+  const { currentSite, loading: sitesLoading, pageSize: contextPageSize } = useSiteSwitcher()
   const [items, setItems] = useState<TItem[]>([])
   const [categoriesByItemId, setCategoriesByItemId] = useState<Record<string, CategoryInfo[]>>({})
   const [loading, setLoading] = useState(true)
@@ -264,7 +264,7 @@ export function ContentListPage<TItem extends ContentListItem>({
 
     async function loadItems() {
       if (!effectiveSiteId) {
-        setLoading(true)
+        setLoading(sitesLoading)
         setItems([])
         setCategoriesByItemId({})
         setTotal(0)
@@ -364,6 +364,7 @@ export function ContentListPage<TItem extends ContentListItem>({
     pageSize,
     reloadToken,
     searchQuery,
+    sitesLoading,
   ])
 
   function isPrivate(item: TItem) {
