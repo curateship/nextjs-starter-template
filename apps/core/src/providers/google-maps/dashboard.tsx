@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardGroup,
@@ -81,10 +82,15 @@ import {
   updateGoogleMapsResult,
   enhanceGoogleMapsResults,
   loadHubExportSites,
+  loadHubDirectoryTemplateScan,
   exportGoogleMapsResultsToHub,
+  saveGoogleMapsHubExportMappings,
   type GoogleMapsEnhanceField,
+  type GoogleMapsHubExportMapping,
+  type HubDirectoryTemplateScan,
   type HubExportSite,
   type HubExportStatus,
+  type HubTemplateTarget,
 } from "@/providers/google-maps/api"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/core"
 import {
@@ -114,6 +120,7 @@ type FieldSettingsTab = "selected" | "other"
 type RunSortColumn = "name" | "location" | "limit" | "amount" | "status"
 type SortDirection = "asc" | "desc"
 type HubExportDialogStatus = "idle" | "loading" | "exporting"
+type HubWiringDialogStatus = "idle" | "loading" | "saving"
 type EnhanceDialogStatus = "idle" | "enhancing"
 
 const statusLabels = {
@@ -628,6 +635,11 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [hubExportSiteId, setHubExportSiteId] = React.useState("")
   const [hubExportStatus, setHubExportStatus] = React.useState<HubExportStatus>("draft")
   const [hubExportState, setHubExportState] = React.useState<HubExportDialogStatus>("idle")
+  const [hubWiringOpen, setHubWiringOpen] = React.useState(false)
+  const [hubWiringSiteId, setHubWiringSiteId] = React.useState("")
+  const [hubWiringState, setHubWiringState] = React.useState<HubWiringDialogStatus>("idle")
+  const [hubWiringTemplate, setHubWiringTemplate] = React.useState<HubDirectoryTemplateScan | null>(null)
+  const [hubWiringDraft, setHubWiringDraft] = React.useState<GoogleMapsHubExportMapping[]>([])
   const [enhanceOpen, setEnhanceOpen] = React.useState(false)
   const [enhanceFields, setEnhanceFields] = React.useState<GoogleMapsEnhanceField[]>(enhanceFieldOptions.map((option) => option.id))
   const [enhanceState, setEnhanceState] = React.useState<EnhanceDialogStatus>("idle")
@@ -691,6 +703,15 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     !contactResultFieldKeys.has(setting.key)
   ))
   const contactResultFields = resultFields.filter((setting) => contactResultFieldKeys.has(setting.key))
+  const hubWiringSourceOptions = React.useMemo(
+    () => hubWiringSourceFields(data?.field_settings ?? []),
+    [data?.field_settings]
+  )
+  const hubWiringTargets = React.useMemo(
+    () => hubWiringTargetFields(hubWiringTemplate),
+    [hubWiringTemplate]
+  )
+  const selectedHubMappings = (data?.hub_export_mappings ?? []).filter((mapping) => mapping.siteId === hubExportSiteId)
   const visibleIds = visibleResults.map((result) => result.id)
   const visibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
   const visibleIndeterminate = !visibleSelected && visibleIds.some((id) => selectedIds.has(id))
@@ -758,9 +779,8 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
     setResultForm(resultFormFromData(result, data?.field_settings ?? []))
   }
 
-  const openHubExport = async () => {
-    setHubExportOpen(true)
-    if (hubExportSites.length) return
+  const loadHubSites = async () => {
+    if (hubExportSites.length) return hubExportSites
 
     setHubExportState("loading")
     setMessage(null)
@@ -768,10 +788,71 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       const response = await loadHubExportSites()
       setHubExportSites(response.sites)
       setHubExportSiteId((current) => current || response.sites[0]?.id || "")
+      return response.sites
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+      return []
+    } finally {
+      setHubExportState("idle")
+    }
+  }
+
+  const openHubExport = async () => {
+    setHubExportOpen(true)
+    await loadHubSites()
+  }
+
+  const loadHubWiringTemplate = async (siteId: string) => {
+    if (!siteId) return
+
+    setHubWiringState("loading")
+    setHubWiringTemplate(null)
+    setMessage(null)
+    try {
+      setHubWiringTemplate(await loadHubDirectoryTemplateScan(siteId))
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+      setHubWiringTemplate(null)
+    } finally {
+      setHubWiringState("idle")
+    }
+  }
+
+  const openHubWiring = async () => {
+    setHubWiringOpen(true)
+    const sites = await loadHubSites()
+    const siteId = hubWiringSiteId || hubExportSiteId || sites[0]?.id || ""
+    if (siteId) {
+      setHubWiringSiteId(siteId)
+      setHubWiringDraft((data?.hub_export_mappings ?? []).filter((mapping) => mapping.siteId === siteId))
+      await loadHubWiringTemplate(siteId)
+    }
+  }
+
+  const changeHubWiringSite = (siteId: string) => {
+    setHubWiringSiteId(siteId)
+    setHubExportSiteId((current) => current || siteId)
+    setHubWiringDraft((data?.hub_export_mappings ?? []).filter((mapping) => mapping.siteId === siteId))
+    void loadHubWiringTemplate(siteId)
+  }
+
+  const saveHubWiring = async () => {
+    if (!hubWiringSiteId) return
+
+    setHubWiringState("saving")
+    setMessage(null)
+    try {
+      const response = await saveGoogleMapsHubExportMappings({
+        siteId: hubWiringSiteId,
+        mappings: hubWiringDraft.map((mapping) => ({ ...mapping, siteId: hubWiringSiteId })),
+      })
+      setData((current) => current ? { ...current, hub_export_mappings: response.hub_export_mappings } : current)
+      setHubWiringOpen(false)
+      setMessage({ tone: "success", text: "Hub wiring saved." })
     } catch (error) {
       setMessage({ tone: "error", text: providerError(error) })
     } finally {
-      setHubExportState("idle")
+      setHubWiringState("idle")
     }
   }
 
@@ -900,6 +981,10 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                 Export ({selectedIds.size})
               </Button>
             ) : null}
+            <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => void openHubWiring()}>
+              <SettingsIcon className="size-4" />
+              Hub wiring
+            </Button>
             {selectedIds.size ? (
               <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => setEnhanceOpen(true)}>
                 <SparklesIcon className="size-4" />
@@ -1019,7 +1104,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                 <Card>
                   <CardHeader>
                     <CardTitle>Description</CardTitle>
-                    <CardDescription>Core fields applied to the saved result.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4 sm:grid-cols-2">
                     {descriptionResultFields.map((setting) => (
@@ -1120,10 +1204,26 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         siteId={hubExportSiteId}
         status={hubExportStatus}
         state={hubExportState}
+        mappingCount={selectedHubMappings.length}
         onOpenChange={setHubExportOpen}
         onSiteChange={setHubExportSiteId}
         onStatusChange={setHubExportStatus}
         onExport={() => void exportToHub()}
+      />
+
+      <HubWiringDialog
+        open={hubWiringOpen}
+        sites={hubExportSites}
+        siteId={hubWiringSiteId}
+        state={hubWiringState}
+        template={hubWiringTemplate}
+        mappings={hubWiringDraft}
+        sourceOptions={hubWiringSourceOptions}
+        targetOptions={hubWiringTargets}
+        onOpenChange={setHubWiringOpen}
+        onSiteChange={changeHubWiringSite}
+        onMappingsChange={setHubWiringDraft}
+        onSave={() => void saveHubWiring()}
       />
 
       <EnhanceDataDialog
@@ -1205,6 +1305,7 @@ function HubExportDialog({
   siteId,
   status,
   state,
+  mappingCount,
   onOpenChange,
   onSiteChange,
   onStatusChange,
@@ -1216,6 +1317,7 @@ function HubExportDialog({
   siteId: string
   status: HubExportStatus
   state: HubExportDialogStatus
+  mappingCount: number
   onOpenChange: (open: boolean) => void
   onSiteChange: (siteId: string) => void
   onStatusChange: (status: HubExportStatus) => void
@@ -1262,12 +1364,245 @@ function HubExportDialog({
               No Hub sites are available for export.
             </div>
           ) : null}
+          {!loading && sites.length && siteId && mappingCount === 0 ? (
+            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              No Hub wiring is saved for this site. Directory data will export, but Hub template blocks will not be filled.
+            </div>
+          ) : null}
         </DialogBody>
         <DialogFooter variant="plain">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={exporting}>Cancel</Button>
           <Button onClick={onExport} disabled={loading || exporting || !siteId || count === 0}>
             {exporting ? <Loader2Icon className="size-4 animate-spin" /> : <UploadIcon className="size-4" />}
             Export {count}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function HubWiringDialog({
+  open,
+  sites,
+  siteId,
+  state,
+  template,
+  mappings,
+  sourceOptions,
+  targetOptions,
+  onOpenChange,
+  onSiteChange,
+  onMappingsChange,
+  onSave,
+}: {
+  open: boolean
+  sites: HubExportSite[]
+  siteId: string
+  state: HubWiringDialogStatus
+  template: HubDirectoryTemplateScan | null
+  mappings: GoogleMapsHubExportMapping[]
+  sourceOptions: HubWiringSourceOption[]
+  targetOptions: HubWiringTargetOption[]
+  onOpenChange: (open: boolean) => void
+  onSiteChange: (siteId: string) => void
+  onMappingsChange: (mappings: GoogleMapsHubExportMapping[]) => void
+  onSave: () => void
+}) {
+  const loading = state === "loading"
+  const saving = state === "saving"
+  const canAdd = Boolean(siteId && sourceOptions.length && targetOptions.length)
+  const autoMapResult = React.useMemo(
+    () => hubWiringAutoMap(siteId, sourceOptions, targetOptions),
+    [siteId, sourceOptions, targetOptions]
+  )
+  const canAutoMap = Boolean(siteId && autoMapResult.mappings.length)
+
+  const addMapping = () => {
+    if (!canAdd) return
+    const target = targetOptions[0]
+    onMappingsChange([
+      ...mappings,
+      {
+        siteId,
+        sourceKey: sourceOptions[0].key,
+        targetBlockId: target.blockId,
+        targetKind: target.kind,
+        targetFieldKey: target.fieldKey,
+      },
+    ])
+  }
+
+  const updateMapping = (index: number, changes: Partial<GoogleMapsHubExportMapping>) => {
+    onMappingsChange(mappings.map((mapping, itemIndex) => itemIndex === index ? { ...mapping, ...changes, siteId } : mapping))
+  }
+
+  const updateTarget = (index: number, value: string) => {
+    const target = targetOptions.find((option) => option.value === value)
+    if (!target) return
+    updateMapping(index, {
+      targetBlockId: target.blockId,
+      targetKind: target.kind,
+      targetFieldKey: target.fieldKey,
+    })
+  }
+
+  const removeMapping = (index: number) => {
+    onMappingsChange(mappings.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  const autoMap = () => {
+    if (!canAutoMap) return
+    onMappingsChange(autoMapResult.mappings)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin" className="max-h-[85vh] w-[960px] max-w-[calc(100vw-2rem)] sm:max-w-[960px]">
+        <DialogHeader>
+          <DialogTitle>Hub Wiring</DialogTitle>
+          <DialogDescription>Map Core result fields to blocks in the Hub directory template.</DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <div className="grid gap-2">
+            <Label>Hub site</Label>
+            <Select value={siteId} onValueChange={onSiteChange} disabled={loading || saving || !sites.length}>
+              <SelectTrigger size="default" className="w-full">
+                <SelectValue placeholder={loading ? "Loading sites..." : "Select a site"} />
+              </SelectTrigger>
+              <SelectContent>
+                {sites.map((site) => (
+                  <SelectItem key={site.id} value={site.id}>{hubSiteLabel(site)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader>
+                <CardTitle>Mappings</CardTitle>
+                <CardDescription>
+                  {template?.template ? `Default template: ${template.template.name}` : "Select a site to scan its default template."}
+                </CardDescription>
+                <CardAction>
+                  <Button type="button" variant="outline" onClick={autoMap} disabled={!canAutoMap || loading || saving}>
+                    <SparklesIcon className="size-4" />
+                    Auto map
+                  </Button>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <p className="text-sm text-muted-foreground">
+                  {autoMapResult.mappings.length
+                    ? `${autoMapResult.mappings.length} automatic ${autoMapResult.mappings.length === 1 ? "match" : "matches"} available.`
+                    : "No automatic matches available."}
+                </p>
+                {mappings.length ? mappings.map((mapping, index) => (
+                  <div key={`${mapping.sourceKey}-${mapping.targetBlockId}-${mapping.targetFieldKey}-${index}`} className="grid gap-3 rounded-md border p-3 lg:grid-cols-[minmax(160px,1fr)_minmax(220px,1.5fr)_auto]">
+                    <div className="grid gap-2">
+                      <Label>Core field</Label>
+                      <Select value={mapping.sourceKey} onValueChange={(sourceKey) => updateMapping(index, { sourceKey })} disabled={saving}>
+                        <SelectTrigger size="default" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sourceOptions.map((option) => (
+                            <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Hub target</Label>
+                      <Select value={hubWiringTargetValue(mapping)} onValueChange={(value) => updateTarget(index, value)} disabled={saving || !targetOptions.length}>
+                        <SelectTrigger size="default" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {targetOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button type="button" variant="outline" className="w-full" onClick={() => removeMapping(index)} disabled={saving}>
+                        <Trash2Icon className="size-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    No mappings yet.
+                  </div>
+                )}
+                <div>
+                  <Button type="button" variant="outline" onClick={addMapping} disabled={!canAdd || saving}>
+                    <PlusIcon className="size-4" />
+                    Add mapping
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-destructive/40 bg-destructive/5">
+              <CardHeader>
+                <CardTitle>Not auto-mapped</CardTitle>
+                <CardDescription>Core fields with no matching Hub target in the selected template.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Loading Hub template fields...</p>
+                ) : !template ? (
+                  <p className="text-sm text-muted-foreground">Select a Hub site to check missing fields.</p>
+                ) : autoMapResult.unmatched.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {autoMapResult.unmatched.map((field) => (
+                      <Badge key={field.key} variant="outline" className="border-destructive/30 text-destructive">
+                        {field.label}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">All available Core fields have an automatic match.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Template blocks</CardTitle>
+                <CardDescription>Blocks found in the selected site’s default directory template.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {loading ? (
+                  <Skeleton className="h-20 w-full" />
+                ) : template?.blocks.length ? template.blocks.map((block) => (
+                  <div key={block.id} className="rounded-md border p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">{block.title}</span>
+                      <Badge variant="secondary">{block.type}</Badge>
+                      <span className="text-xs text-muted-foreground">{block.layout_column}</span>
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {block.targets.length ? block.targets.map((target) => target.label).join(", ") : "No mappable fields"}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    No default template blocks found.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
+          <Button onClick={onSave} disabled={loading || saving || !siteId}>
+            {saving ? "Saving..." : "Save wiring"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1456,6 +1791,170 @@ function hubSiteLabel(site: HubExportSite) {
   return domain ? `${site.name} - ${domain}` : site.name
 }
 
+type HubWiringSourceOption = {
+  key: string
+  label: string
+}
+
+type HubWiringTargetOption = {
+  value: string
+  blockId: string
+  kind: GoogleMapsHubExportMapping["targetKind"]
+  fieldKey: string
+  label: string
+}
+
+type HubWiringAutoMapResult = {
+  mappings: GoogleMapsHubExportMapping[]
+  unmatched: HubWiringSourceOption[]
+}
+
+const hubWiringSocialFieldKeys = new Set(["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"])
+
+function hubWiringSourceFields(fieldSettings: GoogleMapsFieldSetting[]): HubWiringSourceOption[] {
+  const options = new Map<string, string>([
+    ["businessName", "Title"],
+    ["featuredImage", "Featured image"],
+    ["google_maps_place_id", "Google Maps Place ID"],
+    ["description", "Description"],
+    ["address", "Address"],
+    ["phone", "Phone"],
+    ["website", "Website"],
+    ["email", "Email"],
+    ["instagram", "Instagram"],
+    ["facebook", "Facebook"],
+    ["tiktok", "TikTok"],
+    ["twitter", "X/Twitter"],
+    ["linkedin", "LinkedIn"],
+    ["youtube", "YouTube"],
+    ["mapsUrl", "Google Maps URL"],
+  ])
+
+  fieldSettings.filter((setting) => setting.visible).forEach((setting) => {
+    if (readOnlyResultFields.has(setting.key) && setting.key !== "featuredImage" && setting.key !== "mapsUrl") return
+    options.set(setting.key, setting.label)
+  })
+
+  return Array.from(options.entries()).map(([key, label]) => ({ key, label }))
+}
+
+function hubWiringTargetFields(template: HubDirectoryTemplateScan | null): HubWiringTargetOption[] {
+  if (!template) return []
+
+  const builtInTargets: HubWiringTargetOption[] = [
+    {
+      value: hubWiringTargetOptionValue("__directory__", { kind: "directoryTitle", field_key: "title" }),
+      blockId: "__directory__",
+      kind: "directoryTitle",
+      fieldKey: "title",
+      label: "Built-in - Title",
+    },
+    {
+      value: hubWiringTargetOptionValue("__directory__", { kind: "directoryFeaturedImage", field_key: "featuredImage" }),
+      blockId: "__directory__",
+      kind: "directoryFeaturedImage",
+      fieldKey: "featuredImage",
+      label: "Built-in - Featured image",
+    },
+  ]
+  const blockTargets = (template.blocks ?? []).flatMap((block) => (
+    block.targets.map((target) => {
+      const value = hubWiringTargetOptionValue(block.id, target)
+      return {
+        value,
+        blockId: block.id,
+        kind: target.kind,
+        fieldKey: target.field_key,
+        label: `${block.title} - ${target.label}`,
+      }
+    })
+  ))
+
+  return [...builtInTargets, ...blockTargets]
+}
+
+function hubWiringAutoMap(siteId: string, sourceOptions: HubWiringSourceOption[], targetOptions: HubWiringTargetOption[]): HubWiringAutoMapResult {
+  if (!siteId || !sourceOptions.length || !targetOptions.length) {
+    return { mappings: [], unmatched: sourceOptions }
+  }
+
+  const usedTargets = new Set<string>()
+  const mappings: GoogleMapsHubExportMapping[] = []
+  const unmatched: HubWiringSourceOption[] = []
+
+  sourceOptions.forEach((source) => {
+    const target = hubWiringAutoTarget(source, targetOptions.filter((option) => !usedTargets.has(option.value)))
+    if (!target) {
+      unmatched.push(source)
+      return
+    }
+
+    usedTargets.add(target.value)
+    mappings.push({
+      siteId,
+      sourceKey: source.key,
+      targetBlockId: target.blockId,
+      targetKind: target.kind,
+      targetFieldKey: target.fieldKey,
+    })
+  })
+
+  return { mappings, unmatched }
+}
+
+function hubWiringAutoTarget(source: HubWiringSourceOption, targetOptions: HubWiringTargetOption[]) {
+  const candidates = targetOptions
+    .map((target) => ({ target, score: hubWiringAutoTargetScore(source, target) }))
+    .filter((candidate) => candidate.score !== null)
+    .sort((a, b) => a.score! - b.score!)
+
+  if (!candidates.length) return null
+
+  const bestScore = candidates[0].score
+  const bestCandidates = candidates.filter((candidate) => candidate.score === bestScore)
+  return bestCandidates.length === 1 ? bestCandidates[0].target : null
+}
+
+function hubWiringAutoTargetScore(source: HubWiringSourceOption, target: HubWiringTargetOption) {
+  const sourceKey = source.key
+  const sourceLabel = normalizedHubWiringLabel(source.label)
+  const targetLabel = normalizedHubWiringLabel(target.label)
+
+  if (sourceKey === "description" && target.kind === "richTextBody") return 0
+  if (sourceKey === "businessName" && target.kind === "directoryTitle") return 0
+  if (sourceKey === "featuredImage" && target.kind === "directoryFeaturedImage") return 0
+  if (sourceKey === "google_maps_place_id" && target.kind === "openingHoursPlaceId") return 0
+  if (sourceKey === "address" && target.kind === "googleMapLocationQuery") return 0
+  if (sourceKey === "mapsUrl" && target.kind === "coreMenuLink" && target.fieldKey === "directions") return 0
+  if ((sourceKey === "phone" || sourceKey === "website" || sourceKey === "email") && target.kind === "coreMenuLink" && target.fieldKey === sourceKey) return 0
+  if (hubWiringSocialFieldKeys.has(sourceKey) && target.kind === "coreSocialLink" && target.fieldKey === sourceKey) return 0
+  if (target.kind === "customField" && target.fieldKey === sourceKey) return 5
+  if (target.kind === "customField" && targetLabel.endsWith(sourceLabel)) return 6
+
+  return null
+}
+
+function normalizedHubWiringLabel(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "")
+}
+
+function hubWiringTargetOptionValue(blockId: string, target: Pick<HubTemplateTarget, "kind" | "field_key">) {
+  return `${blockId}::${target.kind}::${target.field_key}`
+}
+
+function hubWiringTargetValue(mapping: GoogleMapsHubExportMapping) {
+  return `${mapping.targetBlockId}::${mapping.targetKind}::${mapping.targetFieldKey || hubWiringDefaultTargetFieldKey(mapping.targetKind)}`
+}
+
+function hubWiringDefaultTargetFieldKey(targetKind: GoogleMapsHubExportMapping["targetKind"]) {
+  if (targetKind === "directoryTitle") return "title"
+  if (targetKind === "directoryFeaturedImage") return "featuredImage"
+  if (targetKind === "richTextBody") return "body"
+  if (targetKind === "googleMapLocationQuery") return "locationQuery"
+  if (targetKind === "openingHoursPlaceId") return "placeId"
+  return ""
+}
+
 function StatusBadge({ status }: { status: ProviderRunConfigStatus | string }) {
   return <Badge variant={status === "active" ? "default" : "secondary"}>{statusLabels[status as keyof typeof statusLabels] ?? status}</Badge>
 }
@@ -1587,11 +2086,9 @@ function ResultField({
     <div className={`grid gap-2 ${isDescription ? "sm:col-span-2" : ""}`}>
       <Label htmlFor={id}>{label}</Label>
       {isDescription ? (
-        <Textarea
+        <AutoHeightTextarea
           id={id}
-          className="h-10 min-h-10 shadow-none"
           value={String(value)}
-          rows={1}
           onChange={(event) => onChange(event.target.value)}
         />
       ) : (
@@ -1603,6 +2100,31 @@ function ResultField({
         />
       )}
     </div>
+  )
+}
+
+function AutoHeightTextarea({
+  value,
+  className,
+  ...props
+}: React.ComponentProps<typeof Textarea>) {
+  const ref = React.useRef<HTMLTextAreaElement>(null)
+
+  React.useLayoutEffect(() => {
+    const textarea = ref.current
+    if (!textarea) return
+    textarea.style.height = "auto"
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [value])
+
+  return (
+    <Textarea
+      ref={ref}
+      className={`min-h-10 resize-none overflow-hidden shadow-none ${className ?? ""}`}
+      value={value}
+      rows={1}
+      {...props}
+    />
   )
 }
 

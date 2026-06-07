@@ -35,10 +35,20 @@ export const fieldSettingSchema = z.object({
   order: z.number().int().min(0).max(500),
 })
 export const fieldSettingsSchema = z.array(fieldSettingSchema).max(100)
+export const hubExportMappingTargetKinds = ["directoryTitle", "directoryFeaturedImage", "richTextBody", "googleMapLocationQuery", "openingHoursPlaceId", "customField", "coreMenuLink", "coreSocialLink"] as const
+export const hubExportMappingSchema = z.object({
+  siteId: z.string().trim().min(1).max(100),
+  sourceKey: z.string().trim().min(1).max(100),
+  targetBlockId: z.string().trim().min(1).max(255),
+  targetKind: z.enum(hubExportMappingTargetKinds),
+  targetFieldKey: z.string().trim().max(255).default(""),
+})
+export const hubExportMappingsSchema = z.array(hubExportMappingSchema).max(200)
 export const apifyConfigSchema = z.object({
   actorId: requiredText(255),
   defaultMaxResults: z.number().int().min(1).max(500),
   fieldSettings: fieldSettingsSchema.catch([]).default([]),
+  hubExportMappings: hubExportMappingsSchema.catch([]).default([]),
 })
 export const settingsPayloadSchema = z.object({
   actorId: requiredText(255),
@@ -48,8 +58,13 @@ export const settingsPayloadSchema = z.object({
 export const fieldSettingsPayloadSchema = z.object({
   fieldSettings: fieldSettingsSchema,
 })
+export const hubExportMappingsPayloadSchema = z.object({
+  siteId: z.string().trim().min(1).max(100),
+  mappings: hubExportMappingsSchema,
+})
 export type GoogleMapsFieldSetting = z.infer<typeof fieldSettingSchema>
 export type GoogleMapsFieldType = GoogleMapsFieldSetting["type"]
+export type GoogleMapsHubExportMapping = z.infer<typeof hubExportMappingSchema>
 
 export function googleMapsFieldValue(data: Record<string, unknown>, key: string, sourcePath: string) {
   if (Object.prototype.hasOwnProperty.call(data, key)) {
@@ -146,6 +161,7 @@ export function parseConfig(value: unknown) {
     actorId: defaultApifyActorId,
     defaultMaxResults,
     fieldSettings: [],
+    hubExportMappings: [],
   }).parse(value)
 }
 
@@ -170,6 +186,7 @@ export function serializeSettings(row: CoreProviderSettings | null) {
     actor_id: config.actorId,
     default_max_results: config.defaultMaxResults,
     field_settings: config.fieldSettings,
+    hub_export_mappings: config.hubExportMappings,
     has_token: Boolean(row?.secretEncrypted),
   }
 }

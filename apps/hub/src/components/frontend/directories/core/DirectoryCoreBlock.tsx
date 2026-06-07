@@ -85,7 +85,7 @@ function SocialLink({ link }: { link: DirectoryCoreSocialLink }) {
       target={isExternalHref(href) ? "_blank" : undefined}
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
       aria-label={label}
-      className="inline-flex h-11 w-11 items-center justify-center rounded-full text-primary transition-colors hover:bg-muted hover:text-primary/80"
+      className="inline-flex items-center justify-center text-neutral-500 transition-colors hover:text-black"
     >
       <Icon className="h-7 w-7" />
     </a>
@@ -211,7 +211,7 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
   const showSaveButton = Boolean(siteId && directory.id && featuredImage && visibility.image !== false)
   const saveIconOpacityNumber = Number(content?.saveIconOpacity)
   const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
-  const introTemplate = typeof fields.description === "string" ? fields.description : ""
+  const introTemplate = typeof content?.introText === "string" ? content.introText : ""
   const introText = renderDirectoryCoreIntroText(introTemplate, {
     directoryTitle: title,
     parentCategory: directory.category_context?.parent_title,
@@ -237,7 +237,7 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
         </div>
       ) : null}
 
-      <CardSection>
+      <CardSection className={menuLinks.length > 0 && visibility.menuLinks !== false ? "pb-3" : undefined}>
         {visibility.title !== false ? (
           <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
         ) : null}
@@ -261,7 +261,7 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
         ) : null}
 
         {socialLinks.length > 0 && visibility.socialLinks !== false ? (
-          <div className="flex flex-wrap items-center gap-5 pt-1">
+          <div className="my-6 flex flex-wrap items-center gap-2">
             {socialLinks.map((link, index) => (
               <SocialLink key={link.id || `${link.platform}-${index}`} link={link} />
             ))}

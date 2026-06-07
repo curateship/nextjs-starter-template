@@ -47,6 +47,7 @@ import {
   fieldSettingsPayloadSchema,
   googleMapsFieldValue,
   googleMapsProviderKey,
+  hubExportMappingsPayloadSchema,
   hasGoogleMapsAdditionalInfoGroupKey,
   parseConfig,
   parseRunInput,
@@ -60,12 +61,15 @@ import {
   updateRunSchema,
   type GoogleMapsFieldSetting,
   type GoogleMapsFieldType,
+  type GoogleMapsHubExportMapping,
 } from "@/providers/google-maps/schema"
 import type {
   ProviderExecutionItem,
   ProviderResultItem,
   ProviderRunConfigItem,
 } from "@/providers/types"
+
+export type { GoogleMapsHubExportMapping }
 
 type ProviderSettingsItem = ReturnType<typeof serializeSettings>
 type ProviderSettingsResponse = { settings: ProviderSettingsItem }
@@ -78,9 +82,13 @@ type GoogleMapsRunResponse = {
   latest_execution: ProviderExecutionItem | null
   results: ProviderResultItem[]
   field_settings: GoogleMapsFieldSetting[]
+  hub_export_mappings: GoogleMapsHubExportMapping[]
 }
 type FieldSettingsResponse = {
   field_settings: GoogleMapsFieldSetting[]
+}
+type HubExportMappingsResponse = {
+  hub_export_mappings: GoogleMapsHubExportMapping[]
 }
 export type GoogleMapsSocialPlatform = (typeof socialPlatforms)[number]
 export type GoogleMapsEnhanceField = (typeof enhanceFields)[number]
@@ -95,6 +103,24 @@ export type HubExportSite = {
   subdomain: string
   custom_domain: string | null
   status: string
+}
+export type HubTemplateTarget = {
+  kind: GoogleMapsHubExportMapping["targetKind"]
+  field_key: string
+  label: string
+  value_type: string
+}
+export type HubTemplateBlock = {
+  id: string
+  type: string
+  title: string
+  display_order: number
+  layout_column: "main" | "sidebar"
+  targets: HubTemplateTarget[]
+}
+export type HubDirectoryTemplateScan = {
+  template: { id: string; name: string } | null
+  blocks: HubTemplateBlock[]
 }
 export type HubExportStatus = "draft" | "published"
 const remoteImageMaxBytes = 10 * 1024 * 1024
@@ -178,6 +204,7 @@ const saveSettingsFn = createServerFn({ method: "POST" })
         actorId: data.actorId.trim(),
         defaultMaxResults: data.defaultMaxResults,
         fieldSettings: existingConfig.fieldSettings,
+        hubExportMappings: existingConfig.hubExportMappings,
       },
       secretEncrypted: token ? encryptProviderSecret(token) : existing?.secretEncrypted ?? null,
       updatedAt,
@@ -210,6 +237,37 @@ const saveFieldSettingsFn = createServerFn({ method: "POST" })
       : await db.insert(providerSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
 
     return { field_settings: parseConfig(row.config).fieldSettings }
+  })
+
+const saveHubExportMappingsFn = createServerFn({ method: "POST" })
+  .inputValidator(hubExportMappingsPayloadSchema)
+  .handler(async ({ data }): Promise<HubExportMappingsResponse> => {
+    requireAppOrigin()
+    const workspace = await requireWorkspace()
+    const existing = await settingsRow(workspace.id)
+    const updatedAt = now()
+    const config = parseConfig(existing?.config)
+    const siteMappings = data.mappings
+      .filter((mapping) => mapping.siteId === data.siteId)
+      .map((mapping) => ({
+        ...mapping,
+        targetFieldKey: mapping.targetFieldKey || hubExportTargetDefaultFieldKey(mapping.targetKind),
+      }))
+    const hubExportMappings = [
+      ...config.hubExportMappings.filter((mapping) => mapping.siteId !== data.siteId),
+      ...siteMappings,
+    ]
+    const values = {
+      config: { ...config, hubExportMappings },
+      secretEncrypted: existing?.secretEncrypted ?? null,
+      updatedAt,
+    }
+
+    const [row] = existing
+      ? await db.update(providerSettings).set(values).where(and(eq(providerSettings.workspaceId, workspace.id), eq(providerSettings.providerKey, apifyProviderKey))).returning()
+      : await db.insert(providerSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
+
+    return { hub_export_mappings: parseConfig(row.config).hubExportMappings }
   })
 
 const loadRunsFn = createServerFn({ method: "GET" }).handler(async (): Promise<GoogleMapsRunsResponse> => {
@@ -342,11 +400,13 @@ const loadRunFn = createServerFn({ method: "GET" })
       ? await db.select().from(providerResults).where(eq(providerResults.executionId, latest.id))
       : []
 
+    const config = parseConfig((await settingsRow(workspace.id))?.config)
     return {
       run: serializeRun(run),
       latest_execution: latest ? serializeExecution(latest) : null,
       results: results.map(serializeResult),
-      field_settings: parseConfig((await settingsRow(workspace.id))?.config).fieldSettings,
+      field_settings: config.fieldSettings,
+      hub_export_mappings: config.hubExportMappings,
     }
   })
 
@@ -448,6 +508,14 @@ const loadHubExportSitesFn = createServerFn({ method: "GET" }).handler(async ():
   return { sites: Array.isArray(payload.sites) ? payload.sites : [] }
 })
 
+const loadHubDirectoryTemplateScanFn = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ siteId: z.string().min(1) }))
+  .handler(async ({ data }): Promise<HubDirectoryTemplateScan> => {
+    await requireAdmin()
+    const response = await hubBridgeFetch(`/api/core/directory-templates/default?site_id=${encodeURIComponent(data.siteId)}`)
+    return response.json() as Promise<HubDirectoryTemplateScan>
+  })
+
 const exportResultsToHubFn = createServerFn({ method: "POST" })
   .inputValidator(hubExportSchema)
   .handler(async ({ data }) => {
@@ -461,14 +529,25 @@ const exportResultsToHubFn = createServerFn({ method: "POST" })
 
     if (!rows.length) throw new Error("Select at least one result to export.")
 
-    const fieldSettings = parseConfig((await settingsRow(workspace.id))?.config).fieldSettings
+    const config = parseConfig((await settingsRow(workspace.id))?.config)
+    const fieldSettings = config.fieldSettings
+    const mappings = config.hubExportMappings
+      .filter((mapping) => mapping.siteId === data.siteId)
+      .map(({ sourceKey, targetBlockId, targetKind, targetFieldKey }) => ({
+        sourceKey,
+        targetBlockId,
+        targetKind,
+        targetFieldKey,
+      }))
+    const mappingSourceKeys = new Set(mappings.map((mapping) => mapping.sourceKey))
     const response = await hubBridgeFetch("/api/core/directories/google-maps", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         site_id: data.siteId,
         status: data.status,
-        items: rows.map((result) => resultToHubRecord(result, fieldSettings)),
+        mappings,
+        items: rows.map((result) => resultToHubRecord(result, fieldSettings, mappingSourceKeys)),
       }),
     })
 
@@ -490,6 +569,7 @@ const exportResultsToHubFn = createServerFn({ method: "POST" })
 export const loadProviderSettings = () => loadSettingsFn()
 export const saveProviderSettings = (data: z.infer<typeof settingsPayloadSchema>) => saveSettingsFn({ data })
 export const saveGoogleMapsFieldSettings = (data: z.infer<typeof fieldSettingsPayloadSchema>) => saveFieldSettingsFn({ data })
+export const saveGoogleMapsHubExportMappings = (data: z.infer<typeof hubExportMappingsPayloadSchema>) => saveHubExportMappingsFn({ data })
 export const loadGoogleMapsRuns = () => loadRunsFn()
 export const saveGoogleMapsRun = (data: z.infer<typeof runPayloadSchema> & { runId?: string }) => saveRunFn({ data })
 export const deleteGoogleMapsRuns = (runIds: string[]) => deleteRunsFn({ data: { runIds } })
@@ -500,7 +580,17 @@ export const updateGoogleMapsResult = (data: z.infer<typeof resultPayloadSchema>
 export const deleteGoogleMapsResults = (runId: string, resultIds: string[]) => deleteResultsFn({ data: { runId, resultIds } })
 export const enhanceGoogleMapsResults = (data: z.infer<typeof enhanceResultsSchema>) => enhanceResultsFn({ data })
 export const loadHubExportSites = () => loadHubExportSitesFn()
+export const loadHubDirectoryTemplateScan = (siteId: string) => loadHubDirectoryTemplateScanFn({ data: { siteId } })
 export const exportGoogleMapsResultsToHub = (data: z.infer<typeof hubExportSchema>) => exportResultsToHubFn({ data })
+
+function hubExportTargetDefaultFieldKey(targetKind: GoogleMapsHubExportMapping["targetKind"]) {
+  if (targetKind === "directoryTitle") return "title"
+  if (targetKind === "directoryFeaturedImage") return "featuredImage"
+  if (targetKind === "richTextBody") return "body"
+  if (targetKind === "googleMapLocationQuery") return "locationQuery"
+  if (targetKind === "openingHoursPlaceId") return "placeId"
+  return ""
+}
 
 async function settingsRow(workspaceId: string) {
   const [row] = await db.select().from(providerSettings).where(and(eq(providerSettings.workspaceId, workspaceId), eq(providerSettings.providerKey, apifyProviderKey))).limit(1)
@@ -626,7 +716,7 @@ function cleanBaseUrl(value?: string) {
   return value?.trim().replace(/\/+$/, "") || ""
 }
 
-function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMapsFieldSetting[]) {
+function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMapsFieldSetting[], mappingSourceKeys = new Set<string>()) {
   const data = record(result.data)
   const dataWithTitle: Record<string, unknown> = {
     ...data,
@@ -648,12 +738,17 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
   })
 
   fieldSettings
-    .filter((setting) => setting.visible)
+    .filter((setting) => setting.visible || mappingSourceKeys.has(setting.key))
     .forEach((setting) => {
       const value = googleMapsFieldValue(dataWithTitle, setting.key, setting.sourcePath)
 
       if (value !== undefined) hubRecord[setting.key] = value
     })
+  mappingSourceKeys.forEach((key) => {
+    if (hubRecord[key] !== undefined) return
+    const value = googleMapsFieldValue(dataWithTitle, key, key)
+    if (value !== undefined) hubRecord[key] = value
+  })
 
   return hubRecord
 }

@@ -6,6 +6,7 @@ import { isIP } from 'node:net'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { directories } from '@/lib/db/schema/directories'
+import { directoryCustomBlocks } from '@/lib/db/schema/directory-custom-blocks'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { media } from '@/lib/db/schema/media'
 import { sites } from '@/lib/db/schema/sites'
@@ -44,6 +45,35 @@ interface GoogleMapsImportRecord {
   mapsUrl?: unknown
 }
 
+interface GoogleMapsBlockMapping {
+  sourceKey?: unknown
+  targetBlockId?: unknown
+  targetKind?: unknown
+  targetFieldKey?: unknown
+}
+
+type NormalizedBlockMapping = {
+  sourceKey: string
+  targetBlockId: string
+  targetKind: 'directoryTitle' | 'directoryFeaturedImage' | 'richTextBody' | 'googleMapLocationQuery' | 'openingHoursPlaceId' | 'customField' | 'coreMenuLink' | 'coreSocialLink'
+  targetFieldKey: string
+}
+
+const TARGET_KINDS = new Set([
+  'directoryTitle',
+  'directoryFeaturedImage',
+  'richTextBody',
+  'googleMapLocationQuery',
+  'openingHoursPlaceId',
+  'customField',
+  'coreMenuLink',
+  'coreSocialLink',
+])
+const FIELD_KEY_TARGET_KINDS = new Set(['customField', 'coreMenuLink', 'coreSocialLink'])
+const DIRECTORY_TARGET_KINDS = new Set(['directoryTitle', 'directoryFeaturedImage'])
+const CORE_MENU_LINK_TYPES = new Set(['directions', 'phone', 'website', 'email'])
+const CORE_SOCIAL_LINK_TYPES = new Set(['instagram', 'facebook', 'tiktok', 'twitter', 'linkedin', 'youtube'])
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_ITEMS = 500
 const MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -70,6 +100,7 @@ export async function POST(request: NextRequest) {
       ? 'draft'
       : null
   const items = Array.isArray(payload?.items) ? payload.items : []
+  const mappings = normalizeMappings(payload?.mappings)
 
   if (!UUID_REGEX.test(siteId)) {
     return NextResponse.json({ error: 'Valid site_id is required' }, { status: 400 })
@@ -94,27 +125,34 @@ export async function POST(request: NextRequest) {
 
   let nextDisplayOrder = await getNextDisplayOrder(siteId)
   const defaultTemplate = await getDefaultDirectoryTemplateBlocks(siteId)
+  const customBlockTemplates = mappings.some((mapping) => mapping.targetKind === 'customField')
+    ? await getDirectoryCustomBlockTemplates(siteId)
+    : new Map<string, { fields: any[] }>()
   const results = []
 
   for (const item of items) {
     const record = normalizeRecord(item)
+    const directoryMappingValues = getDirectoryMappingValues(item, mappings)
+    const mappedTitle = cleanText(directoryMappingValues.title, 255)
+    const mappedFeaturedImage = safeUrl(directoryMappingValues.featuredImage)
 
     if (!record.placeId) {
       results.push({ source_type: GOOGLE_MAPS_SOURCE_TYPE, source_id: null, action: 'error', error: 'Missing Google Maps Place ID' })
       continue
     }
 
-    if (!record.title) {
+    if (!record.title && !mappedTitle) {
       results.push({ source_type: GOOGLE_MAPS_SOURCE_TYPE, source_id: record.placeId, action: 'error', error: 'Missing business name' })
       continue
     }
 
     const placeId = record.placeId
-    const title = record.title
+    const title = mappedTitle || record.title || ''
+    const featuredImageSource = mappedFeaturedImage || record.featuredImage
 
     try {
       const existing = await findDirectoryBySource(siteId, GOOGLE_MAPS_SOURCE_TYPE, placeId)
-      const hubFeaturedImage = await importFeaturedImageToHub(record.featuredImage, {
+      const hubFeaturedImage = await importFeaturedImageToHub(featuredImageSource, {
         siteId: site.id,
         userId: site.userId,
         altText: title,
@@ -125,8 +163,9 @@ export async function POST(request: NextRequest) {
         title,
         featuredImage: hubFeaturedImage,
       }
-      const sourceBlocks = existing?.contentBlocks ?? cloneContentBlocks(defaultTemplate.contentBlocks)
+      const sourceBlocks = cloneContentBlocks(existing?.contentBlocks ?? defaultTemplate.contentBlocks)
       const contentBlocks = cleanContentBlocks(sourceBlocks)
+      applyBlockMappings(contentBlocks, item, mappings, customBlockTemplates)
       const directoryData = buildDirectoryData(importedRecord)
       const values = {
         title: importedRecord.title,
@@ -136,8 +175,8 @@ export async function POST(request: NextRequest) {
         contentBlocks,
         directoryData,
         updatedAt: new Date(),
-        ...(importedRecord.description ? { metaDescription: importedRecord.description } : {}),
-        ...(record.featuredImage ? { featuredImage: importedRecord.featuredImage } : {}),
+        ...(existing?.metaDescription === importedRecord.description ? { metaDescription: null } : {}),
+        ...(featuredImageSource ? { featuredImage: importedRecord.featuredImage } : {}),
       }
 
       if (existing) {
@@ -164,7 +203,6 @@ export async function POST(request: NextRequest) {
           slug,
           status,
           displayOrder: nextDisplayOrder,
-          metaDescription: importedRecord.description,
           featuredImage: importedRecord.featuredImage,
           sourceType: GOOGLE_MAPS_SOURCE_TYPE,
           sourceId: importedRecord.placeId,
@@ -189,7 +227,7 @@ export async function POST(request: NextRequest) {
         source_type: GOOGLE_MAPS_SOURCE_TYPE,
         source_id: record.placeId,
         action: 'error',
-        error: 'Import failed',
+        error: hubImportErrorMessage(error),
       })
     }
   }
@@ -268,6 +306,277 @@ async function getDefaultDirectoryTemplateBlocks(siteId: string) {
 function cloneContentBlocks(value: unknown): Record<string, any> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return JSON.parse(JSON.stringify(value))
+}
+
+function normalizeMappings(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item): NormalizedBlockMapping | null => {
+      const mapping = item && typeof item === 'object' && !Array.isArray(item)
+        ? item as GoogleMapsBlockMapping
+        : {}
+      const targetKind = typeof mapping.targetKind === 'string' ? mapping.targetKind : ''
+
+      if (!TARGET_KINDS.has(targetKind)) {
+        return null
+      }
+
+      const sourceKey = cleanText(mapping.sourceKey, 100)
+      const targetBlockId = cleanText(mapping.targetBlockId, 255)
+      const targetFieldKey = cleanText(mapping.targetFieldKey, 255) || ''
+
+      if (!sourceKey || !targetBlockId) return null
+      if (FIELD_KEY_TARGET_KINDS.has(targetKind) && !targetFieldKey) return null
+
+      return { sourceKey, targetBlockId, targetKind: targetKind as NormalizedBlockMapping['targetKind'], targetFieldKey }
+    })
+    .filter((item): item is NormalizedBlockMapping => Boolean(item))
+    .slice(0, 100)
+}
+
+async function getDirectoryCustomBlockTemplates(siteId: string) {
+  const rows = await db.select({ id: directoryCustomBlocks.id, fields: directoryCustomBlocks.fields })
+    .from(directoryCustomBlocks)
+    .where(eq(directoryCustomBlocks.siteId, siteId))
+
+  return new Map(rows.map((row) => [row.id, {
+    fields: Array.isArray(row.fields) ? row.fields : [],
+  }]))
+}
+
+function getDirectoryMappingValues(record: unknown, mappings: ReturnType<typeof normalizeMappings>) {
+  const source = record && typeof record === 'object' && !Array.isArray(record)
+    ? record as Record<string, unknown>
+    : {}
+  const values: { title?: unknown; featuredImage?: unknown } = {}
+
+  mappings.forEach((mapping) => {
+    if (!DIRECTORY_TARGET_KINDS.has(mapping.targetKind)) return
+
+    const sourceValue = source[mapping.sourceKey]
+    if (sourceValue === undefined || sourceValue === null || sourceValue === '') return
+
+    if (mapping.targetKind === 'directoryTitle') values.title = sourceValue
+    if (mapping.targetKind === 'directoryFeaturedImage') values.featuredImage = sourceValue
+  })
+
+  return values
+}
+
+function applyBlockMappings(
+  contentBlocks: Record<string, any>,
+  record: unknown,
+  mappings: ReturnType<typeof normalizeMappings>,
+  customBlockTemplates: Map<string, { fields: any[] }>
+) {
+  if (!mappings.length) return
+
+  const source = record && typeof record === 'object' && !Array.isArray(record)
+    ? record as Record<string, unknown>
+    : {}
+
+  for (const mapping of mappings) {
+    if (DIRECTORY_TARGET_KINDS.has(mapping.targetKind)) continue
+
+    const block = contentBlocks[mapping.targetBlockId]
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      throw new Error(`Mapped Hub block "${mapping.targetBlockId}" is missing. Add or restore that block in the directory template/listing.`)
+    }
+
+    const sourceValue = source[mapping.sourceKey]
+    if (sourceValue === undefined || sourceValue === null || sourceValue === '') continue
+
+    if (mapping.targetKind === 'richTextBody') {
+      if (block.type !== 'directory-rich-text') {
+        throw new Error(`Mapped block "${mapping.targetBlockId}" is not a rich text block.`)
+      }
+
+      block.content = {
+        ...(block.content || {}),
+        body: plainTextToHtml(String(sourceValue)),
+        format: 'html',
+      }
+      continue
+    }
+
+    if (mapping.targetKind === 'googleMapLocationQuery') {
+      if (block.type !== 'directory-google-map') {
+        throw new Error(`Mapped block "${mapping.targetBlockId}" is not a Google Map block.`)
+      }
+
+      block.content = {
+        ...(block.content || {}),
+        locationQuery: String(sourceValue),
+      }
+      continue
+    }
+
+    if (mapping.targetKind === 'openingHoursPlaceId') {
+      if (block.type !== 'directory-opening-hours') {
+        throw new Error(`Mapped block "${mapping.targetBlockId}" is not an Opening Hours block.`)
+      }
+
+      block.content = {
+        ...(block.content || {}),
+        placeId: String(sourceValue),
+      }
+      continue
+    }
+
+    if (mapping.targetKind === 'coreMenuLink') {
+      applyCoreMenuLinkMapping(block, mapping, sourceValue)
+      continue
+    }
+
+    if (mapping.targetKind === 'coreSocialLink') {
+      applyCoreSocialLinkMapping(block, mapping, sourceValue)
+      continue
+    }
+
+    applyCustomFieldMapping(block, mapping, sourceValue, customBlockTemplates)
+  }
+}
+
+function applyCoreMenuLinkMapping(
+  block: Record<string, any>,
+  mapping: ReturnType<typeof normalizeMappings>[number],
+  sourceValue: unknown
+) {
+  if (block.type !== 'directory-core') {
+    throw new Error(`Mapped block "${mapping.targetBlockId}" is not a Core block.`)
+  }
+
+  const menuLinks = Array.isArray(block.content?.menuLinks) ? block.content.menuLinks : []
+  if (!CORE_MENU_LINK_TYPES.has(mapping.targetFieldKey)) {
+    throw new Error(`Mapped Core menu link "${mapping.targetFieldKey}" is not supported.`)
+  }
+
+  const index = menuLinks.findIndex((link: unknown) => {
+    return link && typeof link === 'object' && !Array.isArray(link) && (link as { type?: unknown }).type === mapping.targetFieldKey
+  })
+
+  const nextLinks = [...menuLinks]
+  const nextLink = {
+    ...(index >= 0 ? nextLinks[index] || {} : {}),
+    id: index >= 0 ? nextLinks[index]?.id : `core-menu-${mapping.targetFieldKey}`,
+    type: mapping.targetFieldKey,
+    value: valueForCoreLink(sourceValue),
+  }
+  if (index >= 0) nextLinks[index] = nextLink
+  else nextLinks.push(nextLink)
+
+  block.content = {
+    ...(block.content || {}),
+    menuLinks: nextLinks,
+  }
+}
+
+function applyCoreSocialLinkMapping(
+  block: Record<string, any>,
+  mapping: ReturnType<typeof normalizeMappings>[number],
+  sourceValue: unknown
+) {
+  if (block.type !== 'directory-core') {
+    throw new Error(`Mapped block "${mapping.targetBlockId}" is not a Core block.`)
+  }
+
+  const socialLinks = Array.isArray(block.content?.socialLinks) ? block.content.socialLinks : []
+  if (!CORE_SOCIAL_LINK_TYPES.has(mapping.targetFieldKey)) {
+    throw new Error(`Mapped Core social link "${mapping.targetFieldKey}" is not supported.`)
+  }
+
+  const index = socialLinks.findIndex((link: unknown) => {
+    const platform = link && typeof link === 'object' && !Array.isArray(link)
+      ? (link as { platform?: unknown }).platform
+      : ''
+    return typeof platform === 'string' && platform.trim().toLowerCase() === mapping.targetFieldKey
+  })
+
+  const nextLinks = [...socialLinks]
+  const nextLink = {
+    ...(index >= 0 ? nextLinks[index] || {} : {}),
+    id: index >= 0 ? nextLinks[index]?.id : `core-social-${mapping.targetFieldKey}`,
+    platform: mapping.targetFieldKey,
+    url: valueForCoreLink(sourceValue),
+  }
+  if (index >= 0) nextLinks[index] = nextLink
+  else nextLinks.push(nextLink)
+
+  block.content = {
+    ...(block.content || {}),
+    socialLinks: nextLinks,
+  }
+}
+
+function applyCustomFieldMapping(
+  block: Record<string, any>,
+  mapping: ReturnType<typeof normalizeMappings>[number],
+  sourceValue: unknown,
+  customBlockTemplates: Map<string, { fields: any[] }>
+) {
+  if (block.type !== 'directory-custom') {
+    throw new Error(`Mapped block "${mapping.targetBlockId}" is not a custom block.`)
+  }
+
+  const templateId = typeof block.content?.templateId === 'string' ? block.content.templateId : ''
+  const template = templateId ? customBlockTemplates.get(templateId) : undefined
+  const field = template?.fields.find((item) => {
+    return item && typeof item === 'object' && !Array.isArray(item) && (item as { key?: unknown }).key === mapping.targetFieldKey
+  }) as { type?: string; key?: string } | undefined
+
+  if (!field || field.type === 'repeater') {
+    throw new Error(`Mapped custom field "${mapping.targetFieldKey}" is missing. Update the custom block field before exporting.`)
+  }
+
+  block.content = {
+    ...(block.content || {}),
+    values: {
+      ...(block.content?.values || {}),
+      [mapping.targetFieldKey]: valueForCustomField(sourceValue, field.type),
+    },
+  }
+}
+
+function valueForCustomField(value: unknown, type?: string) {
+  if (type === 'number') {
+    const numberValue = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(numberValue) ? numberValue : ''
+  }
+
+  if (type === 'toggle') return value === true || value === 'true' || value === '1'
+  if (type === 'rich-text') return plainTextToHtml(String(value))
+  if (Array.isArray(value)) return value.join(', ')
+
+  return String(value)
+}
+
+function valueForCoreLink(value: unknown) {
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean).join(', ')
+  return String(value).trim()
+}
+
+function plainTextToHtml(value: string) {
+  return value
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`)
+    .join('')
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function hubImportErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : ''
+  return message.startsWith('Mapped ') ? message : 'Import failed'
 }
 
 async function getNextDisplayOrder(siteId: string) {
@@ -563,7 +872,6 @@ function buildDirectoryData(record: ReturnType<typeof normalizeRecord>): Directo
     businessName: record.title || '',
   }
 
-  addTextField(fields, 'description', record.description)
   addTextField(fields, 'phone', record.phone)
   addTextField(fields, 'website', record.website)
   addTextField(fields, 'address', record.address)
