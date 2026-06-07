@@ -9,7 +9,6 @@ import {
   File,
   Inbox,
   Mail,
-  RefreshCw,
   Send,
   Settings,
   Trash2,
@@ -43,9 +42,9 @@ import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarHeader,
   SidebarInput,
 } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
@@ -621,27 +620,9 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="flex h-full w-full shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground md:flex md:w-[320px]">
-          <SidebarHeader className="gap-3.5 border-b p-4">
-            <div className="flex w-full items-center justify-between gap-3">
-              <div className="text-base font-medium text-foreground">
-                {folders.find((folder) => folder.id === activeFolder)?.label}
-              </div>
-              <div className="flex items-center gap-2">
-                <Label className="flex items-center gap-2 text-sm">
-                  <span>Unreads</span>
-                  <Switch checked={unreadOnly} onCheckedChange={(checked) => setUnreadOnly(checked === true)} className="shadow-none" />
-                </Label>
-                <Button variant="ghost" size="icon" className="size-[30px]" onClick={loadData} disabled={loading} aria-label="Refresh email setup">
-                  <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-                </Button>
-              </div>
-            </div>
-            <SidebarInput placeholder="Type to search..." />
-          </SidebarHeader>
-
           <SidebarContent className="overflow-hidden">
             <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!">
-              <SidebarGroup className="px-0">
+              <SidebarGroup className="p-0">
                 <SidebarGroupContent>
                   {visibleMails.map((mail) => {
                     const isSelected = selectedMail?.id === mail.id
@@ -678,6 +659,18 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
               </SidebarGroup>
             </ScrollArea>
           </SidebarContent>
+
+          <SidebarFooter className="gap-3.5 border-t p-4">
+            <div className="flex w-full items-center gap-3">
+              <SidebarInput className="min-w-0 flex-1" placeholder="Type to search..." />
+              <div className="flex items-center gap-2">
+                <Label className="flex items-center gap-2 text-sm">
+                  <span>Unreads</span>
+                  <Switch checked={unreadOnly} onCheckedChange={(checked) => setUnreadOnly(checked === true)} className="shadow-none" />
+                </Label>
+              </div>
+            </div>
+          </SidebarFooter>
         </div>
 
         <section className="hidden min-h-0 flex-1 md:block">

@@ -164,11 +164,11 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-media-unused", "Unused", "/admin/media/unused", "imagePlus"),
           ]),
           item("item-site-users", "Site Users", resolvedSiteId ? "/admin/site-users" : "/admin/sites", "users"),
-          item("item-site-settings", "Site Settings", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings`), "settings", [
-            child("child-site-settings-general", "General Settings", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings`), "settings"),
-            child("child-site-settings-seo", "SEO", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/settings/seo`), "search"),
+          item("item-site-settings", "Site Settings", "/admin/settings", "settings", [
+            child("child-site-settings-general", "General Settings", "/admin/settings", "settings"),
+            child("child-site-settings-seo", "SEO", "/admin/settings/seo", "search"),
           ]),
-          item("item-site-email", "Email", sitePath(resolvedSiteId, (id) => `/admin/sites/${id}/email`), "newsletters"),
+          item("item-site-email", "Email", "/admin/mail", "newsletters"),
         ],
       },
       {

@@ -255,7 +255,7 @@ export async function saveMxrouteIntegrationAction(input: SaveMxrouteInput): Pro
       webmail_url: normalizeWebmailUrl(input.webmailUrl),
     })
 
-    revalidatePath(`/admin/sites/${input.siteId}/email`)
+    revalidatePath('/admin/mail')
     return { success: true, error: null }
   } catch (error) {
     console.error('saveMxrouteIntegrationAction error:', error instanceof Error ? error.message : String(error))
@@ -319,7 +319,7 @@ export async function createMailboxAction(input: CreateMailboxInput): Promise<{ 
         },
       })
 
-    revalidatePath(`/admin/sites/${input.siteId}/email`)
+    revalidatePath('/admin/mail')
     return { success: true, error: null }
   } catch (error) {
     console.error('createMailboxAction error:', error instanceof Error ? error.message : String(error))
@@ -345,7 +345,7 @@ export async function setupMailDomainAction(siteId: string): Promise<{ success: 
       .set({ status: 'dns_pending', updatedAt: new Date() })
       .where(eq(mailDomains.id, mailDomain.id))
 
-    revalidatePath(`/admin/sites/${siteId}/email`)
+    revalidatePath('/admin/mail')
     return { success: true, error: null }
   } catch (error) {
     console.error('setupMailDomainAction error:', error instanceof Error ? error.message : String(error))
@@ -371,7 +371,7 @@ export async function disableMailboxAction(siteId: string, mailboxId: string): P
       .set({ status: 'disabled', disabledAt: new Date(), updatedAt: new Date() })
       .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.siteId, siteId)))
 
-    revalidatePath(`/admin/sites/${siteId}/email`)
+    revalidatePath('/admin/mail')
     return { success: true, error: null }
   } catch (error) {
     console.error('disableMailboxAction error:', error instanceof Error ? error.message : String(error))

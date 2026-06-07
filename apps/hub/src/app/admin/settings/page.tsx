@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, use } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -459,12 +459,6 @@ function EmailDomainHealthCard({ siteId, refreshSignal }: { siteId: string; refr
 
 // --- Settings Page ---
 
-interface SiteEditPageProps {
-  params: Promise<{
-    siteId: string
-  }>
-}
-
 const TABS = [
   { id: "general", label: "General Settings" },
   { id: "style", label: "Style" },
@@ -484,16 +478,16 @@ function isTabId(value: string | null): value is TabId {
   return TABS.some((tab) => tab.id === value)
 }
 
-export default function SiteEditPage({ params }: SiteEditPageProps) {
-  const router = useRouter()
+export default function SiteEditPage() {
   const searchParams = useSearchParams()
-  const { siteId } = use(params)
-  const { sites, currentSite, setCurrentSite } = useSiteSwitcher()
+  const { currentSite, loading: sitesLoading, setCurrentSite, sites } = useSiteSwitcher()
+  const siteId = currentSite?.id ?? ""
+  const loadingMessage = sitesLoading || sites.length > 0 ? "Loading settings..." : "Choose a site to manage settings."
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     const requestedTab = searchParams.get("tab")
     return isTabId(requestedTab) ? requestedTab : "general"
   })
-  const contextSite = sites.find((site) => site.id === siteId) || (currentSite?.id === siteId ? currentSite : null)
+  const contextSite = currentSite
   const [site, setSite] = useState<Site | null>(contextSite as Site | null)
   const [siteName, setSiteName] = useState(contextSite?.name || "")
   const [subdomain, setSubdomain] = useState(contextSite?.subdomain || "")
@@ -539,6 +533,29 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
   const headerSaveMessage = isAdminSettingsTab ? adminSettingsStatus.message : saveMessage
   const isCustomDomainVerificationError =
     activeTab === "general" && /^Add TXT record .+ with value .+ before using this domain$/.test(error || "")
+
+  useEffect(() => {
+    if (!contextSite) {
+      setSite(null)
+      return
+    }
+
+    setSite(contextSite as Site)
+    setSiteName(contextSite.name || "")
+    setSubdomain(contextSite.subdomain || "")
+    setCustomDomain(contextSite.custom_domain || "")
+    setStatus(contextSite.status || "draft")
+    setSiteTag(contextSite.settings?.site_tag || "")
+    setFontFamily(contextSite.settings?.font_family || "playfair-display")
+    setSecondaryFontFamily(contextSite.settings?.secondary_font_family || "inter")
+    setFavicon(contextSite.settings?.favicon || "")
+    setTrackingScripts(contextSite.settings?.tracking_scripts || "")
+    setCustomAnalyticsEnabled(!!contextSite.settings?.custom_analytics_enabled)
+    setSiteWidth(contextSite.settings?.site_width || "custom")
+    setCustomWidth(contextSite.settings?.custom_width)
+    setDefaultTheme(contextSite.settings?.default_theme || "system")
+    setMaintenanceEnabled(!!contextSite.settings?.maintenance?.enabled)
+  }, [contextSite])
 
   useEffect(() => {
     if (site?.settings?.newsletter_drip_defaults) {
@@ -673,21 +690,16 @@ export default function SiteEditPage({ params }: SiteEditPageProps) {
     }
   }
 
-  if (error && !site) {
+  if (!siteId || !site) {
     return (
-      <AdminLayout>
-        <div className="w-full">
-          <div className="p-8 text-center">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={() => router.push("/admin/sites")}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Back to Sites
-            </button>
+      <>
+        <StickyHeader />
+        <AdminLayout>
+          <div className="p-8 text-sm text-muted-foreground">
+            {loadingMessage}
           </div>
-        </div>
-      </AdminLayout>
+        </AdminLayout>
+      </>
     )
   }
 

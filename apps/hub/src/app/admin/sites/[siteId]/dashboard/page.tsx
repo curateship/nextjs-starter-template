@@ -299,7 +299,7 @@ export default async function SiteDashboard({ params, searchParams }: PageProps)
                   </Button>
                 ) : null}
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/admin/sites/${siteId}/settings`} aria-label="Settings" title="Settings">
+                  <Link href={`/admin/settings?site=${siteId}`} aria-label="Settings" title="Settings">
                     <Settings className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Settings</span>
                   </Link>

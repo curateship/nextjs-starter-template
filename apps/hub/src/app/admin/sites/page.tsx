@@ -419,7 +419,7 @@ export default function SitesPage() {
                               </a>
                             </Button>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-                              <Link href={`/admin/sites/${site.id}/settings`} title="Site Settings">
+                              <Link href={`/admin/settings?site=${site.id}`} title="Site Settings">
                                 <Settings className="h-4 w-4" />
                                 <span className="sr-only">Site Settings</span>
                               </Link>

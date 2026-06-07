@@ -46,7 +46,7 @@ export function SeoSettingsPage({ siteId }: SeoSettingsPageProps) {
   const selectTab = useCallback((tab: SeoTabId) => {
     if (tab === activeTab) return
     setSearchQuery('')
-    router.replace(`/admin/sites/${siteId}/settings/seo?tab=${tab}`, { scroll: false })
+    router.replace(`/admin/settings/seo?tab=${tab}`, { scroll: false })
   }, [activeTab, router, siteId])
 
   const activeTabConfig = SEO_TABS.find((tab) => tab.id === activeTab) || SEO_TABS[0]
