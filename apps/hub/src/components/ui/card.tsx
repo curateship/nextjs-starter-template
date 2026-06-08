@@ -32,7 +32,7 @@ CardGroup.displayName = "CardGroup"
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} data-slot="card-header" className={cn("flex flex-col space-y-1.5 p-4 pb-3", className)} {...props} />
+    <div ref={ref} data-slot="card-header" className={cn("flex flex-col space-y-1 p-4 pb-3", className)} {...props} />
   )
 )
 CardHeader.displayName = "CardHeader"

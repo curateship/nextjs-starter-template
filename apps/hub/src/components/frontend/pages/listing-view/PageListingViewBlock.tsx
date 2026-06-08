@@ -322,7 +322,7 @@ export function ListingViewsBlock({
             <CardHeader className={isCompactMobileCard ? "p-3 pb-3 md:p-4 md:pb-3" : undefined}>
               {showTitleElement && <h3 className={isCompactMobileCard ? "text-sm font-semibold leading-snug md:text-xl" : "text-base md:text-xl"}>{item.title}</h3>}
               {(rating || address) && (
-                <div className={isCompactMobileCard ? "mt-2 flex flex-col gap-1.5 text-xs text-muted-foreground md:mt-3 md:gap-2 md:text-sm" : "mt-3 flex flex-col gap-2 text-sm text-muted-foreground"}>
+                <div className={isCompactMobileCard ? "flex flex-col gap-1.5 text-xs text-muted-foreground md:gap-2 md:text-sm" : "flex flex-col gap-2 text-sm text-muted-foreground"}>
                   {rating && (
                     <Rating
                       rate={rating}
