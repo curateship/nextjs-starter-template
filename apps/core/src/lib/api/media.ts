@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
@@ -18,10 +18,25 @@ import {
 } from "@/server/media"
 import { deleteFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
-import { media } from "@/server/schema"
+import {
+  media,
+  providerResults,
+  providerRunConfigs,
+  providerSettings,
+  workspaces,
+} from "@/server/schema"
 import { findCurrentUser, now } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse, MediaSortBy, MediaSortDirection }
+
+export type UnusedImagesResponse = {
+  media: MediaItem[]
+  total: number
+  scanned_at: string
+}
+
+const BULK_DELETE_MEDIA_LIMIT = 500
+const UNUSED_IMAGE_SCAN_BATCH_SIZE = 500
 
 const listMediaSchema = z
   .object({
@@ -42,7 +57,7 @@ const updateMediaSchema = z.object({
 })
 
 const bulkDeleteMediaSchema = z.object({
-  mediaIds: z.array(z.string().min(1)).min(1).max(100),
+  mediaIds: z.array(z.string().min(1)).min(1).max(BULK_DELETE_MEDIA_LIMIT),
 })
 
 export function getMediaErrorMessage(error: unknown) {
@@ -179,6 +194,80 @@ const bulkDeleteMediaFn = createServerFn({ method: "POST" })
     return { deleted_count: rows.length }
   })
 
+const scanUnusedImagesFn = createServerFn({ method: "GET" })
+  .handler(async (): Promise<UnusedImagesResponse> => {
+    const user = await requireUser()
+    const imageRows = await db
+      .select()
+      .from(media)
+      .where(and(eq(media.userId, user.id), eq(media.fileType, "image")))
+      .orderBy(desc(media.createdAt))
+
+    const imageItems = imageRows.map(serializeMedia)
+    const referencedIds = new Set<string>()
+
+    for (let index = 0; index < imageItems.length; index += UNUSED_IMAGE_SCAN_BATCH_SIZE) {
+      const batch = imageItems.slice(index, index + UNUSED_IMAGE_SCAN_BATCH_SIZE)
+      const values = sql.join(batch.map((item) => sql`(${item.id}, ${item.url})`), sql`, `)
+      const result = await db.execute<{ id: string }>(sql`
+        with candidates(id, url) as (values ${values})
+        select distinct c.id
+        from candidates c
+        where exists (
+          select 1
+          from ${workspaces} w
+          where w.user_id = ${user.id}
+            and (
+              position(c.url in coalesce(w.settings::text, '')) > 0
+              or position(c.id in coalesce(w.settings::text, '')) > 0
+            )
+        )
+        or exists (
+          select 1
+          from ${providerSettings} ps
+          join ${workspaces} w on w.id = ps.workspace_id
+          where w.user_id = ${user.id}
+            and (
+              position(c.url in coalesce(ps.config::text, '')) > 0
+              or position(c.id in coalesce(ps.config::text, '')) > 0
+            )
+        )
+        or exists (
+          select 1
+          from ${providerRunConfigs} rc
+          join ${workspaces} w on w.id = rc.workspace_id
+          where w.user_id = ${user.id}
+            and (
+              position(c.url in coalesce(rc.input::text, '')) > 0
+              or position(c.id in coalesce(rc.input::text, '')) > 0
+              or position(c.url in coalesce(rc.metadata::text, '')) > 0
+              or position(c.id in coalesce(rc.metadata::text, '')) > 0
+            )
+        )
+        or exists (
+          select 1
+          from ${providerResults} pr
+          join ${providerRunConfigs} rc on rc.id = pr.run_config_id
+          join ${workspaces} w on w.id = rc.workspace_id
+          where w.user_id = ${user.id}
+            and (
+              position(c.url in coalesce(pr.data::text, '')) > 0
+              or position(c.id in coalesce(pr.data::text, '')) > 0
+            )
+        )
+      `)
+      result.rows.forEach((row) => referencedIds.add(row.id))
+    }
+
+    const unusedImages = imageItems.filter((item) => !referencedIds.has(item.id))
+
+    return {
+      media: unusedImages,
+      total: unusedImages.length,
+      scanned_at: new Date().toISOString(),
+    }
+  })
+
 export function listMedia({
   page = 1,
   pageSize = 20,
@@ -216,6 +305,10 @@ export function deleteMedia(mediaId: string) {
 
 export function bulkDeleteMedia(mediaIds: string[]) {
   return bulkDeleteMediaFn({ data: { mediaIds } })
+}
+
+export function scanUnusedImages() {
+  return scanUnusedImagesFn()
 }
 
 async function requireUser() {

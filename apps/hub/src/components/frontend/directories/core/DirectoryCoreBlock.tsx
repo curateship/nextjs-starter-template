@@ -254,7 +254,7 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
         ) : null}
 
         {showRating && rating ? (
-          <div className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
+          <div className="mb-4 mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
             <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
           </div>
         ) : null}

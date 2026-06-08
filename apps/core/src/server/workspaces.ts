@@ -10,6 +10,7 @@ import {
   createDefaultTopRightNavigation,
   iconMeta,
   type IconKey,
+  type ShellChildItem,
   type ShellSection,
   type ShellTopNavigationItem,
   type ShellTopRightNavigationItem,
@@ -17,6 +18,12 @@ import {
 
 const DEFAULT_WORKSPACE_NAME = "My project"
 const DEFAULT_WORKSPACE_ICON = "briefcaseBusiness"
+const MEDIA_UNUSED_CHILD = {
+  id: "media-unused",
+  label: "Unused",
+  href: "/admin/media/unused",
+  icon: "image",
+} satisfies ShellChildItem
 export type WorkspaceSettings = {
   icon: IconKey
   favicon: string
@@ -286,9 +293,11 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
       topRightNavigation: Array.isArray(settings.topRightNavigation)
         ? settings.topRightNavigation
         : fallback.topRightNavigation,
-      sections: Array.isArray(settings.sections)
-        ? settings.sections
-        : fallback.sections,
+      sections: normalizeWorkspaceSections(
+        Array.isArray(settings.sections)
+          ? settings.sections
+          : fallback.sections
+      ),
     }
   }
 
@@ -310,7 +319,9 @@ function cleanWorkspaceSettings(
     topRightNavigation: Array.isArray(settings.topRightNavigation)
       ? settings.topRightNavigation
       : fallback.topRightNavigation,
-    sections: Array.isArray(settings.sections) ? settings.sections : fallback.sections,
+    sections: normalizeWorkspaceSections(
+      Array.isArray(settings.sections) ? settings.sections : fallback.sections
+    ),
   }
 
   return cleaned
@@ -369,6 +380,7 @@ function createDefaultWorkspaceSections(): ShellSection[] {
           href: "/admin/media",
           icon: "image",
           visible: true,
+          children: [MEDIA_UNUSED_CHILD],
         },
         {
           type: "item",
@@ -419,6 +431,27 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       ],
     },
   ]
+}
+
+function normalizeWorkspaceSections(sections: ShellSection[]) {
+  return sections.map((section) => ({
+    ...section,
+    entries: section.entries.map((entry) => {
+      if (entry.type !== "item" || entry.id !== "media-library") {
+        return entry
+      }
+
+      const children = entry.children ?? []
+      if (children.some((child) => child.id === MEDIA_UNUSED_CHILD.id)) {
+        return entry
+      }
+
+      return {
+        ...entry,
+        children: [...children, MEDIA_UNUSED_CHILD],
+      }
+    }),
+  }))
 }
 
 function isWorkspaceIcon(value: unknown): value is IconKey {

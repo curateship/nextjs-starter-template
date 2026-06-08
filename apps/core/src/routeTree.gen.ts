@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminDatasourceRouteImport } from './routes/_authenticated/admin/datasource'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminMediaUnusedRouteImport } from './routes/_authenticated/admin/media/unused'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminDatasourceSettingsRouteImport } from './routes/_authenticated/admin/datasource/settings'
 import { Route as AuthenticatedAdminDatasourceGoogleMapsRouteImport } from './routes/_authenticated/admin/datasource/google-maps'
@@ -86,6 +87,12 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
+const AuthenticatedAdminMediaUnusedRoute =
+  AuthenticatedAdminMediaUnusedRouteImport.update({
+    id: '/unused',
+    path: '/unused',
+    getParentRoute: () => AuthenticatedAdminMediaRoute,
+  } as any)
 const AuthenticatedAdminFeedbackCommentsRoute =
   AuthenticatedAdminFeedbackCommentsRouteImport.update({
     id: '/comments',
@@ -122,13 +129,14 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/datasource': typeof AuthenticatedAdminDatasourceRouteWithChildren
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
   '/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
+  '/admin/media/unused': typeof AuthenticatedAdminMediaUnusedRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
@@ -139,13 +147,14 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/admin/datasource': typeof AuthenticatedAdminDatasourceRouteWithChildren
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
   '/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
+  '/admin/media/unused': typeof AuthenticatedAdminMediaUnusedRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
@@ -158,13 +167,14 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/datasource': typeof AuthenticatedAdminDatasourceRouteWithChildren
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
-  '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
+  '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRouteWithChildren
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/proxies': typeof AuthenticatedAdminProxiesRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/datasource/google-maps': typeof AuthenticatedAdminDatasourceGoogleMapsRouteWithChildren
   '/_authenticated/admin/datasource/settings': typeof AuthenticatedAdminDatasourceSettingsRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
+  '/_authenticated/admin/media/unused': typeof AuthenticatedAdminMediaUnusedRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/_authenticated/admin/datasource/google-maps/runs/$runId': typeof AuthenticatedAdminDatasourceGoogleMapsRunsRunIdRoute
@@ -184,6 +194,7 @@ export interface FileRouteTypes {
     | '/admin/datasource/google-maps'
     | '/admin/datasource/settings'
     | '/admin/feedback/comments'
+    | '/admin/media/unused'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
     | '/admin/datasource/google-maps/runs/$runId'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/admin/datasource/google-maps'
     | '/admin/datasource/settings'
     | '/admin/feedback/comments'
+    | '/admin/media/unused'
     | '/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
     | '/admin/datasource/google-maps/runs/$runId'
@@ -219,6 +231,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/datasource/google-maps'
     | '/_authenticated/admin/datasource/settings'
     | '/_authenticated/admin/feedback/comments'
+    | '/_authenticated/admin/media/unused'
     | '/_authenticated/admin/settings/$tab'
     | '/api/v1/media/$mediaId/file'
     | '/_authenticated/admin/datasource/google-maps/runs/$runId'
@@ -309,6 +322,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
+    '/_authenticated/admin/media/unused': {
+      id: '/_authenticated/admin/media/unused'
+      path: '/unused'
+      fullPath: '/admin/media/unused'
+      preLoaderRoute: typeof AuthenticatedAdminMediaUnusedRouteImport
+      parentRoute: typeof AuthenticatedAdminMediaRoute
+    }
     '/_authenticated/admin/feedback/comments': {
       id: '/_authenticated/admin/feedback/comments'
       path: '/comments'
@@ -395,6 +415,20 @@ const AuthenticatedAdminFeedbackRouteWithChildren =
     AuthenticatedAdminFeedbackRouteChildren,
   )
 
+interface AuthenticatedAdminMediaRouteChildren {
+  AuthenticatedAdminMediaUnusedRoute: typeof AuthenticatedAdminMediaUnusedRoute
+}
+
+const AuthenticatedAdminMediaRouteChildren: AuthenticatedAdminMediaRouteChildren =
+  {
+    AuthenticatedAdminMediaUnusedRoute: AuthenticatedAdminMediaUnusedRoute,
+  }
+
+const AuthenticatedAdminMediaRouteWithChildren =
+  AuthenticatedAdminMediaRoute._addFileChildren(
+    AuthenticatedAdminMediaRouteChildren,
+  )
+
 interface AuthenticatedAdminSettingsRouteChildren {
   AuthenticatedAdminSettingsTabRoute: typeof AuthenticatedAdminSettingsTabRoute
 }
@@ -414,7 +448,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminDatasourceRoute: typeof AuthenticatedAdminDatasourceRouteWithChildren
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
-  AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
+  AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRouteWithChildren
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminProxiesRoute: typeof AuthenticatedAdminProxiesRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -426,7 +460,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminDatasourceRoute:
     AuthenticatedAdminDatasourceRouteWithChildren,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
-  AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
+  AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRouteWithChildren,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminProxiesRoute: AuthenticatedAdminProxiesRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
