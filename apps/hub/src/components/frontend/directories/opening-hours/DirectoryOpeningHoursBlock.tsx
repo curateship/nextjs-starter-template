@@ -124,22 +124,21 @@ function parseHoursTextRows(value: string): OpeningHoursDisplayRow[] {
 
   return value
     .split("\n")
-    .map((line) => {
+    .flatMap((line) => {
       const text = line.trim()
       const separatorIndex = text.indexOf(":")
-      if (!text || separatorIndex === -1) return null
+      if (!text || separatorIndex === -1) return []
 
       const day = text.slice(0, separatorIndex).trim()
       const hours = text.slice(separatorIndex + 1).trim()
-      if (!day || !hours) return null
+      if (!day || !hours) return []
 
-      return {
+      return [{
         day,
         hours,
         isToday: day.toLowerCase() === today,
-      }
+      }]
     })
-    .filter((row): row is OpeningHoursDisplayRow => Boolean(row))
 }
 
 export function DirectoryOpeningHoursBlock({
