@@ -24,11 +24,36 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+type DirectorySettingsBlock = {
+  type?: string
+  content?: Record<string, any>
+}
+
+function getFirstRichTextParagraph(blocks: DirectorySettingsBlock[]) {
+  const richTextBlock = blocks.find((block) =>
+    block.type === "directory-rich-text" || block.type === "directory-content"
+  )
+  const body = typeof richTextBlock?.content?.body === "string" ? richTextBlock.content.body : ""
+  const firstParagraph = body.match(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/i)?.[1] || body
+
+  return firstParagraph
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 interface DirectorySettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   directory: Directory | null
   site: any | null
+  blocks?: DirectorySettingsBlock[]
   onSuccess?: (updatedDirectory: Directory) => void
 }
 
@@ -36,6 +61,7 @@ export function DirectorySettingsModal({
   open,
   onOpenChange,
   directory,
+  blocks,
   onSuccess
 }: DirectorySettingsModalProps) {
   const [formData, setFormData] = useState({
@@ -87,10 +113,14 @@ export function DirectorySettingsModal({
 
     let cancelled = false
 
+    const fallbackMetaDescription = getFirstRichTextParagraph(
+      blocks?.length ? blocks : Object.values(directory.content_blocks || {})
+    )
+
     setFormData({
       title: directory.title || '',
       slug: directory.slug || '',
-      meta_description: directory.meta_description || ''
+      meta_description: directory.meta_description || fallbackMetaDescription
     })
     setFeaturedImage(directory.featured_image || '')
     setSelectedTemplateId(directory.template_id || '')
@@ -127,7 +157,7 @@ export function DirectorySettingsModal({
     return () => {
       cancelled = true
     }
-  }, [directory, open])
+  }, [blocks, directory, open])
 
   const handleSaveDraft = async () => {
     if (!directory) return

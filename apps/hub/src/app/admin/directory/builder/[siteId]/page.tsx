@@ -280,6 +280,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
                   onOpenChange={setShow}
                   directory={currentDirectoryRecord || null}
                   site={currentSite}
+                  blocks={currentDirectory.blocks}
                   onSuccess={handleDirectoryUpdated}
                 />
               ) : null
