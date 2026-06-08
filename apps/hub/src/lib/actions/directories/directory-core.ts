@@ -221,6 +221,8 @@ export function normalizeDirectoryCoreContent(
     menuLinks: Array.isArray(nextContent.menuLinks)
       ? nextContent.menuLinks.map(normalizeDirectoryCoreMenuLink).filter(Boolean)
       : [],
+    address: typeof nextContent.address === "string" ? nextContent.address : "",
+    rating: typeof nextContent.rating === "number" || typeof nextContent.rating === "string" ? nextContent.rating : "",
     claimEnabled: nextContent.claimEnabled !== false,
     claimButtonText: typeof nextContent.claimButtonText === "string" ? nextContent.claimButtonText : "Claim Listing",
     claimPendingEmailText: typeof nextContent.claimPendingEmailText === "string" ? nextContent.claimPendingEmailText : "Check Business Email",

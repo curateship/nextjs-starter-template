@@ -14,7 +14,6 @@ import {
   mergeDirectoryTemplateBlocks,
   pruneDirectoryValueBlocksForTemplate,
 } from './directory-template-inheritance'
-import type { DirectoryData } from './directory-data'
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
 export type DirectoryStatus = 'draft' | 'published'
@@ -28,7 +27,6 @@ export interface Directory {
   status: DirectoryStatus
   display_order: number
   content_blocks: Record<string, any>
-  directory_data: DirectoryData
   featured_image: string | null
   meta_description: string | null
   source_type: string | null
@@ -50,7 +48,7 @@ interface DirectoryBuilderData {
 }
 
 
-export interface UpdateDirectoryData {
+export interface UpdateDirectoryInput {
   title?: string
   slug?: string
   status?: DirectoryStatus
@@ -69,7 +67,6 @@ function toDirectory(row: typeof directories.$inferSelect): Directory {
     status: row.status,
     display_order: row.displayOrder,
     content_blocks: (row.contentBlocks ?? {}) as Record<string, any>,
-    directory_data: (row.directoryData ?? {}) as DirectoryData,
     featured_image: row.featuredImage,
     meta_description: row.metaDescription,
     source_type: row.sourceType,
@@ -216,7 +213,7 @@ export async function getSiteDirectoriesWithCategoriesAction(
   }
 }
 
-export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryData) {
+export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryInput) {
   try {
     // Validate directory ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

@@ -9,7 +9,6 @@ import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
 import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-layout"
 import {
@@ -29,7 +28,6 @@ interface DirectoryWithBlocks {
   featured_image?: string | null
   source_type?: string | null
   source_id?: string | null
-  directory_data?: DirectoryData
   blocks: Array<{
     id: string
     type: string
@@ -142,7 +140,6 @@ export function DirectoryBlockRenderer({
           key={`directory-core-${block.id}`}
           content={blockContent}
           directory={directory}
-          directoryData={directory.directory_data}
           loginPath={loginPath}
           siteId={site.id}
           cardProps={getBlockCardProps(block, "overflow-hidden")}
@@ -197,7 +194,6 @@ export function DirectoryBlockRenderer({
         <DirectoryGoogleMapBlock
           key={`directory-google-map-${block.id}`}
           content={blockContent}
-          directoryData={directory.directory_data}
           isPreview={isPreview}
           apiKey={googleMapsEmbedApiKey}
           cardProps={getBlockCardProps(block)}

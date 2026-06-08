@@ -211,15 +211,21 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         d.created_at,
         d.display_order,
         case
-          when d.directory_data #>> '{fields,rating}' ~ '^[0-9]+(\\.[0-9]+)?$'
-          then (d.directory_data #>> '{fields,rating}')::numeric
+          when core_block.content #>> '{rating}' ~ '^[0-9]+(\\.[0-9]+)?$'
+          then (core_block.content #>> '{rating}')::numeric
           else null
         end as rating,
-        nullif(d.directory_data #>> '{fields,address}', '') as address,
-        nullif(d.directory_data #>> '{fields,country}', '') as country
+        nullif(core_block.content #>> '{address}', '') as address,
+        null as country
       from directory d
       inner join sites s on s.id = d.site_id
       inner join users u on u.id = s.user_id
+      left join lateral (
+        select block.value->'content' as content
+        from jsonb_each(coalesce(d.content_blocks, '{}'::jsonb)) as block(key, value)
+        where block.value->>'type' = 'directory-core'
+        limit 1
+      ) core_block on true
       ${getCategoryJoin(categoryIds, 'directory', sql`d.id`)}
       where d.site_id = ${site_id}
         and d.status = 'published'

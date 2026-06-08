@@ -143,7 +143,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         return
       }
 
-      const directoryData = {
+      const directoryPayload = {
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
         site_id: currentSite.id,
@@ -159,7 +159,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(directoryData),
+        body: JSON.stringify(directoryPayload),
       })
 
       const result = await response.json()

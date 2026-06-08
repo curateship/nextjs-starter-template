@@ -13,7 +13,6 @@ import { directoryCustomBlocks } from '@/lib/db/schema/directory-custom-blocks'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { media } from '@/lib/db/schema/media'
 import { sites } from '@/lib/db/schema/sites'
-import type { DirectoryData } from '@/lib/actions/directories/directory-data'
 import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
 import {
   getDirectoryTemplateDefaultCategoryParentId,
@@ -165,14 +164,12 @@ export async function POST(request: NextRequest) {
       const contentBlocks = cleanContentBlocks(sourceBlocks)
       applyBlockMappings(contentBlocks, item, mappings, customBlockTemplates)
       const valueBlocks = pruneDirectoryValueBlocksForTemplate(contentBlocks, template.contentBlocks)
-      const directoryData = buildDirectoryData()
       const values = {
         title,
         status,
         sourceType: GOOGLE_MAPS_SOURCE_TYPE,
         sourceId: placeId,
         contentBlocks: valueBlocks,
-        directoryData,
         updatedAt: new Date(),
         ...(existing?.metaDescription === record.description ? { metaDescription: null } : {}),
         ...(featuredImageSource ? { featuredImage: hubFeaturedImage } : {}),
@@ -208,7 +205,6 @@ export async function POST(request: NextRequest) {
           sourceType: GOOGLE_MAPS_SOURCE_TYPE,
           sourceId: placeId,
           contentBlocks: valueBlocks,
-          directoryData,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
@@ -1098,16 +1094,6 @@ function isPrivateIpv6(address: string) {
     (firstValue & 0xff00) === 0xff00 ||
     normalized.startsWith('2001:db8:')
   )
-}
-
-function buildDirectoryData(): DirectoryData {
-  return {
-    sources: {
-      googleMaps: {
-        importedAt: new Date().toISOString(),
-      },
-    },
-  }
 }
 
 function cleanContentBlocks(existingBlocks: unknown) {

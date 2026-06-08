@@ -16,7 +16,6 @@ export const directories = pgTable('directory', {
   status: directoryStatusEnum('status').notNull().default('draft'),
   displayOrder: integer('display_order').notNull().default(0),
   contentBlocks: jsonb('content_blocks').default({}),
-  directoryData: jsonb('directory_data').notNull().default({}),
   featuredImage: text('featured_image'),
   sourceType: varchar('source_type', { length: 50 }),
   sourceId: varchar('source_id', { length: 255 }),

@@ -110,11 +110,11 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - Directory templates can define a default category parent for Core imports; this only helps assign mapped categories and does not directly render or rewrite listing breadcrumbs.
 - Core exports cleaned Google Maps records to Hub through bridge APIs, and Hub upserts directory rows by `site_id + source_type + source_id`.
 - Core export sends the required identity fields plus fields selected in Core's Google Maps field settings.
-- Venue/business provider values live in `directory.directory_data`; listing-specific block values live in `directory.content_blocks`; shared block layout/settings live in `directory_templates.content_blocks`.
+- Listing-specific block values live in `directory.content_blocks`; shared block layout/settings live in `directory_templates.content_blocks`.
 - Exported featured images are copied into Hub media/R2 before Hub stores the directory image URL.
 - New Core-created directory rows use the Hub site's default directory template and write imported mapped values into directory value overrides.
 - Core provider/import data stays in Core and is not read by Hub at request time.
-- Hub directory blocks read values from `directory_data` at render time.
+- Hub directory blocks read listing values from merged template blocks plus `directory.content_blocks` overrides at render time.
 
 **Frontend slug resolution:**
 - Public page-builder pages own the normal frontend root slug space.

@@ -3,7 +3,6 @@ import {
   getDirectoryGoogleMapEmbedUrl,
   normalizeDirectoryGoogleMapHeight
 } from "@/lib/actions/directories/directory-google-map"
-import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { Card, CardContent } from "@/components/ui/card"
 import type { HTMLAttributes } from "react"
 
@@ -14,7 +13,6 @@ interface DirectoryGoogleMapBlockProps {
     height?: number | string
     visibility?: Record<string, boolean>
   }
-  directoryData?: DirectoryData
   isPreview?: boolean
   apiKey?: string | null
   cardProps?: HTMLAttributes<HTMLDivElement>
@@ -22,7 +20,6 @@ interface DirectoryGoogleMapBlockProps {
 
 export function DirectoryGoogleMapBlock({
   content,
-  directoryData,
   isPreview = false,
   apiKey,
   cardProps
@@ -33,7 +30,7 @@ export function DirectoryGoogleMapBlock({
     return null
   }
 
-  const locationQuery = directoryData?.fields?.address?.trim() || directoryData?.fields?.mapsUrl?.trim() || ""
+  const locationQuery = typeof content?.locationQuery === "string" ? content.locationQuery.trim() : ""
   const caption = typeof content?.caption === "string" ? content.caption.trim() : ""
   const height = normalizeDirectoryGoogleMapHeight(content?.height)
   const embedUrl = getDirectoryGoogleMapEmbedUrl(locationQuery, apiKey)

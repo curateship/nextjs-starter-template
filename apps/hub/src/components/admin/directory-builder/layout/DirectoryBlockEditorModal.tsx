@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { DirectoryBlockEditor, type DirectoryBlockEditorMode } from "./DirectoryBlockEditor"
 
@@ -21,7 +20,6 @@ interface DirectoryBlockEditorModalProps {
   siteId: string
   directoryTitle: string
   directoryFeaturedImage?: string | null
-  directoryData?: DirectoryData
   onDirectoryTitleChange: (title: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   onContentChange: (field: string, value: any) => void
@@ -40,7 +38,6 @@ export function DirectoryBlockEditorModal({
   siteId,
   directoryTitle,
   directoryFeaturedImage,
-  directoryData,
   onDirectoryTitleChange,
   onDirectoryFeaturedImageChange,
   onContentChange,
@@ -88,7 +85,6 @@ export function DirectoryBlockEditorModal({
             siteId={siteId}
             directoryTitle={directoryTitle}
             directoryFeaturedImage={directoryFeaturedImage}
-            directoryData={directoryData}
             onDirectoryTitleChange={onDirectoryTitleChange}
             onDirectoryFeaturedImageChange={onDirectoryFeaturedImageChange}
             customBlockTemplates={customBlockTemplates}

@@ -13,7 +13,6 @@ import {
 } from "@/lib/utils/admin-builder-preview"
 import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -33,7 +32,6 @@ interface Directory {
   featured_image?: string | null
   source_type?: string | null
   source_id?: string | null
-  directory_data?: DirectoryData
   status?: "draft" | "published"
   updated_at?: string
 }
@@ -167,7 +165,6 @@ export function DirectoryPreview({
     featured_image: directory?.featured_image || null,
     source_type: directory?.source_type || null,
     source_id: directory?.source_id || null,
-    directory_data: directory?.directory_data || {},
     blocks: createPreviewEntityBlocks(previewBlocks),
   }
 

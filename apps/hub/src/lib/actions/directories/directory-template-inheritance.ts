@@ -301,14 +301,4 @@ function getDirectoryTemplatePreviewValueContent(
 export const DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY = {
   title: 'Preview Directory',
   featuredImage: DIRECTORY_TEMPLATE_PREVIEW_IMAGE,
-  directoryData: {
-    fields: {
-      businessName: 'Preview Directory',
-      address: '175 Bloor St E, Toronto, ON',
-      rating: 4.6,
-      phone: '+1 416 555 0198',
-      website: 'https://example.com',
-      mapsUrl: '175 Bloor St E, Toronto, ON',
-    },
-  },
 }

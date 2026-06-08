@@ -3,9 +3,9 @@
 import { use, useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
+import { TemplateSettingsModal } from "@/components/admin/layout/templates/TemplateSettingsModal"
 import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
 import { DIRECTORY_BLOCK_TYPES, getBlockTypeDefinition } from "@/components/admin/directory-builder/config/directory-block-types"
 import {
@@ -26,7 +26,7 @@ import {
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
-import { Blocks, Check, Pencil, X } from "lucide-react"
+import { Blocks } from "lucide-react"
 import {
   getDirectoryCustomBlockSelectionType,
   parseDirectoryCustomBlockSelectionType,
@@ -60,8 +60,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const [saveMessage, setSaveMessage] = useState("")
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
-  const [editingName, setEditingName] = useState(false)
-  const [nameInput, setNameInput] = useState("")
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
@@ -81,7 +79,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
 
     setTemplate(data)
     setCustomBlockTemplates(loadedCustomBlocks)
-    setNameInput(data.name)
     setBlocks(parseDirectoryBlocksFromJson(data.content_blocks || {}, loadedCustomBlocks))
     setSelectedBlock(null)
     setLoading(false)
@@ -247,20 +244,11 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     }
   }
 
-  async function handleSaveName() {
-    if (!template || !nameInput.trim()) return
-
-    const contentBlocks = directoryBlocksToJson(blocks, template.content_blocks || {})
-    const { data, error: saveError } = await updateDirectoryTemplate(template.id, {
-      name: nameInput.trim(),
-      content_blocks: contentBlocks,
-    })
-    if (!saveError && data) {
-      setTemplate(data)
-      setBlocks(parseDirectoryBlocksFromJson(data.content_blocks || {}, customBlockTemplates))
-    }
-
-    setEditingName(false)
+  function handleSettingsSaved(updatedTemplate: DirectoryTemplate) {
+    setTemplate(updatedTemplate)
+    setBlocks(parseDirectoryBlocksFromJson(updatedTemplate.content_blocks || {}, customBlockTemplates))
+    setSaveMessage("Saved!")
+    setTimeout(() => setSaveMessage(""), 3000)
   }
 
   const customBlockDefinitions = customBlockTemplates.map((customTemplate) => ({
@@ -336,51 +324,24 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
       <DashboardStickyHeader
         rightActions={(
           <StickybarTopRightActions
-            rightActions={(
-              <div className="flex items-center gap-2">
-                {editingName ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      value={nameInput}
-                      onChange={(event) => setNameInput(event.target.value)}
-                      className="h-8 w-48 text-sm"
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') handleSaveName()
-                        if (event.key === 'Escape') {
-                          setEditingName(false)
-                          setNameInput(template?.name || "")
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleSaveName}>
-                      <Check className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                      onClick={() => {
-                        setEditingName(false)
-                        setNameInput(template?.name || "")
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button variant="ghost" size="sm" onClick={() => setEditingName(true)} title="Rename template">
-                    <Pencil className="w-3.5 h-3.5 mr-1" />
-                    Rename
-                  </Button>
-                )}
-              </div>
-            )}
             saveMessage={saveMessage}
             isSaving={isSaving}
             onSave={handleSave}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
+            renderSettingsModal={(show, setShow) => (
+              <TemplateSettingsModal
+                contentBlocks={template ? directoryBlocksToJson(blocks, template.content_blocks || {}) : undefined}
+                createPlaceholder="e.g. Featured Listing Layout"
+                enableDefaultCategoryParent
+                onError={setError}
+                onOpenChange={setShow}
+                onSaved={handleSettingsSaved}
+                open={show}
+                template={template}
+                updateTemplate={updateDirectoryTemplate}
+              />
+            )}
           />
         )}
       />
@@ -397,7 +358,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
                 id: 'preview',
                 site_id: template?.site_id || currentSite?.id || 'preview-site',
                 featured_image: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.featuredImage,
-                directory_data: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.directoryData,
                 status: 'draft',
               } as any}
               site={previewSite}
@@ -452,6 +412,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
           entityName="directory template"
         />
       </div>
+
     </div>
   )
 }

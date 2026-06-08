@@ -10,7 +10,6 @@ import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-c
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 
 interface DirectoryBlock {
   id: string
@@ -28,7 +27,6 @@ interface DirectoryBlockEditorProps {
   siteId: string
   directoryTitle: string
   directoryFeaturedImage?: string | null
-  directoryData?: DirectoryData
   onDirectoryTitleChange: (title: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   customBlockTemplates: DirectoryCustomBlockTemplate[]
@@ -43,7 +41,6 @@ export function DirectoryBlockEditor({
   siteId,
   directoryTitle,
   directoryFeaturedImage,
-  directoryData,
   onDirectoryTitleChange,
   onDirectoryFeaturedImageChange,
   customBlockTemplates,
@@ -67,11 +64,8 @@ export function DirectoryBlockEditor({
         content={content}
         onContentChange={onContentChange}
         siteId={siteId}
-        directoryData={{
-          title: directoryTitle,
-          featured_image: directoryFeaturedImage,
-          fields: directoryData?.fields,
-        }}
+        directoryTitle={directoryTitle}
+        directoryFeaturedImage={directoryFeaturedImage}
         onDirectoryTitleChange={onDirectoryTitleChange}
         onDirectoryFeaturedImageChange={onDirectoryFeaturedImageChange}
         showDirectoryTitleField={showDirectoryTitleField}

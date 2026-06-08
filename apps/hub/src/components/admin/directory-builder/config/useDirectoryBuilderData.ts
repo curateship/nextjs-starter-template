@@ -8,10 +8,10 @@ import { parseDirectoryBlocksFromJson, type DirectoryEditorBlock } from "./direc
 
 type DirectoryBuilderDataResult = Awaited<ReturnType<typeof getDirectoryBuilderDataAction>>
 
-const DIRECTORY_DATA_CACHE_TTL_MS = 3000
-const directoryDataRequestCache = new Map<string, { expiresAt: number; promise: Promise<DirectoryBuilderDataResult> }>()
+const DIRECTORY_BUILDER_DATA_CACHE_TTL_MS = 3000
+const directoryBuilderRequestCache = new Map<string, { expiresAt: number; promise: Promise<DirectoryBuilderDataResult> }>()
 
-function getDirectoryDataRequestKey(siteId: string, selectedDirectory: string) {
+function getDirectoryBuilderRequestKey(siteId: string, selectedDirectory: string) {
   return `${siteId}::${selectedDirectory}`
 }
 
@@ -20,25 +20,25 @@ function loadDirectoryBuilderData(
   selectedDirectory: string,
   options?: { bypassCache?: boolean }
 ) {
-  const requestKey = getDirectoryDataRequestKey(siteId, selectedDirectory)
+  const requestKey = getDirectoryBuilderRequestKey(siteId, selectedDirectory)
 
   if (!options?.bypassCache) {
-    const cached = directoryDataRequestCache.get(requestKey)
+    const cached = directoryBuilderRequestCache.get(requestKey)
     if (cached && cached.expiresAt > Date.now()) {
       return cached.promise
     }
   }
 
   const promise = getDirectoryBuilderDataAction(siteId, selectedDirectory)
-  directoryDataRequestCache.set(requestKey, {
-    expiresAt: Date.now() + DIRECTORY_DATA_CACHE_TTL_MS,
+  directoryBuilderRequestCache.set(requestKey, {
+    expiresAt: Date.now() + DIRECTORY_BUILDER_DATA_CACHE_TTL_MS,
     promise,
   })
 
   return promise
 }
 
-interface UseDirectoryDataReturn {
+interface UseDirectoryBuilderDataReturn {
   site: SiteWithTheme | null
   directory: Directory | null
   directoryOptions: DirectorySummary[]
@@ -50,7 +50,7 @@ interface UseDirectoryDataReturn {
   reloadBlocks: () => Promise<void>
 }
 
-export function useDirectoryData(siteId: string, selectedDirectory: string): UseDirectoryDataReturn {
+export function useDirectoryBuilderData(siteId: string, selectedDirectory: string): UseDirectoryBuilderDataReturn {
   const { currentSite } = useSiteSwitcher()
   const [directory, setDirectory] = useState<Directory | null>(null)
   const [siteLoading, setSiteLoading] = useState(!currentSite)
@@ -64,7 +64,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
     setSiteLoading(!currentSite)
   }, [currentSite])
 
-  const loadDirectoryData = useCallback(async () => {
+  const loadSelectedDirectory = useCallback(async () => {
     setSiteLoading(true)
     setBlocksLoading(true)
     setSiteError("")
@@ -98,7 +98,7 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
       setDirectoryOptions([])
       setBlocks({})
       setCustomBlockTemplates([])
-      console.error('Error loading directory data:', error)
+      console.error('Error loading directory builder data:', error)
     }
 
     setSiteLoading(false)
@@ -146,15 +146,15 @@ export function useDirectoryData(siteId: string, selectedDirectory: string): Use
       setDirectoryOptions([])
       setBlocks({})
       setCustomBlockTemplates([])
-      console.error('Error reloading directory data:', error)
+      console.error('Error reloading directory builder data:', error)
     }
 
     setBlocksLoading(false)
   }, [siteId, selectedDirectory])
 
   useEffect(() => {
-    loadDirectoryData()
-  }, [loadDirectoryData])
+    loadSelectedDirectory()
+  }, [loadSelectedDirectory])
 
   return {
     site: currentSite,

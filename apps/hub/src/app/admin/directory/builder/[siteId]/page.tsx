@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { use } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useDirectoryData } from "@/components/admin/directory-builder/config/useDirectoryData"
+import { useDirectoryBuilderData } from "@/components/admin/directory-builder/config/useDirectoryBuilderData"
 import { useDirectoryBuilder } from "@/components/admin/directory-builder/config/useDirectoryBuilder"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
@@ -48,14 +48,14 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   // Custom hooks for data and state management
   const {
     site,
-    directory: currentDirectoryData,
+    directory: currentDirectoryRecord,
     directoryOptions,
     blocks,
     customBlockTemplates,
     blocksLoading,
     siteError,
     reloadBlocks,
-  } = useDirectoryData(siteId, selectedDirectory)
+  } = useDirectoryBuilderData(siteId, selectedDirectory)
 
   useEffect(() => {
     if (directoryOptions.length === 0) return
@@ -77,7 +77,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     blocks: localBlocks,
     setBlocks: setLocalBlocks,
     selectedDirectory,
-    directoryId: currentDirectoryData?.id,
+    directoryId: currentDirectoryRecord?.id,
   })
   const selectedBlock = builderState.selectedBlock
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
@@ -86,10 +86,10 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
-  // Current directory data with staged deletions filtered out
+  // Current directory row with staged deletions filtered out
   const currentDirectory = {
     slug: selectedDirectory,
-    name: currentDirectoryData?.title || selectedDirectory,
+    name: currentDirectoryRecord?.title || selectedDirectory,
     blocks: localBlocks[selectedDirectory] || []
   }
 
@@ -106,18 +106,18 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         ? JSON.parse(JSON.stringify(selectedBlock.content))
         : {}
     )
-    setDraftDirectoryTitle(currentDirectoryData?.title || selectedDirectory)
-    setDraftDirectoryFeaturedImage(currentDirectoryData?.featured_image || "")
+    setDraftDirectoryTitle(currentDirectoryRecord?.title || selectedDirectory)
+    setDraftDirectoryFeaturedImage(currentDirectoryRecord?.featured_image || "")
     setBlockSaveError(null)
-  }, [selectedBlock, currentDirectoryData?.featured_image, currentDirectoryData?.title, selectedDirectory])
+  }, [selectedBlock, currentDirectoryRecord?.featured_image, currentDirectoryRecord?.title, selectedDirectory])
 
   // Handle directory updates
   const handleDirectoryUpdated = async (updatedDirectory: Directory) => {
-    if (currentDirectoryData && currentDirectoryData.slug !== updatedDirectory.slug) {
+    if (currentDirectoryRecord && currentDirectoryRecord.slug !== updatedDirectory.slug) {
       // Move blocks from old slug to new slug
       setLocalBlocks(prev => {
-        const blocksForDirectory = prev[currentDirectoryData.slug] || []
-        const { [currentDirectoryData.slug]: removed, ...rest } = prev
+        const blocksForDirectory = prev[currentDirectoryRecord.slug] || []
+        const { [currentDirectoryRecord.slug]: removed, ...rest } = prev
         return {
           ...rest,
           [updatedDirectory.slug]: blocksForDirectory
@@ -133,10 +133,10 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   // Handle directory information updates
   const updateCurrentDirectory = async (updates: { title?: string; featured_image?: string; status?: 'draft' | 'published' }) => {
-    if (!currentDirectoryData?.id) return
+    if (!currentDirectoryRecord?.id) return
 
     try {
-      const { data, error } = await updateDirectoryAction(currentDirectoryData.id, updates)
+      const { data, error } = await updateDirectoryAction(currentDirectoryRecord.id, updates)
       if (error) {
         console.error('Failed to update directory:', error)
         return
@@ -151,7 +151,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   const [isPublishing, setIsPublishing] = useState(false)
   const handlePublish = async () => {
-    if (!currentDirectoryData?.id) return
+    if (!currentDirectoryRecord?.id) return
     try {
       setIsPublishing(true)
       await updateCurrentDirectory({ status: 'published' })
@@ -178,7 +178,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   }
 
   const handleSaveBlockEditor = async () => {
-    if (!selectedBlock || !currentDirectoryData?.id) return
+    if (!selectedBlock || !currentDirectoryRecord?.id) return
 
     setIsSavingBlock(true)
     setBlockSaveError(null)
@@ -193,12 +193,12 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
       let updatedDirectory: Directory | null = null
       if (selectedBlock.type === DIRECTORY_CORE_BLOCK_TYPE) {
-        const nextTitle = draftDirectoryTitle.trim() || currentDirectoryData.title
+        const nextTitle = draftDirectoryTitle.trim() || currentDirectoryRecord.title
         const nextFeaturedImage = draftDirectoryFeaturedImage.trim() || null
-        const currentFeaturedImage = currentDirectoryData.featured_image || null
+        const currentFeaturedImage = currentDirectoryRecord.featured_image || null
         const directoryUpdates: { title?: string; featured_image?: string | null } = {}
 
-        if (nextTitle !== currentDirectoryData.title) {
+        if (nextTitle !== currentDirectoryRecord.title) {
           directoryUpdates.title = nextTitle
         }
 
@@ -207,7 +207,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         }
 
         if (Object.keys(directoryUpdates).length > 0) {
-          const { data, error } = await updateDirectoryAction(currentDirectoryData.id, directoryUpdates)
+          const { data, error } = await updateDirectoryAction(currentDirectoryRecord.id, directoryUpdates)
           if (error || !data) {
             setBlockSaveError(error || "Failed to save directory details")
             return
@@ -217,7 +217,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
       }
 
       const contentBlocks = directoryBlocksToValueJson(nextBlocks)
-      const result = await updateDirectoryBlockValuesAction(currentDirectoryData.id, contentBlocks)
+      const result = await updateDirectoryBlockValuesAction(currentDirectoryRecord.id, contentBlocks)
       if (!result.success) {
         setBlockSaveError(result.error || "Failed to save block")
         return
@@ -248,14 +248,14 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
 
   const selectedBlockIsCore = selectedBlock?.type === DIRECTORY_CORE_BLOCK_TYPE
   const previewDirectoryTitle = selectedBlockIsCore
-    ? draftDirectoryTitle.trim() || currentDirectoryData?.title || currentDirectory.name
-    : currentDirectoryData?.title || currentDirectory.name
+    ? draftDirectoryTitle.trim() || currentDirectoryRecord?.title || currentDirectory.name
+    : currentDirectoryRecord?.title || currentDirectory.name
 
   const previewDirectoryFeaturedImage = selectedBlockIsCore
     ? draftDirectoryFeaturedImage.trim() || null
-    : currentDirectoryData?.featured_image || null
-  const viewPageHref = site && currentDirectoryData
-    ? `${getSiteUrl(site)}/directory/${currentDirectoryData.slug}`
+    : currentDirectoryRecord?.featured_image || null
+  const viewPageHref = site && currentDirectoryRecord
+    ? `${getSiteUrl(site)}/directory/${currentDirectoryRecord.slug}`
     : null
 
   return (
@@ -269,16 +269,16 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             onSave={builderState.handleSaveAllBlocks}
             onPublish={handlePublish}
             isPublishing={isPublishing}
-            isPublished={currentDirectoryData?.status === "published"}
+            isPublished={currentDirectoryRecord?.status === "published"}
             blockListOpen={blockListOpen}
             onToggleBlockList={() => setBlockListOpen(!blockListOpen)}
-            settingsDisabled={!currentDirectoryData}
+            settingsDisabled={!currentDirectoryRecord}
             renderSettingsModal={(show, setShow) => (
               show ? (
                 <DirectorySettingsModal
                   open={show}
                   onOpenChange={setShow}
-                  directory={currentDirectoryData || null}
+                  directory={currentDirectoryRecord || null}
                   site={currentSite}
                   onSuccess={handleDirectoryUpdated}
                 />
@@ -292,18 +292,17 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           <ScrollArea className="h-full">
             <DirectoryPreview
               blocks={previewBlocks}
-              directory={currentDirectoryData ? {
-                id: currentDirectoryData.id || 'preview',
+              directory={currentDirectoryRecord ? {
+                id: currentDirectoryRecord.id || 'preview',
                 title: previewDirectoryTitle,
-                slug: currentDirectoryData.slug,
-                meta_description: currentDirectoryData.meta_description || undefined,
-                site_id: currentDirectoryData.site_id,
+                slug: currentDirectoryRecord.slug,
+                meta_description: currentDirectoryRecord.meta_description || undefined,
+                site_id: currentDirectoryRecord.site_id,
                 featured_image: previewDirectoryFeaturedImage,
-                source_type: currentDirectoryData.source_type,
-                source_id: currentDirectoryData.source_id,
-                directory_data: currentDirectoryData.directory_data,
-                status: currentDirectoryData.status || 'draft',
-                updated_at: currentDirectoryData.updated_at,
+                source_type: currentDirectoryRecord.source_type,
+                source_id: currentDirectoryRecord.source_id,
+                status: currentDirectoryRecord.status || 'draft',
+                updated_at: currentDirectoryRecord.updated_at,
               } : undefined}
               site={{
                 id: siteId,
@@ -339,7 +338,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           siteId={siteId}
           directoryTitle={draftDirectoryTitle}
           directoryFeaturedImage={draftDirectoryFeaturedImage}
-          directoryData={currentDirectoryData?.directory_data}
           onDirectoryTitleChange={setDraftDirectoryTitle}
           onDirectoryFeaturedImageChange={handleDraftFeaturedImageChange}
           onContentChange={handleDraftChange}

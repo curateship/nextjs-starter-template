@@ -9,7 +9,6 @@ import {
   type DirectoryCoreMenuLink,
   type DirectoryCoreSocialLink
 } from "@/lib/actions/directories/directory-core"
-import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { DirectoryClaimButton } from "@/components/frontend/directories/claim/DirectoryClaimButton"
 import { DirectorySaveDropdown } from "@/components/frontend/directories/DirectorySaveDropdown"
 import { Rating } from "@/components/shadcnblocks/rating"
@@ -26,7 +25,6 @@ interface DirectoryCoreBlockProps {
     slug?: string | null
     featured_image?: string | null
   }
-  directoryData?: DirectoryData
   loginPath?: string
   siteId?: string | null
   cardProps?: HTMLAttributes<HTMLDivElement>
@@ -109,51 +107,9 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   )
 }
 
-function getDataMenuLinkConfig(content: Record<string, any> | undefined, type: DirectoryCoreMenuLink["type"]) {
-  const links = Array.isArray(content?.menuLinks) ? content.menuLinks : []
-  return links
-    .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
-    .find((link): link is DirectoryCoreMenuLink => Boolean(link && link.type === type))
-}
-
-function buildDataMenuLink(
-  content: Record<string, any> | undefined,
-  type: DirectoryCoreMenuLink["type"],
-  value?: string | null,
-  labelOverride?: string | null
-): DirectoryCoreMenuLink | null {
-  const trimmedValue = value?.trim()
-  if (!trimmedValue) return null
-
-  const config = getDataMenuLinkConfig(content, type)
-  const label = labelOverride?.trim() || config?.label?.trim() || (type === "phone" ? trimmedValue : "")
-  return {
-    id: config?.id || `${type}-directory-data`,
-    type,
-    label,
-    value: trimmedValue,
-    icon: config?.icon,
-  }
-}
-
-function getDirectoryFieldValue(fields: DirectoryData["fields"], type: DirectoryCoreMenuLink["type"]) {
-  switch (type) {
-    case "directions":
-      return fields?.mapsUrl || fields?.address
-    case "phone":
-      return fields?.phone
-    case "website":
-      return fields?.website
-    default:
-      return ""
-  }
-}
-
-function formatDirectoryAddress(address?: string | null, country?: string | null) {
+function formatDirectoryAddress(address?: string | null) {
   const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean)
-  const countryNames = [country, "United States", "USA", "US", "Canada", "CA"]
-    .filter(Boolean)
-    .map((value) => value!.toLowerCase())
+  const countryNames = ["united states", "usa", "us", "canada", "ca"]
 
   return parts
     .filter((part, index) => index !== parts.length - 1 || !countryNames.includes(part.toLowerCase()))
@@ -167,7 +123,7 @@ function formatDirectoryAddress(address?: string | null, country?: string | null
     .join(", ")
 }
 
-export function DirectoryCoreBlock({ content, directory, directoryData, loginPath, siteId, cardProps }: DirectoryCoreBlockProps) {
+export function DirectoryCoreBlock({ content, directory, loginPath, siteId, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
 
@@ -178,39 +134,32 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
         .map((link, index) => normalizeDirectoryCoreSocialLink(link, index))
         .filter((link): link is DirectoryCoreSocialLink => !!link)
     : []
-  const fields = directoryData?.fields || {}
-  const addressValue = typeof content?.address === "string" ? content.address : fields.address
-  const address = formatDirectoryAddress(addressValue, fields.country)
+  const address = formatDirectoryAddress(typeof content?.address === "string" ? content.address : "")
   const configuredMenuLinks = Array.isArray(content?.menuLinks)
     ? content.menuLinks
         .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
         .filter((link): link is DirectoryCoreMenuLink => !!link)
     : []
-  const menuLinks = (configuredMenuLinks.length > 0
-    ? configuredMenuLinks
-    : [
-        { id: "directions-directory-data", type: "directions" as const },
-        { id: "phone-directory-data", type: "phone" as const },
-        { id: "website-directory-data", type: "website" as const },
-        { id: "claim-directory-data", type: "claim" as const, label: "Claim Listing", icon: "building" },
-      ]
-  ).filter((link, index, links) => {
+  const valueMenuLinks = configuredMenuLinks.filter((link, index, links) => {
     if (link.type === "claim" && links.findIndex((item) => item.type === "claim") !== index) return false
     if (link.type === "claim") return Boolean(directory.id) && content?.claimEnabled !== false
-    if (link.type === "custom" || link.type === "email") return Boolean(link.value?.trim())
-    return Boolean(getDirectoryFieldValue(fields, link.type)?.trim())
-  }).map((link) => {
-    if (link.type === "claim" || link.type === "custom" || link.type === "email") return link
-    return buildDataMenuLink(
-      content,
-      link.type,
-      getDirectoryFieldValue(fields, link.type),
-      link.type === "directions" ? address : null
-    ) || link
+    return Boolean(link.value?.trim())
   })
-  const title = fields.businessName || directory.title || "Directory Listing"
+  const hasClaimLink = valueMenuLinks.some((link) => link.type === "claim")
+  const menuLinks = !hasClaimLink && directory.id && content?.claimEnabled !== false
+    ? [
+        ...valueMenuLinks,
+        {
+          id: "claim-action",
+          type: "claim" as const,
+          label: typeof content?.claimButtonText === "string" ? content.claimButtonText : "Claim Listing",
+          icon: "building" as const,
+        },
+      ]
+    : valueMenuLinks
+  const title = directory.title || "Directory Listing"
   const hasContentRating = typeof content?.rating === "number" || typeof content?.rating === "string"
-  const ratingValue = hasContentRating ? Number(content.rating) : Number(fields.rating)
+  const ratingValue = hasContentRating ? Number(content.rating) : Number.NaN
   const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? Math.min(5, ratingValue) : null
   const showRating = visibility.rating !== false
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)

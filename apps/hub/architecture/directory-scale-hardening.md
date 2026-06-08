@@ -113,7 +113,7 @@ Instead it:
 Relevant files:
 
 - `src/app/admin/directory/builder/[siteId]/page.tsx`
-- `src/components/admin/directory-builder/config/useDirectoryData.ts`
+- `src/components/admin/directory-builder/config/useDirectoryBuilderData.ts`
 
 ### 6. Unified Directory State Around `status`
 

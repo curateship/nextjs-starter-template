@@ -60,7 +60,6 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
             d.template_id as "templateId",
             d.content_blocks as "valueBlocks",
             dt.content_blocks as "templateContentBlocks",
-            d.directory_data as "directoryData",
             d.featured_image as "featuredImage",
             d.source_type as "sourceType",
             d.source_id as "sourceId",
