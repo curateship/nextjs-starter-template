@@ -35,7 +35,7 @@ export const fieldSettingSchema = z.object({
   order: z.number().int().min(0).max(500),
 })
 export const fieldSettingsSchema = z.array(fieldSettingSchema).max(100)
-export const hubExportMappingTargetKinds = ["directoryTitle", "directoryFeaturedImage", "directoryCategory", "directoryDataField", "richTextBody", "googleMapLocationQuery", "openingHoursPlaceId", "customField", "coreContentField", "coreMenuLink", "coreSocialLink"] as const
+export const hubExportMappingTargetKinds = ["directoryTitle", "directoryFeaturedImage", "directoryCategory", "directoryDataField", "richTextBody", "googleMapLocationQuery", "openingHoursPlaceId", "openingHoursText", "customField", "coreContentField", "coreMenuLink", "coreSocialLink"] as const
 export const hubExportMappingSchema = z.object({
   siteId: z.string().trim().min(1).max(100),
   sourceKey: z.string().trim().min(1).max(100),

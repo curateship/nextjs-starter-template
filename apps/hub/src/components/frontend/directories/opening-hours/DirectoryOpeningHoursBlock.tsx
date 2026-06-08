@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import type { HTMLAttributes, ReactNode } from "react"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type {
   DirectoryOpeningHoursAttribution,
@@ -14,7 +13,9 @@ import { cn } from "@/lib/utils/tailwind"
 interface DirectoryOpeningHoursBlockProps {
   content?: {
     title?: string
+    sourceMode?: string
     placeId?: string
+    hoursText?: string
     visibility?: Record<string, boolean>
   }
   sourceType?: string | null
@@ -42,8 +43,10 @@ function OpeningHoursCard({
   return (
     <Card {...rootProps} className={cardClassName}>
       <CardContent>
-        {showTitle ? <h2 className="text-2xl font-semibold tracking-normal text-foreground">{title}</h2> : null}
-        {children ? <div className={cn(showTitle && "mt-8")}>{children}</div> : null}
+        {showTitle ? (
+          <h2 className="text-xl font-semibold tracking-normal text-foreground">{title}</h2>
+        ) : null}
+        {children ? <div className={cn(showTitle && "mt-4")}>{children}</div> : null}
         {footer ? <div className="mt-8 space-y-3 border-t pt-5">{footer}</div> : null}
       </CardContent>
     </Card>
@@ -84,6 +87,61 @@ function AttributionText({ attributions }: { attributions: DirectoryOpeningHours
   )
 }
 
+type OpeningHoursDisplayRow = {
+  day: string
+  hours: string
+  isToday?: boolean
+}
+
+function OpeningHoursRows({ rows }: { rows: OpeningHoursDisplayRow[] }) {
+  const todayRow = rows.find((row) => row.isToday)
+  const orderedRows = todayRow ? [todayRow, ...rows.filter((row) => !row.isToday)] : rows
+
+  return (
+    <div className="space-y-2.5">
+      {orderedRows.map((row, index) => {
+        const highlighted = index === 0 && row.isToday
+
+        return (
+          <div
+            key={`${row.day}-${index}`}
+            className={cn(
+              "flex items-center justify-between gap-4 text-sm leading-6 text-muted-foreground",
+              highlighted && "text-base font-semibold text-foreground"
+            )}
+          >
+            <span>{row.day}</span>
+            <span className={cn("shrink-0 text-right", highlighted && "text-foreground")}>{row.hours}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function parseHoursTextRows(value: string): OpeningHoursDisplayRow[] {
+  const today = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date()).toLowerCase()
+
+  return value
+    .split("\n")
+    .map((line) => {
+      const text = line.trim()
+      const separatorIndex = text.indexOf(":")
+      if (!text || separatorIndex === -1) return null
+
+      const day = text.slice(0, separatorIndex).trim()
+      const hours = text.slice(separatorIndex + 1).trim()
+      if (!day || !hours) return null
+
+      return {
+        day,
+        hours,
+        isToday: day.toLowerCase() === today,
+      }
+    })
+    .filter((row): row is OpeningHoursDisplayRow => Boolean(row))
+}
+
 export function DirectoryOpeningHoursBlock({
   content,
   sourceType,
@@ -94,7 +152,11 @@ export function DirectoryOpeningHoursBlock({
 }: DirectoryOpeningHoursBlockProps) {
   const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
   const hideBlock = visibility.hideBlock === true
-  const placeId = sourceType === "google_maps" ? normalizeDirectoryOpeningHoursPlaceId(sourceId) : ""
+  const sourceMode = content?.sourceMode === "text" ? "text" : "google"
+  const placeId = sourceMode === "google"
+    ? normalizeDirectoryOpeningHoursPlaceId(content?.placeId) || (sourceType === "google_maps" ? normalizeDirectoryOpeningHoursPlaceId(sourceId) : "")
+    : ""
+  const hoursText = typeof content?.hoursText === "string" ? content.hoursText.trim() : ""
   const title = typeof content?.title === "string" && content.title.trim() ? content.title.trim() : "Business Hours"
   const [data, setData] = useState<DirectoryOpeningHoursData | null>(null)
 
@@ -142,11 +204,21 @@ export function DirectoryOpeningHoursBlock({
 
   const showTitle = visibility.title !== false
   const showHours = visibility.hours !== false
-  const showOpenChip = visibility.openChip !== false
   const showTimezone = visibility.timezone !== false && data?.timeZone
 
   if (!showTitle && !showHours && !showTimezone) {
     return null
+  }
+
+  if (sourceMode === "text") {
+    const textRows = parseHoursTextRows(hoursText)
+    if (!showTitle && (!showHours || !hoursText)) return null
+
+    return (
+      <OpeningHoursCard title={title} showTitle={showTitle} cardProps={cardProps}>
+        {showHours && textRows.length ? <OpeningHoursRows rows={textRows} /> : null}
+      </OpeningHoursCard>
+    )
   }
 
   if (!placeId) {
@@ -170,27 +242,7 @@ export function DirectoryOpeningHoursBlock({
       }
     >
       {showHours ? (
-        <div className="space-y-5">
-          {data.rows.map((row) => (
-            <div
-              key={row.day}
-              className={cn(
-                "flex items-center justify-between gap-4 text-lg leading-7 text-muted-foreground",
-                row.isToday && "font-semibold text-foreground"
-              )}
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span>{row.day}</span>
-                {row.isToday && data.openNow && showOpenChip ? (
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                    Open
-                  </Badge>
-                ) : null}
-              </div>
-              <span className="shrink-0 text-right font-semibold text-foreground">{row.hours}</span>
-            </div>
-          ))}
-        </div>
+        <OpeningHoursRows rows={data.rows} />
       ) : null}
     </OpeningHoursCard>
   )

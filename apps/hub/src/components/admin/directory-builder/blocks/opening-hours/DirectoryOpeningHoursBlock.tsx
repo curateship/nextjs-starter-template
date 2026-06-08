@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 
 interface DirectoryOpeningHoursBlockProps {
   content: Record<string, any>
@@ -14,6 +16,8 @@ export function DirectoryOpeningHoursBlock({
   content,
   onContentChange,
 }: DirectoryOpeningHoursBlockProps) {
+  const sourceMode = content.sourceMode === "text" ? "text" : "google"
+
   return (
     <CardGroup className="grid">
       <Card>
@@ -32,14 +36,39 @@ export function DirectoryOpeningHoursBlock({
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="directory-opening-hours-place-id">Google Place ID</FieldLabel>
-            <Input
-              id="directory-opening-hours-place-id"
-              value={content.placeId ?? ""}
-              onChange={(event) => onContentChange("placeId", event.target.value)}
-              placeholder="ChIJ..."
-            />
+            <FieldLabel>Hours Source</FieldLabel>
+            <Select value={sourceMode} onValueChange={(value) => onContentChange("sourceMode", value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="google">Google Place ID</SelectItem>
+                <SelectItem value="text">Text</SelectItem>
+              </SelectContent>
+            </Select>
           </Field>
+
+          {sourceMode === "text" ? (
+            <Field>
+              <FieldLabel htmlFor="directory-opening-hours-text">Hours Text</FieldLabel>
+              <Textarea
+                id="directory-opening-hours-text"
+                value={content.hoursText ?? ""}
+                onChange={(event) => onContentChange("hoursText", event.target.value)}
+                placeholder={"Monday: Closed\nTuesday: 11 AM to 9 PM"}
+              />
+            </Field>
+          ) : (
+            <Field>
+              <FieldLabel htmlFor="directory-opening-hours-place-id">Google Place ID</FieldLabel>
+              <Input
+                id="directory-opening-hours-place-id"
+                value={content.placeId ?? ""}
+                onChange={(event) => onContentChange("placeId", event.target.value)}
+                placeholder="ChIJ..."
+              />
+            </Field>
+          )}
         </CardContent>
       </Card>
     </CardGroup>

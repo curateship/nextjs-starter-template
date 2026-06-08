@@ -96,7 +96,7 @@ function blockTargets(type: string, customTemplate?: { fields: unknown }) {
   }
 
   if (type === 'directory-opening-hours') {
-    return [{ kind: 'openingHoursPlaceId', field_key: 'placeId', label: 'Place ID', value_type: 'text' }]
+    return [{ kind: 'openingHoursText', field_key: 'hoursText', label: 'Hours text', value_type: 'text' }]
   }
 
   if (type === 'directory-core') {

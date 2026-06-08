@@ -591,6 +591,7 @@ function hubExportTargetDefaultFieldKey(targetKind: GoogleMapsHubExportMapping["
   if (targetKind === "richTextBody") return "body"
   if (targetKind === "googleMapLocationQuery") return "locationQuery"
   if (targetKind === "openingHoursPlaceId") return "placeId"
+  if (targetKind === "openingHoursText") return "hoursText"
   return ""
 }
 

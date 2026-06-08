@@ -14,7 +14,7 @@ const DIRECTORY_VALUE_KEYS: Record<string, string[]> = {
   'directory-rich-text': ['body', 'format'],
   'directory-content': ['body', 'format'],
   [DIRECTORY_GOOGLE_MAP_BLOCK_TYPE]: ['locationQuery', 'caption'],
-  [DIRECTORY_OPENING_HOURS_BLOCK_TYPE]: ['title', 'placeId'],
+  [DIRECTORY_OPENING_HOURS_BLOCK_TYPE]: ['title', 'sourceMode', 'placeId', 'hoursText'],
 }
 
 const DIRECTORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {

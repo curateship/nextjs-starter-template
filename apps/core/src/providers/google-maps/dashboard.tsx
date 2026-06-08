@@ -1950,7 +1950,7 @@ function hubWiringAutoTargetScore(source: HubWiringSourceOption, target: HubWiri
   if (sourceKey === "featuredImage" && target.kind === "directoryFeaturedImage") return 0
   if (sourceKey === "neighborhood" && target.kind === "directoryCategory") return 0
   if (target.kind === "coreContentField" && target.fieldKey === sourceKey) return 0
-  if (sourceKey === "google_maps_place_id" && target.kind === "openingHoursPlaceId") return 0
+  if ((sourceKey.toLowerCase().includes("openinghours") || sourceLabel.includes("openinghours")) && target.kind === "openingHoursText") return 0
   if (sourceKey === "address" && target.kind === "googleMapLocationQuery") return 1
   if (sourceKey === "mapsUrl" && target.kind === "coreMenuLink" && target.fieldKey === "directions") return 1
   if ((sourceKey === "phone" || sourceKey === "website") && target.kind === "coreMenuLink" && target.fieldKey === sourceKey) return 1
@@ -1981,6 +1981,7 @@ function hubWiringDefaultTargetFieldKey(targetKind: GoogleMapsHubExportMapping["
   if (targetKind === "richTextBody") return "body"
   if (targetKind === "googleMapLocationQuery") return "locationQuery"
   if (targetKind === "openingHoursPlaceId") return "placeId"
+  if (targetKind === "openingHoursText") return "hoursText"
   return ""
 }
 

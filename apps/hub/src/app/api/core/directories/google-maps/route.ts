@@ -41,7 +41,7 @@ interface GoogleMapsBlockMapping {
 type NormalizedBlockMapping = {
   sourceKey: string
   targetBlockId: string
-  targetKind: 'directoryTitle' | 'directoryFeaturedImage' | 'directoryCategory' | 'richTextBody' | 'googleMapLocationQuery' | 'openingHoursPlaceId' | 'customField' | 'coreContentField' | 'coreMenuLink' | 'coreSocialLink'
+  targetKind: 'directoryTitle' | 'directoryFeaturedImage' | 'directoryCategory' | 'richTextBody' | 'googleMapLocationQuery' | 'openingHoursPlaceId' | 'openingHoursText' | 'customField' | 'coreContentField' | 'coreMenuLink' | 'coreSocialLink'
   targetFieldKey: string
 }
 
@@ -55,6 +55,7 @@ const TARGET_KINDS = new Set([
   'richTextBody',
   'googleMapLocationQuery',
   'openingHoursPlaceId',
+  'openingHoursText',
   'customField',
   'coreContentField',
   'coreMenuLink',
@@ -596,6 +597,25 @@ function applyBlockMappings(
       block.content = {
         ...(block.content || {}),
         placeId: String(sourceValue),
+      }
+      continue
+    }
+
+    if (mapping.targetKind === 'openingHoursText') {
+      if (block.type !== 'directory-opening-hours') {
+        throw new Error(`Mapped block "${mapping.targetBlockId}" is not an Opening Hours block.`)
+      }
+
+      const hoursText = Array.isArray(sourceValue)
+        ? sourceValue.filter((item) => typeof item === 'string' && item.trim()).join('\n')
+        : typeof sourceValue === 'string' ? sourceValue.trim() : ''
+
+      if (!hoursText) continue
+
+      block.content = {
+        ...(block.content || {}),
+        sourceMode: 'text',
+        hoursText,
       }
       continue
     }
