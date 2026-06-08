@@ -711,7 +711,6 @@ export async function updateMyClaimedDirectoryAction(input: {
   title: string
   featuredImage?: string | null
   metaDescription?: string | null
-  introText?: string
   socialLinks?: unknown[]
   menuLinks?: unknown[]
   googleMap?: { locationQuery?: string; caption?: string } | null
@@ -756,7 +755,6 @@ export async function updateMyClaimedDirectoryAction(input: {
       ...coreBlock,
       content: {
         ...currentCore,
-        introText: sanitizeText(input.introText, 2000),
         socialLinks: Array.isArray(input.socialLinks)
           ? input.socialLinks.map(normalizeDirectoryCoreSocialLink).filter(Boolean)
           : [],

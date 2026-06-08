@@ -15,7 +15,6 @@ import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-la
 import {
   DIRECTORY_CORE_BLOCK_TYPE,
   normalizeDirectoryCoreContent,
-  type DirectoryCoreCategoryContext,
 } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
@@ -31,7 +30,6 @@ interface DirectoryWithBlocks {
   source_type?: string | null
   source_id?: string | null
   directory_data?: DirectoryData
-  category_context?: DirectoryCoreCategoryContext | null
   blocks: Array<{
     id: string
     type: string

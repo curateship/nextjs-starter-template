@@ -1,12 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -54,7 +53,6 @@ import {
   X,
 } from "lucide-react"
 import {
-  DIRECTORY_CORE_INTRO_SHORTCODES,
   DIRECTORY_CORE_MENU_LINK_TYPES,
   getDirectoryCoreMenuDefaultIcon,
   getDirectoryCoreMenuTypeLabel,
@@ -362,7 +360,6 @@ export function DirectoryCoreBlock({
   onBack,
   showDirectoryTitleField = true,
 }: DirectoryCoreBlockProps) {
-  const introTextRef = useRef<HTMLTextAreaElement | null>(null)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [sortableReady, setSortableReady] = useState(false)
   const [editingSocialLinkIndex, setEditingSocialLinkIndex] = useState<number | null>(null)
@@ -415,7 +412,6 @@ export function DirectoryCoreBlock({
   const address = typeof content.address === "string" ? content.address : fields.address || ""
   const fieldRating = typeof fields.rating === "number" || typeof fields.rating === "string" ? String(fields.rating) : ""
   const rating = typeof content.rating === "number" || typeof content.rating === "string" ? String(content.rating) : fieldRating
-  const introText = typeof content.introText === "string" ? content.introText : ""
   const saveIconOpacityNumber = Number(content.saveIconOpacity)
   const saveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
 
@@ -603,49 +599,6 @@ export function DirectoryCoreBlock({
     }))
   }
 
-  const insertIntroShortcode = (token: string) => {
-    const textarea = introTextRef.current
-    const start = textarea?.selectionStart ?? introText.length
-    const end = textarea?.selectionEnd ?? introText.length
-    const nextIntroText = `${introText.slice(0, start)}${token}${introText.slice(end)}`
-
-    onContentChange("introText", nextIntroText)
-
-    requestAnimationFrame(() => {
-      if (!introTextRef.current) return
-
-      const cursor = start + token.length
-      introTextRef.current.focus()
-      introTextRef.current.setSelectionRange(cursor, cursor)
-    })
-  }
-
-  const introTextField = (
-    <div className="space-y-3">
-      <FieldLabel htmlFor="directory-core-intro-text">Intro Text</FieldLabel>
-      <Textarea
-        ref={introTextRef}
-        id="directory-core-intro-text"
-        value={introText}
-        onChange={(event) => onContentChange("introText", event.target.value)}
-        placeholder="{{directory-title}} is an indoor climbing gym in {{parent-category}} {{child-category}}"
-        rows={3}
-      />
-      <div className="flex flex-wrap gap-2">
-        {DIRECTORY_CORE_INTRO_SHORTCODES.map((shortcode) => (
-          <Button
-            key={shortcode}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => insertIntroShortcode(shortcode)}
-          >
-            {shortcode}
-          </Button>
-        ))}
-      </div>
-    </div>
-  )
   const addressRatingFields = (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field>
@@ -752,7 +705,6 @@ export function DirectoryCoreBlock({
                   </div>
 
                   {addressRatingFields}
-                  {introTextField}
                 </>
               ) : (
                 <>
@@ -761,7 +713,6 @@ export function DirectoryCoreBlock({
                   </BlockEditorEmptyState>
 
                   {addressRatingFields}
-                  {introTextField}
                 </>
               )}
             </CardContent>
@@ -948,7 +899,6 @@ export function DirectoryCoreBlock({
                   { key: "title", label: "Title" },
                   { key: "address", label: "Address" },
                   { key: "rating", label: "Rating" },
-                  { key: "introText", label: "Intro Text" },
                   { key: "socialLinks", label: "Social Links" },
                   { key: "menuLinks", label: "Menu Links" },
                 ]}

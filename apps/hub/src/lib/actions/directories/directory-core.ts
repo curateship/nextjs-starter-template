@@ -27,23 +27,6 @@ export interface DirectoryCoreMenuLink {
   icon?: QuickLinkIconValue
 }
 
-export interface DirectoryCoreCategoryContext {
-  parent_title?: string | null
-  child_title?: string | null
-}
-
-export interface DirectoryCoreIntroTokenValues {
-  directoryTitle?: string | null
-  parentCategory?: string | null
-  childCategory?: string | null
-}
-
-export const DIRECTORY_CORE_INTRO_SHORTCODES = [
-  "{{directory-title}}",
-  "{{parent-category}}",
-  "{{child-category}}",
-] as const
-
 const DANGEROUS_PROTOCOLS = [
   "javascript:",
   "data:",
@@ -176,22 +159,6 @@ export function buildDirectoryCoreMenuHref(link: DirectoryCoreMenuLink): string 
   }
 }
 
-export function renderDirectoryCoreIntroText(
-  template: string,
-  tokens: DirectoryCoreIntroTokenValues
-): string {
-  const replacements: Record<string, string | null | undefined> = {
-    "directory-title": tokens.directoryTitle,
-    "parent-category": tokens.parentCategory,
-    "child-category": tokens.childCategory,
-  }
-
-  return template.replace(/\{\{\s*([a-zA-Z0-9_-]+)\s*\}\}/g, (match, key: string) => {
-    if (!(key in replacements)) return match
-    return replacements[key] || ""
-  })
-}
-
 function createCoreListItemId(prefix: string, index: number) {
   return `${prefix}-${index + 1}`
 }
@@ -248,7 +215,6 @@ export function normalizeDirectoryCoreContent(
   return {
     layoutColumn: nextContent.layoutColumn,
     sticky: nextContent.sticky === true,
-    introText: typeof nextContent.introText === "string" ? nextContent.introText : "",
     socialLinks: Array.isArray(nextContent.socialLinks)
       ? nextContent.socialLinks.map(normalizeDirectoryCoreSocialLink).filter(Boolean)
       : [],

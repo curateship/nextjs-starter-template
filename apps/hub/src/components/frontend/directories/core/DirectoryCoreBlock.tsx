@@ -1,4 +1,4 @@
-import { Facebook, Github, Globe, Instagram, Linkedin, MapPin, Music2, Twitter, type LucideIcon, Youtube } from "lucide-react"
+import { Facebook, Github, Globe, Instagram, Linkedin, Music2, Twitter, type LucideIcon, Youtube } from "lucide-react"
 import {
   buildDirectoryCoreMenuHref,
   buildDirectoryCoreUrlHref,
@@ -6,8 +6,6 @@ import {
   getDirectoryCoreMenuLabel,
   normalizeDirectoryCoreMenuLink,
   normalizeDirectoryCoreSocialLink,
-  renderDirectoryCoreIntroText,
-  type DirectoryCoreCategoryContext,
   type DirectoryCoreMenuLink,
   type DirectoryCoreSocialLink
 } from "@/lib/actions/directories/directory-core"
@@ -27,7 +25,6 @@ interface DirectoryCoreBlockProps {
     title?: string | null
     slug?: string | null
     featured_image?: string | null
-    category_context?: DirectoryCoreCategoryContext | null
   }
   directoryData?: DirectoryData
   loginPath?: string
@@ -73,7 +70,7 @@ function getSocialMeta(platform?: string) {
   )
 }
 
-function SocialLink({ link }: { link: DirectoryCoreSocialLink }) {
+function SocialLink({ link, className }: { link: DirectoryCoreSocialLink; className?: string }) {
   const href = buildDirectoryCoreUrlHref(link.url)
   if (!href) return null
 
@@ -85,7 +82,7 @@ function SocialLink({ link }: { link: DirectoryCoreSocialLink }) {
       target={isExternalHref(href) ? "_blank" : undefined}
       rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
       aria-label={label}
-      className="inline-flex items-center justify-center text-neutral-500 transition-colors hover:text-black"
+      className={cn("inline-flex items-center justify-center text-neutral-500 transition-colors hover:text-black", className)}
     >
       <Icon className="h-7 w-7" />
     </a>
@@ -122,13 +119,14 @@ function getDataMenuLinkConfig(content: Record<string, any> | undefined, type: D
 function buildDataMenuLink(
   content: Record<string, any> | undefined,
   type: DirectoryCoreMenuLink["type"],
-  value?: string | null
+  value?: string | null,
+  labelOverride?: string | null
 ): DirectoryCoreMenuLink | null {
   const trimmedValue = value?.trim()
   if (!trimmedValue) return null
 
   const config = getDataMenuLinkConfig(content, type)
-  const label = config?.label?.trim() || (type === "phone" ? trimmedValue : "")
+  const label = labelOverride?.trim() || config?.label?.trim() || (type === "phone" ? trimmedValue : "")
   return {
     id: config?.id || `${type}-directory-data`,
     type,
@@ -181,6 +179,8 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
         .filter((link): link is DirectoryCoreSocialLink => !!link)
     : []
   const fields = directoryData?.fields || {}
+  const addressValue = typeof content?.address === "string" ? content.address : fields.address
+  const address = formatDirectoryAddress(addressValue, fields.country)
   const configuredMenuLinks = Array.isArray(content?.menuLinks)
     ? content.menuLinks
         .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))
@@ -201,27 +201,23 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
     return Boolean(getDirectoryFieldValue(fields, link.type)?.trim())
   }).map((link) => {
     if (link.type === "claim" || link.type === "custom" || link.type === "email") return link
-    return buildDataMenuLink(content, link.type, getDirectoryFieldValue(fields, link.type)) || link
+    return buildDataMenuLink(
+      content,
+      link.type,
+      getDirectoryFieldValue(fields, link.type),
+      link.type === "directions" ? address : null
+    ) || link
   })
   const title = fields.businessName || directory.title || "Directory Listing"
   const hasContentRating = typeof content?.rating === "number" || typeof content?.rating === "string"
   const ratingValue = hasContentRating ? Number(content.rating) : Number(fields.rating)
   const rating = Number.isFinite(ratingValue) && ratingValue > 0 ? Math.min(5, ratingValue) : null
-  const addressValue = typeof content?.address === "string" ? content.address : fields.address
-  const address = formatDirectoryAddress(addressValue, fields.country)
   const showRating = visibility.rating !== false
-  const showAddress = visibility.address !== false
   const featuredImage = visibility.image === false ? "" : resolveMediaUrl(directory.featured_image)
   const showSaveButton = Boolean(siteId && directory.id && featuredImage && visibility.image !== false)
+  const showSocialLinks = socialLinks.length > 0 && visibility.socialLinks !== false
   const saveIconOpacityNumber = Number(content?.saveIconOpacity)
   const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
-  const introTemplate = typeof content?.introText === "string" ? content.introText : ""
-  const introText = renderDirectoryCoreIntroText(introTemplate, {
-    directoryTitle: title,
-    parentCategory: directory.category_context?.parent_title,
-    childCategory: directory.category_context?.child_title
-  })
-
   const { className: cardClassName, ...rootProps } = cardProps || {}
 
   return (
@@ -238,6 +234,17 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
               className="absolute right-3 top-3 z-10"
             />
           ) : null}
+          {showSocialLinks ? (
+            <div className="absolute bottom-3 right-3 z-10 flex flex-wrap items-center justify-end gap-2">
+              {socialLinks.map((link, index) => (
+                <SocialLink
+                  key={link.id || `${link.platform}-${index}`}
+                  link={link}
+                  className="rounded-full bg-muted/10 p-2 text-white shadow-sm hover:bg-muted/70"
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -246,25 +253,13 @@ export function DirectoryCoreBlock({ content, directory, directoryData, loginPat
           <h1 className="text-3xl font-semibold leading-tight tracking-normal text-foreground">{title}</h1>
         ) : null}
 
-        {((showRating && rating) || (showAddress && address)) ? (
-          <div className="mt-5 flex flex-col gap-2 text-sm text-muted-foreground">
-            {showRating && rating ? (
-              <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
-            ) : null}
-            {showAddress && address ? (
-              <div className="flex items-start gap-1.5">
-                <MapPin className="mt-0.5 size-4 shrink-0 text-foreground" />
-                <span className="min-w-0">{address}</span>
-              </div>
-            ) : null}
+        {showRating && rating ? (
+          <div className="mt-3 flex flex-col gap-2 text-sm text-muted-foreground">
+            <Rating rate={rating} showScore className="[&_svg]:size-4 [&>div]:size-4" />
           </div>
         ) : null}
 
-        {introText.trim() && visibility.introText !== false ? (
-          <p className="whitespace-pre-line text-base leading-7 text-muted-foreground">{introText}</p>
-        ) : null}
-
-        {socialLinks.length > 0 && visibility.socialLinks !== false ? (
+        {showSocialLinks && !featuredImage ? (
           <div className="my-6 flex flex-wrap items-center gap-2">
             {socialLinks.map((link, index) => (
               <SocialLink key={link.id || `${link.platform}-${index}`} link={link} />

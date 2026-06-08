@@ -83,7 +83,6 @@ export function AccountClaimedListingsBlock({
   const [title, setTitle] = useState("")
   const [featuredImage, setFeaturedImage] = useState("")
   const [metaDescription, setMetaDescription] = useState("")
-  const [introText, setIntroText] = useState("")
   const [socialLinks, setSocialLinks] = useState("")
   const [menuLinks, setMenuLinks] = useState("")
   const [mapLocation, setMapLocation] = useState("")
@@ -121,7 +120,6 @@ export function AccountClaimedListingsBlock({
     setTitle(selectedItem.title || "")
     setFeaturedImage(selectedItem.featured_image || "")
     setMetaDescription(selectedItem.meta_description || "")
-    setIntroText(typeof selectedItem.core?.introText === "string" ? selectedItem.core.introText : "")
     setSocialLinks(linksToText(selectedItem.core?.socialLinks || [], "social"))
     setMenuLinks(linksToText(selectedItem.core?.menuLinks || [], "menu"))
     setMapLocation(selectedItem.google_map?.locationQuery || "")
@@ -143,7 +141,6 @@ export function AccountClaimedListingsBlock({
         title,
         featuredImage,
         metaDescription,
-        introText,
         socialLinks: parseSocialLinks(socialLinks),
         menuLinks: parseMenuLinks(menuLinks),
         googleMap: selectedItem.google_map ? { locationQuery: mapLocation, caption: mapCaption } : null,
@@ -165,7 +162,6 @@ export function AccountClaimedListingsBlock({
                 meta_description: metaDescription,
                 core: {
                   ...item.core,
-                  introText,
                   socialLinks: parseSocialLinks(socialLinks),
                   menuLinks: parseMenuLinks(menuLinks)
                 },
@@ -265,15 +261,6 @@ export function AccountClaimedListingsBlock({
                 </div>
               ) : null}
 
-              <div className="space-y-2">
-                <Label htmlFor="claimed-intro">Intro Text</Label>
-                <Textarea
-                  id="claimed-intro"
-                  value={introText}
-                  onChange={(event) => setIntroText(event.target.value)}
-                  rows={4}
-                />
-              </div>
             </CardContent>
           </Card>
 

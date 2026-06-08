@@ -11,13 +11,9 @@ import {
   createPreviewSite,
   normalizePreviewBlocks,
 } from "@/lib/utils/admin-builder-preview"
-import {
-  getContentBreadcrumbPreviewAction,
-  getContentCategoryContextPreviewAction,
-} from "@/lib/actions/categories/category-relationship-actions"
+import { getContentBreadcrumbPreviewAction } from "@/lib/actions/categories/category-relationship-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import type { DirectoryData } from "@/lib/actions/directories/directory-data"
-import type { DirectoryCoreCategoryContext } from "@/lib/actions/directories/directory-core"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { cn } from "@/lib/utils/tailwind"
 
@@ -79,7 +75,6 @@ export function DirectoryPreview({
   onUpdateRichTextBody,
 }: DirectoryPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
-  const [categoryContext, setCategoryContext] = useState<DirectoryCoreCategoryContext>({})
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
@@ -100,20 +95,17 @@ export function DirectoryPreview({
 
     if (!directory?.id || directory.id === "preview") {
       setBreadcrumbs([])
-      setCategoryContext({})
       return
     }
 
-    Promise.all([
-      site?.settings?.breadcrumbs?.directories === false
-        ? Promise.resolve({ data: [] as FrontendBreadcrumbItem[], error: null })
-        : getContentBreadcrumbPreviewAction(directory.id, 'directory'),
-      getContentCategoryContextPreviewAction(directory.id, 'directory'),
-    ]).then(([breadcrumbResult, categoryContextResult]) => {
+    const breadcrumbPromise = site?.settings?.breadcrumbs?.directories === false
+      ? Promise.resolve({ data: [] as FrontendBreadcrumbItem[], error: null })
+      : getContentBreadcrumbPreviewAction(directory.id, 'directory')
+
+    breadcrumbPromise.then((breadcrumbResult) => {
       if (cancelled) return
 
       setBreadcrumbs(breadcrumbResult.data || [])
-      setCategoryContext(categoryContextResult.data || {})
     })
 
     return () => {
@@ -170,7 +162,6 @@ export function DirectoryPreview({
     source_type: directory?.source_type || null,
     source_id: directory?.source_id || null,
     directory_data: directory?.directory_data || {},
-    category_context: categoryContext,
     blocks: createPreviewEntityBlocks(previewBlocks),
   }
 

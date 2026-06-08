@@ -11,7 +11,6 @@ import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { safeDecrypt } from "@/lib/utils/encryption"
 
@@ -41,21 +40,6 @@ function directoryBlocksNeedGoogleMapsConfig(blocks: any[]) {
     const locationQuery = typeof block.content?.locationQuery === "string" ? block.content.locationQuery.trim() : ""
 
     return visibility.hideBlock !== true && visibility.map !== false && locationQuery.length > 0
-  })
-}
-
-function directoryBlocksNeedCategoryContext(blocks: any[]) {
-  return blocks.some((block) => {
-    if (block.type !== DIRECTORY_CORE_BLOCK_TYPE) return false
-
-    const visibility = block.content?.visibility && typeof block.content.visibility === "object"
-      ? block.content.visibility as Record<string, boolean>
-      : {}
-    const introText = typeof block.content?.introText === "string" ? block.content.introText : ""
-
-    return visibility.hideBlock !== true &&
-      visibility.introText !== false &&
-      /\{\{\s*(parent-category|child-category)\s*\}\}/.test(introText)
   })
 }
 
@@ -140,37 +124,6 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
           ) order by depth desc), '[]'::jsonb) as data
           from category_trail
         ),
-        context_category as (
-          select c.title, c.parent_id
-          from directory_row d
-          inner join category_relationships cr
-            on cr.content_id = d.id
-            and cr.content_type = 'directory'
-          inner join categories c on c.id = cr.category_id
-          where c.site_id = ${siteId}
-            and c.is_published = true
-          order by cr.is_primary desc, cr.created_at asc
-          limit 1
-        ),
-        category_context as (
-          select case
-            when not exists (select 1 from context_category) then '{}'::jsonb
-            when (select parent_id from context_category) is null then jsonb_build_object(
-              'child_title', (select title from context_category)
-            )
-            else jsonb_build_object(
-              'parent_title', (
-                select parent.title
-                from categories parent
-                where parent.id = (select parent_id from context_category)
-                  and parent.site_id = ${siteId}
-                  and parent.is_published = true
-                limit 1
-              ),
-              'child_title', (select title from context_category)
-            )
-          end as data
-        ),
         map_blocks_need_config as (
           select exists (
             select 1
@@ -194,7 +147,6 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
           to_jsonb(directory_row) as directory,
           (select data from custom_templates) as "customBlockTemplates",
           (select data from breadcrumb_items) as breadcrumbs,
-          (select data from category_context) as "categoryContext",
           (select "apiKey" from google_maps_config) as "googleMapsApiKey"
         from directory_row
       `)
@@ -241,7 +193,6 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
     blocks = []
   }
 
-  const needsCategoryContext = directoryBlocksNeedCategoryContext(blocks)
   const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
   const categoryBreadcrumbs = Array.isArray(pageData.breadcrumbs)
     ? pageData.breadcrumbs as FrontendBreadcrumbItem[]
@@ -249,14 +200,12 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
   const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'directories') && categoryBreadcrumbs.length > 0
     ? [...categoryBreadcrumbs, { label: directory.title }]
     : []
-  const categoryContext = needsCategoryContext ? pageData.categoryContext || {} : {}
   const googleMapsApiKey = needsGoogleMapsConfig && pageData.googleMapsApiKey
     ? safeDecrypt(pageData.googleMapsApiKey)
     : ''
 
   const directoryWithBlocks = {
     ...toSnakeCase(directory),
-    category_context: categoryContext,
     blocks
   } as any
 
