@@ -14,7 +14,6 @@ import { ChevronDown, ImageIcon, X } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getDirectoryTemplatesBySite } from "@/lib/actions/directories/directory-template-actions"
-import { directoryBlocksToJson, parseDirectoryBlocksFromJson } from "@/components/admin/directory-builder/config/directory-block-utils"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import type { DirectoryTemplate } from "@/lib/actions/directories/directory-template-actions"
@@ -48,7 +47,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
-  const [selectedTemplateId, setSelectedTemplateId] = useState('blank')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -67,7 +66,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
         const loaded = data || []
         setTemplates(loaded)
         const defaultTemplate = loaded.find((template) => template.is_default)
-        setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+        setSelectedTemplateId(defaultTemplate?.id || loaded[0]?.id || '')
         setTemplatesLoading(false)
       }
     }
@@ -115,7 +114,7 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setSlugManuallyEdited(false)
     setSelectedCategoryIds([])
     setPrimaryCategoryId(null)
-    setSelectedTemplateId(defaultTemplate ? defaultTemplate.id : 'blank')
+    setSelectedTemplateId(defaultTemplate?.id || templates[0]?.id || '')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -139,32 +138,20 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
     setError(null)
 
     try {
-      const selectedTemplate = selectedTemplateId !== 'blank'
-        ? templates.find((template) => template.id === selectedTemplateId)
-        : null
-      const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === 'object'
-        ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
-        : {}
-      const sanitizedTemplateContentBlocks = directoryBlocksToJson(
-        parseDirectoryBlocksFromJson(templateContentBlocks),
-        templateContentBlocks
-      )
-      const templateSettings = sanitizedTemplateContentBlocks._settings && typeof sanitizedTemplateContentBlocks._settings === 'object'
-        ? sanitizedTemplateContentBlocks._settings
-        : {}
+      if (!selectedTemplateId) {
+        setError("Template is required")
+        return
+      }
 
       const directoryData = {
         title: formData.title.trim(),
         slug: formData.slug.trim() || generateSlug(formData.title.trim()),
         site_id: currentSite.id,
+        template_id: selectedTemplateId,
         meta_description: formData.meta_description.trim() || null,
         featured_image: featuredImage || null,
         status: publishNow ? 'published' : 'draft',
-        content_blocks: {
-          ...sanitizedTemplateContentBlocks,
-          _settings: templateSettings,
-          show_featured_image: sanitizedTemplateContentBlocks.show_featured_image ?? true,
-        }
+        content_blocks: {},
       }
 
       const response = await fetch('/api/directories', {
@@ -255,7 +242,6 @@ export function CreateDirectoryModal({ onSuccess, onCancel }: CreateDirectoryMod
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent className="z-60">
-                      <SelectItem value="blank">Blank</SelectItem>
                       {templates.map((template) => (
                         <SelectItem key={template.id} value={template.id}>
                           {template.name}

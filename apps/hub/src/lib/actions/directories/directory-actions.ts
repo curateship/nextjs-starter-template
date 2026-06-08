@@ -4,11 +4,16 @@ import { revalidateTag } from 'next/cache'
 import { eq, and, desc, asc, sql, inArray, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { directories } from '@/lib/db/schema/directories'
+import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { sites } from '@/lib/db/schema/sites'
 import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { getDirectoryCustomBlocksBySite } from './directory-custom-block-actions'
+import {
+  mergeDirectoryTemplateBlocks,
+  pruneDirectoryValueBlocksForTemplate,
+} from './directory-template-inheritance'
 import type { DirectoryData } from './directory-data'
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
@@ -17,6 +22,7 @@ export type DirectoryStatus = 'draft' | 'published'
 export interface Directory {
   id: string
   site_id: string
+  template_id: string
   title: string
   slug: string
   status: DirectoryStatus
@@ -50,12 +56,14 @@ export interface UpdateDirectoryData {
   status?: DirectoryStatus
   featured_image?: string | null
   meta_description?: string | null
+  template_id?: string
 }
 
 function toDirectory(row: typeof directories.$inferSelect): Directory {
   return {
     id: row.id,
     site_id: row.siteId,
+    template_id: row.templateId,
     title: row.title,
     slug: row.slug,
     status: row.status,
@@ -203,7 +211,7 @@ export async function getSiteDirectoriesWithCategoriesAction(
     }
 
     return { data: dirs, categories: categoryMap, total: count ?? 0, error: null }
-  } catch (error) {
+  } catch {
     return { data: null, categories: {}, total: 0, error: 'Failed to fetch listings' }
   }
 }
@@ -241,6 +249,29 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
       return { data: null, error: 'Unauthorized' }
     }
 
+    let nextTemplateContentBlocks: Record<string, any> | null = null
+    if (data.template_id !== undefined) {
+      if (!uuidRegex.test(data.template_id)) {
+        return { data: null, error: 'Invalid template ID format' }
+      }
+
+      const [template] = await db
+        .select({
+          id: directoryTemplates.id,
+          siteId: directoryTemplates.siteId,
+          contentBlocks: directoryTemplates.contentBlocks,
+        })
+        .from(directoryTemplates)
+        .where(eq(directoryTemplates.id, data.template_id))
+        .limit(1)
+
+      if (!template || template.siteId !== directory.siteId) {
+        return { data: null, error: 'Template not found' }
+      }
+
+      nextTemplateContentBlocks = (template.contentBlocks || {}) as Record<string, any>
+    }
+
     // Validate and process slug if being updated
     if (data.slug !== undefined) {
       const slug = data.slug.trim()
@@ -273,7 +304,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     }
 
     // Build updates with explicit field whitelist
-    const allowedFields = ['title', 'slug', 'status', 'featured_image', 'meta_description'] as const
+    const allowedFields = ['title', 'slug', 'status', 'featured_image', 'meta_description', 'template_id'] as const
     const finalUpdates: Record<string, any> = {}
     for (const field of allowedFields) {
       if ((data as any)[field] !== undefined) {
@@ -294,6 +325,13 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
     if (finalUpdates.status !== undefined) drizzleUpdates.status = finalUpdates.status
     if (finalUpdates.featured_image !== undefined) drizzleUpdates.featuredImage = finalUpdates.featured_image
     if (finalUpdates.meta_description !== undefined) drizzleUpdates.metaDescription = finalUpdates.meta_description
+    if (finalUpdates.template_id !== undefined) {
+      drizzleUpdates.templateId = finalUpdates.template_id
+      drizzleUpdates.contentBlocks = pruneDirectoryValueBlocksForTemplate(
+        (directory.contentBlocks || {}) as Record<string, any>,
+        nextTemplateContentBlocks || {}
+      )
+    }
 
     // Update the directory
     const [updatedDirectory] = await db.update(directories)
@@ -500,6 +538,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
     const [newDirectory] = await db.insert(directories)
       .values({
         siteId: originalDirectory.siteId,
+        templateId: originalDirectory.templateId,
         title: newTitle,
         slug,
         status: 'draft',
@@ -564,8 +603,29 @@ export async function getDirectoryBySlugAction(siteId: string, slug: string) {
       return { data: null, error: 'Unauthorized' }
     }
 
+    const [template] = await db
+      .select({ contentBlocks: directoryTemplates.contentBlocks })
+      .from(directoryTemplates)
+      .where(and(
+        eq(directoryTemplates.id, directory.templateId),
+        eq(directoryTemplates.siteId, directory.siteId)
+      ))
+      .limit(1)
+
+    if (!template) {
+      return { data: null, error: 'Template not found' }
+    }
+
+    const mergedDirectory = {
+      ...directory,
+      contentBlocks: mergeDirectoryTemplateBlocks(
+        (template.contentBlocks || {}) as Record<string, any>,
+        (directory.contentBlocks || {}) as Record<string, any>
+      ),
+    }
+
     const directoryWithDetails: DirectoryWithDetails = {
-      ...toDirectory(directory),
+      ...toDirectory(mergedDirectory),
       site_name: site.name,
       subdomain: site.subdomain,
       user_id: site.userId
@@ -674,7 +734,7 @@ export async function getDirectoryByIdAction(directoryId: string) {
   }
 }
 
-export async function updateDirectoryBlocksAction(directoryId: string, contentBlocks: Record<string, any>) {
+export async function updateDirectoryBlockValuesAction(directoryId: string, contentBlocks: Record<string, any>) {
   try {
     // Validate directory ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -707,10 +767,28 @@ export async function updateDirectoryBlocksAction(directoryId: string, contentBl
       return { success: false, error: 'Unauthorized' }
     }
 
-    // Update the directory blocks
+    const [template] = await db
+      .select({ contentBlocks: directoryTemplates.contentBlocks })
+      .from(directoryTemplates)
+      .where(and(
+        eq(directoryTemplates.id, directory.templateId),
+        eq(directoryTemplates.siteId, directory.siteId)
+      ))
+      .limit(1)
+
+    if (!template) {
+      return { success: false, error: 'Template not found' }
+    }
+
+    const valueBlocks = pruneDirectoryValueBlocksForTemplate(
+      contentBlocks,
+      (template.contentBlocks || {}) as Record<string, any>
+    )
+
+    // Update the listing-specific block values
     await db.update(directories)
       .set({
-        contentBlocks,
+        contentBlocks: valueBlocks,
         updatedAt: new Date(),
       })
       .where(eq(directories.id, directoryId))

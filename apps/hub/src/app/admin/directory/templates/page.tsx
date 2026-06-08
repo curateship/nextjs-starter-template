@@ -24,7 +24,7 @@ export default function DirectoryTemplatesPage() {
       createTemplate={createDirectoryTemplate}
       deleteTemplates={deleteDirectoryTemplates}
       emptyText="No templates yet. Create one to save reusable block layouts."
-      enableDefaultBreadcrumb
+      enableDefaultCategoryParent
       getBlockCount={getDirectoryBlockCount}
       getTemplateIds={getDirectoryTemplateIdsAction}
       getTemplatesBySite={getDirectoryTemplatesBySite}

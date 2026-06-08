@@ -13,8 +13,16 @@ import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterAct
 import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
+import { getDirectoryTemplatesBySite, type DirectoryTemplate } from "@/lib/actions/directories/directory-template-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface DirectorySettingsModalProps {
   open: boolean
@@ -36,6 +44,9 @@ export function DirectorySettingsModal({
     meta_description: ''
   })
   const [featuredImage, setFeaturedImage] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
   const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
@@ -82,11 +93,26 @@ export function DirectorySettingsModal({
       meta_description: directory.meta_description || ''
     })
     setFeaturedImage(directory.featured_image || '')
+    setSelectedTemplateId(directory.template_id || '')
     setSlugManuallyEdited(false)
 
     setSelectedCategoryIds([])
     setPrimaryCategoryId(null)
     setLoadingCategories(true)
+    setTemplatesLoading(true)
+
+    getDirectoryTemplatesBySite(directory.site_id).then(({ data }) => {
+      if (!cancelled) {
+        const loadedTemplates = data || []
+        setTemplates(loadedTemplates)
+        setSelectedTemplateId(directory.template_id || loadedTemplates.find((template) => template.is_default)?.id || loadedTemplates[0]?.id || '')
+      }
+    }).finally(() => {
+      if (!cancelled) {
+        setTemplatesLoading(false)
+      }
+    })
+
     getContentCategoriesAction(directory.id, 'directory').then(({ data }) => {
       if (!cancelled) {
         setSelectedCategoryIds(data ? data.map((c) => c.id) : [])
@@ -105,6 +131,10 @@ export function DirectorySettingsModal({
 
   const handleSaveDraft = async () => {
     if (!directory) return
+    if (!selectedTemplateId) {
+      setError('Template is required')
+      return
+    }
 
     try {
       setSavingAction("draft")
@@ -112,6 +142,7 @@ export function DirectorySettingsModal({
 
       const draftData = {
         ...formData,
+        template_id: selectedTemplateId,
         status: 'draft' as const,
         featured_image: featuredImage || null
       }
@@ -142,6 +173,10 @@ export function DirectorySettingsModal({
 
   const handlePublish = async () => {
     if (!directory) return
+    if (!selectedTemplateId) {
+      setError('Template is required')
+      return
+    }
 
     try {
       setSavingAction("publish")
@@ -149,6 +184,7 @@ export function DirectorySettingsModal({
 
       const publishData = {
         ...formData,
+        template_id: selectedTemplateId,
         status: 'published' as const,
         featured_image: featuredImage || null
       }
@@ -230,6 +266,25 @@ export function DirectorySettingsModal({
                 <CardDescription>Name the listing, set its URL, and featured image.</CardDescription>
               </CardHeader>
               <CardContent>
+                <Field>
+                  <FieldLabel htmlFor="modal-template">Template</FieldLabel>
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading || saving}>
+                    <SelectTrigger id="modal-template">
+                      <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select template"} />
+                    </SelectTrigger>
+                    <SelectContent className="z-60">
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Changing the template updates this listing&apos;s inherited blocks immediately after saving.
+                  </FieldDescription>
+                </Field>
+
                 <Field>
                   <FieldLabel htmlFor="modal-title">Listing Title *</FieldLabel>
                   <Input

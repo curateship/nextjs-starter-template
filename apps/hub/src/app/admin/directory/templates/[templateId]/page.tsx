@@ -13,12 +13,16 @@ import {
   parseDirectoryBlocksFromJson,
   type DirectoryEditorBlock,
 } from "@/components/admin/directory-builder/config/directory-block-utils"
-import { normalizeDirectoryBlockContent } from "@/lib/actions/directories/directory-layout"
 import {
   getDirectoryTemplateById,
   updateDirectoryTemplate,
   type DirectoryTemplate,
 } from "@/lib/actions/directories/directory-template-actions"
+import {
+  DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY,
+  getDirectoryTemplatePreviewBreadcrumbs,
+  withDirectoryTemplatePreviewValues,
+} from "@/lib/actions/directories/directory-template-inheritance"
 import { getDirectoryCustomBlocksBySite } from "@/lib/actions/directories/directory-custom-block-actions"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
@@ -30,7 +34,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
 import { DirectoryBlockEditorModal } from "@/components/admin/directory-builder/layout/DirectoryBlockEditorModal"
-import { DirectoryBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryBlockListPanel"
+import { DirectoryTemplateBlockListPanel } from "@/components/admin/directory-builder/layout/DirectoryTemplateBlockListPanel"
 
 interface PageProps {
   params: Promise<{ templateId: string }>
@@ -58,7 +62,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   const [blockListOpen, setBlockListOpen] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState("")
-  const [previewTitle, setPreviewTitle] = useState("Preview Directory")
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
@@ -112,26 +115,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     setBlockSaveError(null)
   }, [selectedBlock])
 
-  function handleUpdateBlock(blockId: string, updates: Partial<DirectoryEditorBlock>) {
-    const nextBlocks = blocks.map((block) => {
-      if (block.id !== blockId) return block
-
-      const nextType = updates.type || block.type
-      return {
-        ...block,
-        ...updates,
-        type: nextType,
-        content: normalizeDirectoryBlockContent(nextType, updates.content || block.content),
-      }
-    })
-
-    setBlocks(nextBlocks)
-
-    if (selectedBlock?.id === blockId) {
-      setSelectedBlock(nextBlocks.find((block) => block.id === blockId) || null)
-    }
-  }
-
   function handleDeleteBlock(block: DirectoryEditorBlock) {
     setBlocks((prev) => prev.filter((item) => item.id !== block.id))
 
@@ -179,7 +162,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         return
       }
 
-      setBlocks(nextBlocks)
+      setBlocks(parseDirectoryBlocksFromJson(data.content_blocks || {}, customBlockTemplates))
       setTemplate(data)
       setSaveMessage("Saved!")
       setTimeout(() => setSaveMessage(""), 3000)
@@ -209,7 +192,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
             title: customTemplate.name,
             content: {
               templateId: customTemplate.id,
-              values: {},
             },
           })
         }
@@ -253,6 +235,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         setTimeout(() => setSaveMessage(""), 5000)
       } else if (data) {
         setTemplate(data)
+        setBlocks(parseDirectoryBlocksFromJson(data.content_blocks || {}, customBlockTemplates))
         setSaveMessage("Saved!")
         setTimeout(() => setSaveMessage(""), 3000)
       }
@@ -267,9 +250,14 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
   async function handleSaveName() {
     if (!template || !nameInput.trim()) return
 
-    const { data, error: saveError } = await updateDirectoryTemplate(template.id, { name: nameInput.trim() })
+    const contentBlocks = directoryBlocksToJson(blocks, template.content_blocks || {})
+    const { data, error: saveError } = await updateDirectoryTemplate(template.id, {
+      name: nameInput.trim(),
+      content_blocks: contentBlocks,
+    })
     if (!saveError && data) {
       setTemplate(data)
+      setBlocks(parseDirectoryBlocksFromJson(data.content_blocks || {}, customBlockTemplates))
     }
 
     setEditingName(false)
@@ -282,7 +270,6 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
     description: `${customTemplate.layout} • ${customTemplate.fields.length} field${customTemplate.fields.length === 1 ? '' : 's'}`,
     defaultContent: {
       templateId: customTemplate.id,
-      values: {},
     },
   }))
 
@@ -298,6 +285,8 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         settings: previewSiteSource.settings,
       }
     : undefined
+  const previewBlocks = withDirectoryTemplatePreviewValues(blocks, customBlockTemplates)
+  const previewBreadcrumbs = getDirectoryTemplatePreviewBreadcrumbs(previewSite?.settings)
 
   if (loading) {
     return (
@@ -400,14 +389,15 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
         <div className="flex-1 overflow-hidden border-r bg-background">
           <ScrollArea className="h-full">
             <DirectoryPreview
-              blocks={blocks}
+              blocks={previewBlocks}
               directory={{
                 slug: 'preview-template',
-                name: previewTitle,
-                title: previewTitle,
+                name: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title,
+                title: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title,
                 id: 'preview',
                 site_id: template?.site_id || currentSite?.id || 'preview-site',
-                featured_image: null,
+                featured_image: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.featuredImage,
+                directory_data: DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.directoryData,
                 status: 'draft',
               } as any}
               site={previewSite}
@@ -416,18 +406,7 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
               allBlocks={blocks}
               selectedBlock={selectedBlock}
               onSelectBlock={setSelectedBlock as any}
-              onUpdateRichTextBody={(blockId, htmlContent) => {
-                const block = blocks.find((item) => item.id === blockId)
-                if (!block) return
-
-                handleUpdateBlock(blockId, {
-                  content: {
-                    ...block.content,
-                    body: htmlContent,
-                    format: "html",
-                  },
-                })
-              }}
+              previewBreadcrumbs={previewBreadcrumbs}
             />
           </ScrollArea>
         </div>
@@ -436,8 +415,8 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
           block={selectedBlock}
           content={draftContent}
           siteId={template?.site_id || currentSite?.id || ''}
-          directoryTitle={previewTitle}
-          onDirectoryTitleChange={setPreviewTitle}
+          directoryTitle={DIRECTORY_TEMPLATE_PREVIEW_DIRECTORY.title}
+          onDirectoryTitleChange={() => {}}
           onContentChange={handleDraftChange}
           customBlockTemplates={customBlockTemplates}
           showDirectoryTitleField={false}
@@ -445,10 +424,11 @@ export default function DirectoryTemplateEditorPage({ params }: PageProps) {
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
           error={blockSaveError}
+          mode="template"
         />
 
         {blockListOpen && (
-          <DirectoryBlockListPanel
+          <DirectoryTemplateBlockListPanel
             blocks={blocks}
             selectedBlock={selectedBlock}
             onSelectBlock={setSelectedBlock}

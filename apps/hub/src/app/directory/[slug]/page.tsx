@@ -13,6 +13,7 @@ import { shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { safeDecrypt } from "@/lib/utils/encryption"
+import { mergeDirectoryTemplateBlocks } from "@/lib/actions/directories/directory-template-inheritance"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -56,7 +57,9 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
             d.meta_description as "metaDescription",
             d.status,
             d.display_order as "displayOrder",
-            d.content_blocks as "contentBlocks",
+            d.template_id as "templateId",
+            d.content_blocks as "valueBlocks",
+            dt.content_blocks as "templateContentBlocks",
             d.directory_data as "directoryData",
             d.featured_image as "featuredImage",
             d.source_type as "sourceType",
@@ -64,6 +67,9 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
             d.created_at as "createdAt",
             d.updated_at as "updatedAt"
           from directory d
+          inner join directory_templates dt
+            on dt.id = d.template_id
+            and dt.site_id = d.site_id
           where d.site_id = ${siteId}
             and d.slug = ${slug}
             and d.status = 'published'
@@ -72,7 +78,7 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
         template_ids as (
           select distinct block.value #>> '{content,templateId}' as id
           from directory_row d
-          cross join lateral jsonb_each(coalesce(d."contentBlocks", '{}'::jsonb)) as block(key, value)
+          cross join lateral jsonb_each(coalesce(d."templateContentBlocks", '{}'::jsonb)) as block(key, value)
           where block.value->>'type' = 'directory-custom'
             and coalesce(block.value #>> '{content,templateId}', '') <> ''
         ),
@@ -123,36 +129,37 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
             'href', '/categories/' || slug
           ) order by depth desc), '[]'::jsonb) as data
           from category_trail
-        ),
-        map_blocks_need_config as (
-          select exists (
-            select 1
-            from directory_row d
-            cross join lateral jsonb_each(coalesce(d."contentBlocks", '{}'::jsonb)) as block(key, value)
-            where block.value->>'type' = ${DIRECTORY_GOOGLE_MAP_BLOCK_TYPE}
-              and coalesce(block.value #>> '{content,visibility,hideBlock}', 'false') <> 'true'
-              and coalesce(block.value #>> '{content,visibility,map}', 'true') <> 'false'
-              and length(trim(coalesce(block.value #>> '{content,locationQuery}', ''))) > 0
-          ) as needed
-        ),
-        google_maps_config as (
-          select si.config->>'api_key' as "apiKey"
-          from site_integrations si
-          where si.site_id = ${siteId}
-            and si.integration_type = 'google_maps'
-            and (select needed from map_blocks_need_config)
-          limit 1
         )
         select
           to_jsonb(directory_row) as directory,
           (select data from custom_templates) as "customBlockTemplates",
-          (select data from breadcrumb_items) as breadcrumbs,
-          (select "apiKey" from google_maps_config) as "googleMapsApiKey"
+          (select data from breadcrumb_items) as breadcrumbs
         from directory_row
       `)
 
       const row = rows.rows[0] as any
       if (!row) throw new Error(DIRECTORY_PAGE_NOT_FOUND_ERROR)
+
+      row.directory.contentBlocks = mergeDirectoryTemplateBlocks(
+        row.directory.templateContentBlocks || {},
+        row.directory.valueBlocks || {}
+      )
+      delete row.directory.templateContentBlocks
+      delete row.directory.valueBlocks
+
+      const blocks = convertContentBlocksToArray((row.directory.contentBlocks as any) || {}, row.directory.id)
+      if (directoryBlocksNeedGoogleMapsConfig(blocks)) {
+        const configRows = await db.execute(sql`
+          select si.config->>'api_key' as "apiKey"
+          from site_integrations si
+          where si.site_id = ${siteId}
+            and si.integration_type = 'google_maps'
+          limit 1
+        `)
+
+        row.googleMapsApiKey = (configRows.rows[0] as any)?.apiKey || ''
+      }
+
       return row
     },
     ['directory-page-data', siteId, slug],

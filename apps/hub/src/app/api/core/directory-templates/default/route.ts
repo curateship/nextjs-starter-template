@@ -3,6 +3,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { directoryCustomBlocks } from '@/lib/db/schema/directory-custom-blocks'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
+import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
 import { isAuthorizedCoreBridgeRequest, isCoreBridgeSiteAllowed } from '@/lib/utils/core-bridge-auth'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -21,14 +22,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Site is not allowed for this bridge' }, { status: 403 })
   }
 
+  await ensureDirectoryBlankTemplateForSite(siteId)
+
   const [template] = await db.select({
     id: directoryTemplates.id,
     name: directoryTemplates.name,
     contentBlocks: directoryTemplates.contentBlocks,
   })
     .from(directoryTemplates)
-    .where(and(eq(directoryTemplates.siteId, siteId), eq(directoryTemplates.isDefault, true)))
-    .orderBy(desc(directoryTemplates.updatedAt))
+    .where(eq(directoryTemplates.siteId, siteId))
+    .orderBy(desc(directoryTemplates.isDefault), desc(directoryTemplates.updatedAt))
     .limit(1)
 
   const contentBlocks = template?.contentBlocks && typeof template.contentBlocks === 'object' && !Array.isArray(template.contentBlocks)

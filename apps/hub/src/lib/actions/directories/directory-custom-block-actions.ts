@@ -3,7 +3,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { directories, directoryCustomBlocks, sites } from '@/lib/db/schema'
+import { directories, directoryCustomBlocks, directoryTemplates, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import {
@@ -41,9 +41,9 @@ function rowToTemplate(row: any, usedInCount = 0): DirectoryCustomBlockTemplate 
 
 async function getUsageCountsBySite(siteId: string) {
   const rows = await db
-    .select({ contentBlocks: directories.contentBlocks })
-    .from(directories)
-    .where(eq(directories.siteId, siteId))
+    .select({ contentBlocks: directoryTemplates.contentBlocks })
+    .from(directoryTemplates)
+    .where(eq(directoryTemplates.siteId, siteId))
 
   const counts = new Map<string, number>()
 
@@ -78,15 +78,18 @@ async function getExistingSlugs(siteId: string, excludeId?: string) {
 }
 
 async function syncTemplateUsage(siteId: string, templateId: string, updates: { name?: string; fields?: any[] }) {
-  const directoryRows = await db
-    .select({ id: directories.id, contentBlocks: directories.contentBlocks })
-    .from(directories)
-    .where(eq(directories.siteId, siteId))
+  const templateRows = await db
+    .select({ id: directoryTemplates.id, contentBlocks: directoryTemplates.contentBlocks })
+    .from(directoryTemplates)
+    .where(eq(directoryTemplates.siteId, siteId))
 
-  for (const row of directoryRows) {
+  const affectedTemplateBlockIds = new Map<string, string[]>()
+
+  for (const row of templateRows) {
     const contentBlocks = row.contentBlocks && typeof row.contentBlocks === 'object'
       ? { ...(row.contentBlocks as Record<string, any>) }
       : {}
+    const affectedBlockIds: string[] = []
 
     let changed = false
 
@@ -94,40 +97,75 @@ async function syncTemplateUsage(siteId: string, templateId: string, updates: { 
       if (!block || typeof block !== 'object' || block.type !== 'directory-custom') return
       if (block?.content?.templateId !== templateId) return
 
+      affectedBlockIds.push(blockId)
       const nextBlock = { ...block }
+      let blockChanged = false
 
       if (updates.name !== undefined && nextBlock.title !== updates.name) {
         nextBlock.title = updates.name
-        changed = true
+        blockChanged = true
       }
 
-      if (updates.fields !== undefined) {
-        const currentValues = nextBlock?.content?.values
-        const nextValues = pruneDirectoryCustomBlockValues(updates.fields as any[], currentValues)
-        const previousSerialized = JSON.stringify(currentValues || {})
-        const nextSerialized = JSON.stringify(nextValues)
-
-        if (previousSerialized !== nextSerialized) {
-          nextBlock.content = {
-            ...nextBlock.content,
-            values: nextValues,
-          }
-          changed = true
-        }
-      }
-
-      if (changed) {
+      if (blockChanged) {
         contentBlocks[blockId] = nextBlock
+        changed = true
       }
     })
 
+    if (affectedBlockIds.length) {
+      affectedTemplateBlockIds.set(row.id, affectedBlockIds)
+    }
+
     if (changed) {
       await db
-        .update(directories)
+        .update(directoryTemplates)
         .set({
           contentBlocks,
           updatedAt: new Date(),
         })
+        .where(eq(directoryTemplates.id, row.id))
+    }
+  }
+
+  if (updates.fields === undefined || !affectedTemplateBlockIds.size) return
+
+  const directoryRows = await db
+    .select({ id: directories.id, templateId: directories.templateId, contentBlocks: directories.contentBlocks })
+    .from(directories)
+    .where(and(eq(directories.siteId, siteId), inArray(directories.templateId, Array.from(affectedTemplateBlockIds.keys()))))
+
+  for (const row of directoryRows) {
+    const affectedBlockIds = affectedTemplateBlockIds.get(row.templateId) || []
+    const contentBlocks = row.contentBlocks && typeof row.contentBlocks === 'object'
+      ? { ...(row.contentBlocks as Record<string, any>) }
+      : {}
+    let changed = false
+
+    for (const blockId of affectedBlockIds) {
+      const block = contentBlocks[blockId]
+      if (!block || typeof block !== 'object') continue
+
+      const currentValues = block?.content?.values
+      const nextValues = pruneDirectoryCustomBlockValues(updates.fields as any[], currentValues)
+      const previousSerialized = JSON.stringify(currentValues || {})
+      const nextSerialized = JSON.stringify(nextValues)
+
+      if (previousSerialized !== nextSerialized) {
+        contentBlocks[blockId] = {
+          ...block,
+          content: {
+            ...(block.content || {}),
+            values: nextValues,
+          },
+        }
+        changed = true
+      }
+    }
+
+    if (changed) {
+      await db
+        .update(directories)
+        .set({ contentBlocks, updatedAt: new Date() })
         .where(eq(directories.id, row.id))
     }
   }
@@ -349,7 +387,7 @@ export async function deleteDirectoryCustomBlock(templateId: string): Promise<{ 
 
     const usedInCount = await getUsedInCount(templateId, row.siteId)
     if (usedInCount > 0) {
-      return { success: false, error: 'Custom block is still used in directory items' }
+      return { success: false, error: 'Custom block is still used in directory templates' }
     }
 
     await db

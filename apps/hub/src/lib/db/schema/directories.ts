@@ -2,12 +2,14 @@ import { sql } from 'drizzle-orm'
 import { pgTable, uuid, varchar, text, integer, jsonb, timestamp, uniqueIndex, index, pgEnum } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 import { sites } from './sites'
+import { directoryTemplates } from './directory-templates'
 
 export const directoryStatusEnum = pgEnum('directory_status_enum', ['draft', 'published'])
 
 export const directories = pgTable('directory', {
   id: uuid('id').defaultRandom().primaryKey(),
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  templateId: uuid('template_id').notNull().references(() => directoryTemplates.id, { onDelete: 'restrict' }),
   title: varchar('title', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 100 }).notNull(),
   metaDescription: text('meta_description'),
@@ -27,6 +29,7 @@ export const directories = pgTable('directory', {
     .where(sql`${table.sourceType} is not null and ${table.sourceType} <> '' and ${table.sourceId} is not null and ${table.sourceId} <> ''`),
   index('idx_directories_site_display_created').on(table.siteId, table.displayOrder, table.createdAt.desc(), table.id),
   index('idx_directories_site_status').on(table.siteId, table.status, table.displayOrder, table.createdAt.desc(), table.id),
+  index('idx_directories_template').on(table.templateId),
   index('idx_directories_site_updated').on(table.siteId, table.updatedAt.desc(), table.id),
   index('idx_directories_site_title_lower').on(table.siteId, sql`lower(${table.title})`, table.id),
 ])
@@ -35,5 +38,9 @@ export const directoriesRelations = relations(directories, ({ one }) => ({
   site: one(sites, {
     fields: [directories.siteId],
     references: [sites.id],
+  }),
+  template: one(directoryTemplates, {
+    fields: [directories.templateId],
+    references: [directoryTemplates.id],
   }),
 }))

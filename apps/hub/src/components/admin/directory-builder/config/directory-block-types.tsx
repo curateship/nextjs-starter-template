@@ -15,13 +15,6 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     defaultContent: {
       layoutColumn: 'main',
       sticky: false,
-      socialLinks: [],
-      menuLinks: [
-        { type: 'directions', label: '', value: '', icon: 'map' },
-        { type: 'phone', label: '', value: '', icon: 'phone' },
-        { type: 'website', label: '', value: '', icon: 'site' },
-        { type: 'claim', label: 'Claim Listing', value: '', icon: 'building' },
-      ],
       claimEnabled: true,
       claimButtonText: 'Claim Listing',
       claimPendingEmailText: 'Check Business Email',
@@ -38,8 +31,6 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: FileText,
     description: 'Add formatted text content with links and media',
     defaultContent: {
-      body: '',
-      format: 'html',
       layoutColumn: 'main',
       visibility: {},
     },
@@ -50,8 +41,6 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: MapPinned,
     description: 'Embed a Google Map for a single address or Place ID',
     defaultContent: {
-      locationQuery: '',
-      caption: '',
       height: DIRECTORY_GOOGLE_MAP_DEFAULT_HEIGHT,
       layoutColumn: 'sidebar',
       visibility: {},
@@ -63,8 +52,6 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: Clock3,
     description: 'Show live business hours from a Google Place ID',
     defaultContent: {
-      title: 'Business Hours',
-      placeId: '',
       layoutColumn: 'sidebar',
       visibility: {},
     },

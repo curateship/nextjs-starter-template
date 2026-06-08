@@ -22,6 +22,8 @@ type ContentRow = {
   site_id?: string
   parentId?: string | null
   parent_id?: string | null
+  templateId?: string
+  template_id?: string
   title: string
   slug: string
   isPublished?: boolean
@@ -144,6 +146,7 @@ export function serializeDirectory(row: DirectoryRow | ContentRow): Directory {
   return {
     id: contentRow.id,
     site_id: requireValue(contentRow.siteId ?? contentRow.site_id, 'site_id'),
+    template_id: requireValue(contentRow.templateId ?? contentRow.template_id, 'template_id'),
     title: contentRow.title,
     slug: contentRow.slug,
     status: requireValue(contentRow.status, 'status'),

@@ -18,6 +18,30 @@ if (siteIds.length === 0) {
 }
 
 async function seedSite(pool: Pool, siteId: string) {
+  await pool.query(
+    `
+      insert into directory_templates (site_id, name, content_blocks, is_default)
+      select $1::uuid, 'Blank', '{}'::jsonb, not exists (
+        select 1 from directory_templates where site_id = $1::uuid and is_default = true
+      )
+      where not exists (
+        select 1 from directory_templates where site_id = $1::uuid and name = 'Blank'
+      )
+    `,
+    [siteId]
+  )
+
+  const [{ id: templateId }] = (await pool.query<{ id: string }>(
+    `
+      select id
+      from directory_templates
+      where site_id = $1
+      order by is_default desc, (name = 'Blank') desc, updated_at desc
+      limit 1
+    `,
+    [siteId]
+  )).rows
+
   const [{ count }] = (await pool.query<{ count: string }>(
     'select count(*)::int as count from directory where site_id = $1',
     [siteId]
@@ -38,26 +62,26 @@ async function seedSite(pool: Pool, siteId: string) {
       `
         insert into directory (
           site_id,
+          template_id,
           title,
           slug,
           meta_description,
-          is_published,
-          is_private,
+          status,
           display_order,
           content_blocks
         )
         select
           $1::uuid,
+          $4::uuid,
           'Scale Directory ' || series,
           'scale-directory-' || series,
           'Seeded directory record ' || series,
-          true,
-          false,
+          'published',
           series,
-          jsonb_build_object('_settings', jsonb_build_object('is_private', false))
+          '{}'::jsonb
         from generate_series($2::int, $3::int) as series
       `,
-      [siteId, startIndex, endIndex]
+      [siteId, startIndex, endIndex, templateId]
     )
 
     console.log(`site ${siteId}: seeded ${endIndex}/${rowsPerSite}`)

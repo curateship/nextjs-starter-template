@@ -14,6 +14,12 @@ import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { media } from '@/lib/db/schema/media'
 import { sites } from '@/lib/db/schema/sites'
 import type { DirectoryData } from '@/lib/actions/directories/directory-data'
+import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
+import {
+  getDirectoryTemplateDefaultCategoryParentId,
+  mergeDirectoryTemplateBlocks,
+  pruneDirectoryValueBlocksForTemplate,
+} from '@/lib/actions/directories/directory-template-inheritance'
 import { generateSlug } from '@/lib/utils/slug'
 import { isAuthorizedCoreBridgeRequest, isCoreBridgeSiteAllowed } from '@/lib/utils/core-bridge-auth'
 import { deleteFromR2, uploadToR2 } from '@/lib/utils/r2'
@@ -115,6 +121,7 @@ export async function POST(request: NextRequest) {
 
   let nextDisplayOrder = await getNextDisplayOrder(siteId)
   const defaultTemplate = await getDefaultDirectoryTemplateBlocks(siteId)
+  const templateCache = new Map<string, Awaited<ReturnType<typeof getDirectoryTemplateBlocksById>>>()
   const customBlockTemplates = mappings.some((mapping) => mapping.targetKind === 'customField')
     ? await getDirectoryCustomBlockTemplates(siteId)
     : new Map<string, { fields: any[] }>()
@@ -144,21 +151,27 @@ export async function POST(request: NextRequest) {
 
     try {
       const existing = await findDirectoryBySource(siteId, GOOGLE_MAPS_SOURCE_TYPE, placeId)
+      const template = existing?.templateId
+        ? await getCachedDirectoryTemplateBlocks(siteId, existing.templateId, templateCache)
+        : defaultTemplate
       const hubFeaturedImage = await importFeaturedImageToHub(featuredImageSource, {
         siteId: site.id,
         userId: site.userId,
         altText: title,
       })
-      const sourceBlocks = cloneContentBlocks(existing?.contentBlocks ?? defaultTemplate.contentBlocks)
+      const sourceBlocks = existing
+        ? mergeDirectoryTemplateBlocks(template.contentBlocks, (existing.contentBlocks || {}) as Record<string, any>)
+        : cloneContentBlocks(template.contentBlocks)
       const contentBlocks = cleanContentBlocks(sourceBlocks)
       applyBlockMappings(contentBlocks, item, mappings, customBlockTemplates)
+      const valueBlocks = pruneDirectoryValueBlocksForTemplate(contentBlocks, template.contentBlocks)
       const directoryData = buildDirectoryData()
       const values = {
         title,
         status,
         sourceType: GOOGLE_MAPS_SOURCE_TYPE,
         sourceId: placeId,
-        contentBlocks,
+        contentBlocks: valueBlocks,
         directoryData,
         updatedAt: new Date(),
         ...(existing?.metaDescription === record.description ? { metaDescription: null } : {}),
@@ -170,7 +183,7 @@ export async function POST(request: NextRequest) {
           .set(values)
           .where(eq(directories.id, existing.id))
           .returning({ id: directories.id, slug: directories.slug })
-        await assignMappedDirectoryCategory(siteId, updated.id, mappedCategory, defaultTemplate.defaultBreadcrumbParentId, categoryCache)
+        await assignMappedDirectoryCategory(siteId, updated.id, mappedCategory, template.defaultCategoryParentId, categoryCache)
 
         results.push({
           source_type: GOOGLE_MAPS_SOURCE_TYPE,
@@ -186,6 +199,7 @@ export async function POST(request: NextRequest) {
       const [created] = await db.insert(directories)
         .values({
           siteId,
+          templateId: template.id,
           title,
           slug,
           status,
@@ -193,13 +207,13 @@ export async function POST(request: NextRequest) {
           featuredImage: hubFeaturedImage,
           sourceType: GOOGLE_MAPS_SOURCE_TYPE,
           sourceId: placeId,
-          contentBlocks,
+          contentBlocks: valueBlocks,
           directoryData,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning({ id: directories.id, slug: directories.slug })
-      await assignMappedDirectoryCategory(siteId, created.id, mappedCategory, defaultTemplate.defaultBreadcrumbParentId, categoryCache)
+      await assignMappedDirectoryCategory(siteId, created.id, mappedCategory, template.defaultCategoryParentId, categoryCache)
 
       nextDisplayOrder += 1
       results.push({
@@ -281,31 +295,66 @@ async function findDirectoryBySource(siteId: string, sourceType: string, sourceI
 }
 
 async function getDefaultDirectoryTemplateBlocks(siteId: string) {
-  const [template] = await db.select({ contentBlocks: directoryTemplates.contentBlocks })
+  await ensureDirectoryBlankTemplateForSite(siteId)
+
+  const [template] = await db.select({
+    id: directoryTemplates.id,
+    contentBlocks: directoryTemplates.contentBlocks,
+  })
     .from(directoryTemplates)
-    .where(and(eq(directoryTemplates.siteId, siteId), eq(directoryTemplates.isDefault, true)))
-    .orderBy(desc(directoryTemplates.updatedAt))
+    .where(eq(directoryTemplates.siteId, siteId))
+    .orderBy(desc(directoryTemplates.isDefault), desc(directoryTemplates.updatedAt))
     .limit(1)
 
+  const contentBlocks = cloneContentBlocks(template?.contentBlocks)
+
   return {
-    contentBlocks: cloneContentBlocks(template?.contentBlocks),
-    defaultBreadcrumbParentId: getDefaultBreadcrumbParentId(template?.contentBlocks),
+    id: template!.id,
+    contentBlocks,
+    defaultCategoryParentId: getValidTemplateDefaultCategoryParentId(contentBlocks),
   }
 }
 
-function getDefaultBreadcrumbParentId(contentBlocks: unknown) {
-  if (!contentBlocks || typeof contentBlocks !== 'object' || Array.isArray(contentBlocks)) return null
-  const settings = (contentBlocks as Record<string, any>)._settings
-  const parentId = settings && typeof settings === 'object' && !Array.isArray(settings)
-    ? settings.default_breadcrumb_parent_id
-    : null
+async function getDirectoryTemplateBlocksById(siteId: string, templateId: string) {
+  const [template] = await db.select({
+    id: directoryTemplates.id,
+    contentBlocks: directoryTemplates.contentBlocks,
+  })
+    .from(directoryTemplates)
+    .where(and(eq(directoryTemplates.siteId, siteId), eq(directoryTemplates.id, templateId)))
+    .limit(1)
 
-  return typeof parentId === 'string' && UUID_REGEX.test(parentId) ? parentId : null
+  if (!template) return getDefaultDirectoryTemplateBlocks(siteId)
+
+  const contentBlocks = cloneContentBlocks(template.contentBlocks)
+
+  return {
+    id: template.id,
+    contentBlocks,
+    defaultCategoryParentId: getValidTemplateDefaultCategoryParentId(contentBlocks),
+  }
+}
+
+async function getCachedDirectoryTemplateBlocks(
+  siteId: string,
+  templateId: string,
+  cache: Map<string, Awaited<ReturnType<typeof getDirectoryTemplateBlocksById>>>
+) {
+  if (!cache.has(templateId)) {
+    cache.set(templateId, await getDirectoryTemplateBlocksById(siteId, templateId))
+  }
+
+  return cache.get(templateId)!
 }
 
 function cloneContentBlocks(value: unknown): Record<string, any> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return JSON.parse(JSON.stringify(value))
+}
+
+function getValidTemplateDefaultCategoryParentId(contentBlocks: Record<string, any>) {
+  const parentId = getDirectoryTemplateDefaultCategoryParentId(contentBlocks)
+  return parentId && UUID_REGEX.test(parentId) ? parentId : null
 }
 
 function normalizeMappings(value: unknown) {

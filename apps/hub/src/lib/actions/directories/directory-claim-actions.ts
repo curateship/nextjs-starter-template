@@ -10,7 +10,7 @@ import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions
 import { createHubNotificationForSuperAdmins } from '@/lib/actions/notifications/notification-service'
 import { db } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { authUsers, directories, directoryClaims, sites } from '@/lib/db/schema'
+import { authUsers, directories, directoryClaims, directoryTemplates, sites } from '@/lib/db/schema'
 import {
   buildDirectoryCoreMenuHref,
   DIRECTORY_CORE_BLOCK_TYPE,
@@ -20,6 +20,10 @@ import {
 } from '@/lib/actions/directories/directory-core'
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from '@/lib/actions/directories/directory-google-map'
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from '@/lib/actions/directories/directory-opening-hours'
+import {
+  mergeDirectoryTemplateBlocks,
+  pruneDirectoryValueBlocksForTemplate,
+} from '@/lib/actions/directories/directory-template-inheritance'
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
 
@@ -135,10 +139,17 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;')
 }
 
-function getContentBlocks(directory: { contentBlocks: unknown }) {
-  return directory.contentBlocks && typeof directory.contentBlocks === 'object'
-    ? directory.contentBlocks as Record<string, any>
+function getObjectBlocks(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, any>
     : {}
+}
+
+function getMergedContentBlocks(directory: { contentBlocks: unknown }, template: { contentBlocks: unknown }) {
+  return mergeDirectoryTemplateBlocks(
+    getObjectBlocks(template.contentBlocks),
+    getObjectBlocks(directory.contentBlocks)
+  )
 }
 
 function getCoreBlockEntry(contentBlocks: Record<string, any>) {
@@ -333,6 +344,7 @@ export async function submitDirectoryClaimAction(input: {
   const [row] = await db
     .select({
       directory: directories,
+      template: directoryTemplates,
       site: {
         id: sites.id,
         name: sites.name,
@@ -341,6 +353,7 @@ export async function submitDirectoryClaimAction(input: {
       },
     })
     .from(directories)
+    .innerJoin(directoryTemplates, eq(directoryTemplates.id, directories.templateId))
     .innerJoin(sites, eq(sites.id, directories.siteId))
     .where(and(eq(directories.id, input.directoryId), eq(directories.status, 'published')))
     .limit(1)
@@ -392,7 +405,7 @@ export async function submitDirectoryClaimAction(input: {
 
   const token = createVerificationToken()
   const expiresAt = new Date(now.getTime() + CLAIM_EMAIL_EXPIRES_MS)
-  const contentBlocks = getContentBlocks(row.directory)
+  const contentBlocks = getMergedContentBlocks(row.directory, row.template)
   const domainMatches = buildDomainMatch(contentBlocks, businessEmail)
 
   const claimValues = {
@@ -672,9 +685,10 @@ export async function getMyClaimedDirectoriesAction(siteId: string): Promise<{
   if (!user) return { data: [], error: 'Authentication required' }
 
   const rows = await db
-    .select({ directory: directories })
+    .select({ directory: directories, template: directoryTemplates })
     .from(directoryClaims)
     .innerJoin(directories, eq(directories.id, directoryClaims.directoryId))
+    .innerJoin(directoryTemplates, eq(directoryTemplates.id, directories.templateId))
     .where(and(
       eq(directoryClaims.siteId, siteId),
       eq(directoryClaims.userId, user.id),
@@ -684,8 +698,8 @@ export async function getMyClaimedDirectoriesAction(siteId: string): Promise<{
     .orderBy(desc(directoryClaims.createdAt))
 
   return {
-    data: rows.map(({ directory }) => {
-      const contentBlocks = getContentBlocks(directory)
+    data: rows.map(({ directory, template }) => {
+      const contentBlocks = getMergedContentBlocks(directory, template)
       const coreEntry = getCoreBlockEntry(contentBlocks)
       const googleMapEntry = getBlockEntry(contentBlocks, DIRECTORY_GOOGLE_MAP_BLOCK_TYPE)
       const openingHoursEntry = getBlockEntry(contentBlocks, DIRECTORY_OPENING_HOURS_BLOCK_TYPE)
@@ -724,9 +738,10 @@ export async function updateMyClaimedDirectoryAction(input: {
   if (!user) return { success: false, error: 'Authentication required' }
 
   const [row] = await db
-    .select({ directory: directories, claimId: directoryClaims.id })
+    .select({ directory: directories, template: directoryTemplates, claimId: directoryClaims.id })
     .from(directoryClaims)
     .innerJoin(directories, eq(directories.id, directoryClaims.directoryId))
+    .innerJoin(directoryTemplates, eq(directoryTemplates.id, directories.templateId))
     .where(and(
       eq(directoryClaims.siteId, input.siteId),
       eq(directoryClaims.directoryId, input.directoryId),
@@ -744,7 +759,7 @@ export async function updateMyClaimedDirectoryAction(input: {
   if (!title) return { success: false, error: 'Listing title is required' }
   if (input.featuredImage && !featuredImage) return { success: false, error: 'Enter a valid image URL' }
 
-  const contentBlocks = getContentBlocks(row.directory)
+  const contentBlocks = getMergedContentBlocks(row.directory, row.template)
   const coreEntry = getCoreBlockEntry(contentBlocks)
   const nextContentBlocks = { ...contentBlocks }
 
@@ -797,7 +812,10 @@ export async function updateMyClaimedDirectoryAction(input: {
       title,
       featuredImage,
       metaDescription,
-      contentBlocks: nextContentBlocks,
+      contentBlocks: pruneDirectoryValueBlocksForTemplate(
+        nextContentBlocks,
+        getObjectBlocks(row.template.contentBlocks)
+      ),
       updatedAt: new Date(),
     })
     .where(eq(directories.id, input.directoryId))

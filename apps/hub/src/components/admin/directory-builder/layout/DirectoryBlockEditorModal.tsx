@@ -6,7 +6,7 @@ import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboar
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import type { DirectoryData } from "@/lib/actions/directories/directory-data"
 import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { DirectoryBlockEditor } from "./DirectoryBlockEditor"
+import { DirectoryBlockEditor, type DirectoryBlockEditorMode } from "./DirectoryBlockEditor"
 
 interface DirectoryBlock {
   id: string
@@ -31,6 +31,7 @@ interface DirectoryBlockEditorModalProps {
   onSave: () => void
   saving?: boolean
   error?: string | null
+  mode?: DirectoryBlockEditorMode
 }
 
 export function DirectoryBlockEditorModal({
@@ -49,6 +50,7 @@ export function DirectoryBlockEditorModal({
   onSave,
   saving = false,
   error,
+  mode = "listing",
 }: DirectoryBlockEditorModalProps) {
   if (!block) return null
 
@@ -61,7 +63,7 @@ export function DirectoryBlockEditorModal({
     >
       <ModalTabsProvider>
         <DashboardModalContent
-          title={`Edit ${block.title}`}
+          title={`${mode === "template" ? "Configure" : "Edit"} ${block.title}`}
           titleAccessory={<ModalTabs />}
           className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
           footer={
@@ -91,6 +93,7 @@ export function DirectoryBlockEditorModal({
             onDirectoryFeaturedImageChange={onDirectoryFeaturedImageChange}
             customBlockTemplates={customBlockTemplates}
             showDirectoryTitleField={showDirectoryTitleField}
+            mode={mode}
           />
         </DashboardModalContent>
       </ModalTabsProvider>

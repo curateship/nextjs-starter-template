@@ -2,16 +2,12 @@
 
 import { useCallback, useMemo } from "react"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
-import { Card, CardContent, CardGroup } from "@/components/ui/card"
-import { BlockTabs } from "@/components/ui/tabs"
 
 interface DirectoryRichTextEditorBlockProps {
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
   siteId: string
   blockId: string
-  onBack?: () => void
 }
 
 export function DirectoryRichTextEditorBlock({
@@ -19,7 +15,6 @@ export function DirectoryRichTextEditorBlock({
   onContentChange,
   siteId,
   blockId,
-  onBack,
 }: DirectoryRichTextEditorBlockProps) {
   const editorContent = useMemo(() => ({
     ...content,
@@ -34,52 +29,14 @@ export function DirectoryRichTextEditorBlock({
   }, [content.format, onContentChange])
 
   return (
-    <BlockTabs
-      onBack={onBack}
-      headerClassName="pt-0"
-      tabs={[
-        {
-          value: "content",
-          label: "Content",
-          content: (
-            <InlineRichTextEditor
-              blockId={blockId}
-              content={editorContent}
-              onContentChange={handleBodyChange}
-              siteId={siteId}
-              isActive
-              editorPadding={0}
-              variant="directory"
-            />
-          ),
-        },
-        {
-          value: "settings",
-          label: "Settings",
-          content: (
-            <CardGroup className="grid">
-              <Card>
-                <CardContent>
-                  <VisibilitySettings
-                    title="Elements Visibility"
-                    visibility={content.visibility}
-                    onChange={(visibility) => onContentChange("visibility", visibility)}
-                    includeHideBlock={false}
-                    fields={[{ key: "body", label: "Content" }]}
-                  />
-                </CardContent>
-              </Card>
-              <VisibilitySettings
-                title="Block Visibility"
-                visibility={content.visibility}
-                onChange={(visibility) => onContentChange("visibility", visibility)}
-                useCard
-                fields={[]}
-              />
-            </CardGroup>
-          ),
-        },
-      ]}
+    <InlineRichTextEditor
+      blockId={blockId}
+      content={editorContent}
+      onContentChange={handleBodyChange}
+      siteId={siteId}
+      isActive
+      editorPadding={0}
+      variant="directory"
     />
   )
 }

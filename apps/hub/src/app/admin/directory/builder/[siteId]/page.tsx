@@ -9,14 +9,11 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { DirectorySettingsModal } from "@/components/admin/directory-builder/layout/DirectorySettingsModal"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
-import { DIRECTORY_BLOCK_TYPES } from "@/components/admin/directory-builder/config/directory-block-types"
-import { directoryBlocksToJson, orderDirectoryEditorBlocks } from "@/components/admin/directory-builder/config/directory-block-utils"
-import { updateDirectoryAction, updateDirectoryBlocksAction } from "@/lib/actions/directories/directory-actions"
+import { orderDirectoryEditorBlocks } from "@/components/admin/directory-builder/config/directory-block-utils"
+import { updateDirectoryAction, updateDirectoryBlockValuesAction } from "@/lib/actions/directories/directory-actions"
+import { directoryBlocksToValueJson } from "@/lib/actions/directories/directory-template-inheritance"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
-import { Blocks } from "lucide-react"
-import { getDirectoryCustomBlockSelectionType } from "@/lib/actions/directories/directory-custom-blocks/utils"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DirectoryPreview } from "@/components/admin/directory-builder/layout/DirectoryPreview"
@@ -29,7 +26,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
   const searchParams = useSearchParams()
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const directoryFromUrl = searchParams.get('directory') || ''
-  const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
   const selectedDirectory = directoryFromUrl || ''
 
@@ -82,8 +78,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     setBlocks: setLocalBlocks,
     selectedDirectory,
     directoryId: currentDirectoryData?.id,
-    customBlockTemplates,
-    currentDirectory: currentDirectoryData || undefined
   })
   const selectedBlock = builderState.selectedBlock
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
@@ -116,17 +110,6 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
     setDraftDirectoryFeaturedImage(currentDirectoryData?.featured_image || "")
     setBlockSaveError(null)
   }, [selectedBlock, currentDirectoryData?.featured_image, currentDirectoryData?.title, selectedDirectory])
-
-  const customBlockDefinitions = customBlockTemplates.map(template => ({
-    type: getDirectoryCustomBlockSelectionType(template.id),
-    name: template.name,
-    icon: Blocks,
-    description: `${template.layout} • ${template.fields.length} field${template.fields.length === 1 ? '' : 's'}`,
-    defaultContent: {
-      templateId: template.id,
-      values: {},
-    },
-  }))
 
   // Handle directory updates
   const handleDirectoryUpdated = async (updatedDirectory: Directory) => {
@@ -233,8 +216,8 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
         }
       }
 
-      const contentBlocks = directoryBlocksToJson(nextBlocks, currentDirectoryData.content_blocks || {})
-      const result = await updateDirectoryBlocksAction(currentDirectoryData.id, contentBlocks)
+      const contentBlocks = directoryBlocksToValueJson(nextBlocks)
+      const result = await updateDirectoryBlockValuesAction(currentDirectoryData.id, contentBlocks)
       if (!result.success) {
         setBlockSaveError(result.error || "Failed to save block")
         return
@@ -365,6 +348,7 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
           onSave={handleSaveBlockEditor}
           saving={isSavingBlock}
           error={blockSaveError}
+          mode="listing"
         />
 
         {blockListOpen && (
@@ -372,26 +356,11 @@ export default function DirectoryBuilderEditor({ params }: { params: Promise<{ s
             blocks={currentDirectory.blocks}
             selectedBlock={builderState.selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
             viewPageHref={viewPageHref}
-            onAddBlock={() => setBlockModalOpen(true)}
-            deleting={null}
             blocksLoading={blocksLoading}
           />
         )}
 
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={builderState.handleAddBlocks}
-          existingBlockTypes={currentDirectory.blocks.map(b => b.type)}
-          sections={[
-            { title: 'Built In', blockTypes: DIRECTORY_BLOCK_TYPES },
-            { title: 'Custom', blockTypes: customBlockDefinitions },
-          ]}
-          entityName="directory"
-        />
       </div>
     </div>
   )

@@ -103,11 +103,16 @@ The sslip.io URL works because Coolify gives you `*.5.78.189.158.sslip.io` which
 - Hub renders directory pages from Hub `directory` rows.
 - Public directory listings resolve under `/directory/{slug}`.
 - The admin Directory section resolves under `/admin/directory`.
+- Every directory listing has a required `template_id`; the template owns block structure, layout, order, visibility, and settings.
+- The directory template editor saves only structure and display settings; template preview sample values are in-memory only and are never persisted.
+- Directory listing `content_blocks` stores only per-listing value overrides keyed by inherited template block id.
+- Public and admin directory detail views merge `directory_templates.content_blocks` with directory value overrides before rendering or editing.
+- Directory templates can define a default category parent for Core imports; this only helps assign mapped categories and does not directly render or rewrite listing breadcrumbs.
 - Core exports cleaned Google Maps records to Hub through bridge APIs, and Hub upserts directory rows by `site_id + source_type + source_id`.
 - Core export sends the required identity fields plus fields selected in Core's Google Maps field settings.
-- Venue/business values live in `directory.directory_data`; `content_blocks` stores only Hub block layout and display settings.
+- Venue/business provider values live in `directory.directory_data`; listing-specific block values live in `directory.content_blocks`; shared block layout/settings live in `directory_templates.content_blocks`.
 - Exported featured images are copied into Hub media/R2 before Hub stores the directory image URL.
-- New Core-created directory rows start from the Hub site's default directory template blocks without adding blocks missing from the template.
+- New Core-created directory rows use the Hub site's default directory template and write imported mapped values into directory value overrides.
 - Core provider/import data stays in Core and is not read by Hub at request time.
 - Hub directory blocks read values from `directory_data` at render time.
 

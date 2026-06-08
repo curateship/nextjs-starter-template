@@ -63,6 +63,8 @@ interface CreateResourceConfig {
   table: any
   /** Build the insert values from the request data. Receives siteId, slug, nextOrder, contentBlocks. */
   buildInsertValues: (data: any, siteId: string, slug: string, nextOrder: number, contentBlocks: any) => Record<string, any>
+  /** Optional resource-specific create validation/data normalization after auth/site ownership. */
+  prepareCreateData?: (data: any, userId: string) => Promise<any | NextResponse> | any | NextResponse
   /** Optional response serializer for routes that expose snake_case action shapes. */
   serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful create. */
@@ -102,7 +104,7 @@ async function getNextDisplayOrder(table: any, siteId: string) {
 export function createResourceHandler(config: CreateResourceConfig) {
   return async function POST(request: NextRequest) {
     try {
-      const data = await request.json()
+      let data = await request.json()
 
       /* Validate required fields */
       if (!data.title?.trim()) return jsonError(`${config.entityName} title is required`, 400)
@@ -116,6 +118,12 @@ export function createResourceHandler(config: CreateResourceConfig) {
       /* Site ownership */
       const siteOrError = await verifySiteOwnership(data.site_id, userId)
       if (siteOrError instanceof NextResponse) return siteOrError
+
+      if (config.prepareCreateData) {
+        const preparedData = await config.prepareCreateData(data, userId)
+        if (preparedData instanceof NextResponse) return preparedData
+        data = preparedData
+      }
 
       /* Slug */
       let slug = data.slug || generateSlug(data.title)
@@ -163,7 +171,7 @@ interface ItemResourceConfig {
   /** Map snake_case request fields to camelCase DB columns for updates */
   updateFieldMap: Record<string, string>
   /** Optional transform for resource-specific update behavior */
-  transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => Promise<Record<string, unknown>> | Record<string, unknown>
+  transformUpdateValues?: (updates: Record<string, unknown>, entity: any, updateValues: Record<string, unknown>) => Promise<Record<string, unknown> | NextResponse> | Record<string, unknown> | NextResponse
   /** Optional response serializer for routes that expose snake_case action shapes. */
   serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful update. */
@@ -275,6 +283,7 @@ export function updateResourceHandler(config: ItemResourceConfig) {
       const finalUpdateValues = config.transformUpdateValues
         ? await config.transformUpdateValues(updates, entity, updateValues)
         : updateValues
+      if (finalUpdateValues instanceof NextResponse) return finalUpdateValues
 
       /* Update */
       const updateResult = await db.update(config.table)

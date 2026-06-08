@@ -70,11 +70,34 @@ interface TemplateListPageProps<TTemplate extends AdminTemplateRecord> {
   routeBase: string
   setDefaultTemplate: (templateId: string) => Promise<{ success: boolean; error: string | null }>
   updateTemplate?: (templateId: string, updates: { name?: string; content_blocks?: Record<string, any> }) => Promise<{ data: TTemplate | null; error: string | null }>
-  enableDefaultBreadcrumb?: boolean
+  enableDefaultCategoryParent?: boolean
 }
+
+const DEFAULT_CATEGORY_PARENT_KEY = "default_category_parent_id"
+const LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY = "default_breadcrumb_parent_id"
 
 function getTemplateSettings(contentBlocks: Record<string, any>) {
   return contentBlocks?._settings && typeof contentBlocks._settings === "object" ? contentBlocks._settings : {}
+}
+
+function getDefaultCategoryParentId(contentBlocks: Record<string, any>) {
+  const settings = getTemplateSettings(contentBlocks)
+  const parentId = settings[DEFAULT_CATEGORY_PARENT_KEY] ?? settings[LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY]
+  return typeof parentId === "string" && parentId.length > 0 ? parentId : null
+}
+
+function setDefaultCategoryParentId(contentBlocks: Record<string, any>, parentId: string | null) {
+  const settings = {
+    ...getTemplateSettings(contentBlocks),
+    [DEFAULT_CATEGORY_PARENT_KEY]: parentId,
+  }
+
+  delete settings[LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY]
+
+  return {
+    ...contentBlocks,
+    _settings: settings,
+  }
 }
 
 async function getAllCategoriesForSite(siteId: string) {
@@ -117,7 +140,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   routeBase,
   setDefaultTemplate,
   updateTemplate,
-  enableDefaultBreadcrumb = false
+  enableDefaultCategoryParent = false
 }: TemplateListPageProps<TTemplate>) {
   const { currentSite, pageSize } = useSiteSwitcher()
   const router = useRouter()
@@ -136,7 +159,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   const [creating, setCreating] = useState(false)
   const [settingsTemplate, setSettingsTemplate] = useState<TTemplate | null>(null)
   const [settingsName, setSettingsName] = useState("")
-  const [settingsBreadcrumbParentId, setSettingsBreadcrumbParentId] = useState("none")
+  const [settingsCategoryParentId, setSettingsCategoryParentId] = useState("none")
   const [settingsCategories, setSettingsCategories] = useState<Category[]>([])
   const [savingSettings, setSavingSettings] = useState(false)
 
@@ -182,7 +205,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   }, [loadTemplates])
 
   useEffect(() => {
-    if (!enableDefaultBreadcrumb || !settingsTemplate?.site_id) return
+    if (!enableDefaultCategoryParent || !settingsTemplate?.site_id) return
 
     let cancelled = false
     getAllCategoriesForSite(settingsTemplate.site_id).then((categories) => {
@@ -194,7 +217,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     return () => {
       cancelled = true
     }
-  }, [enableDefaultBreadcrumb, settingsTemplate?.site_id])
+  }, [enableDefaultCategoryParent, settingsTemplate?.site_id])
 
   async function handleCreate() {
     if (!currentSite?.id || !formName.trim()) return
@@ -295,14 +318,11 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   }
 
   function openSettingsModal(template: TTemplate) {
-    const templateSettings = getTemplateSettings(template.content_blocks || {})
-    const defaultBreadcrumbParentId = typeof templateSettings.default_breadcrumb_parent_id === "string"
-      ? templateSettings.default_breadcrumb_parent_id
-      : "none"
+    const defaultCategoryParentId = getDefaultCategoryParentId(template.content_blocks || {}) || "none"
 
     setSettingsTemplate(template)
     setSettingsName(template.name)
-    setSettingsBreadcrumbParentId(defaultBreadcrumbParentId)
+    setSettingsCategoryParentId(defaultCategoryParentId)
     setSettingsCategories([])
   }
 
@@ -312,15 +332,12 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     setError(null)
 
     const updates: { name: string; content_blocks?: Record<string, any> } = { name: settingsName.trim() }
-    if (enableDefaultBreadcrumb) {
+    if (enableDefaultCategoryParent) {
       const contentBlocks = settingsTemplate.content_blocks || {}
-      updates.content_blocks = {
-        ...contentBlocks,
-        _settings: {
-          ...getTemplateSettings(contentBlocks),
-          default_breadcrumb_parent_id: settingsBreadcrumbParentId === "none" ? null : settingsBreadcrumbParentId,
-        },
-      }
+      updates.content_blocks = setDefaultCategoryParentId(
+        contentBlocks,
+        settingsCategoryParentId === "none" ? null : settingsCategoryParentId
+      )
     }
 
     const { error: updateError } = await updateTemplate(settingsTemplate.id, updates)
@@ -589,15 +606,15 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                     }}
                   />
                 </Field>
-                {enableDefaultBreadcrumb && (
+                {enableDefaultCategoryParent && (
                   <Field>
-                    <FieldLabel htmlFor="settings-template-breadcrumb">Default breadcrumb</FieldLabel>
-                    <Select value={settingsBreadcrumbParentId} onValueChange={setSettingsBreadcrumbParentId}>
-                      <SelectTrigger id="settings-template-breadcrumb" className="w-full">
-                        <SelectValue placeholder="Select category group" />
+                    <FieldLabel htmlFor="settings-template-category-parent">Default category parent</FieldLabel>
+                    <Select value={settingsCategoryParentId} onValueChange={setSettingsCategoryParentId}>
+                      <SelectTrigger id="settings-template-category-parent" className="w-full">
+                        <SelectValue placeholder="Select parent category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No default group</SelectItem>
+                        <SelectItem value="none">No default parent</SelectItem>
                         {topLevelCategories.map((category) => (
                           <SelectItem key={category.id} value={category.id}>
                             {category.title}

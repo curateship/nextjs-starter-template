@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel } from "@/components/ui/field"
@@ -16,7 +15,6 @@ import {
 import { BlockEditorEmptyState, BlockTabs } from "@/components/ui/tabs"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { ShellIconPickerField, ShellIconPreview } from "@/components/admin/layout/settings/ShellIconPicker"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
@@ -77,7 +75,6 @@ interface DirectoryCoreBlockProps {
   }
   onDirectoryTitleChange?: (title: string) => void
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
-  onBack?: () => void
   showDirectoryTitleField?: boolean
 }
 
@@ -357,7 +354,6 @@ export function DirectoryCoreBlock({
   directoryData,
   onDirectoryTitleChange,
   onDirectoryFeaturedImageChange,
-  onBack,
   showDirectoryTitleField = true,
 }: DirectoryCoreBlockProps) {
   const [showImagePicker, setShowImagePicker] = useState(false)
@@ -412,8 +408,6 @@ export function DirectoryCoreBlock({
   const address = typeof content.address === "string" ? content.address : fields.address || ""
   const fieldRating = typeof fields.rating === "number" || typeof fields.rating === "string" ? String(fields.rating) : ""
   const rating = typeof content.rating === "number" || typeof content.rating === "string" ? String(content.rating) : fieldRating
-  const saveIconOpacityNumber = Number(content.saveIconOpacity)
-  const saveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
 
   useEffect(() => {
     setSortableReady(true)
@@ -882,137 +876,11 @@ export function DirectoryCoreBlock({
         </CardGroup>
       ),
     },
-    {
-      value: "settings",
-      label: "Settings",
-      content: (
-        <CardGroup className="grid">
-          <Card>
-            <CardContent>
-              <VisibilitySettings
-                title="Elements Visibility"
-                visibility={content.visibility}
-                onChange={(visibility) => onContentChange("visibility", visibility)}
-                includeHideBlock={false}
-                fields={[
-                  { key: "image", label: "Image" },
-                  { key: "title", label: "Title" },
-                  { key: "address", label: "Address" },
-                  { key: "rating", label: "Rating" },
-                  { key: "socialLinks", label: "Social Links" },
-                  { key: "menuLinks", label: "Menu Links" },
-                ]}
-              />
-            </CardContent>
-          </Card>
-          <VisibilitySettings
-            title="Block Visibility"
-            visibility={content.visibility}
-            onChange={(visibility) => onContentChange("visibility", visibility)}
-            useCard
-            fields={[]}
-          />
-
-          <Card>
-            <CardHeader>
-              <DashboardModalCardTitle>Save Button</DashboardModalCardTitle>
-            </CardHeader>
-            <CardContent>
-              <Field>
-                <FieldLabel htmlFor="directory-core-save-icon-opacity">Save Icon Opacity</FieldLabel>
-                <Input
-                  id="directory-core-save-icon-opacity"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={saveIconOpacity}
-                  onChange={(event) => {
-                    const value = Number(event.target.value)
-                    onContentChange("saveIconOpacity", Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined)
-                  }}
-                />
-              </Field>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <DashboardModalCardTitle>Sticky</DashboardModalCardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="directory-core-sticky"
-                  checked={content.sticky === true}
-                  onCheckedChange={(checked) => onContentChange("sticky", checked === true)}
-                />
-                <div className="space-y-1">
-                  <label htmlFor="directory-core-sticky" className="text-sm font-medium cursor-pointer">
-                    Keep block visible while scrolling
-                  </label>
-                  <p className="text-sm text-muted-foreground">
-                    Uses sticky positioning on larger screens.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <DashboardModalCardTitle>Claim Flow</DashboardModalCardTitle>
-              <CardDescription>
-                Configure the owner path and pending labels for the Claim Listing action.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="directory-core-claim-edit-path">Owner Edit Path</FieldLabel>
-                  <Input
-                    id="directory-core-claim-edit-path"
-                    value={content.ownerEditPath ?? "/account"}
-                    onChange={(event) => onContentChange("ownerEditPath", event.target.value)}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="directory-core-claim-email-text">Pending Email Text</FieldLabel>
-                  <Input
-                    id="directory-core-claim-email-text"
-                    value={content.claimPendingEmailText ?? "Check Business Email"}
-                    onChange={(event) => onContentChange("claimPendingEmailText", event.target.value)}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="directory-core-claim-review-text">Pending Review Text</FieldLabel>
-                  <Input
-                    id="directory-core-claim-review-text"
-                    value={content.claimPendingReviewText ?? "Claim Pending Review"}
-                    onChange={(event) => onContentChange("claimPendingReviewText", event.target.value)}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel htmlFor="directory-core-claim-approved-text">Approved Text</FieldLabel>
-                  <Input
-                    id="directory-core-claim-approved-text"
-                    value={content.claimApprovedText ?? "Edit Listing"}
-                    onChange={(event) => onContentChange("claimApprovedText", event.target.value)}
-                  />
-                </Field>
-              </div>
-            </CardContent>
-          </Card>
-        </CardGroup>
-      ),
-    },
   ]
 
   return (
     <>
-      <BlockTabs tabs={tabs} onBack={onBack} headerClassName="pt-0" contentClassName="mt-3" />
+      <BlockTabs tabs={tabs} headerClassName="pt-0" contentClassName="mt-3" />
 
       <Dialog
         open={editingSocialLinkIndex !== null || creatingSocialLink}

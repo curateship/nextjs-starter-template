@@ -1,7 +1,6 @@
 'use client'
 
-import { ExternalLink, GripVertical, Plus, Trash2 } from "lucide-react"
-import Link from "next/link"
+import { GripVertical, Plus, Trash2 } from "lucide-react"
 import {
   DndContext,
   closestCenter,
@@ -40,7 +39,6 @@ interface DirectoryCustomBlockProps {
   onContentChange: (field: string, value: any) => void
   template: DirectoryCustomBlockTemplate | null
   siteId: string
-  onBack?: () => void
 }
 
 export function DirectoryCustomBlock({
@@ -48,14 +46,12 @@ export function DirectoryCustomBlock({
   onContentChange,
   template,
   siteId,
-  onBack,
 }: DirectoryCustomBlockProps) {
   const values = content.values && typeof content.values === 'object' ? content.values : {}
 
   if (!template) {
     return (
       <BlockTabs
-        onBack={onBack}
         headerClassName="pt-0"
         tabs={[
           {
@@ -82,7 +78,6 @@ export function DirectoryCustomBlock({
 
   return (
     <BlockTabs
-      onBack={onBack}
       headerClassName="pt-0"
       tabs={[
         {
@@ -107,36 +102,6 @@ export function DirectoryCustomBlock({
                 />
               )}
             </div>
-          ),
-        },
-        {
-          value: 'template',
-          label: 'Template',
-          content: (
-            <CardGroup className="grid">
-              <Card>
-                <CardHeader>
-                  <DashboardModalCardTitle>Template Info</DashboardModalCardTitle>
-                </CardHeader>
-                <CardContent className="gap-3 text-sm text-muted-foreground">
-                  <div>
-                    <span className="font-medium text-foreground">Name:</span> {template.name}
-                  </div>
-                  <div>
-                    <span className="font-medium text-foreground">Layout:</span> {template.layout}
-                  </div>
-                  <div>
-                    <span className="font-medium text-foreground">Fields:</span> {template.fields.length}
-                  </div>
-                  <Button asChild variant="outline" size="sm" className="w-fit">
-                    <Link href={`/admin/directory/custom-blocks/${template.id}`}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Edit Template
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            </CardGroup>
           ),
         },
       ]}

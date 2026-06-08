@@ -86,15 +86,21 @@ function BlockTabs({
   const setActiveTab = dock ? dock.setActiveTab : setLocalActiveTab
   const dockSetTabs = dock?.setTabs
   const dockClearTabs = dock?.clearTabs
+  const hasMultipleTabs = tabs.length > 1
   const dockTabsKey = JSON.stringify(tabs.map((tab) => ({ value: tab.value, label: tab.label })))
 
   React.useEffect(() => {
     if (!dockSetTabs || !dockClearTabs) return
 
+    if (!hasMultipleTabs) {
+      dockClearTabs()
+      return
+    }
+
     const dockTabs = JSON.parse(dockTabsKey) as ModalTabItem[]
     dockSetTabs(dockTabs, defaultTab)
     return dockClearTabs
-  }, [dockSetTabs, dockClearTabs, dockTabsKey, defaultTab])
+  }, [dockSetTabs, dockClearTabs, dockTabsKey, defaultTab, hasMultipleTabs])
 
   React.useEffect(() => {
     if (!tabs.some((tab) => tab.value === activeTab)) {
@@ -104,7 +110,7 @@ function BlockTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className={cn("flex w-full flex-col gap-4", className)}>
-      {!dock && (
+      {!dock && (onBack || hasMultipleTabs) ? (
         <div className={cn("flex items-center gap-2", headerClassName || "px-4 pt-3")}>
           {onBack ? (
             <button
@@ -116,15 +122,17 @@ function BlockTabs({
               Back
             </button>
           ) : null}
-          <TabsList>
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          {hasMultipleTabs ? (
+            <TabsList>
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
       {tabs.map((tab) => (
         <TabsContent key={tab.value} value={tab.value} className={cn(contentClasses)}>

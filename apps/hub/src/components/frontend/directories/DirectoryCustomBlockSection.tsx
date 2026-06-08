@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils/tailwind"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { sanitizeRichHtml } from "@/lib/utils/html-sanitizer"
+import { sanitizeUrl } from "@/lib/utils/url-validator"
 import type { HTMLAttributes } from "react"
 import type {
   DirectoryCustomBlockField,
@@ -72,11 +73,14 @@ function FieldRenderer({ field, value }: { field: DirectoryCustomBlockField; val
   if (!hasFieldContent(field, value)) return null
 
   if (field.type === "image" && typeof value === "string") {
+    const safeSrc = sanitizeUrl(value, "")
+    if (!safeSrc) return null
+
     return (
       <div className="space-y-3">
         {field.label && <FieldLabel label={field.label} />}
         <img
-          src={value}
+          src={safeSrc}
           alt={field.label || "Custom block image"}
           className="aspect-video w-full rounded-xl border object-cover"
         />
@@ -97,11 +101,14 @@ function FieldRenderer({ field, value }: { field: DirectoryCustomBlockField; val
   }
 
   if (field.type === "link" && typeof value === "string") {
+    const safeHref = sanitizeUrl(value, "")
+    if (!safeHref) return null
+
     return (
       <div className="space-y-1.5">
         {field.label && <FieldLabel label={field.label} />}
-        <a href={value} className="text-base font-medium text-primary underline underline-offset-4">
-          {value}
+        <a href={safeHref} className="text-base font-medium text-primary underline underline-offset-4">
+          {safeHref}
         </a>
       </div>
     )
@@ -142,11 +149,14 @@ function RepeaterFieldRenderer({ field, value }: { field: DirectoryCustomBlockRe
   if (!hasSimpleFieldContent(field.type, value)) return null
 
   if (field.type === "image" && typeof value === "string") {
+    const safeSrc = sanitizeUrl(value, "")
+    if (!safeSrc) return null
+
     return (
       <div className="space-y-2">
         {field.label && <FieldLabel label={field.label} small />}
         <img
-          src={value}
+          src={safeSrc}
           alt={field.label || "Repeater image"}
           className="aspect-video w-full rounded-lg border object-cover"
         />
@@ -167,11 +177,14 @@ function RepeaterFieldRenderer({ field, value }: { field: DirectoryCustomBlockRe
   }
 
   if (field.type === "link" && typeof value === "string") {
+    const safeHref = sanitizeUrl(value, "")
+    if (!safeHref) return null
+
     return (
       <div className="space-y-1">
         {field.label && <FieldLabel label={field.label} small />}
-        <a href={value} className="text-sm font-medium text-primary underline underline-offset-4">
-          {value}
+        <a href={safeHref} className="text-sm font-medium text-primary underline underline-offset-4">
+          {safeHref}
         </a>
       </div>
     )
@@ -222,5 +235,6 @@ function hasSimpleFieldContent(
 ) {
   if (type === "toggle") return typeof value === "boolean"
   if (type === "number") return value !== null && value !== undefined && String(value).trim() !== ""
+  if ((type === "link" || type === "image") && typeof value === "string") return Boolean(sanitizeUrl(value, ""))
   return typeof value === "string" ? value.trim().length > 0 : !!value
 }

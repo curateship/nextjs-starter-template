@@ -5,6 +5,7 @@ import { DirectoryCustomBlock } from "@/components/admin/directory-builder/block
 import { DirectoryGoogleMapBlock } from "@/components/admin/directory-builder/blocks/google-map/DirectoryGoogleMapBlock"
 import { DirectoryOpeningHoursBlock } from "@/components/admin/directory-builder/blocks/opening-hours/DirectoryOpeningHoursBlock"
 import { DirectoryRichTextEditorBlock } from "@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock"
+import { DirectoryTemplateBlockEditor } from "./DirectoryTemplateBlockEditor"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
@@ -18,6 +19,8 @@ interface DirectoryBlock {
   content: Record<string, any>
 }
 
+export type DirectoryBlockEditorMode = "listing" | "template"
+
 interface DirectoryBlockEditorProps {
   block: DirectoryBlock
   content: Record<string, any>
@@ -30,6 +33,7 @@ interface DirectoryBlockEditorProps {
   onDirectoryFeaturedImageChange?: (featuredImage: string) => void
   customBlockTemplates: DirectoryCustomBlockTemplate[]
   showDirectoryTitleField?: boolean
+  mode?: DirectoryBlockEditorMode
 }
 
 export function DirectoryBlockEditor({
@@ -44,7 +48,19 @@ export function DirectoryBlockEditor({
   onDirectoryFeaturedImageChange,
   customBlockTemplates,
   showDirectoryTitleField = true,
+  mode = "listing",
 }: DirectoryBlockEditorProps) {
+  if (mode === "template") {
+    return (
+      <DirectoryTemplateBlockEditor
+        block={block}
+        content={content}
+        onContentChange={onContentChange}
+        customBlockTemplates={customBlockTemplates}
+      />
+    )
+  }
+
   if (block.type === DIRECTORY_CORE_BLOCK_TYPE) {
     return (
       <DirectoryCoreBlock

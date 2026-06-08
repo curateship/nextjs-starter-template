@@ -60,6 +60,7 @@ interface DirectoryPreviewProps {
   customBlockTemplates?: DirectoryCustomBlockTemplate[]
   onSelectBlock?: (block: DirectoryBlock) => void
   onUpdateRichTextBody?: (blockId: string, htmlContent: string) => void
+  previewBreadcrumbs?: FrontendBreadcrumbItem[]
 }
 
 export function DirectoryPreview({
@@ -73,6 +74,7 @@ export function DirectoryPreview({
   customBlockTemplates = [],
   onSelectBlock,
   onUpdateRichTextBody,
+  previewBreadcrumbs,
 }: DirectoryPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
@@ -93,6 +95,10 @@ export function DirectoryPreview({
   useEffect(() => {
     let cancelled = false
 
+    if (previewBreadcrumbs !== undefined) {
+      return
+    }
+
     if (!directory?.id || directory.id === "preview") {
       setBreadcrumbs([])
       return
@@ -111,7 +117,7 @@ export function DirectoryPreview({
     return () => {
       cancelled = true
     }
-  }, [directory?.id, directory?.updated_at, site?.settings?.breadcrumbs?.directories])
+  }, [directory?.id, directory?.updated_at, previewBreadcrumbs, site?.settings?.breadcrumbs?.directories])
 
   useEffect(() => {
     if (selectedBlock) {
@@ -180,7 +186,7 @@ export function DirectoryPreview({
         site={previewSite}
         directory={previewDirectory}
         customBlockTemplates={templateMap}
-        breadcrumbs={breadcrumbs}
+        breadcrumbs={previewBreadcrumbs ?? breadcrumbs}
         isPreview
         hideSiteChrome
         renderRichTextBody={canInlineEdit ? (block) => {

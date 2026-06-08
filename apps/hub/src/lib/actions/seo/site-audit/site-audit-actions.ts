@@ -1,11 +1,12 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { sites, pages, posts, products, categories, directories, events } from '@/lib/db/schema'
+import { sites, pages, posts, products, categories, directories, events, directoryTemplates } from '@/lib/db/schema'
 import { eq, and, asc, desc } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import type { SiteSeoSettings } from '@/lib/db/schema/sites'
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { mergeDirectoryTemplateBlocks } from '@/lib/actions/directories/directory-template-inheritance'
 
 // ============================================================
 // Types
@@ -91,9 +92,14 @@ async function getPublishedDirectoryLinkRows(siteId: string) {
     const batch = await db.select({
       title: directories.title,
       slug: directories.slug,
-      contentBlocks: directories.contentBlocks,
+      valueBlocks: directories.contentBlocks,
+      templateContentBlocks: directoryTemplates.contentBlocks,
     })
       .from(directories)
+      .innerJoin(directoryTemplates, and(
+        eq(directoryTemplates.id, directories.templateId),
+        eq(directoryTemplates.siteId, directories.siteId)
+      ))
       .where(and(eq(directories.siteId, siteId), eq(directories.status, 'published')))
       .orderBy(asc(directories.displayOrder), desc(directories.createdAt), asc(directories.id))
       .limit(DIRECTORY_AUDIT_BATCH_SIZE)
@@ -101,7 +107,14 @@ async function getPublishedDirectoryLinkRows(siteId: string) {
 
     if (batch.length === 0) break
 
-    rows.push(...batch)
+    rows.push(...batch.map((row) => ({
+      title: row.title,
+      slug: row.slug,
+      contentBlocks: mergeDirectoryTemplateBlocks(
+        (row.templateContentBlocks || {}) as Record<string, any>,
+        (row.valueBlocks || {}) as Record<string, any>
+      ),
+    })))
 
     if (batch.length < DIRECTORY_AUDIT_BATCH_SIZE) break
     offset += batch.length
