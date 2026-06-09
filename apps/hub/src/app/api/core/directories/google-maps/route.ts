@@ -423,7 +423,7 @@ function getDirectoryMappingValues(record: unknown, mappings: ReturnType<typeof 
   return values
 }
 
-function categoryTitlesFromSource(value: unknown) {
+function categoryTitlesFromSource(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(categoryTitlesFromSource)
   if (typeof value !== 'string') return []
   return value.split(',').map((item) => item.trim()).filter(Boolean)
