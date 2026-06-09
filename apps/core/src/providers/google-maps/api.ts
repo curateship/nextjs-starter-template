@@ -45,10 +45,10 @@ import {
   defaultMaxResults,
   executionIdSchema,
   fieldSettingsPayloadSchema,
-  googleMapsFieldValue,
   googleMapsProviderKey,
   hubExportMappingsPayloadSchema,
-  hasGoogleMapsAdditionalInfoGroupKey,
+  isGoogleMapsCanonicalFieldKey,
+  mergeGoogleMapsFieldSettings,
   parseConfig,
   parseRunInput,
   runIdSchema,
@@ -75,7 +75,6 @@ type ProviderSettingsItem = ReturnType<typeof serializeSettings>
 type ProviderSettingsResponse = { settings: ProviderSettingsItem }
 type GoogleMapsRunsResponse = ProviderSettingsResponse & {
   runs: ProviderRunConfigItem[]
-  field_samples: ProviderResultItem[]
 }
 type GoogleMapsRunResponse = {
   run: ProviderRunConfigItem
@@ -120,6 +119,7 @@ export type HubTemplateBlock = {
 }
 export type HubDirectoryTemplateScan = {
   template: { id: string; name: string } | null
+  category_parents?: Array<{ id: string; title: string }>
   blocks: HubTemplateBlock[]
 }
 export type HubExportStatus = "draft" | "published"
@@ -141,7 +141,6 @@ const googleImageHosts = [
 ]
 const socialPlatforms = ["instagram", "facebook", "tiktok", "twitter", "linkedin", "youtube"] as const
 const enhanceFields = [...socialPlatforms, "email"] as const
-const fixedResultFieldKeys = new Set(["description", "neighborhood", "city", "region", "country", "email", ...socialPlatforms])
 const enhanceFieldSchema = z.enum(enhanceFields)
 const resultIdsSchema = z.object({
   runId: z.string().min(1),
@@ -171,15 +170,6 @@ const resultPayloadSchema = z.object({
   title: z.string().trim().min(1).max(500),
   data: z.record(z.string().min(1).max(100), simpleResultValueSchema),
 })
-const readOnlyResultFields = new Set([
-  "raw",
-  "mapsUrl",
-  "placeId",
-  "latitude",
-  "longitude",
-  "sourceImageUrl",
-])
-
 export function providerError(error: unknown) {
   return error instanceof Error ? error.message : "Provider request failed."
 }
@@ -236,7 +226,7 @@ const saveFieldSettingsFn = createServerFn({ method: "POST" })
       ? await db.update(providerSettings).set(values).where(and(eq(providerSettings.workspaceId, workspace.id), eq(providerSettings.providerKey, apifyProviderKey))).returning()
       : await db.insert(providerSettings).values({ workspaceId: workspace.id, providerKey: apifyProviderKey, createdAt: updatedAt, ...values }).returning()
 
-    return { field_settings: parseConfig(row.config).fieldSettings }
+    return { field_settings: mergeGoogleMapsFieldSettings(parseConfig(row.config).fieldSettings) }
   })
 
 const saveHubExportMappingsFn = createServerFn({ method: "POST" })
@@ -248,10 +238,9 @@ const saveHubExportMappingsFn = createServerFn({ method: "POST" })
     const updatedAt = now()
     const config = parseConfig(existing?.config)
     const siteMappings = data.mappings
-      .filter((mapping) => mapping.siteId === data.siteId && mapping.targetKind !== "directoryDataField")
+      .filter((mapping) => mapping.siteId === data.siteId && mapping.targetKind !== "directoryDataField" && isGoogleMapsCanonicalFieldKey(mapping.sourceKey))
       .map((mapping) => ({
         ...mapping,
-        sourceKey: mapping.targetKind === "directoryCategory" ? "neighborhood" : mapping.sourceKey,
         targetFieldKey: mapping.targetFieldKey || hubExportTargetDefaultFieldKey(mapping.targetKind),
       }))
     const hubExportMappings = [
@@ -274,21 +263,13 @@ const saveHubExportMappingsFn = createServerFn({ method: "POST" })
 const loadRunsFn = createServerFn({ method: "GET" }).handler(async (): Promise<GoogleMapsRunsResponse> => {
   const workspace = await findWorkspace()
   if (!workspace) {
-    return { settings: serializeSettings(null), runs: [], field_samples: [] }
+    return { settings: serializeSettings(null), runs: [] }
   }
   const runs = await db.select().from(providerRunConfigs).where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey))).orderBy(desc(providerRunConfigs.createdAt))
   const amountByRun = await resultCountsByRun(runs.map((run) => run.id))
-  const sampleRows = await db
-    .select({ result: providerResults })
-    .from(providerResults)
-    .innerJoin(providerRunConfigs, eq(providerResults.runConfigId, providerRunConfigs.id))
-    .where(and(eq(providerRunConfigs.workspaceId, workspace.id), eq(providerRunConfigs.providerKey, googleMapsProviderKey)))
-    .orderBy(desc(providerResults.createdAt))
-    .limit(100)
   return {
     settings: serializeSettings(await settingsRow(workspace.id)),
     runs: runs.map((run) => ({ ...serializeRun(run), amount: amountByRun.get(run.id) ?? 0 })),
-    field_samples: sampleRows.map(({ result }) => serializeResult(result)),
   }
 })
 
@@ -406,7 +387,7 @@ const loadRunFn = createServerFn({ method: "GET" })
       run: serializeRun(run),
       latest_execution: latest ? serializeExecution(latest) : null,
       results: results.map(serializeResult),
-      field_settings: config.fieldSettings,
+      field_settings: mergeGoogleMapsFieldSettings(config.fieldSettings),
       hub_export_mappings: config.hubExportMappings,
     }
   })
@@ -422,7 +403,7 @@ const updateResultFn = createServerFn({ method: "POST" })
 
     const title = data.title.trim()
     const currentData = record(result.data)
-    const fieldTypes = editableFieldTypes(parseConfig((await settingsRow(workspace.id))?.config).fieldSettings)
+    const fieldTypes = visibleFieldTypes(parseConfig((await settingsRow(workspace.id))?.config).fieldSettings)
     const [updated] = await db.update(providerResults).set({
       title,
       data: mergeResultData(currentData, data.data, title, fieldTypes),
@@ -531,11 +512,10 @@ const exportResultsToHubFn = createServerFn({ method: "POST" })
     if (!rows.length) throw new Error("Select at least one result to export.")
 
     const config = parseConfig((await settingsRow(workspace.id))?.config)
-    const fieldSettings = config.fieldSettings
     const mappings = config.hubExportMappings
-      .filter((mapping) => mapping.siteId === data.siteId && mapping.targetKind !== "directoryDataField")
+      .filter((mapping) => mapping.siteId === data.siteId && mapping.targetKind !== "directoryDataField" && isGoogleMapsCanonicalFieldKey(mapping.sourceKey))
       .map(({ sourceKey, targetBlockId, targetKind, targetFieldKey }) => ({
-        sourceKey: targetKind === "directoryCategory" ? "neighborhood" : sourceKey,
+        sourceKey,
         targetBlockId,
         targetKind,
         targetFieldKey,
@@ -548,7 +528,7 @@ const exportResultsToHubFn = createServerFn({ method: "POST" })
         site_id: data.siteId,
         status: data.status,
         mappings,
-        items: rows.map((result) => resultToHubRecord(result, fieldSettings, mappingSourceKeys)),
+        items: rows.map((result) => resultToHubRecord(result, mappingSourceKeys)),
       }),
     })
 
@@ -719,27 +699,16 @@ function cleanBaseUrl(value?: string) {
   return value?.trim().replace(/\/+$/, "") || ""
 }
 
-function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMapsFieldSetting[], mappingSourceKeys = new Set<string>()) {
+function resultToHubRecord(result: CoreProviderResult, mappingSourceKeys = new Set<string>()) {
   const data = record(result.data)
-  const dataWithTitle: Record<string, unknown> = {
-    ...data,
-    businessName: stringValue(data.businessName) || result.title,
-  }
   const hubRecord: Record<string, unknown> = {
     google_maps_place_id: stringValue(data.placeId),
-    businessName: dataWithTitle.businessName,
+    businessName: stringValue(data.businessName) || result.title,
   }
 
-  fieldSettings
-    .filter((setting) => mappingSourceKeys.has(setting.key))
-    .forEach((setting) => {
-      const value = googleMapsFieldValue(dataWithTitle, setting.key, setting.sourcePath)
-
-      if (value !== undefined) hubRecord[setting.key] = value
-    })
   mappingSourceKeys.forEach((key) => {
     if (hubRecord[key] !== undefined) return
-    const value = googleMapsFieldValue(dataWithTitle, key, key)
+    const value = data[key]
     if (value !== undefined) hubRecord[key] = value
   })
 
@@ -747,13 +716,17 @@ function resultToHubRecord(result: CoreProviderResult, fieldSettings: GoogleMaps
 }
 
 function fixedResultData(data: Record<string, unknown>) {
-  return {
+  const fixedData = {
     ...data,
     neighborhood: stringValue(data.neighborhood),
     city: stringValue(data.city),
     region: stringValue(data.region) ?? stringValue(data.state),
     country: stringValue(data.country) ?? stringValue(data.countryCode),
   }
+
+  return Object.fromEntries(
+    Object.entries(fixedData).filter(([key]) => isGoogleMapsCanonicalFieldKey(key))
+  )
 }
 
 async function saveResultImage(userId: string, title: string, data: Record<string, unknown>) {
@@ -1244,8 +1217,8 @@ function mergeResultData(
   const merged: Record<string, unknown> = { ...currentData, businessName: title }
 
   Object.entries(updates).forEach(([key, value]) => {
-    const type = fieldTypes.get(key) ?? (hasGoogleMapsAdditionalInfoGroupKey(currentData, key) ? "tags" : undefined)
-    if (!canUpdateResultField(key, currentData, fieldTypes, type)) return
+    const type = fieldTypes.get(key)
+    if (!canUpdateResultField(key, fieldTypes)) return
     merged[key] = key === "businessName" ? title : cleanResultValue(key, value, type)
   })
 
@@ -1254,20 +1227,10 @@ function mergeResultData(
 
 function canUpdateResultField(
   key: string,
-  currentData: Record<string, unknown>,
-  fieldTypes: Map<string, GoogleMapsFieldType>,
-  type?: GoogleMapsFieldType
+  fieldTypes: Map<string, GoogleMapsFieldType>
 ) {
-  if (readOnlyResultFields.has(key)) return false
-  if (key === "businessName") return true
-  if (key === "featuredImage") return true
-  if (fixedResultFieldKeys.has(key)) return true
   if (fieldTypes.has(key)) return true
-  if (type === "tags" && hasGoogleMapsAdditionalInfoGroupKey(currentData, key)) return true
-  if (!Object.prototype.hasOwnProperty.call(currentData, key)) return false
-
-  const value = currentData[key]
-  return value === null || ["string", "number", "boolean"].includes(typeof value)
+  return key === "businessName" || key === "featuredImage"
 }
 
 function cleanResultValue(key: string, value: string | number | boolean | null | string[], type?: GoogleMapsFieldType) {
@@ -1279,25 +1242,18 @@ function cleanResultValue(key: string, value: string | number | boolean | null |
   return value
 }
 
-function editableFieldTypes(fieldSettings: GoogleMapsFieldSetting[]) {
+function visibleFieldTypes(fieldSettings: GoogleMapsFieldSetting[]) {
   return new Map(
-    fieldSettings
-      .filter((setting) => setting.visible && !readOnlyResultFields.has(setting.key))
+    mergeGoogleMapsFieldSettings(fieldSettings)
+      .filter((setting) => setting.visible)
       .map((setting) => [setting.key, setting.type])
   )
 }
 
 function cleanFieldSettings(fieldSettings: GoogleMapsFieldSetting[]) {
-  const keys = new Set<string>()
-  return fieldSettings.map((setting, index) => {
-    if (keys.has(setting.key)) throw new Error("Field keys must be unique.")
-    keys.add(setting.key)
-    return {
-      ...setting,
-      editable: setting.visible && !readOnlyResultFields.has(setting.key),
-      order: index,
-    }
-  })
+  const canonicalSettings = fieldSettings.filter((setting) => isGoogleMapsCanonicalFieldKey(setting.key))
+  return mergeGoogleMapsFieldSettings(canonicalSettings)
+    .map((setting, index) => ({ ...setting, sourcePath: setting.key, order: index }))
 }
 
 function stringValue(value: unknown) {

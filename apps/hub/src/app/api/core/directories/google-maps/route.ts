@@ -47,6 +47,7 @@ type NormalizedBlockMapping = {
 
 type PublicAddress = { address: string; family: 4 | 6 }
 type AssignableCategory = { id: string; title: string; parentId: string | null; isPublished: boolean }
+type MappedDirectoryCategory = { title: string | null; parentCategoryId: string | null }
 
 const TARGET_KINDS = new Set([
   'directoryTitle',
@@ -133,7 +134,10 @@ export async function POST(request: NextRequest) {
     const directoryMappingValues = getDirectoryMappingValues(item, mappings)
     const mappedTitle = cleanText(directoryMappingValues.title, 255)
     const mappedFeaturedImage = safeUrl(directoryMappingValues.featuredImage)
-    const mappedCategory = cleanText(directoryMappingValues.category, 255)
+    const mappedCategories = directoryMappingValues.categories.map((category) => ({
+      title: cleanText(category.title, 255),
+      parentCategoryId: category.parentCategoryId,
+    }))
 
     if (!record.placeId) {
       results.push({ source_type: GOOGLE_MAPS_SOURCE_TYPE, source_id: null, action: 'error', error: 'Missing Google Maps Place ID' })
@@ -181,7 +185,7 @@ export async function POST(request: NextRequest) {
           .set(values)
           .where(eq(directories.id, existing.id))
           .returning({ id: directories.id, slug: directories.slug })
-        await assignMappedDirectoryCategory(siteId, updated.id, mappedCategory, template.defaultCategoryParentId, categoryCache)
+        await assignMappedDirectoryCategories(siteId, updated.id, mappedCategories, template.defaultCategoryParentId, categoryCache)
 
         results.push({
           source_type: GOOGLE_MAPS_SOURCE_TYPE,
@@ -210,7 +214,7 @@ export async function POST(request: NextRequest) {
           updatedAt: new Date(),
         })
         .returning({ id: directories.id, slug: directories.slug })
-      await assignMappedDirectoryCategory(siteId, created.id, mappedCategory, template.defaultCategoryParentId, categoryCache)
+      await assignMappedDirectoryCategories(siteId, created.id, mappedCategories, template.defaultCategoryParentId, categoryCache)
 
       nextDisplayOrder += 1
       results.push({
@@ -396,7 +400,9 @@ function getDirectoryMappingValues(record: unknown, mappings: ReturnType<typeof 
   const source = record && typeof record === 'object' && !Array.isArray(record)
     ? record as Record<string, unknown>
     : {}
-  const values: { title?: unknown; featuredImage?: unknown; category?: unknown } = {}
+  const values: { title?: unknown; featuredImage?: unknown; categories: Array<{ title: unknown; parentCategoryId: string | null }> } = {
+    categories: [],
+  }
 
   mappings.forEach((mapping) => {
     if (!DIRECTORY_TARGET_KINDS.has(mapping.targetKind)) return
@@ -406,33 +412,54 @@ function getDirectoryMappingValues(record: unknown, mappings: ReturnType<typeof 
 
     if (mapping.targetKind === 'directoryTitle') values.title = sourceValue
     if (mapping.targetKind === 'directoryFeaturedImage') values.featuredImage = sourceValue
-    if (mapping.targetKind === 'directoryCategory' && mapping.sourceKey === 'neighborhood') values.category = sourceValue
+    if (mapping.targetKind === 'directoryCategory') {
+      categoryTitlesFromSource(sourceValue).forEach((title) => values.categories.push({
+        title,
+        parentCategoryId: UUID_REGEX.test(mapping.targetFieldKey) ? mapping.targetFieldKey : null,
+      }))
+    }
   })
 
   return values
 }
 
-async function assignMappedDirectoryCategory(
+function categoryTitlesFromSource(value: unknown) {
+  if (Array.isArray(value)) return value.flatMap(categoryTitlesFromSource)
+  if (typeof value !== 'string') return []
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+async function assignMappedDirectoryCategories(
   siteId: string,
   directoryId: string,
-  categoryTitle: string | null,
-  parentCategoryId: string | null,
+  mappedCategories: MappedDirectoryCategory[],
+  defaultParentCategoryId: string | null,
   categoryCache: Map<string, AssignableCategory | null>
 ) {
-  if (!categoryTitle) return
+  const resolvedCategories: AssignableCategory[] = []
 
-  const normalizedTitle = normalizeCategoryTitle(categoryTitle)
-  if (!normalizedTitle) return
+  for (const mappedCategory of mappedCategories) {
+    if (!mappedCategory.title) continue
 
-  const cacheKey = `${parentCategoryId || ''}:${normalizedTitle}`
-  if (!categoryCache.has(cacheKey)) {
-    categoryCache.set(cacheKey, await findOrCreateAssignableCategory(siteId, categoryTitle, parentCategoryId, normalizedTitle))
+    const parentCategoryId = mappedCategory.parentCategoryId || defaultParentCategoryId
+    const normalizedTitle = normalizeCategoryTitle(mappedCategory.title)
+    if (!normalizedTitle) continue
+
+    const cacheKey = `${parentCategoryId || ''}:${normalizedTitle}`
+    if (!categoryCache.has(cacheKey)) {
+      categoryCache.set(cacheKey, await findOrCreateAssignableCategory(siteId, mappedCategory.title, parentCategoryId, normalizedTitle))
+    }
+
+    const category = categoryCache.get(cacheKey)
+    if (category && !resolvedCategories.some((item) => item.id === category.id)) {
+      resolvedCategories.push(category)
+    }
   }
 
-  const category = categoryCache.get(cacheKey)
-  if (!category) {
-    return
-  }
+  if (!resolvedCategories.length) return
+
+  const importedParentIds = Array.from(new Set(resolvedCategories.map((category) => category.parentId).filter((id): id is string => Boolean(id))))
+  const revalidatedCategoryIds = new Set(resolvedCategories.map((category) => category.id))
 
   await db.transaction(async (tx) => {
     const directoryRelationship = and(
@@ -444,22 +471,35 @@ async function assignMappedDirectoryCategory(
       .set({ isPrimary: false })
       .where(and(directoryRelationship, eq(contentCategoryRelationships.isPrimary, true)))
 
-    await tx.delete(contentCategoryRelationships)
-      .where(and(
-        directoryRelationship,
-        eq(contentCategoryRelationships.categoryId, category.id)
-      ))
+    if (importedParentIds.length) {
+      const existingImportedRelationships = await tx.select({
+        id: contentCategoryRelationships.id,
+        categoryId: contentCategoryRelationships.categoryId,
+      })
+        .from(contentCategoryRelationships)
+        .innerJoin(categories, eq(categories.id, contentCategoryRelationships.categoryId))
+        .where(and(
+          directoryRelationship,
+          inArray(categories.parentId, importedParentIds)
+        ))
 
-    await tx.insert(contentCategoryRelationships).values({
+      if (existingImportedRelationships.length) {
+        existingImportedRelationships.forEach((relationship) => revalidatedCategoryIds.add(relationship.categoryId))
+        await tx.delete(contentCategoryRelationships)
+          .where(inArray(contentCategoryRelationships.id, existingImportedRelationships.map((relationship) => relationship.id)))
+      }
+    }
+
+    await tx.insert(contentCategoryRelationships).values(resolvedCategories.map((category, index) => ({
       contentId: directoryId,
       contentType: 'directory',
       categoryId: category.id,
-      isPrimary: true,
-    })
+      isPrimary: index === 0,
+    })))
   })
 
   revalidateTag('content-categories')
-  revalidateTag(`category-${category.id}`)
+  revalidatedCategoryIds.forEach((categoryId) => revalidateTag(`category-${categoryId}`))
 }
 
 async function findOrCreateAssignableCategory(siteId: string, title: string, parentCategoryId: string | null, normalizedTitle: string) {

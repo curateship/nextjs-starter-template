@@ -67,7 +67,7 @@ import {
   normalizeResult,
 } from "@/providers/google-maps/adapter"
 import {
-  googleMapsFieldValue,
+  googleMapsCanonicalFieldSettings,
   parseConfig,
   serializeSettings,
 } from "@/providers/google-maps/schema"
@@ -928,7 +928,10 @@ describe("core providers", () => {
       }).returning()
 
       const serialized = serializeSettings(row)
-      expect(serialized).toMatchObject({ has_token: true, default_max_results: 25, field_settings: [] })
+      expect(serialized).toMatchObject({ has_token: true, default_max_results: 25 })
+      expect(serialized.field_settings.map((setting) => setting.key)).toEqual(
+        googleMapsCanonicalFieldSettings.map((setting) => setting.key)
+      )
       expect(JSON.stringify(serialized)).not.toContain("apify-secret")
       expect(JSON.stringify(serialized)).not.toContain(encrypted)
     } finally {
@@ -937,52 +940,77 @@ describe("core providers", () => {
     }
   })
 
-  it("keeps Google Maps field settings in provider config", async () => {
-    const config = parseConfig({
-      actorId: "compass/crawler-google-places",
-      defaultMaxResults: 25,
-      fieldSettings: [
-        {
-          key: "tags",
-          sourcePath: "raw.categories",
-          label: "Tags",
-          visible: true,
-          editable: true,
-          type: "tags",
-          order: 0,
-        },
-      ],
-    })
-
-    expect(config.fieldSettings).toEqual([
-      {
-        key: "tags",
-        sourcePath: "raw.categories",
-        label: "Tags",
-        visible: true,
-        editable: true,
-        type: "tags",
-        order: 0,
+  it("returns only curated Google Maps field settings", () => {
+    const row = {
+      workspaceId: uuid(),
+      providerKey: "apify",
+      config: {
+        actorId: "compass/crawler-google-places",
+        defaultMaxResults: 25,
+        fieldSettings: [
+          {
+            key: "category",
+            sourcePath: "category",
+            label: "Category",
+            visible: false,
+            type: "text",
+            order: 0,
+          },
+          {
+            key: "phone",
+            sourcePath: "phone",
+            label: "Phone",
+            visible: true,
+            type: "text",
+            order: 1,
+          },
+          {
+            key: "tags",
+            sourcePath: "raw.categories",
+            label: "Tags",
+            visible: true,
+            type: "tags",
+            order: 0,
+          },
+        ],
       },
-    ])
+      secretEncrypted: null,
+      createdAt: now(),
+      updatedAt: now(),
+    } as NonNullable<Parameters<typeof serializeSettings>[0]>
+
+    const settings = serializeSettings(row).field_settings
+    expect(settings.map((setting) => setting.key)).toEqual(
+      googleMapsCanonicalFieldSettings.map((setting) => setting.key)
+    )
+    expect(settings.find((setting) => setting.key === "category")).toMatchObject({
+      key: "category",
+      sourcePath: "category",
+      visible: false,
+    })
+    expect(settings.find((setting) => setting.key === "phone")).toMatchObject({
+      key: "phone",
+      visible: true,
+    })
+    expect(JSON.stringify(settings)).not.toContain("raw")
     expect(parseConfig({ actorId: "actor", defaultMaxResults: 5 }).fieldSettings).toEqual([])
   })
 
-  it("formats Google Maps opening hours as tag values", () => {
-    expect(googleMapsFieldValue({
-      raw: {
-        openingHours: [
-          { day: "Monday", hours: "Closed" },
-          { day: "Tuesday", hours: "11 AM to 9 PM" },
-        ],
-      },
-    }, "openingHours", "raw.openingHours")).toEqual([
+  it("formats Google Maps opening hours as cleaned tag values", () => {
+    expect(normalizeResult({
+      title: "Cafe Hours",
+      openingHours: [
+        { day: "Monday", hours: "Closed" },
+        { day: "Tuesday", hours: "11 AM to 9 PM" },
+      ],
+    }).data.openingHours).toEqual([
       "Monday: Closed",
       "Tuesday: 11 AM to 9 PM",
     ])
-    expect(googleMapsFieldValue({
-      raw: { openingHours: [{}] },
-    }, "openingHours", "raw.openingHours")).toEqual([])
+    expect(normalizeResult({
+      title: "Cafe Hours",
+      openingHours: [{}],
+    }).data.openingHours).toBeNull()
   })
 
   it("reports when provider tokens were encrypted with another key", () => {
@@ -1061,6 +1089,7 @@ describe("core providers", () => {
 
     expect(normalizeResult({
       title: "Austin Dental",
+      category: "Dentist",
       categories: ["Dentist", "Health"],
       totalScore: "4.8",
       reviewsCount: "42",
@@ -1072,7 +1101,7 @@ describe("core providers", () => {
       externalId: "place-123",
       title: "Austin Dental",
       data: {
-        category: "Dentist, Health",
+        category: "Dentist",
         rating: 4.8,
         reviewCount: 42,
         website: null,
@@ -1080,6 +1109,14 @@ describe("core providers", () => {
         sourceImageUrl: "https://lh3.googleusercontent.com/place-image",
       },
     })
+    const normalizedData = normalizeResult({
+      title: "Austin Dental",
+      category: "Dentist",
+      categories: ["Dentist", "Health"],
+    }).data
+    expect(normalizedData).not.toHaveProperty("categories")
+    expect(normalizedData).not.toHaveProperty("categoryName")
+    expect(normalizedData).not.toHaveProperty("raw")
 
     expect(normalizeResult({
       title: "Photo Array",

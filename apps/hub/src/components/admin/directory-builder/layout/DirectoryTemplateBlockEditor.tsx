@@ -7,13 +7,6 @@ import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
@@ -24,7 +17,6 @@ import {
   DIRECTORY_GOOGLE_MAP_MIN_HEIGHT,
   normalizeDirectoryGoogleMapHeight,
 } from "@/lib/actions/directories/directory-google-map"
-import { getDirectoryLayoutColumn } from "@/lib/actions/directories/directory-layout"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
 
 interface DirectoryBlock {
@@ -98,29 +90,6 @@ export function DirectoryTemplateBlockEditor({
 
   return (
     <CardGroup className="grid">
-      <Card>
-        <CardHeader>
-          <DashboardModalCardTitle>Layout</DashboardModalCardTitle>
-        </CardHeader>
-        <CardContent>
-          <Field>
-            <FieldLabel htmlFor="directory-template-layout-column">Column</FieldLabel>
-            <Select
-              value={getDirectoryLayoutColumn(block.type, content)}
-              onValueChange={(value) => onContentChange("layoutColumn", value)}
-            >
-              <SelectTrigger id="directory-template-layout-column" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="main">Main column</SelectItem>
-                <SelectItem value="sidebar">Sidebar column</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </CardContent>
-      </Card>
-
       <VisibilitySettings
         title="Block Visibility"
         visibility={content.visibility}

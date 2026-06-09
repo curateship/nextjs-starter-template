@@ -781,8 +781,8 @@ export function ContentListPage<TItem extends ContentListItem>({
                             </Link>
                           </TableCell>
                           {renderCategoryColumn && (
-                            <TableCell column="content">
-                              <div className="flex flex-wrap gap-1">
+                            <TableCell column="content" className="align-top">
+                              <div className="flex max-w-80 flex-nowrap gap-1 overflow-hidden">
                                 {itemCategories.length ? (
                                   itemCategories.map((category) => (
                                     <Badge key={category.id} variant="outline" className="text-xs">

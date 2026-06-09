@@ -96,8 +96,8 @@ export function normalizeResult(item: Record<string, unknown>) {
     data: {
       businessName,
       category: category(item),
-      categoryName: text(item, ["categoryName"]),
       neighborhood: text(item, ["neighborhood"]),
+      description: text(item, ["description"]),
       address: text(item, ["address", "street"]),
       street: text(item, ["street"]),
       city: text(item, ["city"]),
@@ -113,8 +113,8 @@ export function normalizeResult(item: Record<string, unknown>) {
       latitude: locationNumber(item, ["lat", "latitude"]),
       longitude: locationNumber(item, ["lng", "longitude"]),
       placeId,
+      openingHours: openingHours(item),
       sourceImageUrl: imageUrl(item),
-      raw: item,
     },
   }
 }
@@ -200,9 +200,23 @@ function integer(item: Record<string, unknown>, keys: string[]) {
 }
 
 function category(item: Record<string, unknown>) {
-  return Array.isArray(item.categories)
-    ? item.categories.filter((value) => typeof value === "string").join(", ") || null
-    : text(item, ["category", "type"])
+  return text(item, ["category", "type"])
+}
+
+function openingHours(item: Record<string, unknown>) {
+  const value = item.openingHours
+  if (!Array.isArray(value)) return null
+
+  const hours = value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return []
+    const record = entry as Record<string, unknown>
+    const day = typeof record.day === "string" ? record.day.trim() : ""
+    const textValue = typeof record.hours === "string" ? record.hours.trim() : ""
+    if (day && textValue) return `${day}: ${textValue}`
+    return textValue ? [textValue] : []
+  })
+
+  return hours.length ? hours : null
 }
 
 function imageUrl(item: Record<string, unknown>) {

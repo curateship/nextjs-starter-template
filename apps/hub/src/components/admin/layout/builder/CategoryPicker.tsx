@@ -142,7 +142,7 @@ function ParentCategorySelect({
             aria-haspopup="listbox"
             tabIndex={0}
             className={cn(
-              "border-input flex min-h-10 w-full cursor-text flex-wrap items-center gap-1 rounded-md border bg-transparent text-sm shadow-xs outline-none transition-[color,box-shadow] hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              "border-input flex min-h-10 w-full cursor-text flex-wrap items-center gap-1 rounded-md border bg-transparent text-sm outline-none transition-[color,box-shadow] hover:bg-accent/40 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
               compact ? "px-2 py-1" : "px-3 py-2"
             )}
           >

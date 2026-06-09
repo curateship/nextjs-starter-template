@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { categories } from '@/lib/db/schema/categories'
 import { directoryCustomBlocks } from '@/lib/db/schema/directory-custom-blocks'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
@@ -52,9 +53,17 @@ export async function GET(request: NextRequest) {
         .where(and(eq(directoryCustomBlocks.siteId, siteId), inArray(directoryCustomBlocks.id, customTemplateIds)))
     : []
   const customTemplateMap = new Map(customTemplates.map((item) => [item.id, item]))
+  const categoryParents = await db.select({
+    id: categories.id,
+    title: categories.title,
+  })
+    .from(categories)
+    .where(and(eq(categories.siteId, siteId), eq(categories.isPublished, true), isNull(categories.parentId)))
+    .orderBy(asc(categories.displayOrder), asc(categories.title))
 
   return NextResponse.json({
     template: template ? { id: template.id, name: template.name } : null,
+    category_parents: categoryParents,
     blocks: blockEntries
       .map(([, block]) => block)
       .sort((a, b) => Number(a.display_order ?? 0) - Number(b.display_order ?? 0))

@@ -30,7 +30,6 @@ export const fieldSettingSchema = z.object({
   sourcePath: z.string().trim().min(1).max(255),
   label: z.string().trim().min(1).max(120),
   visible: z.boolean(),
-  editable: z.boolean(),
   type: z.enum(fieldSettingTypes),
   order: z.number().int().min(0).max(500),
 })
@@ -66,76 +65,57 @@ export type GoogleMapsFieldSetting = z.infer<typeof fieldSettingSchema>
 export type GoogleMapsFieldType = GoogleMapsFieldSetting["type"]
 export type GoogleMapsHubExportMapping = z.infer<typeof hubExportMappingSchema>
 
-export function googleMapsFieldValue(data: Record<string, unknown>, key: string, sourcePath: string) {
-  if (Object.prototype.hasOwnProperty.call(data, key)) {
-    const directValue = data[key]
-    return googleMapsStructuredFieldValue(sourcePath, directValue) ?? directValue
-  }
+export const googleMapsCanonicalFieldSettings: GoogleMapsFieldSetting[] = [
+  { key: "businessName", sourcePath: "businessName", label: "Business", visible: true, type: "text", order: 0 },
+  { key: "category", sourcePath: "category", label: "Category", visible: true, type: "text", order: 1 },
+  { key: "neighborhood", sourcePath: "neighborhood", label: "Neighborhood", visible: true, type: "text", order: 2 },
+  { key: "description", sourcePath: "description", label: "Description", visible: true, type: "text", order: 3 },
+  { key: "address", sourcePath: "address", label: "Address", visible: true, type: "text", order: 4 },
+  { key: "street", sourcePath: "street", label: "Street", visible: false, type: "text", order: 5 },
+  { key: "city", sourcePath: "city", label: "City", visible: true, type: "text", order: 6 },
+  { key: "region", sourcePath: "region", label: "Region", visible: true, type: "text", order: 7 },
+  { key: "state", sourcePath: "state", label: "State", visible: false, type: "text", order: 8 },
+  { key: "country", sourcePath: "country", label: "Country", visible: true, type: "text", order: 9 },
+  { key: "countryCode", sourcePath: "countryCode", label: "Country code", visible: false, type: "text", order: 10 },
+  { key: "rating", sourcePath: "rating", label: "Rating", visible: true, type: "number", order: 11 },
+  { key: "reviewCount", sourcePath: "reviewCount", label: "Reviews", visible: true, type: "number", order: 12 },
+  { key: "phone", sourcePath: "phone", label: "Phone", visible: true, type: "text", order: 13 },
+  { key: "website", sourcePath: "website", label: "Website", visible: true, type: "text", order: 14 },
+  { key: "email", sourcePath: "email", label: "Email", visible: true, type: "text", order: 15 },
+  { key: "instagram", sourcePath: "instagram", label: "Instagram", visible: true, type: "text", order: 16 },
+  { key: "facebook", sourcePath: "facebook", label: "Facebook", visible: true, type: "text", order: 17 },
+  { key: "tiktok", sourcePath: "tiktok", label: "TikTok", visible: true, type: "text", order: 18 },
+  { key: "twitter", sourcePath: "twitter", label: "X/Twitter", visible: true, type: "text", order: 19 },
+  { key: "linkedin", sourcePath: "linkedin", label: "LinkedIn", visible: true, type: "text", order: 20 },
+  { key: "youtube", sourcePath: "youtube", label: "YouTube", visible: true, type: "text", order: 21 },
+  { key: "mapsUrl", sourcePath: "mapsUrl", label: "Google Maps URL", visible: false, type: "text", order: 22 },
+  { key: "placeId", sourcePath: "placeId", label: "Google Maps Place ID", visible: false, type: "text", order: 23 },
+  { key: "latitude", sourcePath: "latitude", label: "Latitude", visible: false, type: "number", order: 24 },
+  { key: "longitude", sourcePath: "longitude", label: "Longitude", visible: false, type: "number", order: 25 },
+  { key: "openingHours", sourcePath: "openingHours", label: "Opening hours", visible: false, type: "tags", order: 26 },
+  { key: "featuredImage", sourcePath: "featuredImage", label: "Featured image", visible: false, type: "text", order: 27 },
+  { key: "featuredImageMediaId", sourcePath: "featuredImageMediaId", label: "Featured image media ID", visible: false, type: "text", order: 28 },
+  { key: "sourceImageUrl", sourcePath: "sourceImageUrl", label: "Source image URL", visible: false, type: "text", order: 29 },
+]
 
-  const value = valueAtPath(data, sourcePath)
-  const structuredValue = googleMapsStructuredFieldValue(sourcePath, value)
-  if (structuredValue !== undefined) return structuredValue
+const googleMapsCanonicalFieldKeySet = new Set(googleMapsCanonicalFieldSettings.map((field) => field.key))
 
-  if (!sourcePath.includes(".additionalInfo.")) return value
-
-  const tags = googleMapsAdditionalInfoTags(value)
-  return tags.length ? tags : undefined
+export function isGoogleMapsCanonicalFieldKey(key: string) {
+  return googleMapsCanonicalFieldKeySet.has(key)
 }
 
-export function hasGoogleMapsAdditionalInfoGroupKey(data: Record<string, unknown>, key: string) {
-  return Object.keys(rawAdditionalInfo(data)).some((group) => googleMapsFieldKey(group) === key)
-}
+export function mergeGoogleMapsFieldSettings(savedSettings: GoogleMapsFieldSetting[] = []) {
+  const savedByKey = new Map(savedSettings.map((setting) => [setting.key, setting]))
 
-export function googleMapsFieldKey(value: string) {
-  const parts = value.split(/[^A-Za-z0-9]+/).filter(Boolean)
-  const key = parts.map((part, index) => {
-    const clean = part.replace(/^[0-9]+/, "")
-    if (!clean) return ""
-    return index === 0 ? clean.charAt(0).toLowerCase() + clean.slice(1) : clean.charAt(0).toUpperCase() + clean.slice(1)
-  }).join("")
-  return key || "field"
-}
-
-export function googleMapsAdditionalInfoTags(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return []
-    return Object.entries(item as Record<string, unknown>)
-      .filter(([, enabled]) => enabled === true)
-      .map(([label]) => label)
+  return googleMapsCanonicalFieldSettings.map((field, index) => {
+    const saved = savedByKey.get(field.key)
+    const visible = saved?.visible ?? field.visible
+    return {
+      ...field,
+      visible,
+      order: index,
+    }
   })
-}
-
-function rawAdditionalInfo(data: Record<string, unknown>): Record<string, unknown> {
-  const raw = data.raw
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {}
-  const additionalInfo = (raw as Record<string, unknown>).additionalInfo
-  return additionalInfo && typeof additionalInfo === "object" && !Array.isArray(additionalInfo)
-    ? additionalInfo as Record<string, unknown>
-    : {}
-}
-
-function valueAtPath(data: Record<string, unknown>, path: string) {
-  return path.split(".").reduce<unknown>((current, key) => {
-    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined
-    return (current as Record<string, unknown>)[key]
-  }, data)
-}
-
-function googleMapsStructuredFieldValue(sourcePath: string, value: unknown) {
-  if (!sourcePath.endsWith("openingHours") || !Array.isArray(value)) return undefined
-
-  const hours = value.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return []
-    const record = item as Record<string, unknown>
-    const day = typeof record.day === "string" ? record.day.trim() : ""
-    const text = typeof record.hours === "string" ? record.hours.trim() : ""
-    if (day && text) return `${day}: ${text}`
-    return text ? [text] : []
-  })
-
-  return hours
 }
 
 export const runInputSchema = z.object({
@@ -185,7 +165,7 @@ export function serializeSettings(row: CoreProviderSettings | null) {
   return {
     actor_id: config.actorId,
     default_max_results: config.defaultMaxResults,
-    field_settings: config.fieldSettings,
+    field_settings: mergeGoogleMapsFieldSettings(config.fieldSettings),
     hub_export_mappings: config.hubExportMappings,
     has_token: Boolean(row?.secretEncrypted),
   }

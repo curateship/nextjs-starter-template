@@ -255,11 +255,16 @@ function getDirectoryTemplatePreviewValueContent(
       socialLinks: [
         { id: 'preview-instagram', platform: 'instagram', url: 'https://instagram.com/example' },
         { id: 'preview-facebook', platform: 'facebook', url: 'https://facebook.com/example' },
+        { id: 'preview-tiktok', platform: 'tiktok', url: 'https://tiktok.com/@example' },
+        { id: 'preview-twitter', platform: 'twitter', url: 'https://x.com/example' },
+        { id: 'preview-linkedin', platform: 'linkedin', url: 'https://linkedin.com/company/example' },
+        { id: 'preview-youtube', platform: 'youtube', url: 'https://youtube.com/@example' },
       ],
       menuLinks: [
         { id: 'preview-directions', type: 'directions', label: 'Get Directions', value: '175 Bloor St E, Toronto, ON', icon: 'map' },
         { id: 'preview-phone', type: 'phone', label: 'Call', value: '+1 416 555 0198', icon: 'phone' },
         { id: 'preview-website', type: 'website', label: 'Website', value: 'https://example.com', icon: 'site' },
+        { id: 'preview-email', type: 'email', label: 'Email', value: 'hello@example.com', icon: 'newsletters' },
         { id: 'preview-claim', type: 'claim', label: 'Claim Listing', value: '', icon: 'building' },
       ],
     }
@@ -282,7 +287,16 @@ function getDirectoryTemplatePreviewValueContent(
   if (type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE) {
     return {
       title: 'Business Hours',
-      placeId: 'preview-place-id',
+      sourceMode: 'text',
+      hoursText: [
+        'Monday: 9:00 AM - 6:00 PM',
+        'Tuesday: 9:00 AM - 6:00 PM',
+        'Wednesday: 9:00 AM - 6:00 PM',
+        'Thursday: 9:00 AM - 8:00 PM',
+        'Friday: 9:00 AM - 8:00 PM',
+        'Saturday: 10:00 AM - 5:00 PM',
+        'Sunday: Closed',
+      ].join('\n'),
     }
   }
 
