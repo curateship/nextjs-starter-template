@@ -2172,6 +2172,7 @@ function resultValueFromForm(value: ResultFormValue, setting: GoogleMapsFieldSet
 
 function resultFieldValue(result: ProviderResultItem, setting: GoogleMapsFieldSetting) {
   const data = resultDataWithTitle(result)
+  if (setting.key === "openingHours") return data.openingHours ?? openingHoursValue(data.raw)
   return data[setting.key]
 }
 
@@ -2235,6 +2236,26 @@ function formValue(value: unknown): ResultFormValue {
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string")
+}
+
+function openingHoursValue(value: unknown) {
+  const hoursValue =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>).openingHours
+      : value
+  if (!Array.isArray(hoursValue)) return null
+
+  const hours = hoursValue.flatMap((entry) => {
+    if (typeof entry === "string") return entry.trim() ? [entry.trim()] : []
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return []
+    const record = entry as Record<string, unknown>
+    const day = typeof record.day === "string" ? record.day.trim() : ""
+    const textValue = typeof record.hours === "string" ? record.hours.trim() : ""
+    if (day && textValue) return `${day}: ${textValue}`
+    return textValue ? [textValue] : []
+  })
+
+  return hours.length ? hours : null
 }
 
 function fieldTypeLabel(type: GoogleMapsFieldType) {
