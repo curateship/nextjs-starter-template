@@ -14,6 +14,7 @@ import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { getDirectoryTemplatesBySite, type DirectoryTemplate } from "@/lib/actions/directories/directory-template-actions"
+import { deriveDirectoryMetaDescriptionFromBlocks } from "@/lib/actions/directories/directory-template-inheritance"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import {
@@ -24,36 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-type DirectorySettingsBlock = {
-  type?: string
-  content?: Record<string, any>
-}
-
-function getFirstRichTextParagraph(blocks: DirectorySettingsBlock[]) {
-  const richTextBlock = blocks.find((block) =>
-    block.type === "directory-rich-text" || block.type === "directory-content"
-  )
-  const body = typeof richTextBlock?.content?.body === "string" ? richTextBlock.content.body : ""
-  const firstParagraph = body.match(/<p(?:\s[^>]*)?>([\s\S]*?)<\/p>/i)?.[1] || body
-
-  return firstParagraph
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim()
-}
-
 interface DirectorySettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   directory: Directory | null
   site: any | null
-  blocks?: DirectorySettingsBlock[]
+  blocks?: Array<{ type?: string; content?: Record<string, any> }>
   onSuccess?: (updatedDirectory: Directory) => void
 }
 
@@ -112,15 +89,14 @@ export function DirectorySettingsModal({
     if (!open || !directory) return
 
     let cancelled = false
-
-    const fallbackMetaDescription = getFirstRichTextParagraph(
+    const derivedMetaDescription = deriveDirectoryMetaDescriptionFromBlocks(
       blocks?.length ? blocks : Object.values(directory.content_blocks || {})
     )
 
     setFormData({
       title: directory.title || '',
       slug: directory.slug || '',
-      meta_description: directory.meta_description || fallbackMetaDescription
+      meta_description: directory.meta_description || derivedMetaDescription
     })
     setFeaturedImage(directory.featured_image || '')
     setSelectedTemplateId(directory.template_id || '')

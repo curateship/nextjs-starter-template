@@ -297,6 +297,7 @@ async function prefetchListingData(
         const {
           contentType = 'products',
           categoryIds = [],
+          categoryChipParentIds = [],
           sortBy = 'date',
           sortOrder = 'desc',
           itemsToShow = 6,
@@ -313,7 +314,8 @@ async function prefetchListingData(
           sortBy,
           sortOrder,
           limit,
-          offset: 0
+          offset: 0,
+          includeCategories: contentType === 'directory' && Array.isArray(categoryChipParentIds) && categoryChipParentIds.length > 0
         })
 
         if (result.success && result.data) {

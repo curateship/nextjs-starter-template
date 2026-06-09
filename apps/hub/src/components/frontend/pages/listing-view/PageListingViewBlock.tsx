@@ -47,6 +47,7 @@ interface ListingViewsBlockProps {
     imageHeight?: number
     imageQuality?: number
     saveIconOpacity?: number
+    categoryChipParentIds?: string[]
     displayMode?: "grid" | "list"
     itemsToShow?: number
     mobileColumns?: number
@@ -98,7 +99,8 @@ export function ListingViewsBlock({
     imageFit = "crop",
     imageHeight,
     imageQuality = 25,
-    saveIconOpacity = 100,
+    saveIconOpacity = 70,
+    categoryChipParentIds: rawCategoryChipParentIds = [],
     displayMode = "grid",
     itemsToShow = 6,
     mobileColumns = 1,
@@ -113,12 +115,16 @@ export function ListingViewsBlock({
   } = content
   const categoryIds = Array.isArray(rawCategoryIds) ? rawCategoryIds : []
   const categoryIdsKey = categoryIds.join("|")
+  const categoryChipParentIds = Array.isArray(rawCategoryChipParentIds) ? rawCategoryChipParentIds : []
+  const categoryChipParentIdsKey = categoryChipParentIds.join("|")
+  const categoryChipParentIdSet = new Set(categoryChipParentIds)
 
   // Extract repeated conditions
   const hasViewAll = Boolean(viewAllText && viewAllLink && visibility?.viewAllButton !== false)
   const showImageElement = visibility?.showImage !== false
   const showTitleElement = visibility?.showTitle !== false
   const showDescriptionElement = visibility?.showDescription !== false
+  const showMetaDescriptionElement = visibility?.showMetaDescription !== false
   const showAuthorElement = visibility?.showAuthor !== false
   const showDateElement = visibility?.showDate !== false
   const showReadMoreElement = visibility?.showReadMore !== false
@@ -192,7 +198,8 @@ export function ListingViewsBlock({
         sortBy,
         sortOrder,
         limit,
-        offset
+        offset,
+        includeCategories: contentType === "directory" && categoryChipParentIdsKey.length > 0
       })
 
       if (result.success && result.data) {
@@ -207,6 +214,7 @@ export function ListingViewsBlock({
     siteId,
     contentType,
     categoryIdsKey,
+    categoryChipParentIdsKey,
     sortBy,
     sortOrder,
     itemsToShow,
@@ -225,7 +233,7 @@ export function ListingViewsBlock({
   const blogImageSizes = `(max-width: 767px) ${mobileImageSize}, (max-width: 1023px) 50vw, ${desktopImageSize}`
   const resolvedImageQuality = Math.min(100, Math.max(1, Number(imageQuality) || 25))
   const saveIconOpacityNumber = Number(saveIconOpacity)
-  const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 100))
+  const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 70))
   const imageFitClassName = imageFit === "fit" ? "object-contain" : "object-cover"
   const imageFrameClassName = imageFit === "fit" ? "bg-muted" : ""
   const customImageHeight = Number(imageHeight) > 0 ? Number(imageHeight) : undefined
@@ -247,16 +255,25 @@ export function ListingViewsBlock({
   }
 
   const getItemSummary = (item: ListingViewsItem) => {
-    if (!item.richText) return ""
-
-    const plainText = item.richText.replace(/<[^>]*>/g, "").trim()
+    const plainText = (item.richText || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
     return plainText.length > 150 ? plainText.substring(0, 150) + "..." : plainText
+  }
+
+  const getMetaDescription = (item: ListingViewsItem) => {
+    const plainText = item.metaDescription || ""
+    const words = plainText.split(/\s+/).filter(Boolean)
+    return words.length > 15 ? `${words.slice(0, 15).join(" ")}...` : plainText
   }
 
   const getRatingValue = (rating?: number | null) => {
     const value = Number(rating)
     if (!Number.isFinite(value) || value <= 0) return null
     return Math.min(5, value)
+  }
+
+  const getCategoryChips = (item: ListingViewsItem) => {
+    if (contentType !== "directory" || categoryChipParentIdSet.size === 0) return []
+    return (item.categories || []).filter((category) => category.parent_id && categoryChipParentIdSet.has(category.parent_id))
   }
 
   const renderItem = (item: ListingViewsItem, index: number) => {
@@ -281,6 +298,8 @@ export function ListingViewsBlock({
       const showAuthorMeta = showAuthorElement && Boolean(authorName)
       const rating = listingStyle === "directory" && showRatingElement ? getRatingValue(item.rating) : null
       const address = listingStyle === "directory" && showAddressElement ? item.address?.trim() : ""
+      const categoryChips = listingStyle === "directory" ? getCategoryChips(item) : []
+      const metaDescription = listingStyle === "directory" && showMetaDescriptionElement ? getMetaDescription(item) : ""
 
       return (
         <Card
@@ -321,24 +340,39 @@ export function ListingViewsBlock({
           >
             <CardHeader className={isCompactMobileCard ? "p-3 pb-3 md:p-4 md:pb-3" : undefined}>
               {showTitleElement && <h3 className={isCompactMobileCard ? "text-sm font-semibold leading-snug md:text-xl" : "text-base md:text-xl"}>{item.title}</h3>}
-              {(rating || address) && (
+              {rating && (
                 <div className={isCompactMobileCard ? "flex flex-col gap-1.5 text-xs text-muted-foreground md:gap-2 md:text-sm" : "flex flex-col gap-2 text-sm text-muted-foreground"}>
-                  {rating && (
-                    <Rating
-                      rate={rating}
-                      showScore
-                      className={isCompactMobileCard ? "gap-1 [&_span]:text-xs [&_svg]:size-3 [&>div]:size-3 md:gap-2 md:[&_span]:text-sm md:[&_svg]:size-4 md:[&>div]:size-4" : "[&_svg]:size-4 [&>div]:size-4"}
-                    />
-                  )}
-                  {address && (
-                    <div className={isCompactMobileCard ? "flex items-start gap-1 md:gap-1.5" : "flex items-start gap-1.5"}>
-                      <MapPin className={isCompactMobileCard ? "mt-0.5 size-3.5 shrink-0 text-foreground md:size-4" : "mt-0.5 size-4 shrink-0 text-foreground"} />
-                      <span className="min-w-0">{address}</span>
-                    </div>
-                  )}
+                  <Rating
+                    rate={rating}
+                    showScore
+                    className={isCompactMobileCard ? "gap-1 [&_span]:text-xs [&_svg]:size-3 [&>div]:size-3 md:gap-2 md:[&_span]:text-sm md:[&_svg]:size-4 md:[&>div]:size-4" : "[&_svg]:size-4 [&>div]:size-4"}
+                  />
                 </div>
               )}
-              {showDescriptionElement && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
+              {metaDescription && (
+                <p className={isCompactMobileCard ? "py-2 text-xs leading-snug text-muted-foreground md:text-sm" : "py-2 text-sm leading-relaxed text-muted-foreground"}>
+                  {metaDescription}
+                </p>
+              )}
+              {address && (
+                <div className={isCompactMobileCard ? "flex items-start gap-1 text-xs text-muted-foreground md:gap-1.5 md:text-sm" : "flex items-start gap-1.5 text-sm text-muted-foreground"}>
+                  <MapPin className={isCompactMobileCard ? "mt-0.5 size-3.5 shrink-0 text-foreground md:size-4" : "mt-0.5 size-4 shrink-0 text-foreground"} />
+                  <span className="min-w-0">{address}</span>
+                </div>
+              )}
+              {categoryChips.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {categoryChips.map((category) => (
+                    <span
+                      key={category.id}
+                      className={isCompactMobileCard ? "rounded-full bg-foreground/5 px-2 py-0.5 text-[11px] text-muted-foreground" : "rounded-full bg-foreground/5 px-2.5 py-1 text-xs text-muted-foreground"}
+                    >
+                      {category.title}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {listingStyle !== "directory" && showDescriptionElement && summary && <p className="my-4 leading-relaxed text-muted-foreground">{summary}</p>}
               {listingStyle === "blog" && (showAuthorMeta || published) && (
                 <div className="mt-3 flex items-center gap-2">
                   {showAuthorMeta && (

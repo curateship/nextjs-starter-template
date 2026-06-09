@@ -15,6 +15,7 @@ import { media } from '@/lib/db/schema/media'
 import { sites } from '@/lib/db/schema/sites'
 import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
 import {
+  deriveDirectoryMetaDescriptionFromBlocks,
   getDirectoryTemplateDefaultCategoryParentId,
   mergeDirectoryTemplateBlocks,
   pruneDirectoryValueBlocksForTemplate,
@@ -169,6 +170,7 @@ export async function POST(request: NextRequest) {
       const contentBlocks = cleanContentBlocks(sourceBlocks)
       applyBlockMappings(contentBlocks, item, mappings, customBlockTemplates)
       const valueBlocks = pruneDirectoryValueBlocksForTemplate(contentBlocks, template.contentBlocks)
+      const derivedMetaDescription = deriveDirectoryMetaDescriptionFromBlocks(valueBlocks)
       const values = {
         title,
         status,
@@ -176,7 +178,7 @@ export async function POST(request: NextRequest) {
         sourceId: placeId,
         contentBlocks: valueBlocks,
         updatedAt: new Date(),
-        ...(existing?.metaDescription === record.description ? { metaDescription: null } : {}),
+        ...(!existing?.metaDescription && derivedMetaDescription ? { metaDescription: derivedMetaDescription } : {}),
         ...(featuredImageSource ? { featuredImage: hubFeaturedImage } : {}),
       }
 
@@ -209,6 +211,7 @@ export async function POST(request: NextRequest) {
           featuredImage: hubFeaturedImage,
           sourceType: GOOGLE_MAPS_SOURCE_TYPE,
           sourceId: placeId,
+          metaDescription: derivedMetaDescription || null,
           contentBlocks: valueBlocks,
           createdAt: new Date(),
           updatedAt: new Date(),

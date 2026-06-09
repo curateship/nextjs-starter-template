@@ -101,6 +101,7 @@ export function PageBlockEditorDialog({
                     onImageHeightChange={(value) => onContentChange("imageHeight", value)}
                     onImageQualityChange={(value) => onContentChange("imageQuality", value)}
                     onSaveIconOpacityChange={(value) => onContentChange("saveIconOpacity", value)}
+                    onCategoryChipParentIdsChange={(value) => onContentChange("categoryChipParentIds", value)}
                     onDisplayModeChange={(value) => onContentChange("displayMode", value)}
                     onItemsToShowChange={(value) => onContentChange("itemsToShow", value)}
                     onMobileColumnsChange={(value) => onContentChange("mobileColumns", value)}

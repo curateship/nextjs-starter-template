@@ -6,18 +6,28 @@ import { db } from '@/lib/db'
 
 export type ListingViewsContentType = 'products' | 'posts' | 'directory'
 
+export interface ListingViewsCategory {
+  id: string
+  title: string
+  slug: string
+  parent_id: string | null
+  parent_title?: string
+}
+
 export interface ListingViewsItem {
   id: string
   title: string
   slug: string
   featured_image: string | null
   richText: string | null
+  metaDescription: string | null
   author: string | null
   author_image: string | null
   created_at: string
   display_order: number
   rating: number | null
   address: string | null
+  categories: ListingViewsCategory[]
 }
 
 export interface ListingViewsData {
@@ -37,7 +47,8 @@ interface ListingViewsRow extends Record<string, unknown> {
   title: string | null
   slug: string | null
   featured_image: string | null
-  rich_text: string | null
+  rich_text?: string | null
+  meta_description?: string | null
   author: string | null
   author_image: string | null
   created_at: Date | string | null
@@ -46,6 +57,7 @@ interface ListingViewsRow extends Record<string, unknown> {
   rating?: number | string | null
   address?: string | null
   country?: string | null
+  categories?: unknown
 }
 
 function normalizeCategoryIds(categoryIds?: string[]) {
@@ -94,6 +106,33 @@ function formatDirectoryAddress(address?: string | null, country?: string | null
     .join(', ')
 }
 
+function mapListingCategories(value: unknown): ListingViewsCategory[] {
+  let categories = value
+  if (typeof value === 'string') {
+    try {
+      categories = JSON.parse(value)
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(categories)) return []
+
+  return categories.flatMap((category) => {
+    if (!category || typeof category !== 'object') return []
+    const item = category as Record<string, unknown>
+    if (typeof item.id !== 'string' || typeof item.title !== 'string' || typeof item.slug !== 'string') return []
+
+    return [{
+      id: item.id,
+      title: item.title,
+      slug: item.slug,
+      parent_id: typeof item.parent_id === 'string' ? item.parent_id : null,
+      parent_title: typeof item.parent_title === 'string' ? item.parent_title : undefined,
+    }]
+  })
+}
+
 function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) {
   const totalCount = Number(rows[0]?.total_count ?? 0)
   const items = rows
@@ -103,6 +142,7 @@ function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) 
       title: row.title || 'Untitled',
       slug: row.slug || '',
       richText: row.rich_text || '',
+      metaDescription: row.meta_description || '',
       featured_image: row.featured_image || null,
       author: row.author || null,
       author_image: row.author_image || null,
@@ -110,6 +150,7 @@ function mapListingRows(rows: ListingViewsRow[], limit: number, offset: number) 
       display_order: row.display_order || 0,
       rating: row.rating == null ? null : Number(row.rating),
       address: formatDirectoryAddress(row.address, row.country) || null,
+      categories: mapListingCategories(row.categories),
     }))
 
   return {
@@ -197,7 +238,27 @@ async function getPostsListingData(site_id: string, sortBy: string, sortOrder: s
   return { ...data, posts: data.items }
 }
 
-async function getDirectoryListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) {
+function getDirectoryCategoriesSelect(includeCategories: boolean) {
+  if (!includeCategories) return sql`'[]'::jsonb`
+
+  return sql`coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', c.id,
+      'title', c.title,
+      'slug', c.slug,
+      'parent_id', c.parent_id,
+      'parent_title', parent.title
+    ) order by c.display_order desc, c.title)
+    from category_relationships cr
+    inner join categories c on c.id = cr.category_id and c.site_id = d.site_id
+    left join categories parent on parent.id = c.parent_id and parent.site_id = d.site_id
+    where cr.content_id = d.id
+      and cr.content_type = 'directory'
+      and c.is_published = true
+  ), '[]'::jsonb)`
+}
+
+async function getDirectoryListingData(site_id: string, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[], includeCategories: boolean) {
   const rows = await db.execute<ListingViewsRow>(sql`
     with filtered as (
       select
@@ -205,7 +266,7 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
         d.title,
         d.slug,
         d.featured_image,
-        d.meta_description as rich_text,
+        d.meta_description,
         coalesce(u."displayName", u.name) as author,
         u.image as author_image,
         d.created_at,
@@ -216,7 +277,8 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
           else null
         end as rating,
         nullif(core_block.content #>> '{address}', '') as address,
-        null as country
+        null as country,
+        ${getDirectoryCategoriesSelect(includeCategories)} as categories
       from directory d
       inner join sites s on s.id = d.site_id
       inner join users u on u.id = s.user_id
@@ -250,18 +312,18 @@ async function getDirectoryListingData(site_id: string, sortBy: string, sortOrde
 
 // Cached listing data function
 const getCachedListingData = unstable_cache(
-  async (site_id: string, contentType: ListingViewsContentType, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[]) => {
+  async (site_id: string, contentType: ListingViewsContentType, sortBy: string, sortOrder: string, limit: number, offset: number, categoryIds: string[], includeCategories: boolean) => {
     if (contentType === 'posts') {
       return getPostsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
     }
 
     if (contentType === 'directory') {
-      return getDirectoryListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
+      return getDirectoryListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds, includeCategories)
     }
 
     return getProductsListingData(site_id, sortBy, sortOrder, limit, offset, categoryIds)
   },
-  ['listing-data-v7'],
+  ['listing-data-v12'],
   {
     revalidate: 3600,
     tags: ['listing-views', 'all']
@@ -279,6 +341,7 @@ export async function getListingViewsData(params: {
   sortOrder: 'asc' | 'desc'
   limit?: number
   offset?: number
+  includeCategories?: boolean
 }): Promise<{
   success: boolean
   data?: ListingViewsData
@@ -287,6 +350,7 @@ export async function getListingViewsData(params: {
   try {
     const { site_id, contentType, sortBy, sortOrder, limit = 6, offset = 0 } = params
     const categoryIds = normalizeCategoryIds(params.categoryIds)
+    const includeCategories = contentType === 'directory' && params.includeCategories === true
 
     if (!site_id) {
       return { success: false, error: 'Site ID is required' }
@@ -297,7 +361,7 @@ export async function getListingViewsData(params: {
     }
 
     // Get cached listing data
-    const data = await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset, categoryIds)
+    const data = await getCachedListingData(site_id, contentType, sortBy, sortOrder, limit, offset, categoryIds, includeCategories)
 
     return {
       success: true,

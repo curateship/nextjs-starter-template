@@ -11,6 +11,7 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { getDirectoryCustomBlocksBySite } from './directory-custom-block-actions'
 import {
+  deriveDirectoryMetaDescriptionFromBlocks,
   mergeDirectoryTemplateBlocks,
   pruneDirectoryValueBlocksForTemplate,
 } from './directory-template-inheritance'
@@ -781,17 +782,25 @@ export async function updateDirectoryBlockValuesAction(directoryId: string, cont
       contentBlocks,
       (template.contentBlocks || {}) as Record<string, any>
     )
+    const derivedMetaDescription = directory.metaDescription
+      ? null
+      : deriveDirectoryMetaDescriptionFromBlocks(valueBlocks)
+    const updates: Record<string, any> = {
+      contentBlocks: valueBlocks,
+      updatedAt: new Date(),
+    }
+    if (derivedMetaDescription) {
+      updates.metaDescription = derivedMetaDescription
+    }
 
     // Update the listing-specific block values
     await db.update(directories)
-      .set({
-        contentBlocks: valueBlocks,
-        updatedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(directories.id, directoryId))
 
     // Revalidate cache
     revalidateTag('directory')
+    revalidateTag('listing-views')
     revalidateTag(`directory-${directoryId}`)
     revalidateTag(`site-${directory.siteId}`)
 

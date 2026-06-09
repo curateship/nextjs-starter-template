@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -5,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
+import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -39,6 +41,72 @@ const IMAGE_FIT_OPTIONS: Record<ImageFit, { label: string; description: string }
   },
 }
 
+function isPublishedCategory(category: Category) {
+  return category.is_published === true
+}
+
+function ParentCategoryChipPicker({
+  siteId,
+  selectedIds,
+  onChange,
+}: {
+  siteId: string
+  selectedIds: string[]
+  onChange: (value: string[]) => void
+}) {
+  const [parents, setParents] = useState<Category[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!siteId) return
+
+    let cancelled = false
+    setLoading(true)
+    getCategoriesForSiteAction(siteId, { pageSize: 100 })
+      .then(({ data }) => {
+        if (cancelled) return
+        setParents((data || []).filter((category) => isPublishedCategory(category) && !category.parent_id))
+      })
+      .catch(() => {
+        if (!cancelled) setParents([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [siteId])
+
+  const toggleParent = (categoryId: string) => {
+    onChange(selectedIds.includes(categoryId)
+      ? selectedIds.filter((id) => id !== categoryId)
+      : [...selectedIds, categoryId]
+    )
+  }
+
+  if (loading) return <div className="text-sm text-muted-foreground">Loading category types...</div>
+  if (parents.length === 0) return <div className="text-sm text-muted-foreground">No parent categories found.</div>
+
+  return (
+    <div className="flex flex-wrap gap-4">
+      {parents.map((parent) => (
+        <div key={parent.id} className="flex items-center gap-2">
+          <Checkbox
+            id={`listing-chip-parent-${parent.id}`}
+            checked={selectedIds.includes(parent.id)}
+            onCheckedChange={() => toggleParent(parent.id)}
+          />
+          <Label htmlFor={`listing-chip-parent-${parent.id}`} className="cursor-pointer text-sm">
+            {parent.title}
+          </Label>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface SharedListingViewsBlockProps {
   title?: string
   subtitle?: string
@@ -46,6 +114,7 @@ interface SharedListingViewsBlockProps {
   mobileHeaderAlign?: 'left' | 'center'
   contentType?: ListingContentType
   categoryIds?: string[]
+  categoryChipParentIds?: string[]
   listingStyle?: ListingStyle
   imageFit?: ImageFit
   imageHeight?: number
@@ -69,6 +138,7 @@ interface SharedListingViewsBlockProps {
   onMobileHeaderAlignChange: (value: 'left' | 'center') => void
   onContentTypeChange: (value: ListingContentType) => void
   onCategoryIdsChange: (value: string[]) => void
+  onCategoryChipParentIdsChange: (value: string[]) => void
   onListingStyleChange: (value: ListingStyle) => void
   onImageFitChange: (value: ImageFit) => void
   onImageHeightChange: (value: number | undefined) => void
@@ -95,11 +165,12 @@ export function PageListingViewBlock({
   mobileHeaderAlign = 'left',
   contentType = 'products',
   categoryIds = [],
+  categoryChipParentIds = [],
   listingStyle = 'default',
   imageFit = 'crop',
   imageHeight,
   imageQuality = 25,
-  saveIconOpacity = 100,
+  saveIconOpacity = 70,
   displayMode = 'grid',
   itemsToShow = 6,
   mobileColumns = 1,
@@ -118,6 +189,7 @@ export function PageListingViewBlock({
   onMobileHeaderAlignChange,
   onContentTypeChange,
   onCategoryIdsChange,
+  onCategoryChipParentIdsChange,
   onListingStyleChange,
   onImageFitChange,
   onImageHeightChange,
@@ -137,6 +209,7 @@ export function PageListingViewBlock({
   onBack,
 }: SharedListingViewsBlockProps) {
   const selectedCategoryIds = Array.isArray(categoryIds) ? categoryIds : []
+  const selectedCategoryChipParentIds = Array.isArray(categoryChipParentIds) ? categoryChipParentIds : []
 
   return (
     <BlockTabs
@@ -267,7 +340,18 @@ export function PageListingViewBlock({
                 variant="combobox"
               />
             </div>
-            
+
+            {contentType === 'directory' && (
+              <div className="space-y-2">
+                <Label>Category Chips</Label>
+                <ParentCategoryChipPicker
+                  siteId={siteId}
+                  selectedIds={selectedCategoryChipParentIds}
+                  onChange={onCategoryChipParentIdsChange}
+                />
+              </div>
+            )}
+
           </div>
                   </BlockEditorSection>
                 </CardContent>
@@ -351,7 +435,7 @@ export function PageListingViewBlock({
                 <Card>
                   <CardContent>
                     <BlockEditorSection heading="Save Button">
-                      <div className="max-w-xs space-y-2">
+                      <div className="max-w-sm space-y-2">
                         <Label htmlFor="saveIconOpacity">Save Icon Opacity</Label>
                         <Input
                           id="saveIconOpacity"
@@ -360,10 +444,14 @@ export function PageListingViewBlock({
                           max={100}
                           value={saveIconOpacity ?? ''}
                           onChange={(event) => {
+                            if (event.target.value === '') {
+                              onSaveIconOpacityChange(undefined)
+                              return
+                            }
                             const value = Number(event.target.value)
                             onSaveIconOpacityChange(Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : undefined)
                           }}
-                          placeholder="100"
+                          placeholder="70"
                         />
                       </div>
                     </BlockEditorSection>
@@ -530,7 +618,11 @@ export function PageListingViewBlock({
                       { key: 'showSaveButton', label: 'Show Save Button' },
                     ] : []),
                     { key: 'showTitle', label: 'Show Title' },
-                    { key: 'showDescription', label: 'Show Description' },
+                    ...(listingStyle === 'directory' ? [
+                      { key: 'showMetaDescription', label: 'Show Meta Description' },
+                    ] : [
+                      { key: 'showDescription', label: 'Show Description' },
+                    ]),
                     ...(listingStyle === 'blog' ? [
                       { key: 'showAuthor', label: 'Show Author' },
                       { key: 'showDate', label: 'Show Date' },

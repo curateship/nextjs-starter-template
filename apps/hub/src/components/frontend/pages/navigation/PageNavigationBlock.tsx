@@ -671,6 +671,12 @@ export const NavBlock = memo(function NavBlock({
     'medium': 'backdrop-blur-xl',
     'heavy': 'backdrop-blur-3xl'
   }[blurEffect]
+  const headerStyle = backgroundColor
+    ? {
+        backgroundColor,
+        background: `color-mix(in oklab, ${backgroundColor} 90%, transparent)`,
+      }
+    : undefined
 
   // Determine logo URL with smart defaults
   const getLogoUrl = () => {
@@ -803,7 +809,7 @@ export const NavBlock = memo(function NavBlock({
         blurClass,
         !backgroundColor && 'bg-background/90'
       )}
-      style={backgroundColor ? { backgroundColor } : undefined}
+      style={headerStyle}
     >
       <nav
         data-state={menuState && 'active'}

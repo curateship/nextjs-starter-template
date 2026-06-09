@@ -91,6 +91,22 @@ export function getDirectoryBlockValueContent(type: string, content: Record<stri
   return values
 }
 
+export function deriveDirectoryMetaDescriptionFromBlocks(
+  blocks: Record<string, any> | Array<{ type?: string; content?: Record<string, any> }>,
+  maxLength = 160
+) {
+  const blockList = Array.isArray(blocks) ? blocks : Object.values(blocks || {})
+  const richTextBlock = blockList.find((block: any) =>
+    block?.type === 'directory-rich-text' || block?.type === 'directory-content'
+  ) as { content?: Record<string, any> } | undefined
+  const plainText = (typeof richTextBlock?.content?.body === 'string' ? richTextBlock.content.body : '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return plainText.length > maxLength ? `${plainText.slice(0, maxLength - 3).trim()}...` : plainText
+}
+
 export function sanitizeDirectoryTemplateBlocks(contentBlocks: Record<string, any> = {}) {
   const sanitizedBlocks: Record<string, any> = {}
 

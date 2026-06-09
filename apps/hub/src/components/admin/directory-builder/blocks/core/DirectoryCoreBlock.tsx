@@ -132,16 +132,15 @@ function SocialLinkFields({
   onDelete: (index: number) => void
 }) {
   return (
-    <div className="grid gap-3 rounded-lg border bg-background p-3 sm:grid-cols-[auto_minmax(150px,220px)_minmax(0,1fr)_auto] sm:items-end">
+    <div className="grid gap-3 rounded-lg border bg-background p-3 sm:grid-cols-[auto_minmax(150px,220px)_minmax(0,1fr)_auto] sm:items-center">
       <div className="flex h-10 items-center">{dragHandle}</div>
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Platform</p>
+      <div>
         <Select
           value={socialLink.platform || SOCIAL_PLATFORM_OPTIONS[0].value}
           onValueChange={(value) => onChange(index, { ...socialLink, platform: value })}
         >
-          <SelectTrigger size="button" className="w-full">
+          <SelectTrigger size="button" className="w-full" aria-label="Social platform">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -154,8 +153,7 @@ function SocialLinkFields({
         </Select>
       </div>
 
-      <div className="min-w-0 space-y-2">
-        <p className="text-sm font-medium">URL</p>
+      <div className="min-w-0">
         <Input
           value={socialLink.url || ""}
           onChange={(event) => onChange(index, { ...socialLink, url: event.target.value })}
@@ -615,18 +613,11 @@ export function DirectoryCoreBlock({
   )
 
   const socialLinksEditor = socialLinks.length === 0 ? (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
+    <div className="grid gap-3">
+      <div className="rounded-lg border border-dashed py-4 text-center text-sm text-muted-foreground">
         No social links.
       </div>
-      <button
-        type="button"
-        onClick={addSocialLink}
-        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-        aria-label="Add social link"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
+      <MenuAddLinkButton onClick={addSocialLink} />
     </div>
   ) : sortableSocialLinksReady ? (
     <DndContext
@@ -648,14 +639,7 @@ export function DirectoryCoreBlock({
               onDelete={removeSocialLink}
             />
           ))}
-          <button
-            type="button"
-            onClick={addSocialLink}
-            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-            aria-label="Add social link"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <MenuAddLinkButton onClick={addSocialLink} />
         </div>
       </SortableContext>
     </DndContext>
@@ -670,14 +654,7 @@ export function DirectoryCoreBlock({
           onDelete={removeSocialLink}
         />
       ))}
-      <button
-        type="button"
-        onClick={addSocialLink}
-        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border bg-background transition-colors hover:border-muted-foreground/50 hover:bg-accent"
-        aria-label="Add social link"
-      >
-        <Plus className="h-4 w-4" />
-      </button>
+      <MenuAddLinkButton onClick={addSocialLink} />
     </div>
   )
 
