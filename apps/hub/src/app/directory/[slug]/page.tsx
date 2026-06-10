@@ -53,7 +53,7 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
   return unstable_cache(
     async () => {
       const rows = await db.execute(sql`
-        with recursive directory_row as (
+        with directory_row as (
           select
             d.id,
             d.site_id as "siteId",

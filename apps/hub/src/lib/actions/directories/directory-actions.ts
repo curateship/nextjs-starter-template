@@ -115,15 +115,40 @@ export async function getSiteDirectoriesAction(siteId: string, options?: { page?
   }
 }
 
+function toDirectorySummary(row: {
+  id: string
+  siteId: string
+  title: string
+  slug: string
+  status: DirectoryStatus
+  displayOrder: number
+  featuredImage: string | null
+  metaDescription: string | null
+  createdAt: Date
+  updatedAt: Date
+}): DirectorySummary {
+  return {
+    id: row.id,
+    site_id: row.siteId,
+    title: row.title,
+    slug: row.slug,
+    status: row.status,
+    display_order: row.displayOrder,
+    featured_image: row.featuredImage,
+    meta_description: row.metaDescription,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  }
+}
 
 /**
- * Get directories with their categories in a single server action call.
+ * Get directory summaries with their categories in a single server action call.
  */
 export async function getSiteDirectoriesWithCategoriesAction(
   siteId: string,
   options?: { page?: number; pageSize?: number }
 ): Promise<{
-  data: Directory[] | null
+  data: DirectorySummary[] | null
   categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]>
   total: number
   error: string | null
@@ -151,23 +176,31 @@ export async function getSiteDirectoriesWithCategoriesAction(
       .from(directories)
       .where(eq(directories.siteId, siteId))
 
-    const rows = await db.select()
+    const rows = await db.select({
+      id: directories.id,
+      siteId: directories.siteId,
+      title: directories.title,
+      slug: directories.slug,
+      status: directories.status,
+      displayOrder: directories.displayOrder,
+      featuredImage: directories.featuredImage,
+      metaDescription: directories.metaDescription,
+      createdAt: directories.createdAt,
+      updatedAt: directories.updatedAt,
+    })
       .from(directories)
       .where(eq(directories.siteId, siteId))
       .orderBy(desc(directories.displayOrder))
       .limit(pageSize)
       .offset(from)
 
-    const dirs = rows.map(toDirectory)
-
+    const dirs = rows.map(toDirectorySummary)
     let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
-    if (dirs.length > 0) {
-      const dirIds = dirs.map(d => d.id)
 
-      // Query relationships joined with categories (replaces category_relationships + categories join)
+    if (dirs.length > 0) {
+      const dirIds = dirs.map((directory) => directory.id)
       const rels = await db.select({
         contentId: contentCategoryRelationships.contentId,
-        categoryId: contentCategoryRelationships.categoryId,
         catId: categories.id,
         catTitle: categories.title,
         catSlug: categories.slug,
@@ -175,36 +208,28 @@ export async function getSiteDirectoriesWithCategoriesAction(
       })
         .from(contentCategoryRelationships)
         .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
-        .where(
-          and(
-            inArray(contentCategoryRelationships.contentId, dirIds),
-            eq(contentCategoryRelationships.contentType, 'directory')
-          )
-        )
+        .where(and(
+          inArray(contentCategoryRelationships.contentId, dirIds),
+          eq(contentCategoryRelationships.contentType, 'directory')
+        ))
 
-      if (rels.length > 0) {
-        const parentIds = new Set<string>()
-        for (const rel of rels) {
-          if (rel.catParentId) parentIds.add(rel.catParentId)
-        }
-        let parentTitles: Record<string, string> = {}
-        if (parentIds.size > 0) {
-          const parents = await db.select({ id: categories.id, title: categories.title })
-            .from(categories)
-            .where(inArray(categories.id, Array.from(parentIds)))
-          parentTitles = Object.fromEntries(parents.map(p => [p.id, p.title]))
-        }
-        for (const rel of rels) {
-          const cid = rel.contentId
-          if (!categoryMap[cid]) categoryMap[cid] = []
-          categoryMap[cid].push({
-            id: rel.catId,
-            title: rel.catTitle,
-            slug: rel.catSlug,
-            parent_id: rel.catParentId,
-            parent_title: rel.catParentId ? parentTitles[rel.catParentId] : undefined
-          })
-        }
+      const parentIds = [...new Set(rels.flatMap((rel) => rel.catParentId ? [rel.catParentId] : []))]
+      const parents = parentIds.length > 0
+        ? await db.select({ id: categories.id, title: categories.title })
+          .from(categories)
+          .where(inArray(categories.id, parentIds))
+        : []
+      const parentTitles = Object.fromEntries(parents.map((parent) => [parent.id, parent.title]))
+
+      for (const rel of rels) {
+        if (!categoryMap[rel.contentId]) categoryMap[rel.contentId] = []
+        categoryMap[rel.contentId].push({
+          id: rel.catId,
+          title: rel.catTitle,
+          slug: rel.catSlug,
+          parent_id: rel.catParentId,
+          parent_title: rel.catParentId ? parentTitles[rel.catParentId] : undefined,
+        })
       }
     }
 

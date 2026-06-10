@@ -12,14 +12,23 @@ interface CatchAllPageProps {
   params: Promise<{
     slug: string[]
   }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default async function CatchAllPage({ params }: CatchAllPageProps) {
+function getListingPage(searchParams?: Record<string, string | string[] | undefined>) {
+  const value = searchParams?.page
+  const page = parseInt(Array.isArray(value) ? value[0] || "1" : value || "1", 10)
+  return Number.isFinite(page) && page > 0 ? page : 1
+}
+
+export default async function CatchAllPage({ params, searchParams }: CatchAllPageProps) {
   const { slug } = await params
   const fullSlug = slug.join('/')
   const isLoggedIn = await checkAuth()
 
-  const { success: siteSuccess, site } = await getSiteFromHeaders(fullSlug)
+  const { success: siteSuccess, site } = await getSiteFromHeaders(fullSlug, {
+    listingPage: getListingPage(await searchParams),
+  })
 
   if (!siteSuccess || !site) {
     const fallback = await getSiteFromHeaders()

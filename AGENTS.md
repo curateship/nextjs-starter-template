@@ -18,6 +18,10 @@ If I say "Custom Shell" refer to the custom-shell App
 
 Simplicity is mandatory. Always implement the simplest solution that works. If a simple feature needs more than 20 lines, stop and reconsider. Direct solutions beat clever architecture. Try removing code before adding code. Question every new dependency, hook, or context.
 
+For small fixes, do not add new helpers, abstractions, fallback paths, or alternate data flows.
+Change the smallest existing line that is wrong.
+If you think more is needed, stop and ask before editing.
+
 Do not expand a small request into broad cleanup, scoring changes, helper abstractions, fallbacks, edge-case systems, or adjacent fixes unless explicitly asked. Make the narrowest change that satisfies the request, then stop. If a nearby issue seems important, mention it instead of patching it.
 
 ## Small Request Discipline

@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { getCategoriesForSiteAction, type Category } from "@/lib/actions/categories/category-actions"
+import { getCategoriesWithCountsAction, type Category } from "@/lib/actions/categories/category-actions"
 import { VisibilitySettings } from "../shared/VisibilitySettings"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
@@ -62,10 +62,10 @@ function ParentCategoryChipPicker({
 
     let cancelled = false
     setLoading(true)
-    getCategoriesForSiteAction(siteId, { pageSize: 100 })
+    getCategoriesWithCountsAction(siteId, { pageSize: 100 })
       .then(({ data }) => {
         if (cancelled) return
-        setParents((data || []).filter((category) => isPublishedCategory(category) && !category.parent_id))
+        setParents((data || []).filter(isPublishedCategory))
       })
       .catch(() => {
         if (!cancelled) setParents([])

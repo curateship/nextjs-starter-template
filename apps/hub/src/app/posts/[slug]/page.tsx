@@ -8,8 +8,10 @@ import { getRelatedPostsData } from "@/lib/actions/posts/related-posts-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
-import { shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import {
+  getContentBreadcrumbItems,
+  shouldShowFrontendBreadcrumbs,
+} from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { getActiveSponsorsByIdsAction } from "@/lib/actions/sponsors/sponsor-actions"
 import { extractSponsorIdsFromHtml } from "@/lib/utils/sponsor-embeds"
 
@@ -33,7 +35,7 @@ function getCachedPostPageData(siteId: string, slug: string) {
   return unstable_cache(
     async () => {
       const rows = await db.execute(sql`
-        with recursive post_row as (
+        with post_row as (
           select
             p.id,
             p.site_id as "siteId",
@@ -64,44 +66,10 @@ function getCachedPostPageData(siteId: string, slug: string) {
           inner join sites s on s.id = p."siteId"
           inner join users u on u.id = s.user_id
           limit 1
-        ),
-        primary_category as (
-          select c.id
-          from post_row p
-          inner join category_relationships cr
-            on cr.content_id = p.id
-            and cr.content_type = 'post'
-            and cr.is_primary = true
-          inner join categories c on c.id = cr.category_id
-          where c.site_id = ${siteId}
-            and c.is_published = true
-          limit 1
-        ),
-        category_trail as (
-          select c.id, c.title, c.slug, c.parent_id, 0 as depth
-          from categories c
-          inner join primary_category pc on pc.id = c.id
-          where c.site_id = ${siteId}
-            and c.is_published = true
-          union all
-          select parent.id, parent.title, parent.slug, parent.parent_id, category_trail.depth + 1
-          from categories parent
-          inner join category_trail on parent.id = category_trail.parent_id
-          where parent.site_id = ${siteId}
-            and parent.is_published = true
-            and category_trail.depth < 20
-        ),
-        breadcrumb_items as (
-          select coalesce(jsonb_agg(jsonb_build_object(
-            'label', title,
-            'href', '/categories/' || slug
-          ) order by depth desc), '[]'::jsonb) as data
-          from category_trail
         )
         select
           to_jsonb(post_row) as post,
-          to_jsonb(author_row) as author,
-          (select data from breadcrumb_items) as breadcrumbs
+          to_jsonb(author_row) as author
         from post_row
         left join author_row on true
       `)
@@ -188,11 +156,13 @@ export default async function PostPage({ params }: PostPageProps) {
       preloadedRelatedPosts = result.data
     }
   }
-  const categoryBreadcrumbs = Array.isArray(pageData.breadcrumbs)
-    ? pageData.breadcrumbs as FrontendBreadcrumbItem[]
-    : []
-  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'posts') && categoryBreadcrumbs.length > 0
-    ? [...categoryBreadcrumbs, { label: post.title }]
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'posts')
+    ? await getContentBreadcrumbItems({
+        siteId: site.id,
+        contentId: post.id,
+        contentType: 'post',
+        currentLabel: post.title,
+      })
     : []
   const sponsorIds = blocks.flatMap((block: any) =>
     block?.type === 'core' ? extractSponsorIdsFromHtml(block.content?.body || block.content?.text || '') : []
