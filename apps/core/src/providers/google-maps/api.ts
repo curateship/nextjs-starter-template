@@ -126,7 +126,7 @@ export type HubExportStatus = "draft" | "published"
 const remoteImageMaxBytes = 10 * 1024 * 1024
 const websiteHtmlMaxBytes = 5 * 1024 * 1024
 const websiteFetchTimeoutMs = 10_000
-const enhanceResultsMax = 50
+const enhanceResultsMax = 200
 const remoteImageTypes = new Set([
   "image/jpeg",
   "image/jpg",
@@ -568,6 +568,7 @@ export const exportGoogleMapsResultsToHub = (data: z.infer<typeof hubExportSchem
 
 function defaultRunName(input: ReturnType<typeof cleanRunInput>) {
   if (input.searchMode === "urls") return `${input.urls.length} Google Maps ${input.urls.length === 1 ? "URL" : "URLs"}`
+  if (input.searchMode === "url") return "Google Maps URL"
   return `${input.keyword} in ${input.location}`
 }
 
@@ -655,7 +656,7 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
   const runInput = parseRunInput(run.input)
   const executionUrls = executionQueriedUrls(execution.stats, runInput.urls)
   const input = runInput.searchMode === "urls" ? { ...runInput, urls: executionUrls } : runInput
-  const resultLimit = input.searchMode === "urls" ? input.maxResults * Math.max(input.urls.length, 1) : input.maxResults
+  const resultLimit = input.searchMode === "urls" ? input.urls.length : input.maxResults
   const items = await getDatasetItems(token, execution.providerDatasetId, resultLimit)
   const existingResults = await db.select().from(providerResults).where(eq(providerResults.runConfigId, run.id))
   const existingKeys = new Set(

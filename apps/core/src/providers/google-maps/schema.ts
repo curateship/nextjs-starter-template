@@ -23,7 +23,7 @@ export const googleMapsProviderKey = "google-maps"
 export const defaultApifyActorId = "compass/crawler-google-places"
 export const defaultMaxResults = 25
 export const defaultBlastRadiusKm = 0.5
-export const googleMapsSearchModes = ["keyword", "urls"] as const
+export const googleMapsSearchModes = ["keyword", "urls", "url"] as const
 export type GoogleMapsSearchMode = (typeof googleMapsSearchModes)[number]
 const requiredText = (max: number) => z.string().trim().min(1).max(max)
 
@@ -125,7 +125,7 @@ export const runInputSchema = z.object({
   searchMode: z.enum(googleMapsSearchModes).catch("keyword").default("keyword"),
   keyword: z.string().trim().max(500).default(""),
   location: z.string().trim().max(500).default(""),
-  urls: z.array(z.string().trim().min(1).max(2000)).max(100).default([]),
+  urls: z.array(z.string().trim().min(1).max(2000)).max(500).default([]),
   skipKnownUrls: z.boolean().default(true),
   neighborhood: z.string().trim().max(120).default(""),
   latitude: z.number().min(-90).max(90).nullable().default(null),
@@ -167,6 +167,8 @@ export function cleanRunInput(data: z.infer<typeof runPayloadSchema>) {
 
   if (searchMode === "keyword" && (!keyword || !location)) throw new Error("Search term and search area are required.")
   if (searchMode === "urls" && urls.length === 0) throw new Error("Add at least one Google Maps URL.")
+  if (searchMode === "url" && urls.length === 0) throw new Error("Add one Google Maps URL.")
+  if (searchMode === "url" && urls.length > 1) throw new Error("Add only one Google Maps URL.")
 
   return {
     searchMode,
@@ -180,7 +182,7 @@ export function cleanRunInput(data: z.infer<typeof runPayloadSchema>) {
     useBlastRadius: searchMode === "keyword" ? data.useBlastRadius : false,
     blastRadiusKm: data.blastRadiusKm,
     language: data.language.trim().toLowerCase(),
-    maxResults: data.maxResults,
+    maxResults: searchMode === "urls" ? 1 : data.maxResults,
   }
 }
 

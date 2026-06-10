@@ -113,9 +113,9 @@ type RunForm = {
   neighborhood: string
   coordinates: string
   useBlastRadius: boolean
-  blastRadiusKm: number
+  blastRadiusKm: string
   language: string
-  maxResults: number
+  maxResults: string
   status: ProviderRunConfigStatus
 }
 type ResultForm = Record<string, string | boolean>
@@ -535,7 +535,8 @@ function RunSettingsDialog({
                     <SelectTrigger id="search-mode" className="h-8 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="keyword">Keyword search</SelectItem>
-                      <SelectItem value="urls">Google Maps URLs</SelectItem>
+                      <SelectItem value="urls">Google Maps URL list</SelectItem>
+                      <SelectItem value="url">Single Google Maps URL</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -544,7 +545,7 @@ function RunSettingsDialog({
                     <RunField id="keyword" label="Search term" value={form.keyword} onChange={(value) => onChange({ ...form, keyword: value })} />
                     <RunField id="location" label="Search area" value={form.location} onChange={(value) => onChange({ ...form, location: value })} />
                   </>
-                ) : (
+                ) : form.searchMode === "urls" ? (
                   <>
                     <div className="grid gap-2 sm:col-span-2">
                       <Label htmlFor="maps-urls">Google Maps URLs</Label>
@@ -560,13 +561,17 @@ function RunSettingsDialog({
                       <Label htmlFor="skip-known-urls">Skip previously queried URLs</Label>
                     </div>
                   </>
+                ) : (
+                  <RunField id="maps-url" label="Google Maps URL" value={form.urls} onChange={(value) => onChange({ ...form, urls: value })} />
                 )}
                 <RunField id="language" label="Language" value={form.language} onChange={(value) => onChange({ ...form, language: value })} />
-                <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => onChange({ ...form, maxResults: Number(value) })} />
+                {form.searchMode !== "urls" && (
+                  <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => onChange({ ...form, maxResults: value })} />
+                )}
                 {form.searchMode === "keyword" && (
                   <>
                     <RunField id="coordinates" label="Coordinates" value={form.coordinates} onChange={(value) => onChange({ ...form, coordinates: value })} />
-                    <RunField id="blast-radius" label="Blast radius (km)" type="number" value={form.blastRadiusKm} onChange={(value) => onChange({ ...form, blastRadiusKm: Number(value) })} />
+                    <RunField id="blast-radius" label="Blast radius (km)" type="number" value={form.blastRadiusKm} onChange={(value) => onChange({ ...form, blastRadiusKm: value })} />
                     <div className="flex items-center gap-2 self-end py-2">
                       <Checkbox id="use-blast-radius" checked={form.useBlastRadius} onCheckedChange={(checked) => onChange({ ...form, useBlastRadius: checked === true })} />
                       <Label htmlFor="use-blast-radius">Use blast radius</Label>
@@ -581,8 +586,8 @@ function RunSettingsDialog({
                 <CardTitle>Core data and functions</CardTitle>
                 <CardDescription>Fields saved and applied inside Core.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2">
-                <RunField id="name" label={form.searchMode === "urls" ? "URL search title" : "Name (optional)"} value={form.name} onChange={(value) => onChange({ ...form, name: value })} />
+              <CardContent className="grid gap-4 sm:grid-cols-3">
+                <RunField id="name" label={form.searchMode === "keyword" ? "Name (optional)" : "URL search title"} value={form.name} onChange={(value) => onChange({ ...form, name: value })} />
                 <RunField id="run-neighborhood" label="Neighborhood (optional)" value={form.neighborhood} onChange={(value) => onChange({ ...form, neighborhood: value })} />
                 <div className="grid gap-2">
                   <Label htmlFor="status">Status</Label>
@@ -2010,11 +2015,13 @@ function StatusBadge({ status }: { status: ProviderRunConfigStatus | string }) {
 
 function runQueryLabel(input: ReturnType<typeof parseRunInput>) {
   if (input.searchMode === "urls") return `${input.urls.length} Google Maps ${input.urls.length === 1 ? "URL" : "URLs"}`
+  if (input.searchMode === "url") return "Google Maps URL"
   return input.keyword
 }
 
 function runLocationLabel(input: ReturnType<typeof parseRunInput>) {
   if (input.searchMode === "urls") return "Pasted URLs"
+  if (input.searchMode === "url") return "Single URL"
   return input.location
 }
 
@@ -2188,7 +2195,7 @@ function AutoHeightTextarea({
 }
 
 function emptyForm(maxResults: number): RunForm {
-  return { name: "", searchMode: "keyword", keyword: "", location: "", urls: "", skipKnownUrls: true, neighborhood: "", coordinates: "", useBlastRadius: false, blastRadiusKm: defaultBlastRadiusKm, language: "en", maxResults, status: "active" }
+  return { name: "", searchMode: "keyword", keyword: "", location: "", urls: "", skipKnownUrls: true, neighborhood: "", coordinates: "", useBlastRadius: false, blastRadiusKm: String(defaultBlastRadiusKm), language: "en", maxResults: String(maxResults), status: "active" }
 }
 
 function runFormFromRun(run: ProviderRunConfigItem): RunForm {
@@ -2204,14 +2211,19 @@ function runFormFromRun(run: ProviderRunConfigItem): RunForm {
     neighborhood: input.neighborhood,
     coordinates: coordinatesValue(input.latitude, input.longitude),
     useBlastRadius: input.useBlastRadius,
-    blastRadiusKm: input.blastRadiusKm,
+    blastRadiusKm: String(input.blastRadiusKm),
     language: input.language,
-    maxResults: input.maxResults,
+    maxResults: String(input.maxResults),
   }
 }
 
 function runPayloadFromForm(form: RunForm) {
-  if (form.searchMode === "urls") {
+  if (form.searchMode !== "urls" && !form.maxResults.trim()) throw new Error("Max results is required.")
+  const maxResults = form.searchMode === "urls" ? 1 : Number(form.maxResults)
+  const blastRadiusValue = form.blastRadiusKm.trim()
+  const blastRadiusKm = blastRadiusValue ? Number(blastRadiusValue) : defaultBlastRadiusKm
+
+  if (form.searchMode === "urls" || form.searchMode === "url") {
     return {
       name: form.name,
       searchMode: form.searchMode,
@@ -2223,17 +2235,18 @@ function runPayloadFromForm(form: RunForm) {
       latitude: null,
       longitude: null,
       useBlastRadius: false,
-      blastRadiusKm: form.blastRadiusKm,
+      blastRadiusKm,
       language: form.language,
-      maxResults: form.maxResults,
+      maxResults,
       status: form.status,
     }
   }
 
   const coordinates = parseCoordinates(form.coordinates)
   if (form.useBlastRadius && !coordinates) throw new Error("Coordinates are required when using blast radius.")
-  if (form.useBlastRadius && !Number.isFinite(form.blastRadiusKm)) throw new Error("Blast radius must be a number.")
-  if (form.useBlastRadius && (form.blastRadiusKm < 0.1 || form.blastRadiusKm > 100)) throw new Error("Blast radius must be between 0.1 and 100 km.")
+  if (form.useBlastRadius && !blastRadiusValue) throw new Error("Blast radius must be a number.")
+  if (form.useBlastRadius && !Number.isFinite(blastRadiusKm)) throw new Error("Blast radius must be a number.")
+  if (form.useBlastRadius && (blastRadiusKm < 0.1 || blastRadiusKm > 100)) throw new Error("Blast radius must be between 0.1 and 100 km.")
   return {
     name: form.name,
     searchMode: form.searchMode,
@@ -2245,9 +2258,9 @@ function runPayloadFromForm(form: RunForm) {
     latitude: coordinates?.latitude ?? null,
     longitude: coordinates?.longitude ?? null,
     useBlastRadius: form.useBlastRadius,
-    blastRadiusKm: form.blastRadiusKm,
+    blastRadiusKm,
     language: form.language,
-    maxResults: form.maxResults,
+    maxResults,
     status: form.status,
   }
 }

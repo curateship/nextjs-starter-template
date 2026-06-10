@@ -67,8 +67,10 @@ import {
   normalizeResult,
 } from "@/providers/google-maps/adapter"
 import {
+  cleanRunInput,
   googleMapsCanonicalFieldSettings,
   parseConfig,
+  parseRunInput,
   serializeSettings,
 } from "@/providers/google-maps/schema"
 import {
@@ -1077,7 +1079,7 @@ describe("core providers", () => {
       maxResults: 25,
     })).toEqual({
       startUrls: [{ url: "https://www.google.com/maps/place/Austin+Dental" }],
-      maxCrawledPlacesPerSearch: 25,
+      maxCrawledPlacesPerSearch: 1,
       language: "en",
     })
     const blastRadiusInput = buildActorInput({
@@ -1147,6 +1149,91 @@ describe("core providers", () => {
         sourceImageUrl: "https://streetviewpixels-pa.googleapis.com/photo",
       },
     })
+  })
+
+  it("accepts Google Maps URL runs with more than 100 pasted URLs", () => {
+    const urls = Array.from(
+      { length: 101 },
+      (_, index) => `https://www.google.com/maps/place/test-${index}`
+    )
+
+    expect(
+      parseRunInput({
+        searchMode: "urls",
+        keyword: "",
+        location: "",
+        urls,
+        skipKnownUrls: true,
+        neighborhood: "",
+        latitude: null,
+        longitude: null,
+        useBlastRadius: false,
+        blastRadiusKm: 0.5,
+        language: "en",
+        maxResults: 25,
+      }).urls
+    ).toHaveLength(101)
+  })
+
+  it("keeps URL list runs to one result per pasted URL", () => {
+    expect(cleanRunInput({
+      name: "",
+      status: "active",
+      searchMode: "urls",
+      keyword: "",
+      location: "",
+      urls: [
+        "https://www.google.com/maps/place/test-1",
+        "https://www.google.com/maps/place/test-2",
+      ],
+      skipKnownUrls: true,
+      neighborhood: "",
+      latitude: null,
+      longitude: null,
+      useBlastRadius: false,
+      blastRadiusKm: 0.5,
+      language: "en",
+      maxResults: 25,
+    }).maxResults).toBe(1)
+  })
+
+  it("allows max results for one Google Maps URL only", () => {
+    expect(cleanRunInput({
+      name: "",
+      status: "active",
+      searchMode: "url",
+      keyword: "",
+      location: "",
+      urls: ["https://www.google.com/maps/place/test-1"],
+      skipKnownUrls: true,
+      neighborhood: "",
+      latitude: null,
+      longitude: null,
+      useBlastRadius: false,
+      blastRadiusKm: 0.5,
+      language: "en",
+      maxResults: 25,
+    }).maxResults).toBe(25)
+
+    expect(() => cleanRunInput({
+      name: "",
+      status: "active",
+      searchMode: "url",
+      keyword: "",
+      location: "",
+      urls: [
+        "https://www.google.com/maps/place/test-1",
+        "https://www.google.com/maps/place/test-2",
+      ],
+      skipKnownUrls: true,
+      neighborhood: "",
+      latitude: null,
+      longitude: null,
+      useBlastRadius: false,
+      blastRadiusKm: 0.5,
+      language: "en",
+      maxResults: 25,
+    })).toThrow("Add only one Google Maps URL.")
   })
 })
 

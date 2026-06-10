@@ -3,7 +3,7 @@ import type { ProviderExecutionStatus } from "@/providers/types"
 const apiBase = "https://api.apify.com/v2"
 
 export type GoogleMapsInput = {
-  searchMode: "keyword" | "urls"
+  searchMode: "keyword" | "urls" | "url"
   keyword: string
   location: string
   urls: string[]
@@ -25,10 +25,10 @@ type ApifyRun = {
 }
 
 export function buildActorInput(input: GoogleMapsInput) {
-  if (input.searchMode === "urls") {
+  if (input.searchMode === "urls" || input.searchMode === "url") {
     return {
       startUrls: input.urls.map((url) => ({ url })),
-      maxCrawledPlacesPerSearch: input.maxResults,
+      maxCrawledPlacesPerSearch: input.searchMode === "urls" ? 1 : input.maxResults,
       language: input.language,
     }
   }
@@ -64,7 +64,7 @@ export async function startActor({
   input: GoogleMapsInput
 }) {
   const url = new URL(`${apiBase}/acts/${encodeActorId(actorId)}/runs`)
-  const maxItems = input.searchMode === "urls" ? input.maxResults * Math.max(input.urls.length, 1) : input.maxResults
+  const maxItems = input.searchMode === "urls" ? input.urls.length : input.maxResults
   url.searchParams.set("maxItems", String(maxItems))
   const result = await apifyRequest<{ data: ApifyRun }>(url, token, {
     method: "POST",
