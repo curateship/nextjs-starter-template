@@ -115,32 +115,6 @@ export async function getSiteDirectoriesAction(siteId: string, options?: { page?
   }
 }
 
-function toDirectorySummary(row: {
-  id: string
-  siteId: string
-  title: string
-  slug: string
-  status: DirectoryStatus
-  displayOrder: number
-  featuredImage: string | null
-  metaDescription: string | null
-  createdAt: Date
-  updatedAt: Date
-}): DirectorySummary {
-  return {
-    id: row.id,
-    site_id: row.siteId,
-    title: row.title,
-    slug: row.slug,
-    status: row.status,
-    display_order: row.displayOrder,
-    featured_image: row.featuredImage,
-    meta_description: row.metaDescription,
-    created_at: row.createdAt.toISOString(),
-    updated_at: row.updatedAt.toISOString(),
-  }
-}
-
 /**
  * Get directory summaries with their categories in a single server action call.
  */
@@ -178,15 +152,15 @@ export async function getSiteDirectoriesWithCategoriesAction(
 
     const rows = await db.select({
       id: directories.id,
-      siteId: directories.siteId,
+      site_id: directories.siteId,
       title: directories.title,
       slug: directories.slug,
       status: directories.status,
-      displayOrder: directories.displayOrder,
-      featuredImage: directories.featuredImage,
-      metaDescription: directories.metaDescription,
-      createdAt: directories.createdAt,
-      updatedAt: directories.updatedAt,
+      display_order: directories.displayOrder,
+      featured_image: directories.featuredImage,
+      meta_description: directories.metaDescription,
+      created_at: directories.createdAt,
+      updated_at: directories.updatedAt,
     })
       .from(directories)
       .where(eq(directories.siteId, siteId))
@@ -194,7 +168,11 @@ export async function getSiteDirectoriesWithCategoriesAction(
       .limit(pageSize)
       .offset(from)
 
-    const dirs = rows.map(toDirectorySummary)
+    const dirs: DirectorySummary[] = rows.map((row) => ({
+      ...row,
+      created_at: row.created_at.toISOString(),
+      updated_at: row.updated_at.toISOString(),
+    }))
     let categoryMap: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]> = {}
 
     if (dirs.length > 0) {

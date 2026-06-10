@@ -11,12 +11,6 @@ import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
-function getListingPage(searchParams?: Record<string, string | string[] | undefined>) {
-  const value = searchParams?.page
-  const page = parseInt(Array.isArray(value) ? value[0] || "1" : value || "1", 10)
-  return Number.isFinite(page) && page > 0 ? page : 1
-}
-
 async function getHomePageSite(listingPage = 1) {
   return await getSiteFromHeaders('home', { listingPage })
 }
@@ -69,7 +63,9 @@ export default async function SiteHomePage({ searchParams }: { searchParams?: Se
     return <HubPlatformHome />
   }
 
-  const { success, site } = await getHomePageSite(getListingPage(await searchParams))
+  const pageValue = (await searchParams)?.page
+  const parsedPage = parseInt(Array.isArray(pageValue) ? pageValue[0] || "1" : pageValue || "1", 10)
+  const { success, site } = await getHomePageSite(Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1)
   const isLoggedIn = await checkAuth()
 
   // No site found for this host — redirect to login

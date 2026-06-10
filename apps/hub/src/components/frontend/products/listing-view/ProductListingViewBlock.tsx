@@ -76,36 +76,11 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
   const showTitleElement = visibility?.showTitle !== false
   const showDescriptionElement = visibility?.showDescription !== false
   const dataMatchesPage = Boolean(data && (!isPaginated || data.currentPage === currentPage))
-  const displayedData = dataMatchesPage ? data : null
-  const products = displayedData?.products || displayedData?.items || []
-  const skeletonCount = isPaginated ? itemsPerPage : itemsToShow
+  const products = dataMatchesPage ? data?.products || data?.items || [] : []
+  const totalPages = dataMatchesPage ? data?.totalPages || 0 : 0
   const headerClassName = `${headerAlign === 'left' ? 'text-left' : 'text-center'} ${hasViewAll ? 'flex justify-between items-start' : ''}`
   const headerMarginClassName = headerAlign === 'center' || !headerAlign ? 'mx-auto' : ''
   const viewAllHref = siteSubdomain ? `/${siteSubdomain}${viewAllLink}` : viewAllLink
-
-  const renderHeader = () => (
-    <div className="mb-12">
-      <div className={headerClassName}>
-        <div className={hasViewAll ? 'flex-1' : ''}>
-          {title && visibility?.header !== false && (
-            <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerMarginClassName}`}>
-              {title}
-            </h2>
-          )}
-          {subtitle && visibility?.subheader !== false && (
-            <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerMarginClassName}`}>
-              {subtitle}
-            </p>
-          )}
-        </div>
-        {hasViewAll && (
-          <div className="shrink-0 ml-8">
-            <ViewAllButton text={viewAllText} href={viewAllHref} className="mt-0" />
-          </div>
-        )}
-      </div>
-    </div>
-  )
 
   useEffect(() => {
     async function loadData() {
@@ -203,7 +178,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
   }
 
   const renderPagination = () => {
-    if (!isPaginated || !displayedData) return null
+    if (!isPaginated || totalPages === 0) return null
 
     return (
       <div className="flex items-center justify-center gap-2 mt-8">
@@ -220,14 +195,14 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
         </Button>
         
         <div className="flex items-center gap-1">
-          {Array.from({ length: Math.min(5, displayedData.totalPages) }, (_, i) => {
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
             let pageNum
-            if (displayedData.totalPages <= 5) {
+            if (totalPages <= 5) {
               pageNum = i + 1
             } else if (currentPage <= 3) {
               pageNum = i + 1
-            } else if (currentPage >= displayedData.totalPages - 2) {
-              pageNum = displayedData.totalPages - 4 + i
+            } else if (currentPage >= totalPages - 2) {
+              pageNum = totalPages - 4 + i
             } else {
               pageNum = currentPage - 2 + i
             }
@@ -250,7 +225,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
         <Button
           variant="outline"
           size="sm"
-          disabled={currentPage === displayedData.totalPages}
+          disabled={currentPage === totalPages}
           asChild
         >
           <Link href={`?page=${currentPage + 1}`}>
@@ -262,18 +237,37 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
     )
   }
 
+  return (
+    <div >
+      <BlockContainer
+        siteWidth={siteWidth}
+        customWidth={customWidth}
+      >
+        <div className="mb-12">
+          <div className={headerClassName}>
+            <div className={hasViewAll ? 'flex-1' : ''}>
+              {title && visibility?.header !== false && (
+                <h2 className={`text-3xl font-bold md:text-5xl max-w-3xl ${headerMarginClassName}`}>
+                  {title}
+                </h2>
+              )}
+              {subtitle && visibility?.subheader !== false && (
+                <p className={`mt-4 text-lg text-muted-foreground max-w-3xl ${headerMarginClassName}`}>
+                  {subtitle}
+                </p>
+              )}
+            </div>
+            {hasViewAll && (
+              <div className="shrink-0 ml-8">
+                <ViewAllButton text={viewAllText} href={viewAllHref} className="mt-0" />
+              </div>
+            )}
+          </div>
+        </div>
 
-  if (loading) {
-    return (
-      <div >
-        <BlockContainer
-          siteWidth={siteWidth}
-          customWidth={customWidth}
-        >
-          {renderHeader()}
-          
+        {loading || (data && !dataMatchesPage) ? (
           <div className={`grid ${gridColumns} gap-8`}>
-            {Array.from({ length: skeletonCount }, (_, i) => (
+            {Array.from({ length: isPaginated ? itemsPerPage : itemsToShow }, (_, i) => (
               <div key={i} className="animate-pulse">
                 {showImageElement && (
                   <div className="bg-muted rounded-md aspect-square mb-4"></div>
@@ -287,40 +281,18 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
               </div>
             ))}
           </div>
-        </BlockContainer>
-      </div>
-    )
-  }
-
-  if (products.length === 0) {
-    return (
-      <div >
-        <BlockContainer
-          siteWidth={siteWidth}
-          customWidth={customWidth}
-        >
-          {renderHeader()}
-          
+        ) : products.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             No products available at the moment.
           </p>
-        </BlockContainer>
-      </div>
-    )
-  }
-
-  return (
-    <div >
-      <BlockContainer
-        siteWidth={siteWidth}
-        customWidth={customWidth}
-      >
-        {renderHeader()}
-        
-        <div className={`grid ${gridColumns} gap-8`}>
-          {products.map(renderProduct)}
-        </div>
-        {renderPagination()}
+        ) : (
+          <>
+            <div className={`grid ${gridColumns} gap-8`}>
+              {products.map(renderProduct)}
+            </div>
+            {renderPagination()}
+          </>
+        )}
       </BlockContainer>
     </div>
   )
