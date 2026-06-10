@@ -44,8 +44,11 @@ export function SiteAuthProvider({
   useEffect(() => {
     if (session.isPending) return
 
-    setCurrentUser(toSiteAuthUser(session.data?.user as AuthSessionUser | null))
-  }, [session.data?.user, session.isPending])
+    const sessionUser = toSiteAuthUser(session.data?.user as AuthSessionUser | null)
+    if (!sessionUser && user) return
+
+    setCurrentUser(sessionUser)
+  }, [session.data?.user, session.isPending, user])
 
   return <SiteAuthContext.Provider value={currentUser}>{children}</SiteAuthContext.Provider>
 }
