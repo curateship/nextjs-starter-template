@@ -9,8 +9,16 @@ import { toCdnUrl } from "@/lib/utils/cdn"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 
-async function getHomePageSite() {
-  return await getSiteFromHeaders('home')
+type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+function getListingPage(searchParams?: Record<string, string | string[] | undefined>) {
+  const value = searchParams?.page
+  const page = parseInt(Array.isArray(value) ? value[0] || "1" : value || "1", 10)
+  return Number.isFinite(page) && page > 0 ? page : 1
+}
+
+async function getHomePageSite(listingPage = 1) {
+  return await getSiteFromHeaders('home', { listingPage })
 }
 
 async function checkAuth() {
@@ -56,12 +64,12 @@ function HubPlatformHome() {
   )
 }
 
-export default async function SiteHomePage() {
+export default async function SiteHomePage({ searchParams }: { searchParams?: SearchParams }) {
   if (await isHubHomeRequest()) {
     return <HubPlatformHome />
   }
 
-  const { success, site } = await getHomePageSite()
+  const { success, site } = await getHomePageSite(getListingPage(await searchParams))
   const isLoggedIn = await checkAuth()
 
   // No site found for this host — redirect to login

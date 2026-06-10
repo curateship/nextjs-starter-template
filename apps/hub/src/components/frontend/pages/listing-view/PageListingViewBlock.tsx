@@ -80,12 +80,11 @@ export function ListingViewsBlock({
   siteWidth = "custom",
   customWidth
 }: ListingViewsBlockProps) {
-  const [data, setData] = useState<ListingViewsData | null>(preloadedData || null)
-  const [loading, setLoading] = useState(!preloadedData)
   const searchParams = useSearchParams()
 
   // Get current page from URL params
-  const currentPage = parseInt(searchParams.get("page") || "1", 10)
+  const parsedPage = parseInt(searchParams.get("page") || "1", 10)
+  const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
 
   // Destructure with defaults
   const {
@@ -113,6 +112,12 @@ export function ListingViewsBlock({
     viewAllLink = "",
     visibility
   } = content
+  const preloadedListingData = preloadedData as ListingViewsData | null | undefined
+  const preloadedMatchesPage = Boolean(
+    preloadedListingData && (!isPaginated || preloadedListingData.currentPage === currentPage)
+  )
+  const [data, setData] = useState<ListingViewsData | null>(() => preloadedMatchesPage ? preloadedListingData! : null)
+  const [loading, setLoading] = useState(!preloadedMatchesPage)
   const categoryIds = Array.isArray(rawCategoryIds) ? rawCategoryIds : []
   const categoryIdsKey = categoryIds.join("|")
   const categoryChipParentIds = Array.isArray(rawCategoryChipParentIds) ? rawCategoryChipParentIds : []
@@ -166,7 +171,10 @@ export function ListingViewsBlock({
     </div>
   )
 
-  const listingItems = data?.items || data?.products || data?.posts || data?.directories || []
+  const dataMatchesPage = Boolean(data && (!isPaginated || data.currentPage === currentPage))
+  const displayedData = dataMatchesPage ? data : null
+  const listingItems = displayedData?.items || displayedData?.products || displayedData?.posts || displayedData?.directories || []
+  const skeletonCount = isPaginated ? itemsPerPage : itemsToShow
   const emptyMessage =
     contentType === "posts"
       ? "No posts available at the moment."
@@ -180,12 +188,13 @@ export function ListingViewsBlock({
   useEffect(() => {
     async function loadData() {
       // Use preloaded data for initial load if available
-      if (preloadedData && currentPage === 1 && !isPaginated) {
-        setData(preloadedData)
+      if (preloadedMatchesPage && preloadedListingData) {
+        setData(preloadedListingData)
         setLoading(false)
         return
       }
 
+      setData(null)
       setLoading(true)
 
       const limit = isPaginated ? itemsPerPage : itemsToShow
@@ -221,7 +230,8 @@ export function ListingViewsBlock({
     itemsPerPage,
     isPaginated,
     currentPage,
-    preloadedData
+    preloadedListingData,
+    preloadedMatchesPage
   ])
 
   const mobileGridColumns = Number(mobileColumns) === 2 ? "grid-cols-2" : "grid-cols-1"
@@ -456,7 +466,7 @@ export function ListingViewsBlock({
   }
 
   const renderPagination = () => {
-    if (!isPaginated || !data) return null
+    if (!isPaginated || !displayedData) return null
 
     return (
       <div className="flex items-center justify-center gap-2 mt-8">
@@ -468,14 +478,14 @@ export function ListingViewsBlock({
         </Button>
 
         <div className="flex items-center gap-1">
-          {Array.from({ length: Math.min(5, data.totalPages) }, (_, i) => {
+          {Array.from({ length: Math.min(5, displayedData.totalPages) }, (_, i) => {
             let pageNum
-            if (data.totalPages <= 5) {
+            if (displayedData.totalPages <= 5) {
               pageNum = i + 1
             } else if (currentPage <= 3) {
               pageNum = i + 1
-            } else if (currentPage >= data.totalPages - 2) {
-              pageNum = data.totalPages - 4 + i
+            } else if (currentPage >= displayedData.totalPages - 2) {
+              pageNum = displayedData.totalPages - 4 + i
             } else {
               pageNum = currentPage - 2 + i
             }
@@ -488,7 +498,7 @@ export function ListingViewsBlock({
           })}
         </div>
 
-        <Button variant="outline" size="sm" disabled={currentPage === data.totalPages} asChild>
+        <Button variant="outline" size="sm" disabled={currentPage === displayedData.totalPages} asChild>
           <Link href={`?page=${currentPage + 1}`}>
             Next
             <ChevronRight className="w-4 h-4 ml-1" />
@@ -498,13 +508,13 @@ export function ListingViewsBlock({
     )
   }
 
-  if (loading && !data) {
+  if (loading || (!displayedData && data && !dataMatchesPage)) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
         {renderHeader("mb-6 md:mb-12")}
 
         <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
-          {Array.from({ length: itemsToShow }, (_, i) => (
+          {Array.from({ length: skeletonCount }, (_, i) => (
             <div key={i} className="animate-pulse">
               {showImageElement && <div className="bg-muted rounded-md aspect-square mb-4"></div>}
               {showTitleElement && <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>}
@@ -516,7 +526,7 @@ export function ListingViewsBlock({
     )
   }
 
-  if (!data || listingItems.length === 0) {
+  if (!displayedData || listingItems.length === 0) {
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
         {renderHeader("mb-6 md:mb-12")}

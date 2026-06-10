@@ -12,6 +12,10 @@ type SitePageLookup = {
   page: typeof pages.$inferSelect | null
 }
 
+type SiteWithBlocksOptions = {
+  listingPage?: number
+}
+
 const PAGE_LOOKUP_NOT_FOUND_ERROR = 'PAGE_LOOKUP_NOT_FOUND'
 
 function normalizeSiteHost(hostname: string) {
@@ -287,9 +291,11 @@ export async function getPublicAuthPagePath(
  */
 async function prefetchListingData(
   blocks: Array<{ id: string; type: string; content: Record<string, any>; display_order: number }>,
-  siteId: string
+  siteId: string,
+  options: SiteWithBlocksOptions = {}
 ): Promise<Record<string, any>> {
   let listingData: Record<string, any> = {}
+  const listingPage = Math.max(1, Math.floor(options.listingPage || 1))
 
   for (const block of blocks) {
     if (block.type === 'listing-views') {
@@ -306,6 +312,7 @@ async function prefetchListingData(
         } = block.content
 
         const limit = isPaginated ? itemsPerPage : itemsToShow
+        const offset = isPaginated ? (listingPage - 1) * itemsPerPage : 0
 
         const result = await getListingViewsData({
           site_id: siteId,
@@ -314,7 +321,7 @@ async function prefetchListingData(
           sortBy,
           sortOrder,
           limit,
-          offset: 0,
+          offset,
           includeCategories: contentType === 'directory' && Array.isArray(categoryChipParentIds) && categoryChipParentIds.length > 0
         })
 
@@ -332,7 +339,8 @@ async function prefetchListingData(
 
 async function buildSiteWithBlocksResult(
   lookup: SitePageLookup | null,
-  actualPageSlug: string
+  actualPageSlug: string,
+  options: SiteWithBlocksOptions = {}
 ): Promise<{
   success: boolean
   site?: SiteWithBlocks
@@ -353,7 +361,7 @@ async function buildSiteWithBlocksResult(
   }
 
   const blocks = buildPublicPageBlocks(page)
-  const listingData = await prefetchListingData(blocks, site.id)
+  const listingData = await prefetchListingData(blocks, site.id, options)
 
   return {
     success: true,
@@ -383,7 +391,7 @@ async function buildSiteWithBlocksResult(
 /**
  * Get site data by request host for frontend rendering.
  */
-export async function getSiteByHost(hostname: string, pageSlug?: string): Promise<{
+export async function getSiteByHost(hostname: string, pageSlug?: string, options?: SiteWithBlocksOptions): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -400,7 +408,7 @@ export async function getSiteByHost(hostname: string, pageSlug?: string): Promis
 
     const lookup = await getCachedSiteAndPageByHost(hostname, actualPageSlug)
 
-    return await buildSiteWithBlocksResult(lookup, actualPageSlug)
+    return await buildSiteWithBlocksResult(lookup, actualPageSlug, options)
   } catch (error) {
     if (isPageLookupNotFoundError(error)) {
       return { success: false, error: 'Page not found' }
@@ -413,7 +421,7 @@ export async function getSiteByHost(hostname: string, pageSlug?: string): Promis
 /**
  * Get site data by subdomain for frontend rendering
  */
-export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): Promise<{
+export async function getSiteBySubdomain(subdomain: string, pageSlug?: string, options?: SiteWithBlocksOptions): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -430,7 +438,7 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string): 
 
     const lookup = await getCachedSiteAndPageBySubdomain(subdomain, actualPageSlug)
 
-    return await buildSiteWithBlocksResult(lookup, actualPageSlug)
+    return await buildSiteWithBlocksResult(lookup, actualPageSlug, options)
 
   } catch (error) {
     if (isPageLookupNotFoundError(error)) {
@@ -496,7 +504,7 @@ export async function getSitePages(subdomain: string): Promise<{
 /**
  * Get site data by custom domain for subdomain routing
  */
-export async function getSiteByDomain(domain: string, pageSlug?: string): Promise<{
+export async function getSiteByDomain(domain: string, pageSlug?: string, options?: SiteWithBlocksOptions): Promise<{
   success: boolean
   site?: SiteWithBlocks
   error?: string
@@ -513,7 +521,7 @@ export async function getSiteByDomain(domain: string, pageSlug?: string): Promis
 
     const lookup = await getCachedSiteAndPageByDomain(domain, actualPageSlug)
 
-    return await buildSiteWithBlocksResult(lookup, actualPageSlug)
+    return await buildSiteWithBlocksResult(lookup, actualPageSlug, options)
 
   } catch (error) {
     if (isPageLookupNotFoundError(error)) {
