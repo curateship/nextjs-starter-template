@@ -3,8 +3,10 @@ import type { ProviderExecutionStatus } from "@/providers/types"
 const apiBase = "https://api.apify.com/v2"
 
 export type GoogleMapsInput = {
+  searchMode: "keyword" | "urls"
   keyword: string
   location: string
+  urls: string[]
   latitude: number | null
   longitude: number | null
   useBlastRadius: boolean
@@ -23,6 +25,14 @@ type ApifyRun = {
 }
 
 export function buildActorInput(input: GoogleMapsInput) {
+  if (input.searchMode === "urls") {
+    return {
+      startUrls: input.urls.map((url) => ({ url })),
+      maxCrawledPlacesPerSearch: input.maxResults,
+      language: input.language,
+    }
+  }
+
   const keyword = input.keyword.trim()
   const location = input.location.trim()
   const customGeolocation = input.useBlastRadius ? customGeolocationForInput(input) : null
@@ -54,7 +64,8 @@ export async function startActor({
   input: GoogleMapsInput
 }) {
   const url = new URL(`${apiBase}/acts/${encodeActorId(actorId)}/runs`)
-  url.searchParams.set("maxItems", String(input.maxResults))
+  const maxItems = input.searchMode === "urls" ? input.maxResults * Math.max(input.urls.length, 1) : input.maxResults
+  url.searchParams.set("maxItems", String(maxItems))
   const result = await apifyRequest<{ data: ApifyRun }>(url, token, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -86,7 +97,7 @@ export function normalizeResult(item: Record<string, unknown>) {
     title: businessName,
     data: {
       businessName,
-      category: category(item),
+      categories: categories(item),
       neighborhood: text(item, ["neighborhood"]),
       description: text(item, ["description"]),
       address: text(item, ["address", "street"]),
@@ -185,7 +196,7 @@ function integer(item: Record<string, unknown>, keys: string[]) {
   return value === null ? null : Math.trunc(value)
 }
 
-function category(item: Record<string, unknown>) {
+function categories(item: Record<string, unknown>) {
   const categories = item.categories
   if (Array.isArray(categories)) {
     const values = categories

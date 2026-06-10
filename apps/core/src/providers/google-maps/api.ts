@@ -279,11 +279,14 @@ const saveRunFn = createServerFn({ method: "POST" })
     requireAppOrigin()
     const workspace = await requireWorkspace()
     const updatedAt = now()
+    const input = cleanRunInput(data)
+    const existing = data.runId ? await getGoogleMapsRun(data.runId, workspace.id) : null
+    const metadata = existing ? await metadataForSavedRun(existing, input) : {}
     const values = {
-      name: data.name.trim() || `${data.keyword.trim()} in ${data.location.trim()}`,
+      name: data.name.trim() || defaultRunName(input),
       status: data.status,
-      input: cleanRunInput(data),
-      metadata: {},
+      input,
+      metadata,
       updatedAt,
     }
 
@@ -314,10 +317,11 @@ const startRunFn = createServerFn({ method: "POST" })
 
     const settings = await requiredSettings(workspace.id)
     const token = requiredToken(settings.secretEncrypted)
+    const input = startInputForRun(run)
     const actorRun = await startActor({
       token,
       actorId: settings.config.actorId,
-      input: parseRunInput(run.input),
+      input,
     })
     const createdAt = now()
     const [execution] = await db.insert(providerExecutions).values({
@@ -329,7 +333,7 @@ const startRunFn = createServerFn({ method: "POST" })
       status: mapApifyStatus(actorRun.status),
       message: actorRun.statusMessage ?? null,
       error: null,
-      stats: {},
+      stats: input.searchMode === "urls" ? { queriedUrls: input.urls } : {},
       startedAt: date(actorRun.startedAt) ?? createdAt,
       finishedAt: date(actorRun.finishedAt),
       createdAt,
@@ -378,9 +382,7 @@ const loadRunFn = createServerFn({ method: "GET" })
     const run = await getGoogleMapsRun(data.runId, workspace.id)
     const executions = await db.select().from(providerExecutions).where(eq(providerExecutions.runConfigId, run.id)).orderBy(desc(providerExecutions.createdAt)).limit(1)
     const latest = executions[0] ?? null
-    const results = latest
-      ? await db.select().from(providerResults).where(eq(providerResults.executionId, latest.id))
-      : []
+    const results = await db.select().from(providerResults).where(eq(providerResults.runConfigId, run.id)).orderBy(desc(providerResults.createdAt))
 
     const config = parseConfig((await settingsRow(workspace.id))?.config)
     return {
@@ -564,6 +566,11 @@ export const loadHubExportSites = () => loadHubExportSitesFn()
 export const loadHubDirectoryTemplateScan = (siteId: string) => loadHubDirectoryTemplateScanFn({ data: { siteId } })
 export const exportGoogleMapsResultsToHub = (data: z.infer<typeof hubExportSchema>) => exportResultsToHubFn({ data })
 
+function defaultRunName(input: ReturnType<typeof cleanRunInput>) {
+  if (input.searchMode === "urls") return `${input.urls.length} Google Maps ${input.urls.length === 1 ? "URL" : "URLs"}`
+  return `${input.keyword} in ${input.location}`
+}
+
 function hubExportTargetDefaultFieldKey(targetKind: GoogleMapsHubExportMapping["targetKind"]) {
   if (targetKind === "directoryTitle") return "title"
   if (targetKind === "directoryFeaturedImage") return "featuredImage"
@@ -599,29 +606,43 @@ async function getGoogleMapsRun(runId: string, workspaceId: string) {
   return run
 }
 
+function startInputForRun(run: CoreProviderRunConfig) {
+  const input = parseRunInput(run.input)
+  if (input.searchMode !== "urls" || !input.skipKnownUrls) return input
+
+  const queriedUrls = new Set(runMetadata(run.metadata).queriedUrls)
+  const urls = input.urls.filter((url) => !queriedUrls.has(url))
+  if (!urls.length) throw new Error("All URLs in this run have already been queried.")
+  return { ...input, urls }
+}
+
+async function metadataForSavedRun(existing: CoreProviderRunConfig, input: ReturnType<typeof cleanRunInput>) {
+  const metadata = runMetadata(existing.metadata)
+  if (input.searchMode !== "urls") return metadata
+  if (metadata.queriedUrls.length) return metadata
+
+  const existingInput = parseRunInput(existing.input)
+  if (existingInput.searchMode !== "urls") return metadata
+  if (await resultCount(existing.id) === 0) return metadata
+
+  return {
+    ...metadata,
+    queriedUrls: Array.from(new Set([...metadata.queriedUrls, ...existingInput.urls])),
+  }
+}
+
 async function resultCountsByRun(runIds: string[]) {
   if (!runIds.length) return new Map<string, number>()
-  const executions = await db.select().from(providerExecutions).where(inArray(providerExecutions.runConfigId, runIds)).orderBy(desc(providerExecutions.createdAt))
-  const latestExecutions = new Map<string, CoreProviderExecution>()
-
-  executions.forEach((execution) => {
-    if (!latestExecutions.has(execution.runConfigId)) latestExecutions.set(execution.runConfigId, execution)
-  })
-
-  const executionRunIds = new Map(Array.from(latestExecutions.values()).map((execution) => [execution.id, execution.runConfigId]))
-  const executionIds = Array.from(executionRunIds.keys())
-  if (!executionIds.length) return new Map<string, number>()
-
   const rows = await db
     .select({
-      executionId: providerResults.executionId,
+      runConfigId: providerResults.runConfigId,
       amount: sql<number>`count(*)::int`,
     })
     .from(providerResults)
-    .where(inArray(providerResults.executionId, executionIds))
-    .groupBy(providerResults.executionId)
+    .where(inArray(providerResults.runConfigId, runIds))
+    .groupBy(providerResults.runConfigId)
 
-  return new Map(rows.map((row) => [executionRunIds.get(row.executionId)!, row.amount]))
+  return new Map(rows.map((row) => [row.runConfigId, row.amount]))
 }
 
 async function resultCount(runId: string) {
@@ -632,14 +653,32 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
   if (execution.status !== "succeeded" || !execution.providerDatasetId) return execution
 
   const runInput = parseRunInput(run.input)
-  const items = await getDatasetItems(token, execution.providerDatasetId, runInput.maxResults)
+  const executionUrls = executionQueriedUrls(execution.stats, runInput.urls)
+  const input = runInput.searchMode === "urls" ? { ...runInput, urls: executionUrls } : runInput
+  const resultLimit = input.searchMode === "urls" ? input.maxResults * Math.max(input.urls.length, 1) : input.maxResults
+  const items = await getDatasetItems(token, execution.providerDatasetId, resultLimit)
+  const existingResults = await db.select().from(providerResults).where(eq(providerResults.runConfigId, run.id))
+  const existingKeys = new Set(
+    existingResults
+      .filter((result) => result.executionId !== execution.id)
+      .map((result) => resultDedupKey(result.externalId, result.title, record(result.data)))
+      .filter((key) => key !== null)
+  )
   const createdAt = now()
   const rows: (typeof providerResults.$inferInsert)[] = []
+  const rowKeys = new Set<string>()
   let importedImages = 0
 
   for (const item of items) {
     const normalized = normalizeResult(item)
-    const fixedData = fixedResultData(record(normalized.data))
+    const fixedData = fixedResultData({
+      ...record(normalized.data),
+      ...(input.neighborhood ? { neighborhood: input.neighborhood } : {}),
+    })
+    const key = resultDedupKey(normalized.externalId, normalized.title, fixedData)
+    if (key && existingKeys.has(key)) continue
+    if (key && rowKeys.has(key)) continue
+    if (key) rowKeys.add(key)
     const imageResult = await saveResultImage(userId, normalized.title, fixedData)
     if (imageResult.saved) importedImages += 1
     rows.push({
@@ -655,8 +694,14 @@ async function importIfReady(execution: CoreProviderExecution, run: CoreProvider
   return db.transaction(async (tx) => {
     await tx.delete(providerResults).where(eq(providerResults.executionId, execution.id))
     if (rows.length) await tx.insert(providerResults).values(rows)
+    if (input.searchMode === "urls" && input.urls.length) {
+      const metadata = runMetadata(run.metadata)
+      await tx.update(providerRunConfigs).set({
+        metadata: { ...metadata, queriedUrls: Array.from(new Set([...metadata.queriedUrls, ...input.urls])) },
+      }).where(eq(providerRunConfigs.id, run.id))
+    }
     const [updated] = await tx.update(providerExecutions).set({
-      stats: { importedResults: rows.length, importedImages },
+      stats: { ...record(execution.stats), importedResults: rows.length, skippedDuplicates: items.length - rows.length, importedImages },
       updatedAt: now(),
     }).where(eq(providerExecutions.id, execution.id)).returning()
     return updated
@@ -727,6 +772,21 @@ function fixedResultData(data: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(fixedData).filter(([key]) => isGoogleMapsCanonicalFieldKey(key))
   )
+}
+
+function resultDedupKey(externalId: string | null, title: string, data: Record<string, unknown>) {
+  const placeId = stringValue(data.placeId)
+  if (placeId) return `place:${placeId}`
+
+  const external = stringValue(externalId)
+  if (external) return `external:${external}`
+
+  const mapsUrl = stringValue(data.mapsUrl)
+  if (mapsUrl) return `maps:${mapsUrl}`
+
+  const address = stringValue(data.address)
+  const name = title.trim().toLowerCase()
+  return name && address ? `fallback:${name}:${address.toLowerCase()}` : null
 }
 
 async function saveResultImage(userId: string, title: string, data: Record<string, unknown>) {
@@ -1206,6 +1266,22 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {}
+}
+
+function runMetadata(value: unknown) {
+  const metadata = record(value)
+  return { ...metadata, queriedUrls: stringArray(metadata.queriedUrls) }
+}
+
+function executionQueriedUrls(stats: unknown, fallbackUrls: string[]) {
+  const queriedUrls = stringArray(record(stats).queriedUrls)
+  return queriedUrls.length ? queriedUrls : fallbackUrls
+}
+
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim())
+    : []
 }
 
 function mergeResultData(

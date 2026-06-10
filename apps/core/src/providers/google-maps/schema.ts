@@ -23,6 +23,8 @@ export const googleMapsProviderKey = "google-maps"
 export const defaultApifyActorId = "compass/crawler-google-places"
 export const defaultMaxResults = 25
 export const defaultBlastRadiusKm = 0.5
+export const googleMapsSearchModes = ["keyword", "urls"] as const
+export type GoogleMapsSearchMode = (typeof googleMapsSearchModes)[number]
 const requiredText = (max: number) => z.string().trim().min(1).max(max)
 
 export const fieldSettingTypes = ["text", "number", "boolean", "tags"] as const
@@ -68,7 +70,7 @@ export type GoogleMapsHubExportMapping = z.infer<typeof hubExportMappingSchema>
 
 export const googleMapsCanonicalFieldSettings: GoogleMapsFieldSetting[] = [
   { key: "businessName", sourcePath: "businessName", label: "Business", visible: true, type: "text", order: 0 },
-  { key: "category", sourcePath: "category", label: "Category", visible: true, type: "text", order: 1 },
+  { key: "categories", sourcePath: "categories", label: "Categories", visible: true, type: "tags", order: 1 },
   { key: "neighborhood", sourcePath: "neighborhood", label: "Neighborhood", visible: true, type: "text", order: 2 },
   { key: "description", sourcePath: "description", label: "Description", visible: true, type: "text", order: 3 },
   { key: "address", sourcePath: "address", label: "Address", visible: true, type: "text", order: 4 },
@@ -120,8 +122,12 @@ export function mergeGoogleMapsFieldSettings(savedSettings: GoogleMapsFieldSetti
 }
 
 export const runInputSchema = z.object({
-  keyword: requiredText(500),
-  location: requiredText(500),
+  searchMode: z.enum(googleMapsSearchModes).catch("keyword").default("keyword"),
+  keyword: z.string().trim().max(500).default(""),
+  location: z.string().trim().max(500).default(""),
+  urls: z.array(z.string().trim().min(1).max(2000)).max(100).default([]),
+  skipKnownUrls: z.boolean().default(true),
+  neighborhood: z.string().trim().max(120).default(""),
   latitude: z.number().min(-90).max(90).nullable().default(null),
   longitude: z.number().min(-180).max(180).nullable().default(null),
   useBlastRadius: z.boolean().default(false),
@@ -153,16 +159,47 @@ export function parseRunInput(value: unknown) {
 }
 
 export function cleanRunInput(data: z.infer<typeof runPayloadSchema>) {
+  const searchMode = data.searchMode
+  const urls = cleanGoogleMapsUrls(data.urls)
+  const keyword = data.keyword.trim()
+  const location = data.location.trim()
+  const neighborhood = data.neighborhood.trim()
+
+  if (searchMode === "keyword" && (!keyword || !location)) throw new Error("Search term and search area are required.")
+  if (searchMode === "urls" && urls.length === 0) throw new Error("Add at least one Google Maps URL.")
+
   return {
-    keyword: data.keyword.trim(),
-    location: data.location.trim(),
-    latitude: data.latitude,
-    longitude: data.longitude,
-    useBlastRadius: data.useBlastRadius,
+    searchMode,
+    keyword,
+    location,
+    urls,
+    skipKnownUrls: data.skipKnownUrls,
+    neighborhood,
+    latitude: searchMode === "keyword" ? data.latitude : null,
+    longitude: searchMode === "keyword" ? data.longitude : null,
+    useBlastRadius: searchMode === "keyword" ? data.useBlastRadius : false,
     blastRadiusKm: data.blastRadiusKm,
     language: data.language.trim().toLowerCase(),
     maxResults: data.maxResults,
   }
+}
+
+function cleanGoogleMapsUrls(values: string[]) {
+  return values.map((value) => value.trim()).filter(Boolean).map((value) => {
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch {
+      throw new Error("URLs must be valid Google Maps links.")
+    }
+    const host = url.hostname.toLowerCase()
+    const isGoogleMaps = (host === "google.com" || host.endsWith(".google.com")) && url.pathname.startsWith("/maps")
+    const isShortMaps = host === "goo.gl" || host === "maps.app.goo.gl"
+    if (!["http:", "https:"].includes(url.protocol) || (!isGoogleMaps && !isShortMaps)) {
+      throw new Error("URLs must be valid Google Maps links.")
+    }
+    return url.toString()
+  })
 }
 
 export function serializeSettings(row: CoreProviderSettings | null) {

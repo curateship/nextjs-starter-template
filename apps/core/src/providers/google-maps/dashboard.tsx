@@ -99,13 +99,18 @@ import {
   defaultBlastRadiusKm,
   type GoogleMapsFieldSetting,
   type GoogleMapsFieldType,
+  type GoogleMapsSearchMode,
 } from "@/providers/google-maps/schema"
 import type { ProviderResultItem, ProviderRunConfigItem, ProviderRunConfigStatus } from "@/providers/types"
 
 type RunForm = {
   name: string
+  searchMode: GoogleMapsSearchMode
   keyword: string
   location: string
+  urls: string
+  skipKnownUrls: boolean
+  neighborhood: string
   coordinates: string
   useBlastRadius: boolean
   blastRadiusKm: number
@@ -198,14 +203,14 @@ export function GoogleMapsDashboard() {
     const input = parseRunInput(run.input)
     const term = query.trim().toLowerCase()
     return (status === "all" || run.status === status) &&
-      (!term || [run.name, input.keyword, input.location].some((value) => value.toLowerCase().includes(term)))
+      (!term || [run.name, input.keyword, input.location, ...input.urls].some((value) => value.toLowerCase().includes(term)))
   }).sort((a, b) => {
     if (!runSortColumn) return 0
     const direction = runSortDirection === "asc" ? 1 : -1
     const aInput = parseRunInput(a.input)
     const bInput = parseRunInput(b.input)
     if (runSortColumn === "name") return a.name.localeCompare(b.name) * direction
-    if (runSortColumn === "location") return aInput.location.localeCompare(bInput.location) * direction
+    if (runSortColumn === "location") return runLocationLabel(aInput).localeCompare(runLocationLabel(bInput)) * direction
     if (runSortColumn === "limit") return (aInput.maxResults - bInput.maxResults) * direction
     if (runSortColumn === "amount") return (a.amount - b.amount) * direction
     return a.status.localeCompare(b.status) * direction
@@ -352,12 +357,6 @@ export function GoogleMapsDashboard() {
                 {Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button asChild variant="outline" size="sm" className="h-8 gap-2 sm:h-9">
-              <Link to="/admin/settings/$tab" params={{ tab: "providers" }}>
-                <SettingsIcon className="size-4" />
-                Settings
-              </Link>
-            </Button>
             <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={openFieldSettings}>
               <SettingsIcon className="size-4" />
               Field settings
@@ -406,9 +405,9 @@ export function GoogleMapsDashboard() {
               </TableCell>
               <TableCell column="main">
                 <Link className="font-medium hover:underline" to="/admin/datasource/google-maps/runs/$runId" params={{ runId: run.id }}>{run.name}</Link>
-                <div className="text-xs text-muted-foreground">{input.keyword}</div>
+                <div className="text-xs text-muted-foreground">{runQueryLabel(input)}</div>
               </TableCell>
-              <TableCell column="meta">{input.location}</TableCell>
+              <TableCell column="meta">{runLocationLabel(input)}</TableCell>
               <TableCell column="meta">{input.maxResults}</TableCell>
               <TableCell column="meta">{run.amount}</TableCell>
               <TableCell column="meta"><StatusBadge status={run.status} /></TableCell>
@@ -430,67 +429,15 @@ export function GoogleMapsDashboard() {
         })}
       </DashboardTable>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Run" : "Add Run"}</DialogTitle>
-            <DialogDescription>
-              Save a reusable Google Maps search.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogBody>
-            <CardGroup className="grid">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Apify query</CardTitle>
-                  <CardDescription>Fields sent to the Google Maps actor.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <RunField id="keyword" label="Search term" value={form.keyword} onChange={(value) => setForm({ ...form, keyword: value })} />
-                  <RunField id="location" label="Search area" value={form.location} onChange={(value) => setForm({ ...form, location: value })} />
-                  <RunField id="language" label="Language" value={form.language} onChange={(value) => setForm({ ...form, language: value })} />
-                  <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => setForm({ ...form, maxResults: Number(value) })} />
-                  <RunField id="coordinates" label="Coordinates" value={form.coordinates} onChange={(value) => setForm({ ...form, coordinates: value })} />
-                  <RunField id="blast-radius" label="Blast radius (km)" type="number" value={form.blastRadiusKm} onChange={(value) => setForm({ ...form, blastRadiusKm: Number(value) })} />
-                  <div className="flex items-center gap-2 self-end py-2">
-                    <Checkbox id="use-blast-radius" checked={form.useBlastRadius} onCheckedChange={(checked) => setForm({ ...form, useBlastRadius: checked === true })} />
-                    <Label htmlFor="use-blast-radius">Use blast radius</Label>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Core data and functions</CardTitle>
-                  <CardDescription>Fields saved and applied inside Core.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <RunField id="name" label="Name (optional)" value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-                  <div className="grid gap-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ProviderRunConfigStatus })}>
-                      <SelectTrigger id="status" className="h-8 w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            </CardGroup>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={saving} onClick={() => void save()}>
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RunSettingsDialog
+        form={form}
+        mode={editing ? "edit" : "add"}
+        open={open}
+        saving={saving}
+        onChange={setForm}
+        onOpenChange={setOpen}
+        onSave={() => void save()}
+      />
 
       <DeleteRunsDialog
         count={deleteRunIds.length}
@@ -548,6 +495,123 @@ function DeleteRunsDialog({
   )
 }
 
+function RunSettingsDialog({
+  form,
+  mode,
+  open,
+  saving,
+  onChange,
+  onOpenChange,
+  onSave,
+}: {
+  form: RunForm
+  mode: "add" | "edit"
+  open: boolean
+  saving: boolean
+  onChange: (form: RunForm) => void
+  onOpenChange: (open: boolean) => void
+  onSave: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>{mode === "edit" ? "Edit Run" : "Add Run"}</DialogTitle>
+          <DialogDescription>
+            Save a reusable Google Maps search.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <CardGroup className="grid">
+            <Card>
+              <CardHeader>
+                <CardTitle>Apify query</CardTitle>
+                <CardDescription>Fields sent to the Google Maps actor.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-2 sm:col-span-2">
+                  <Label htmlFor="search-mode">Search mode</Label>
+                  <Select value={form.searchMode} onValueChange={(value) => onChange({ ...form, searchMode: value as GoogleMapsSearchMode })}>
+                    <SelectTrigger id="search-mode" className="h-8 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="keyword">Keyword search</SelectItem>
+                      <SelectItem value="urls">Google Maps URLs</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {form.searchMode === "keyword" ? (
+                  <>
+                    <RunField id="keyword" label="Search term" value={form.keyword} onChange={(value) => onChange({ ...form, keyword: value })} />
+                    <RunField id="location" label="Search area" value={form.location} onChange={(value) => onChange({ ...form, location: value })} />
+                  </>
+                ) : (
+                  <>
+                    <div className="grid gap-2 sm:col-span-2">
+                      <Label htmlFor="maps-urls">Google Maps URLs</Label>
+                      <Textarea
+                        id="maps-urls"
+                        className="min-h-28 shadow-none"
+                        value={form.urls}
+                        onChange={(event) => onChange({ ...form, urls: event.target.value })}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 py-2 sm:col-span-2">
+                      <Checkbox id="skip-known-urls" checked={form.skipKnownUrls} onCheckedChange={(checked) => onChange({ ...form, skipKnownUrls: checked === true })} />
+                      <Label htmlFor="skip-known-urls">Skip previously queried URLs</Label>
+                    </div>
+                  </>
+                )}
+                <RunField id="language" label="Language" value={form.language} onChange={(value) => onChange({ ...form, language: value })} />
+                <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => onChange({ ...form, maxResults: Number(value) })} />
+                {form.searchMode === "keyword" && (
+                  <>
+                    <RunField id="coordinates" label="Coordinates" value={form.coordinates} onChange={(value) => onChange({ ...form, coordinates: value })} />
+                    <RunField id="blast-radius" label="Blast radius (km)" type="number" value={form.blastRadiusKm} onChange={(value) => onChange({ ...form, blastRadiusKm: Number(value) })} />
+                    <div className="flex items-center gap-2 self-end py-2">
+                      <Checkbox id="use-blast-radius" checked={form.useBlastRadius} onCheckedChange={(checked) => onChange({ ...form, useBlastRadius: checked === true })} />
+                      <Label htmlFor="use-blast-radius">Use blast radius</Label>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Core data and functions</CardTitle>
+                <CardDescription>Fields saved and applied inside Core.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <RunField id="name" label={form.searchMode === "urls" ? "URL search title" : "Name (optional)"} value={form.name} onChange={(value) => onChange({ ...form, name: value })} />
+                <RunField id="run-neighborhood" label="Neighborhood (optional)" value={form.neighborhood} onChange={(value) => onChange({ ...form, neighborhood: value })} />
+                <div className="grid gap-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select value={form.status} onValueChange={(value) => onChange({ ...form, status: value as ProviderRunConfigStatus })}>
+                    <SelectTrigger id="status" className="h-8 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          </CardGroup>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={saving} onClick={onSave}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const { config } = useShellRuntime()
   const [data, setData] = React.useState<Awaited<ReturnType<typeof loadGoogleMapsRun>> | null>(null)
@@ -563,6 +627,9 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const [deleteIds, setDeleteIds] = React.useState<string[]>([])
   const [deletingResults, setDeletingResults] = React.useState(false)
   const [runningRun, setRunningRun] = React.useState(false)
+  const [runSettingsOpen, setRunSettingsOpen] = React.useState(false)
+  const [savingRunSettings, setSavingRunSettings] = React.useState(false)
+  const [runSettingsForm, setRunSettingsForm] = React.useState<RunForm>(() => emptyForm(25))
   const [savingResult, setSavingResult] = React.useState(false)
   const [resultForm, setResultForm] = React.useState<ResultForm>({})
   const [resultModalTab, setResultModalTab] = React.useState<ResultModalTab>("fields")
@@ -618,7 +685,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const results = (data?.results ?? []).filter((result) => {
     const term = query.trim().toLowerCase()
     const row = result.data
-    return !term || [result.title, categoryText(row.category), row.address, row.phone, row.website].some((value) => typeof value === "string" && value.toLowerCase().includes(term))
+    return !term || [result.title, categoryText(row.categories), row.address, row.phone, row.website].some((value) => typeof value === "string" && value.toLowerCase().includes(term))
   }).sort((a, b) => {
     if (!sortColumn) return 0
     const direction = sortDirection === "asc" ? 1 : -1
@@ -690,6 +757,28 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
       setMessage({ tone: "error", text: providerError(error) })
     } finally {
       setRunningRun(false)
+    }
+  }
+
+  const openRunSettings = () => {
+    if (!data?.run) return
+    setRunSettingsForm(runFormFromRun(data.run))
+    setRunSettingsOpen(true)
+  }
+
+  const saveRunSettings = async () => {
+    if (!data?.run) return
+    setSavingRunSettings(true)
+    setMessage(null)
+    try {
+      const { run } = await saveGoogleMapsRun({ ...runPayloadFromForm(runSettingsForm), runId: data.run.id })
+      setData((current) => current ? { ...current, run } : current)
+      setRunSettingsOpen(false)
+      setMessage({ tone: "success", text: "Run settings saved." })
+    } catch (error) {
+      setMessage({ tone: "error", text: providerError(error) })
+    } finally {
+      setSavingRunSettings(false)
     }
   }
 
@@ -922,10 +1011,6 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                 Export ({selectedIds.size})
               </Button>
             ) : null}
-            <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => void openHubWiring()}>
-              <SettingsIcon className="size-4" />
-              Hub wiring
-            </Button>
             {selectedIds.size ? (
               <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => setEnhanceOpen(true)}>
                 <SparklesIcon className="size-4" />
@@ -933,6 +1018,14 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
               </Button>
             ) : null}
             <DashboardToolbarSearch value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search results..." />
+            <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" disabled={!data?.run} onClick={openRunSettings}>
+              <SettingsIcon className="size-4" />
+              Settings
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 gap-2 sm:h-9" onClick={() => void openHubWiring()}>
+              <SettingsIcon className="size-4" />
+              Hub wiring
+            </Button>
             <Button size="sm" className="h-8 gap-2 sm:h-9" disabled={!data || data.run.status !== "active" || runButtonRunning} onClick={() => void startRun()}>
               {runButtonRunning ? <Loader2Icon className="size-4 animate-spin" /> : <PlayIcon className="size-4" />}
               {runButtonRunning ? "Running" : "Run now"}
@@ -987,7 +1080,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                   ) : null}
                   <div className="min-w-0">
                     <button type="button" className="max-w-full truncate text-left font-medium hover:underline" onClick={() => editResult(result)}>{result.title}</button>
-                    <div className="truncate text-xs text-muted-foreground">{categoryText(result.data.category) ?? "Uncategorized"}</div>
+                    <div className="truncate text-xs text-muted-foreground">{categoryText(result.data.categories) ?? "Uncategorized"}</div>
                   </div>
                 </div>
               </TableCell>
@@ -1167,6 +1260,16 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
         onSiteChange={changeHubWiringSite}
         onMappingsChange={setHubWiringDraft}
         onSave={() => void saveHubWiring()}
+      />
+
+      <RunSettingsDialog
+        form={runSettingsForm}
+        mode="edit"
+        open={runSettingsOpen}
+        saving={savingRunSettings}
+        onChange={setRunSettingsForm}
+        onOpenChange={setRunSettingsOpen}
+        onSave={() => void saveRunSettings()}
       />
 
       <EnhanceDataDialog
@@ -1852,7 +1955,7 @@ function hubWiringAutoTargetScore(source: HubWiringSourceOption, target: HubWiri
   if (sourceKey === "description" && target.kind === "richTextBody") return 0
   if (sourceKey === "businessName" && target.kind === "directoryTitle") return 0
   if (sourceKey === "featuredImage" && target.kind === "directoryFeaturedImage") return 0
-  if (sourceKey === "category" && target.kind === "directoryCategory" && hubWiringTargetLooksLikeType(targetLabel)) return 0
+  if (sourceKey === "categories" && target.kind === "directoryCategory" && hubWiringTargetLooksLikeType(targetLabel)) return 0
   if (sourceKey === "neighborhood" && target.kind === "directoryCategory" && hubWiringTargetLooksLikeNeighborhood(targetLabel)) return 0
   if (sourceKey === "city" && target.kind === "directoryCategory" && targetLabel.includes("city")) return 0
   if ((sourceKey === "region" || sourceKey === "state") && target.kind === "directoryCategory" && (targetLabel.includes("region") || targetLabel.includes("state"))) return 0
@@ -1903,6 +2006,16 @@ function hubWiringDefaultTargetFieldKey(targetKind: GoogleMapsHubExportMapping["
 
 function StatusBadge({ status }: { status: ProviderRunConfigStatus | string }) {
   return <Badge variant={status === "active" ? "default" : "secondary"}>{statusLabels[status as keyof typeof statusLabels] ?? status}</Badge>
+}
+
+function runQueryLabel(input: ReturnType<typeof parseRunInput>) {
+  if (input.searchMode === "urls") return `${input.urls.length} Google Maps ${input.urls.length === 1 ? "URL" : "URLs"}`
+  return input.keyword
+}
+
+function runLocationLabel(input: ReturnType<typeof parseRunInput>) {
+  if (input.searchMode === "urls") return "Pasted URLs"
+  return input.location
 }
 
 function RunField({ id, label, type = "text", value, onChange }: { id: string; label: string; type?: string; value: string | number; onChange: (value: string) => void }) {
@@ -2075,7 +2188,7 @@ function AutoHeightTextarea({
 }
 
 function emptyForm(maxResults: number): RunForm {
-  return { name: "", keyword: "", location: "", coordinates: "", useBlastRadius: false, blastRadiusKm: defaultBlastRadiusKm, language: "en", maxResults, status: "active" }
+  return { name: "", searchMode: "keyword", keyword: "", location: "", urls: "", skipKnownUrls: true, neighborhood: "", coordinates: "", useBlastRadius: false, blastRadiusKm: defaultBlastRadiusKm, language: "en", maxResults, status: "active" }
 }
 
 function runFormFromRun(run: ProviderRunConfigItem): RunForm {
@@ -2083,8 +2196,12 @@ function runFormFromRun(run: ProviderRunConfigItem): RunForm {
   return {
     name: run.name,
     status: run.status,
+    searchMode: input.searchMode,
     keyword: input.keyword,
     location: input.location,
+    urls: input.urls.join("\n"),
+    skipKnownUrls: input.skipKnownUrls,
+    neighborhood: input.neighborhood,
     coordinates: coordinatesValue(input.latitude, input.longitude),
     useBlastRadius: input.useBlastRadius,
     blastRadiusKm: input.blastRadiusKm,
@@ -2094,14 +2211,37 @@ function runFormFromRun(run: ProviderRunConfigItem): RunForm {
 }
 
 function runPayloadFromForm(form: RunForm) {
+  if (form.searchMode === "urls") {
+    return {
+      name: form.name,
+      searchMode: form.searchMode,
+      keyword: "",
+      location: "",
+      urls: splitUrls(form.urls),
+      skipKnownUrls: form.skipKnownUrls,
+      neighborhood: form.neighborhood,
+      latitude: null,
+      longitude: null,
+      useBlastRadius: false,
+      blastRadiusKm: form.blastRadiusKm,
+      language: form.language,
+      maxResults: form.maxResults,
+      status: form.status,
+    }
+  }
+
   const coordinates = parseCoordinates(form.coordinates)
   if (form.useBlastRadius && !coordinates) throw new Error("Coordinates are required when using blast radius.")
   if (form.useBlastRadius && !Number.isFinite(form.blastRadiusKm)) throw new Error("Blast radius must be a number.")
   if (form.useBlastRadius && (form.blastRadiusKm < 0.1 || form.blastRadiusKm > 100)) throw new Error("Blast radius must be between 0.1 and 100 km.")
   return {
     name: form.name,
+    searchMode: form.searchMode,
     keyword: form.keyword,
     location: form.location,
+    urls: [],
+    skipKnownUrls: form.skipKnownUrls,
+    neighborhood: form.neighborhood,
     latitude: coordinates?.latitude ?? null,
     longitude: coordinates?.longitude ?? null,
     useBlastRadius: form.useBlastRadius,
@@ -2110,6 +2250,10 @@ function runPayloadFromForm(form: RunForm) {
     maxResults: form.maxResults,
     status: form.status,
   }
+}
+
+function splitUrls(value: string) {
+  return value.split(/\s+/).map((url) => url.trim()).filter(Boolean)
 }
 
 function coordinatesValue(latitude: number | null, longitude: number | null) {

@@ -949,11 +949,11 @@ describe("core providers", () => {
         defaultMaxResults: 25,
         fieldSettings: [
           {
-            key: "category",
-            sourcePath: "category",
-            label: "Category",
+            key: "categories",
+            sourcePath: "categories",
+            label: "Categories",
             visible: false,
-            type: "text",
+            type: "tags",
             order: 0,
           },
           {
@@ -983,9 +983,9 @@ describe("core providers", () => {
     expect(settings.map((setting) => setting.key)).toEqual(
       googleMapsCanonicalFieldSettings.map((setting) => setting.key)
     )
-    expect(settings.find((setting) => setting.key === "category")).toMatchObject({
-      key: "category",
-      sourcePath: "category",
+    expect(settings.find((setting) => setting.key === "categories")).toMatchObject({
+      key: "categories",
+      sourcePath: "categories",
       visible: false,
     })
     expect(settings.find((setting) => setting.key === "phone")).toMatchObject({
@@ -1031,8 +1031,10 @@ describe("core providers", () => {
 
   it("maps Apify input, statuses, and Google Maps result data", () => {
     expect(buildActorInput({
+      searchMode: "keyword",
       keyword: "Dentists",
       location: "Austin, TX",
+      urls: [],
       latitude: null,
       longitude: null,
       useBlastRadius: false,
@@ -1046,8 +1048,10 @@ describe("core providers", () => {
       language: "en",
     })
     expect(buildActorInput({
+      searchMode: "keyword",
       keyword: "Cafe",
       location: "Yorkville, Toronto",
+      urls: [],
       latitude: 43.6708,
       longitude: -79.3927,
       useBlastRadius: false,
@@ -1060,9 +1064,27 @@ describe("core providers", () => {
       maxCrawledPlacesPerSearch: 100,
       language: "en",
     })
+    expect(buildActorInput({
+      searchMode: "urls",
+      keyword: "",
+      location: "",
+      urls: ["https://www.google.com/maps/place/Austin+Dental"],
+      latitude: null,
+      longitude: null,
+      useBlastRadius: false,
+      blastRadiusKm: 0.5,
+      language: "en",
+      maxResults: 25,
+    })).toEqual({
+      startUrls: [{ url: "https://www.google.com/maps/place/Austin+Dental" }],
+      maxCrawledPlacesPerSearch: 25,
+      language: "en",
+    })
     const blastRadiusInput = buildActorInput({
+      searchMode: "keyword",
       keyword: "Cafe",
       location: "Yorkville, Toronto",
+      urls: [],
       latitude: 43.6708,
       longitude: -79.3927,
       useBlastRadius: true,
@@ -1099,7 +1121,7 @@ describe("core providers", () => {
       externalId: "place-123",
       title: "Austin Dental",
       data: {
-        category: ["Dentist", "Health"],
+        categories: ["Dentist", "Health"],
         rating: 4.8,
         reviewCount: 42,
         website: null,
@@ -1112,8 +1134,8 @@ describe("core providers", () => {
       category: "Dentist",
       categories: ["Dentist", "Health"],
     }).data
-    expect(normalizedData.category).toEqual(["Dentist", "Health"])
-    expect(normalizedData).not.toHaveProperty("categories")
+    expect(normalizedData.categories).toEqual(["Dentist", "Health"])
+    expect(normalizedData).not.toHaveProperty("category")
     expect(normalizedData).not.toHaveProperty("categoryName")
     expect(normalizedData).not.toHaveProperty("raw")
 

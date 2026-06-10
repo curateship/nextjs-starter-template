@@ -17,6 +17,7 @@ export function DirectoryOpeningHoursBlock({
   onContentChange,
 }: DirectoryOpeningHoursBlockProps) {
   const sourceMode = content.sourceMode === "text" ? "text" : "google"
+  const hoursText = content.hoursText ?? ""
 
   return (
     <CardGroup className="grid">
@@ -53,8 +54,9 @@ export function DirectoryOpeningHoursBlock({
               <FieldLabel htmlFor="directory-opening-hours-text">Hours Text</FieldLabel>
               <Textarea
                 id="directory-opening-hours-text"
-                value={content.hoursText ?? ""}
+                value={hoursText}
                 onChange={(event) => onContentChange("hoursText", event.target.value)}
+                className="field-sizing-content resize-none overflow-hidden"
                 placeholder={"Monday: Closed\nTuesday: 11 AM to 9 PM"}
               />
             </Field>
