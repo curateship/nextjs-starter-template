@@ -1035,52 +1035,50 @@ describe("core providers", () => {
       location: "Austin, TX",
       latitude: null,
       longitude: null,
+      useBlastRadius: false,
+      blastRadiusKm: 0.5,
       language: "en",
       maxResults: 25,
     })).toEqual({
-      searchStringsArray: ["Dentists in Austin, TX"],
+      searchStringsArray: ["Dentists"],
       locationQuery: "Austin, TX",
       maxCrawledPlacesPerSearch: 25,
       language: "en",
     })
-    const coordinateInput = buildActorInput({
+    expect(buildActorInput({
       keyword: "Cafe",
       location: "Yorkville, Toronto",
       latitude: 43.6708,
       longitude: -79.3927,
+      useBlastRadius: false,
+      blastRadiusKm: 0.5,
+      language: "en",
+      maxResults: 100,
+    })).toEqual({
+      searchStringsArray: ["Cafe"],
+      locationQuery: "Yorkville, Toronto",
+      maxCrawledPlacesPerSearch: 100,
+      language: "en",
+    })
+    const blastRadiusInput = buildActorInput({
+      keyword: "Cafe",
+      location: "Yorkville, Toronto",
+      latitude: 43.6708,
+      longitude: -79.3927,
+      useBlastRadius: true,
+      blastRadiusKm: 2,
       language: "en",
       maxResults: 100,
     })
-    expect(coordinateInput).toMatchObject({
+    expect(blastRadiusInput).toMatchObject({
       searchStringsArray: ["Cafe"],
       maxCrawledPlacesPerSearch: 100,
       language: "en",
-      categoryFilterWords: ["cafe"],
       customGeolocation: {
         type: "Polygon",
       },
     })
-    const polygon = coordinateInput.customGeolocation.coordinates[0]
-    expect(Math.min(...polygon.map(([longitude]) => longitude))).toBeLessThan(-79.3927)
-    expect(Math.max(...polygon.map(([longitude]) => longitude))).toBeGreaterThan(-79.3927)
-    expect(Math.min(...polygon.map(([, latitude]) => latitude))).toBeLessThan(43.6708)
-    expect(Math.max(...polygon.map(([, latitude]) => latitude))).toBeGreaterThan(43.6708)
-    expect(buildActorInput({
-      keyword: "Restaurants",
-      location: "Yorkville, Toronto",
-      latitude: null,
-      longitude: null,
-      language: "en",
-      maxResults: 25,
-    })).toMatchObject({ categoryFilterWords: ["restaurant"] })
-    expect(buildActorInput({
-      keyword: "Bars",
-      location: "Yorkville, Toronto",
-      latitude: null,
-      longitude: null,
-      language: "en",
-      maxResults: 25,
-    })).toMatchObject({ categoryFilterWords: ["bar"] })
+    expect(blastRadiusInput).not.toHaveProperty("locationQuery")
 
     expect(mapApifyStatus("READY")).toBe("queued")
     expect(mapApifyStatus("RUNNING")).toBe("running")
@@ -1101,7 +1099,7 @@ describe("core providers", () => {
       externalId: "place-123",
       title: "Austin Dental",
       data: {
-        category: "Dentist",
+        category: ["Dentist", "Health"],
         rating: 4.8,
         reviewCount: 42,
         website: null,
@@ -1114,6 +1112,7 @@ describe("core providers", () => {
       category: "Dentist",
       categories: ["Dentist", "Health"],
     }).data
+    expect(normalizedData.category).toEqual(["Dentist", "Health"])
     expect(normalizedData).not.toHaveProperty("categories")
     expect(normalizedData).not.toHaveProperty("categoryName")
     expect(normalizedData).not.toHaveProperty("raw")

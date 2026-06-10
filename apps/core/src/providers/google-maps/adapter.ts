@@ -1,21 +1,14 @@
 import type { ProviderExecutionStatus } from "@/providers/types"
 
 const apiBase = "https://api.apify.com/v2"
-const categoryFilterWordsByKeyword: Record<string, string> = {
-  bar: "bar",
-  bars: "bar",
-  cafe: "cafe",
-  cafes: "cafe",
-  restaurant: "restaurant",
-  restaurants: "restaurant",
-}
-const customGeolocationRadiusKm = 0.5
 
 export type GoogleMapsInput = {
   keyword: string
   location: string
   latitude: number | null
   longitude: number | null
+  useBlastRadius: boolean
+  blastRadiusKm: number
   language: string
   maxResults: number
 }
@@ -32,16 +25,14 @@ type ApifyRun = {
 export function buildActorInput(input: GoogleMapsInput) {
   const keyword = input.keyword.trim()
   const location = input.location.trim()
-  const customGeolocation = customGeolocationForInput(input)
-  const categoryFilterWords = categoryFilterWordsForKeyword(keyword)
+  const customGeolocation = input.useBlastRadius ? customGeolocationForInput(input) : null
 
   return {
-    searchStringsArray: [customGeolocation ? keyword : `${keyword} in ${location}`],
+    searchStringsArray: [keyword],
     ...(!customGeolocation ? { locationQuery: location } : {}),
     maxCrawledPlacesPerSearch: input.maxResults,
     language: input.language,
     ...(customGeolocation ? { customGeolocation } : {}),
-    ...(categoryFilterWords.length ? { categoryFilterWords } : {}),
   }
 }
 
@@ -125,8 +116,8 @@ function encodeActorId(actorId: string) {
 
 function customGeolocationForInput(input: GoogleMapsInput) {
   if (input.latitude === null || input.longitude === null) return null
-  const latitudeOffset = customGeolocationRadiusKm / 111.32
-  const longitudeOffset = customGeolocationRadiusKm / (111.32 * Math.cos(input.latitude * Math.PI / 180))
+  const latitudeOffset = input.blastRadiusKm / 111.32
+  const longitudeOffset = input.blastRadiusKm / (111.32 * Math.cos(input.latitude * Math.PI / 180))
   const north = input.latitude + latitudeOffset
   const south = input.latitude - latitudeOffset
   const east = input.longitude + longitudeOffset
@@ -142,11 +133,6 @@ function customGeolocationForInput(input: GoogleMapsInput) {
       [west, south],
     ]],
   }
-}
-
-function categoryFilterWordsForKeyword(keyword: string) {
-  const category = categoryFilterWordsByKeyword[keyword.trim().toLowerCase()]
-  return category ? [category] : []
 }
 
 async function apifyRequest<T>(url: URL, token: string, init: RequestInit = {}) {
@@ -200,7 +186,15 @@ function integer(item: Record<string, unknown>, keys: string[]) {
 }
 
 function category(item: Record<string, unknown>) {
-  return text(item, ["category", "type"])
+  const categories = item.categories
+  if (Array.isArray(categories)) {
+    const values = categories
+      .filter((value) => typeof value === "string" && value.trim())
+      .map((value) => value.trim())
+    if (values.length) return values
+  }
+
+  return text(item, ["category", "categoryName", "type"])
 }
 
 function openingHours(item: Record<string, unknown>) {

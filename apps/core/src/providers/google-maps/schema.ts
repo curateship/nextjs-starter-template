@@ -22,6 +22,7 @@ export const apifyProviderKey = "apify"
 export const googleMapsProviderKey = "google-maps"
 export const defaultApifyActorId = "compass/crawler-google-places"
 export const defaultMaxResults = 25
+export const defaultBlastRadiusKm = 0.5
 const requiredText = (max: number) => z.string().trim().min(1).max(max)
 
 export const fieldSettingTypes = ["text", "number", "boolean", "tags"] as const
@@ -123,6 +124,8 @@ export const runInputSchema = z.object({
   location: requiredText(500),
   latitude: z.number().min(-90).max(90).nullable().default(null),
   longitude: z.number().min(-180).max(180).nullable().default(null),
+  useBlastRadius: z.boolean().default(false),
+  blastRadiusKm: z.number().min(0.1).max(100).default(defaultBlastRadiusKm),
   language: z.string().trim().min(2).max(20),
   maxResults: z.number().int().min(1).max(500),
 })
@@ -155,6 +158,8 @@ export function cleanRunInput(data: z.infer<typeof runPayloadSchema>) {
     location: data.location.trim(),
     latitude: data.latitude,
     longitude: data.longitude,
+    useBlastRadius: data.useBlastRadius,
+    blastRadiusKm: data.blastRadiusKm,
     language: data.language.trim().toLowerCase(),
     maxResults: data.maxResults,
   }

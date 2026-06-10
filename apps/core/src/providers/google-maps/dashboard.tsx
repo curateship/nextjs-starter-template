@@ -96,6 +96,7 @@ import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/core"
 import {
   mergeGoogleMapsFieldSettings,
   parseRunInput,
+  defaultBlastRadiusKm,
   type GoogleMapsFieldSetting,
   type GoogleMapsFieldType,
 } from "@/providers/google-maps/schema"
@@ -106,6 +107,8 @@ type RunForm = {
   keyword: string
   location: string
   coordinates: string
+  useBlastRadius: boolean
+  blastRadiusKm: number
   language: string
   maxResults: number
   status: ProviderRunConfigStatus
@@ -448,6 +451,11 @@ export function GoogleMapsDashboard() {
                   <RunField id="language" label="Language" value={form.language} onChange={(value) => setForm({ ...form, language: value })} />
                   <RunField id="max-results" label="Max results" type="number" value={form.maxResults} onChange={(value) => setForm({ ...form, maxResults: Number(value) })} />
                   <RunField id="coordinates" label="Coordinates" value={form.coordinates} onChange={(value) => setForm({ ...form, coordinates: value })} />
+                  <RunField id="blast-radius" label="Blast radius (km)" type="number" value={form.blastRadiusKm} onChange={(value) => setForm({ ...form, blastRadiusKm: Number(value) })} />
+                  <div className="flex items-center gap-2 self-end py-2">
+                    <Checkbox id="use-blast-radius" checked={form.useBlastRadius} onCheckedChange={(checked) => setForm({ ...form, useBlastRadius: checked === true })} />
+                    <Label htmlFor="use-blast-radius">Use blast radius</Label>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -610,7 +618,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
   const results = (data?.results ?? []).filter((result) => {
     const term = query.trim().toLowerCase()
     const row = result.data
-    return !term || [result.title, row.category, row.address, row.phone, row.website].some((value) => typeof value === "string" && value.toLowerCase().includes(term))
+    return !term || [result.title, categoryText(row.category), row.address, row.phone, row.website].some((value) => typeof value === "string" && value.toLowerCase().includes(term))
   }).sort((a, b) => {
     if (!sortColumn) return 0
     const direction = sortDirection === "asc" ? 1 : -1
@@ -979,7 +987,7 @@ export function GoogleMapsRunResults({ runId }: { runId: string }) {
                   ) : null}
                   <div className="min-w-0">
                     <button type="button" className="max-w-full truncate text-left font-medium hover:underline" onClick={() => editResult(result)}>{result.title}</button>
-                    <div className="truncate text-xs text-muted-foreground">{text(result.data.category) ?? "Uncategorized"}</div>
+                    <div className="truncate text-xs text-muted-foreground">{categoryText(result.data.category) ?? "Uncategorized"}</div>
                   </div>
                 </div>
               </TableCell>
@@ -2067,7 +2075,7 @@ function AutoHeightTextarea({
 }
 
 function emptyForm(maxResults: number): RunForm {
-  return { name: "", keyword: "", location: "", coordinates: "", language: "en", maxResults, status: "active" }
+  return { name: "", keyword: "", location: "", coordinates: "", useBlastRadius: false, blastRadiusKm: defaultBlastRadiusKm, language: "en", maxResults, status: "active" }
 }
 
 function runFormFromRun(run: ProviderRunConfigItem): RunForm {
@@ -2078,6 +2086,8 @@ function runFormFromRun(run: ProviderRunConfigItem): RunForm {
     keyword: input.keyword,
     location: input.location,
     coordinates: coordinatesValue(input.latitude, input.longitude),
+    useBlastRadius: input.useBlastRadius,
+    blastRadiusKm: input.blastRadiusKm,
     language: input.language,
     maxResults: input.maxResults,
   }
@@ -2085,12 +2095,17 @@ function runFormFromRun(run: ProviderRunConfigItem): RunForm {
 
 function runPayloadFromForm(form: RunForm) {
   const coordinates = parseCoordinates(form.coordinates)
+  if (form.useBlastRadius && !coordinates) throw new Error("Coordinates are required when using blast radius.")
+  if (form.useBlastRadius && !Number.isFinite(form.blastRadiusKm)) throw new Error("Blast radius must be a number.")
+  if (form.useBlastRadius && (form.blastRadiusKm < 0.1 || form.blastRadiusKm > 100)) throw new Error("Blast radius must be between 0.1 and 100 km.")
   return {
     name: form.name,
     keyword: form.keyword,
     location: form.location,
     latitude: coordinates?.latitude ?? null,
     longitude: coordinates?.longitude ?? null,
+    useBlastRadius: form.useBlastRadius,
+    blastRadiusKm: form.blastRadiusKm,
     language: form.language,
     maxResults: form.maxResults,
     status: form.status,
@@ -2246,6 +2261,11 @@ function fieldTypeLabel(type: GoogleMapsFieldType) {
 
 function text(value: unknown) {
   return typeof value === "string" && value ? value : null
+}
+
+function categoryText(value: unknown) {
+  if (isStringArray(value)) return value.join(", ")
+  return text(value)
 }
 
 function number(value: unknown) {
