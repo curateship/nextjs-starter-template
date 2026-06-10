@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Settings } from "lucide-react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import { useInlinePreviewEditing } from "@/components/admin/layout/builder/useInlinePreviewEditing"
 import { PostBlockRenderer } from "@/components/frontend/posts/PostBlockRenderer"
 import { Button } from "@/components/ui/button"
 import {
@@ -75,7 +76,12 @@ export function PostPreview({
 }: PostPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
   const [author, setAuthor] = useState<{ name?: string | null; image?: string | null } | null>(null)
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const { editingBlockId, setEditingBlockId } = useInlinePreviewEditing({
+    blocks,
+    selectedBlock,
+    editableType: "core",
+    editorShellSelector: '[data-post-inline-editor-shell="true"]',
+  })
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
   const canInlineEdit = Boolean(onUpdateCoreBody && onSelectBlock)
@@ -118,47 +124,6 @@ export function PostPreview({
       cancelled = true
     }
   }, [post?.id, post?.updated_at, site?.settings?.breadcrumbs?.posts])
-
-  useEffect(() => {
-    if (selectedBlock) {
-      setEditingBlockId(null)
-    }
-  }, [selectedBlock])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const editingBlock = blocks.find((block) => block.id === editingBlockId)
-    if (!editingBlock || editingBlock.type !== "core") {
-      setEditingBlockId(null)
-    }
-  }, [blocks, editingBlockId])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      const targetElement =
-        target instanceof Element ? target : target instanceof Node ? target.parentElement : null
-
-      if (!targetElement) return
-
-      if (
-        targetElement.closest('[data-post-inline-editor-shell="true"]') ||
-        targetElement.closest('[data-newsletter-inline-editor-menu="true"]') ||
-        targetElement.closest('[data-media-picker-dialog="true"]') ||
-        targetElement.closest('[data-newsletter-inline-link-dialog="true"]')
-      ) {
-        return
-      }
-
-      setEditingBlockId(null)
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown)
-    return () => document.removeEventListener("pointerdown", handlePointerDown)
-  }, [editingBlockId])
 
   const previewPost = {
     id: post?.id || "preview",

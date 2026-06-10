@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 interface AccountEditProfileBlockProps {
   content: Record<string, any>

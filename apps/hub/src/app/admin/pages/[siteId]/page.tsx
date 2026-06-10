@@ -26,7 +26,6 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<Page[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
-  const [pagesError, setPagesError] = useState<string | null>(null)
   
   const pageFromUrl = searchParams.get('page') || 'home'
   const [selectedPage, setSelectedPage] = useState(pageFromUrl)
@@ -36,7 +35,7 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
   const [isSavingBlock, setIsSavingBlock] = useState(false)
 
   // Custom hooks for data and state management
-  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = usePageData(siteId, selectedPage)
+  const { site, pages: dataPages, blocks, siteLoading, blocksLoading, reloadBlocks } = usePageData(siteId, selectedPage)
 
   // Keep the site switcher aligned with the route before redirecting.
   useEffect(() => {
@@ -59,16 +58,13 @@ export default function PageBuilderEditor({ params }: { params: Promise<{ siteId
     async function loadPages() {
       try {
         setPagesLoading(true)
-        setPagesError(null)
         const { data, error } = await getSitePagesAction(siteId, { selectedSlug: pageFromUrl })
         if (error) {
-          setPagesError(error)
           return
         }
         setPages(data || [])
 
-      } catch (err) {
-        setPagesError('Failed to load pages')
+      } catch {
       } finally {
         setPagesLoading(false)
       }

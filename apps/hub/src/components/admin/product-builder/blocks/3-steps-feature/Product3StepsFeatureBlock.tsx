@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 interface StepItem {
   id: string

@@ -1,212 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, ne } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { pages, sites } from '@/lib/db/schema'
-import { auth } from '@/lib/actions/auth/server'
-import { isSameOriginRequest } from '@/lib/utils/request-origin'
+import { pages } from '@/lib/db/schema'
 import { serializePage } from '@/lib/utils/content-serializer'
+import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ pageId: string }> }
-) {
-  try {
-    const { pageId } = await params
+const RESERVED_PAGE_SLUGS = ['account', 'api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
 
-    // Validate page ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(pageId)) {
-      return NextResponse.json(
-        { data: null, error: 'Invalid page ID format' },
-        { status: 400 }
-      )
-    }
-
-    // Get the authenticated user's ID from the session
-    const session = await auth.api.getSession({ headers: request.headers })
-    if (!session?.user) {
-      return NextResponse.json(
-        { data: null, error: 'User not authenticated' },
-        { status: 401 }
-      )
-    }
-    const userId = session.user.id!
-
-    // Get the page
-    const page = await db.query.pages.findFirst({
-      where: eq(pages.id, pageId),
-    })
-
-    if (!page) {
-      return NextResponse.json(
-        { data: null, error: 'Page not found' },
-        { status: 404 }
-      )
-    }
-
-    // Verify user owns the site this page belongs to
-    const site = await db.query.sites.findFirst({
-      where: and(eq(sites.id, page.siteId), eq(sites.userId, userId)),
-      columns: { id: true },
-    })
-
-    if (!site) {
-      return NextResponse.json(
-        { data: null, error: 'Site not found or access denied' },
-        { status: 403 }
-      )
-    }
-
-    return NextResponse.json({ data: serializePage(page), error: null })
-  } catch (error) {
-    console.error('API Error:', error)
-    return NextResponse.json(
-      {
-        data: null,
-        error: 'Server error'
-      },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ pageId: string }> }
-) {
-  try {
-    if (!isSameOriginRequest(request)) {
-      return NextResponse.json(
-        { data: null, error: 'Invalid origin' },
-        { status: 403 }
-      )
-    }
-
-    const { pageId } = await params
-    const updates = await request.json()
-
-    // Validate page ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(pageId)) {
-      return NextResponse.json(
-        { data: null, error: 'Invalid page ID format' },
-        { status: 400 }
-      )
-    }
-
-    // Get the authenticated user's ID from the session
-    const session = await auth.api.getSession({ headers: request.headers })
-    if (!session?.user) {
-      return NextResponse.json(
-        { data: null, error: 'User not authenticated' },
-        { status: 401 }
-      )
-    }
-    const userId = session.user.id!
-
-    // Get the page first
-    const page = await db.query.pages.findFirst({
-      where: eq(pages.id, pageId),
-    })
-
-    if (!page) {
-      return NextResponse.json(
-        { data: null, error: 'Page not found' },
-        { status: 404 }
-      )
-    }
-
-    // Verify user owns the site this page belongs to
-    const site = await db.query.sites.findFirst({
-      where: and(eq(sites.id, page.siteId), eq(sites.userId, userId)),
-      columns: { id: true },
-    })
-
-    if (!site) {
-      return NextResponse.json(
-        { data: null, error: 'Site not found or access denied' },
-        { status: 403 }
-      )
-    }
-
-    // Validate title if being updated
-    if (updates.title !== undefined && !updates.title?.trim()) {
-      return NextResponse.json(
-        { data: null, error: 'Page title cannot be empty' },
-        { status: 400 }
-      )
-    }
-
-    if (updates.slug !== undefined) {
-      const slug = String(updates.slug).trim()
-
-      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-        return NextResponse.json(
-          { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' },
-          { status: 400 }
-        )
-      }
-
-      const reservedSlugs = ['account', 'api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global']
-      if (reservedSlugs.includes(slug.toLowerCase())) {
-        return NextResponse.json(
-          { data: null, error: 'This slug is reserved and cannot be used.' },
-          { status: 400 }
-        )
-      }
-
-      const conflictingPage = await db.query.pages.findFirst({
-        where: and(eq(pages.siteId, page.siteId), eq(pages.slug, slug), ne(pages.id, pageId)),
-        columns: { title: true },
-      })
-
-      if (conflictingPage) {
-        return NextResponse.json(
-          { data: null, error: `This slug is already used by another page titled "${conflictingPage.title}". Please choose a different slug.` },
-          { status: 400 }
-        )
-      }
-
-      updates.slug = slug
-    }
-
-    // If setting as homepage, unset any existing homepage
+const config = {
+  entityName: 'Page',
+  table: pages,
+  paramName: 'pageId',
+  reservedSlugs: RESERVED_PAGE_SLUGS,
+  requireSameOrigin: true,
+  serializeResponse: serializePage,
+  duplicateSlugError: (existing: { title: string | null }) =>
+    `This slug is already used by another page titled "${existing.title}". Please choose a different slug.`,
+  updateFieldMap: {
+    title: 'title',
+    slug: 'slug',
+    meta_description: 'metaDescription',
+    meta_keywords: 'metaKeywords',
+    template: 'template',
+    is_homepage: 'isHomepage',
+    is_published: 'isPublished',
+    display_order: 'displayOrder',
+  },
+  transformUpdateValues: async (updates: Record<string, unknown>, page: typeof pages.$inferSelect, updateValues: Record<string, unknown>) => {
     if (updates.is_homepage === true) {
       await db.update(pages)
         .set({ isHomepage: false })
         .where(and(
           eq(pages.siteId, page.siteId),
           eq(pages.isHomepage, true),
-          ne(pages.id, pageId)
+          ne(pages.id, page.id)
         ))
     }
 
-    // Build update object with camelCase keys
-    const updateValues: Record<string, unknown> = { updatedAt: new Date() }
-    if (updates.title !== undefined) updateValues.title = updates.title
-    if (updates.slug !== undefined) updateValues.slug = updates.slug
-    if (updates.meta_description !== undefined) updateValues.metaDescription = updates.meta_description
-    if (updates.meta_keywords !== undefined) updateValues.metaKeywords = updates.meta_keywords
-    if (updates.template !== undefined) updateValues.template = updates.template
-    if (updates.is_homepage !== undefined) updateValues.isHomepage = updates.is_homepage
-    if (updates.is_published !== undefined) updateValues.isPublished = updates.is_published
-    if (updates.display_order !== undefined) updateValues.displayOrder = updates.display_order
-
-    // Update the page
-    const [updatedPage] = await db.update(pages)
-      .set(updateValues)
-      .where(eq(pages.id, pageId))
-      .returning()
-
-    return NextResponse.json({ data: serializePage(updatedPage), error: null })
-  } catch (error) {
-    console.error('API Error:', error)
-    return NextResponse.json(
-      {
-        data: null,
-        error: 'Server error'
-      },
-      { status: 500 }
-    )
-  }
+    return updateValues
+  },
 }
+
+export const GET = getResourceHandler(config)
+export const PUT = updateResourceHandler(config)

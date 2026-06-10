@@ -30,6 +30,7 @@ import { MediaInput } from "@/components/admin/media-library/MediaInput"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type {
+  DirectoryCustomBlockField,
   DirectoryCustomBlockRepeaterField,
   DirectoryCustomBlockTemplate,
 } from "@/lib/actions/directories/directory-custom-blocks/types"
@@ -132,154 +133,6 @@ function DirectoryCustomValuesEditor({
       {fields.map(field => {
         const value = values[field.key]
 
-        if (field.type === 'text') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Text'}</FieldLabel>
-                  <Input
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || ''}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'textarea') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Textarea'}</FieldLabel>
-                  <Textarea
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || ''}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'number') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Number'}</FieldLabel>
-                  <Input
-                    type="number"
-                    value={value === null || value === undefined ? '' : String(value)}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || ''}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'link') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Link'}</FieldLabel>
-                  <Input
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || 'https://example.com'}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'toggle') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{field.label || 'Toggle'}</span>
-                  <Switch
-                    checked={value === true}
-                    onCheckedChange={(checked) => updateValue(field.key, checked === true)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'select') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Select'}</FieldLabel>
-                  <Select value={typeof value === 'string' ? value : ''} onValueChange={(nextValue) => updateValue(field.key, nextValue)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={field.placeholder || 'Choose an option'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(field.options || []).map(option => (
-                        <SelectItem key={option.id} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'image') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <MediaInput
-                  label={field.label || 'Image'}
-                  value={typeof value === 'string' ? value : ''}
-                  onChange={(nextValue) => updateValue(field.key, nextValue)}
-                  siteId={siteId}
-                  acceptVideo={false}
-                />
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'rich-text') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <InlineRichTextEditor
-                    blockId={`custom-field-${field.id}`}
-                    content={{
-                      htmlContent: typeof value === 'string' ? value : '',
-                    }}
-                    onContentChange={(htmlContent) => updateValue(field.key, htmlContent)}
-                    siteId={siteId}
-                    isActive
-                    editorPadding={0}
-                    variant="directory"
-                    placeholder={field.placeholder || 'Start writing...'}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
         if (field.type === 'repeater') {
           return (
             <Card key={field.id}>
@@ -296,10 +149,151 @@ function DirectoryCustomValuesEditor({
           )
         }
 
-        return null
+        return (
+          <CustomFieldEditor
+            key={field.id}
+            field={field}
+            value={value}
+            siteId={siteId}
+            richTextBlockId={`custom-field-${field.id}`}
+            onChange={(nextValue) => updateValue(field.key, nextValue)}
+          />
+        )
       })}
     </CardGroup>
   )
+}
+
+function CustomFieldEditor({
+  field,
+  value,
+  siteId,
+  richTextBlockId,
+  onChange,
+}: {
+  field: DirectoryCustomBlockField | DirectoryCustomBlockRepeaterField
+  value: any
+  siteId: string
+  richTextBlockId: string
+  onChange: (value: any) => void
+}) {
+  if (field.type === 'text' || field.type === 'number' || field.type === 'link') {
+    const label = field.label || (field.type === 'link' ? 'Link' : field.type === 'number' ? 'Number' : 'Text')
+
+    return (
+      <Card>
+        <CardContent>
+          <Field>
+            <FieldLabel>{label}</FieldLabel>
+            <Input
+              type={field.type === 'number' ? 'number' : undefined}
+              value={field.type === 'number' && value !== null && value !== undefined ? String(value) : typeof value === 'string' ? value : ''}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder={field.placeholder || (field.type === 'link' ? 'https://example.com' : '')}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (field.type === 'textarea') {
+    return (
+      <Card>
+        <CardContent>
+          <Field>
+            <FieldLabel>{field.label || 'Textarea'}</FieldLabel>
+            <Textarea
+              value={typeof value === 'string' ? value : ''}
+              onChange={(event) => onChange(event.target.value)}
+              placeholder={field.placeholder || ''}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (field.type === 'toggle') {
+    return (
+      <Card>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">{field.label || 'Toggle'}</span>
+            <Switch
+              checked={value === true}
+              onCheckedChange={(checked) => onChange(checked === true)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (field.type === 'select') {
+    return (
+      <Card>
+        <CardContent>
+          <Field>
+            <FieldLabel>{field.label || 'Select'}</FieldLabel>
+            <Select value={typeof value === 'string' ? value : ''} onValueChange={onChange}>
+              <SelectTrigger>
+                <SelectValue placeholder={field.placeholder || 'Choose an option'} />
+              </SelectTrigger>
+              <SelectContent>
+                {(field.options || []).map(option => (
+                  <SelectItem key={option.id} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (field.type === 'image') {
+    return (
+      <Card>
+        <CardContent>
+          <MediaInput
+            label={field.label || 'Image'}
+            value={typeof value === 'string' ? value : ''}
+            onChange={onChange}
+            siteId={siteId}
+            acceptVideo={false}
+          />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (field.type === 'rich-text') {
+    return (
+      <Card>
+        <CardContent>
+          <Field>
+            <InlineRichTextEditor
+              blockId={richTextBlockId}
+              content={{
+                htmlContent: typeof value === 'string' ? value : '',
+              }}
+              onContentChange={onChange}
+              siteId={siteId}
+              isActive
+              editorPadding={0}
+              variant="directory"
+              placeholder={field.placeholder || 'Start writing...'}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return null
 }
 
 function RepeaterFieldEditor({
@@ -489,156 +483,16 @@ function RepeaterRowFields({
     <CardGroup className="grid">
       {fields.map(field => {
         const value = row[field.key]
-
-        if (field.type === 'text') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Text'}</FieldLabel>
-                  <Input
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || ''}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'textarea') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Textarea'}</FieldLabel>
-                  <Textarea
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || ''}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'number') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Number'}</FieldLabel>
-                  <Input
-                    type="number"
-                    value={value === null || value === undefined ? '' : String(value)}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || ''}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'link') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Link'}</FieldLabel>
-                  <Input
-                    value={typeof value === 'string' ? value : ''}
-                    onChange={(event) => updateValue(field.key, event.target.value)}
-                    placeholder={field.placeholder || 'https://example.com'}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'toggle') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{field.label || 'Toggle'}</span>
-                  <Switch
-                    checked={value === true}
-                    onCheckedChange={(checked) => updateValue(field.key, checked === true)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'select') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <FieldLabel>{field.label || 'Select'}</FieldLabel>
-                  <Select value={typeof value === 'string' ? value : ''} onValueChange={(nextValue) => updateValue(field.key, nextValue)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={field.placeholder || 'Choose an option'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(field.options || []).map(option => (
-                        <SelectItem key={option.id} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'image') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <MediaInput
-                  label={field.label || 'Image'}
-                  value={typeof value === 'string' ? value : ''}
-                  onChange={(nextValue) => updateValue(field.key, nextValue)}
-                  siteId={siteId}
-                  acceptVideo={false}
-                />
-              </CardContent>
-            </Card>
-          )
-        }
-
-        if (field.type === 'rich-text') {
-          return (
-            <Card key={field.id}>
-              <CardContent>
-                <Field>
-                  <InlineRichTextEditor
-                    blockId={`custom-repeater-field-${rowId}-${field.id}`}
-                    content={{
-                      htmlContent: typeof value === 'string' ? value : '',
-                    }}
-                    onContentChange={(htmlContent) => updateValue(field.key, htmlContent)}
-                    siteId={siteId}
-                    isActive
-                    editorPadding={0}
-                    variant="directory"
-                    placeholder={field.placeholder || 'Start writing...'}
-                  />
-                </Field>
-              </CardContent>
-            </Card>
-          )
-        }
-
-        return null
+        return (
+          <CustomFieldEditor
+            key={field.id}
+            field={field}
+            value={value}
+            siteId={siteId}
+            richTextBlockId={`custom-repeater-field-${rowId}-${field.id}`}
+            onChange={(nextValue) => updateValue(field.key, nextValue)}
+          />
+        )
       })}
     </CardGroup>
   )

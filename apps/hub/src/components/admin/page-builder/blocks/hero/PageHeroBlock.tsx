@@ -13,7 +13,7 @@ import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { HERO_STYLES } from "."
 import { TrustedByBadgeFields } from "./DefaultHeroConfig"
 import { cn } from "@/lib/utils/tailwind"
-import { VisibilitySettings } from "../shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [

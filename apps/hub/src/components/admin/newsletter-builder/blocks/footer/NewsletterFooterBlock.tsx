@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { BlockTabs } from "@/components/ui/tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 interface NewsletterFooterBlockProps {
   content: Record<string, any>

@@ -12,7 +12,7 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { TESTIMONIAL_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
-import { VisibilitySettings } from "../shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import {
   DndContext,
   closestCenter,

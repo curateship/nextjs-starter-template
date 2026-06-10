@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Settings } from "lucide-react"
 import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import { useInlinePreviewEditing } from "@/components/admin/layout/builder/useInlinePreviewEditing"
 import { Button } from "@/components/ui/button"
 import { createPreviewSite, type PreviewBlock } from "@/lib/utils/admin-builder-preview"
 import { normalizePageRichTextContent } from "@/components/admin/page-builder/config/page-block-utils"
@@ -46,7 +46,12 @@ export function PagePreview({
   onUpdateRichTextBody,
   renderAccountBlocks = false,
 }: PagePreviewProps) {
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const { editingBlockId, setEditingBlockId } = useInlinePreviewEditing({
+    blocks,
+    selectedBlock,
+    editableType: "rich-text",
+    editorShellSelector: '[data-page-inline-editor-shell="true"]',
+  })
   const previewSite = createPreviewSite(blocks, site)
   const siteChrome = resolveSiteChrome(site?.settings)
   const hasRenderablePreview = blocks.length > 0 || !!siteChrome.navigation || !!siteChrome.footer
@@ -69,47 +74,6 @@ export function PagePreview({
       display_order: typeof editableBlock.display_order === "number" ? editableBlock.display_order : 0,
     }
   }
-
-  useEffect(() => {
-    if (selectedBlock) {
-      setEditingBlockId(null)
-    }
-  }, [selectedBlock])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const editingBlock = blocks.find((block) => block.id === editingBlockId)
-    if (!editingBlock || editingBlock.type !== "rich-text") {
-      setEditingBlockId(null)
-    }
-  }, [blocks, editingBlockId])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      const targetElement =
-        target instanceof Element ? target : target instanceof Node ? target.parentElement : null
-
-      if (!targetElement) return
-
-      if (
-        targetElement.closest('[data-page-inline-editor-shell="true"]') ||
-        targetElement.closest('[data-newsletter-inline-editor-menu="true"]') ||
-        targetElement.closest('[data-media-picker-dialog="true"]') ||
-        targetElement.closest('[data-newsletter-inline-link-dialog="true"]')
-      ) {
-        return
-      }
-
-      setEditingBlockId(null)
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown)
-    return () => document.removeEventListener("pointerdown", handlePointerDown)
-  }, [editingBlockId])
 
   return (
     <BuilderPreviewShell

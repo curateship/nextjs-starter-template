@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
 import { generateSlug } from '@/lib/utils/slug'
+import { isSameOriginRequest } from '@/lib/utils/request-origin'
 
 /** Reserved slugs that cannot be used for any content type */
 const RESERVED_SLUGS = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
@@ -24,6 +25,10 @@ function jsonError(error: string, status: number) {
 
 function jsonServerError() {
   return jsonError('Server error', 500)
+}
+
+function jsonInvalidOrigin() {
+  return jsonError('Invalid origin', 403)
 }
 
 /** Authenticate the request and return the user ID */
@@ -44,11 +49,11 @@ async function verifySiteOwnership(siteId: string, userId: string) {
 }
 
 /** Validate a slug: format check, reserved check. Returns error response or null. */
-function validateSlug(slug: string): NextResponse | null {
+function validateSlug(slug: string, reservedSlugs = RESERVED_SLUGS): NextResponse | null {
   if (!SLUG_REGEX.test(slug)) {
     return jsonError('Invalid slug format. Use only letters, numbers, hyphens, and underscores.', 400)
   }
-  if (RESERVED_SLUGS.includes(slug.toLowerCase())) {
+  if (reservedSlugs.includes(slug.toLowerCase())) {
     return jsonError('This slug is reserved and cannot be used.', 400)
   }
   return null
@@ -164,10 +169,18 @@ export function createResourceHandler(config: CreateResourceConfig) {
 interface ItemResourceConfig {
   /** Display name, e.g. "Post" */
   entityName: string
+  /** Optional resource-specific not-found message. */
+  notFoundMessage?: string
   /** Drizzle table reference */
   table: any
   /** The dynamic route param name, e.g. "postId" */
   paramName: string
+  /** Optional resource-specific reserved slugs. */
+  reservedSlugs?: string[]
+  /** Enforce same-origin checks for mutating requests. */
+  requireSameOrigin?: boolean
+  /** Optional resource-specific duplicate slug message. */
+  duplicateSlugError?: (existing: { title: string | null }, slug: string) => string
   /** Map snake_case request fields to camelCase DB columns for updates */
   updateFieldMap: Record<string, string>
   /** Optional transform for resource-specific update behavior */
@@ -204,7 +217,7 @@ export function getResourceHandler(config: ItemResourceConfig) {
 
       /* Fetch entity */
       const entity = await findResourceById(config.table, entityId)
-      if (!entity) return jsonError(`${config.entityName} not found`, 404)
+      if (!entity) return jsonError(config.notFoundMessage || `${config.entityName} not found`, 404)
 
       /* Site ownership */
       const siteOrError = await verifySiteOwnership(entity.siteId, userIdOrError)
@@ -227,6 +240,8 @@ export function updateResourceHandler(config: ItemResourceConfig) {
     { params }: { params: Promise<Record<string, string>> }
   ) {
     try {
+      if (config.requireSameOrigin && !isSameOriginRequest(request)) return jsonInvalidOrigin()
+
       const resolvedParams = await params
       const entityId = resolvedParams[config.paramName]
       const updates = await request.json()
@@ -253,13 +268,19 @@ export function updateResourceHandler(config: ItemResourceConfig) {
       /* Validate slug */
       if (updates.slug !== undefined) {
         const slug = updates.slug.trim()
-        const slugError = validateSlug(slug)
+        const slugError = validateSlug(slug, config.reservedSlugs)
         if (slugError) return slugError
+        updates.slug = slug
 
         /* Uniqueness check (excluding current entity) */
         const existing = await findResourceBySlug(config.table, entity.siteId, slug)
         if (existing && existing.id !== entityId) {
-          return jsonError(`A ${config.entityName.toLowerCase()} with the slug "${slug}" already exists. Please choose a different slug.`, 400)
+          return jsonError(
+            config.duplicateSlugError
+              ? config.duplicateSlugError(existing, slug)
+              : `A ${config.entityName.toLowerCase()} with the slug "${slug}" already exists. Please choose a different slug.`,
+            400
+          )
         }
       }
 

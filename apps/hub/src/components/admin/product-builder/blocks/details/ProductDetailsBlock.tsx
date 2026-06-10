@@ -6,7 +6,7 @@ import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/com
 import { BlockTabs, BlockEditorEmptyState } from "@/components/ui/tabs"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Plus, Trash2 } from "lucide-react"
-import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 interface Specification {
   label: string

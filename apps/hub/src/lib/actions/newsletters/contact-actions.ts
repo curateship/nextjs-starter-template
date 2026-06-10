@@ -52,6 +52,26 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
+async function getAuthorizedContactSiteId(contactId: string) {
+  if (!UUID_REGEX.test(contactId)) return { siteId: null, error: 'Invalid contact ID' }
+
+  const user = await getAuthenticatedUser()
+  if (!user) return { siteId: null, error: 'Not authenticated' }
+
+  const [contact] = await db
+    .select({ siteId: newsletterContacts.siteId })
+    .from(newsletterContacts)
+    .where(eq(newsletterContacts.id, contactId))
+    .limit(1)
+
+  if (!contact) return { siteId: null, error: 'Contact not found' }
+  if (!await verifySiteOwnership(contact.siteId, user.id)) {
+    return { siteId: null, error: 'Access denied' }
+  }
+
+  return { siteId: contact.siteId, error: null }
+}
+
 function rowToContact(row: any): CrmContact {
   const metadata = normalizeContactMetadata(row.metadata)
 
@@ -746,21 +766,8 @@ export async function getContactStats(
   contactId: string
 ): Promise<{ data: { totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number } | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(contactId)) return { data: null, error: 'Invalid contact ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [contact] = await db
-      .select({ siteId: newsletterContacts.siteId })
-      .from(newsletterContacts)
-      .where(eq(newsletterContacts.id, contactId))
-      .limit(1)
-
-    if (!contact) return { data: null, error: 'Contact not found' }
-    if (!await verifySiteOwnership(contact.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedContactSiteId(contactId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     const rows = await db.execute<{ total_sent: number; total_opened: number; total_clicked: number }>(sql`
       select
@@ -791,21 +798,8 @@ export async function getContactEvents(
   pageSize = 20
 ): Promise<{ data: { id: string; eventType: string; newsletterSubject: string | null; createdAt: string }[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(contactId)) return { data: null, total: 0, error: 'Invalid contact ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    const [contact] = await db
-      .select({ siteId: newsletterContacts.siteId })
-      .from(newsletterContacts)
-      .where(eq(newsletterContacts.id, contactId))
-      .limit(1)
-
-    if (!contact) return { data: null, total: 0, error: 'Contact not found' }
-    if (!await verifySiteOwnership(contact.siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedContactSiteId(contactId)
+    if (authResult.error) return { data: null, total: 0, error: authResult.error }
 
     const safePage = Math.max(1, Math.floor(page))
     const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
@@ -865,21 +859,8 @@ export async function getContactSegments(
   contactId: string
 ): Promise<{ data: { id: string; name: string }[] | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(contactId)) return { data: null, error: 'Invalid contact ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [contact] = await db
-      .select({ siteId: newsletterContacts.siteId })
-      .from(newsletterContacts)
-      .where(eq(newsletterContacts.id, contactId))
-      .limit(1)
-
-    if (!contact) return { data: null, error: 'Contact not found' }
-    if (!await verifySiteOwnership(contact.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedContactSiteId(contactId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     const rows = await db
       .select({
@@ -902,21 +883,8 @@ export async function getContactClickedLinks(
   contactId: string
 ): Promise<{ data: { id: string; linkUrl: string; newsletterSubject: string | null; createdAt: string }[] | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(contactId)) return { data: null, error: 'Invalid contact ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [contact] = await db
-      .select({ siteId: newsletterContacts.siteId })
-      .from(newsletterContacts)
-      .where(eq(newsletterContacts.id, contactId))
-      .limit(1)
-
-    if (!contact) return { data: null, error: 'Contact not found' }
-    if (!await verifySiteOwnership(contact.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedContactSiteId(contactId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     const rows = await db
       .select({
@@ -957,21 +925,8 @@ export async function getContactEngagementOverTime(
   contactId: string
 ): Promise<{ data: { month: string; opens: number; clicks: number }[] | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(contactId)) return { data: null, error: 'Invalid contact ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [contact] = await db
-      .select({ siteId: newsletterContacts.siteId })
-      .from(newsletterContacts)
-      .where(eq(newsletterContacts.id, contactId))
-      .limit(1)
-
-    if (!contact) return { data: null, error: 'Contact not found' }
-    if (!await verifySiteOwnership(contact.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedContactSiteId(contactId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     const rows = await db.execute<{ month: string; opens: number; clicks: number }>(sql`
       with engagement_events as (

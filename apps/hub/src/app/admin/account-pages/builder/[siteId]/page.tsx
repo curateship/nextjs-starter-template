@@ -31,7 +31,6 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   const { currentSite, sites, setCurrentSite } = useSiteSwitcher()
   const [pages, setPages] = useState<AccountPage[]>([])
   const [pagesLoading, setPagesLoading] = useState(true)
-  const [pagesError, setPagesError] = useState<string | null>(null)
 
   const pageFromUrl = searchParams.get('page') || ''
   const [selectedPage, setSelectedPage] = useState(pageFromUrl)
@@ -62,16 +61,13 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
     async function loadPages() {
       try {
         setPagesLoading(true)
-        setPagesError(null)
         const { data, error } = await getAccountPagesAction(siteId, { selectedSlug: pageFromUrl })
         if (error) {
-          setPagesError(error)
           return
         }
         setPages(data || [])
 
-      } catch (err) {
-        setPagesError('Failed to load account pages')
+      } catch {
       } finally {
         setPagesLoading(false)
       }
@@ -101,7 +97,7 @@ export default function AccountPageBuilderPage({ params }: { params: Promise<{ s
   }, [pageFromUrl, pages, router, selectedPage, siteId])
 
   // Custom hooks for data and state management
-  const { site, pages: dataPages, blocks, configLoading, blocksLoading, configError, reloadBlocks } = useAccountPageData(siteId, selectedPage)
+  const { site, pages: dataPages, blocks, blocksLoading, reloadBlocks } = useAccountPageData(siteId, selectedPage)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change

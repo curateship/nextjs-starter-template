@@ -358,7 +358,6 @@ export function Footer({
   onContentChange,
   onContentPersist,
   siteFavicon,
-  siteName = "Your Site",
   onBack
 }: FooterProps) {
   const [showPicker, setShowPicker] = useState(false)

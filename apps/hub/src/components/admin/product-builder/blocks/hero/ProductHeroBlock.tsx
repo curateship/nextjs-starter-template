@@ -10,7 +10,7 @@ import { Check } from "lucide-react"
 import { useEffect, useCallback } from "react"
 import { HERO_STYLES } from "."
 import { cn } from "@/lib/utils/tailwind"
-import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { PRODUCT_EMAIL_MODAL_HREF } from "@/lib/actions/products/email-modal"
 

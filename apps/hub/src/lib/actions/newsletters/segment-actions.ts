@@ -36,6 +36,26 @@ async function verifySiteOwnership(siteId: string, userId: string) {
   return !!site
 }
 
+async function getAuthorizedSegmentSiteId(segmentId: string) {
+  if (!UUID_REGEX.test(segmentId)) return { siteId: null, error: 'Invalid ID' }
+
+  const user = await getAuthenticatedUser()
+  if (!user) return { siteId: null, error: 'Not authenticated' }
+
+  const [segment] = await db
+    .select({ siteId: newsletterSegments.siteId })
+    .from(newsletterSegments)
+    .where(eq(newsletterSegments.id, segmentId))
+    .limit(1)
+
+  if (!segment) return { siteId: null, error: 'Segment not found' }
+  if (!await verifySiteOwnership(segment.siteId, user.id)) {
+    return { siteId: null, error: 'Access denied' }
+  }
+
+  return { siteId: segment.siteId, error: null }
+}
+
 function rowToSegment(row: any): Segment {
   return {
     id: row.id,
@@ -789,21 +809,8 @@ export async function getSegmentStats(
   segmentId: string
 ): Promise<{ data: { totalContacts: number; totalSent: number; totalOpened: number; totalClicked: number; openRate: number; clickRate: number; unsubscribeRate: number } | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
-      .from(newsletterSegments)
-      .where(eq(newsletterSegments.id, segmentId))
-      .limit(1)
-
-    if (!segment) return { data: null, error: 'Segment not found' }
-    if (!await verifySiteOwnership(segment.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedSegmentSiteId(segmentId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     const [contactStats, eventStats] = await Promise.all([
       db
@@ -849,21 +856,8 @@ export async function getSegmentContacts(
   pageSize = 20
 ): Promise<{ data: { id: string; email: string; status: string; metadata: any; createdAt: string }[] | null; total: number; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(segmentId)) return { data: null, total: 0, error: 'Invalid ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, total: 0, error: 'Not authenticated' }
-
-    const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
-      .from(newsletterSegments)
-      .where(eq(newsletterSegments.id, segmentId))
-      .limit(1)
-
-    if (!segment) return { data: null, total: 0, error: 'Segment not found' }
-    if (!await verifySiteOwnership(segment.siteId, user.id)) {
-      return { data: null, total: 0, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedSegmentSiteId(segmentId)
+    if (authResult.error) return { data: null, total: 0, error: authResult.error }
 
     const safePage = Math.max(1, Math.floor(page))
     const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
@@ -912,21 +906,8 @@ export async function getSegmentEngagementOverTime(
   segmentId: string
 ): Promise<{ data: { month: string; opens: number; clicks: number }[] | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
-      .from(newsletterSegments)
-      .where(eq(newsletterSegments.id, segmentId))
-      .limit(1)
-
-    if (!segment) return { data: null, error: 'Segment not found' }
-    if (!await verifySiteOwnership(segment.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedSegmentSiteId(segmentId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     const rows = await db.execute<{ month: string; opens: number; clicks: number }>(sql`
       with engagement_events as (
@@ -970,21 +951,8 @@ export async function getSegmentNewsletters(
   segmentId: string
 ): Promise<{ data: { id: string; name: string; subject: string; status: string; sentAt: string | null; totalSent: number; totalOpened: number; totalClicked: number }[] | null; error: string | null }> {
   try {
-    if (!UUID_REGEX.test(segmentId)) return { data: null, error: 'Invalid ID' }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    const [segment] = await db
-      .select({ siteId: newsletterSegments.siteId })
-      .from(newsletterSegments)
-      .where(eq(newsletterSegments.id, segmentId))
-      .limit(1)
-
-    if (!segment) return { data: null, error: 'Segment not found' }
-    if (!await verifySiteOwnership(segment.siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
+    const authResult = await getAuthorizedSegmentSiteId(segmentId)
+    if (authResult.error) return { data: null, error: authResult.error }
 
     // Find newsletters where audience_filter->>'segment_id' matches this segment
     const rows = await db
@@ -1006,7 +974,7 @@ export async function getSegmentNewsletters(
         eq(newsletterSourceStats.stepOrder, 0),
       ))
       .where(and(
-        eq(newsletters.siteId, segment.siteId),
+        eq(newsletters.siteId, authResult.siteId!),
         sql`${newsletters.audienceFilter}->>'segment_id' = ${segmentId}`,
       ))
       .orderBy(desc(newsletters.sentAt))

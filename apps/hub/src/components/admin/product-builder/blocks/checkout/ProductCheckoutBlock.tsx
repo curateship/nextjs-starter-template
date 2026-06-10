@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BlockTabs } from "@/components/ui/tabs"
 import { Plus, Trash2, GripVertical, Bold, Italic, List, ListOrdered, Heading2, Heading3 } from "lucide-react"
-import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { useEffect, useRef, useState } from "react"
 import { OrderBumpsModal } from "@/components/admin/product-builder/layout/OrderBumpsModal"
 import { useEditor, EditorContent } from '@tiptap/react'

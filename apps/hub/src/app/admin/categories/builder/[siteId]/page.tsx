@@ -87,7 +87,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   }, [categories, router, selectedCategory, siteId, urlCategory])
 
   // Custom hooks for data and state management
-  const { site, blocks, blocksLoading, siteError } = useCategoryData(siteId, selectedCategory)
+  const { site, blocks, blocksLoading } = useCategoryData(siteId, selectedCategory)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change

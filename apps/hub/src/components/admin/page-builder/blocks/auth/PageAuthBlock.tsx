@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select"
 import { BlockEditorSection, BlockTabs } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
-import { VisibilitySettings } from "../shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 interface PageAuthBlockProps {
   defaultTab?: "login" | "register"

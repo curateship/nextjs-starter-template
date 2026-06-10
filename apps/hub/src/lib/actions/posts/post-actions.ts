@@ -30,23 +30,6 @@ export interface Post {
   updated_at: string
 }
 
-export interface PostWithDetails extends Post {
-  site_name: string
-  subdomain: string
-  user_id: string
-  block_count: number
-}
-
-export interface CreatePostData {
-  title: string
-  slug?: string
-  meta_description?: string
-  featured_image?: string
-  excerpt?: string
-  content_blocks?: Record<string, PostBlock>
-  is_published?: boolean
-}
-
 export interface UpdatePostData {
   title?: string
   slug?: string
@@ -232,54 +215,6 @@ export async function getSitePostsWithCategoriesAction(
     return { data: null, categories: {}, total: 0, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
   }
 }
-
-/**
- * Get a single post by ID
- */
-export async function getPostByIdAction(postId: string): Promise<{ data: Post | null; error: string | null }> {
-  try {
-    // Validate post ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(postId)) {
-      return { data: null, error: 'Invalid post ID format' }
-    }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the post
-    const [post] = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.id, postId))
-
-    if (!post) {
-      return { data: null, error: 'Post not found' }
-    }
-
-    // Now verify the user owns the site this post belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
-
-    return { data: rowToPost(post), error: null }
-  } catch (error) {
-    return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-
 
 /**
  * Update an existing post
@@ -622,42 +557,6 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
 }
 
 /**
- * Get post blocks for a specific post
- */
-export async function getPostBlocksAction(postId: string): Promise<{ data: Record<string, PostBlock> | null; error: string | null }> {
-  try {
-    // Validate post ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(postId)) {
-      return { data: null, error: 'Invalid post ID format' }
-    }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get content_blocks directly from posts table
-    const [post] = await db
-      .select({ contentBlocks: posts.contentBlocks })
-      .from(posts)
-      .where(eq(posts.id, postId))
-
-    if (!post) {
-      return { data: null, error: 'Post not found' }
-    }
-
-    return { data: (post.contentBlocks || {}) as Record<string, PostBlock>, error: null }
-  } catch (error) {
-    return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
  * Update post blocks for a specific post
  */
 export async function updatePostBlocksAction(postId: string, blocks: Record<string, PostBlock>): Promise<{ success: boolean; error: string | null }> {
@@ -727,85 +626,6 @@ export async function updatePostBlocksAction(postId: string, blocks: Record<stri
     revalidatePostFrontend(post.siteId, postId)
 
     return { success: true, error: null }
-  } catch (error) {
-    return {
-      success: false,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
- * Add a new block to a post
- */
-export async function addPostBlockAction(
-  postId: string,
-  blockType: PostBlock['type'],
-  blockContent: Record<string, any>
-): Promise<{ data: PostBlock | null; error: string | null }> {
-  try {
-    // Get current blocks
-    const { data: currentBlocks, error: getError } = await getPostBlocksAction(postId)
-    if (getError) {
-      return { data: null, error: getError }
-    }
-
-    // Create new block
-    const blockId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
-    const existingBlocks = Object.values(currentBlocks || {})
-    const maxOrder = existingBlocks.length > 0
-      ? Math.max(...existingBlocks.map(b => b.display_order))
-      : 0
-
-    const newBlock: PostBlock = {
-      id: blockId,
-      type: blockType,
-      content: blockContent,
-      display_order: maxOrder + 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-
-    // Update blocks with new block
-    const updatedBlocks = {
-      ...(currentBlocks || {}),
-      [blockId]: newBlock
-    }
-
-    const { success, error } = await updatePostBlocksAction(postId, updatedBlocks)
-    if (!success) {
-      return { data: null, error }
-    }
-
-    return { data: newBlock, error: null }
-  } catch (error) {
-    return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
- * Delete a block from a post
- */
-export async function deletePostBlockAction(postId: string, blockId: string): Promise<{ success: boolean; error: string | null }> {
-  try {
-    // Get current blocks
-    const { data: currentBlocks, error: getError } = await getPostBlocksAction(postId)
-    if (getError) {
-      return { success: false, error: getError }
-    }
-
-    if (!currentBlocks || !currentBlocks[blockId]) {
-      return { success: false, error: 'Block not found' }
-    }
-
-    // Remove the block
-    const { [blockId]: removed, ...updatedBlocks } = currentBlocks
-
-    const { success, error } = await updatePostBlocksAction(postId, updatedBlocks)
-    return { success, error }
   } catch (error) {
     return {
       success: false,

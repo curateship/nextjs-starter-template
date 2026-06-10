@@ -1,7 +1,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { Slot } from "@radix-ui/react-slot"
-import { ChevronRight, MoreHorizontal } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 
 import { cn } from "@/lib/utils/tailwind"
 
@@ -91,58 +91,6 @@ function BreadcrumbSeparator({
   )
 }
 
-function BreadcrumbEllipsis({
-  className,
-  ...props
-}: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="breadcrumb-ellipsis"
-      role="presentation"
-      aria-hidden="true"
-      className={cn("flex size-9 items-center justify-center", className)}
-      {...props}
-    >
-      <MoreHorizontal className="size-4" />
-      <span className="sr-only">More</span>
-    </span>
-  )
-}
-
-interface BreadcrumbNavigationProps {
-  items: Array<{
-    href?: string
-    label: string
-    isPage?: boolean
-  }>
-  className?: string
-}
-
-function BreadcrumbNavigation({ items, className }: BreadcrumbNavigationProps) {
-  return (
-    <Breadcrumb className={className}>
-      <BreadcrumbList>
-        {items.map((item, index) => (
-          <div key={index} className="flex items-center">
-            <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
-              {item.isPage ? (
-                <BreadcrumbPage>{item.label}</BreadcrumbPage>
-              ) : (
-                <BreadcrumbLink href={item.href || "#"}>
-                  {item.label}
-                </BreadcrumbLink>
-              )}
-            </BreadcrumbItem>
-            {index < items.length - 1 && (
-              <BreadcrumbSeparator className="hidden md:block" />
-            )}
-          </div>
-        ))}
-      </BreadcrumbList>
-    </Breadcrumb>
-  )
-}
-
 export {
   Breadcrumb,
   BreadcrumbList,
@@ -150,6 +98,4 @@ export {
   BreadcrumbLink,
   BreadcrumbPage,
   BreadcrumbSeparator,
-  BreadcrumbEllipsis,
-  BreadcrumbNavigation,
 }

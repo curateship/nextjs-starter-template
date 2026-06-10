@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { BlockTabs } from "@/components/ui/tabs"
-import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { normalizeProductEmailModalContent } from "@/lib/actions/products/email-modal"
 
 interface ProductEmailModalBlockProps {

@@ -318,14 +318,6 @@ export default function SiteUsersPage() {
     }))
   }
 
-  function removeAppliedRule(ruleId: string) {
-    setFilters((prev) => ({
-      ...prev,
-      rules: prev.rules.filter((rule) => rule.id !== ruleId)
-    }))
-    resetSelectionForCurrentView()
-  }
-
   function togglePendingValue(ruleId: string, value: string) {
     updatePendingRule(ruleId, (rule) => {
       if (!isValueRule(rule)) return rule

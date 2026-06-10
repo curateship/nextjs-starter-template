@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 import { normalizePageRichTextContent } from "@/components/admin/page-builder/config/page-block-utils"
 import { Card, CardGroup, CardContent } from "@/components/ui/card"
 import { BlockTabs } from "@/components/ui/tabs"

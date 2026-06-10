@@ -4,7 +4,7 @@ import { Card, CardGroup, CardContent, CardHeader, CardTitle } from "@/component
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 export type RelatedPostsBlockTab = "content" | "styling" | "settings"
 

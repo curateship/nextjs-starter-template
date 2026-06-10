@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Settings } from "lucide-react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import { useInlinePreviewEditing } from "@/components/admin/layout/builder/useInlinePreviewEditing"
 import { ProductBlockRenderer } from "@/components/frontend/products/ProductBlockRenderer"
 import { Button } from "@/components/ui/button"
 import {
@@ -71,7 +72,12 @@ export function ProductPreview({
   onUpdateLeadMagnetBody,
 }: ProductPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const { editingBlockId, setEditingBlockId } = useInlinePreviewEditing({
+    blocks,
+    selectedBlock,
+    editableType: "product-lead-magnet",
+    editorShellSelector: '[data-product-inline-editor-shell="true"]',
+  })
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
   const canInlineEdit = Boolean(onUpdateLeadMagnetBody && onSelectBlock)
@@ -102,47 +108,6 @@ export function ProductPreview({
       cancelled = true
     }
   }, [product?.id, product?.updated_at, site?.settings?.breadcrumbs?.products])
-
-  useEffect(() => {
-    if (selectedBlock) {
-      setEditingBlockId(null)
-    }
-  }, [selectedBlock])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const editingBlock = blocks.find((block) => block.id === editingBlockId)
-    if (!editingBlock || editingBlock.type !== "product-lead-magnet") {
-      setEditingBlockId(null)
-    }
-  }, [blocks, editingBlockId])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      const targetElement =
-        target instanceof Element ? target : target instanceof Node ? target.parentElement : null
-
-      if (!targetElement) return
-
-      if (
-        targetElement.closest('[data-product-inline-editor-shell="true"]') ||
-        targetElement.closest('[data-newsletter-inline-editor-menu="true"]') ||
-        targetElement.closest('[data-media-picker-dialog="true"]') ||
-        targetElement.closest('[data-newsletter-inline-link-dialog="true"]')
-      ) {
-        return
-      }
-
-      setEditingBlockId(null)
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown)
-    return () => document.removeEventListener("pointerdown", handlePointerDown)
-  }, [editingBlockId])
 
   const previewProduct: ProductWithBlocks = {
     id: product?.id || "preview",

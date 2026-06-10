@@ -7,7 +7,7 @@ import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRi
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils/tailwind"
 import { CORE_STYLES } from "./core-styles"
-import { VisibilitySettings } from "@/components/admin/page-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 export type CoreBlockTab = "content" | "styling" | "settings"
 

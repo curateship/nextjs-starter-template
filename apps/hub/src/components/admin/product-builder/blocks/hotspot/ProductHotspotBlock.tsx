@@ -14,7 +14,7 @@ import { Plus, Trash2, ImageIcon } from "lucide-react"
 import { useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import type { Hotspot } from "@/components/frontend/products/hotspot/ProductHotspotBlock"
-import { VisibilitySettings } from "@/components/admin/product-builder/blocks/shared/VisibilitySettings"
+import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
 
 interface ProductHotspotBlockProps {
   header?: string

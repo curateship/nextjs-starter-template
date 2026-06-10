@@ -107,22 +107,6 @@ function MenuLink({ link }: { link: DirectoryCoreMenuLink }) {
   )
 }
 
-function formatDirectoryAddress(address?: string | null) {
-  const parts = (address || "").split(",").map((part) => part.trim()).filter(Boolean)
-  const countryNames = ["united states", "usa", "us", "canada", "ca"]
-
-  return parts
-    .filter((part, index) => index !== parts.length - 1 || !countryNames.includes(part.toLowerCase()))
-    .map((part) => part
-      .replace(/\b[A-Z]\d[A-Z][ -]?\d[A-Z]\d\b/gi, "")
-      .replace(/\b\d{5}(?:-\d{4})?\b/g, "")
-      .replace(/\s{2,}/g, " ")
-      .trim()
-    )
-    .filter(Boolean)
-    .join(", ")
-}
-
 export function DirectoryCoreBlock({ content, directory, loginPath, siteId, cardProps }: DirectoryCoreBlockProps) {
   const visibility =
     content?.visibility && typeof content.visibility === "object" ? (content.visibility as Record<string, boolean>) : {}
@@ -134,7 +118,6 @@ export function DirectoryCoreBlock({ content, directory, loginPath, siteId, card
         .map((link, index) => normalizeDirectoryCoreSocialLink(link, index))
         .filter((link): link is DirectoryCoreSocialLink => !!link)
     : []
-  const address = formatDirectoryAddress(typeof content?.address === "string" ? content.address : "")
   const configuredMenuLinks = Array.isArray(content?.menuLinks)
     ? content.menuLinks
         .map((link, index) => normalizeDirectoryCoreMenuLink(link, index))

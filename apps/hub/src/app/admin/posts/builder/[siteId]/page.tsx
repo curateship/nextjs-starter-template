@@ -32,7 +32,6 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
   const [posts, setPosts] = useState<Post[]>([])
   const [site, setSite] = useState<SiteWithTheme | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [localBlocks, setLocalBlocks] = useState<Record<string, PostBlock>>({})
 
   
@@ -62,12 +61,10 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
     async function loadData() {
       try {
         setLoading(true)
-        setError(null)
         
         // Load site data
         const siteResult = await getSiteByIdAction(siteId)
         if (!siteResult.data) {
-          setError(siteResult.error || 'Failed to load site')
           return
         }
         setSite(siteResult.data)
@@ -75,14 +72,12 @@ export default function PostBuilderEditor({ params }: { params: Promise<{ siteId
         // Load posts data
         const postsResult = await getSitePostsAction(siteId, { selectedSlug: postFromUrl })
         if (!postsResult.data) {
-          setError(postsResult.error || 'Failed to load posts')
           return
         }
         
         setPosts(postsResult.data)
         
-      } catch (err) {
-        setError('Failed to load data')
+      } catch {
       } finally {
         setLoading(false)
       }

@@ -23,21 +23,6 @@ export interface Product {
   updated_at: string
 }
 
-export interface ProductWithDetails extends Product {
-  site_name: string
-  subdomain: string
-  user_id: string
-}
-
-export interface CreateProductData {
-  title: string
-  slug?: string
-  is_published?: boolean
-  featured_image?: string | null
-  meta_description?: string | null
-  content_blocks?: Record<string, any>
-}
-
 export interface UpdateProductData {
   title?: string
   slug?: string
@@ -212,90 +197,6 @@ export async function getSiteProductsWithCategoriesAction(
     return { data: productRows, categories: categoryMap, total: countResult?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: `Server error: ${error instanceof Error ? error.message : String(error)}` }
-  }
-}
-
-/**
- * Get a single product by ID
- */
-export async function getProductByIdAction(productId: string): Promise<{ data: Product | null; error: string | null }> {
-  try {
-    // Validate product ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(productId)) {
-      return { data: null, error: 'Invalid product ID format' }
-    }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    const result = await db.execute<{
-      id: string
-      site_id: string
-      title: string
-      slug: string
-      is_published: boolean
-      display_order: number
-      content_blocks: Record<string, any>
-      featured_image: string | null
-      meta_description: string | null
-      created_at: string
-      updated_at: string
-    }>(sql`SELECT * FROM products WHERE id = ${productId} LIMIT 1`)
-
-    const product = result.rows?.[0]
-    if (!product) {
-      return { data: null, error: 'Product not found' }
-    }
-
-    // Now verify the user owns the site this product belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, product.site_id), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
-
-    return { data: serializeProduct(product), error: null }
-  } catch (error) {
-    return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
- * Get a product by slug (for public access, no auth required)
- */
-export async function getProductBySlug(slug: string): Promise<Product | null> {
-  try {
-    const result = await db.execute<{
-      id: string
-      site_id: string
-      title: string
-      slug: string
-      is_published: boolean
-      display_order: number
-      content_blocks: Record<string, any>
-      featured_image: string | null
-      meta_description: string | null
-      created_at: string
-      updated_at: string
-    }>(sql`SELECT * FROM products WHERE slug = ${slug} AND is_published = true LIMIT 1`)
-
-    const product = result.rows?.[0]
-    if (!product) return null
-
-    return serializeProduct(product)
-  } catch (error) {
-    console.error('Error fetching product by slug:', error)
-    return null
   }
 }
 

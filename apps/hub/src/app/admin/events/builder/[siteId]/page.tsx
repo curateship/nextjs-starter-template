@@ -85,7 +85,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   }, [eventFromUrl, events, router, selectedEvent, siteId])
 
   // Custom hooks for data and state management
-  const { site, blocks, blocksLoading, siteError } = useEventData(siteId, selectedEvent)
+  const { site, blocks, blocksLoading } = useEventData(siteId, selectedEvent)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
   // Update local blocks when server blocks change

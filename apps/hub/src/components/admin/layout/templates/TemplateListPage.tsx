@@ -106,7 +106,6 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
-  const [searchQuery, setSearchQuery] = useState("")
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [formName, setFormName] = useState("")
   const [creating, setCreating] = useState(false)
@@ -184,16 +183,12 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     loadTemplates()
   }
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
-  const filteredTemplates = normalizedSearchQuery
-    ? templates.filter((template) => template.name.toLowerCase().includes(normalizedSearchQuery))
-    : templates
-  const deletableTemplates = filteredTemplates.filter((template) => !template.is_default)
+  const deletableTemplates = templates.filter((template) => !template.is_default)
   const deletableTemplateIds = deletableTemplates.map((template) => template.id)
-  const selectableTotal = normalizedSearchQuery ? deletableTemplates.length : Math.max(0, total - (total > 0 ? 1 : 0))
+  const selectableTotal = Math.max(0, total - (total > 0 ? 1 : 0))
   const pageSelectionChecked = templateSelection.isPageSelected(deletableTemplateIds)
 
-  const sortedTemplates = [...filteredTemplates].sort((a, b) => {
+  const sortedTemplates = [...templates].sort((a, b) => {
     if (!templateSort.sortColumn) return 0
     const dir = templateSort.sortDirection === "asc" ? 1 : -1
     if (templateSort.sortColumn === "name") return a.name.localeCompare(b.name) * dir
@@ -221,11 +216,6 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
     }
     templateSelection.remove(templateId)
     loadTemplates()
-  }
-
-  function handleSearchChange(value: string) {
-    setSearchQuery(value)
-    templateSelection.clearSelection()
   }
 
   function handlePageChange(page: number) {
@@ -260,7 +250,7 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
           <AdminTableShell
             title="Templates"
             icon={<FileText className="size-4 text-muted-foreground sm:size-[18px]" />}
-            count={filteredTemplates.length}
+            count={templates.length}
             selectedCount={templateSelection.selectedCount}
             onClearSelection={templateSelection.clearSelection}
             titleActions={
@@ -341,12 +331,12 @@ export function TemplateListPage<TTemplate extends AdminTemplateRecord>({
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ) : filteredTemplates.length === 0 ? (
+                  ) : templates.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="h-32 text-center">
                         <FileText className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
                         <p className="mb-4 text-muted-foreground">
-                          {normalizedSearchQuery ? "No templates match your search." : emptyText}
+                          {emptyText}
                         </p>
                         <Button onClick={openCreateModal} variant="outline">
                           Create Template

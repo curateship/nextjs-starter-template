@@ -46,7 +46,7 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarInput,
-} from "@/components/ui/sidebar"
+} from "@/components/admin/layout/sidebar/Sidebar"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils/tailwind"
 import {
@@ -577,7 +577,6 @@ function ThreadDetail({ mail }: { mail: MailItem | null }) {
 
 export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
   const [data, setData] = useState<MailDashboardData | null>(null)
-  const [loading, setLoading] = useState(true)
   const [activeFolder, setActiveFolder] = useState<FolderId>("inbox")
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [mails, setMails] = useState<MailItem[]>(dummyMails)
@@ -585,11 +584,9 @@ export function MailAccountsDashboard({ siteId }: MailAccountsDashboardProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const loadData = useCallback(async () => {
-    setLoading(true)
     const result = await getMailDashboardAction(siteId)
     if (result.error) toast.error(result.error)
     setData(result.data)
-    setLoading(false)
   }, [siteId])
 
   useEffect(() => {

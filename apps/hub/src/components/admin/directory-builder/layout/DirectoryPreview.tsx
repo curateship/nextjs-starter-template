@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Settings } from "lucide-react"
 import { BuilderPreviewShell } from "@/components/admin/layout/builder/BuilderPreviewShell"
 import { InlineRichTextEditor } from "@/components/admin/layout/builder/InlineRichTextEditor"
+import { useInlinePreviewEditing } from "@/components/admin/layout/builder/useInlinePreviewEditing"
 import { DirectoryBlockRenderer } from "@/components/frontend/directories/DirectoryBlockRenderer"
 import { Button } from "@/components/ui/button"
 import {
@@ -75,7 +76,12 @@ export function DirectoryPreview({
   previewBreadcrumbs,
 }: DirectoryPreviewProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<FrontendBreadcrumbItem[]>([])
-  const [editingBlockId, setEditingBlockId] = useState<string | null>(null)
+  const { editingBlockId, setEditingBlockId } = useInlinePreviewEditing({
+    blocks,
+    selectedBlock,
+    editableType: "directory-rich-text",
+    editorShellSelector: '[data-directory-inline-editor-shell="true"]',
+  })
   const previewBlocks = normalizePreviewBlocks(blocks)
   const previewSite = createPreviewSite(previewBlocks, site)
   const templateMap = Object.fromEntries(customBlockTemplates.map(template => [template.id, template]))
@@ -116,47 +122,6 @@ export function DirectoryPreview({
       cancelled = true
     }
   }, [directory?.id, directory?.updated_at, previewBreadcrumbs, site?.settings?.breadcrumbs?.directories])
-
-  useEffect(() => {
-    if (selectedBlock) {
-      setEditingBlockId(null)
-    }
-  }, [selectedBlock])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const editingBlock = blocks.find((block) => block.id === editingBlockId)
-    if (!editingBlock || editingBlock.type !== "directory-rich-text") {
-      setEditingBlockId(null)
-    }
-  }, [blocks, editingBlockId])
-
-  useEffect(() => {
-    if (!editingBlockId) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target
-      const targetElement =
-        target instanceof Element ? target : target instanceof Node ? target.parentElement : null
-
-      if (!targetElement) return
-
-      if (
-        targetElement.closest('[data-directory-inline-editor-shell="true"]') ||
-        targetElement.closest('[data-newsletter-inline-editor-menu="true"]') ||
-        targetElement.closest('[data-media-picker-dialog="true"]') ||
-        targetElement.closest('[data-newsletter-inline-link-dialog="true"]')
-      ) {
-        return
-      }
-
-      setEditingBlockId(null)
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown)
-    return () => document.removeEventListener("pointerdown", handlePointerDown)
-  }, [editingBlockId])
 
   const previewDirectory = {
     id: directory?.id || "preview",
