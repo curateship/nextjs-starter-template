@@ -266,21 +266,7 @@ export function ProductListingViewBlock({ content, siteId, siteSubdomain, urlPre
         </div>
 
         {loading || (data && !dataMatchesPage) ? (
-          <div className={`grid ${gridColumns} gap-8`}>
-            {Array.from({ length: isPaginated ? itemsPerPage : itemsToShow }, (_, i) => (
-              <div key={i} className="animate-pulse">
-                {showImageElement && (
-                  <div className="bg-muted rounded-md aspect-square mb-4"></div>
-                )}
-                {showTitleElement && (
-                  <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>
-                )}
-                {showDescriptionElement && (
-                  <div className="h-4 bg-muted rounded w-full"></div>
-                )}
-              </div>
-            ))}
-          </div>
+          null
         ) : products.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             No products available at the moment.

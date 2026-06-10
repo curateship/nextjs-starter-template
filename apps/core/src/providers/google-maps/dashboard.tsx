@@ -549,12 +549,14 @@ function RunSettingsDialog({
                   <>
                     <div className="grid gap-2 sm:col-span-2">
                       <Label htmlFor="maps-urls">Google Maps URLs</Label>
-                      <Textarea
-                        id="maps-urls"
-                        className="min-h-28 shadow-none"
-                        value={form.urls}
-                        onChange={(event) => onChange({ ...form, urls: event.target.value })}
-                      />
+                      <ScrollArea type="hover" className="h-80 min-h-28 resize-y overflow-hidden rounded-md border">
+                        <AutoHeightTextarea
+                          id="maps-urls"
+                          className="min-h-28 border-0 focus-visible:ring-0"
+                          value={form.urls}
+                          onChange={(event) => onChange({ ...form, urls: event.target.value })}
+                        />
+                      </ScrollArea>
                     </div>
                     <div className="flex items-center gap-2 py-2 sm:col-span-2">
                       <Checkbox id="skip-known-urls" checked={form.skipKnownUrls} onCheckedChange={(checked) => onChange({ ...form, skipKnownUrls: checked === true })} />

@@ -174,7 +174,6 @@ export function ListingViewsBlock({
   const dataMatchesPage = Boolean(data && (!isPaginated || data.currentPage === currentPage))
   const displayedData = dataMatchesPage ? data : null
   const listingItems = displayedData?.items || displayedData?.products || displayedData?.posts || displayedData?.directories || []
-  const skeletonCount = isPaginated ? itemsPerPage : itemsToShow
   const emptyMessage =
     contentType === "posts"
       ? "No posts available at the moment."
@@ -512,16 +511,6 @@ export function ListingViewsBlock({
     return (
       <BlockContainer siteWidth={siteWidth} customWidth={customWidth}>
         {renderHeader("mb-6 md:mb-12")}
-
-        <div className={`grid ${gridColumns} gap-4 md:gap-8`}>
-          {Array.from({ length: skeletonCount }, (_, i) => (
-            <div key={i} className="animate-pulse">
-              {showImageElement && <div className="bg-muted rounded-md aspect-square mb-4"></div>}
-              {showTitleElement && <div className="h-6 bg-muted rounded w-3/4 mb-2"></div>}
-              {showDescriptionElement && <div className="h-4 bg-muted rounded w-full"></div>}
-            </div>
-          ))}
-        </div>
       </BlockContainer>
     )
   }
