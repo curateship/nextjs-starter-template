@@ -9,11 +9,16 @@ import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
 import { StructuredData } from "@/components/frontend/seo/StructuredData"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
-import { shouldShowFrontendBreadcrumbs } from "@/lib/actions/categories/frontend-breadcrumb-actions"
-import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import {
+  getContentBreadcrumbItems,
+  shouldShowFrontendBreadcrumbs,
+} from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { safeDecrypt } from "@/lib/utils/encryption"
-import { mergeDirectoryTemplateBlocks } from "@/lib/actions/directories/directory-template-inheritance"
+import {
+  getDirectoryTemplateDefaultCategoryParentId,
+  mergeDirectoryTemplateBlocks,
+} from "@/lib/actions/directories/directory-template-inheritance"
 
 interface DirectoryPageProps {
   params: Promise<{
@@ -95,44 +100,10 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
           from directory_custom_blocks dcb
           inner join template_ids ti on ti.id = dcb.id::text
           where dcb.site_id = ${siteId}
-        ),
-        primary_category as (
-          select c.id
-          from directory_row d
-          inner join category_relationships cr
-            on cr.content_id = d.id
-            and cr.content_type = 'directory'
-            and cr.is_primary = true
-          inner join categories c on c.id = cr.category_id
-          where c.site_id = ${siteId}
-            and c.is_published = true
-          limit 1
-        ),
-        category_trail as (
-          select c.id, c.title, c.slug, c.parent_id, 0 as depth
-          from categories c
-          inner join primary_category pc on pc.id = c.id
-          where c.site_id = ${siteId}
-            and c.is_published = true
-          union all
-          select parent.id, parent.title, parent.slug, parent.parent_id, category_trail.depth + 1
-          from categories parent
-          inner join category_trail on parent.id = category_trail.parent_id
-          where parent.site_id = ${siteId}
-            and parent.is_published = true
-            and category_trail.depth < 20
-        ),
-        breadcrumb_items as (
-          select coalesce(jsonb_agg(jsonb_build_object(
-            'label', title,
-            'href', '/categories/' || slug
-          ) order by depth desc), '[]'::jsonb) as data
-          from category_trail
         )
         select
           to_jsonb(directory_row) as directory,
-          (select data from custom_templates) as "customBlockTemplates",
-          (select data from breadcrumb_items) as breadcrumbs
+          (select data from custom_templates) as "customBlockTemplates"
         from directory_row
       `)
 
@@ -161,7 +132,7 @@ function getCachedDirectoryPageData(siteId: string, slug: string) {
 
       return row
     },
-    ['directory-page-data', siteId, slug],
+    ['directory-page-data-v2', siteId, slug],
     {
       revalidate: false,
       tags: ['directory', 'categories', 'content-categories', `site-${siteId}`, 'all'],
@@ -200,11 +171,14 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
   }
 
   const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
-  const categoryBreadcrumbs = Array.isArray(pageData.breadcrumbs)
-    ? pageData.breadcrumbs as FrontendBreadcrumbItem[]
-    : []
-  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'directories') && categoryBreadcrumbs.length > 0
-    ? [...categoryBreadcrumbs, { label: directory.title }]
+  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'directories')
+    ? await getContentBreadcrumbItems({
+        siteId: site.id,
+        contentId: directory.id,
+        contentType: 'directory',
+        currentLabel: directory.title,
+        rootCategoryId: getDirectoryTemplateDefaultCategoryParentId(directory.contentBlocks || {}),
+      })
     : []
   const googleMapsApiKey = needsGoogleMapsConfig && pageData.googleMapsApiKey
     ? safeDecrypt(pageData.googleMapsApiKey)

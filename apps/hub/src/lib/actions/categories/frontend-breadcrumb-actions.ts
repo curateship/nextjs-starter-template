@@ -62,32 +62,49 @@ export async function getContentBreadcrumbItems({
   contentId,
   contentType,
   currentLabel,
+  rootCategoryId,
 }: {
   siteId: string
   contentId: string
   contentType: BreadcrumbContentType
   currentLabel: string
+  rootCategoryId?: string | null
 }): Promise<FrontendBreadcrumbItem[]> {
   return unstable_cache(
     async () => {
-      const [primaryCategory] = await db
+      const assignedCategories = await db
         .select({
           id: categories.id,
+          isPrimary: contentCategoryRelationships.isPrimary,
         })
         .from(contentCategoryRelationships)
         .innerJoin(categories, eq(contentCategoryRelationships.categoryId, categories.id))
         .where(and(
           eq(contentCategoryRelationships.contentId, contentId),
           eq(contentCategoryRelationships.contentType, contentType),
-          eq(contentCategoryRelationships.isPrimary, true),
           eq(categories.siteId, siteId),
           eq(categories.isPublished, true)
         ))
-        .limit(1)
 
-      if (!primaryCategory) return []
+      if (assignedCategories.length === 0) return []
 
-      const categoryTrail = await getPublishedCategoryTrail(siteId, primaryCategory.id)
+      const sortedCategories = [...assignedCategories].sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary))
+      let categoryTrail: CategoryTrailItem[] = []
+
+      for (const category of sortedCategories) {
+        const trail = await getPublishedCategoryTrail(siteId, category.id)
+        const rootIndex = rootCategoryId ? trail.findIndex((item) => item.id === rootCategoryId) : -1
+
+        if (!rootCategoryId || rootIndex >= 0) {
+          categoryTrail = rootIndex >= 0 ? trail.slice(rootIndex) : trail
+          break
+        }
+      }
+
+      if (categoryTrail.length === 0) {
+        categoryTrail = await getPublishedCategoryTrail(siteId, sortedCategories[0].id)
+      }
+
       if (categoryTrail.length === 0) return []
 
       return [
@@ -98,7 +115,7 @@ export async function getContentBreadcrumbItems({
         { label: currentLabel },
       ]
     },
-    ['content-breadcrumb-items', siteId, contentType, contentId, currentLabel],
+    ['content-breadcrumb-items-v2', siteId, contentType, contentId, currentLabel, rootCategoryId || ''],
     {
       revalidate: false,
       tags: ['categories', 'content-categories', `${contentType}-${contentId}`, `site-${siteId}`, 'all'],

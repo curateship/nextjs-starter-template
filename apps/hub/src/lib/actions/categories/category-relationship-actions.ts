@@ -1,9 +1,9 @@
 'use server'
 
-import { eq, and, inArray, desc, asc } from 'drizzle-orm'
+import { eq, and, inArray, desc, asc, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { categories, contentCategoryRelationships, sites, posts, products, pages, events, directories } from '@/lib/db/schema'
+import { categories, contentCategoryRelationships, sites, posts, products, pages, events, directories, directoryTemplates } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import {
   getCategoryBreadcrumbItems,
@@ -70,11 +70,35 @@ export async function getContentBreadcrumbPreviewAction(
       return { data: null, error: 'Unauthorized' }
     }
 
+    let rootCategoryId: string | null = null
+
+    if (contentType === 'directory') {
+      const [templateSettings] = await db
+        .select({
+          rootCategoryId: sql<string | null>`
+            nullif(coalesce(
+              ${directoryTemplates.contentBlocks} #>> '{_settings,default_category_parent_id}',
+              ${directoryTemplates.contentBlocks} #>> '{_settings,default_breadcrumb_parent_id}'
+            ), '')
+          `,
+        })
+        .from(directories)
+        .innerJoin(directoryTemplates, and(
+          eq(directoryTemplates.id, directories.templateId),
+          eq(directoryTemplates.siteId, directories.siteId)
+        ))
+        .where(eq(directories.id, content.id))
+        .limit(1)
+
+      rootCategoryId = templateSettings?.rootCategoryId || null
+    }
+
     const breadcrumbs = await getContentBreadcrumbItems({
       siteId: content.siteId,
       contentId: content.id,
       contentType,
       currentLabel: content.title,
+      rootCategoryId,
     })
 
     return { data: breadcrumbs, error: null }
