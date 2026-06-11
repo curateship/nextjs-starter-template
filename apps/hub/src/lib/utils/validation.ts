@@ -4,6 +4,12 @@
  * (previously copy-pasted into ~70 call sites).
  */
 
+/** Slugs no content item may use (shared by API routes and server actions) */
+export const RESERVED_SLUGS = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
+
+/** Allowed slug characters: letters, numbers, hyphens, underscores */
+export const SLUG_FORMAT_REGEX = /^[a-zA-Z0-9_-]+$/
+
 /** Matches a standard 36-char hyphenated UUID (any version), case-insensitive */
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { getAuthenticatedUser, type AuthUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
-import { UUID_REGEX } from '@/lib/utils/validation'
+import { RESERVED_SLUGS, SLUG_FORMAT_REGEX, UUID_REGEX } from '@/lib/utils/validation'
 
 /**
  * Shared fast-fail preambles and slug utilities for the per-content-type
@@ -20,10 +20,6 @@ type ContentTable = {
   slug: any
   displayOrder: any
 }
-
-/** Slugs no content item may use (matches the API route handler list) */
-const RESERVED_SLUGS = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-const SLUG_REGEX = /^[a-zA-Z0-9_-]+$/
 
 type OwnedSiteResult =
   | { ok: true; user: AuthUser }
@@ -116,7 +112,7 @@ export async function validateContentSlugUpdate(
 ): Promise<SlugUpdateResult> {
   const slug = rawSlug.trim()
 
-  if (!SLUG_REGEX.test(slug)) {
+  if (!SLUG_FORMAT_REGEX.test(slug)) {
     return { ok: false, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
   }
 

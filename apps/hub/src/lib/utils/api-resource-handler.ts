@@ -12,11 +12,7 @@ import { sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
 import { generateSlug } from '@/lib/utils/slug'
 import { isSameOriginRequest } from '@/lib/utils/request-origin'
-import { UUID_REGEX } from '@/lib/utils/validation'
-
-/** Reserved slugs that cannot be used for any content type */
-const RESERVED_SLUGS = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-const SLUG_REGEX = /^[a-zA-Z0-9_-]+$/
+import { RESERVED_SLUGS, SLUG_FORMAT_REGEX, UUID_REGEX } from '@/lib/utils/validation'
 
 /** JSON error response helper */
 function jsonError(error: string, status: number) {
@@ -50,7 +46,7 @@ async function verifySiteOwnership(siteId: string, userId: string) {
 
 /** Validate a slug: format check, reserved check. Returns error response or null. */
 function validateSlug(slug: string, reservedSlugs = RESERVED_SLUGS): NextResponse | null {
-  if (!SLUG_REGEX.test(slug)) {
+  if (!SLUG_FORMAT_REGEX.test(slug)) {
     return jsonError('Invalid slug format. Use only letters, numbers, hyphens, and underscores.', 400)
   }
   if (reservedSlugs.includes(slug.toLowerCase())) {
