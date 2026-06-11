@@ -17,6 +17,7 @@ import { toCdnUrl } from "@/lib/utils/cdn"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { getHeroNavigationBackgroundColor } from "@/lib/utils/page-hero-background"
+import { getRenderBlockContent, prepareBlocksForRender } from '@/lib/utils/frontend-blocks'
 
 interface BlockRendererProps {
   site: SiteWithBlocks
@@ -38,27 +39,10 @@ export function BlockRenderer({
   const { blocks = [] } = site
   const siteChrome = resolveSiteChrome(site.settings)
 
-  const isBlockHidden = (block: typeof blocks[number]) => block.content?.visibility?.hideBlock === true
-  const getBlockContent = (block: typeof blocks[number]) => {
-    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+  const getBlockContent = (block: typeof blocks[number]) => getRenderBlockContent(block, isPreview)
 
-    return {
-      ...block.content,
-      visibility: {
-        ...block.content.visibility,
-        hideBlock: false,
-      },
-    }
-  }
-
-  // Sort blocks by display_order with proper type handling
-  const sortedBlocks = [...blocks].sort((a, b) => {
-    const orderA = typeof a.display_order === 'number' ? a.display_order : 0
-    const orderB = typeof b.display_order === 'number' ? b.display_order : 0
-    return orderA - orderB
-  })
-
-  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
+  // Sorting + hidden-block rules live in the shared frontend-blocks helper
+  const visibleBlocks = prepareBlocksForRender(blocks, isPreview)
   const navigationBackgroundColor = getHeroNavigationBackgroundColor(visibleBlocks)
   const navigation = siteChrome.navigation || undefined
   const footer = siteChrome.footer || undefined

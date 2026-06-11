@@ -11,6 +11,7 @@ import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { cn } from "@/lib/utils/tailwind"
 import { preparePostTableOfContents } from "./table-of-content/table-of-contents-utils"
 import type { SponsorPublic } from "@/lib/actions/sponsors/sponsor-actions"
+import { getRenderBlockContent, prepareBlocksForRender } from '@/lib/utils/frontend-blocks'
 
 const SUPPORTED_POST_BLOCK_TYPES = ['core', 'related-posts', 'table-of-contents']
 
@@ -65,25 +66,10 @@ export function PostBlockRenderer({
   const { blocks: postBlocks = [] } = post
   const siteChrome = resolveSiteChrome(site.settings)
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
-  const isBlockHidden = (block: PostRendererBlock) => block.content?.visibility?.hideBlock === true
-  const getBlockContent = (block: PostRendererBlock) => {
-    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
-
-    return {
-      ...block.content,
-      visibility: {
-        ...block.content.visibility,
-        hideBlock: false,
-      },
-    }
-  }
-  
-  // Sort post blocks by display_order (force numerical sorting)
-  const sortedBlocks = [...postBlocks]
-    .sort((a, b) => Number(a.display_order) - Number(b.display_order))
+  // Sorting + hidden-block rules live in the shared frontend-blocks helper
+  const visibleBlocks = prepareBlocksForRender(postBlocks, isPreview)
     .filter((block) => SUPPORTED_POST_BLOCK_TYPES.includes(block.type))
-  const visibleBlocks = (isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block)))
-    .map((block) => ({ ...block, content: getBlockContent(block) }))
+    .map((block) => ({ ...block, content: getRenderBlockContent(block, isPreview) }))
   
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom'
@@ -91,7 +77,7 @@ export function PostBlockRenderer({
   const publicSite = toPublicSiteClientProps(site)
   const mainBlocks = visibleBlocks.filter((block) => getPostLayoutColumn(block) === 'main')
   const sidebarBlocks = visibleBlocks.filter((block) => getPostLayoutColumn(block) === 'sidebar')
-  const isStickyBlock = (block: typeof sortedBlocks[number]) =>
+  const isStickyBlock = (block: typeof visibleBlocks[number]) =>
     block.type === 'table-of-contents' && block.content?.sticky !== false
   const mainHasStickyBlock = mainBlocks.some(isStickyBlock)
   const sidebarHasStickyBlock = sidebarBlocks.some(isStickyBlock)
@@ -109,7 +95,7 @@ export function PostBlockRenderer({
     author: post.author,
     created_at: post.created_at || new Date().toISOString()
   }
-  const renderPostBlocks = (blocks: typeof sortedBlocks, container = true) => (
+  const renderPostBlocks = (blocks: typeof visibleBlocks, container = true) => (
     <CoreBlock
       blocks={blocks}
       post={core}

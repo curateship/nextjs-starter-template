@@ -6,6 +6,7 @@ import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
+import { getRenderBlockContent, prepareBlocksForRender } from '@/lib/utils/frontend-blocks'
 
 interface EventWithBlocks {
   id: string
@@ -65,22 +66,10 @@ function EventContentStyled({
 export function EventBlockRenderer({ site, event, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: EventBlockRendererProps) {
   const { blocks: eventBlocks = [] } = event
   const siteChrome = resolveSiteChrome(site.settings)
-  const isBlockHidden = (block: typeof eventBlocks[number]) => block.content?.visibility?.hideBlock === true
-  const getBlockContent = (block: typeof eventBlocks[number]) => {
-    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+  const getBlockContent = (block: typeof eventBlocks[number]) => getRenderBlockContent(block, isPreview)
 
-    return {
-      ...block.content,
-      visibility: {
-        ...block.content.visibility,
-        hideBlock: false,
-      },
-    }
-  }
-
-  // Sort event blocks by display_order
-  const sortedBlocks = eventBlocks.sort((a, b) => a.display_order - b.display_order)
-  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
+  // Sorting + hidden-block rules live in the shared frontend-blocks helper
+  const visibleBlocks = prepareBlocksForRender(eventBlocks, isPreview)
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';

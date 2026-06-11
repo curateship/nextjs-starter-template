@@ -18,6 +18,7 @@ import {
 } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
+import { getRenderBlockContent, prepareBlocksForRender } from "@/lib/utils/frontend-blocks"
 import { cn } from "@/lib/utils/tailwind"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
@@ -63,22 +64,10 @@ export function DirectoryBlockRenderer({
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
   const hasFixedNavigation = Boolean(siteChrome.navigation && !isPreview && !hideSiteChrome)
-  const isBlockHidden = (block: DirectoryWithBlocks["blocks"][number]) => block.content?.visibility?.hideBlock === true
-  const getBlockContent = (block: DirectoryWithBlocks["blocks"][number]) => {
-    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+  const getBlockContent = (block: DirectoryWithBlocks["blocks"][number]) => getRenderBlockContent(block, isPreview)
 
-    return {
-      ...block.content,
-      visibility: {
-        ...block.content.visibility,
-        hideBlock: false,
-      },
-    }
-  }
-
-  // Sort directory blocks by display_order
-  const sortedBlocks = [...directoryBlocks]
-    .sort((a, b) => a.display_order - b.display_order)
+  // Sorting + hidden-block rules live in the shared frontend-blocks helper
+  const sortedBlocks = prepareBlocksForRender(directoryBlocks, isPreview)
     .filter((block) =>
       block.type === DIRECTORY_CORE_BLOCK_TYPE ||
       block.type === 'directory-custom' ||
@@ -95,7 +84,7 @@ export function DirectoryBlockRenderer({
           }
         : block
     ))
-  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
+  const visibleBlocks = sortedBlocks
 
   // Get site width from site settings
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';

@@ -17,6 +17,7 @@ import type { ProductWithBlocks } from "@/lib/actions/products/product-frontend-
 import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-breadcrumb-actions"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
+import { getRenderBlockContent, prepareBlocksForRender } from '@/lib/utils/frontend-blocks'
 
 interface ProductBlockRendererProps {
   site: SiteWithBlocks
@@ -40,22 +41,10 @@ export function ProductBlockRenderer({
   const { blocks: productBlocks = [] } = product
   const siteChrome = resolveSiteChrome(site.settings)
   
-  const isBlockHidden = (block: typeof productBlocks[number]) => block.content?.visibility?.hideBlock === true
-  const getBlockContent = (block: typeof productBlocks[number]) => {
-    if (!isPreview || !block.content?.visibility?.hideBlock) return block.content
+  const getBlockContent = (block: typeof productBlocks[number]) => getRenderBlockContent(block, isPreview)
 
-    return {
-      ...block.content,
-      visibility: {
-        ...block.content.visibility,
-        hideBlock: false,
-      },
-    }
-  }
-  
-  // Sort product blocks by display_order
-  const sortedBlocks = productBlocks.sort((a, b) => a.display_order - b.display_order)
-  const visibleBlocks = isPreview ? sortedBlocks : sortedBlocks.filter((block) => !isBlockHidden(block))
+  // Sorting + hidden-block rules live in the shared frontend-blocks helper
+  const visibleBlocks = prepareBlocksForRender(productBlocks, isPreview)
   
   // Get site width from site settings
   const siteWidth = site.settings?.site_width || 'custom';
