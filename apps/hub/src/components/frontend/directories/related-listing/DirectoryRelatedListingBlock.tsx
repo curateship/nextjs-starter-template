@@ -9,7 +9,6 @@ import {
   getDirectoryRelatedListingsAction,
   type DirectoryRelatedListingItem,
 } from "@/lib/actions/directories/directory-related-listing-actions"
-import { cn } from "@/lib/utils/tailwind"
 
 interface DirectoryRelatedListingBlockProps {
   content?: {
@@ -158,12 +157,12 @@ export function DirectoryRelatedListingBlock({
             const category = visibility.category !== false ? item.category : null
 
             return (
-              <div key={item.id} className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 p-4">
+              <div key={item.id} className="flex gap-3 p-4 lg:gap-4">
                 {visibility.image !== false ? (
                   <Link
                     href={href}
                     aria-label={item.title}
-                    className="block h-[72px] w-[72px] overflow-hidden rounded-md bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className="block size-20 shrink-0 overflow-hidden rounded-md bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:size-35"
                   >
                     {imageUrl ? (
                       <img
@@ -180,7 +179,7 @@ export function DirectoryRelatedListingBlock({
                   </Link>
                 ) : null}
 
-                <div className={cn("min-w-0", visibility.image === false && "col-span-2")}>
+                <div className="min-w-0 flex-1">
                   {visibility.listingTitle !== false ? (
                     <Link
                       href={href}
