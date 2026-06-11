@@ -5,6 +5,7 @@ import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { posts, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface PostBlock {
   id: string
@@ -69,8 +70,7 @@ function revalidatePostFrontend(siteId: string, postId?: string) {
 export async function getSitePostsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Post[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
@@ -90,9 +90,7 @@ export async function getSitePostsAction(siteId: string, options?: { page?: numb
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, data, selectedRows] = await Promise.all([
@@ -132,8 +130,7 @@ export async function getSitePostsWithCategoriesAction(
   error: string | null
 }> {
   try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, categories: {}, total: 0, error: 'Invalid site ID format' }
     }
 
@@ -151,9 +148,7 @@ export async function getSitePostsWithCategoriesAction(
       return { data: null, categories: {}, total: 0, error: 'Site not found or access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
 
     const [countPromise, dataPromise] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(posts).where(eq(posts.siteId, siteId)),
@@ -222,8 +217,7 @@ export async function getSitePostsWithCategoriesAction(
 export async function updatePostAction(postId: string, updates: UpdatePostData): Promise<{ data: Post | null; error: string | null }> {
   try {
     // Validate post ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(postId)) {
+    if (!UUID_REGEX.test(postId)) {
       return { data: null, error: 'Invalid post ID format' }
     }
 
@@ -347,8 +341,7 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
 export async function deletePostAction(postId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     // Validate post ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(postId)) {
+    if (!UUID_REGEX.test(postId)) {
       return { success: false, error: 'Invalid post ID format' }
     }
 
@@ -401,9 +394,8 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
       return { success: false, error: 'No posts selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of postIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid post ID format' }
       }
     }
@@ -455,8 +447,7 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
 export async function duplicatePostAction(postId: string, newTitle: string): Promise<{ data: Post | null; error: string | null }> {
   try {
     // Validate post ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(postId)) {
+    if (!UUID_REGEX.test(postId)) {
       return { data: null, error: 'Invalid post ID format' }
     }
 
@@ -562,8 +553,7 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
 export async function updatePostBlocksAction(postId: string, blocks: Record<string, PostBlock>): Promise<{ success: boolean; error: string | null }> {
   try {
     // Validate post ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(postId)) {
+    if (!UUID_REGEX.test(postId)) {
       return { success: false, error: 'Invalid post ID format' }
     }
 

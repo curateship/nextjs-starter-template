@@ -5,8 +5,7 @@ import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
 import { products } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 /**
  * Create a Stripe client for a specific site.

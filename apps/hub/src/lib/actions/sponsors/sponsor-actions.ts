@@ -6,8 +6,7 @@ import { db } from '@/lib/db'
 import { sites, sponsors } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { isSafeUrl } from '@/lib/utils/url-validator'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export interface Sponsor {
   id: string

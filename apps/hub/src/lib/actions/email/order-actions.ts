@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { productOrders, products, sites } from '@/lib/db/schema'
 import { eq, desc, inArray, and, sql } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { normalizePagination } from '@/lib/utils/validation'
 
 /**
  * Verify the authenticated user owns the given site.
@@ -126,9 +127,7 @@ export async function getOrdersWithProducts(
   try {
     await verifySiteOwnership(siteId)
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [ordersResult, countResult, productsResult] = await Promise.all([
       db

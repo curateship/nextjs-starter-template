@@ -5,8 +5,7 @@ import { directories, directoryTemplates } from '@/lib/db/schema'
 import { pruneDirectoryValueBlocksForTemplate } from '@/lib/actions/directories/directory-template-inheritance'
 import { getResourceHandler, updateResourceHandler } from '@/lib/utils/api-resource-handler'
 import { serializeDirectory } from '@/lib/utils/content-serializer'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 const config = {
   entityName: 'Directory',

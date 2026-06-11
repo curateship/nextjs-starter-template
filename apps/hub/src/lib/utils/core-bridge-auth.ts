@@ -1,7 +1,6 @@
 import { timingSafeEqual } from 'crypto'
 import type { NextRequest } from 'next/server'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export function isAuthorizedCoreBridgeRequest(request: NextRequest): boolean {
   const expectedToken = process.env.HUB_CORE_BRIDGE_TOKEN?.trim()

@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { authUsers, directories, directorySaveCollections, directorySaveItems, siteMemberships, sites } from '@/lib/db/schema'
 import { touchSiteMembershipActivity } from '@/lib/utils/site-membership-runtime'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export interface DirectorySaveCollectionState {
   id: string | null
@@ -50,7 +51,6 @@ export interface DirectorySaveDashboardCollection {
   default_key: string | null
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DEFAULT_COLLECTIONS = [
   { key: 'saved', label: 'Saved' },
   { key: 'want_to_go', label: 'Want to go' },

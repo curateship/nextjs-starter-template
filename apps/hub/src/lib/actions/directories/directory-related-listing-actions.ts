@@ -3,8 +3,8 @@
 import { unstable_cache } from 'next/cache'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DEFAULT_ITEMS_TO_SHOW = 5
 const MIN_ITEMS_TO_SHOW = 1
 const MAX_ITEMS_TO_SHOW = 20

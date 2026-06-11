@@ -21,10 +21,10 @@ import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
 import { getClientIp } from '@/lib/utils/rate-limit'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 5
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BLOCK_ID_REGEX = /^[A-Za-z0-9_-]{1,180}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

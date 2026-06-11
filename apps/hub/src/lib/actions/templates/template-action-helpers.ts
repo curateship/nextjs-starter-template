@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface TemplateRecord {
   id: string
@@ -28,8 +29,6 @@ type TemplateUpdateOptions = {
   validateContentBlocks?: (contentBlocks: Record<string, any>) => string | null
   validateNameOnUpdate?: boolean
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function rowToTemplate(row: any): TemplateRecord {
   return {
@@ -69,9 +68,7 @@ export async function getTemplatesBySite(
       return { data: null, total: 0, error: 'Access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [rows, countResult] = await Promise.all([
       db

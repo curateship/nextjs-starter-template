@@ -13,6 +13,7 @@ import { isWithinNewsletterSendWindow } from '@/lib/actions/newsletters/send-win
 import { queryNewsletterStatusEvents, type NewsletterStatusEvent, type NewsletterStatusEventFilter } from '@/lib/actions/newsletters/status-events-query'
 import { recordNewsletterDeliverySent } from '@/lib/actions/newsletters/event-stats'
 import { randomUUID } from 'crypto'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface Newsletter {
   id: string
@@ -46,8 +47,6 @@ interface NewsletterBlock {
   display_order?: number
 }
 
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DELIVERY_LOCK_TIMEOUT_MS = 10 * 60 * 1000
 
 async function verifySiteOwnership(siteId: string, userId: string) {
@@ -172,9 +171,7 @@ export async function getNewslettersBySite(
       return { data: null, total: 0, error: 'Access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [rows, countResult] = await Promise.all([
       db
@@ -791,7 +788,6 @@ export async function sendTestNewsletter(
     return { success: false, error: 'Server error' }
   }
 }
-
 
 export async function pauseNewsletter(newsletterId: string): Promise<{ success: boolean; error: string | null }> {
   try {

@@ -6,8 +6,7 @@ import { directoryCustomBlocks } from '@/lib/db/schema/directory-custom-blocks'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
 import { isAuthorizedCoreBridgeRequest, isCoreBridgeSiteAllowed } from '@/lib/utils/core-bridge-auth'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCoreBridgeRequest(request)) {

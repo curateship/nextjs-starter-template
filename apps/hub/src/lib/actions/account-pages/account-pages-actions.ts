@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { validateContentBlocks } from '@/lib/utils/content-block-validation'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -47,8 +48,7 @@ function toAccountPage(row: any): AccountPage {
 export async function getAccountPagesAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: AccountPage[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
@@ -69,9 +69,7 @@ export async function getAccountPagesAction(siteId: string, options?: { page?: n
     }
 
     // Pagination
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, result, selectedRows] = await Promise.all([
@@ -148,9 +146,8 @@ export async function deleteAccountPagesAction(pageIds: string[]): Promise<{ suc
       return { success: false, error: 'No pages selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of pageIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid page ID format' }
       }
     }

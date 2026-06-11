@@ -26,6 +26,7 @@ import {
 } from '@/lib/actions/directories/directory-template-inheritance'
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export type DirectoryClaimStatus = 'pending_email' | 'pending_review' | 'approved' | 'rejected' | 'revoked'
 
@@ -63,7 +64,6 @@ export interface ClaimedDirectoryEditorItem {
   opening_hours: Record<string, any> | null
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const CLAIM_EMAIL_EXPIRES_MS = 48 * 60 * 60 * 1000
 const CLAIM_EMAIL_RESEND_COOLDOWN_MS = 10 * 60 * 1000
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

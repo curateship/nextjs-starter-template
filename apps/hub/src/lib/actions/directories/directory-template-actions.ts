@@ -7,6 +7,7 @@ import { directories, directoryTemplates, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { sanitizeDirectoryTemplateBlocks } from './directory-template-inheritance'
 import { ensureDirectoryBlankTemplateForSite } from './directory-template-ensure'
+import { UUID_REGEX } from '@/lib/utils/validation'
 import {
   createTemplate,
   deleteTemplates,
@@ -19,8 +20,6 @@ import {
 } from '@/lib/actions/templates/template-action-helpers'
 
 export type DirectoryTemplate = TemplateRecord
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db

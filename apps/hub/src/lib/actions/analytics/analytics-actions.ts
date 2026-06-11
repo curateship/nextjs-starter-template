@@ -5,8 +5,7 @@ import { sites } from '@/lib/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { cache } from 'react'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 const verifyAnalyticsAccess = cache(async (siteId: string) => {
   if (!UUID_REGEX.test(siteId)) return false

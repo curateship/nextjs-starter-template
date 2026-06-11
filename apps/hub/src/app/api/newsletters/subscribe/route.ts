@@ -18,11 +18,11 @@ import {
 } from '@/lib/actions/newsletters/system-contact-sync'
 import { sanitizeRichMediaHtml } from '@/lib/utils/html-sanitizer'
 import { getSiteUrl } from '@/lib/utils/site-url-generator'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 5
 const MAX_IDENTIFIER_LENGTH = 100
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const BLOCK_ID_REGEX = /^[A-Za-z0-9_-]{1,180}$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 

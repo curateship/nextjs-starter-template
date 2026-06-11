@@ -3,6 +3,7 @@
 import { sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export type ListingViewsContentType = 'products' | 'posts' | 'directory'
 
@@ -39,8 +40,6 @@ export interface ListingViewsData {
   currentPage: number
   totalPages: number
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface ListingViewsRow extends Record<string, unknown> {
   id: string | null

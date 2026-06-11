@@ -12,8 +12,7 @@ import {
   pruneDirectoryCustomBlockValues,
 } from './directory-custom-blocks/utils'
 import type { DirectoryCustomBlockLayout, DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db

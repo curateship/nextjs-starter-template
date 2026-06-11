@@ -8,6 +8,7 @@ import { authUsers, siteMemberships, sites } from '@/lib/db/schema'
 import { requireAdmin } from '@/lib/db/helpers'
 import { lastSignInAtDateSql, lastSignInAtSql } from '@/lib/actions/users/last-sign-in-sql'
 import { upsertSiteMembership } from '@/lib/utils/site-membership-runtime'
+import { UUID_REGEX } from '@/lib/utils/validation'
 import {
   SITE_USER_RELATIVE_DAY_OPTIONS,
   SITE_USER_ROLE_OPTIONS,
@@ -30,7 +31,6 @@ export interface SiteUserListItem {
   last_sign_in_at: string | null
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const VALID_ROLE_VALUES = SITE_USER_ROLE_OPTIONS.map((option) => option.value)
 const VALID_STATUS_VALUES = SITE_USER_STATUS_OPTIONS.map((option) => option.value)
 const VALID_RELATIVE_DAYS = SITE_USER_RELATIVE_DAY_OPTIONS.map((option) => option.value)

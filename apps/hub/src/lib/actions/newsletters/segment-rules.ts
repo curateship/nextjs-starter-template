@@ -1,3 +1,4 @@
+import { UUID_REGEX } from '@/lib/utils/validation'
 const SEGMENT_TYPES = ['static', 'dynamic'] as const
 
 export type SegmentType = typeof SEGMENT_TYPES[number]
@@ -6,8 +7,6 @@ export type SegmentTagRuleOperator = 'includes' | 'excludes'
 export type SegmentOpenCountRuleOperator = 'has_opened' | 'hasnt_opened'
 export const SEGMENT_CONTACT_STATUSES = ['active', 'cold', 'unsubscribed', 'bounced', 'complained'] as const
 export type SegmentContactStatus = typeof SEGMENT_CONTACT_STATUSES[number]
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 interface LastEngagedWithinDaysRule {
   type: 'last_engaged_within_days'

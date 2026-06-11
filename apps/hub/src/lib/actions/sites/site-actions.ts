@@ -14,6 +14,7 @@ import { getPublicAuthPagePath } from '@/lib/actions/pages/page-frontend-actions
 import { DEFAULT_NEWSLETTER_DRIP_CONFIG } from '@/lib/actions/newsletters/send-windows'
 import { isHubPlatformHostname, isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 import { ensureCloudflareCustomDomainDns } from '@/lib/utils/cloudflare-dns'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export interface Site {
   id: string
@@ -498,8 +499,7 @@ export async function cloneSiteAction(
   cloneData: CloneSiteData
 ): Promise<{ data: Site | null; error: string | null }> {
   try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(sourceSiteId)) return { data: null, error: 'Invalid site ID format' }
+    if (!UUID_REGEX.test(sourceSiteId)) return { data: null, error: 'Invalid site ID format' }
 
     const user = await getAuthenticatedUser()
     if (!user) return { data: null, error: 'Authentication required' }
@@ -683,8 +683,7 @@ export async function updateSiteAction(
 
 export async function deleteSiteAction(siteId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) return { success: false, error: 'Invalid site ID format' }
+    if (!UUID_REGEX.test(siteId)) return { success: false, error: 'Invalid site ID format' }
 
     const user = await getAuthenticatedUser()
     if (!user) return { success: false, error: 'Authentication required' }

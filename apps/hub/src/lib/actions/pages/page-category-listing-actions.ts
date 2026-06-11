@@ -4,6 +4,7 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { db } from "@/lib/db"
 import { categories, sites } from "@/lib/db/schema"
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 interface CategoriesListingItem {
   id: string
@@ -14,8 +15,6 @@ interface CategoriesListingItem {
 export interface CategoriesListingData {
   categories: CategoriesListingItem[]
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function clampLimit(limit?: number) {
   const value = Math.floor(Number(limit) || 20)

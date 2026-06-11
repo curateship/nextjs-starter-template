@@ -6,10 +6,10 @@ import { db } from '@/lib/db'
 import { siteIntegrations } from '@/lib/db/schema'
 import { upsertSystemNewsletterContact } from '@/lib/actions/newsletters/system-contact-sync'
 import { safeDecrypt } from '@/lib/utils/encryption'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export const runtime = 'nodejs'
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PURCHASE_EVENTS = new Set(['marketplace.purchase', 'marketplace.puchase'])
 const REFUND_EVENT = 'marketplace.refund'

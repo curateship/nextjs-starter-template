@@ -4,8 +4,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, newsletterSegmentContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 export async function GET(
   request: NextRequest,
@@ -12,8 +13,7 @@ export async function GET(
     const { siteId } = await params
 
     // Validate site ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return NextResponse.json(
         { data: null, error: 'Invalid site ID format' },
         { status: 400 }

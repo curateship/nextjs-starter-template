@@ -23,6 +23,7 @@ import {
 import { generateSlug } from '@/lib/utils/slug'
 import { isAuthorizedCoreBridgeRequest, isCoreBridgeSiteAllowed } from '@/lib/utils/core-bridge-auth'
 import { deleteFromR2, uploadToR2 } from '@/lib/utils/r2'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 interface GoogleMapsImportRecord {
   google_maps_place_id?: unknown
@@ -72,7 +73,6 @@ const CORE_CONTENT_FIELD_TYPES: Record<string, 'text' | 'number'> = {
 const CORE_MENU_LINK_TYPES = new Set(['directions', 'phone', 'website', 'email'])
 const CORE_SOCIAL_LINK_TYPES = new Set(['instagram', 'facebook', 'tiktok', 'twitter', 'linkedin', 'youtube'])
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_ITEMS = 500
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REMOTE_IMAGE_MAX_BYTES = 10 * 1024 * 1024

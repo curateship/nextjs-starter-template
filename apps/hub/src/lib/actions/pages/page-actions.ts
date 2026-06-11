@@ -6,6 +6,7 @@ import { purgeProxyCache } from '@/lib/utils/cache-purge'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface Page {
   id: string
@@ -35,8 +36,7 @@ export interface UpdatePageData {
 export async function getSitePagesAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Page[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
@@ -55,9 +55,7 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, data, selectedRows] = await Promise.all([
@@ -104,8 +102,7 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
 export async function deletePageAction(pageId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     // Validate page ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(pageId)) {
+    if (!UUID_REGEX.test(pageId)) {
       return { success: false, error: 'Invalid page ID format' }
     }
 
@@ -164,9 +161,8 @@ export async function deletePagesAction(pageIds: string[]): Promise<{ success: b
       return { success: false, error: 'No pages selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of pageIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid page ID format' }
       }
     }
@@ -218,8 +214,7 @@ export async function deletePagesAction(pageIds: string[]): Promise<{ success: b
 export async function duplicatePageAction(pageId: string, newTitle: string): Promise<{ data: Page | null; error: string | null }> {
   try {
     // Validate page ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(pageId)) {
+    if (!UUID_REGEX.test(pageId)) {
       return { data: null, error: 'Invalid page ID format' }
     }
 
@@ -320,8 +315,7 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
 export async function updatePageBlocksAction(pageId: string, contentBlocks: Record<string, any>): Promise<{ success: boolean; error?: string }> {
   try {
     // Validate page ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(pageId)) {
+    if (!UUID_REGEX.test(pageId)) {
       return { success: false, error: 'Invalid page ID format' }
     }
 

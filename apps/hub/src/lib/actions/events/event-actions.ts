@@ -7,8 +7,7 @@ import { events, sites, contentCategoryRelationships, categories } from '@/lib/d
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { serializeEvent } from '@/lib/utils/content-serializer'
-
-
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface Event {
   id: string
@@ -55,9 +54,7 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
     }
 
     // Pagination
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, result, selectedRows] = await Promise.all([
@@ -79,7 +76,6 @@ export async function getSiteEventsAction(siteId: string, options?: { page?: num
     return { data: null, total: 0, error: 'Failed to fetch events' }
   }
 }
-
 
 /**
  * Get events with their categories in a single server action call.
@@ -109,9 +105,7 @@ export async function getSiteEventsWithCategoriesAction(
       return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
 
     const [countResult, result] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(events).where(eq(events.siteId, siteId)),
@@ -182,8 +176,7 @@ export async function getSiteEventsWithCategoriesAction(
 export async function updateEventAction(eventId: string, data: UpdateEventData) {
   try {
     // Validate event ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(eventId)) {
+    if (!UUID_REGEX.test(eventId)) {
       return { data: null, error: 'Invalid event ID format' }
     }
 
@@ -296,8 +289,7 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
 export async function deleteEventAction(eventId: string) {
   try {
     // Validate event ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(eventId)) {
+    if (!UUID_REGEX.test(eventId)) {
       return { success: false, error: 'Invalid event ID format' }
     }
 
@@ -352,9 +344,8 @@ export async function deleteEventsAction(eventIds: string[]): Promise<{ success:
       return { success: false, error: 'No events selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of eventIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid event ID format' }
       }
     }
@@ -399,8 +390,7 @@ export async function deleteEventsAction(eventIds: string[]): Promise<{ success:
 export async function duplicateEventAction(eventId: string, newTitle: string) {
   try {
     // Validate event ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(eventId)) {
+    if (!UUID_REGEX.test(eventId)) {
       return { data: null, error: 'Invalid event ID format' }
     }
 
@@ -495,8 +485,7 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
 export async function updateEventBlocksAction(eventId: string, contentBlocks: Record<string, any>) {
   try {
     // Validate event ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(eventId)) {
+    if (!UUID_REGEX.test(eventId)) {
       return { success: false, error: 'Invalid event ID format' }
     }
 

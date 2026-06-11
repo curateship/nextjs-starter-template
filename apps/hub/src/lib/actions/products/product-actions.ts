@@ -6,8 +6,7 @@ import { db } from '@/lib/db'
 import { products, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { serializeProduct } from '@/lib/utils/content-serializer'
-
-
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface Product {
   id: string
@@ -45,8 +44,7 @@ function revalidateProductFrontend(siteId: string, productId?: string) {
 export async function getSiteProductsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Product[] | null; total: number; error: string | null }> {
   try {
     // Validate site ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, total: 0, error: 'Invalid site ID format' }
     }
 
@@ -66,9 +64,7 @@ export async function getSiteProductsAction(siteId: string, options?: { page?: n
       return { data: null, total: 0, error: 'Site not found or access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, data, selectedRows] = await Promise.all([
@@ -108,8 +104,7 @@ export async function getSiteProductsWithCategoriesAction(
   error: string | null
 }> {
   try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, categories: {}, total: 0, error: 'Invalid site ID format' }
     }
 
@@ -127,9 +122,7 @@ export async function getSiteProductsWithCategoriesAction(
       return { data: null, categories: {}, total: 0, error: 'Site not found or access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
 
     const [countPromise, data] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
@@ -206,8 +199,7 @@ export async function getSiteProductsWithCategoriesAction(
 export async function updateProductAction(productId: string, updates: UpdateProductData): Promise<{ data: Product | null; error: string | null }> {
   try {
     // Validate product ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(productId)) {
+    if (!UUID_REGEX.test(productId)) {
       return { data: null, error: 'Invalid product ID format' }
     }
 
@@ -342,8 +334,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
 export async function deleteProductAction(productId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     // Validate product ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(productId)) {
+    if (!UUID_REGEX.test(productId)) {
       return { success: false, error: 'Invalid product ID format' }
     }
 
@@ -396,9 +387,8 @@ export async function deleteProductsAction(productIds: string[]): Promise<{ succ
       return { success: false, error: 'No products selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of productIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid product ID format' }
       }
     }
@@ -449,8 +439,7 @@ export async function deleteProductsAction(productIds: string[]): Promise<{ succ
 export async function duplicateProductAction(productId: string, newTitle: string): Promise<{ data: Product | null; error: string | null }> {
   try {
     // Validate product ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(productId)) {
+    if (!UUID_REGEX.test(productId)) {
       return { data: null, error: 'Invalid product ID format' }
     }
 
@@ -554,8 +543,7 @@ export async function duplicateProductAction(productId: string, newTitle: string
 export async function updateProductBlocksAction(productId: string, contentBlocks: Record<string, any>): Promise<{ success: boolean; error?: string }> {
   try {
     // Validate product ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(productId)) {
+    if (!UUID_REGEX.test(productId)) {
       return { success: false, error: 'Invalid product ID format' }
     }
 

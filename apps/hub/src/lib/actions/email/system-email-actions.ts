@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
 import { emailSystemTemplates } from '@/lib/db/schema'
 import { getAuthenticatedUser, requireAdmin, requireSiteOwnership } from '@/lib/db/helpers'
+import { UUID_REGEX } from '@/lib/utils/validation'
 import {
   getSystemEmailEditorData,
   getSystemEmailList,
@@ -14,8 +15,6 @@ import {
   isSystemEmailTemplateKey,
   type SystemEmailTemplateKey,
 } from '@/lib/actions/email/system-email'
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function verifyTemplateAccess(templateKey: SystemEmailTemplateKey, siteId?: string | null) {
   if (isGlobalSystemEmailTemplate(templateKey)) {

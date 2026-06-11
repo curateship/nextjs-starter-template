@@ -6,6 +6,7 @@ import { emailAutomations, emailAutomationSteps, emailAutomationEnrollments, new
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { extractNewsletterSponsorIds, generateEmailHtml } from '@/lib/actions/newsletters/render'
 import { getActiveSponsorsByIdsAction } from '@/lib/actions/sponsors/sponsor-actions'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
   getTriggerSegmentIds,
   getAutomationTriggerNodes,
@@ -68,8 +69,6 @@ export interface AutomationJourneyIndicator {
 type AutomationStepStatusEvent = NewsletterStatusEvent
 type AutomationStepStatusEventFilter = NewsletterStatusEventFilter
 type AutomationStepStatusStats = NewsletterStatusEventStats
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function generateAutomationEmailHtml(
   siteId: string,
@@ -146,9 +145,7 @@ export async function getAutomationsBySite(siteId: string, options?: { page?: nu
     if (!user) return { data: null, total: 0, error: 'Not authenticated' }
     if (!await verifySiteOwnership(siteId, user.id)) return { data: null, total: 0, error: 'Access denied' }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [rows, countResult] = await Promise.all([
       db

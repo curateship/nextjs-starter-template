@@ -4,6 +4,7 @@ import { eq, and, sql, desc, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterTemplates, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface NewsletterTemplate {
   id: string
@@ -14,8 +15,6 @@ export interface NewsletterTemplate {
   created_at: string
   updated_at: string
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -73,9 +72,7 @@ export async function getTemplatesBySite(
     // Ensure a default template exists for this site
     await ensureDefaultTemplate(siteId)
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [rows, countResult] = await Promise.all([
       db

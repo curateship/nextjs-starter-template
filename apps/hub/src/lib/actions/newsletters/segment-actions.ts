@@ -6,6 +6,7 @@ import { newsletterSegments, newsletterSegmentContacts, newsletterContacts, news
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { findActiveAutomations } from './automation-actions'
 import { buildRecentEmailOpenCondition } from '@/lib/actions/newsletters/event-stats'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 import {
   formatSegmentDynamicRule,
   normalizeSegmentDynamicRule,
@@ -24,8 +25,6 @@ export interface Segment {
   created_at: string
   updated_at: string
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function verifySiteOwnership(siteId: string, userId: string) {
   const [site] = await db
@@ -344,9 +343,7 @@ export async function getSegmentsBySite(
       return { data: null, total: 0, error: 'Access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [rows, countResult] = await Promise.all([
       db
@@ -640,9 +637,7 @@ export async function getSegmentsWithCounts(
       return { data: null, total: 0, counts: {}, error: 'Access denied' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
 
     const [rows, countResult] = await Promise.all([
       db

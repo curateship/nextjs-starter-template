@@ -12,10 +12,10 @@ import { sites } from '@/lib/db/schema'
 import { auth } from '@/lib/actions/auth/server'
 import { generateSlug } from '@/lib/utils/slug'
 import { isSameOriginRequest } from '@/lib/utils/request-origin'
+import { UUID_REGEX } from '@/lib/utils/validation'
 
 /** Reserved slugs that cannot be used for any content type */
 const RESERVED_SLUGS = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SLUG_REGEX = /^[a-zA-Z0-9_-]+$/
 
 /** JSON error response helper */

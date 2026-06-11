@@ -7,6 +7,7 @@ import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { serializeCategory } from '@/lib/utils/content-serializer'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 
 export interface Category {
   id: string
@@ -67,9 +68,7 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
     }
 
     // Pagination
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [categoryRows, countResult, selectedRows] = await Promise.all([
@@ -126,9 +125,7 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
     }
 
     // Pagination
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const offset = (page - 1) * pageSize
+    const { page, pageSize, offset } = normalizePagination(options)
     const parentSlug = options?.parentSlug?.trim() || null
     const parentCategory = parentSlug
       ? await db.query.categories.findFirst({
@@ -337,8 +334,7 @@ export async function createCategoryAction(
 export async function updateCategoryAction(categoryId: string, data: UpdateCategoryData) {
   try {
     // Validate category ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(categoryId)) {
+    if (!UUID_REGEX.test(categoryId)) {
       return { data: null, error: 'Invalid category ID format' }
     }
 
@@ -476,8 +472,7 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
 export async function deleteCategoryAction(categoryId: string) {
   try {
     // Validate category ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(categoryId)) {
+    if (!UUID_REGEX.test(categoryId)) {
       return { success: false, error: 'Invalid category ID format' }
     }
 
@@ -552,9 +547,8 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
       return { success: false, error: 'No categories selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of categoryIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid category ID format' }
       }
     }
@@ -632,8 +626,7 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
 export async function updateCategoryBlocksAction(categoryId: string, contentBlocks: Record<string, any>) {
   try {
     // Validate category ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(categoryId)) {
+    if (!UUID_REGEX.test(categoryId)) {
       return { success: false, error: 'Invalid category ID format' }
     }
 

@@ -17,6 +17,7 @@ import {
 } from './directory-template-inheritance'
 import type { DirectoryCustomBlockTemplate } from './directory-custom-blocks/types'
 import { searchSiteDirectoriesAction, type DirectorySummary } from './directory-list-actions'
+import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
 export type DirectoryStatus = 'draft' | 'published'
 
 export interface Directory {
@@ -47,7 +48,6 @@ interface DirectoryBuilderData {
   directoryOptions: DirectorySummary[]
   customBlockTemplates: DirectoryCustomBlockTemplate[]
 }
-
 
 export interface UpdateDirectoryInput {
   title?: string
@@ -104,9 +104,7 @@ export async function getSiteDirectoriesWithCategoriesAction(
       return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
     }
 
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
+    const { page, pageSize, offset: from } = normalizePagination(options)
 
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
       .from(directories)
@@ -182,8 +180,7 @@ export async function getSiteDirectoriesWithCategoriesAction(
 export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryInput) {
   try {
     // Validate directory ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(directoryId)) {
+    if (!UUID_REGEX.test(directoryId)) {
       return { data: null, error: 'Invalid directory ID format' }
     }
 
@@ -214,7 +211,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
 
     let nextTemplateContentBlocks: Record<string, any> | null = null
     if (data.template_id !== undefined) {
-      if (!uuidRegex.test(data.template_id)) {
+      if (!UUID_REGEX.test(data.template_id)) {
         return { data: null, error: 'Invalid template ID format' }
       }
 
@@ -325,8 +322,7 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
 export async function deleteDirectoryAction(directoryId: string) {
   try {
     // Validate directory ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(directoryId)) {
+    if (!UUID_REGEX.test(directoryId)) {
       return { success: false, error: 'Invalid directory ID format' }
     }
 
@@ -389,9 +385,8 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
       return { success: false, error: 'No listings selected' }
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     for (const id of directoryIds) {
-      if (!uuidRegex.test(id)) {
+      if (!UUID_REGEX.test(id)) {
         return { success: false, error: 'Invalid directory ID format' }
       }
     }
@@ -450,8 +445,7 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
 export async function duplicateDirectoryAction(directoryId: string, newTitle: string) {
   try {
     // Validate directory ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(directoryId)) {
+    if (!UUID_REGEX.test(directoryId)) {
       return { data: null, error: 'Invalid directory ID format' }
     }
 
@@ -548,8 +542,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
 async function getDirectoryBySlugAction(siteId: string, slug: string) {
   try {
     // Validate site ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(siteId)) {
+    if (!UUID_REGEX.test(siteId)) {
       return { data: null, error: 'Invalid site ID format' }
     }
 
@@ -679,8 +672,7 @@ export async function getDirectoryBuilderDataAction(
 
 export async function getDirectoryByIdAction(directoryId: string) {
   try {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(directoryId)) {
+    if (!UUID_REGEX.test(directoryId)) {
       return { data: null, error: 'Invalid directory ID format' }
     }
 
@@ -717,8 +709,7 @@ export async function getDirectoryByIdAction(directoryId: string) {
 export async function updateDirectoryBlockValuesAction(directoryId: string, contentBlocks: Record<string, any>) {
   try {
     // Validate directory ID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(directoryId)) {
+    if (!UUID_REGEX.test(directoryId)) {
       return { success: false, error: 'Invalid directory ID format' }
     }
 
