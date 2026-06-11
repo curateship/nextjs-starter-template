@@ -8,21 +8,6 @@ interface CheckoutPageProps {
   searchParams: Promise<{ tier?: string }>
 }
 
-function getSiteOrigin(site: any) {
-  const domain = site?.custom_domain || process.env.NEXT_PUBLIC_APP_DOMAIN
-  if (!domain) return undefined
-
-  if (/^https?:\/\//i.test(domain)) {
-    return domain.replace(/\/$/, '')
-  }
-
-  if (domain.startsWith('localhost') || domain.startsWith('127.')) {
-    return `http://${domain}`
-  }
-
-  return `https://${domain}`
-}
-
 export default async function CheckoutPage({ params, searchParams }: CheckoutPageProps) {
   const { slug } = await params
   const { tier: tierId } = await searchParams
@@ -37,7 +22,15 @@ export default async function CheckoutPage({ params, searchParams }: CheckoutPag
   const product = result.product
   const site = result.site
   const stripeConfig = site?.id ? await getStripeConfig(site.id) : null
-  const checkoutOrigin = getSiteOrigin(site)
+
+  // Normalize the site domain into an absolute origin for Stripe redirect URLs
+  const domain = site?.custom_domain || process.env.NEXT_PUBLIC_APP_DOMAIN
+  let checkoutOrigin: string | undefined
+  if (domain) {
+    if (/^https?:\/\//i.test(domain)) checkoutOrigin = domain.replace(/\/$/, '')
+    else if (domain.startsWith('localhost') || domain.startsWith('127.')) checkoutOrigin = `http://${domain}`
+    else checkoutOrigin = `https://${domain}`
+  }
 
   // Get checkout block data
   const pricingBlockData = product.blocks?.find((block: any) => block.type === 'product-checkout')

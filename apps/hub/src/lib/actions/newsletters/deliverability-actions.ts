@@ -4,7 +4,7 @@ import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { newsletterContacts, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { getResendConfig } from '@/lib/actions/integrations/config-helpers'
+import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import dns from 'dns/promises'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
@@ -60,7 +60,7 @@ export async function checkDomainHealth(siteId: string): Promise<{ data: DomainH
       return { data: null, error: 'Access denied' }
     }
 
-    const config = await getResendConfig(siteId)
+    const config = await getEmailConfig(siteId)
     if (!config?.fromEmail) return { data: null, error: 'From email not configured' }
 
     const domain = config.fromEmail.split('@')[1]

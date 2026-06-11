@@ -111,12 +111,6 @@ export async function getMxrouteConfig(siteId: string): Promise<Record<string, a
   return integration?.config ?? null
 }
 
-/** @deprecated Use getEmailConfig instead */
-export async function getResendConfig(siteId: string) {
-  return getEmailConfig(siteId)
-}
-
-
 export async function getGoogleMapsConfig(siteId: string): Promise<{
   apiKey: string
 } | null> {

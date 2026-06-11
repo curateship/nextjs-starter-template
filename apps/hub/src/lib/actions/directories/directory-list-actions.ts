@@ -4,7 +4,6 @@ import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, directories, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { normalizeDirectorySearchQuery } from './directory-helpers'
 import type { DirectoryStatus } from './directory-actions'
 
 type DirectoryListStatus = 'all' | 'published' | 'draft'
@@ -260,7 +259,7 @@ async function getDirectoryListPageAction(query: DirectoryListQuery): Promise<{
     const sortDirection = query.sortDirection || (sortBy === 'modified' ? 'desc' : 'asc')
     const limit = Math.min(100, Math.max(1, Math.floor(query.limit ?? 50)))
     const cursor = decodeCursor(query.cursor)
-    const normalizedSearch = normalizeDirectorySearchQuery(query.search)
+    const normalizedSearch = query.search?.trim().toLowerCase() || ''
 
     const baseConditions = [eq(directories.siteId, query.siteId)]
 

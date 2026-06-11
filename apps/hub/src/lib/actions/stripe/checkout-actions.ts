@@ -43,10 +43,6 @@ function getSelectedBumpIds(selectedBumps: Array<OrderBump | string>) {
     .filter((id): id is string => typeof id === 'string' && id.length > 0)
 }
 
-function getCheckoutBlock(contentBlocks: Record<string, any>) {
-  return Object.values(contentBlocks || {}).find((block: any) => block?.type === 'product-checkout') as any | undefined
-}
-
 async function resolveCheckoutSelection(data: {
   siteId?: string
   productId?: string
@@ -93,7 +89,8 @@ async function resolveCheckoutSelection(data: {
     throw new Error('Product not found')
   }
 
-  const checkoutBlock = getCheckoutBlock((product.contentBlocks || {}) as Record<string, any>)
+  const checkoutBlock = Object.values((product.contentBlocks || {}) as Record<string, any>)
+    .find((block: any) => block?.type === 'product-checkout') as any | undefined
   const content = checkoutBlock?.content || {}
   const tiers = Array.isArray(content.productPricingTiers)
     ? content.productPricingTiers

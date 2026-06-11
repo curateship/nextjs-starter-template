@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
-import { getEmailConfig } from '@/lib/actions/email/integration-actions'
+import { getEmailConfig } from '@/lib/actions/integrations/config-helpers'
 import { getEmailProvider } from '@/lib/actions/email/provider'
 import {
   buildSystemEmailTokens,
