@@ -32,7 +32,7 @@ export function encrypt(plaintext: string): string {
 /**
  * Decrypt an encrypted string (iv:authTag:ciphertext format).
  */
-export function decrypt(ciphertext: string): string {
+function decrypt(ciphertext: string): string {
   const key = getEncryptionKey()
   const [ivB64, authTagB64, encryptedB64] = ciphertext.split(':')
 
@@ -56,7 +56,7 @@ export function decrypt(ciphertext: string): string {
  * Check if a value looks like an encrypted string (iv:authTag:ciphertext).
  * Used for backward compatibility with existing plaintext values.
  */
-export function isEncrypted(value: string): boolean {
+function isEncrypted(value: string): boolean {
   const parts = value.split(':')
   if (parts.length !== 3) return false
 

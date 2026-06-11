@@ -420,7 +420,7 @@ export function AdminListFooter({
   );
 }
 
-export function AdminTableFooterSkeleton() {
+function AdminTableFooterSkeleton() {
   return (
     <div className="flex flex-col justify-between gap-3 bg-muted/50 p-4 sm:flex-row">
       <div className="flex items-center gap-2">

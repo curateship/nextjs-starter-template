@@ -13,7 +13,7 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0
 }
 
-export function isBuiltInNavigationActionItemId(
+function isBuiltInNavigationActionItemId(
   value: unknown
 ): value is BuiltInNavigationActionItemId {
   return BUILT_IN_NAVIGATION_ACTION_ITEM_IDS.includes(

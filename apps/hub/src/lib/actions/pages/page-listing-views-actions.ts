@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 
 export type ListingViewsContentType = 'products' | 'posts' | 'directory'
 
-export interface ListingViewsCategory {
+interface ListingViewsCategory {
   id: string
   title: string
   slug: string

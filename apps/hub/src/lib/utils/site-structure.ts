@@ -13,7 +13,7 @@ export interface SiteChromeSettings {
   footer: Record<string, any> | null
 }
 
-export type NavigationActionStyle = 'primary' | 'outline' | 'ghost'
+type NavigationActionStyle = 'primary' | 'outline' | 'ghost'
 
 export interface NavigationActionSettings {
   text: string
@@ -63,7 +63,7 @@ function isNavigationActionStyle(
   return NAVIGATION_ACTION_STYLES.includes(value as NavigationActionStyle)
 }
 
-export function buildAccountMenuAuthUrl(
+function buildAccountMenuAuthUrl(
   publicAuthPagePath: string | null | undefined,
   tab: 'login' | 'register'
 ) {
@@ -230,12 +230,12 @@ export function sanitizeFooterSettings(footer: Record<string, any> | null | unde
   return sanitizedFooter
 }
 
-export function resolveSiteNavigation(settings: Record<string, any> | null | undefined) {
+function resolveSiteNavigation(settings: Record<string, any> | null | undefined) {
   if (!settings) return null
   return sanitizeNavigationSettings(settings.navigation)
 }
 
-export function resolveSiteFooter(settings: Record<string, any> | null | undefined) {
+function resolveSiteFooter(settings: Record<string, any> | null | undefined) {
   if (!settings) return null
   return sanitizeFooterSettings(settings.footer)
 }

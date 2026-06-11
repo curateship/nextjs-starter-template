@@ -60,20 +60,6 @@ export interface AutomationStep {
   updated_at: string
 }
 
-export interface AutomationEnrollment {
-  id: string
-  automation_id: string
-  contact_id: string
-  current_step_order: number
-  status: 'active' | 'completed' | 'goal_met' | 'cancelled'
-  enrolled_at: string
-  completed_at: string | null
-  goal_met_at: string | null
-  ended_at: string | null
-  last_step_sent_at: string | null
-  metadata: Record<string, any>
-}
-
 export interface AutomationJourneyIndicator {
   label: string
   next_due_at: string | null
@@ -760,7 +746,7 @@ export async function enrollContact(automationId: string, contactId: string): Pr
   }
 }
 
-export async function cancelEnrollment(enrollmentId: string): Promise<{ success: boolean; error: string | null }> {
+async function cancelEnrollment(enrollmentId: string): Promise<{ success: boolean; error: string | null }> {
   try {
     if (!UUID_REGEX.test(enrollmentId)) return { success: false, error: 'Invalid ID' }
     const user = await getAuthenticatedUser()

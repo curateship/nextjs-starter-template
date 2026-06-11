@@ -1,4 +1,4 @@
-export type SiteUserMatchMode = 'all' | 'any'
+type SiteUserMatchMode = 'all' | 'any'
 export type SiteUserFilterType = 'status' | 'role' | 'lastEngaged' | 'dateAdded'
 export type SiteUserDateOperator = 'is' | 'isnt'
 export type SiteUserRelativeDays = 7 | 30 | 60 | 90

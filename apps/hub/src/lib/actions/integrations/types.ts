@@ -25,7 +25,7 @@ export const SENSITIVE_FIELDS: Record<IntegrationType, string[]> = {
   notion_marketplace: ['webhook_secret'],
 }
 
-export interface IntegrationFieldDefinition {
+interface IntegrationFieldDefinition {
   key: string
   label: string
   type: 'text' | 'password' | 'email' | 'select'

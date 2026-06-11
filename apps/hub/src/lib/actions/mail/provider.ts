@@ -3,7 +3,7 @@ import dns from 'node:dns/promises'
 
 export type MailProviderId = 'mxroute'
 
-export type DnsRecordStatus = 'pass' | 'missing'
+type DnsRecordStatus = 'pass' | 'missing'
 
 export interface MailDnsRecord {
   type: 'MX' | 'TXT' | 'CNAME'
@@ -25,7 +25,7 @@ export interface ProviderMailbox {
   providerData?: Record<string, unknown>
 }
 
-export interface CreateProviderMailboxInput {
+interface CreateProviderMailboxInput {
   localPart: string
   password: string
   quotaMb: number
@@ -162,7 +162,7 @@ function mapMxrouteMailbox(domain: string, value: Record<string, unknown>): Prov
   }
 }
 
-export class MxrouteProvider implements MailProviderAdapter {
+class MxrouteProvider implements MailProviderAdapter {
   private config: MxrouteConfig
 
   constructor(config: MxrouteConfig) {

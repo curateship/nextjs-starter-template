@@ -29,7 +29,7 @@ export type OrderType = 'lead_magnet' | 'paid_purchase'
 /**
  * Payment status enum
  */
-export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'canceled'
+type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'canceled'
 
 /**
  * Product order data structure

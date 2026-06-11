@@ -24,7 +24,7 @@ interface ProductEmailModalDialogProps {
   isPreview?: boolean
 }
 
-export function ProductEmailModalDialog({
+function ProductEmailModalDialog({
   content,
   siteId,
   productId,

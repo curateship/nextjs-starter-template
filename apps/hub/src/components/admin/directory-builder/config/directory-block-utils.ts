@@ -25,7 +25,7 @@ function isSupportedDirectoryBlockType(type: string) {
     type === 'directory-related-listing'
 }
 
-export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {
+function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {
   const content = block.type === DIRECTORY_CORE_BLOCK_TYPE
     ? normalizeDirectoryCoreContent(block.content)
     : block.content

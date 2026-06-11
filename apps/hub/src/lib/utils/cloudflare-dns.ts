@@ -156,7 +156,7 @@ async function ensureTxtRecord(zoneId: string, name: string, content: string) {
   })
 }
 
-export function isCloudflareDnsConfigured() {
+function isCloudflareDnsConfigured() {
   return !!getToken()
 }
 

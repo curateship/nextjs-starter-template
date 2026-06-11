@@ -36,7 +36,7 @@ export interface Directory {
   updated_at: string
 }
 
-export interface DirectoryWithDetails extends Directory {
+interface DirectoryWithDetails extends Directory {
   site_name: string
   subdomain: string
   user_id: string
@@ -545,7 +545,7 @@ export async function duplicateDirectoryAction(directoryId: string, newTitle: st
   }
 }
 
-export async function getDirectoryBySlugAction(siteId: string, slug: string) {
+async function getDirectoryBySlugAction(siteId: string, slug: string) {
   try {
     // Validate site ID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

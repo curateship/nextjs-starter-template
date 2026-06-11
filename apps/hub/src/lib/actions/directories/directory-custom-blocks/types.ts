@@ -1,8 +1,8 @@
-export const DIRECTORY_CUSTOM_BLOCK_LAYOUTS = ['stack', 'stack-card', 'two-column'] as const
+const DIRECTORY_CUSTOM_BLOCK_LAYOUTS = ['stack', 'stack-card', 'two-column'] as const
 
 export type DirectoryCustomBlockLayout = typeof DIRECTORY_CUSTOM_BLOCK_LAYOUTS[number]
 
-export const DIRECTORY_CUSTOM_BLOCK_FIELD_TYPES = [
+const DIRECTORY_CUSTOM_BLOCK_FIELD_TYPES = [
   'text',
   'textarea',
   'rich-text',
@@ -54,9 +54,4 @@ export interface DirectoryCustomBlockTemplate {
   used_in_count?: number
   created_at: string
   updated_at: string
-}
-
-export interface DirectoryCustomBlockInstanceContent {
-  templateId: string
-  values: Record<string, any>
 }

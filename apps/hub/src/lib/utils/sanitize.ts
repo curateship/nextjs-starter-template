@@ -4,7 +4,7 @@
  */
 
 /** Sanitize a string value to prevent XSS */
-export function sanitizeString(value: any): string {
+function sanitizeString(value: any): string {
   if (typeof value !== 'string') return ''
   return value
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')

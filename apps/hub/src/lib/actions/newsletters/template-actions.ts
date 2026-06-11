@@ -212,7 +212,7 @@ export async function updateTemplate(
 /**
  * Get the default template for a site. Creates one if it doesn't exist.
  */
-export async function getDefaultTemplate(
+async function getDefaultTemplate(
   siteId: string
 ): Promise<{ data: NewsletterTemplate | null; error: string | null }> {
   try {

@@ -8,7 +8,7 @@ export interface NewsletterRenderBlock {
   content: Record<string, any>
 }
 
-export interface NewsletterRenderSponsor {
+interface NewsletterRenderSponsor {
   id: string
   title: string
   description?: string | null

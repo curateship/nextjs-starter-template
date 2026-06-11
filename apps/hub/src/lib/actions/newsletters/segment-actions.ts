@@ -330,25 +330,6 @@ export async function syncDynamicSegmentsForContacts(contactIds: string[]): Prom
   }
 }
 
-export async function syncAllDynamicSegments(): Promise<void> {
-  const segments = await db
-    .select({
-      id: newsletterSegments.id,
-      siteId: newsletterSegments.siteId,
-      segmentType: newsletterSegments.segmentType,
-      dynamicRule: newsletterSegments.dynamicRule,
-    })
-    .from(newsletterSegments)
-    .where(eq(newsletterSegments.segmentType, 'dynamic'))
-
-  for (const segment of segments) {
-    const changedContactIds = await syncDynamicSegmentMembership(db, segment)
-    if (changedContactIds.length) {
-      await syncDependentDynamicSegments(db, segment.siteId, segment.id, changedContactIds)
-    }
-  }
-}
-
 export async function getSegmentsBySite(
   siteId: string,
   options?: { page?: number; pageSize?: number }

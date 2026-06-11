@@ -5,7 +5,7 @@ import { unstable_cache } from "next/cache"
 import { db } from "@/lib/db"
 import { categories, sites } from "@/lib/db/schema"
 
-export interface CategoriesListingItem {
+interface CategoriesListingItem {
   id: string
   title: string
   slug: string

@@ -8,7 +8,7 @@ export type NewsletterSourceType = 'broadcast' | 'automation'
 export type NewsletterDeliveryEventType = 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained'
 export type NewsletterSourceEventType = NewsletterDeliveryEventType | 'sent' | 'unsubscribed'
 
-export const RECENT_EMAIL_ACTIVITY_LIMIT = 50
+const RECENT_EMAIL_ACTIVITY_LIMIT = 50
 export const NEWSLETTER_DELIVERY_WEBHOOK_WINDOW_DAYS = 7
 
 type DbExecutor = typeof db | any
@@ -29,12 +29,12 @@ async function withAdvisoryLock<T>(
   return callback(executor)
 }
 
-export function normalizeNewsletterStepOrder(sourceType: NewsletterSourceType, stepOrder?: number | null) {
+function normalizeNewsletterStepOrder(sourceType: NewsletterSourceType, stepOrder?: number | null) {
   if (sourceType === 'broadcast') return 0
   return Math.max(1, Math.floor(Number(stepOrder) || 0))
 }
 
-export function getRecentEmailActivityKey(sourceType: NewsletterSourceType, sourceId: string, stepOrder: number) {
+function getRecentEmailActivityKey(sourceType: NewsletterSourceType, sourceId: string, stepOrder: number) {
   return sourceType === 'automation'
     ? `${sourceType}:${sourceId}:step:${stepOrder}`
     : `${sourceType}:${sourceId}`
@@ -185,7 +185,7 @@ async function markRecentEmailActivity(
   })
 }
 
-export async function incrementNewsletterSourceStats(
+async function incrementNewsletterSourceStats(
   executor: DbExecutor,
   input: {
     siteId: string

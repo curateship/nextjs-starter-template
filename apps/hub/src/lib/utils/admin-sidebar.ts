@@ -25,7 +25,7 @@ export type AdminSidebarItem = {
   activePaths?: string[]
 }
 
-export type AdminSidebarEntry = AdminSidebarItem
+type AdminSidebarEntry = AdminSidebarItem
 
 export type AdminSidebarSection = {
   id: string
@@ -45,8 +45,6 @@ export type AdminSidebarNavLink = {
   iconName?: QuickLinkIconValue
   external?: boolean
 }
-
-export const ADMIN_SIDEBAR_ICON_OPTIONS = QUICK_LINK_ICON_OPTIONS
 
 const SITE_ID_PATTERN = /\/admin\/(?:sites|pages|account-pages(?:\/builder)?|categories(?:\/builder)?|posts\/builder|products\/builder|directories\/builder|events\/builder)\/([0-9a-f-]{36})(?:\/|$)/i
 

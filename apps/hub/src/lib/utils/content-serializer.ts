@@ -77,7 +77,7 @@ function toIsoString(value: Date | string): string {
   return typeof value === 'string' ? new Date(value).toISOString() : value.toISOString()
 }
 
-export function serializeContentRow(row: ContentRow): SerializedContent {
+function serializeContentRow(row: ContentRow): SerializedContent {
   return {
     id: row.id,
     site_id: requireValue(row.siteId ?? row.site_id, 'site_id'),

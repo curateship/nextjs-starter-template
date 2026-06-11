@@ -7,9 +7,9 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { normalizeDirectorySearchQuery } from './directory-helpers'
 import type { DirectoryStatus } from './directory-actions'
 
-export type DirectoryListStatus = 'all' | 'published' | 'draft'
-export type DirectoryListSort = 'default' | 'title' | 'modified'
-export type DirectoryListDirection = 'asc' | 'desc'
+type DirectoryListStatus = 'all' | 'published' | 'draft'
+type DirectoryListSort = 'default' | 'title' | 'modified'
+type DirectoryListDirection = 'asc' | 'desc'
 
 interface DirectoryListCursorPayload {
   sortBy: DirectoryListSort
@@ -34,7 +34,7 @@ export interface DirectorySummary {
   updated_at: string
 }
 
-export interface DirectoryListQuery {
+interface DirectoryListQuery {
   siteId: string
   search?: string
   categoryId?: string
@@ -45,7 +45,7 @@ export interface DirectoryListQuery {
   limit?: number
 }
 
-export interface DirectoryListPage {
+interface DirectoryListPage {
   rows: DirectorySummary[]
   categories: Record<string, import('@/lib/actions/categories/category-relationship-actions').CategoryInfo[]>
   totalCount: number
@@ -245,7 +245,7 @@ async function getCategoryMap(directoryIds: string[]) {
   }, {})
 }
 
-export async function getDirectoryListPageAction(query: DirectoryListQuery): Promise<{
+async function getDirectoryListPageAction(query: DirectoryListQuery): Promise<{
   data: DirectoryListPage | null
   error: string | null
 }> {

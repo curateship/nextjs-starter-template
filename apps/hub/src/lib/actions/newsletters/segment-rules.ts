@@ -1,4 +1,4 @@
-export const SEGMENT_TYPES = ['static', 'dynamic'] as const
+const SEGMENT_TYPES = ['static', 'dynamic'] as const
 
 export type SegmentType = typeof SEGMENT_TYPES[number]
 export type SegmentDynamicRuleOperator = 'is' | 'isnt'
@@ -9,31 +9,31 @@ export type SegmentContactStatus = typeof SEGMENT_CONTACT_STATUSES[number]
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export interface LastEngagedWithinDaysRule {
+interface LastEngagedWithinDaysRule {
   type: 'last_engaged_within_days'
   operator: SegmentDynamicRuleOperator
   days: number
 }
 
-export interface TagMatchRule {
+interface TagMatchRule {
   type: 'tag_match'
   operator: SegmentTagRuleOperator
   tags: string[]
 }
 
-export interface EmailOpenCountRule {
+interface EmailOpenCountRule {
   type: 'email_open_count'
   operator: SegmentOpenCountRuleOperator
   times: number
 }
 
-export interface StatusMatchRule {
+interface StatusMatchRule {
   type: 'status_match'
   operator: SegmentDynamicRuleOperator
   status: SegmentContactStatus
 }
 
-export interface SegmentExclusionRule {
+interface SegmentExclusionRule {
   type: 'segment_exclusion'
   segment_ids: string[]
 }
@@ -51,10 +51,6 @@ export interface SegmentDynamicRule {
 
 type FormatSegmentDynamicRuleOptions = {
   maxTags?: number
-}
-
-export function isSegmentType(value: unknown): value is SegmentType {
-  return value === 'static' || value === 'dynamic'
 }
 
 function normalizeLastEngagedWithinDaysRule(value: unknown): LastEngagedWithinDaysRule | null {
@@ -208,7 +204,7 @@ function formatStatusLabel(status: SegmentContactStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
-export function formatSegmentDynamicCondition(
+function formatSegmentDynamicCondition(
   condition: SegmentDynamicCondition,
   options: FormatSegmentDynamicRuleOptions = {}
 ): string {

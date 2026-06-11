@@ -8,7 +8,7 @@ export interface DirectoryOpeningHoursAttribution {
   providerUri?: string
 }
 
-export interface DirectoryOpeningHoursRow {
+interface DirectoryOpeningHoursRow {
   day: string
   hours: string
   isToday: boolean

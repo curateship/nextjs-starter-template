@@ -22,7 +22,7 @@ interface SaveStatusBadgeProps {
 
 const DashboardHeaderActionsSlotContext = createContext<DashboardHeaderActionsSlotContextValue | null>(null)
 
-export interface StickybarFilterMenuItem {
+interface StickybarFilterMenuItem {
   value: string
   label: string
   icon?: LucideIcon

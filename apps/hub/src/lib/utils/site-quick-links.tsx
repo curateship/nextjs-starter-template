@@ -69,7 +69,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-export const QUICK_LINK_ICONS = {
+const QUICK_LINK_ICONS = {
   dashboard: LayoutDashboard,
   home: Home,
   pages: FileText,
@@ -240,7 +240,7 @@ export function getQuickLinkIcon(icon?: string): LucideIcon {
   return QUICK_LINK_ICONS[DEFAULT_ICON]
 }
 
-export function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
+function getQuickLinkIconOrNull(icon?: string): LucideIcon | null {
   if (typeof icon === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, icon)) {
     return QUICK_LINK_ICONS[icon as QuickLinkIconName]
   }
@@ -255,7 +255,7 @@ export function getQuickLinkIconLabel(icon?: string): string {
   return dynamicIconName ? getDynamicLucideIconLabel(dynamicIconName) : "No icon"
 }
 
-export function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
+function isQuickLinkIconName(value: unknown): value is QuickLinkIconName {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(QUICK_LINK_ICONS, value)
 }
 
@@ -359,11 +359,11 @@ export function isExternalQuickLinkHref(href: string): boolean {
   return EXTERNAL_PROTOCOL_PATTERN.test(href.trim())
 }
 
-export function isInternalQuickLinkHref(href: string): boolean {
+function isInternalQuickLinkHref(href: string): boolean {
   return href.trim().startsWith("/")
 }
 
-export function isValidQuickLinkHref(href: string): boolean {
+function isValidQuickLinkHref(href: string): boolean {
   return isInternalQuickLinkHref(href) || isExternalQuickLinkHref(href)
 }
 

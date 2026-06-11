@@ -1,4 +1,4 @@
-export const AUTOMATION_TRIGGER_TYPES = [
+const AUTOMATION_TRIGGER_TYPES = [
   'none',
   'segment_added',
   'lead_magnet_signup',
@@ -10,13 +10,6 @@ export type AutomationTriggerType = typeof AUTOMATION_TRIGGER_TYPES[number]
 export interface AutomationTriggerNode {
   type: AutomationTriggerType
   config: Record<string, any>
-}
-
-export const AUTOMATION_TRIGGER_LABELS: Record<AutomationTriggerType, string> = {
-  none: 'Choose Trigger',
-  segment_added: 'Added to Segment',
-  lead_magnet_signup: 'Lead Magnet Signup',
-  paid_purchase: 'Paid Purchase',
 }
 
 export const AUTOMATION_TRIGGER_SHORT_LABELS: Record<AutomationTriggerType, string> = {

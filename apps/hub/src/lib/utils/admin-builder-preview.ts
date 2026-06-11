@@ -46,7 +46,7 @@ export function createPreviewEntityBlocks(blocks: PreviewBlock[]) {
  * Transform admin block format to frontend block format for preview rendering
  * Now using generic structure that works with pages, products, and posts
  */
-export function transformAdminBlocksToFrontend(
+function transformAdminBlocksToFrontend(
   blocks: PreviewBlock[]
 ): SiteWithBlocks['blocks'] {
   // Simple transformation - no complex property mapping needed

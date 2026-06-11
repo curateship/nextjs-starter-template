@@ -119,7 +119,7 @@ export function buildCanonicalUrl(site: SeoSite, path: string = ''): string {
   return `${cleanBase}${cleanPath}`
 }
 
-export function getSeoSiteTitle(site: SeoSite): string {
+function getSeoSiteTitle(site: SeoSite): string {
   const title = typeof site.settings?.site_title === 'string'
     ? site.settings.site_title.trim()
     : ''
@@ -145,7 +145,7 @@ export function getHomeSeoDescription(site: SeoSite): string {
   return `Visit ${site.name}`
 }
 
-export function resolveSeoTitle(site: SeoSite, content: SeoContent | null): string {
+function resolveSeoTitle(site: SeoSite, content: SeoContent | null): string {
   const siteTitle = getSeoSiteTitle(site)
   const contentTitle = typeof content?.title === 'string' ? content.title.trim() : ''
 
@@ -242,7 +242,7 @@ function getOgType(contentType: ContentType): string {
 /**
  * Build Open Graph metadata object for Next.js generateMetadata
  */
-export function buildOpenGraph(
+function buildOpenGraph(
   site: SeoSite,
   content: SeoContent | null,
   contentType: ContentType,
@@ -271,7 +271,7 @@ export function buildOpenGraph(
 /**
  * Build Twitter Card metadata object for Next.js generateMetadata
  */
-export function buildTwitterCard(
+function buildTwitterCard(
   site: SeoSite,
   content: SeoContent | null,
   contentType: ContentType = 'page'

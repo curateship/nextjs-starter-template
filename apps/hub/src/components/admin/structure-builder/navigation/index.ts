@@ -6,7 +6,7 @@ export interface NavigationStyleDefinition {
   AdminPanel?: ComponentType<NavigationStyleAdminProps>
 }
 
-export interface NavigationStyleAdminProps {
+interface NavigationStyleAdminProps {
   config: Record<string, any>
   onConfigChange: (field: string, value: any) => void
   siteId: string

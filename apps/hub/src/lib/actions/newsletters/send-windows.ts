@@ -3,7 +3,7 @@ export type NewsletterSendWindow = {
   end: string
 }
 
-export const DEFAULT_NEWSLETTER_SEND_WINDOWS: NewsletterSendWindow[] = [
+const DEFAULT_NEWSLETTER_SEND_WINDOWS: NewsletterSendWindow[] = [
   { start: '08:00', end: '13:00' },
   { start: '19:00', end: '21:00' },
 ]

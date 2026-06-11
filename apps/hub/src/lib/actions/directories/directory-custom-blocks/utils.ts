@@ -7,7 +7,7 @@ import type {
   DirectoryCustomBlockSimpleFieldType,
 } from './types'
 
-export const DIRECTORY_CUSTOM_BLOCK_SELECTION_PREFIX = 'directory-custom:'
+const DIRECTORY_CUSTOM_BLOCK_SELECTION_PREFIX = 'directory-custom:'
 
 function randomId() {
   return Math.random().toString(36).slice(2, 8)
@@ -23,7 +23,7 @@ export function parseDirectoryCustomBlockSelectionType(type: string) {
     : null
 }
 
-export function createDirectoryCustomFieldId(prefix = 'field') {
+function createDirectoryCustomFieldId(prefix = 'field') {
   return `${prefix}-${Date.now()}-${randomId()}`
 }
 

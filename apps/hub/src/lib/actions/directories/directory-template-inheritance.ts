@@ -80,7 +80,7 @@ export function getDirectoryTemplateDefaultCategoryParentId(contentBlocks: Recor
   return typeof parentId === 'string' && parentId.length > 0 ? parentId : null
 }
 
-export function getDirectoryBlockValueContent(type: string, content: Record<string, any> = {}) {
+function getDirectoryBlockValueContent(type: string, content: Record<string, any> = {}) {
   const keys = DIRECTORY_VALUE_KEYS[type] || []
   const values: Record<string, any> = {}
 
@@ -222,15 +222,6 @@ export function mergeDirectoryTemplateBlocks(
   })
 
   return mergedBlocks
-}
-
-export function getDirectoryTemplateCustomBlockIds(contentBlocks: Record<string, any>) {
-  return Array.from(new Set(
-    Object.values(contentBlocks || {})
-      .filter(isBlockEntry)
-      .map((block) => block.content?.templateId)
-      .filter((id): id is string => typeof id === 'string' && id.length > 0)
-  ))
 }
 
 export function withDirectoryTemplatePreviewValues<TBlock extends { type: string; content: Record<string, any> }>(

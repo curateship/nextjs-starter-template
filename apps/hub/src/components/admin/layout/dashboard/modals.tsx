@@ -132,13 +132,7 @@ function DashboardModalFooterActions({ className, ...props }: React.ComponentPro
 }
 
 export {
-  DashboardModalCloseButton,
   DashboardModalCardTitle,
   DashboardModalContent,
-  DashboardModalDescription,
-  DashboardModalFooter,
   DashboardModalFooterActions,
-  DashboardModalHeader,
-  DashboardModalScrollBody,
-  DashboardModalTitle,
 }

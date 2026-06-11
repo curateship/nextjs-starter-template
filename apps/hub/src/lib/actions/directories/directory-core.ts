@@ -49,7 +49,7 @@ function isSafeCoreHref(value: string) {
   )
 }
 
-export function sanitizeDirectoryCoreHref(value?: string | null): string {
+function sanitizeDirectoryCoreHref(value?: string | null): string {
   const trimmedValue = value?.trim() || ""
   return trimmedValue && isSafeCoreHref(trimmedValue) ? trimmedValue : ""
 }

@@ -1,4 +1,4 @@
-export type ContactMatchMode = 'all' | 'any'
+type ContactMatchMode = 'all' | 'any'
 
 export type ContactFilterType =
   | 'status'
@@ -8,7 +8,7 @@ export type ContactFilterType =
   | 'source'
   | 'dataField'
 
-export type ContactDateOperator = 'is' | 'isnt'
+type ContactDateOperator = 'is' | 'isnt'
 export type ContactEmailOpenOperator = 'has_opened' | 'hasnt_opened'
 export type ContactDataField = 'tag'
 export type ContactDataFieldOperator =
@@ -104,7 +104,7 @@ export const CONTACT_STATUS_OPTIONS = [
   { value: 'complained', label: 'Complained' },
 ] as const
 
-export const DEFAULT_COLD_EMAIL_THRESHOLD = 7
+const DEFAULT_COLD_EMAIL_THRESHOLD = 7
 
 export function normalizeContactColdEmailThreshold(value: unknown) {
   return Math.min(50, Math.max(1, Math.floor(Number(value) || DEFAULT_COLD_EMAIL_THRESHOLD)))

@@ -51,7 +51,7 @@ interface DefaultTemplateDefinition {
 
 const GLOBAL_SCOPE_KEY = 'global'
 
-export const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
+const SYSTEM_EMAIL_TEMPLATE_KEYS: SystemEmailTemplateKey[] = [
   'password_reset',
   'email_verification',
   'email_change_confirmation',

@@ -116,48 +116,6 @@ export async function getResendConfig(siteId: string) {
   return getEmailConfig(siteId)
 }
 
-/**
- * Get AI provider config for a site. Checks anthropic → openai → google_ai in order,
- * or a specific provider when requested.
- */
-export async function getAIConfig(siteId: string, preferredProvider?: AIProvider): Promise<{
-  apiKey: string
-  provider: AIProvider
-} | null> {
-  const providerTypes = preferredProvider
-    ? [preferredProvider]
-    : ['anthropic', 'openai', 'google_ai'] as const
-
-  for (const providerType of providerTypes) {
-    const integration = await getServerIntegration(siteId, providerType)
-    if (integration) {
-      const { api_key } = integration.config
-      if (api_key) {
-        return { apiKey: api_key, provider: providerType }
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Get Perplexity (research) config for a site.
- */
-export async function getResearchConfig(siteId: string): Promise<{
-  apiKey: string
-} | null> {
-  const integration = await getServerIntegration(siteId, 'perplexity')
-
-  if (integration) {
-    const { api_key } = integration.config
-    if (api_key) {
-      return { apiKey: api_key }
-    }
-  }
-
-  return null
-}
 
 export async function getGoogleMapsConfig(siteId: string): Promise<{
   apiKey: string

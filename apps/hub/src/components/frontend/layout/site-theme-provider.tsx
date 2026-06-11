@@ -43,7 +43,3 @@ export function SiteThemeProvider({ children, site, isPreview = false, enableThe
   )
 }
 
-// Custom hook for site themes
-export function useSiteTheme() {
-  return useTheme()
-}
