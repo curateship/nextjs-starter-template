@@ -6,6 +6,14 @@ import { db } from '@/lib/db'
 import { posts, sites, categories, contentCategoryRelationships } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  generateUniqueContentSlug,
+  getNextContentDisplayOrder,
+  preserveNonBlockSettings,
+  requireOwnedContentRow,
+  requireOwnedSite,
+  validateContentSlugUpdate,
+} from '@/lib/actions/content/content-action-helpers'
 
 export interface PostBlock {
   id: string
@@ -40,7 +48,9 @@ export interface UpdatePostData {
   is_published?: boolean
 }
 
-function rowToPost(row: typeof posts.$inferSelect): Post {
+type PostRow = typeof posts.$inferSelect
+
+function rowToPost(row: PostRow): Post {
   return {
     id: row.id,
     site_id: row.siteId,
@@ -69,28 +79,13 @@ function revalidatePostFrontend(siteId: string, postId?: string) {
  */
 export async function getSitePostsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Post[] | null; total: number; error: string | null }> {
   try {
-    // Validate site ID format
-    if (!UUID_REGEX.test(siteId)) {
-      return { data: null, total: 0, error: 'Invalid site ID format' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, error: access.error }
     }
 
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Verify user owns this site
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Site not found or access denied' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, data, selectedRows] = await Promise.all([
@@ -130,25 +125,13 @@ export async function getSitePostsWithCategoriesAction(
   error: string | null
 }> {
   try {
-    if (!UUID_REGEX.test(siteId)) {
-      return { data: null, categories: {}, total: 0, error: 'Invalid site ID format' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, categories: {}, total: 0, error: access.error }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, categories: {}, total: 0, error: 'User not authenticated' }
-    }
-
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, categories: {}, total: 0, error: 'Site not found or access denied' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
 
     const [countPromise, dataPromise] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(posts).where(eq(posts.siteId, siteId)),
@@ -216,36 +199,12 @@ export async function getSitePostsWithCategoriesAction(
  */
 export async function updatePostAction(postId: string, updates: UpdatePostData): Promise<{ data: Post | null; error: string | null }> {
   try {
-    // Validate post ID format
-    if (!UUID_REGEX.test(postId)) {
-      return { data: null, error: 'Invalid post ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PostRow>(posts, postId, 'Post')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the post
-    const [post] = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.id, postId))
-
-    if (!post) {
-      return { data: null, error: 'Post not found' }
-    }
-
-    // Verify user owns the site this post belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
+    const post = access.row
 
     // Validate title if being updated
     if (updates.title !== undefined && !updates.title?.trim()) {
@@ -255,33 +214,11 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
     // Validate and process slug if being updated
     let processedUpdates = { ...updates }
     if (updates.slug !== undefined) {
-      const slug = updates.slug.trim()
-
-      // Validate slug format
-      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      const slugResult = await validateContentSlugUpdate(posts, post.siteId, postId, updates.slug, 'Post')
+      if (!slugResult.ok) {
+        return { data: null, error: slugResult.error }
       }
-
-      // Check for reserved slugs
-      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-      if (reservedSlugs.includes(slug.toLowerCase())) {
-        return { data: null, error: 'This slug is reserved and cannot be used.' }
-      }
-
-      // Check if slug conflicts with other posts (excluding current post)
-      const [existingPost] = await db
-        .select({ id: posts.id })
-        .from(posts)
-        .where(and(eq(posts.siteId, post.siteId), eq(posts.slug, slug)))
-
-      if (existingPost && existingPost.id !== postId) {
-        return {
-          data: null,
-          error: `A post with the slug "${slug}" already exists. Please choose a different slug.`
-        }
-      }
-
-      processedUpdates.slug = slug
+      processedUpdates.slug = slugResult.slug
     }
 
     // Build updates with explicit field whitelist
@@ -340,41 +277,16 @@ export async function updatePostAction(postId: string, updates: UpdatePostData):
  */
 export async function deletePostAction(postId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Validate post ID format
-    if (!UUID_REGEX.test(postId)) {
-      return { success: false, error: 'Invalid post ID format' }
-    }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the post
-    const [post] = await db
-      .select({ id: posts.id, siteId: posts.siteId })
-      .from(posts)
-      .where(eq(posts.id, postId))
-
-    if (!post) {
-      return { success: false, error: 'Post not found' }
-    }
-
-    // Verify user owns the site this post belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PostRow>(posts, postId, 'Post')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
 
     // Delete the post
     await db.delete(posts).where(eq(posts.id, postId))
 
-    revalidatePostFrontend(post.siteId, postId)
+    revalidatePostFrontend(access.row.siteId, postId)
 
     return { success: true, error: null }
   } catch (error) {
@@ -446,74 +358,20 @@ export async function deletePostsAction(postIds: string[]): Promise<{ success: b
  */
 export async function duplicatePostAction(postId: string, newTitle: string): Promise<{ data: Post | null; error: string | null }> {
   try {
-    // Validate post ID format
-    if (!UUID_REGEX.test(postId)) {
-      return { data: null, error: 'Invalid post ID format' }
-    }
-
     if (!newTitle?.trim()) {
       return { data: null, error: 'New post title is required' }
     }
 
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PostRow>(posts, postId, 'Post')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
+    const originalPost = access.row
 
-    // Get the original post
-    const [originalPost] = await db
-      .select()
-      .from(posts)
-      .where(eq(posts.id, postId))
-
-    if (!originalPost) {
-      return { data: null, error: 'Post not found' }
-    }
-
-    // Verify user owns the site this post belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, originalPost.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
-
-    // Generate new slug
-    const baseSlug = newTitle
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    let newSlug = baseSlug
-    let counter = 1
-
-    // Ensure unique slug
-    while (true) {
-      const [existingPost] = await db
-        .select({ id: posts.id })
-        .from(posts)
-        .where(and(eq(posts.siteId, originalPost.siteId), eq(posts.slug, newSlug)))
-
-      if (!existingPost) break
-
-      newSlug = `${baseSlug}-${counter}`
-      counter++
-    }
-
-    // Get the next display order
-    const [orderData] = await db
-      .select({ displayOrder: posts.displayOrder })
-      .from(posts)
-      .where(eq(posts.siteId, originalPost.siteId))
-      .orderBy(desc(posts.displayOrder))
-      .limit(1)
-
-    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
+    // Unique slug + next display order via shared helpers
+    const newSlug = await generateUniqueContentSlug(posts, originalPost.siteId, newTitle)
+    const nextOrder = await getNextContentDisplayOrder(posts, originalPost.siteId)
 
     // Create the duplicate post with content_blocks
     const [newPost] = await db
@@ -552,55 +410,16 @@ export async function duplicatePostAction(postId: string, newTitle: string): Pro
  */
 export async function updatePostBlocksAction(postId: string, blocks: Record<string, PostBlock>): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Validate post ID format
-    if (!UUID_REGEX.test(postId)) {
-      return { success: false, error: 'Invalid post ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PostRow>(posts, postId, 'Post')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the post first
-    const [post] = await db
-      .select({ id: posts.id, siteId: posts.siteId, contentBlocks: posts.contentBlocks })
-      .from(posts)
-      .where(eq(posts.id, postId))
-
-    if (!post) {
-      return { success: false, error: 'Post not found' }
-    }
-
-    // Then verify user owns the site this post belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, post.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
-    }
+    const post = access.row
 
     // Preserve non-block settings and merge with updated blocks
-    const currentContentBlocks = (post.contentBlocks || {}) as Record<string, any>
-    const preservedSettings: Record<string, any> = {}
-
-    // Extract non-block settings (primitive values and objects without block structure)
-    Object.entries(currentContentBlocks).forEach(([key, value]) => {
-      // Preserve primitive values (like show_featured_image: boolean)
-      if (typeof value !== 'object' || value === null) {
-        preservedSettings[key] = value
-      }
-      // For objects, check if they're NOT blocks (don't have block structure)
-      else if (typeof value === 'object' && !('id' in value && 'type' in value && 'content' in value)) {
-        preservedSettings[key] = value
-      }
-    })
-
     const updatedContentBlocks = {
-      ...preservedSettings,
+      ...preserveNonBlockSettings(post.contentBlocks as Record<string, any>),
       ...blocks
     }
 

@@ -7,6 +7,15 @@ import { products, sites, categories, contentCategoryRelationships } from '@/lib
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { serializeProduct } from '@/lib/utils/content-serializer'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  generateUniqueContentSlug,
+  getNextContentDisplayOrder,
+  requireOwnedContentRow,
+  requireOwnedSite,
+  validateContentSlugUpdate,
+} from '@/lib/actions/content/content-action-helpers'
+
+type ProductRow = typeof products.$inferSelect
 
 export interface Product {
   id: string
@@ -43,28 +52,13 @@ function revalidateProductFrontend(siteId: string, productId?: string) {
  */
 export async function getSiteProductsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Product[] | null; total: number; error: string | null }> {
   try {
-    // Validate site ID format
-    if (!UUID_REGEX.test(siteId)) {
-      return { data: null, total: 0, error: 'Invalid site ID format' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, error: access.error }
     }
 
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Verify user owns this site
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Site not found or access denied' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, data, selectedRows] = await Promise.all([
@@ -104,25 +98,13 @@ export async function getSiteProductsWithCategoriesAction(
   error: string | null
 }> {
   try {
-    if (!UUID_REGEX.test(siteId)) {
-      return { data: null, categories: {}, total: 0, error: 'Invalid site ID format' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, categories: {}, total: 0, error: access.error }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, categories: {}, total: 0, error: 'User not authenticated' }
-    }
-
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, categories: {}, total: 0, error: 'Site not found or access denied' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
 
     const [countPromise, data] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(products).where(eq(products.siteId, siteId)),
@@ -198,38 +180,12 @@ export async function getSiteProductsWithCategoriesAction(
  */
 export async function updateProductAction(productId: string, updates: UpdateProductData): Promise<{ data: Product | null; error: string | null }> {
   try {
-    // Validate product ID format
-    if (!UUID_REGEX.test(productId)) {
-      return { data: null, error: 'Invalid product ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<ProductRow>(products, productId, 'Product')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the product
-    const productResult = await db.execute<{
-      id: string
-      site_id: string
-      slug: string
-    }>(sql`SELECT id, site_id, slug FROM products WHERE id = ${productId} LIMIT 1`)
-
-    const product = productResult.rows?.[0]
-    if (!product) {
-      return { data: null, error: 'Product not found' }
-    }
-
-    // Verify user owns the site this product belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, product.site_id), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
+    const product = access.row
 
     // Validate title if being updated
     if (updates.title !== undefined && !updates.title?.trim()) {
@@ -239,33 +195,11 @@ export async function updateProductAction(productId: string, updates: UpdateProd
     // Validate and process slug if being updated
     let processedUpdates = { ...updates }
     if (updates.slug !== undefined) {
-      const slug = updates.slug.trim()
-
-      // Validate slug format
-      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      const slugResult = await validateContentSlugUpdate(products, product.siteId, productId, updates.slug, 'Product')
+      if (!slugResult.ok) {
+        return { data: null, error: slugResult.error }
       }
-
-      // Check for reserved slugs
-      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-      if (reservedSlugs.includes(slug.toLowerCase())) {
-        return { data: null, error: 'This slug is reserved and cannot be used.' }
-      }
-
-      // Check if slug conflicts with other products (excluding current product)
-      const [existingProduct] = await db
-        .select({ id: products.id })
-        .from(products)
-        .where(and(eq(products.siteId, product.site_id), eq(products.slug, slug)))
-
-      if (existingProduct && existingProduct.id !== productId) {
-        return {
-          data: null,
-          error: `A product with the slug "${slug}" already exists. Please choose a different slug.`
-        }
-      }
-
-      processedUpdates.slug = slug
+      processedUpdates.slug = slugResult.slug
     }
 
     if (updates.created_at !== undefined) {
@@ -314,7 +248,7 @@ export async function updateProductAction(productId: string, updates: UpdateProd
       return { data: null, error: 'Failed to update product' }
     }
 
-    revalidateProductFrontend(product.site_id, productId)
+    revalidateProductFrontend(product.siteId, productId)
 
     return {
       data: serializeProduct(updated),
@@ -333,36 +267,12 @@ export async function updateProductAction(productId: string, updates: UpdateProd
  */
 export async function deleteProductAction(productId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Validate product ID format
-    if (!UUID_REGEX.test(productId)) {
-      return { success: false, error: 'Invalid product ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<ProductRow>(products, productId, 'Product')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the product
-    const [product] = await db
-      .select({ id: products.id, siteId: products.siteId })
-      .from(products)
-      .where(eq(products.id, productId))
-
-    if (!product) {
-      return { success: false, error: 'Product not found' }
-    }
-
-    // Verify user owns the site this product belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, product.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
-    }
+    const product = access.row
 
     // Delete the product
     await db.delete(products).where(eq(products.id, productId))
@@ -438,74 +348,20 @@ export async function deleteProductsAction(productIds: string[]): Promise<{ succ
  */
 export async function duplicateProductAction(productId: string, newTitle: string): Promise<{ data: Product | null; error: string | null }> {
   try {
-    // Validate product ID format
-    if (!UUID_REGEX.test(productId)) {
-      return { data: null, error: 'Invalid product ID format' }
-    }
-
     if (!newTitle?.trim()) {
       return { data: null, error: 'New product title is required' }
     }
 
-    // Get the authenticated user
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<ProductRow>(products, productId, 'Product')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
+    const originalProduct = access.row
 
-    // Get the original product
-    const [originalProduct] = await db
-      .select()
-      .from(products)
-      .where(eq(products.id, productId))
-
-    if (!originalProduct) {
-      return { data: null, error: 'Product not found' }
-    }
-
-    // Verify user owns the site this product belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, originalProduct.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
-
-    // Generate new slug
-    const baseSlug = newTitle
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    let newSlug = baseSlug
-    let counter = 1
-
-    // Ensure unique slug
-    while (true) {
-      const [existingProduct] = await db
-        .select({ id: products.id })
-        .from(products)
-        .where(and(eq(products.siteId, originalProduct.siteId), eq(products.slug, newSlug)))
-
-      if (!existingProduct) break
-
-      newSlug = `${baseSlug}-${counter}`
-      counter++
-    }
-
-    // Get the next display order
-    const [orderData] = await db
-      .select({ displayOrder: products.displayOrder })
-      .from(products)
-      .where(eq(products.siteId, originalProduct.siteId))
-      .orderBy(desc(products.displayOrder))
-      .limit(1)
-
-    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
+    // Unique slug + next display order via shared helpers
+    const newSlug = await generateUniqueContentSlug(products, originalProduct.siteId, newTitle)
+    const nextOrder = await getNextContentDisplayOrder(products, originalProduct.siteId)
 
     // Create the duplicate product
     const [newProduct] = await db
@@ -542,36 +398,12 @@ export async function duplicateProductAction(productId: string, newTitle: string
  */
 export async function updateProductBlocksAction(productId: string, contentBlocks: Record<string, any>): Promise<{ success: boolean; error?: string }> {
   try {
-    // Validate product ID format
-    if (!UUID_REGEX.test(productId)) {
-      return { success: false, error: 'Invalid product ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<ProductRow>(products, productId, 'Product')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    // Verify user is authenticated
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get the product to verify ownership
-    const [product] = await db
-      .select({ id: products.id, siteId: products.siteId })
-      .from(products)
-      .where(eq(products.id, productId))
-
-    if (!product) {
-      return { success: false, error: 'Product not found' }
-    }
-
-    // Verify user owns the site this product belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, product.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
-    }
+    const product = access.row
 
     // SECURITY: Validate content blocks structure and size
     if (typeof contentBlocks !== 'object' || contentBlocks === null) {
