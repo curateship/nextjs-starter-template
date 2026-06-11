@@ -3,19 +3,25 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { ChevronDown, ImageIcon, X } from "lucide-react"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { ChevronDown } from "lucide-react"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { getPostTemplatesBySite } from "@/lib/actions/posts/post-template-actions"
 import { parsePostBlocksFromJson, postBlocksToJson } from "@/components/admin/post-builder/config/post-block-utils"
-import { generateSlug } from "@/lib/utils/slug"
+import {
+  FeaturedImageField,
+  MetaDescriptionField,
+  ModalErrorBanner,
+  TitleSlugFields,
+  postJson,
+  useCreateContent,
+  useTitleSlug,
+} from "@/components/admin/layout/dashboard/content-modal-shared"
 import type { Post } from "@/lib/actions/posts/post-actions"
 import type { PostTemplate } from "@/lib/actions/posts/post-template-actions"
 import {
@@ -26,15 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-interface CreatePostData {
-  title: string
-  slug: string
-  meta_description: string
-  featured_image: string
-  excerpt: string
-  is_published: boolean
-}
-
 interface CreatePostModalProps {
   onSuccess: (post: Post, continueToBuilder?: boolean) => void
   onCancel: () => void
@@ -42,61 +39,18 @@ interface CreatePostModalProps {
 
 export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
   const { currentSite } = useSiteSwitcher()
-  const [formData, setFormData] = useState<CreatePostData>({
-    title: "",
-    slug: "",
-    meta_description: "",
-    featured_image: "",
-    excerpt: "",
-    is_published: false,
-  })
-  const [loading, setLoading] = useState(false)
-  const [loadingAction, setLoadingAction] = useState<"draft" | "continue" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [showImagePicker, setShowImagePicker] = useState(false)
-  const [slugWarning, setSlugWarning] = useState<string | null>(null)
-  const [checkingSlug] = useState(false)
+  // Posts regenerate the slug immediately when the field is cleared
+  const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange } = useTitleSlug({ regenerateOnClear: true })
+  const [metaDescription, setMetaDescription] = useState("")
+  const [featuredImage, setFeaturedImage] = useState("")
+  const [excerpt, setExcerpt] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [templates, setTemplates] = useState<PostTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(true)
   const [selectedTemplateId, setSelectedTemplateId] = useState('blank')
 
-  const handleTitleChange = (title: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      title,
-      slug: slugManuallyEdited ? prev.slug : generateSlug(title),
-    }))
-  }
-
-  const handleSlugChange = (slug: string) => {
-    if (slug === "") {
-      setSlugManuallyEdited(false)
-      setFormData((prev) => ({ ...prev, slug: generateSlug(prev.title || "") }))
-      return
-    }
-
-    setSlugManuallyEdited(true)
-    setFormData((prev) => ({ ...prev, slug }))
-  }
-
-  useEffect(() => {
-    const checkSlugConflict = async () => {
-      const slug = formData.slug?.trim()
-      if (!slug || slug.length < 2 || !currentSite?.id) {
-        setSlugWarning(null)
-        return
-      }
-
-      // Skip client-side slug checking - server will handle validation
-    }
-
-    const timeoutId = setTimeout(checkSlugConflict, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.slug, currentSite?.id])
-
+  // Load post templates and preselect the default
   useEffect(() => {
     let cancelled = false
 
@@ -126,83 +80,47 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
     }
   }, [currentSite?.id])
 
-  const handleImageChange = async (newImageUrl: string) => {
-    setFormData((prev) => ({ ...prev, featured_image: newImageUrl }))
+  // Clone + sanitize the selected template's blocks into the new post
+  const buildTemplateContentBlocks = () => {
+    const selectedTemplate = selectedTemplateId !== 'blank'
+      ? templates.find((template) => template.id === selectedTemplateId)
+      : null
+    if (!selectedTemplate) return {}
+    const templateContentBlocks = selectedTemplate.content_blocks && typeof selectedTemplate.content_blocks === 'object'
+      ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
+      : {}
+    return postBlocksToJson(parsePostBlocksFromJson(templateContentBlocks), templateContentBlocks)
   }
 
-  const handleRemoveImage = async () => {
-    setFormData((prev) => ({ ...prev, featured_image: "" }))
-  }
+  const { loading, loadingAction, error, setError, submit } = useCreateContent<Post>({
+    entityLabel: "post",
+    title,
+    titleRequiredMessage: "Post title is required",
+    create: (publish) => postJson("/api/posts", {
+      title,
+      slug,
+      site_id: currentSite?.id,
+      meta_description: metaDescription,
+      featured_image: featuredImage || null,
+      excerpt: excerpt || null,
+      is_published: publish,
+      content_blocks: buildTemplateContentBlocks(),
+    }),
+    // Assign selected categories after the post row exists
+    afterCreate: async (created) => {
+      if (selectedCategoryIds.length === 0) return null
+      const categoryResult = await bulkAssignCategoriesToContentAction(created.id, "post", selectedCategoryIds, primaryCategoryId)
+      return categoryResult.success ? null : (categoryResult.error || "Failed to save categories")
+    },
+  })
 
   const handleSave = async (continueToBuilder = false, publishNow = false) => {
-    if (!formData.title.trim()) {
-      setError("Post title is required")
-      return
-    }
-
     if (!currentSite?.id) {
       setError("No site selected")
       return
     }
-
-    try {
-      setLoading(true)
-      setLoadingAction(publishNow ? "publish" : continueToBuilder ? "continue" : "draft")
-      setError(null)
-
-      const selectedTemplate = selectedTemplateId !== 'blank'
-        ? templates.find((template) => template.id === selectedTemplateId)
-        : null
-      const templateContentBlocks = selectedTemplate?.content_blocks && typeof selectedTemplate.content_blocks === 'object'
-        ? JSON.parse(JSON.stringify(selectedTemplate.content_blocks))
-        : {}
-      const sanitizedTemplateContentBlocks = selectedTemplate
-        ? postBlocksToJson(parsePostBlocksFromJson(templateContentBlocks), templateContentBlocks)
-        : {}
-      const contentBlocks = selectedTemplate ? sanitizedTemplateContentBlocks : {}
-
-      const draftData = {
-        title: formData.title,
-        slug: formData.slug,
-        site_id: currentSite.id,
-        meta_description: formData.meta_description,
-        featured_image: formData.featured_image || null,
-        excerpt: formData.excerpt || null,
-        is_published: publishNow,
-        content_blocks: contentBlocks,
-      }
-
-      const response = await fetch("/api/posts", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(draftData),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || result.error) {
-        setError(result.error || "Failed to create post")
-        return
-      }
-
-      if (result.data) {
-        if (selectedCategoryIds.length > 0) {
-          const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, "post", selectedCategoryIds, primaryCategoryId)
-          if (!categoryResult.success) {
-            setError(categoryResult.error || "Failed to save categories")
-            return
-          }
-        }
-        onSuccess(result.data, continueToBuilder)
-      }
-    } catch (err) {
-      setError("Failed to save post")
-    } finally {
-      setLoading(false)
-      setLoadingAction(null)
-    }
+    const action = publishNow ? "publish" : continueToBuilder ? "continue" : "draft"
+    await submit(action, publishNow, (created) => onSuccess(created, continueToBuilder))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -233,11 +151,7 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
       )}
     >
       <form id="create-post-form" onSubmit={handleSubmit} className="contents">
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>
-          </div>
-        )}
+        <ModalErrorBanner error={error} />
 
         <CardGroup className="grid">
           <Card>
@@ -270,83 +184,30 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
                 )}
               </Field>
 
-              <Field>
-                <FieldLabel htmlFor="title">Post Title *</FieldLabel>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter post title"
-                  required
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="slug">Post URL</FieldLabel>
-                <Input
-                  id="slug"
-                  value={formData.slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="post-url-slug"
-                />
-                {slugManuallyEdited ? (
-                  <FieldDescription>Custom URL slug. Clear this field to auto-generate from title again.</FieldDescription>
+              <TitleSlugFields
+                titleLabel="Post Title *"
+                titlePlaceholder="Enter post title"
+                slugLabel="Post URL"
+                slugPlaceholder="post-url-slug"
+                title={title}
+                slug={slug}
+                slugManuallyEdited={slugManuallyEdited}
+                onTitleChange={handleTitleChange}
+                onSlugChange={handleSlugChange}
+                slugAutoDescription={null}
+                urlPreview={slug ? (
+                  <p className="text-xs text-blue-600">Post URL: <strong>/posts/{slug}</strong></p>
                 ) : null}
-                {formData.slug && (
-                  <p className="text-xs text-blue-600">Post URL: <strong>/posts/{formData.slug}</strong></p>
-                )}
-                {checkingSlug && (
-                  <p className="text-xs text-blue-600">Checking slug availability...</p>
-                )}
-                {slugWarning && (
-                  <p className="text-xs text-amber-600">{slugWarning}</p>
-                )}
-              </Field>
+              />
 
-              <Field className="w-48">
-                {formData.featured_image ? (
-                  <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-muted">
-                    <img
-                      src={formData.featured_image}
-                      alt="Featured image preview"
-                      className="h-full w-full object-contain"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="absolute top-2 right-2 rounded-full bg-red-500 p-1 text-white transition-colors hover:bg-red-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div
-                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center text-white">
-                        <ImageIcon className="mx-auto mb-2 h-8 w-8" />
-                        <p className="text-sm font-medium">Click to change image</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                    onClick={() => setShowImagePicker(true)}
-                  >
-                    <div className="text-center">
-                      <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                      <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                    </div>
-                  </div>
-                )}
-              </Field>
+              <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
 
               <Field>
                 <FieldLabel htmlFor="excerpt">Post Excerpt</FieldLabel>
                 <Textarea
                   id="excerpt"
-                  value={formData.excerpt}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, excerpt: e.target.value }))}
+                  value={excerpt}
+                  onChange={(e) => setExcerpt(e.target.value)}
                   placeholder="A brief summary of your post"
                   rows={1}
                   className="h-10 min-h-10 resize-none overflow-hidden"
@@ -382,32 +243,15 @@ export function CreatePostModal({ onSuccess, onCancel }: CreatePostModalProps) {
               <CardDescription>Set the search description for this post.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Field>
-                <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
-                <Textarea
-                  id="meta_description"
-                  value={formData.meta_description}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
-                  placeholder="A brief description of this post for search engines"
-                  rows={1}
-                  className="min-h-10 field-sizing-content"
-                />
-                <FieldDescription>Recommended length: 150-160 characters</FieldDescription>
-              </Field>
+              <MetaDescriptionField
+                value={metaDescription}
+                onChange={setMetaDescription}
+                placeholder="A brief description of this post for search engines"
+              />
             </CardContent>
           </Card>
         </CardGroup>
       </form>
-
-      <MediaPicker
-        open={showImagePicker}
-        onOpenChange={setShowImagePicker}
-        onSelectMedia={(imageUrl) => {
-          handleImageChange(imageUrl)
-          setShowImagePicker(false)
-        }}
-        currentMediaUrl={formData.featured_image || ""}
-      />
     </DashboardModalContent>
   )
 }

@@ -169,8 +169,8 @@ interface TitleSlugFieldsProps {
   onSlugChange: (slug: string) => void
   /** Per-modal URL preview line rendered under the slug description (markup varies) */
   urlPreview?: ReactNode
-  /** Override for the auto-generated-slug helper copy (default mentions editing the URL) */
-  slugAutoDescription?: string
+  /** Override for the auto-generated-slug helper copy; null hides it entirely (posts) */
+  slugAutoDescription?: string | null
 }
 
 /** The title + URL slug field pair every Create modal starts with */
@@ -208,11 +208,11 @@ export function TitleSlugFields({
           onChange={(e) => onSlugChange(e.target.value)}
           placeholder={slugPlaceholder}
         />
-        <FieldDescription>
-          {slugManuallyEdited
-            ? "Custom URL slug. Clear this field to auto-generate from title again."
-            : (slugAutoDescription ?? "Auto-generated from title. You can edit this to customize the URL.")}
-        </FieldDescription>
+        {slugManuallyEdited ? (
+          <FieldDescription>Custom URL slug. Clear this field to auto-generate from title again.</FieldDescription>
+        ) : slugAutoDescription === null ? null : (
+          <FieldDescription>{slugAutoDescription ?? "Auto-generated from title. You can edit this to customize the URL."}</FieldDescription>
+        )}
         {urlPreview}
       </Field>
     </>
@@ -245,6 +245,75 @@ export function MetaDescriptionField({ value, onChange, placeholder, description
   )
 }
 
+interface FeaturedImageFieldProps {
+  imageUrl: string
+  onChange: (imageUrl: string) => void
+  emptyLabel?: string
+}
+
+/**
+ * The featured-image picker (preview, remove button, hover-to-change,
+ * MediaPicker dialog) previously duplicated in the post/product/event/category/
+ * directory Create modals. Renders as a 12rem-wide field for embedding inside
+ * an existing card.
+ */
+export function FeaturedImageField({
+  imageUrl,
+  onChange,
+  emptyLabel = "Click to select featured image",
+}: FeaturedImageFieldProps) {
+  const [showImagePicker, setShowImagePicker] = useState(false)
+
+  return (
+    <Field className="w-48">
+      {imageUrl ? (
+        <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
+          <img
+            src={imageUrl}
+            alt="Featured image preview"
+            className="h-full w-full object-contain"
+          />
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div
+            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
+            onClick={() => setShowImagePicker(true)}
+          >
+            <div className="text-white text-center">
+              <ImageIcon className="mx-auto h-8 w-8 mb-2" />
+              <p className="text-sm font-medium">Click to change image</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
+          onClick={() => setShowImagePicker(true)}
+        >
+          <div className="text-center">
+            <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
+            <p className="mt-2 text-sm text-muted-foreground">{emptyLabel}</p>
+          </div>
+        </div>
+      )}
+      <MediaPicker
+        open={showImagePicker}
+        onOpenChange={setShowImagePicker}
+        onSelectMedia={(mediaUrl) => {
+          onChange(mediaUrl)
+          setShowImagePicker(false)
+        }}
+        currentMediaUrl={imageUrl || ""}
+      />
+    </Field>
+  )
+}
+
 interface FeaturedImageCardProps {
   imageUrl: string
   onChange: (imageUrl: string) => void
@@ -252,71 +321,20 @@ interface FeaturedImageCardProps {
   emptyLabel?: string
 }
 
-/**
- * The featured-image picker card (preview, remove button, hover-to-change,
- * MediaPicker dialog) previously duplicated in the post/product/event/category/
- * directory Create modals.
- */
+/** FeaturedImageField wrapped in its own card, for modals with a standalone Image section */
 export function FeaturedImageCard({
   imageUrl,
   onChange,
   cardTitle = "Image",
-  emptyLabel = "Click to select featured image",
+  emptyLabel,
 }: FeaturedImageCardProps) {
-  const [showImagePicker, setShowImagePicker] = useState(false)
-
   return (
     <Card>
       <CardHeader>
         <DashboardModalCardTitle>{cardTitle}</DashboardModalCardTitle>
       </CardHeader>
       <CardContent>
-        <div className="w-48">
-          {imageUrl ? (
-            <div className="relative aspect-square w-full rounded-lg overflow-hidden bg-muted">
-              <img
-                src={imageUrl}
-                alt="Featured image preview"
-                className="h-full w-full object-contain"
-              />
-              <button
-                type="button"
-                onClick={() => onChange("")}
-                className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div
-                className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                onClick={() => setShowImagePicker(true)}
-              >
-                <div className="text-white text-center">
-                  <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                  <p className="text-sm font-medium">Click to change image</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div
-              className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-              onClick={() => setShowImagePicker(true)}
-            >
-              <div className="text-center">
-                <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                <p className="mt-2 text-sm text-muted-foreground">{emptyLabel}</p>
-              </div>
-            </div>
-          )}
-        </div>
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(mediaUrl) => {
-            onChange(mediaUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={imageUrl || ""}
-        />
+        <FeaturedImageField imageUrl={imageUrl} onChange={onChange} emptyLabel={emptyLabel} />
       </CardContent>
     </Card>
   )

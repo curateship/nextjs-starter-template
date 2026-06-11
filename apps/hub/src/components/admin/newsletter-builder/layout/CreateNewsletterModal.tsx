@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { ModalErrorBanner } from "@/components/admin/layout/dashboard/content-modal-shared"
 import {
   Select,
   SelectContent,
@@ -186,13 +187,7 @@ export function CreateNewsletterModal({ onSuccess, onCancel }: CreateNewsletterM
             </>
           }
         >
-          {error && (
-            <div className="px-6 pb-2">
-              <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-                {error}
-              </div>
-            </div>
-          )}
+          <ModalErrorBanner error={error} />
 
           <TabsContent value="general" className="mt-0 min-h-[320px]">
             <CardGroup className="grid">
