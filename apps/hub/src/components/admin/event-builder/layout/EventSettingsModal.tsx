@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription } from "@/components/ui/field"
 import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
@@ -40,7 +39,6 @@ export function EventSettingsModal({
   const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
   const [metaDescription, setMetaDescription] = useState("")
   const [featuredImage, setFeaturedImage] = useState('')
-  const [isPrivate, setIsPrivate] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
@@ -74,7 +72,6 @@ export function EventSettingsModal({
       reset(event.title || '', event.slug || '', { detectManualEdit: false })
       setMetaDescription(event.meta_description || '')
       setFeaturedImage(event.featured_image || '')
-      setIsPrivate(event.content_blocks?._settings?.is_private === true)
 
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
@@ -205,23 +202,6 @@ export function EventSettingsModal({
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Privacy Settings */}
-          <div className="space-y-2">
-            <Label>Privacy Settings</Label>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="modal-is-private"
-                checked={isPrivate}
-                onCheckedChange={(checked) => {
-                  setIsPrivate(!!checked)
-                }}
-              />
-              <Label htmlFor="modal-is-private" className="text-sm font-normal">
-                Private (accessible only via direct URL, hidden from event listings)
-              </Label>
             </div>
           </div>
 
