@@ -2,6 +2,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sites } from '@/lib/db/schema'
 import { getAuthenticatedUser, type AuthUser } from '@/lib/db/helpers'
+import { generateSlug } from '@/lib/utils/slug'
 import { UUID_REGEX } from '@/lib/utils/validation'
 
 /**
@@ -129,7 +130,9 @@ export async function validateContentSlugUpdate(
     .where(and(eq(table.siteId, siteId), eq(table.slug, slug)))
 
   if (existing && existing.id !== contentId) {
-    return { ok: false, error: `A ${entityLabel.toLowerCase()} with the slug "${slug}" already exists. Please choose a different slug.` }
+    const label = entityLabel.toLowerCase()
+    const article = /^[aeiou]/.test(label) ? 'An' : 'A'
+    return { ok: false, error: `${article} ${label} with the slug "${slug}" already exists. Please choose a different slug.` }
   }
 
   return { ok: true, slug }
@@ -140,12 +143,8 @@ export async function validateContentSlugUpdate(
  * within the site.
  */
 export async function generateUniqueContentSlug(table: ContentTable, siteId: string, title: string): Promise<string> {
-  const baseSlug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+  // Canonical slugify (lowercase, hyphenate, 100-char cap)
+  const baseSlug = generateSlug(title)
 
   let slug = baseSlug
   let counter = 1

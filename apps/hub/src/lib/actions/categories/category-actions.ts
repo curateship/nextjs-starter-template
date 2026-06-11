@@ -1,6 +1,6 @@
 'use server'
 
-import { eq, and, desc, ne, inArray, isNull, sql } from 'drizzle-orm'
+import { eq, and, desc, inArray, isNull, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
@@ -8,6 +8,13 @@ import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { serializeCategory } from '@/lib/utils/content-serializer'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  requireOwnedContentRow,
+  requireOwnedSite,
+  validateContentSlugUpdate,
+} from '@/lib/actions/content/content-action-helpers'
+
+type CategoryRow = typeof categories.$inferSelect
 
 export interface Category {
   id: string
@@ -49,26 +56,14 @@ export interface UpdateCategoryData {
  */
 export async function getCategoriesForSiteAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'Authentication required' }
-    }
-
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.id, siteId),
-      columns: { id: true, userId: true },
-    })
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Site not found' }
-    }
-
-    if (site.userId !== user.id) {
-      return { data: null, total: 0, error: 'Unauthorized' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, error: access.error }
     }
 
     // Pagination
-    const { page, pageSize, offset } = normalizePagination(options)
+    const { pageSize, offset } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [categoryRows, countResult, selectedRows] = await Promise.all([
@@ -106,26 +101,14 @@ export async function getCategoriesForSiteAction(siteId: string, options?: { pag
  */
 export async function getCategoriesWithCountsAction(siteId: string, options?: { page?: number; pageSize?: number; parentSlug?: string | null }) {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Authentication required' }
-    }
-
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.id, siteId),
-      columns: { id: true, userId: true },
-    })
-
-    if (!site) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Site not found' }
-    }
-
-    if (site.userId !== user.id) {
-      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: 'Unauthorized' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, counts: {} as Record<string, number>, childCounts: {} as Record<string, number>, parentPath: [] as Category[], allCategories: [] as Category[], error: access.error }
     }
 
     // Pagination
-    const { page, pageSize, offset } = normalizePagination(options)
+    const { pageSize, offset } = normalizePagination(options)
     const parentSlug = options?.parentSlug?.trim() || null
     const parentCategory = parentSlug
       ? await db.query.categories.findFirst({
@@ -245,22 +228,10 @@ export async function createCategoryAction(
   data: CreateCategoryData
 ) {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.id, siteId),
-      columns: { id: true, userId: true, settings: true },
-    })
-
-    if (!site) {
-      return { data: null, error: 'Site not found' }
-    }
-
-    if (site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
 
     // Generate slug if not provided
@@ -333,62 +304,20 @@ export async function createCategoryAction(
  */
 export async function updateCategoryAction(categoryId: string, data: UpdateCategoryData) {
   try {
-    // Validate category ID format
-    if (!UUID_REGEX.test(categoryId)) {
-      return { data: null, error: 'Invalid category ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<CategoryRow>(categories, categoryId, 'Category')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Fetch category
-    const category = await db.query.categories.findFirst({
-      where: eq(categories.id, categoryId),
-    })
-
-    if (!category) {
-      return { data: null, error: 'Category not found' }
-    }
-
-    // Verify ownership via site
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.id, category.siteId),
-      columns: { id: true, userId: true },
-    })
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
+    const category = access.row
 
     // Validate and process slug if being updated
     if (data.slug !== undefined) {
-      const slug = data.slug.trim()
-
-      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      const slugResult = await validateContentSlugUpdate(categories, category.siteId, categoryId, data.slug, 'Category')
+      if (!slugResult.ok) {
+        return { data: null, error: slugResult.error }
       }
-
-      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-      if (reservedSlugs.includes(slug.toLowerCase())) {
-        return { data: null, error: 'This slug is reserved and cannot be used.' }
-      }
-
-      if (slug !== category.slug) {
-        const existingCategory = await db.query.categories.findFirst({
-          where: and(
-            eq(categories.siteId, category.siteId),
-            eq(categories.slug, slug),
-            ne(categories.id, categoryId)
-          ),
-          columns: { id: true },
-        })
-
-        if (existingCategory) {
-          return { data: null, error: 'A category with this slug already exists' }
-        }
-      }
+      data = { ...data, slug: slugResult.slug }
     }
 
     // If parent_id is being updated, verify it exists and prevent circular references
@@ -471,34 +400,12 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
  */
 export async function deleteCategoryAction(categoryId: string) {
   try {
-    // Validate category ID format
-    if (!UUID_REGEX.test(categoryId)) {
-      return { success: false, error: 'Invalid category ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<CategoryRow>(categories, categoryId, 'Category')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Fetch category
-    const category = await db.query.categories.findFirst({
-      where: eq(categories.id, categoryId),
-    })
-
-    if (!category) {
-      return { success: false, error: 'Category not found' }
-    }
-
-    // Verify ownership via site
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.id, category.siteId),
-      columns: { id: true, userId: true },
-    })
-
-    if (!site || site.userId !== user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
+    const category = access.row
 
     // Collect all descendant IDs (children, grandchildren, etc.)
     const allIdsToDelete = [categoryId]
@@ -555,7 +462,7 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
 
     const user = await getAuthenticatedUser()
     if (!user) {
-      return { success: false, error: 'Authentication required' }
+      return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     // Fetch all selected categories and verify ownership
@@ -625,34 +532,12 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
  */
 export async function updateCategoryBlocksAction(categoryId: string, contentBlocks: Record<string, any>) {
   try {
-    // Validate category ID format
-    if (!UUID_REGEX.test(categoryId)) {
-      return { success: false, error: 'Invalid category ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<CategoryRow>(categories, categoryId, 'Category')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Fetch category
-    const category = await db.query.categories.findFirst({
-      where: eq(categories.id, categoryId),
-    })
-
-    if (!category) {
-      return { success: false, error: 'Category not found' }
-    }
-
-    // Verify ownership via site
-    const site = await db.query.sites.findFirst({
-      where: eq(sites.id, category.siteId),
-      columns: { id: true, userId: true },
-    })
-
-    if (!site || site.userId !== user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
+    const category = access.row
 
     await db
       .update(categories)

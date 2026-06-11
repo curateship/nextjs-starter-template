@@ -1,13 +1,20 @@
 'use server'
 
-import { eq, and, ne, asc, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
 import { events, sites, contentCategoryRelationships, categories } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { generateSlug } from '@/lib/utils/slug'
 import { serializeEvent } from '@/lib/utils/content-serializer'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  generateUniqueContentSlug,
+  requireOwnedContentRow,
+  requireOwnedSite,
+  validateContentSlugUpdate,
+} from '@/lib/actions/content/content-action-helpers'
+
+type EventRow = typeof events.$inferSelect
 
 export interface Event {
   id: string
@@ -33,28 +40,14 @@ export interface UpdateEventData {
 
 export async function getSiteEventsAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'Authentication required' }
-    }
-
-    // Verify site ownership
-    const [site] = await db
-      .select({ id: sites.id, userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId))
-      .limit(1)
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Site not found' }
-    }
-
-    if (site.userId !== user.id) {
-      return { data: null, total: 0, error: 'Unauthorized' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, error: access.error }
     }
 
     // Pagination
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, result, selectedRows] = await Promise.all([
@@ -90,22 +83,13 @@ export async function getSiteEventsWithCategoriesAction(
   error: string | null
 }> {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, categories: {}, total: 0, error: 'Authentication required' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, categories: {}, total: 0, error: access.error }
     }
 
-    const [site] = await db
-      .select({ id: sites.id, userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
 
     const [countResult, result] = await Promise.all([
       db.select({ count: sql<number>`count(*)::int` }).from(events).where(eq(events.siteId, siteId)),
@@ -175,68 +159,20 @@ export async function getSiteEventsWithCategoriesAction(
 
 export async function updateEventAction(eventId: string, data: UpdateEventData) {
   try {
-    // Validate event ID format
-    if (!UUID_REGEX.test(eventId)) {
-      return { data: null, error: 'Invalid event ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<EventRow>(events, eventId, 'Event')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Get the event
-    const [event] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, eventId))
-      .limit(1)
-
-    if (!event) {
-      return { data: null, error: 'Event not found' }
-    }
-
-    // Verify ownership via site
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, event.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
+    const event = access.row
 
     // Validate and process slug if being updated
     if (data.slug !== undefined) {
-      const slug = data.slug.trim()
-
-      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      const slugResult = await validateContentSlugUpdate(events, event.siteId, eventId, data.slug, 'Event')
+      if (!slugResult.ok) {
+        return { data: null, error: slugResult.error }
       }
-
-      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-      if (reservedSlugs.includes(slug.toLowerCase())) {
-        return { data: null, error: 'This slug is reserved and cannot be used.' }
-      }
-
-      if (slug !== event.slug) {
-        const [existingEvent] = await db
-          .select({ id: events.id })
-          .from(events)
-          .where(
-            and(
-              eq(events.siteId, event.siteId),
-              eq(events.slug, slug),
-              ne(events.id, eventId)
-            )
-          )
-          .limit(1)
-
-        if (existingEvent) {
-          return { data: null, error: 'An event with this slug already exists' }
-        }
-      }
+      data = { ...data, slug: slugResult.slug }
     }
 
     // Build updates with explicit field whitelist
@@ -288,37 +224,12 @@ export async function updateEventAction(eventId: string, data: UpdateEventData) 
 
 export async function deleteEventAction(eventId: string) {
   try {
-    // Validate event ID format
-    if (!UUID_REGEX.test(eventId)) {
-      return { success: false, error: 'Invalid event ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<EventRow>(events, eventId, 'Event')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get the event
-    const [event] = await db
-      .select({ id: events.id, siteId: events.siteId })
-      .from(events)
-      .where(eq(events.id, eventId))
-      .limit(1)
-
-    if (!event) {
-      return { success: false, error: 'Event not found' }
-    }
-
-    // Verify ownership via site
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, event.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
+    const event = access.row
 
     // Delete the event
     await db.delete(events).where(eq(events.id, eventId))
@@ -352,7 +263,7 @@ export async function deleteEventsAction(eventIds: string[]): Promise<{ success:
 
     const user = await getAuthenticatedUser()
     if (!user) {
-      return { success: false, error: 'Authentication required' }
+      return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     const eventRows = await db
@@ -389,58 +300,19 @@ export async function deleteEventsAction(eventIds: string[]): Promise<{ success:
 
 export async function duplicateEventAction(eventId: string, newTitle: string) {
   try {
-    // Validate event ID format
-    if (!UUID_REGEX.test(eventId)) {
-      return { data: null, error: 'Invalid event ID format' }
-    }
-
     if (!newTitle?.trim()) {
       return { data: null, error: 'New event title is required' }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<EventRow>(events, eventId, 'Event')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
+    const originalEvent = access.row
 
-    // Get the event to duplicate
-    const [originalEvent] = await db
-      .select()
-      .from(events)
-      .where(eq(events.id, eventId))
-      .limit(1)
-
-    if (!originalEvent) {
-      return { data: null, error: 'Event not found' }
-    }
-
-    // Verify ownership via site
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, originalEvent.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    // Generate a unique slug for the duplicate
-    const baseSlug = generateSlug(newTitle)
-    let slug = baseSlug
-    let counter = 1
-
-    while (true) {
-      const [existingEvent] = await db
-        .select({ id: events.id })
-        .from(events)
-        .where(and(eq(events.siteId, originalEvent.siteId), eq(events.slug, slug)))
-        .limit(1)
-
-      if (!existingEvent) break
-      slug = `${baseSlug}-${counter}`
-      counter++
-    }
+    // Unique slug via shared helper
+    const slug = await generateUniqueContentSlug(events, originalEvent.siteId, newTitle)
 
     // Get the highest display_order for this site
     const [maxOrderEvent] = await db
@@ -484,37 +356,12 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
 
 export async function updateEventBlocksAction(eventId: string, contentBlocks: Record<string, any>) {
   try {
-    // Validate event ID format
-    if (!UUID_REGEX.test(eventId)) {
-      return { success: false, error: 'Invalid event ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<EventRow>(events, eventId, 'Event')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get the event
-    const [event] = await db
-      .select({ id: events.id, siteId: events.siteId })
-      .from(events)
-      .where(eq(events.id, eventId))
-      .limit(1)
-
-    if (!event) {
-      return { success: false, error: 'Event not found' }
-    }
-
-    // Verify ownership via site
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, event.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
+    const event = access.row
 
     // Update the event blocks
     await db

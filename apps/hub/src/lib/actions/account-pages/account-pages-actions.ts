@@ -7,6 +7,12 @@ import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { validateContentBlocks } from '@/lib/utils/content-block-validation'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  requireOwnedContentRow,
+  requireOwnedSite,
+} from '@/lib/actions/content/content-action-helpers'
+
+type AccountPageRow = typeof siteAccountPages.$inferSelect
 
 // =============================================================================
 // TYPE DEFINITIONS
@@ -47,29 +53,14 @@ function toAccountPage(row: any): AccountPage {
  */
 export async function getAccountPagesAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: AccountPage[] | null; total: number; error: string | null }> {
   try {
-    // Validate site ID format
-    if (!UUID_REGEX.test(siteId)) {
-      return { data: null, total: 0, error: 'Invalid site ID format' }
-    }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'Authentication required' }
-    }
-
-    // Verify user owns this site
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-      .limit(1)
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Access denied' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, error: access.error }
     }
 
     // Pagination
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, result, selectedRows] = await Promise.all([
@@ -97,32 +88,12 @@ export async function getAccountPagesAction(siteId: string, options?: { page?: n
  */
 export async function deleteAccountPageAction(pageId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<AccountPageRow>(siteAccountPages, pageId, 'Page')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    // Get page to verify ownership and find site_id for cache revalidation
-    const [page] = await db
-      .select({ siteId: siteAccountPages.siteId })
-      .from(siteAccountPages)
-      .where(eq(siteAccountPages.id, pageId))
-      .limit(1)
-
-    if (!page) {
-      return { success: false, error: 'Page not found' }
-    }
-
-    // Verify user owns the site this page belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
-      .limit(1)
-
-    if (!site) {
-      return { success: false, error: 'Access denied' }
-    }
+    const page = access.row
 
     await db.delete(siteAccountPages).where(eq(siteAccountPages.id, pageId))
 
@@ -154,7 +125,7 @@ export async function deleteAccountPagesAction(pageIds: string[]): Promise<{ suc
 
     const user = await getAuthenticatedUser()
     if (!user) {
-      return { success: false, error: 'Authentication required' }
+      return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     const pages = await db
@@ -207,31 +178,10 @@ export async function updateAccountPageBlocksAction(
   contentBlocks: Record<string, any>
 ): Promise<{ data: AccountPage | null; error: string | null }> {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Fetch page to verify ownership
-    const [existingPage] = await db
-      .select({ siteId: siteAccountPages.siteId })
-      .from(siteAccountPages)
-      .where(eq(siteAccountPages.id, pageId))
-      .limit(1)
-
-    if (!existingPage) {
-      return { data: null, error: 'Page not found' }
-    }
-
-    // Verify user owns the site this page belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, existingPage.siteId), eq(sites.userId, user.id)))
-      .limit(1)
-
-    if (!site) {
-      return { data: null, error: 'Access denied' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<AccountPageRow>(siteAccountPages, pageId, 'Page')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
 
     const contentBlocksError = validateContentBlocks(contentBlocks)
@@ -268,34 +218,14 @@ export async function duplicateAccountPageAction(
   newTitle: string
 ): Promise<{ data: AccountPage | null; error: string | null }> {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<AccountPageRow>(siteAccountPages, pageId, 'Page')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
+    const originalPage = access.row
 
-    // Get the original page
-    const [originalPage] = await db
-      .select()
-      .from(siteAccountPages)
-      .where(eq(siteAccountPages.id, pageId))
-      .limit(1)
-
-    if (!originalPage) {
-      return { data: null, error: 'Original page not found' }
-    }
-
-    // Verify user owns the site this page belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, originalPage.siteId), eq(sites.userId, user.id)))
-      .limit(1)
-
-    if (!site) {
-      return { data: null, error: 'Access denied' }
-    }
-
-    // Generate unique slug from new title
+    // Generate unique slug from new title (account pages keep their own slug charset)
     const baseSlug = newTitle
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')

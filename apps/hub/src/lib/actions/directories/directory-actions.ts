@@ -1,14 +1,19 @@
 'use server'
 
 import { revalidateTag } from 'next/cache'
-import { eq, and, desc, asc, sql, inArray, ne } from 'drizzle-orm'
+import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { directories } from '@/lib/db/schema/directories'
 import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { sites } from '@/lib/db/schema/sites'
 import { contentCategoryRelationships, categories } from '@/lib/db/schema/categories'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
-import { generateSlug } from '@/lib/utils/slug'
+import {
+  generateUniqueContentSlug,
+  requireOwnedContentRow,
+  requireOwnedSite,
+  validateContentSlugUpdate,
+} from '@/lib/actions/content/content-action-helpers'
 import { getDirectoryCustomBlocksBySite } from './directory-custom-block-actions'
 import {
   deriveDirectoryMetaDescriptionFromBlocks,
@@ -58,7 +63,9 @@ export interface UpdateDirectoryInput {
   template_id?: string
 }
 
-function toDirectory(row: typeof directories.$inferSelect): Directory {
+type DirectoryRow = typeof directories.$inferSelect
+
+function toDirectory(row: DirectoryRow): Directory {
   return {
     id: row.id,
     site_id: row.siteId,
@@ -90,21 +97,13 @@ export async function getSiteDirectoriesWithCategoriesAction(
   error: string | null
 }> {
   try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, categories: {}, total: 0, error: 'Authentication required' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, categories: {}, total: 0, error: access.error }
     }
 
-    const [site] = await db.select({ id: sites.id, userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, categories: {}, total: 0, error: 'Site not found or unauthorized' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
 
     const [{ count }] = await db.select({ count: sql<number>`count(*)::int` })
       .from(directories)
@@ -179,35 +178,12 @@ export async function getSiteDirectoriesWithCategoriesAction(
 
 export async function updateDirectoryAction(directoryId: string, data: UpdateDirectoryInput) {
   try {
-    // Validate directory ID format
-    if (!UUID_REGEX.test(directoryId)) {
-      return { data: null, error: 'Invalid directory ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<DirectoryRow>(directories, directoryId, 'Directory')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    // Get the directory to verify ownership
-    const [directory] = await db.select()
-      .from(directories)
-      .where(eq(directories.id, directoryId))
-      .limit(1)
-
-    if (!directory) {
-      return { data: null, error: 'Directory not found' }
-    }
-
-    // Verify site ownership
-    const [site] = await db.select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, directory.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
+    const directory = access.row
 
     let nextTemplateContentBlocks: Record<string, any> | null = null
     if (data.template_id !== undefined) {
@@ -234,33 +210,11 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
 
     // Validate and process slug if being updated
     if (data.slug !== undefined) {
-      const slug = data.slug.trim()
-
-      if (!/^[a-zA-Z0-9_-]+$/.test(slug)) {
-        return { data: null, error: 'Invalid slug format. Use only letters, numbers, hyphens, and underscores.' }
+      const slugResult = await validateContentSlugUpdate(directories, directory.siteId, directoryId, data.slug, 'Directory')
+      if (!slugResult.ok) {
+        return { data: null, error: slugResult.error }
       }
-
-      const reservedSlugs = ['api', 'admin', 'www', 'mail', 'ftp', 'global']
-      if (reservedSlugs.includes(slug.toLowerCase())) {
-        return { data: null, error: 'This slug is reserved and cannot be used.' }
-      }
-
-      if (slug !== directory.slug) {
-        const [existingDirectory] = await db.select({ id: directories.id })
-          .from(directories)
-          .where(
-            and(
-              eq(directories.siteId, directory.siteId),
-              eq(directories.slug, slug),
-              ne(directories.id, directoryId)
-            )
-          )
-          .limit(1)
-
-        if (existingDirectory) {
-          return { data: null, error: 'A directory with this slug already exists' }
-        }
-      }
+      data = { ...data, slug: slugResult.slug }
     }
 
     // Build updates with explicit field whitelist
@@ -321,35 +275,12 @@ export async function updateDirectoryAction(directoryId: string, data: UpdateDir
 
 export async function deleteDirectoryAction(directoryId: string) {
   try {
-    // Validate directory ID format
-    if (!UUID_REGEX.test(directoryId)) {
-      return { success: false, error: 'Invalid directory ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<DirectoryRow>(directories, directoryId, 'Directory')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get the directory to verify ownership
-    const [directory] = await db.select()
-      .from(directories)
-      .where(eq(directories.id, directoryId))
-      .limit(1)
-
-    if (!directory) {
-      return { success: false, error: 'Directory not found' }
-    }
-
-    // Verify site ownership
-    const [site] = await db.select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, directory.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
+    const directory = access.row
 
     await db.transaction(async (tx) => {
       await tx.delete(contentCategoryRelationships)
@@ -393,7 +324,7 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
 
     const user = await getAuthenticatedUser()
     if (!user) {
-      return { success: false, error: 'Authentication required' }
+      return { success: false, error: 'User not authenticated. Please log in first.' }
     }
 
     const foundDirectories = await db.select({ id: directories.id, siteId: directories.siteId })
@@ -444,60 +375,19 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
 
 export async function duplicateDirectoryAction(directoryId: string, newTitle: string) {
   try {
-    // Validate directory ID format
-    if (!UUID_REGEX.test(directoryId)) {
-      return { data: null, error: 'Invalid directory ID format' }
-    }
-
     if (!newTitle?.trim()) {
       return { data: null, error: 'New listing title is required' }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<DirectoryRow>(directories, directoryId, 'Directory')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
+    const originalDirectory = access.row
 
-    // Get the directory to duplicate
-    const [originalDirectory] = await db.select()
-      .from(directories)
-      .where(eq(directories.id, directoryId))
-      .limit(1)
-
-    if (!originalDirectory) {
-      return { data: null, error: 'Directory not found' }
-    }
-
-    // Verify site ownership
-    const [site] = await db.select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, originalDirectory.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    // Generate a unique slug for the duplicate
-    const baseSlug = generateSlug(newTitle)
-    let slug = baseSlug
-    let counter = 1
-
-    while (true) {
-      const [existingDirectory] = await db.select({ id: directories.id })
-        .from(directories)
-        .where(
-          and(
-            eq(directories.siteId, originalDirectory.siteId),
-            eq(directories.slug, slug)
-          )
-        )
-        .limit(1)
-
-      if (!existingDirectory) break
-      slug = `${baseSlug}-${counter}`
-      counter++
-    }
+    // Unique slug via shared helper
+    const slug = await generateUniqueContentSlug(directories, originalDirectory.siteId, newTitle)
 
     // Get the highest display_order for this site
     const [maxOrderDirectory] = await db.select({ displayOrder: directories.displayOrder })
@@ -548,7 +438,7 @@ async function getDirectoryBySlugAction(siteId: string, slug: string) {
 
     const user = await getAuthenticatedUser()
     if (!user) {
-      return { data: null, error: 'Authentication required' }
+      return { data: null, error: 'User not authenticated. Please log in first.' }
     }
 
     // Get the directory
@@ -566,14 +456,14 @@ async function getDirectoryBySlugAction(siteId: string, slug: string) {
       return { data: null, error: 'Directory not found' }
     }
 
-    // Get site details and verify ownership
+    // Get site details and verify ownership (needs name/subdomain, so not the shared helper)
     const [site] = await db.select({ userId: sites.userId, name: sites.name, subdomain: sites.subdomain })
       .from(sites)
       .where(eq(sites.id, siteId))
       .limit(1)
 
     if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
+      return { data: null, error: 'Site not found or access denied' }
     }
 
     const [template] = await db
@@ -672,34 +562,13 @@ export async function getDirectoryBuilderDataAction(
 
 export async function getDirectoryByIdAction(directoryId: string) {
   try {
-    if (!UUID_REGEX.test(directoryId)) {
-      return { data: null, error: 'Invalid directory ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<DirectoryRow>(directories, directoryId, 'Directory')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const [directory] = await db.select()
-      .from(directories)
-      .where(eq(directories.id, directoryId))
-      .limit(1)
-
-    if (!directory) {
-      return { data: null, error: 'Directory not found' }
-    }
-
-    const [site] = await db.select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, directory.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { data: null, error: 'Unauthorized' }
-    }
-
-    return { data: toDirectory(directory), error: null }
+    return { data: toDirectory(access.row), error: null }
   } catch (error) {
     console.error('Error fetching directory by ID:', error)
     return { data: null, error: 'Failed to fetch directory' }
@@ -708,35 +577,12 @@ export async function getDirectoryByIdAction(directoryId: string) {
 
 export async function updateDirectoryBlockValuesAction(directoryId: string, contentBlocks: Record<string, any>) {
   try {
-    // Validate directory ID format
-    if (!UUID_REGEX.test(directoryId)) {
-      return { success: false, error: 'Invalid directory ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<DirectoryRow>(directories, directoryId, 'Directory')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get the directory to verify ownership
-    const [directory] = await db.select()
-      .from(directories)
-      .where(eq(directories.id, directoryId))
-      .limit(1)
-
-    if (!directory) {
-      return { success: false, error: 'Directory not found' }
-    }
-
-    // Verify site ownership
-    const [site] = await db.select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, directory.siteId))
-      .limit(1)
-
-    if (!site || site.userId !== user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
+    const directory = access.row
 
     const [template] = await db
       .select({ contentBlocks: directoryTemplates.contentBlocks })
