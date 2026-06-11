@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { MediaPicker } from "./MediaPicker"
 import { ImageIcon, VideoIcon, X, Play } from "lucide-react"
 import Image from "next/image"
+import { getMediaType } from "@/lib/utils/media-type"
 
 interface MediaInputProps {
   label: string
@@ -43,17 +44,6 @@ export function MediaInput({
 
   const isValidMediaUrl = (url: string) => {
     return url && url.length > 0 && (url.startsWith('http') || url.startsWith('/'))
-  }
-
-  const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {
-    if (!url) return 'unknown'
-    const ext = url.split('.').pop()?.toLowerCase()
-    const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv']
-    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
-    
-    if (videoExts.includes(ext || '')) return 'video'
-    if (imageExts.includes(ext || '')) return 'image'
-    return 'unknown'
   }
 
   const shouldShowPreview = (url: string) => {

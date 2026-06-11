@@ -27,16 +27,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-
-// Security utility functions for admin component
-const sanitizeAdminInput = (input: string): string => {
-  return input
-    .replace(/[<>]/g, '')
-    .replace(/javascript:/gi, '')
-    .replace(/data:/gi, '')
-    .replace(/vbscript:/gi, '')
-    .substring(0, 1000)
-}
+import { sanitizeAdminInput } from '@/lib/utils/sanitize'
 
 interface OrderBump {
   id: string

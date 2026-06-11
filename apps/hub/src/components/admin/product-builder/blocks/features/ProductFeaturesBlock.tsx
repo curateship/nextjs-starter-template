@@ -31,18 +31,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { BlockEditorEmptyState } from "@/components/ui/tabs"
-
-// Helper function to detect media type from URL
-const getMediaType = (url: string): 'image' | 'video' | 'unknown' => {
-  if (!url) return 'unknown'
-  const ext = url.split('.').pop()?.toLowerCase()
-  const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv']
-  const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg']
-  
-  if (videoExts.includes(ext || '')) return 'video'
-  if (imageExts.includes(ext || '')) return 'image'
-  return 'unknown'
-}
+import { getMediaType } from '@/lib/utils/media-type'
 
 interface Feature {
   id: string

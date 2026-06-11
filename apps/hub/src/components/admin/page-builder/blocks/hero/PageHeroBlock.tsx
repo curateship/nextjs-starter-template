@@ -14,6 +14,7 @@ import { HERO_STYLES } from "."
 import { TrustedByBadgeFields } from "./DefaultHeroConfig"
 import { cn } from "@/lib/utils/tailwind"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
+import { validateUrl } from "@/lib/utils/url-validator"
 
 // Fields that live at the content root for legacy data and need migrating into styleConfig.default
 const LEGACY_STYLE_FIELDS = [
@@ -31,18 +32,6 @@ interface PageHeroBlockProps {
   siteId: string
   blockId: string
   onBack?: () => void
-}
-
-// Helper
-const validateUrl = (value: string, onChange: (value: string) => void) => {
-  const trimmed = value.trim()
-  if (trimmed === '') { onChange(trimmed); return }
-  if (trimmed.startsWith('/')) { onChange(trimmed); return }
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) { onChange(trimmed); return }
-  if (trimmed.toLowerCase().includes('javascript:') ||
-      trimmed.toLowerCase().includes('data:') ||
-      trimmed.toLowerCase().includes('vbscript:')) { return }
-  onChange(trimmed)
 }
 
 // Reusable button style selector

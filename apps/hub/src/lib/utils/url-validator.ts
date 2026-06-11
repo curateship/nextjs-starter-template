@@ -52,3 +52,18 @@ export function sanitizeUrl(url: string | undefined | null, fallback: string = '
   if (!url) return fallback
   return isSafeUrl(url) ? url : fallback
 }
+
+/**
+ * Validates a builder URL input as the user types: passes through empty,
+ * relative, and http(s) values; silently drops script-protocol attempts.
+ */
+export const validateUrl = (value: string, onChange: (value: string) => void) => {
+  const trimmed = value.trim()
+  if (trimmed === '') { onChange(trimmed); return }
+  if (trimmed.startsWith('/')) { onChange(trimmed); return }
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) { onChange(trimmed); return }
+  if (trimmed.toLowerCase().includes('javascript:') ||
+      trimmed.toLowerCase().includes('data:') ||
+      trimmed.toLowerCase().includes('vbscript:')) { return }
+  onChange(trimmed)
+}

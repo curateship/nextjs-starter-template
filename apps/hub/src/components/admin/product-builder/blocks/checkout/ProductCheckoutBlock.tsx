@@ -36,17 +36,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { BlockEditorEmptyState } from "@/components/ui/tabs"
 import { Card, CardGroup, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-
-// Security utility functions for admin component
-const sanitizeAdminInput = (input: string): string => {
-  // Remove potential XSS vectors and limit length for admin inputs
-  return input
-    .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .replace(/data:/gi, '') // Remove data: protocol
-    .replace(/vbscript:/gi, '') // Remove vbscript: protocol
-    .substring(0, 1000) // Higher limit for admin but still prevent DoS
-}
+import { sanitizeAdminInput } from '@/lib/utils/sanitize'
 
 interface PricingTier {
   id: string

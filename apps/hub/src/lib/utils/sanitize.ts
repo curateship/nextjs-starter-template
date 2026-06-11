@@ -13,6 +13,17 @@ function sanitizeString(value: any): string {
     .replace(/data:text\/html/gi, '')
 }
 
+/** Sanitize free-text admin input: strip HTML/script-protocol vectors and cap length */
+export const sanitizeAdminInput = (input: string): string => {
+  // Remove potential XSS vectors and limit length for admin inputs
+  return input
+    .replace(/[<>]/g, '') // Remove < and > to prevent HTML injection
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/data:/gi, '') // Remove data: protocol
+    .replace(/vbscript:/gi, '') // Remove vbscript: protocol
+    .substring(0, 1000) // Higher limit for admin but still prevent DoS
+}
+
 /** Recursively sanitize a content object (strings, arrays, nested objects) */
 export function sanitizeContent(content: any): any {
   if (typeof content === 'string') {
