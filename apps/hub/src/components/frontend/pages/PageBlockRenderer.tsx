@@ -11,6 +11,7 @@ const AccountEditProfileBlock = dynamic(() => import("@/components/frontend/acco
 const AccountClaimedListingsBlock = dynamic(() => import("@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock").then(m => ({ default: m.AccountClaimedListingsBlock })))
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
+import { PageCategoriesListingBlock } from "@/components/frontend/pages/categories-listing/PageCategoriesListingBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
@@ -162,6 +163,20 @@ export function BlockRenderer({
                   customWidth={customWidth}
                 />
               </Suspense>
+            </div>
+          )
+        }
+
+        if (block.type === 'categories-listing') {
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <PageCategoriesListingBlock
+                content={blockContent}
+                siteId={site.id}
+                preloadedData={site.categoryListingData?.[block.id]}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+              />
             </div>
           )
         }

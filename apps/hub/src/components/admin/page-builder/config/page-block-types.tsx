@@ -1,4 +1,4 @@
-import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn } from "lucide-react"
+import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn, Tags } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
@@ -114,6 +114,19 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       saveIconOpacity: 70,
       categoryIds: [],
       categoryChipParentIds: [],
+    }
+  },
+  {
+    type: 'categories-listing',
+    name: 'Categories Listing',
+    icon: Tags,
+    description: 'Display child category links from a selected parent category',
+    defaultContent: {
+      title: 'Browse Categories',
+      subtitle: '',
+      parentCategoryId: '',
+      chipsToShow: 20,
+      visibility: {},
     }
   },
   {

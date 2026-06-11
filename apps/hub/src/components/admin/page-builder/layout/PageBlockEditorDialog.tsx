@@ -12,6 +12,7 @@ import { PageDividerBlock } from "../blocks/divider/PageDividerBlock"
 import { PageAuthBlock } from "../blocks/auth/PageAuthBlock"
 import { PageEmbeddedBlock } from "../blocks/embedded/PageEmbeddedBlock"
 import { PageTestimonialsBlock } from "../blocks/testimonials/PageTestimonialsBlock"
+import { PageCategoriesListingBlock } from "../blocks/categories-listing/PageCategoriesListingBlock"
 import { getBlockName } from "../config/page-block-types"
 import type { ContentBlock as PageBlock } from "@/lib/utils/block-utils"
 
@@ -113,6 +114,14 @@ export function PageBlockEditorDialog({
                     onViewAllTextChange={(value) => onContentChange("viewAllText", value)}
                     onViewAllLinkChange={(value) => onContentChange("viewAllLink", value)}
                     onVisibilityChange={(value) => onContentChange("visibility", value)}
+                    siteId={siteId}
+                  />
+                )}
+
+                {selectedBlock.type === "categories-listing" && (
+                  <PageCategoriesListingBlock
+                    content={draftContent}
+                    onContentChange={onContentChange}
                     siteId={siteId}
                   />
                 )}

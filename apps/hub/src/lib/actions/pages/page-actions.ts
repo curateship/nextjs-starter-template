@@ -379,6 +379,13 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
       if (hasListingViewsBlock) {
         revalidateTag('listing-views')
       }
+
+      const hasCategoriesListingBlock = Object.values(contentBlocks).some(
+        block => block && typeof block === 'object' && 'type' in block && block.type === 'categories-listing'
+      )
+      if (hasCategoriesListingBlock) {
+        revalidateTag('categories')
+      }
     }
 
     return { success: true }
@@ -388,4 +395,3 @@ export async function updatePageBlocksAction(pageId: string, contentBlocks: Reco
     return { success: false, error: 'Failed to update page blocks' }
   }
 }
-

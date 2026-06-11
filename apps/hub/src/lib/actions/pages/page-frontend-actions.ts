@@ -5,6 +5,7 @@ import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getListingViewsData } from './page-listing-views-actions'
+import { getCategoriesListingData, type CategoriesListingData } from './page-category-listing-actions'
 import { isReservedPlatformSubdomain } from '@/lib/utils/platform-host'
 
 type SitePageLookup = {
@@ -211,6 +212,7 @@ export interface SiteWithBlocks {
     display_order: number
   }>
   listingData?: Record<string, any>
+  categoryListingData?: Record<string, CategoriesListingData>
 }
 
 /**
@@ -337,6 +339,34 @@ async function prefetchListingData(
   return listingData
 }
 
+async function prefetchCategoryListingData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any>; display_order: number }>,
+  siteId: string
+): Promise<Record<string, CategoriesListingData>> {
+  const categoryListingData: Record<string, CategoriesListingData> = {}
+
+  for (const block of blocks) {
+    if (block.type === 'categories-listing') {
+      try {
+        const { parentCategoryId, chipsToShow = 20 } = block.content
+        const result = await getCategoriesListingData({
+          siteId,
+          parentCategoryId: typeof parentCategoryId === 'string' ? parentCategoryId : '',
+          limit: Number(chipsToShow) || 20,
+        })
+
+        if (result.success && result.data) {
+          categoryListingData[block.id] = result.data
+        }
+      } catch (error) {
+        // Silently continue - block will fall back to client loading
+      }
+    }
+  }
+
+  return categoryListingData
+}
+
 async function buildSiteWithBlocksResult(
   lookup: SitePageLookup | null,
   actualPageSlug: string,
@@ -361,7 +391,10 @@ async function buildSiteWithBlocksResult(
   }
 
   const blocks = buildPublicPageBlocks(page)
-  const listingData = await prefetchListingData(blocks, site.id, options)
+  const [listingData, categoryListingData] = await Promise.all([
+    prefetchListingData(blocks, site.id, options),
+    prefetchCategoryListingData(blocks, site.id),
+  ])
 
   return {
     success: true,
@@ -384,6 +417,7 @@ async function buildSiteWithBlocksResult(
       } : null,
       blocks,
       listingData: Object.keys(listingData).length > 0 ? listingData : undefined,
+      categoryListingData: Object.keys(categoryListingData).length > 0 ? categoryListingData : undefined,
     },
   }
 }
