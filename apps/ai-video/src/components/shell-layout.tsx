@@ -145,6 +145,10 @@ export function ShellLayout({
     window.location.href = "/login"
   }, [])
 
+  // The video editor fills the viewport itself: strip the content padding and
+  // let the page manage its own overflow instead of the shell scrolling.
+  const isVideoEditorPath = currentPath.startsWith("/admin/video-editor")
+
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
       config,
@@ -184,7 +188,13 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent>
+            <DashboardContent
+              className={
+                isVideoEditorPath
+                  ? "overflow-hidden p-0 sm:p-0 md:p-0 space-y-0 sm:space-y-0"
+                  : undefined
+              }
+            >
               <Outlet />
             </DashboardContent>
           </SidebarInset>
@@ -288,6 +298,19 @@ function findActiveSectionItem(items: ShellItem[], currentPath: string) {
 }
 
 function getStickyHeaderNavLinks(config: ShellConfig, currentPath: string) {
+  // The video editor isn't part of the DB-driven sidebar config, so its
+  // header chip is hardcoded here.
+  if (currentPath.startsWith("/admin/video-editor")) {
+    return [
+      {
+        label: "Video Editor",
+        href: "/admin/video-editor",
+        icon: renderShellIcon("clapperboard", "h-3.5 w-3.5"),
+        active: true,
+      },
+    ]
+  }
+
   if (isDashboardPath(config, currentPath)) {
     return config.topNavigation
       .filter((item) => item.visible)
