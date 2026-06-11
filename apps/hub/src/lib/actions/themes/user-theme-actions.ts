@@ -24,86 +24,6 @@ function normalizeSite(row: Record<string, any>): Site {
 }
 
 /**
- * Save a site as a reusable theme template.
- * Creates a new site with is_template=true, copying settings and all pages.
- */
-export async function saveAsThemeAction(
-  siteId: string,
-  name: string,
-  description?: string
-): Promise<{ data: Site | null; error: string | null }> {
-  try {
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Authentication required' }
-
-    // Verify user owns the source site
-    const sourceSite = await db.query.sites.findFirst({
-      where: and(eq(sites.id, siteId), eq(sites.userId, user.id)),
-    })
-
-    if (!sourceSite) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
-
-    // Create template site — no subdomain needed for templates
-    const templateSubdomain = `template-${name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}-${Date.now()}`
-
-    // Navigation and footer live in shared site settings — copying settings copies them too
-    const settings = sourceSite.settings as Record<string, any>
-    const [templateSite] = await db
-      .insert(sites)
-      .values({
-        name,
-        userId: user.id,
-        subdomain: templateSubdomain,
-        status: 'draft',
-        isTemplate: true,
-        customDomain: null,
-        settings: {
-          ...settings,
-          description: description || null,
-        },
-      })
-      .returning()
-
-    if (!templateSite) {
-      return { data: null, error: 'Failed to create template' }
-    }
-
-    // Delete trigger-created default pages before cloning source pages
-    await db.delete(pages).where(eq(pages.siteId, templateSite.id))
-
-    // Clone all pages from source site (use raw SQL to include content_blocks which isn't in Drizzle schema)
-    const sourcePages = await db.execute<{
-      title: string
-      slug: string
-      meta_description: string | null
-      is_homepage: boolean
-      is_published: boolean
-      display_order: number
-      content_blocks: Record<string, any>
-    }>(sql`SELECT title, slug, meta_description, is_homepage, is_published, display_order, content_blocks FROM pages WHERE site_id = ${siteId} ORDER BY display_order ASC`)
-
-    if (sourcePages.rows && sourcePages.rows.length > 0) {
-      for (const page of sourcePages.rows) {
-        await db.execute(
-          sql`INSERT INTO pages (site_id, title, slug, meta_description, is_homepage, is_published, display_order, content_blocks)
-              VALUES (${templateSite.id}, ${page.title}, ${page.slug}, ${page.meta_description}, ${page.is_homepage}, ${page.is_published}, ${page.display_order}, ${JSON.stringify(page.content_blocks || {})}::jsonb)`
-        )
-      }
-    }
-
-    revalidatePath('/admin/themes')
-    return { data: normalizeSite(templateSite), error: null }
-  } catch (error) {
-    return {
-      data: null,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
  * Get all template sites owned by the current user.
  */
 export async function getTemplateSitesAction(): Promise<{ data: Site[] | null; error: string | null }> {
@@ -198,40 +118,6 @@ export async function applyThemeToSiteAction(
   } catch (error) {
     return {
       success: false,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
- * Rename a template.
- */
-export async function updateTemplateAction(
-  templateId: string,
-  updates: { name?: string }
-): Promise<{ data: Site | null; error: string | null }> {
-  try {
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Authentication required' }
-
-    const [updated] = await db
-      .update(sites)
-      .set({
-        ...(updates.name ? { name: updates.name } : {}),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(sites.id, templateId), eq(sites.userId, user.id), eq(sites.isTemplate, true)))
-      .returning()
-
-    if (!updated) {
-      return { data: null, error: 'Failed to update template: not found or access denied' }
-    }
-
-    revalidatePath('/admin/themes')
-    return { data: normalizeSite(updated), error: null }
-  } catch (error) {
-    return {
-      data: null,
       error: `Server error: ${error instanceof Error ? error.message : String(error)}`
     }
   }

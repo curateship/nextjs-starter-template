@@ -1,6 +1,5 @@
 'use server'
 
-import { randomBytes } from 'crypto'
 import { db } from '@/lib/db'
 import { productOrders, products, sites } from '@/lib/db/schema'
 import { eq, desc, inArray, and, sql } from 'drizzle-orm'
@@ -56,13 +55,6 @@ export interface ProductOrder {
 }
 
 /**
- * Generate a cryptographically secure access token
- */
-function generateAccessToken(): string {
-  return randomBytes(32).toString('base64url')
-}
-
-/**
  * Map a Drizzle row to the ProductOrder interface (snake_case keys)
  */
 function toProductOrder(row: typeof productOrders.$inferSelect): ProductOrder {
@@ -84,78 +76,6 @@ function toProductOrder(row: typeof productOrders.$inferSelect): ProductOrder {
     metadata: row.metadata as Record<string, any> | null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
-  }
-}
-
-/**
- * Create a free product signup record
- */
-export async function createFreeSignup(params: {
-  siteId: string
-  productId: string
-  email: string
-  metadata?: Record<string, any>
-}): Promise<ProductOrder> {
-  try {
-    const accessToken = generateAccessToken()
-
-    const [row] = await db
-      .insert(productOrders)
-      .values({
-        siteId: params.siteId,
-        productId: params.productId,
-        customerEmail: params.email.toLowerCase().trim(),
-        orderType: 'lead_magnet' as any,
-        accessToken,
-        metadata: params.metadata || null,
-      })
-      .returning()
-
-    return toProductOrder(row)
-  } catch (error) {
-    console.error('Error in createFreeSignup:', error)
-    throw error
-  }
-}
-
-/**
- * Create a paid purchase record
- */
-export async function createPaidOrder(params: {
-  siteId: string
-  productId: string
-  email: string
-  stripeSessionId: string
-  stripePaymentIntentId: string
-  amountTotal: number
-  currency: string
-  paymentStatus?: PaymentStatus
-  metadata?: Record<string, any>
-}): Promise<ProductOrder> {
-  try {
-    const accessToken = generateAccessToken()
-
-    const [row] = await db
-      .insert(productOrders)
-      .values({
-        siteId: params.siteId,
-        productId: params.productId,
-        customerEmail: params.email.toLowerCase().trim(),
-        orderType: 'paid_purchase' as any,
-        stripeSessionId: params.stripeSessionId,
-        stripePaymentIntentId: params.stripePaymentIntentId,
-        amountTotal: params.amountTotal,
-        currency: params.currency,
-        paymentStatus: (params.paymentStatus || 'succeeded') as any,
-        accessToken,
-        metadata: params.metadata || null,
-      })
-      .returning()
-
-    return toProductOrder(row)
-  } catch (error) {
-    console.error('Error in createPaidOrder:', error)
-    throw error
   }
 }
 
@@ -193,47 +113,6 @@ export async function getOrderByToken(
   } catch (error) {
     console.error('Error in getOrderByToken:', error)
     return null
-  }
-}
-
-/**
- * Get order by Stripe session ID
- */
-export async function getOrderByStripeSession(
-  stripeSessionId: string
-): Promise<ProductOrder | null> {
-  try {
-    const rows = await db
-      .select()
-      .from(productOrders)
-      .where(eq(productOrders.stripeSessionId, stripeSessionId))
-      .limit(1)
-
-    if (rows.length === 0) return null
-    return toProductOrder(rows[0])
-  } catch (error) {
-    console.error('Error in getOrderByStripeSession:', error)
-    return null
-  }
-}
-
-/**
- * Get all orders for a customer email
- */
-export async function getOrdersByEmail(
-  email: string
-): Promise<ProductOrder[]> {
-  try {
-    const rows = await db
-      .select()
-      .from(productOrders)
-      .where(eq(productOrders.customerEmail, email.toLowerCase().trim()))
-      .orderBy(desc(productOrders.createdAt))
-
-    return rows.map(toProductOrder)
-  } catch (error) {
-    console.error('Error in getOrdersByEmail:', error)
-    return []
   }
 }
 
@@ -282,54 +161,6 @@ export async function getOrdersWithProducts(
   } catch (error) {
     console.error('Error in getOrdersWithProducts:', error)
     return { data: [], total: 0, productMap: {} }
-  }
-}
-
-/**
- * Get all orders for a product
- */
-export async function getOrdersByProduct(
-  productId: string
-): Promise<ProductOrder[]> {
-  try {
-    // Verify the caller owns the site this product belongs to
-    const productRows = await db
-      .select({ siteId: products.siteId })
-      .from(products)
-      .where(eq(products.id, productId))
-      .limit(1)
-
-    if (productRows.length === 0) throw new Error('Product not found')
-    await verifySiteOwnership(productRows[0].siteId)
-
-    const rows = await db
-      .select()
-      .from(productOrders)
-      .where(eq(productOrders.productId, productId))
-      .orderBy(desc(productOrders.createdAt))
-
-    return rows.map(toProductOrder)
-  } catch (error) {
-    console.error('Error in getOrdersByProduct:', error)
-    return []
-  }
-}
-
-/**
- * Mark email as sent for an order
- */
-export async function markEmailSent(orderId: string): Promise<void> {
-  try {
-    await db
-      .update(productOrders)
-      .set({
-        emailSentAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(productOrders.id, orderId))
-  } catch (error) {
-    console.error('Error in markEmailSent:', error)
-    throw error
   }
 }
 
@@ -399,66 +230,3 @@ export async function deleteOrders(orderIds: string[]): Promise<void> {
   }
 }
 
-/**
- * Update payment status
- */
-export async function updatePaymentStatus(
-  orderId: string,
-  status: PaymentStatus
-): Promise<void> {
-  try {
-    await db
-      .update(productOrders)
-      .set({
-        paymentStatus: status as any,
-        updatedAt: new Date(),
-      })
-      .where(eq(productOrders.id, orderId))
-  } catch (error) {
-    console.error('Error in updatePaymentStatus:', error)
-    throw error
-  }
-}
-
-/**
- * Get order analytics for a site
- */
-export async function getOrderAnalytics(siteId: string): Promise<{
-  totalOrders: number
-  freeSignups: number
-  paidPurchases: number
-  totalRevenue: number
-  clickedRate: number
-}> {
-  try {
-    await verifySiteOwnership(siteId)
-
-    const orders = await db
-      .select()
-      .from(productOrders)
-      .where(eq(productOrders.siteId, siteId))
-
-    const mapped = orders.map(toProductOrder)
-
-    const freeSignups = mapped.filter((o) => o.order_type === 'lead_magnet')
-    const paidPurchases = mapped.filter((o) => o.order_type === 'paid_purchase')
-    const clickedOrders = mapped.filter((o) => o.clicked_at !== null)
-
-    const totalRevenue = paidPurchases.reduce(
-      (sum, order) => sum + (order.amount_total || 0),
-      0
-    )
-
-    return {
-      totalOrders: mapped.length,
-      freeSignups: freeSignups.length,
-      paidPurchases: paidPurchases.length,
-      totalRevenue: totalRevenue / 100, // Convert cents to dollars
-      clickedRate:
-        mapped.length > 0 ? (clickedOrders.length / mapped.length) * 100 : 0,
-    }
-  } catch (error) {
-    console.error('Error in getOrderAnalytics:', error)
-    throw error
-  }
-}

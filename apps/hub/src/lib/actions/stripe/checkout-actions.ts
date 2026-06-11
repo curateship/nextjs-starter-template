@@ -4,7 +4,6 @@ import Stripe from 'stripe'
 import { getStripeConfig } from '@/lib/actions/integrations/config-helpers'
 import { db } from '@/lib/db'
 import { products } from '@/lib/db/schema'
-import { requireSiteOwnership } from '@/lib/db/helpers'
 import { and, eq } from 'drizzle-orm'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -27,23 +26,6 @@ async function getStripeClient(siteId: string | undefined): Promise<Stripe> {
   })
 }
 
-function getAppUrl(path: string, checkoutOrigin?: string) {
-  if (/^https?:\/\//i.test(path)) return path
-
-  const appDomain = checkoutOrigin || process.env.NEXT_PUBLIC_APP_DOMAIN
-  if (!appDomain) {
-    throw new Error('NEXT_PUBLIC_APP_DOMAIN is required for Stripe checkout URLs')
-  }
-
-  const base = /^https?:\/\//i.test(appDomain)
-    ? appDomain
-    : appDomain.startsWith('localhost') || appDomain.startsWith('127.')
-      ? `http://${appDomain}`
-      : `https://${appDomain}`
-
-  return `${base.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`
-}
-
 export interface OrderBump {
   id: string
   title: string
@@ -52,20 +34,6 @@ export interface OrderBump {
   stripePriceId: string
   isPreSelected: boolean
   imageUrl?: string
-}
-
-export interface CheckoutSessionData {
-  productId?: string
-  productSlug: string
-  productName: string
-  mainPriceId: string
-  tierId?: string
-  tierName?: string
-  selectedBumps: OrderBump[]
-  successUrl: string
-  uiMode?: 'hosted' | 'embedded'
-  siteId?: string
-  checkoutOrigin?: string
 }
 
 type ResolvedOrderBump = Pick<OrderBump, 'id' | 'title' | 'stripePriceId'>
@@ -163,83 +131,6 @@ async function resolveCheckoutSelection(data: {
     selectedBumps,
     mainPriceId: String(tier.stripePriceId),
     successUrl,
-  }
-}
-
-/**
- * Create a Stripe Checkout Session with main product and order bumps
- */
-export async function createCheckoutSession(data: CheckoutSessionData) {
-  try {
-    const stripe = await getStripeClient(data.siteId)
-    const selection = await resolveCheckoutSelection({
-      siteId: data.siteId,
-      productId: data.productId,
-      tierId: data.tierId,
-      mainPriceId: data.mainPriceId,
-      selectedBumps: data.selectedBumps,
-    })
-
-    // Fetch the main price to determine if it's one-time or recurring
-    const mainPrice = await stripe.prices.retrieve(selection.mainPriceId)
-    const mode: 'payment' | 'subscription' = mainPrice.type === 'recurring' ? 'subscription' : 'payment'
-
-    // Build line items array
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-      {
-        price: selection.mainPriceId,
-        quantity: 1,
-      },
-    ]
-
-    // Add selected order bumps
-    selection.selectedBumps.forEach((bump) => {
-      lineItems.push({
-        price: bump.stripePriceId,
-        quantity: 1,
-      })
-    })
-
-    // Create checkout session
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      mode,
-      line_items: lineItems,
-      metadata: {
-        productSlug: selection.product.slug,
-        productName: selection.product.title,
-        productId: selection.product.id,
-        tierId: selection.tier.id,
-        tierName: selection.tier.name,
-        siteId: selection.product.siteId,
-        mainPriceId: selection.mainPriceId,
-        orderBumps: JSON.stringify(selection.selectedBumps),
-      },
-      allow_promotion_codes: true,
-      billing_address_collection: 'required',
-    }
-
-    // Add UI mode specific parameters
-    if (data.uiMode === 'embedded') {
-      sessionParams.ui_mode = 'embedded'
-      sessionParams.return_url = `${getAppUrl(selection.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
-    } else {
-      sessionParams.success_url = `${getAppUrl(selection.successUrl, data.checkoutOrigin)}?session_id={CHECKOUT_SESSION_ID}`
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionParams)
-
-    return {
-      success: true,
-      sessionId: session.id,
-      url: session.url,
-      clientSecret: session.client_secret,
-    }
-  } catch (error) {
-    console.error('Error creating checkout session:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to create checkout session',
-    }
   }
 }
 
@@ -493,67 +384,3 @@ export async function verifyPaymentIntent(paymentIntentId: string, siteId?: stri
   }
 }
 
-/**
- * Create a Stripe Price for a product (utility function for admin)
- */
-export async function createStripePrice(params: {
-  productName: string
-  amount: number
-  currency: string
-  interval?: 'month' | 'year'
-  intervalCount?: number
-  siteId?: string
-}) {
-  try {
-    if (!params.siteId) throw new Error('siteId is required')
-    if (!params.productName.trim()) throw new Error('Product name is required')
-    if (!Number.isFinite(params.amount) || params.amount <= 0) throw new Error('Amount must be greater than zero')
-
-    await requireSiteOwnership(params.siteId)
-    const stripe = await getStripeClient(params.siteId)
-    const safeProductName = params.productName.replace(/['\\]/g, ' ').trim()
-
-    // First, create or retrieve product
-    const stripeProducts = await stripe.products.search({
-      query: `name:'${safeProductName}'`,
-    })
-
-    let product: Stripe.Product
-
-    if (stripeProducts.data.length > 0) {
-      product = stripeProducts.data[0]
-    } else {
-      product = await stripe.products.create({
-        name: params.productName,
-      })
-    }
-
-    // Create price
-    const priceData: Stripe.PriceCreateParams = {
-      product: product.id,
-      unit_amount: params.amount * 100, // Convert to cents
-      currency: params.currency,
-    }
-
-    if (params.interval) {
-      priceData.recurring = {
-        interval: params.interval,
-        interval_count: params.intervalCount || 1,
-      }
-    }
-
-    const price = await stripe.prices.create(priceData)
-
-    return {
-      success: true,
-      priceId: price.id,
-      productId: product.id,
-    }
-  } catch (error) {
-    console.error('Error creating Stripe price:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to create price',
-    }
-  }
-}

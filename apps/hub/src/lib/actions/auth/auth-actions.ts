@@ -29,35 +29,6 @@ export async function getCurrentUser() {
   return await getAuthenticatedUser()
 }
 
-export async function registerUser({
-  email,
-  password,
-  displayName,
-}: {
-  email: string
-  password: string
-  displayName?: string
-}) {
-  try {
-    const result = await auth.api.signUpEmail({
-      body: {
-        email: email.toLowerCase(),
-        password,
-        name: displayName || email.split('@')[0],
-        displayName: displayName || email.split('@')[0],
-      },
-    })
-
-    if (!result?.user) {
-      return { error: 'Failed to create account' }
-    }
-
-    return { data: { id: result.user.id }, error: null }
-  } catch (error: any) {
-    return { error: error.message || 'Failed to create account' }
-  }
-}
-
 export async function updateProfile(formData: FormData) {
   const authUser = await getAuthenticatedUser()
   if (!authUser) return { error: 'Not authenticated' }
