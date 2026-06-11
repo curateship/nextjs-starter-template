@@ -1,23 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
-import { generateSlug } from "@/lib/utils/slug"
+import {
+  MetaDescriptionField,
+  ModalErrorBanner,
+  TitleSlugFields,
+  postJson,
+  useCreateContent,
+  useTitleSlug,
+} from "@/components/admin/layout/dashboard/content-modal-shared"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
-
-interface CreateAccountPageFormData {
-  title: string
-  slug: string
-  meta_description: string
-  is_default: boolean
-  is_published: boolean
-}
 
 interface CreateAccountPageModalProps {
   siteId: string
@@ -30,143 +27,28 @@ export function CreateAccountPageModal({
   onSuccess,
   onCancel,
 }: CreateAccountPageModalProps) {
-  const [formData, setFormData] = useState<CreateAccountPageFormData>({
-    title: "",
-    slug: "",
-    meta_description: "",
-    is_default: false,
-    is_published: false,
-  })
-  const [loading, setLoading] = useState(false)
-  const [loadingAction, setLoadingAction] = useState<"draft" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [slugWarning, setSlugWarning] = useState<string | null>(null)
-  const [checkingSlug] = useState(false)
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  // Account pages regenerate the slug immediately when the field is cleared
+  const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange } = useTitleSlug({ regenerateOnClear: true })
+  const [metaDescription, setMetaDescription] = useState("")
+  const [isDefault, setIsDefault] = useState(false)
 
-  const handleTitleChange = (title: string) => {
-    setFormData((prev) => ({
-      ...prev,
+  const { loading, loadingAction, error, submit } = useCreateContent<AccountPage>({
+    entityLabel: "account page",
+    title,
+    titleRequiredMessage: "Page title is required",
+    create: (publish) => postJson("/api/account-pages", {
       title,
-      slug: slugManuallyEdited ? prev.slug : generateSlug(title),
-    }))
-  }
-
-  const handleSlugChange = (slug: string) => {
-    if (slug === "") {
-      setSlugManuallyEdited(false)
-      setFormData((prev) => ({ ...prev, slug: generateSlug(prev.title || "") }))
-      return
-    }
-
-    setSlugManuallyEdited(true)
-    setFormData((prev) => ({ ...prev, slug }))
-  }
-
-  useEffect(() => {
-    const checkSlugConflict = async () => {
-      const slug = formData.slug?.trim()
-      if (!slug || slug.length < 2) {
-        setSlugWarning(null)
-        return
-      }
-
-      // Skip client-side slug checking - server will handle validation
-    }
-
-    const timeoutId = setTimeout(checkSlugConflict, 500)
-    return () => clearTimeout(timeoutId)
-  }, [formData.slug, siteId])
-
-  const handleSaveDraft = async () => {
-    if (!formData.title.trim()) {
-      setError("Page title is required")
-      return
-    }
-
-    try {
-      setLoading(true)
-      setLoadingAction("draft")
-      setError(null)
-
-      const draftData = {
-        ...formData,
-        site_id: siteId,
-        is_published: false,
-      }
-
-      const response = await fetch("/api/account-pages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(draftData),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || result.error) {
-        setError(result.error || "Failed to create account page")
-        return
-      }
-
-      if (result.data) {
-        onSuccess(result.data)
-      }
-    } catch (err) {
-      setError("Failed to save account page as draft")
-    } finally {
-      setLoading(false)
-      setLoadingAction(null)
-    }
-  }
-
-  const handlePublish = async () => {
-    if (!formData.title.trim()) {
-      setError("Page title is required")
-      return
-    }
-
-    try {
-      setLoading(true)
-      setLoadingAction("publish")
-      setError(null)
-
-      const publishData = {
-        ...formData,
-        site_id: siteId,
-        is_published: true,
-      }
-
-      const response = await fetch("/api/account-pages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(publishData),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || result.error) {
-        setError(result.error || "Failed to create account page")
-        return
-      }
-
-      if (result.data) {
-        onSuccess(result.data)
-      }
-    } catch (err) {
-      setError("Failed to publish account page")
-    } finally {
-      setLoading(false)
-      setLoadingAction(null)
-    }
-  }
+      slug,
+      meta_description: metaDescription,
+      is_default: isDefault,
+      is_published: publish,
+      site_id: siteId,
+    }),
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await submit("draft", false, onSuccess)
   }
 
   return (
@@ -183,69 +65,43 @@ export function CreateAccountPageModal({
               <Button form="create-account-page-form" type="submit" variant="outline" disabled={loading}>
                 {loadingAction === "draft" ? "Saving..." : "Save as Draft"}
               </Button>
-              <Button type="button" onClick={handlePublish} disabled={loading}>
+              <Button type="button" onClick={() => submit("publish", true, onSuccess)} disabled={loading}>
                 {loadingAction === "publish" ? "Publishing..." : "Publish"}
               </Button>
             </DashboardModalFooterActions>
           </>
         }
       >
-        {error && (
-          <div className="px-6 pb-2">
-            <div className="rounded-md border border-red-200 bg-red-100 p-4 text-sm text-red-800">
-              {error}
-            </div>
-          </div>
-        )}
+        <ModalErrorBanner error={error} />
         <CardGroup className="grid">
           <Card>
             <CardHeader>
               <DashboardModalCardTitle>Page setup</DashboardModalCardTitle>
             </CardHeader>
             <CardContent>
-              <Field>
-                <FieldLabel htmlFor="title">Page Title *</FieldLabel>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
-                  placeholder="Enter page title"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="slug">Page URL</FieldLabel>
-                <Input
-                  id="slug"
-                  value={formData.slug}
-                  onChange={(e) => handleSlugChange(e.target.value)}
-                  placeholder="page-url-slug"
-                />
-                <FieldDescription>
-                  {slugManuallyEdited
-                    ? "Custom URL slug. Clear this field to auto-generate from title again."
-                    : "Auto-generated from title. Account pages render under /account."}
-                </FieldDescription>
-                {formData.slug && (
+              <TitleSlugFields
+                titleLabel="Page Title *"
+                titlePlaceholder="Enter page title"
+                slugLabel="Page URL"
+                slugPlaceholder="page-url-slug"
+                title={title}
+                slug={slug}
+                slugManuallyEdited={slugManuallyEdited}
+                onTitleChange={handleTitleChange}
+                onSlugChange={handleSlugChange}
+                slugAutoDescription="Auto-generated from title. Account pages render under /account."
+                urlPreview={slug ? (
                   <FieldDescription className="text-blue-600">
-                    Page URL: /account/{formData.slug}
+                    Page URL: /account/{slug}
                   </FieldDescription>
-                )}
-                {checkingSlug && (
-                  <FieldDescription className="text-blue-600">Checking slug availability...</FieldDescription>
-                )}
-                {slugWarning && (
-                  <FieldDescription className="text-amber-600">{slugWarning}</FieldDescription>
-                )}
-              </Field>
+                ) : null}
+              />
               <Field>
                 <label className="flex items-start gap-2 cursor-pointer">
                   <Checkbox
                     id="is_default"
-                    checked={formData.is_default}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, is_default: checked === true }))
-                    }
+                    checked={isDefault}
+                    onCheckedChange={(checked) => setIsDefault(checked === true)}
                   />
                   <div>
                     <span className="text-sm font-medium">Set as default page</span>
@@ -262,18 +118,11 @@ export function CreateAccountPageModal({
               <DashboardModalCardTitle>SEO</DashboardModalCardTitle>
             </CardHeader>
             <CardContent>
-              <Field>
-                <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
-                <Textarea
-                  id="meta_description"
-                  value={formData.meta_description}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, meta_description: e.target.value }))}
-                  placeholder="A brief description of this page for search engines"
-                  rows={1}
-                  className="min-h-10 field-sizing-content"
-                />
-                <FieldDescription>Recommended length: 150-160 characters</FieldDescription>
-              </Field>
+              <MetaDescriptionField
+                value={metaDescription}
+                onChange={setMetaDescription}
+                placeholder="A brief description of this page for search engines"
+              />
             </CardContent>
           </Card>
         </CardGroup>
