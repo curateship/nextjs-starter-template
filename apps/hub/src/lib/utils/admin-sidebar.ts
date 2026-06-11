@@ -109,7 +109,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
           item("item-products", "Products", "/admin/products", "products", [
             child("child-product-orders", "Purchases", "/admin/orders", "cart"),
             child("child-product-templates", "Templates", "/admin/products/templates", "file"),
-          ], ["/admin/products/builder", "/admin/products/new", "/admin/products/analytics"]),
+          ], ["/admin/products/builder", "/admin/products/analytics"]),
           item("item-directory", "Directory", "/admin/directory", "directory", [
             child("child-directory-saved", "Saved", "/admin/directory/saved", "bookmark"),
             child("child-directory-claims", "Claims", "/admin/directory/claims", "clipboard"),
