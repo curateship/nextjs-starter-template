@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { format } from "date-fns"
 import { CalendarIcon, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -29,6 +28,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
+import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
 import { getContactsWithStats } from "@/lib/actions/newsletters/contact-actions"
 import {
@@ -65,24 +65,6 @@ type ContactFilterModalProps = {
 
 function makeFilterRuleId() {
   return `filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function toCalendarDate(value: string | null) {
-  if (!value) return undefined
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return undefined
-  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-}
-
-function fromCalendarDate(value: Date | undefined) {
-  return value
-    ? new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0)).toISOString()
-    : null
-}
-
-function formatDatePickerLabel(value: string | null, placeholder: string) {
-  const date = toCalendarDate(value)
-  return date ? format(date, "MMM d, yyyy") : placeholder
 }
 
 function buildPendingDataFieldInputs(group: ContactFilterGroup) {

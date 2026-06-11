@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react"
-import { format } from "date-fns"
 import {
   CalendarIcon,
   Plus,
@@ -53,6 +52,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
+import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
 import {
   createSiteUser,
@@ -80,24 +80,6 @@ import {
 
 function makeFilterRuleId() {
   return `site-user-filter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
-function toCalendarDate(value: string | null) {
-  if (!value) return undefined
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return undefined
-  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-}
-
-function fromCalendarDate(value: Date | undefined) {
-  return value
-    ? new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0)).toISOString()
-    : null
-}
-
-function formatDatePickerLabel(value: string | null, placeholder: string) {
-  const date = toCalendarDate(value)
-  return date ? format(date, "MMM d, yyyy") : placeholder
 }
 
 function isDateRule(

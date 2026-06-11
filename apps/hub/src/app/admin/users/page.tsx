@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { format } from "date-fns"
 import { AdminLayout } from "@/components/admin/layout/admin-layout"
 import { StickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { DashboardSubheader } from "@/components/admin/layout/dashboard/DashboardSubheader"
@@ -42,6 +41,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar as CalendarPicker } from "@/components/ui/calendar"
 import { deleteUser, deleteUsers, listUsers, type UserListItem } from "@/lib/actions/users/user-management-actions"
+import { toCalendarDate, fromCalendarDate, formatDatePickerLabel } from "@/lib/utils/calendar-dates"
 import { cn } from "@/lib/utils/tailwind"
 import { CalendarIcon, Plus, SlidersHorizontal, Trash2, User, X } from "lucide-react"
 import Link from "next/link"
@@ -83,24 +83,6 @@ function emptyFilterGroup(): FilterGroup {
 
 function makeFilterRuleId() {
   return `filter-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-function toCalendarDate(value: string | null) {
-  if (!value) return undefined
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return undefined
-  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-}
-
-function fromCalendarDate(value: Date | undefined) {
-  return value
-    ? new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0)).toISOString()
-    : null
-}
-
-function formatDatePickerLabel(value: string | null, placeholder: string) {
-  const date = toCalendarDate(value)
-  return date ? format(date, "MMM d, yyyy") : placeholder
 }
 
 function isDateRule(rule: FilterRule): rule is Extract<FilterRule, { type: "dateAdded" | "lastActive" }> {
