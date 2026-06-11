@@ -3,7 +3,20 @@
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import type { TestimonialStyleAdminProps } from "./index"
+import { ComponentType } from "react"
+
+/** Shape of a testimonial style entry in a builder's TESTIMONIAL_STYLES registry */
+export interface TestimonialStyleDefinition {
+  label: string
+  description: string
+  AdminPanel: ComponentType<TestimonialStyleAdminProps>
+}
+
+/** Props every testimonial style admin panel receives */
+export interface TestimonialStyleAdminProps {
+  config: Record<string, any>
+  onConfigChange: (field: string, value: any) => void
+}
 
 export function DefaultTestimonialConfig({ config, onConfigChange }: TestimonialStyleAdminProps) {
   return (

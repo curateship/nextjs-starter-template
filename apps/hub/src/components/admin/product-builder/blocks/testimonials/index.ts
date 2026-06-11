@@ -1,17 +1,11 @@
-import { ComponentType } from "react"
-import { DefaultTestimonialConfig } from "./DefaultTestimonialConfig"
+import {
+  DefaultTestimonialConfig,
+  type TestimonialStyleDefinition,
+} from "@/components/admin/layout/builder/blocks/DefaultTestimonialConfig"
 import { VerticalScrollTestimonialConfig } from "./VerticalScrollTestimonialConfig"
 
-export interface TestimonialStyleDefinition {
-  label: string
-  description: string
-  AdminPanel: ComponentType<TestimonialStyleAdminProps>
-}
-
-export interface TestimonialStyleAdminProps {
-  config: Record<string, any>
-  onConfigChange: (field: string, value: any) => void
-}
+// Shared style config lives in layout/builder/blocks; types re-exported for consumers
+export type { TestimonialStyleDefinition, TestimonialStyleAdminProps } from "@/components/admin/layout/builder/blocks/DefaultTestimonialConfig"
 
 export const TESTIMONIAL_STYLES: Record<string, TestimonialStyleDefinition> = {
   default: {
