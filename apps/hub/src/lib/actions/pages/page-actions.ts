@@ -7,6 +7,14 @@ import { db } from '@/lib/db'
 import { pages, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
+import {
+  generateUniqueContentSlug,
+  getNextContentDisplayOrder,
+  requireOwnedContentRow,
+  requireOwnedSite,
+} from '@/lib/actions/content/content-action-helpers'
+
+type PageRow = typeof pages.$inferSelect
 
 export interface Page {
   id: string
@@ -35,27 +43,13 @@ export interface UpdatePageData {
  */
 export async function getSitePagesAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }): Promise<{ data: Page[] | null; total: number; error: string | null }> {
   try {
-    // Validate site ID format
-    if (!UUID_REGEX.test(siteId)) {
-      return { data: null, total: 0, error: 'Invalid site ID format' }
+    // Auth + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedSite(siteId)
+    if (!access.ok) {
+      return { data: null, total: 0, error: access.error }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Verify user owns this site
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Site not found or access denied' }
-    }
-
-    const { page, pageSize, offset: from } = normalizePagination(options)
+    const { pageSize, offset: from } = normalizePagination(options)
     const selectedSlug = options?.selectedSlug?.trim()
 
     const [countResult, data, selectedRows] = await Promise.all([
@@ -101,35 +95,12 @@ export async function getSitePagesAction(siteId: string, options?: { page?: numb
  */
 export async function deletePageAction(pageId: string): Promise<{ success: boolean; error: string | null }> {
   try {
-    // Validate page ID format
-    if (!UUID_REGEX.test(pageId)) {
-      return { success: false, error: 'Invalid page ID format' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PageRow>(pages, pageId, 'Page')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
-
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'User not authenticated. Please log in first.' }
-    }
-
-    // Get the page
-    const [page] = await db
-      .select()
-      .from(pages)
-      .where(eq(pages.id, pageId))
-
-    if (!page) {
-      return { success: false, error: 'Page not found' }
-    }
-
-    // Verify user owns the site this page belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
-    }
+    const page = access.row
 
     // Prevent deleting the home page - every site needs one
     if (page.slug === 'home') {
@@ -213,73 +184,20 @@ export async function deletePagesAction(pageIds: string[]): Promise<{ success: b
  */
 export async function duplicatePageAction(pageId: string, newTitle: string): Promise<{ data: Page | null; error: string | null }> {
   try {
-    // Validate page ID format
-    if (!UUID_REGEX.test(pageId)) {
-      return { data: null, error: 'Invalid page ID format' }
-    }
-
     if (!newTitle?.trim()) {
       return { data: null, error: 'New page title is required' }
     }
 
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, error: 'User not authenticated. Please log in first.' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PageRow>(pages, pageId, 'Page')
+    if (!access.ok) {
+      return { data: null, error: access.error }
     }
+    const originalPage = access.row
 
-    // Get the original page
-    const [originalPage] = await db
-      .select()
-      .from(pages)
-      .where(eq(pages.id, pageId))
-
-    if (!originalPage) {
-      return { data: null, error: 'Page not found' }
-    }
-
-    // Verify user owns the site this page belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, originalPage.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { data: null, error: 'Site not found or access denied' }
-    }
-
-    // Generate new slug
-    const baseSlug = newTitle
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    let newSlug = baseSlug
-    let counter = 1
-
-    // Ensure unique slug
-    while (true) {
-      const [existingPage] = await db
-        .select({ id: pages.id })
-        .from(pages)
-        .where(and(eq(pages.siteId, originalPage.siteId), eq(pages.slug, newSlug)))
-
-      if (!existingPage) break
-
-      newSlug = `${baseSlug}-${counter}`
-      counter++
-    }
-
-    // Get the next display order
-    const [orderData] = await db
-      .select({ displayOrder: pages.displayOrder })
-      .from(pages)
-      .where(eq(pages.siteId, originalPage.siteId))
-      .orderBy(desc(pages.displayOrder))
-      .limit(1)
-
-    const nextOrder = orderData ? orderData.displayOrder + 1 : 1
+    // Unique slug + next display order via shared helpers
+    const newSlug = await generateUniqueContentSlug(pages, originalPage.siteId, newTitle)
+    const nextOrder = await getNextContentDisplayOrder(pages, originalPage.siteId)
 
     // Create the duplicate page
     const [newPage] = await db
@@ -314,35 +232,10 @@ export async function duplicatePageAction(pageId: string, newTitle: string): Pro
  */
 export async function updatePageBlocksAction(pageId: string, contentBlocks: Record<string, any>): Promise<{ success: boolean; error?: string }> {
   try {
-    // Validate page ID format
-    if (!UUID_REGEX.test(pageId)) {
-      return { success: false, error: 'Invalid page ID format' }
-    }
-
-    // Verify user is authenticated
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { success: false, error: 'Authentication required' }
-    }
-
-    // Get the page to verify ownership
-    const [page] = await db
-      .select({ id: pages.id, siteId: pages.siteId })
-      .from(pages)
-      .where(eq(pages.id, pageId))
-
-    if (!page) {
-      return { success: false, error: 'Page not found' }
-    }
-
-    // Verify user owns the site this page belongs to
-    const [site] = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(and(eq(sites.id, page.siteId), eq(sites.userId, user.id)))
-
-    if (!site) {
-      return { success: false, error: 'Site not found or access denied' }
+    // Auth + row + site ownership (fast-fail helper; check runs on every call)
+    const access = await requireOwnedContentRow<PageRow>(pages, pageId, 'Page')
+    if (!access.ok) {
+      return { success: false, error: access.error }
     }
 
     // SECURITY: Validate content blocks structure and size
