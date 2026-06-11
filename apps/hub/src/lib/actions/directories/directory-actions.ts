@@ -393,13 +393,21 @@ export async function deleteDirectoryAction(directoryId: string) {
       return { success: false, error: 'Unauthorized' }
     }
 
-    // Delete the directory
-    await db.delete(directories)
-      .where(eq(directories.id, directoryId))
+    await db.transaction(async (tx) => {
+      await tx.delete(contentCategoryRelationships)
+        .where(and(
+          eq(contentCategoryRelationships.contentId, directoryId),
+          eq(contentCategoryRelationships.contentType, 'directory')
+        ))
+
+      await tx.delete(directories)
+        .where(eq(directories.id, directoryId))
+    })
 
     // Revalidate cache
     revalidateTag('directory')
     revalidateTag('listing-views')
+    revalidateTag('content-categories')
     revalidateTag(`directory-${directoryId}`)
     revalidateTag(`site-${directory.siteId}`)
 
@@ -453,11 +461,20 @@ export async function deleteDirectoriesAction(directoryIds: string[]): Promise<{
       return { success: false, error: 'Access denied to one or more listings' }
     }
 
-    await db.delete(directories)
-      .where(inArray(directories.id, directoryIds))
+    await db.transaction(async (tx) => {
+      await tx.delete(contentCategoryRelationships)
+        .where(and(
+          inArray(contentCategoryRelationships.contentId, directoryIds),
+          eq(contentCategoryRelationships.contentType, 'directory')
+        ))
+
+      await tx.delete(directories)
+        .where(inArray(directories.id, directoryIds))
+    })
 
     revalidateTag('directory')
     revalidateTag('listing-views')
+    revalidateTag('content-categories')
 
     return { success: true, error: null }
   } catch (error) {
