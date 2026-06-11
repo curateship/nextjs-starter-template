@@ -54,12 +54,15 @@ export function useTitleSlug({ regenerateOnClear = false }: UseTitleSlugOptions 
     setSlug(nextSlug)
   }
 
-  /** Settings modals: load existing values; a slug differing from the auto-generated
-   * one counts as manually edited. */
-  const reset = (initialTitle: string, initialSlug: string) => {
+  /** Settings modals: load existing values. By default a slug differing from the
+   * auto-generated one counts as manually edited; pass detectManualEdit: false to
+   * always start in auto mode (event settings behavior). */
+  const reset = (initialTitle: string, initialSlug: string, options?: { detectManualEdit?: boolean }) => {
     setTitle(initialTitle)
     setSlug(initialSlug)
-    setSlugManuallyEdited(initialSlug !== generateSlug(initialTitle))
+    setSlugManuallyEdited(
+      options?.detectManualEdit === false ? false : initialSlug !== generateSlug(initialTitle)
+    )
   }
 
   return { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, setTitle, setSlug, reset }

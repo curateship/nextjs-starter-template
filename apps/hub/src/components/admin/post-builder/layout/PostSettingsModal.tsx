@@ -1,21 +1,25 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
+import {
   Dialog,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
-import { ImageIcon, X } from "lucide-react"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
-import { generateSlug } from "@/lib/utils/slug"
-import type { Post, UpdatePostData } from "@/lib/actions/posts/post-actions"
+import {
+  FeaturedImageField,
+  MetaDescriptionField,
+  TitleSlugFields,
+  putJson,
+  useCreateContent,
+  useTitleSlug,
+} from "@/components/admin/layout/dashboard/content-modal-shared"
+import type { Post } from "@/lib/actions/posts/post-actions"
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
 
 interface PostSettingsModalProps {
@@ -26,72 +30,51 @@ interface PostSettingsModalProps {
   onSuccess?: (updatedPost: Post) => void
 }
 
-export function PostSettingsModal({ 
-  open, 
-  onOpenChange, 
-  post, 
+export function PostSettingsModal({
+  open,
+  onOpenChange,
+  post,
   onSuccess
 }: PostSettingsModalProps) {
-  const [formData, setFormData] = useState<UpdatePostData>({})
-  const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-  const [showImagePicker, setShowImagePicker] = useState(false)
+  // Posts regenerate the slug immediately when the field is cleared
+  const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
+  const [metaDescription, setMetaDescription] = useState("")
+  const [featuredImage, setFeaturedImage] = useState("")
+  const [excerpt, setExcerpt] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
-  const saving = savingAction !== null
 
-  // Handle title change and auto-generate slug if slug hasn't been manually edited
-  const handleTitleChange = (title: string) => {
-    setFormData(prev => ({
-      ...prev,
+  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Post>({
+    entityLabel: "post",
+    title,
+    titleRequiredMessage: "Post title is required",
+    create: (publish) => putJson(`/api/posts/${post?.id}`, {
       title,
-      slug: slugManuallyEdited ? prev.slug : generateSlug(title)
-    }))
-  }
+      slug,
+      meta_description: metaDescription,
+      featured_image: featuredImage,
+      excerpt,
+      is_published: publish,
+    }),
+    // Persist category selection after the post row is updated
+    afterCreate: async () => {
+      if (!post) return null
+      const categoryResult = await bulkAssignCategoriesToContentAction(post.id, 'post', selectedCategoryIds, primaryCategoryId)
+      return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
+    },
+    failureMessage: (_, publish) => publish ? 'Failed to publish post' : 'Failed to save post as draft',
+  })
 
-  // Handle manual slug changes
-  const handleSlugChange = (slug: string) => {
-    if (slug === '') {
-      // If user clears the field, reset to auto-generation
-      setSlugManuallyEdited(false)
-      setFormData(prev => ({ ...prev, slug: generateSlug(prev.title || '') }))
-    } else {
-      setSlugManuallyEdited(true)
-      setFormData(prev => ({ ...prev, slug }))
-    }
-  }
-
-  // Handle featured image changes
-  const handleImageChange = async (newImageUrl: string) => {
-    setFormData(prev => ({ ...prev, featured_image: newImageUrl }))
-  }
-
-  // Handle removing the featured image
-  const handleRemoveImage = async () => {
-    setFormData(prev => ({ ...prev, featured_image: '' }))
-  }
-
-
-  // Initialize form data when post changes
+  // Initialize form data and load the post's current categories
   useEffect(() => {
     let cancelled = false
 
     if (post) {
-      setFormData({
-        title: post.title,
-        slug: post.slug,
-        meta_description: post.meta_description || '',
-        featured_image: post.featured_image || '',
-        excerpt: post.excerpt || '',
-        is_published: post.is_published
-      })
-      
-      // Check if slug was manually edited (different from auto-generated)
-      const autoGeneratedSlug = generateSlug(post.title)
-      setSlugManuallyEdited(post.slug !== autoGeneratedSlug)
-      
+      reset(post.title, post.slug)
+      setMetaDescription(post.meta_description || '')
+      setFeaturedImage(post.featured_image || '')
+      setExcerpt(post.excerpt || '')
       setError(null)
 
       setSelectedCategoryIds([])
@@ -112,6 +95,7 @@ export function PostSettingsModal({
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post])
 
   // Clear messages when modal is closed
@@ -119,128 +103,24 @@ export function PostSettingsModal({
     if (!open) {
       setError(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-
-  // Handle saving as draft
-  const handleSaveDraft = async () => {
-    if (!formData.title?.trim()) {
-      setError('Post title is required')
-      return
-    }
-
+  const handleSave = async (publish: boolean) => {
     if (!post) {
       setError('No post selected')
       return
     }
-
-    try {
-      setSavingAction("draft")
-      setError(null)
-      
-      const draftData = { 
-        ...formData, 
-        is_published: false
-      }
-      const response = await fetch(`/api/posts/${post.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(draftData),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to save post as draft')
-        return
-      }
-      
-      if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(post.id, 'post', selectedCategoryIds, primaryCategoryId)
-        if (!categoryResult.success) {
-          setError(categoryResult.error || 'Failed to save categories')
-          return
-        }
-
-        if (onSuccess) {
-          onSuccess(result.data)
-        }
-
-        // Close modal after successful save
-        onOpenChange(false)
-      }
-    } catch (err) {
-      setError('Failed to save post as draft')
-    } finally {
-      setSavingAction(null)
-    }
-  }
-
-  // Handle publishing
-  const handlePublish = async () => {
-    if (!formData.title?.trim()) {
-      setError('Post title is required')
-      return
-    }
-
-    if (!post) {
-      setError('No post selected')
-      return
-    }
-
-    try {
-      setSavingAction("publish")
-      setError(null)
-      
-      const publishData = { 
-        ...formData, 
-        is_published: true
-      }
-      const response = await fetch(`/api/posts/${post.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(publishData),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to publish post')
-        return
-      }
-      
-      if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(post.id, 'post', selectedCategoryIds, primaryCategoryId)
-        if (!categoryResult.success) {
-          setError(categoryResult.error || 'Failed to save categories')
-          return
-        }
-
-        // Update the form data to reflect the new published state
-        setFormData(prev => ({ ...prev, is_published: true }))
-
-        if (onSuccess) {
-          onSuccess(result.data)
-        }
-
-        // Close modal after successful save
-        onOpenChange(false)
-      }
-    } catch (err) {
-      setError('Failed to publish post')
-    } finally {
-      setSavingAction(null)
-    }
+    await submit(publish ? "publish" : "draft", publish, (updated) => {
+      onSuccess?.(updated)
+      onOpenChange(false)
+    })
   }
 
   // Handle form submission (default to save as draft)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await handleSave(false)
   }
 
   if (!post) {
@@ -286,7 +166,7 @@ export function PostSettingsModal({
               </Button>
               <Button
                 type="button"
-                onClick={handlePublish}
+                onClick={() => handleSave(true)}
                 disabled={saving}
               >
                 {savingAction === "publish" ? (post?.is_published ? "Saving..." : "Publishing...") : (post?.is_published ? "Save" : "Publish")}
@@ -309,78 +189,28 @@ export function PostSettingsModal({
                 <CardDescription>Name the post, set its URL, image, and summary.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Field>
-                  <FieldLabel htmlFor="modal-title">Post Title *</FieldLabel>
-                  <Input
-                    id="modal-title"
-                    value={formData.title || ''}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    placeholder="Enter post title"
-                    required
-                  />
-                </Field>
+                <TitleSlugFields
+                  idPrefix="modal-"
+                  titleLabel="Post Title *"
+                  titlePlaceholder="Enter post title"
+                  slugLabel="Post URL"
+                  slugPlaceholder="post-url-slug"
+                  title={title}
+                  slug={slug}
+                  slugManuallyEdited={slugManuallyEdited}
+                  onTitleChange={handleTitleChange}
+                  onSlugChange={handleSlugChange}
+                  slugAutoDescription={null}
+                />
 
-                <Field>
-                  <FieldLabel htmlFor="modal-slug">Post URL</FieldLabel>
-                  <Input
-                    id="modal-slug"
-                    value={formData.slug || ''}
-                    onChange={(e) => handleSlugChange(e.target.value)}
-                    placeholder="post-url-slug"
-                  />
-                  {slugManuallyEdited && (
-                    <FieldDescription>
-                      Custom URL slug. Clear this field to auto-generate from title again.
-                    </FieldDescription>
-                  )}
-                </Field>
-
-                <Field className="[&>div]:w-fit">
-                  <div>
-                    {formData.featured_image ? (
-                      <div className="relative aspect-square w-48 rounded-lg overflow-hidden bg-muted">
-                        <img
-                          src={formData.featured_image}
-                          alt="Featured image preview"
-                          className="w-full h-full object-contain"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleRemoveImage}
-                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                        <div
-                          className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                          onClick={() => setShowImagePicker(true)}
-                        >
-                          <div className="text-white text-center">
-                            <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                            <p className="text-sm font-medium">Click to change image</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="flex aspect-square w-48 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                        onClick={() => setShowImagePicker(true)}
-                      >
-                        <div className="text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                          <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </Field>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
 
                 <Field>
                   <FieldLabel htmlFor="excerpt">Post Excerpt</FieldLabel>
                   <Input
                     id="excerpt"
-                    value={formData.excerpt || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, excerpt: e.target.value }))}
+                    value={excerpt}
+                    onChange={(e) => setExcerpt(e.target.value)}
                     placeholder="A brief summary of your post"
                   />
                 </Field>
@@ -415,35 +245,21 @@ export function PostSettingsModal({
                 <CardDescription>Set the search description for this post.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Field>
-                  <FieldLabel htmlFor="modal-meta_description">Meta Description</FieldLabel>
-                  <Textarea
-                    id="modal-meta_description"
-                    value={formData.meta_description || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-                    placeholder="A brief description of this post for search engines"
-                    rows={1}
-                    className="min-h-10 field-sizing-content"
-                  />
-                  <FieldDescription>
-                    Recommended length: 150-160 characters ({(formData.meta_description || '').length}/160)
-                  </FieldDescription>
-                </Field>
+                <MetaDescriptionField
+                  idPrefix="modal-"
+                  value={metaDescription}
+                  onChange={setMetaDescription}
+                  placeholder="A brief description of this post for search engines"
+                  description={
+                    <FieldDescription>
+                      Recommended length: 150-160 characters ({metaDescription.length}/160)
+                    </FieldDescription>
+                  }
+                />
               </CardContent>
             </Card>
           </CardGroup>
         </form>
-
-        {/* Image Picker Modal */}
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(imageUrl) => {
-            handleImageChange(imageUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={formData.featured_image || ''}
-        />
       </DashboardModalContent>
     </Dialog>
   )

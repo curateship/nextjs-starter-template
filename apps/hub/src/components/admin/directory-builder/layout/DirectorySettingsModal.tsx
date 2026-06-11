@@ -4,18 +4,20 @@ import { useState, useEffect } from "react"
 import { Dialog } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
-import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalCardTitle, DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import { updateDirectoryAction } from "@/lib/actions/directories/directory-actions"
 import { getDirectoryTemplatesBySite, type DirectoryTemplate } from "@/lib/actions/directories/directory-template-actions"
 import { deriveDirectoryMetaDescriptionFromBlocks } from "@/lib/actions/directories/directory-template-inheritance"
-import { generateSlug } from "@/lib/utils/slug"
+import {
+  FeaturedImageField,
+  MetaDescriptionField,
+  TitleSlugFields,
+  useCreateContent,
+  useTitleSlug,
+} from "@/components/admin/layout/dashboard/content-modal-shared"
 import type { Directory } from "@/lib/actions/directories/directory-actions"
 import {
   Select,
@@ -41,50 +43,38 @@ export function DirectorySettingsModal({
   blocks,
   onSuccess
 }: DirectorySettingsModalProps) {
-  const [formData, setFormData] = useState({
-    title: '',
-    slug: '',
-    meta_description: ''
-  })
+  const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
+  const [metaDescription, setMetaDescription] = useState("")
   const [featuredImage, setFeaturedImage] = useState('')
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [templates, setTemplates] = useState<DirectoryTemplate[]>([])
   const [templatesLoading, setTemplatesLoading] = useState(false)
-  const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
-  const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
-  const saving = savingAction !== null
 
-  const handleTitleChange = (title: string) => {
-    setFormData(prev => ({
-      ...prev,
+  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Directory>({
+    entityLabel: "listing",
+    title,
+    titleRequiredMessage: "Listing title is required",
+    // Directories update through a server action with a status field rather than is_published
+    create: (publish) => updateDirectoryAction(directory!.id, {
       title,
-      slug: slugManuallyEdited ? prev.slug : generateSlug(title)
-    }))
-  }
+      slug,
+      meta_description: metaDescription,
+      template_id: selectedTemplateId,
+      status: publish ? 'published' : 'draft',
+      featured_image: featuredImage || null,
+    }),
+    // Persist category selection after the listing row is updated
+    afterCreate: async (updated) => {
+      const categoryResult = await bulkAssignCategoriesToContentAction(updated.id, 'directory', selectedCategoryIds, primaryCategoryId)
+      return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
+    },
+    failureMessage: (_, publish) => publish ? 'Failed to publish directory' : 'Failed to save directory',
+  })
 
-  const handleSlugChange = (slug: string) => {
-    if (slug === '') {
-      setSlugManuallyEdited(false)
-      setFormData(prev => ({ ...prev, slug: generateSlug(prev.title || '') }))
-    } else {
-      setSlugManuallyEdited(true)
-      setFormData(prev => ({ ...prev, slug }))
-    }
-  }
-
-  const handleImageChange = (imageUrl: string) => {
-    setFeaturedImage(imageUrl)
-  }
-
-  const handleRemoveImage = () => {
-    setFeaturedImage('')
-  }
-
+  // Initialize form data, templates, and the listing's current categories
   useEffect(() => {
     if (!open || !directory) return
 
@@ -93,14 +83,11 @@ export function DirectorySettingsModal({
       blocks?.length ? blocks : Object.values(directory.content_blocks || {})
     )
 
-    setFormData({
-      title: directory.title || '',
-      slug: directory.slug || '',
-      meta_description: directory.meta_description || derivedMetaDescription
-    })
+    // Directory settings historically starts in auto-slug mode regardless of the stored slug
+    reset(directory.title || '', directory.slug || '', { detectManualEdit: false })
+    setMetaDescription(directory.meta_description || derivedMetaDescription)
     setFeaturedImage(directory.featured_image || '')
     setSelectedTemplateId(directory.template_id || '')
-    setSlugManuallyEdited(false)
 
     setSelectedCategoryIds([])
     setPrimaryCategoryId(null)
@@ -133,95 +120,24 @@ export function DirectorySettingsModal({
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blocks, directory, open])
 
-  const handleSaveDraft = async () => {
+  const handleSave = async (publish: boolean) => {
     if (!directory) return
     if (!selectedTemplateId) {
       setError('Template is required')
       return
     }
-
-    try {
-      setSavingAction("draft")
-      setError(null)
-
-      const draftData = {
-        ...formData,
-        template_id: selectedTemplateId,
-        status: 'draft' as const,
-        featured_image: featuredImage || null
-      }
-
-      const updateResult = await updateDirectoryAction(directory.id, draftData)
-
-      if (updateResult.error || !updateResult.data) {
-        setError(updateResult.error || 'Failed to save directory as draft')
-        return
-      }
-
-      if (updateResult.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
-        if (!categoryResult.success) {
-          setError(categoryResult.error || 'Failed to save categories')
-          return
-        }
-
-        if (onSuccess) onSuccess(updateResult.data)
-        onOpenChange(false)
-      }
-    } catch (err) {
-      setError('Failed to save directory')
-    } finally {
-      setSavingAction(null)
-    }
-  }
-
-  const handlePublish = async () => {
-    if (!directory) return
-    if (!selectedTemplateId) {
-      setError('Template is required')
-      return
-    }
-
-    try {
-      setSavingAction("publish")
-      setError(null)
-
-      const publishData = {
-        ...formData,
-        template_id: selectedTemplateId,
-        status: 'published' as const,
-        featured_image: featuredImage || null
-      }
-
-      const updateResult = await updateDirectoryAction(directory.id, publishData)
-
-      if (updateResult.error || !updateResult.data) {
-        setError(updateResult.error || 'Failed to publish directory')
-        return
-      }
-
-      if (updateResult.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(updateResult.data.id, 'directory', selectedCategoryIds, primaryCategoryId)
-        if (!categoryResult.success) {
-          setError(categoryResult.error || 'Failed to save categories')
-          return
-        }
-
-        if (onSuccess) onSuccess(updateResult.data)
-        onOpenChange(false)
-      }
-    } catch (err) {
-      setError('Failed to publish directory')
-    } finally {
-      setSavingAction(null)
-    }
+    await submit(publish ? "publish" : "draft", publish, (updated) => {
+      onSuccess?.(updated)
+      onOpenChange(false)
+    })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await handleSave(false)
   }
 
   if (!directory) return null
@@ -251,7 +167,7 @@ export function DirectorySettingsModal({
               <Button type="submit" form="directory-settings-form" variant="outline" disabled={saving}>
                 {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
               </Button>
-              <Button type="button" onClick={handlePublish} disabled={saving}>
+              <Button type="button" onClick={() => handleSave(true)} disabled={saving}>
                 {savingAction === 'publish' ? 'Saving...' : directory?.status === 'published' ? 'Save' : 'Publish'}
               </Button>
             </DashboardModalFooterActions>
@@ -291,69 +207,20 @@ export function DirectorySettingsModal({
                   </FieldDescription>
                 </Field>
 
-                <Field>
-                  <FieldLabel htmlFor="modal-title">Listing Title *</FieldLabel>
-                  <Input
-                    id="modal-title"
-                    value={formData.title}
-                    onChange={(e) => handleTitleChange(e.target.value)}
-                    placeholder="Enter listing title"
-                    required
-                  />
-                </Field>
+                <TitleSlugFields
+                  idPrefix="modal-"
+                  titleLabel="Listing Title *"
+                  titlePlaceholder="Enter listing title"
+                  slugLabel="Listing URL"
+                  slugPlaceholder="listing-url-slug"
+                  title={title}
+                  slug={slug}
+                  slugManuallyEdited={slugManuallyEdited}
+                  onTitleChange={handleTitleChange}
+                  onSlugChange={handleSlugChange}
+                />
 
-                <Field>
-                  <FieldLabel htmlFor="modal-slug">Listing URL</FieldLabel>
-                  <Input
-                    id="modal-slug"
-                    value={formData.slug}
-                    onChange={(e) => handleSlugChange(e.target.value)}
-                    placeholder="listing-url-slug"
-                  />
-                  <FieldDescription>
-                    {slugManuallyEdited
-                      ? "Custom URL slug. Clear this field to auto-generate from title again."
-                      : "Auto-generated from title. You can edit this to customize the URL."}
-                  </FieldDescription>
-                </Field>
-
-                <Field className="[&>div]:w-fit">
-                  {featuredImage ? (
-                    <div className="relative aspect-square w-48! rounded-lg overflow-hidden bg-muted">
-                      <img
-                        src={featuredImage}
-                        alt="Featured image preview"
-                        className="w-full h-full object-contain"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                      <div
-                        className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/50 cursor-pointer"
-                        onClick={() => setShowImagePicker(true)}
-                      >
-                        <div className="text-white text-center">
-                          <ImageIcon className="mx-auto h-8 w-8 mb-2" />
-                          <p className="text-sm font-medium">Click to change image</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className="flex aspect-square w-48! cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50 p-4 transition-all hover:border-muted-foreground/40 hover:bg-muted/70"
-                      onClick={() => setShowImagePicker(true)}
-                    >
-                      <div className="text-center">
-                        <ImageIcon className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                        <p className="mt-2 text-sm text-muted-foreground">Click to select featured image</p>
-                      </div>
-                    </div>
-                  )}
-                </Field>
+                <FeaturedImageField imageUrl={featuredImage} onChange={setFeaturedImage} />
               </CardContent>
             </Card>
 
@@ -385,34 +252,20 @@ export function DirectorySettingsModal({
                 <CardDescription>Set the search description for this listing.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Field>
-                  <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
-                  <Textarea
-                    id="meta_description"
-                    value={formData.meta_description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, meta_description: e.target.value }))}
-                    placeholder="SEO meta description"
-                    rows={1}
-                    className="min-h-10 field-sizing-content"
-                  />
-                  <FieldDescription>
-                    Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
-                  </FieldDescription>
-                </Field>
+                <MetaDescriptionField
+                  value={metaDescription}
+                  onChange={setMetaDescription}
+                  placeholder="SEO meta description"
+                  description={
+                    <FieldDescription>
+                      Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160
+                    </FieldDescription>
+                  }
+                />
               </CardContent>
             </Card>
           </CardGroup>
         </form>
-
-        <MediaPicker
-          open={showImagePicker}
-          onOpenChange={setShowImagePicker}
-          onSelectMedia={(mediaUrl) => {
-            handleImageChange(mediaUrl)
-            setShowImagePicker(false)
-          }}
-          currentMediaUrl={featuredImage || ''}
-        />
       </DashboardModalContent>
     </Dialog>
   )

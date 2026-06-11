@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -16,7 +16,11 @@ import { MediaPicker } from "@/components/admin/media-library/MediaPicker"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
-import { generateSlug } from "@/lib/utils/slug"
+import {
+  putJson,
+  useCreateContent,
+  useTitleSlug,
+} from "@/components/admin/layout/dashboard/content-modal-shared"
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface EventSettingsModalProps {
@@ -27,70 +31,50 @@ interface EventSettingsModalProps {
   onSuccess?: (updatedEvent: Event) => void
 }
 
-export function EventSettingsModal({ 
-  open, 
-  onOpenChange, 
-  event, 
-  onSuccess 
+export function EventSettingsModal({
+  open,
+  onOpenChange,
+  event,
+  onSuccess
 }: EventSettingsModalProps) {
-  const [formData, setFormData] = useState({
-    title: '',
-    slug: '',
-    meta_description: ''
-  })
+  const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
+  const [metaDescription, setMetaDescription] = useState("")
   const [featuredImage, setFeaturedImage] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
-  const [savingAction, setSavingAction] = useState<"draft" | "publish" | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
-  const saving = savingAction !== null
 
-  // Handle title change and auto-generate slug if slug hasn't been manually edited
-  const handleTitleChange = (title: string) => {
-    setFormData(prev => ({
-      ...prev,
+  const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Event>({
+    entityLabel: "event",
+    title,
+    titleRequiredMessage: "Event title is required",
+    create: (publish) => putJson(`/api/events/${event?.id}`, {
       title,
-      slug: slugManuallyEdited ? prev.slug : generateSlug(title)
-    }))
-  }
+      slug,
+      meta_description: metaDescription,
+      is_published: publish,
+      featured_image: featuredImage || null,
+    }),
+    // Persist category selection after the event row is updated
+    afterCreate: async (updated) => {
+      const categoryResult = await bulkAssignCategoriesToContentAction(updated.id, 'event', selectedCategoryIds, primaryCategoryId)
+      return categoryResult.success ? null : (categoryResult.error || 'Failed to save categories')
+    },
+    failureMessage: (_, publish) => publish ? 'Failed to publish event' : 'Failed to save event',
+  })
 
-  // Handle manual slug changes
-  const handleSlugChange = (slug: string) => {
-    if (slug === '') {
-      // If user clears the field, reset to auto-generation
-      setSlugManuallyEdited(false)
-      setFormData(prev => ({ ...prev, slug: generateSlug(prev.title || '') }))
-    } else {
-      setSlugManuallyEdited(true)
-      setFormData(prev => ({ ...prev, slug }))
-    }
-  }
-
-  const handleImageChange = (imageUrl: string) => {
-    setFeaturedImage(imageUrl)
-  }
-
-  const handleRemoveImage = () => {
-    setFeaturedImage('')
-  }
-
-  // Initialize form data
+  // Initialize form data and load the event's current categories
   useEffect(() => {
     let cancelled = false
 
     if (event) {
-      setFormData({
-        title: event.title || '',
-        slug: event.slug || '',
-        meta_description: event.meta_description || ''
-      })
+      // Event settings historically starts in auto-slug mode regardless of the stored slug
+      reset(event.title || '', event.slug || '', { detectManualEdit: false })
+      setMetaDescription(event.meta_description || '')
       setFeaturedImage(event.featured_image || '')
       setIsPrivate(event.content_blocks?._settings?.is_private === true)
-      setSlugManuallyEdited(false)
 
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
@@ -110,108 +94,21 @@ export function EventSettingsModal({
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event])
 
-  // Save as draft
-  const handleSaveDraft = async () => {
+  const handleSave = async (publish: boolean) => {
     if (!event) return
-
-    try {
-      setSavingAction("draft")
-      setError(null)
-
-      const draftData = { 
-        ...formData, 
-        is_published: false,
-        featured_image: featuredImage || null
-      }
-      const response = await fetch(`/api/events/${event.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(draftData),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to save event as draft')
-        return
-      }
-      
-      if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds, primaryCategoryId)
-        if (!categoryResult.success) {
-          setError(categoryResult.error || 'Failed to save categories')
-          return
-        }
-
-        if (onSuccess) {
-          onSuccess(result.data)
-        }
-
-        onOpenChange(false)
-      }
-    } catch (err) {
-      setError('Failed to save event')
-    } finally {
-      setSavingAction(null)
-    }
-  }
-
-  // Publish event
-  const handlePublish = async () => {
-    if (!event) return
-
-    try {
-      setSavingAction("publish")
-      setError(null)
-
-      const publishData = { 
-        ...formData, 
-        is_published: true,
-        featured_image: featuredImage || null
-      }
-      const response = await fetch(`/api/events/${event.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(publishData),
-      })
-      
-      const result = await response.json()
-      
-      if (!response.ok || result.error) {
-        setError(result.error || 'Failed to publish event')
-        return
-      }
-      
-      if (result.data) {
-        const categoryResult = await bulkAssignCategoriesToContentAction(result.data.id, 'event', selectedCategoryIds, primaryCategoryId)
-        if (!categoryResult.success) {
-          setError(categoryResult.error || 'Failed to save categories')
-          return
-        }
-
-        if (onSuccess) {
-          onSuccess(result.data)
-        }
-
-        onOpenChange(false)
-      }
-    } catch (err) {
-      setError('Failed to publish event')
-    } finally {
-      setSavingAction(null)
-    }
+    await submit(publish ? "publish" : "draft", publish, (updated) => {
+      onSuccess?.(updated)
+      onOpenChange(false)
+    })
   }
 
   // Handle form submission (default to save as draft)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await handleSaveDraft()
+    await handleSave(false)
   }
 
   if (!event) {
@@ -248,7 +145,7 @@ export function EventSettingsModal({
               <Label htmlFor="modal-title">Event Title *</Label>
               <Input
                 id="modal-title"
-                value={formData.title || ''}
+                value={title || ''}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder="Enter event title"
                 required
@@ -260,7 +157,7 @@ export function EventSettingsModal({
               <Label htmlFor="modal-slug">Event URL</Label>
               <Input
                 id="modal-slug"
-                value={formData.slug || ''}
+                value={slug || ''}
                 onChange={(e) => handleSlugChange(e.target.value)}
                 placeholder="event-url-slug"
               />
@@ -283,7 +180,7 @@ export function EventSettingsModal({
                   />
                   <button
                     type="button"
-                    onClick={handleRemoveImage}
+                    onClick={() => setFeaturedImage('')}
                     className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
                   >
                     <X className="h-4 w-4" />
@@ -351,39 +248,39 @@ export function EventSettingsModal({
             <textarea
               className="flex min-h-10 w-full field-sizing-content rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               id="meta_description"
-              value={formData.meta_description}
+              value={metaDescription}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                setFormData(prev => ({ ...prev, meta_description: e.target.value }))
+                setMetaDescription(e.target.value)
               }}
               placeholder="SEO meta description"
               rows={1}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Used for SEO. Keep it under 160 characters. Currently: {formData.meta_description.length}/160
+              Used for SEO. Keep it under 160 characters. Currently: {metaDescription.length}/160
             </p>
           </div>
 
           {/* Form Actions */}
           <div className="flex justify-between pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >
               Cancel
             </Button>
             <div className="flex items-center space-x-2">
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 variant="outline"
               disabled={saving}
             >
               {savingAction === 'draft' ? 'Saving...' : 'Save as Draft'}
             </Button>
-              <Button 
-                type="button" 
-                onClick={handlePublish}
+              <Button
+                type="button"
+                onClick={() => handleSave(true)}
                 disabled={saving}
               >
                 {savingAction === 'publish' ? 'Saving...' : event?.is_published ? 'Save' : 'Publish'}
@@ -397,7 +294,7 @@ export function EventSettingsModal({
           open={showImagePicker}
           onOpenChange={setShowImagePicker}
           onSelectMedia={(imageUrl) => {
-            handleImageChange(imageUrl)
+            setFeaturedImage(imageUrl)
             setShowImagePicker(false)
           }}
           currentMediaUrl={featuredImage || ''}
