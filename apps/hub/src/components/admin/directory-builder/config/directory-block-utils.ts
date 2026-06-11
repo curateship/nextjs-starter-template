@@ -21,7 +21,8 @@ function isSupportedDirectoryBlockType(type: string) {
     type === 'directory-custom' ||
     type === 'directory-rich-text' ||
     type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE ||
-    type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE
+    type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE ||
+    type === 'directory-related-listing'
 }
 
 export function normalizeDirectoryEditorBlock(block: DirectoryEditorBlock): DirectoryEditorBlock {

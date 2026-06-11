@@ -4,6 +4,7 @@ import { DirectoryCoreBlock } from "@/components/admin/directory-builder/blocks/
 import { DirectoryCustomBlock } from "@/components/admin/directory-builder/blocks/DirectoryCustomBlock"
 import { DirectoryGoogleMapBlock } from "@/components/admin/directory-builder/blocks/google-map/DirectoryGoogleMapBlock"
 import { DirectoryOpeningHoursBlock } from "@/components/admin/directory-builder/blocks/opening-hours/DirectoryOpeningHoursBlock"
+import { DirectoryRelatedListingBlock } from "@/components/admin/directory-builder/blocks/related-listing/DirectoryRelatedListingBlock"
 import { DirectoryRichTextEditorBlock } from "@/components/admin/directory-builder/blocks/rich-text-editor/DirectoryRichTextEditorBlock"
 import { DirectoryTemplateBlockEditor } from "./DirectoryTemplateBlockEditor"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
@@ -53,6 +54,7 @@ export function DirectoryBlockEditor({
         block={block}
         content={content}
         onContentChange={onContentChange}
+        siteId={siteId}
         customBlockTemplates={customBlockTemplates}
       />
     )
@@ -111,6 +113,10 @@ export function DirectoryBlockEditor({
         onContentChange={onContentChange}
       />
     )
+  }
+
+  if (block.type === "directory-related-listing") {
+    return <DirectoryRelatedListingBlock />
   }
 
   return null

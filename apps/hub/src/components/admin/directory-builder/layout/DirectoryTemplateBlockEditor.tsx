@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -7,8 +8,10 @@ import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { VisibilitySettings } from "@/components/admin/layout/builder/VisibilitySettings"
+import { getCategoriesWithCountsAction, type Category } from "@/lib/actions/categories/category-actions"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import type { DirectoryCustomBlockTemplate } from "@/lib/actions/directories/directory-custom-blocks/types"
 import {
@@ -18,6 +21,9 @@ import {
   normalizeDirectoryGoogleMapHeight,
 } from "@/lib/actions/directories/directory-google-map"
 import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from "@/lib/actions/directories/directory-opening-hours"
+
+const RELATED_LISTING_MIN_ITEMS = 1
+const RELATED_LISTING_MAX_ITEMS = 20
 
 interface DirectoryBlock {
   id: string
@@ -30,6 +36,7 @@ interface DirectoryTemplateBlockEditorProps {
   block: DirectoryBlock
   content: Record<string, any>
   onContentChange: (field: string, value: any) => void
+  siteId: string
   customBlockTemplates: DirectoryCustomBlockTemplate[]
 }
 
@@ -67,6 +74,19 @@ function getElementVisibilityFields(blockType: string): VisibilityField[] {
     ]
   }
 
+  if (blockType === "directory-related-listing") {
+    return [
+      { key: "title", label: "Title" },
+      { key: "subtitle", label: "Subtitle" },
+      { key: "image", label: "Image" },
+      { key: "listingTitle", label: "Listing Title" },
+      { key: "description", label: "Description" },
+      { key: "rating", label: "Rating" },
+      { key: "address", label: "Address" },
+      { key: "category", label: "Category" },
+    ]
+  }
+
   return []
 }
 
@@ -75,10 +95,112 @@ function getSaveIconOpacity(value: unknown) {
   return Math.min(100, Math.max(0, Number.isFinite(numericValue) ? numericValue : 100))
 }
 
+function isPublishedParentCategory(category: Category) {
+  return category.is_published === true && !category.parent_id
+}
+
+function normalizeRelatedListingItemsToShow(value?: unknown): number {
+  const numericValue = typeof value === "number"
+    ? value
+    : typeof value === "string"
+      ? Number(value)
+      : Number.NaN
+
+  if (!Number.isFinite(numericValue)) return 5
+
+  return Math.min(RELATED_LISTING_MAX_ITEMS, Math.max(RELATED_LISTING_MIN_ITEMS, Math.round(numericValue)))
+}
+
+function DirectoryRelatedListingTemplateSettings({
+  content,
+  onContentChange,
+  siteId,
+}: {
+  content: Record<string, any>
+  onContentChange: (field: string, value: any) => void
+  siteId: string
+}) {
+  const [parents, setParents] = useState<Category[]>([])
+  const [loading, setLoading] = useState(false)
+  const parentCategoryId = typeof content.parentCategoryId === "string" ? content.parentCategoryId : ""
+  const itemsToShow = normalizeRelatedListingItemsToShow(content.itemsToShow)
+
+  useEffect(() => {
+    if (!siteId) return
+
+    let cancelled = false
+    setLoading(true)
+    getCategoriesWithCountsAction(siteId, { pageSize: 100 })
+      .then(({ data }) => {
+        if (cancelled) return
+        setParents((data || []).filter(isPublishedParentCategory))
+      })
+      .catch(() => {
+        if (!cancelled) setParents([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [siteId])
+
+  return (
+    <Card>
+      <CardHeader>
+        <DashboardModalCardTitle>Related Listings</DashboardModalCardTitle>
+        <CardDescription>Choose the category group used to find related listings.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Field>
+          <FieldLabel>Parent Category</FieldLabel>
+          <Select
+            value={parentCategoryId || "__none"}
+            onValueChange={(value) => onContentChange("parentCategoryId", value === "__none" ? "" : value)}
+            disabled={loading}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={loading ? "Loading categories..." : "Select parent category"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">Select parent category</SelectItem>
+              {parents.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {!loading && parents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No parent categories found.</p>
+        ) : null}
+
+        <Field>
+          <FieldLabel htmlFor="directory-related-listing-items">Items to show</FieldLabel>
+          <Input
+            id="directory-related-listing-items"
+            type="number"
+            min={RELATED_LISTING_MIN_ITEMS}
+            max={RELATED_LISTING_MAX_ITEMS}
+            value={itemsToShow}
+            onChange={(event) => onContentChange("itemsToShow", normalizeRelatedListingItemsToShow(event.target.value))}
+          />
+        </Field>
+
+      </CardContent>
+    </Card>
+  )
+}
+
 export function DirectoryTemplateBlockEditor({
   block,
   content,
   onContentChange,
+  siteId,
   customBlockTemplates,
 }: DirectoryTemplateBlockEditorProps) {
   const elementFields = getElementVisibilityFields(block.type)
@@ -247,6 +369,14 @@ export function DirectoryTemplateBlockEditor({
             </Field>
           </CardContent>
         </Card>
+      ) : null}
+
+      {block.type === "directory-related-listing" ? (
+        <DirectoryRelatedListingTemplateSettings
+          content={content}
+          onContentChange={onContentChange}
+          siteId={siteId}
+        />
       ) : null}
 
       {block.type === "directory-custom" ? (

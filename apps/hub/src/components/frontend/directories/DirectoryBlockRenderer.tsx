@@ -5,6 +5,7 @@ import { DirectoryCoreBlock } from "./core/DirectoryCoreBlock"
 import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import { DirectoryGoogleMapBlock } from "./google-map/DirectoryGoogleMapBlock"
 import { DirectoryOpeningHoursBlock } from "./opening-hours/DirectoryOpeningHoursBlock"
+import { DirectoryRelatedListingBlock } from "./related-listing/DirectoryRelatedListingBlock"
 import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
 import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -83,7 +84,8 @@ export function DirectoryBlockRenderer({
       block.type === 'directory-custom' ||
       block.type === 'directory-rich-text' ||
       block.type === DIRECTORY_GOOGLE_MAP_BLOCK_TYPE ||
-      block.type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE
+      block.type === DIRECTORY_OPENING_HOURS_BLOCK_TYPE ||
+      block.type === 'directory-related-listing'
     )
     .map((block) => (
       block.type === DIRECTORY_CORE_BLOCK_TYPE
@@ -210,6 +212,19 @@ export function DirectoryBlockRenderer({
           sourceId={directory.source_id}
           isPreview={isPreview}
           siteId={isPreview ? site.id : undefined}
+          cardProps={getBlockCardProps(block)}
+        />
+      )
+    }
+
+    if (block.type === 'directory-related-listing') {
+      return (
+        <DirectoryRelatedListingBlock
+          key={`directory-related-listing-${block.id}`}
+          content={blockContent}
+          siteId={site.id}
+          directory={directory}
+          isPreview={isPreview}
           cardProps={getBlockCardProps(block)}
         />
       )

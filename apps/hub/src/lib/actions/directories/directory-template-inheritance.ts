@@ -7,6 +7,7 @@ import { DIRECTORY_OPENING_HOURS_BLOCK_TYPE } from './directory-opening-hours'
 export const DIRECTORY_BLANK_TEMPLATE_NAME = 'Blank'
 const DIRECTORY_TEMPLATE_DEFAULT_CATEGORY_PARENT_KEY = 'default_category_parent_id'
 const DIRECTORY_TEMPLATE_LEGACY_DEFAULT_BREADCRUMB_PARENT_KEY = 'default_breadcrumb_parent_id'
+const DIRECTORY_RELATED_LISTING_TEMPLATE_KEYS = ['layoutColumn', 'visibility', 'title', 'subtitle', 'parentCategoryId', 'itemsToShow']
 
 const DIRECTORY_VALUE_KEYS: Record<string, string[]> = {
   [DIRECTORY_CORE_BLOCK_TYPE]: ['address', 'rating', 'menuLinks', 'socialLinks'],
@@ -15,6 +16,7 @@ const DIRECTORY_VALUE_KEYS: Record<string, string[]> = {
   'directory-content': ['body', 'format'],
   [DIRECTORY_GOOGLE_MAP_BLOCK_TYPE]: ['locationQuery', 'caption'],
   [DIRECTORY_OPENING_HOURS_BLOCK_TYPE]: ['title', 'sourceMode', 'placeId', 'hoursText'],
+  'directory-related-listing': [],
 }
 
 const DIRECTORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
@@ -35,6 +37,7 @@ const DIRECTORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
   'directory-content': ['layoutColumn', 'visibility'],
   [DIRECTORY_GOOGLE_MAP_BLOCK_TYPE]: ['layoutColumn', 'visibility', 'height'],
   [DIRECTORY_OPENING_HOURS_BLOCK_TYPE]: ['layoutColumn', 'visibility'],
+  'directory-related-listing': DIRECTORY_RELATED_LISTING_TEMPLATE_KEYS,
 }
 
 const DIRECTORY_TEMPLATE_PREVIEW_IMAGE =

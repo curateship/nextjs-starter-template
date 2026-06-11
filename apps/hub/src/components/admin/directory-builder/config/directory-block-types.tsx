@@ -1,4 +1,4 @@
-import { BadgeInfo, Clock3, FileText, MapPinned } from "lucide-react"
+import { BadgeInfo, Clock3, FileText, ListTree, MapPinned } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { DIRECTORY_CORE_BLOCK_TYPE } from "@/lib/actions/directories/directory-core"
 import { DIRECTORY_GOOGLE_MAP_BLOCK_TYPE, DIRECTORY_GOOGLE_MAP_DEFAULT_HEIGHT } from "@/lib/actions/directories/directory-google-map"
@@ -53,6 +53,20 @@ export const DIRECTORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     description: 'Show live business hours from a Google Place ID',
     defaultContent: {
       layoutColumn: 'sidebar',
+      visibility: {},
+    },
+  },
+  {
+    type: 'directory-related-listing',
+    name: 'Related Listing',
+    icon: ListTree,
+    description: 'Show listings related by selected category group',
+    defaultContent: {
+      title: 'Related Listings',
+      subtitle: '',
+      parentCategoryId: '',
+      itemsToShow: 5,
+      layoutColumn: 'main',
       visibility: {},
     },
   }
