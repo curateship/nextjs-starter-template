@@ -74,6 +74,14 @@ interface CreateResourceConfig {
   serializeResponse?: (row: any) => unknown
   /** Cache tags to invalidate after a successful create. */
   revalidateTags?: string[]
+  /** Enforce same-origin check before processing the request. */
+  requireSameOrigin?: boolean
+  /** Optional resource-specific reserved slugs (defaults to RESERVED_SLUGS). */
+  reservedSlugs?: string[]
+  /** Runs after slug validation, immediately before insert — for side effects like
+   * unsetting an existing homepage/default flag or extra body validation.
+   * Return a NextResponse to abort with that error. */
+  beforeInsert?: (data: any, siteId: string) => Promise<NextResponse | void> | NextResponse | void
 }
 
 async function findResourceById(table: any, id: string) {
@@ -109,6 +117,8 @@ async function getNextDisplayOrder(table: any, siteId: string) {
 export function createResourceHandler(config: CreateResourceConfig) {
   return async function POST(request: NextRequest) {
     try {
+      if (config.requireSameOrigin && !isSameOriginRequest(request)) return jsonInvalidOrigin()
+
       let data = await request.json()
 
       /* Validate required fields */
@@ -132,7 +142,7 @@ export function createResourceHandler(config: CreateResourceConfig) {
 
       /* Slug */
       let slug = data.slug || generateSlug(data.title)
-      const slugError = validateSlug(slug)
+      const slugError = validateSlug(slug, config.reservedSlugs)
       if (slugError) return slugError
 
       /* Slug uniqueness check */
@@ -143,6 +153,12 @@ export function createResourceHandler(config: CreateResourceConfig) {
           `This slug is already used by another ${config.entityName.toLowerCase()} titled "${existing.title}". Please choose a different slug.`,
           400
         )
+      }
+
+      /* Resource-specific pre-insert side effects (e.g. unset existing homepage flag) */
+      if (config.beforeInsert) {
+        const beforeResult = await config.beforeInsert(data, data.site_id)
+        if (beforeResult instanceof NextResponse) return beforeResult
       }
 
       /* Display order */
