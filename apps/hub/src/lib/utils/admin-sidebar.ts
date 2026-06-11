@@ -105,7 +105,7 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
         entries: [
           item("item-posts", "Posts", "/admin/posts", "book", [
             child("child-post-templates", "Templates", "/admin/posts/templates", "file"),
-          ], ["/admin/posts/builder", "/admin/posts/new"]),
+          ], ["/admin/posts/builder"]),
           item("item-products", "Products", "/admin/products", "products", [
             child("child-product-orders", "Purchases", "/admin/orders", "cart"),
             child("child-product-templates", "Templates", "/admin/products/templates", "file"),
