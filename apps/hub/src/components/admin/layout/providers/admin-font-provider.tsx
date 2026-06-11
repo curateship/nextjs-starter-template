@@ -4,16 +4,13 @@ import { getFontByValue, getFontFamily, getFontFaceCSS, defaultFont } from "@/li
 import { useLayoutEffect, useMemo } from "react"
 
 interface AdminFontProviderProps {
-  fontFamily?: string
-  fontWeights?: string[]
-  secondaryFontFamily?: string
-  secondaryFontWeights?: string[]
+  fontFamily: string
+  secondaryFontFamily: string
 }
 
 export function AdminFontProvider({
-  fontFamily = 'urbanist',
-  fontWeights,
-  secondaryFontFamily = defaultFont.value,
+  fontFamily,
+  secondaryFontFamily,
 }: AdminFontProviderProps) {
   const primary = getFontByValue(fontFamily) ?? defaultFont
   const secondary = getFontByValue(secondaryFontFamily) ?? primary
@@ -23,12 +20,12 @@ export function AdminFontProvider({
 
   // Generate @font-face CSS for self-hosted fonts
   const fontCSS = useMemo(() => {
-    const parts = [getFontFaceCSS(primary.value, fontWeights)]
+    const parts = [getFontFaceCSS(primary.value)]
     if (secondary.value !== primary.value) {
       parts.push(getFontFaceCSS(secondary.value))
     }
     return parts.filter(Boolean).join('\n')
-  }, [primary.value, secondary.value, fontWeights])
+  }, [primary.value, secondary.value])
 
   // Set ADMIN-SCOPED CSS variables to avoid interfering with frontend fonts
   useLayoutEffect(() => {

@@ -9,7 +9,6 @@ interface SiteSwitcherState {
   currentSite: SiteWithTheme | null
   sites: SiteWithTheme[]
   loading: boolean
-  error: string | null
   pageSize: number
   setPageSize: (pageSize: number) => void
   setCurrentSite: (site: SiteWithTheme | null) => void
@@ -61,8 +60,8 @@ function persistResolvedSite(site: SiteWithTheme | null) {
 
 interface SiteSwitcherProviderProps {
   children: ReactNode
-  initialSites?: SiteWithTheme[]
-  pageSize?: number
+  initialSites: SiteWithTheme[]
+  pageSize: number
 }
 
 export function SiteSwitcherProvider({
@@ -75,13 +74,12 @@ export function SiteSwitcherProvider({
   const routeSiteId = getAdminSidebarSiteIdFromPathname(pathname)
   const querySiteId = searchParams.get('site')
   const preferredSiteId = routeSiteId || (querySiteId && SITE_ID_PATTERN.test(querySiteId) ? querySiteId : null)
-  const [sites, setSites] = useState<SiteWithTheme[]>(initialSites ?? [])
+  const [sites, setSites] = useState<SiteWithTheme[]>(initialSites)
   const [currentSite, setCurrentSite] = useState<SiteWithTheme | null>(() =>
-    resolveRouteSite(initialSites ?? [], preferredSiteId)
+    resolveRouteSite(initialSites, preferredSiteId)
   )
-  const [loading, setLoading] = useState(initialSites === undefined)
-  const [error, setError] = useState<string | null>(null)
-  const [pageSize, setPageSize] = useState(initialPageSize ?? 50)
+  const [loading, setLoading] = useState(false)
+  const [pageSize, setPageSize] = useState(initialPageSize)
 
   const syncResolvedSite = useCallback((availableSites: SiteWithTheme[]) => {
     const nextSite = resolveCurrentSite(availableSites, preferredSiteId)
@@ -89,25 +87,18 @@ export function SiteSwitcherProvider({
     persistResolvedSite(nextSite)
   }, [preferredSiteId])
 
+  // Re-sync when the server layout re-renders with fresh sites
   useEffect(() => {
-    if (initialSites === undefined) return
-
     setSites(initialSites)
     syncResolvedSite(initialSites)
-    setLoading(false)
   }, [initialSites, syncResolvedSite])
 
   const refreshSites = async () => {
     try {
       setLoading(true)
-      setError(null)
 
       const { data, error } = await getAllSitesAction()
-
-      if (error) {
-        setError(error)
-        return
-      }
+      if (error) return
 
       if (data && data.length > 0) {
         setSites(data)
@@ -117,17 +108,11 @@ export function SiteSwitcherProvider({
         syncResolvedSite([])
       }
     } catch {
-      setError('Failed to load sites')
+      // Sites stay stale on refresh failure; next navigation re-syncs from the server
     } finally {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    if (!initialSites) {
-      refreshSites()
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSetCurrentSite = (site: SiteWithTheme | null) => {
     setCurrentSite(site)
@@ -147,7 +132,6 @@ export function SiteSwitcherProvider({
         currentSite,
         sites,
         loading,
-        error,
         pageSize,
         setPageSize,
         setCurrentSite: handleSetCurrentSite,
