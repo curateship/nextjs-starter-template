@@ -1,5 +1,5 @@
 import { FileText } from "lucide-react"
-import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
 
@@ -13,10 +13,6 @@ export function isCategoryBuilderBlockType(type: string | null | undefined) {
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
   return findBlockType(CATEGORY_BLOCK_TYPES, type)
-}
-
-export function getBlockIcon(type: string) {
-  return _getBlockIcon(CATEGORY_BLOCK_TYPES, type, FileText)
 }
 
 export function getBlockName(type: string): string {

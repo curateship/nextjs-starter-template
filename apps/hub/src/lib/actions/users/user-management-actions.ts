@@ -93,68 +93,6 @@ export async function listUsers(page: number = 1, pageSize: number = 50) {
 }
 
 /**
- * Get a single user by ID
- * REQUIRES: super_admin role
- * @param userId - User ID
- * @returns User details
- */
-export async function getUserById(userId: string) {
-  try {
-    const currentUser = await getAuthenticatedUser()
-
-    if (!currentUser) {
-      return { error: 'Unauthorized - not authenticated' }
-    }
-
-    if (currentUser.role !== 'super_admin') {
-      return { error: 'Unauthorized - super_admin role required' }
-    }
-
-    const row = await db
-      .select({
-        id: authUsers.id,
-        name: authUsers.name,
-        email: authUsers.email,
-        createdAt: authUsers.createdAt,
-        updatedAt: authUsers.updatedAt,
-        role: authUsers.role,
-        displayName: authUsers.displayName,
-        emailVerified: authUsers.emailVerified,
-        lastSignInAt: lastSignInAtSql(),
-      })
-      .from(authUsers)
-      .where(eq(authUsers.id, userId))
-      .then((rows) => rows[0])
-
-    if (!row) {
-      return { error: 'User not found' }
-    }
-
-    return {
-      success: true,
-      user: {
-        id: row.id,
-        email: row.email,
-        created_at: row.createdAt.toISOString(),
-        last_sign_in_at: row.lastSignInAt,
-        role: row.role || 'end_user',
-        display_name: row.displayName || row.name || null,
-        email_confirmed_at: row.emailVerified ? row.updatedAt.toISOString() : null,
-        user_metadata: {
-          display_name: row.displayName || row.name || null,
-        },
-        app_metadata: {
-          role: row.role,
-        },
-      },
-    }
-  } catch (error: any) {
-    console.error('Exception getting user:', error)
-    return { error: 'Failed to get user' }
-  }
-}
-
-/**
  * Delete a single user
  * REQUIRES: super_admin role
  * Also removes auth accounts, sessions, and user-linked verification rows.

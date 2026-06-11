@@ -48,58 +48,6 @@ async function fetchProductBlocks(productId: string): Promise<ProductBlock[]> {
 }
 
 /**
- * Get a product by slug for a specific site (subdomain-based access)
- */
-export async function getProductBySlug(siteId: string, productSlug: string): Promise<GetProductResult> {
-  try {
-    const result = await db.execute<{
-      id: string
-      title: string
-      slug: string
-      is_published: boolean
-      featured_image: string | null
-      meta_description: string | null
-    }>(sql`
-      SELECT id, title, slug, is_published, featured_image, meta_description
-      FROM products
-      WHERE site_id = ${siteId} AND slug = ${productSlug} AND is_published = true
-      LIMIT 1
-    `)
-
-    const product = result.rows?.[0]
-    if (!product) {
-      return {
-        success: false,
-        error: 'Product not found'
-      }
-    }
-
-    // Get product blocks
-    const blocks = await fetchProductBlocks(product.id)
-
-    const productWithBlocks: ProductWithBlocks = {
-      id: product.id,
-      title: product.title,
-      slug: product.slug,
-      is_published: product.is_published,
-      featured_image: product.featured_image ?? null,
-      meta_description: product.meta_description ?? null,
-      blocks
-    }
-
-    return {
-      success: true,
-      product: productWithBlocks
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: `Server error: ${error instanceof Error ? error.message : String(error)}`
-    }
-  }
-}
-
-/**
  * Get a product by slug directly (for non-subdomain access at /products/[slug])
  */
 export async function getProductBySlugDirect(productSlug: string): Promise<GetProductResult> {

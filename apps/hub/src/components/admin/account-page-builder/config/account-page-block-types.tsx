@@ -1,5 +1,5 @@
 import { Building2, FileText, UserRoundCog } from "lucide-react"
-import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
 
@@ -53,10 +53,6 @@ export function isAccountPageBuilderBlockType(type: string | null | undefined) {
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
   return findBlockType(ACCOUNT_PAGE_BLOCK_TYPES, type)
-}
-
-export function getBlockIcon(type: string) {
-  return _getBlockIcon(ACCOUNT_PAGE_BLOCK_TYPES, type, FileText)
 }
 
 export function getBlockName(type: string): string {

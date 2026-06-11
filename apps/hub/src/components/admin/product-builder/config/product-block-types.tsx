@@ -1,5 +1,5 @@
 import { Zap, Star, Target, HelpCircle, Info, DollarSign, LayoutGrid, Quote, Magnet, Mail, ShoppingBag, ListChecks } from "lucide-react"
-import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 import { PRODUCT_LEAD_MAGNET_DEFAULT_CONTENT } from "@/lib/actions/products/lead-magnet"
 import { PRODUCT_EMAIL_MODAL_DEFAULT_CONTENT } from "@/lib/actions/products/email-modal"
 import { PRODUCT_JUST_BOUGHT_DEFAULT_CONTENT } from "@/lib/actions/products/just-bought"
@@ -211,10 +211,6 @@ export const PRODUCT_BLOCK_TYPES: BlockTypeDefinition[] = [
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
   return findBlockType(PRODUCT_BLOCK_TYPES, type)
-}
-
-export function getBlockIcon(type: string) {
-  return _getBlockIcon(PRODUCT_BLOCK_TYPES, type, Info)
 }
 
 export function getBlockName(type: string): string {

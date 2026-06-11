@@ -83,14 +83,6 @@ export function convertBlocksToJson(blocks: ContentBlock[]): Record<string, any>
   return jsonBlocks
 }
 
-/**
- * Get display title for a block type using a title map.
- * Falls back to the block type string if not found in the map.
- */
-export function getBlockTitle(blockType: string, titleMap: Record<string, string>, fallback = 'Block'): string {
-  return titleMap[blockType] || fallback
-}
-
 /** Generate a unique block ID */
 export function generateBlockId(): string {
   return `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`

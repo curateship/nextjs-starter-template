@@ -77,44 +77,6 @@ function toDirectory(row: typeof directories.$inferSelect): Directory {
   }
 }
 
-export async function getSiteDirectoriesAction(siteId: string, options?: { page?: number; pageSize?: number }) {
-  try {
-    const user = await getAuthenticatedUser()
-    if (!user) {
-      return { data: null, total: 0, error: 'Authentication required' }
-    }
-
-    // Verify site ownership
-    const [site] = await db.select({ id: sites.id, userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId))
-      .limit(1)
-
-    if (!site) {
-      return { data: null, total: 0, error: 'Site not found' }
-    }
-
-    if (site.userId !== user.id) {
-      return { data: null, total: 0, error: 'Unauthorized' }
-    }
-
-    // Pagination
-    const page = Math.max(1, Math.floor(options?.page ?? 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(options?.pageSize ?? 50)))
-    const from = (page - 1) * pageSize
-
-    const [countResult, rows] = await Promise.all([
-      db.select({ count: sql<number>`count(*)::int` }).from(directories).where(eq(directories.siteId, siteId)),
-      db.select().from(directories).where(eq(directories.siteId, siteId)).orderBy(asc(directories.displayOrder), desc(directories.createdAt)).limit(pageSize).offset(from),
-    ])
-
-    return { data: rows.map(toDirectory), total: countResult[0]?.count ?? 0, error: null }
-  } catch (error) {
-    console.error('Error fetching directory:', error)
-    return { data: null, total: 0, error: 'Failed to fetch directory' }
-  }
-}
-
 /**
  * Get directory summaries with their categories in a single server action call.
  */

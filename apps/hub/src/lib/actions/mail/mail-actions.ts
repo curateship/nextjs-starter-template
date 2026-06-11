@@ -378,7 +378,3 @@ export async function disableMailboxAction(siteId: string, mailboxId: string): P
     return { success: false, error: 'Failed to disable mailbox' }
   }
 }
-
-export async function sendTestEmailAction(): Promise<{ success: boolean; error: string | null }> {
-  return { success: false, error: 'Test email sending is not enabled for MXroute in Phase 1.' }
-}

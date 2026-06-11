@@ -484,58 +484,6 @@ export async function getSiteBySubdomain(subdomain: string, pageSlug?: string, o
 }
 
 /**
- * Get all published pages for a site by subdomain (for navigation)
- */
-export async function getSitePages(subdomain: string): Promise<{
-  success: boolean
-  pages?: Array<{
-    id: string
-    title: string
-    slug: string
-    is_homepage: boolean
-  }>
-  error?: string
-}> {
-  try {
-    if (!subdomain) {
-      return { success: false, error: 'Subdomain is required' }
-    }
-
-    // Get site by subdomain
-    const [site] = await db
-      .select({ id: sites.id, status: sites.status })
-      .from(sites)
-      .where(eq(sites.subdomain, subdomain))
-
-    if (!site) {
-      return { success: false, error: 'Site not found' }
-    }
-
-    // Check if site is viewable
-    if (site.status !== 'active' && site.status !== 'draft') {
-      return { success: false, error: 'Site is not available' }
-    }
-
-    // Get published pages
-    const result = await db
-      .select({
-        id: pages.id,
-        title: pages.title,
-        slug: pages.slug,
-        is_homepage: pages.isHomepage,
-      })
-      .from(pages)
-      .where(and(eq(pages.siteId, site.id), eq(pages.isPublished, true)))
-      .orderBy(asc(pages.displayOrder))
-
-    return { success: true, pages: result || [] }
-
-  } catch (error) {
-    return { success: false, error: 'Failed to load pages' }
-  }
-}
-
-/**
  * Get site data by custom domain for subdomain routing
  */
 export async function getSiteByDomain(domain: string, pageSlug?: string, options?: SiteWithBlocksOptions): Promise<{

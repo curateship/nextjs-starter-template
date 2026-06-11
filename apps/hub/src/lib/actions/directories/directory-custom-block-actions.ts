@@ -201,30 +201,6 @@ export async function getDirectoryCustomBlocksBySite(siteId: string): Promise<{ 
   }
 }
 
-export async function getDirectoryCustomBlocksByIds(siteId: string, templateIds: string[]): Promise<{ data: DirectoryCustomBlockTemplate[] | null; error: string | null }> {
-  try {
-    if (!UUID_REGEX.test(siteId)) return { data: null, error: 'Invalid site ID' }
-    if (!templateIds.length) return { data: [], error: null }
-
-    const user = await getAuthenticatedUser()
-    if (!user) return { data: null, error: 'Not authenticated' }
-
-    if (!await verifySiteOwnership(siteId, user.id)) {
-      return { data: null, error: 'Access denied' }
-    }
-
-    const rows = await db
-      .select()
-      .from(directoryCustomBlocks)
-      .where(and(eq(directoryCustomBlocks.siteId, siteId), inArray(directoryCustomBlocks.id, templateIds)))
-
-    return { data: rows.map(row => rowToTemplate(row)), error: null }
-  } catch (error) {
-    console.error('getDirectoryCustomBlocksByIds error:', error)
-    return { data: null, error: 'Server error' }
-  }
-}
-
 export async function getDirectoryCustomBlockById(templateId: string): Promise<{ data: DirectoryCustomBlockTemplate | null; error: string | null }> {
   try {
     if (!UUID_REGEX.test(templateId)) return { data: null, error: 'Invalid ID' }

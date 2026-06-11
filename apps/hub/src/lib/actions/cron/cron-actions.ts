@@ -2,10 +2,8 @@
 
 import { db } from '@/lib/db'
 import { cronJobs, cronJobRuns } from '@/lib/db/schema'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { getAuthenticatedUser, requireSiteOwnership } from '@/lib/db/helpers'
-
-const CRON_RUN_RETENTION_LIMIT = 30
 
 export interface CronJob {
   id: string
@@ -24,16 +22,6 @@ export interface CronJob {
   } | null
 }
 
-export interface CronJobRun {
-  id: string
-  jobId: string
-  status: string
-  durationMs: number | null
-  response: string | null
-  httpStatus: number | null
-  startedAt: string
-}
-
 function getCronFreshnessWindowMs(schedule: string) {
   const [minute, hour] = schedule.trim().split(/\s+/)
 
@@ -49,19 +37,6 @@ function getCronFreshnessWindowMs(schedule: string) {
   return 15 * 60 * 1000
 }
 
-async function pruneCronJobRuns(jobId: string) {
-  await db.execute(sql`
-    delete from cron_job_runs
-    where job_id = ${jobId}
-      and id not in (
-        select id
-        from cron_job_runs
-        where job_id = ${jobId}
-        order by started_at desc
-        limit ${CRON_RUN_RETENTION_LIMIT}
-      )
-  `)
-}
 
 export async function getCronStatus(siteId: string): Promise<{
   data: { isRunning: boolean; enabledCount: number; totalCount: number; lastRunAt: string | null } | null
@@ -162,88 +137,3 @@ export async function toggleCronJob(jobId: string, enabled: boolean): Promise<{ 
   }
 }
 
-export async function getCronJobRuns(jobId: string, limit = 20): Promise<{ data: CronJobRun[] | null; error: string | null }> {
-  try {
-    const user = await getAuthenticatedUser()
-    if (!user || user.role !== 'super_admin') return { data: null, error: 'Unauthorized' }
-
-    const runs = await db
-      .select()
-      .from(cronJobRuns)
-      .where(eq(cronJobRuns.jobId, jobId))
-      .orderBy(desc(cronJobRuns.startedAt))
-      .limit(limit)
-
-    return {
-      data: runs.map(r => ({
-        id: r.id,
-        jobId: r.jobId,
-        status: r.status,
-        durationMs: r.durationMs,
-        response: r.response,
-        httpStatus: r.httpStatus,
-        startedAt: r.startedAt.toISOString(),
-      })),
-      error: null,
-    }
-  } catch {
-    return { data: null, error: 'Failed to load run history' }
-  }
-}
-
-export async function runCronJobManually(jobId: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    const user = await getAuthenticatedUser()
-    if (!user || user.role !== 'super_admin') return { success: false, error: 'Unauthorized' }
-
-    const [job] = await db
-      .select()
-      .from(cronJobs)
-      .where(eq(cronJobs.id, jobId))
-
-    if (!job) return { success: false, error: 'Job not found' }
-
-    const cronSecret = process.env.CRON_SECRET
-    if (!cronSecret) return { success: false, error: 'CRON_SECRET not configured' }
-
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_DOMAIN || 'http://localhost:3000'
-    const startTime = Date.now()
-
-    let status = 'success'
-    let httpStatus: number | null = null
-    let response: string | null = null
-
-    try {
-      const res = await fetch(`${baseUrl}${job.endpoint}`, {
-        headers: { Authorization: `Bearer ${cronSecret}` },
-      })
-      httpStatus = res.status
-      response = await res.text()
-      if (!res.ok) status = 'failed'
-    } catch {
-      status = 'failed'
-      response = 'Connection failed'
-    }
-
-    const durationMs = Date.now() - startTime
-
-    await db.insert(cronJobRuns).values({
-      jobId: job.id,
-      status,
-      durationMs,
-      httpStatus,
-      response: response?.substring(0, 5000),
-      startedAt: new Date(startTime),
-    })
-    await pruneCronJobRuns(job.id)
-
-    await db
-      .update(cronJobs)
-      .set({ lastRunAt: new Date() })
-      .where(eq(cronJobs.id, job.id))
-
-    return { success: status === 'success' }
-  } catch {
-    return { success: false, error: 'Failed to run job' }
-  }
-}

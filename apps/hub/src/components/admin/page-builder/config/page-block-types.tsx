@@ -1,5 +1,5 @@
 import { Zap, FileText, HelpCircle, LayoutGrid, Minus, Code, Quote, LogIn, Tags } from "lucide-react"
-import { BlockTypeDefinition, findBlockType, getBlockIcon as _getBlockIcon, getBlockName as _getBlockName } from "@/lib/utils/block-types"
+import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
 
@@ -192,10 +192,6 @@ export const PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
   return findBlockType(PAGE_BLOCK_TYPES, type)
-}
-
-export function getBlockIcon(type: string) {
-  return _getBlockIcon(PAGE_BLOCK_TYPES, type, FileText)
 }
 
 export function getBlockName(type: string): string {

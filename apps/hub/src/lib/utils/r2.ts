@@ -1,5 +1,4 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // R2 credentials from environment variables
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID!
@@ -53,29 +52,6 @@ export async function deleteFromR2(fileName: string): Promise<void> {
   })
 
   await r2Client.send(command)
-}
-
-/**
- * Get a presigned URL for private file access (expires in 1 hour)
- */
-export async function getPresignedUrl(fileName: string, expiresIn = 3600): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: R2_BUCKET_NAME,
-    Key: fileName,
-  })
-
-  const url = await getSignedUrl(r2Client, command, { expiresIn })
-  return url
-}
-
-/**
- * Get public URL for a file
- */
-export function getPublicUrl(fileName: string): string {
-  if (R2_PUBLIC_URL) {
-    return `${R2_PUBLIC_URL}/${fileName}`
-  }
-  return `/cdn/${fileName}`
 }
 
 /**

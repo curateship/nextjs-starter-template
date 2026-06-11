@@ -35,11 +35,3 @@ export function getSiteUrl(site: Site): string {
   }
   return `http://${site.subdomain}.localhost:3000`
 }
-
-/**
- * Get the display URL for showing to users (without protocol)
- */
-export function getSiteDisplayUrl(site: Site): string {
-  const url = getSiteUrl(site)
-  return url.replace(/^https?:\/\//, '')
-}
