@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react"
 import { updateCategoryBlocksAction } from "@/lib/actions/categories/category-actions"
 import { getBlockTypeDefinition } from "./category-block-types"
-
-interface BlockSelection {
-  type: string
-  quantity: number
-}
+import {
+  useContentBlocksEditor,
+  type BuilderBlockSelection,
+} from "@/components/admin/layout/builder/useContentBlocksEditor"
 
 interface CategoryBlock {
   id: string
@@ -32,10 +30,12 @@ interface UseCategoryBuilderReturn {
   saveMessage: string
   handleDeleteBlock: (block: CategoryBlock) => void
   handleReorderBlocks: (blocks: CategoryBlock[]) => void
-  handleAddBlocks: (selections: BlockSelection[]) => void
+  handleAddBlocks: (selections: BuilderBlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
 
+// Thin wrapper over the shared slug-keyed blocks editor; supplies the category
+// block registry, id format, and save action.
 export function useCategoryBuilder({
   blocks,
   setBlocks,
@@ -43,126 +43,20 @@ export function useCategoryBuilder({
   categoryId,
   currentCategory
 }: UseCategoryBuilderParams): UseCategoryBuilderReturn {
-  const [selectedBlock, setSelectedBlock] = useState<CategoryBlock | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveMessage, setSaveMessage] = useState("")
-
-  useEffect(() => {
-    setSelectedBlock(null)
-  }, [selectedCategory])
-
-  const handleDeleteBlock = (block: CategoryBlock) => {
-    const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedCategory] = updatedBlocks[selectedCategory].filter(b => b.id !== block.id)
-    setBlocks(updatedBlocks)
-
-    if (selectedBlock?.id === block.id) {
-      setSelectedBlock(null)
-    }
-  }
-
-  const handleReorderBlocks = (reorderedBlocks: CategoryBlock[]) => {
-    const updatedBlocks = { ...blocks }
-    updatedBlocks[selectedCategory] = reorderedBlocks
-    setBlocks(updatedBlocks)
-  }
-
-  const handleAddBlocks = (selections: BlockSelection[]) => {
-    const updatedBlocks = { ...blocks }
-    const currentBlocks = updatedBlocks[selectedCategory] || []
-    const newBlocksToAdd: CategoryBlock[] = []
-
-    for (const selection of selections) {
-      const blockDefinition = getBlockTypeDefinition(selection.type)
-      if (!blockDefinition) continue
-
-      for (let i = 0; i < selection.quantity; i++) {
-        const newBlock: CategoryBlock = {
-          id: `block-${Date.now()}-${Math.random()}`,
-          type: selection.type,
-          title: blockDefinition.name,
-          content: { ...blockDefinition.defaultContent }
-        }
-        newBlocksToAdd.push(newBlock)
-      }
-    }
-
-    if (newBlocksToAdd.length === 0) {
-      return
-    }
-
-    const newBlocks = [...currentBlocks, ...newBlocksToAdd]
-    updatedBlocks[selectedCategory] = newBlocks
-    setBlocks(updatedBlocks)
-  }
-
-  const handleSaveAllBlocks = async () => {
-    if (!categoryId) {
-      setSaveMessage("Error: Category ID required")
-      setTimeout(() => setSaveMessage(""), 3000)
-      return
-    }
-
-    const currentBlocks = blocks[selectedCategory] || []
-
-    const existingContentBlocks = currentCategory?.content_blocks || {}
-
-    // Preserve non-block settings (e.g. show_featured_image, _settings)
-    const preservedSettings: Record<string, any> = {}
-    Object.entries(existingContentBlocks).forEach(([key, value]) => {
-      if (typeof value !== 'object' || value === null) {
-        preservedSettings[key] = value
-      } else if (key.startsWith('_')) {
-        preservedSettings[key] = value
-      }
-    })
-
-    // Convert blocks array to JSON object format keyed by block ID
-    const newContentBlocks: Record<string, any> = {}
-    currentBlocks.forEach((block, index) => {
-      newContentBlocks[block.id] = {
-        id: block.id,
-        type: block.type,
-        content: block.content,
-        display_order: index
-      }
-    })
-
-    // Merge preserved settings with new blocks
-    const contentBlocks: Record<string, any> = {
-      ...preservedSettings,
-      ...newContentBlocks
-    }
-
-    setIsSaving(true)
-    setSaveMessage("Saving...")
-
-    try {
-      const result = await updateCategoryBlocksAction(categoryId, contentBlocks)
-
-      if (result.success) {
-        setSaveMessage("Saved!")
-        setTimeout(() => setSaveMessage(""), 3000)
-      } else {
-        setSaveMessage(`Error: ${result.error}`)
-        setTimeout(() => setSaveMessage(""), 5000)
-      }
-    } catch (error) {
-      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
-      setTimeout(() => setSaveMessage(""), 5000)
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  return {
-    selectedBlock,
-    setSelectedBlock,
-    isSaving,
-    saveMessage,
-    handleDeleteBlock,
-    handleReorderBlocks,
-    handleAddBlocks,
-    handleSaveAllBlocks
-  }
+  return useContentBlocksEditor<CategoryBlock>({
+    blocks,
+    setBlocks,
+    selectedKey: selectedCategory,
+    contentId: categoryId,
+    existingContentBlocks: currentCategory?.content_blocks,
+    getDefinition: getBlockTypeDefinition,
+    makeBlock: (type, definition) => ({
+      id: `block-${Date.now()}-${Math.random()}`,
+      type,
+      title: definition.name,
+      content: { ...definition.defaultContent }
+    }),
+    saveAction: updateCategoryBlocksAction,
+    missingIdMessage: "Error: Category ID required",
+  })
 }
