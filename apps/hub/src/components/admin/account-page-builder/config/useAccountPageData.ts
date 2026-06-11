@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback } from "react"
 import {
   getAccountPagesAction,
   type AccountPage
@@ -7,19 +6,23 @@ import type { Site } from "@/lib/actions/sites/site-actions"
 import { convertJsonToBlocks } from "@/lib/utils/block-utils"
 import { isAccountPageBuilderBlockType } from "./account-page-block-types"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
+import { useSiteContentData } from "@/components/admin/layout/builder/useSiteContentData"
 
-function getContentOnlyBlocks(contentBlocks: Record<string, any>) {
-  return convertJsonToBlocks(contentBlocks).filter((block) => isAccountPageBuilderBlockType(block.type))
-}
-
+// Convert account page rows to editor blocks keyed by page slug
 function getBlocksBySlug(pages: AccountPage[]) {
   const blocksData: Record<string, any[]> = {}
 
   pages.forEach(page => {
-    blocksData[page.slug] = getContentOnlyBlocks(page.content_blocks || {})
+    blocksData[page.slug] = convertJsonToBlocks(page.content_blocks || {})
+      .filter((block) => isAccountPageBuilderBlockType(block.type))
   })
 
   return blocksData
+}
+
+// Stable reference for the generic hook's fetchItems dependency
+function fetchAccountPages(siteId: string, options: { selectedSlug?: string }) {
+  return getAccountPagesAction(siteId, options)
 }
 
 interface UseAccountPagesDataReturn {
@@ -33,73 +36,17 @@ interface UseAccountPagesDataReturn {
 }
 
 export function useAccountPageData(siteId: string, selectedPage = ""): UseAccountPagesDataReturn {
+  // Site comes from the site-switcher context — no extra fetch needed
   const { currentSite } = useSiteSwitcher()
-  const [site, setSite] = useState<Site | null>(currentSite)
-  const [pages, setPages] = useState<AccountPage[]>([])
-  const [configLoading, setConfigLoading] = useState(!currentSite)
-  const [configError, setConfigError] = useState("")
-  const [blocks, setBlocks] = useState<Record<string, any[]>>({})
-  const [blocksLoading, setBlocksLoading] = useState(false)
 
-  const loadAccountPagesAndBlocks = useCallback(async () => {
-    setConfigLoading(true)
-    setBlocksLoading(true)
-    setConfigError("")
+  const { site, items: pages, blocks, siteLoading, blocksLoading, siteError, reloadBlocks } = useSiteContentData<AccountPage, any>({
+    siteId,
+    selectedSlug: selectedPage,
+    fetchItems: fetchAccountPages,
+    itemsToBlocksBySlug: getBlocksBySlug,
+    contextSite: currentSite ?? null,
+  })
 
-    try {
-      // Use site from context, only fetch pages
-      const pagesResult = await getAccountPagesAction(siteId, { selectedSlug: selectedPage })
-      const siteResult = { data: currentSite, error: null }
-
-      if (siteResult.data) {
-        setSite(siteResult.data)
-      } else {
-        setConfigError(siteResult.error || 'Failed to load site data')
-      }
-
-      if (pagesResult.data) {
-        setPages(pagesResult.data)
-        setBlocks(getBlocksBySlug(pagesResult.data))
-      } else if (pagesResult.error) {
-        console.error('Failed to load account pages:', pagesResult.error)
-      }
-    } catch (error) {
-      setConfigError('Failed to load account pages data')
-      console.error('Error loading site and account pages:', error)
-    }
-
-    setConfigLoading(false)
-    setBlocksLoading(false)
-  }, [currentSite, selectedPage, siteId])
-
-  const reloadBlocks = useCallback(async () => {
-    setBlocksLoading(true)
-
-    const pagesResult = await getAccountPagesAction(siteId, { selectedSlug: selectedPage })
-    const siteData = currentSite
-
-    if (siteData) {
-      setSite(siteData)
-    }
-
-    if (pagesResult.data) {
-      setPages(pagesResult.data)
-      setBlocks(getBlocksBySlug(pagesResult.data))
-    }
-    setBlocksLoading(false)
-  }, [currentSite, selectedPage, siteId])
-
-  useEffect(() => {
-    loadAccountPagesAndBlocks()
-  }, [loadAccountPagesAndBlocks])
-
-  return {
-    site,
-    pages,
-    blocks,
-    configLoading,
-    blocksLoading,
-    configError,
-    reloadBlocks
-  }
+  // This hook historically exposes config-prefixed names for the loading/error state
+  return { site, pages, blocks, configLoading: siteLoading, blocksLoading, configError: siteError, reloadBlocks }
 }

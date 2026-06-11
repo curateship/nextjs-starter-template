@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
-import { getSiteByIdAction, type SiteWithTheme } from '@/lib/actions/sites/site-actions'
+import { type SiteWithTheme } from '@/lib/actions/sites/site-actions'
 import { getCategoriesForSiteAction, type Category } from '@/lib/actions/categories/category-actions'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { getBlockName, isCategoryBuilderBlockType } from './category-block-types'
+import { useSiteContentData } from '@/components/admin/layout/builder/useSiteContentData'
 
 interface CategoryBlock {
   id: string
@@ -11,16 +11,7 @@ interface CategoryBlock {
   content: Record<string, any>
 }
 
-interface UseCategoryDataReturn {
-  site: SiteWithTheme | null
-  categories: Category[]
-  blocks: Record<string, CategoryBlock[]>
-  siteLoading: boolean
-  blocksLoading: boolean
-  siteError: string
-  reloadBlocks: () => Promise<void>
-}
-
+// Convert category rows to editor blocks keyed by category slug
 function getCategoryBlocksBySlug(categories: Category[]) {
   const convertedBlocks: Record<string, CategoryBlock[]> = {}
 
@@ -37,72 +28,28 @@ function getCategoryBlocksBySlug(categories: Category[]) {
   return convertedBlocks
 }
 
+// Stable reference for the generic hook's fetchItems dependency
+function fetchCategories(siteId: string, options: { selectedSlug?: string }) {
+  return getCategoriesForSiteAction(siteId, options)
+}
+
+interface UseCategoryDataReturn {
+  site: SiteWithTheme | null
+  categories: Category[]
+  blocks: Record<string, CategoryBlock[]>
+  siteLoading: boolean
+  blocksLoading: boolean
+  siteError: string
+  reloadBlocks: () => Promise<void>
+}
+
 export function useCategoryData(siteId: string, selectedCategory = ""): UseCategoryDataReturn {
-  const [site, setSite] = useState<SiteWithTheme | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [siteLoading, setSiteLoading] = useState(true)
-  const [siteError, setSiteError] = useState("")
-  const [blocks, setBlocks] = useState<Record<string, CategoryBlock[]>>({})
-  const [blocksLoading, setBlocksLoading] = useState(false)
+  const { items: categories, ...rest } = useSiteContentData<Category, CategoryBlock>({
+    siteId,
+    selectedSlug: selectedCategory,
+    fetchItems: fetchCategories,
+    itemsToBlocksBySlug: getCategoryBlocksBySlug,
+  })
 
-  const loadSiteAndCategories = useCallback(async () => {
-    setSiteLoading(true)
-    setBlocksLoading(true)
-    setSiteError("")
-
-    try {
-      const [siteResult, categoriesResult] = await Promise.all([
-        getSiteByIdAction(siteId),
-        getCategoriesForSiteAction(siteId, { selectedSlug: selectedCategory })
-      ])
-
-      if (siteResult.data) {
-        setSite(siteResult.data)
-      } else {
-        setSiteError(siteResult.error || 'Failed to load site')
-      }
-
-      if (categoriesResult.data) {
-        setCategories(categoriesResult.data)
-        setBlocks(getCategoryBlocksBySlug(categoriesResult.data))
-      } else {
-        setCategories([])
-        setBlocks({})
-      }
-
-    } catch (error) {
-      setSiteError('Failed to load data')
-      console.error('Error loading site and categories:', error)
-    }
-
-    setSiteLoading(false)
-    setBlocksLoading(false)
-  }, [selectedCategory, siteId])
-
-  const reloadBlocks = useCallback(async () => {
-    setBlocksLoading(true)
-    const categoriesResult = await getCategoriesForSiteAction(siteId, { selectedSlug: selectedCategory })
-
-    if (categoriesResult.data) {
-      setBlocks(getCategoryBlocksBySlug(categoriesResult.data))
-    } else {
-      setBlocks({})
-    }
-
-    setBlocksLoading(false)
-  }, [selectedCategory, siteId])
-
-  useEffect(() => {
-    loadSiteAndCategories()
-  }, [loadSiteAndCategories])
-
-  return {
-    site,
-    categories,
-    blocks,
-    siteLoading,
-    blocksLoading,
-    siteError,
-    reloadBlocks
-  }
+  return { categories, ...rest }
 }
