@@ -54,21 +54,39 @@ export function useTitleSlug({ regenerateOnClear = false }: UseTitleSlugOptions 
     setSlug(nextSlug)
   }
 
-  return { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, setTitle, setSlug }
+  /** Settings modals: load existing values; a slug differing from the auto-generated
+   * one counts as manually edited. */
+  const reset = (initialTitle: string, initialSlug: string) => {
+    setTitle(initialTitle)
+    setSlug(initialSlug)
+    setSlugManuallyEdited(initialSlug !== generateSlug(initialTitle))
+  }
+
+  return { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, setTitle, setSlug, reset }
 }
 
 // ---- create-request handler ----
 
-/** POST a JSON body to an API route, returning the standard {data, error} shape */
-export async function postJson<T>(endpoint: string, payload: Record<string, unknown>): Promise<{ data?: T | null; error?: string | null }> {
+/** Send a JSON body to an API route, returning the standard {data, error} shape */
+async function requestJson<T>(method: string, endpoint: string, payload: Record<string, unknown>): Promise<{ data?: T | null; error?: string | null }> {
   const response = await fetch(endpoint, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
   const result = await response.json()
   if (!response.ok) return { data: null, error: result.error || null }
   return result
+}
+
+/** POST a JSON body to an API route (create flows) */
+export function postJson<T>(endpoint: string, payload: Record<string, unknown>) {
+  return requestJson<T>("POST", endpoint, payload)
+}
+
+/** PUT a JSON body to an API route (settings/update flows) */
+export function putJson<T>(endpoint: string, payload: Record<string, unknown>) {
+  return requestJson<T>("PUT", endpoint, payload)
 }
 
 interface UseCreateContentOptions<TResult> {
@@ -78,10 +96,13 @@ interface UseCreateContentOptions<TResult> {
   title: string
   /** Exact validation message shown for an empty title (kept per-modal) */
   titleRequiredMessage?: string
-  /** Perform the create — either a server action or postJson() to an API route */
+  /** Perform the create/save — either a server action or postJson/putJson to an API route */
   create: (publish: boolean) => Promise<{ data?: TResult | null; error?: string | null }>
   /** Optional post-create step (e.g. category assignment). Return an error string to abort. */
   afterCreate?: (created: TResult) => Promise<string | null>
+  /** Per-action fallback copy for thrown/blank errors (settings modals use
+   * "Failed to save X as draft" / "Failed to publish X"). Defaults to "Failed to create X". */
+  failureMessage?: (action: string, publish: boolean) => string
 }
 
 /**
@@ -95,6 +116,7 @@ export function useCreateContent<TResult>({
   titleRequiredMessage,
   create,
   afterCreate,
+  failureMessage,
 }: UseCreateContentOptions<TResult>) {
   const [loading, setLoading] = useState(false)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
@@ -105,6 +127,8 @@ export function useCreateContent<TResult>({
       setError(titleRequiredMessage ?? `${entityLabel.charAt(0).toUpperCase()}${entityLabel.slice(1)} title is required`)
       return
     }
+
+    const fallback = failureMessage?.(action, publish) ?? `Failed to create ${entityLabel}`
 
     setLoading(true)
     setLoadingAction(action)
@@ -119,7 +143,7 @@ export function useCreateContent<TResult>({
       }
 
       if (!result.data) {
-        setError(`Failed to create ${entityLabel}`)
+        setError(fallback)
         return
       }
 
@@ -133,7 +157,7 @@ export function useCreateContent<TResult>({
 
       onDone(result.data)
     } catch {
-      setError(`Failed to create ${entityLabel}`)
+      setError(fallback)
     } finally {
       setLoading(false)
       setLoadingAction(null)
@@ -171,6 +195,8 @@ interface TitleSlugFieldsProps {
   urlPreview?: ReactNode
   /** Override for the auto-generated-slug helper copy; null hides it entirely (posts) */
   slugAutoDescription?: string | null
+  /** DOM id prefix — settings modals use "modal-" to avoid clashing with create modals */
+  idPrefix?: string
 }
 
 /** The title + URL slug field pair every Create modal starts with */
@@ -186,13 +212,14 @@ export function TitleSlugFields({
   onSlugChange,
   urlPreview,
   slugAutoDescription,
+  idPrefix = "",
 }: TitleSlugFieldsProps) {
   return (
     <>
       <Field>
-        <FieldLabel htmlFor="title">{titleLabel}</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}title`}>{titleLabel}</FieldLabel>
         <Input
-          id="title"
+          id={`${idPrefix}title`}
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
           placeholder={titlePlaceholder}
@@ -201,9 +228,9 @@ export function TitleSlugFields({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="slug">{slugLabel}</FieldLabel>
+        <FieldLabel htmlFor={`${idPrefix}slug`}>{slugLabel}</FieldLabel>
         <Input
-          id="slug"
+          id={`${idPrefix}slug`}
           value={slug}
           onChange={(e) => onSlugChange(e.target.value)}
           placeholder={slugPlaceholder}
@@ -225,15 +252,17 @@ interface MetaDescriptionFieldProps {
   placeholder?: string
   /** Per-modal helper copy under the field (some show a character counter) */
   description?: ReactNode
+  /** DOM id prefix — settings modals use "modal-" */
+  idPrefix?: string
 }
 
 /** The SEO meta description textarea shared by every modal */
-export function MetaDescriptionField({ value, onChange, placeholder, description }: MetaDescriptionFieldProps) {
+export function MetaDescriptionField({ value, onChange, placeholder, description, idPrefix = "" }: MetaDescriptionFieldProps) {
   return (
     <Field>
-      <FieldLabel htmlFor="meta_description">Meta Description</FieldLabel>
+      <FieldLabel htmlFor={`${idPrefix}meta_description`}>Meta Description</FieldLabel>
       <Textarea
-        id="meta_description"
+        id={`${idPrefix}meta_description`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? "A brief description for search engines"}
