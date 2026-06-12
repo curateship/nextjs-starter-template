@@ -60,9 +60,12 @@ interface CategoryBlockRendererProps {
   breadcrumbs?: FrontendBreadcrumbItem[]
   isPreview?: boolean
   hideSiteChrome?: boolean
+  // Server-prefetched listing data keyed by block id (pages pattern) — lets
+  // the Listings block render with data in the initial HTML, no client fetch
+  listingData?: Record<string, any>
 }
 
-export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false }: CategoryBlockRendererProps) {
+export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false, listingData }: CategoryBlockRendererProps) {
   const siteChrome = resolveSiteChrome(site.settings)
 
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
@@ -102,7 +105,7 @@ export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPrev
                   <ListingViewsBlock
                     // The rendered category is the implicit filter for this block
                     content={{ ...blockContent, categoryIds: isTemplatePreview ? [] : [category.id] }}
-                    preloadedData={isTemplatePreview ? getTemplatePreviewListingData(blockContent.itemsToShow) : undefined}
+                    preloadedData={isTemplatePreview ? getTemplatePreviewListingData(blockContent.itemsToShow) : listingData?.[block.id]}
                     siteId={site.id}
                     urlPrefixes={{
                       products: 'products',

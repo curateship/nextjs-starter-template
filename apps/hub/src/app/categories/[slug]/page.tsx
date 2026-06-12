@@ -4,7 +4,8 @@ import { db } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
-import { mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
+import { CATEGORY_LISTINGS_BLOCK_TYPE, mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
+import { getListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
@@ -18,6 +19,58 @@ interface CategoryPageProps {
   params: Promise<{
     slug: string
   }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+// Prefetch listing data server-side so the Listings block ships with data in
+// the initial HTML instead of client-fetching after hydration (mirrors
+// prefetchListingData in page-frontend-actions.ts; defaults match the block's)
+async function prefetchCategoryListingData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any> }>,
+  siteId: string,
+  categoryId: string,
+  listingPage: number
+) {
+  const listingData: Record<string, any> = {}
+
+  for (const block of blocks) {
+    if (block.type !== CATEGORY_LISTINGS_BLOCK_TYPE) continue
+
+    try {
+      const {
+        contentType = 'products',
+        categoryChipParentIds = [],
+        sortBy = 'date',
+        sortOrder = 'desc',
+        itemsToShow = 6,
+        itemsPerPage = 12,
+        isPaginated = false,
+      } = block.content || {}
+
+      const limit = isPaginated ? itemsPerPage : itemsToShow
+      const offset = isPaginated ? (listingPage - 1) * itemsPerPage : 0
+
+      const result = await getListingViewsData({
+        site_id: siteId,
+        contentType,
+        // The rendered category is the implicit filter for this block
+        categoryIds: [categoryId],
+        sortBy,
+        sortOrder,
+        limit,
+        offset,
+        includeCategories: contentType === 'directory' && Array.isArray(categoryChipParentIds) && categoryChipParentIds.length > 0,
+      })
+
+      if (result.success && result.data) {
+        listingData[block.id] = result.data
+      }
+    } catch {
+      // Silently continue — the block falls back to client-side loading
+    }
+  }
+
+  return listingData
 }
 
 const CATEGORY_PAGE_NOT_FOUND_ERROR = 'CATEGORY_PAGE_NOT_FOUND'
@@ -77,12 +130,17 @@ function getCachedCategoryPageData(siteId: string, slug: string) {
   )()
 }
 
-export default async function CategoryPage({ params }: CategoryPageProps) {
+export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
   const { slug } = await params
 
   if (!isValidCategorySlug(slug)) {
     notFound()
   }
+
+  // Pagination param for paginated Listings blocks (mirrors [...slug]/page.tsx)
+  const pageValue = (await searchParams)?.page
+  const parsedPage = parseInt(Array.isArray(pageValue) ? pageValue[0] || "1" : pageValue || "1", 10)
+  const listingPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
@@ -116,12 +174,16 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     ...toSnakeCase(category),
     blocks
   } as any
-  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'categories')
-    ? await getCategoryBreadcrumbItems({
-        siteId: site.id,
-        categoryId: category.id,
-      })
-    : []
+  // Listing data and breadcrumbs are independent — fetch them in parallel
+  const [listingData, breadcrumbs] = await Promise.all([
+    prefetchCategoryListingData(blocks, site.id, category.id, listingPage),
+    shouldShowFrontendBreadcrumbs(site.settings, 'categories')
+      ? getCategoryBreadcrumbItems({
+          siteId: site.id,
+          categoryId: category.id,
+        })
+      : Promise.resolve([]),
+  ])
 
   return (
     <>
@@ -130,6 +192,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
         site={site}
         category={categoryWithBlocks}
         breadcrumbs={breadcrumbs}
+        listingData={listingData}
       />
     </>
   )

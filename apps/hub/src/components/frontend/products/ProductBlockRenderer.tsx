@@ -27,6 +27,9 @@ interface ProductBlockRendererProps {
   hideSiteChrome?: boolean
   renderLeadMagnetBody?: (block: ProductWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: ProductWithBlocks["blocks"][number]) => ReactNode
+  // Server-prefetched listing data keyed by block id (pages pattern) — lets
+  // listing-views blocks render with data in the initial HTML, no client fetch
+  listingData?: Record<string, any>
 }
 
 export function ProductBlockRenderer({
@@ -37,6 +40,7 @@ export function ProductBlockRenderer({
   hideSiteChrome = false,
   renderLeadMagnetBody,
   renderBlockOverlay,
+  listingData,
 }: ProductBlockRendererProps) {
   const { blocks: productBlocks = [] } = product
   const siteChrome = resolveSiteChrome(site.settings)
@@ -238,6 +242,7 @@ export function ProductBlockRenderer({
                   products: 'products',
                   posts: 'posts'
                 }}
+                preloadedData={listingData?.[block.id]}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
               />

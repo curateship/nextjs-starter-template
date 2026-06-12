@@ -19,11 +19,49 @@ import {
   getDirectoryTemplateDefaultCategoryParentId,
   mergeDirectoryTemplateBlocks,
 } from "@/lib/actions/directories/directory-template-inheritance"
+import { getDirectoryRelatedListingsAction } from "@/lib/actions/directories/directory-related-listing-actions"
 
 interface DirectoryPageProps {
   params: Promise<{
     slug: string
   }>
+}
+
+// Prefetch related-listing items server-side so the block ships with data in
+// the initial HTML instead of client-fetching after hydration (pages pattern).
+// The action normalizes limit the same way the block does.
+async function prefetchRelatedListingData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any> }>,
+  siteId: string,
+  directoryId: string
+) {
+  const relatedListingData: Record<string, any> = {}
+
+  for (const block of blocks) {
+    if (block.type !== 'directory-related-listing') continue
+
+    const parentCategoryId = typeof block.content?.parentCategoryId === 'string'
+      ? block.content.parentCategoryId.trim()
+      : ''
+    if (!parentCategoryId) continue
+
+    try {
+      const result = await getDirectoryRelatedListingsAction({
+        siteId,
+        directoryId,
+        parentCategoryId,
+        limit: Number(block.content?.itemsToShow),
+      })
+
+      if (result.success) {
+        relatedListingData[block.id] = result.data
+      }
+    } catch {
+      // Silently continue — the block falls back to client-side loading
+    }
+  }
+
+  return relatedListingData
 }
 
 const DIRECTORY_PAGE_NOT_FOUND_ERROR = 'DIRECTORY_PAGE_NOT_FOUND'
@@ -171,15 +209,19 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
   }
 
   const needsGoogleMapsConfig = directoryBlocksNeedGoogleMapsConfig(blocks)
-  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'directories')
-    ? await getContentBreadcrumbItems({
-        siteId: site.id,
-        contentId: directory.id,
-        contentType: 'directory',
-        currentLabel: directory.title,
-        rootCategoryId: getDirectoryTemplateDefaultCategoryParentId(directory.contentBlocks || {}),
-      })
-    : []
+  // Related-listing data and breadcrumbs are independent — fetch in parallel
+  const [relatedListingData, breadcrumbs] = await Promise.all([
+    prefetchRelatedListingData(blocks, site.id, directory.id),
+    shouldShowFrontendBreadcrumbs(site.settings, 'directories')
+      ? getContentBreadcrumbItems({
+          siteId: site.id,
+          contentId: directory.id,
+          contentType: 'directory',
+          currentLabel: directory.title,
+          rootCategoryId: getDirectoryTemplateDefaultCategoryParentId(directory.contentBlocks || {}),
+        })
+      : Promise.resolve([]),
+  ])
   const googleMapsApiKey = needsGoogleMapsConfig && pageData.googleMapsApiKey
     ? safeDecrypt(pageData.googleMapsApiKey)
     : ''
@@ -202,6 +244,7 @@ export default async function DirectoryPage({ params }: DirectoryPageProps) {
         customBlockTemplates={customBlockTemplates}
         breadcrumbs={breadcrumbs}
         googleMapsEmbedApiKey={googleMapsApiKey}
+        relatedListingData={relatedListingData}
       />
     </>
   )

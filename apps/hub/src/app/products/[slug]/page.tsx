@@ -12,11 +12,59 @@ import {
   getContentBreadcrumbItems,
   shouldShowFrontendBreadcrumbs,
 } from "@/lib/actions/categories/frontend-breadcrumb-actions"
+import { getListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
 
 interface ProductPageProps {
   params: Promise<{
     slug: string
   }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+// Prefetch listing data server-side so listing-views blocks ship with data in
+// the initial HTML instead of client-fetching after hydration. Params mirror
+// ProductListingViewBlock's client fetch exactly (no category filter).
+async function prefetchProductListingData(
+  blocks: Array<{ id: string; type: string; content: Record<string, any> }>,
+  siteId: string,
+  listingPage: number
+) {
+  const listingData: Record<string, any> = {}
+
+  for (const block of blocks) {
+    if (block.type !== 'listing-views') continue
+
+    try {
+      const {
+        contentType = 'products',
+        sortBy = 'date',
+        sortOrder = 'desc',
+        itemsToShow = 6,
+        itemsPerPage = 12,
+        isPaginated = false,
+      } = block.content || {}
+
+      const limit = isPaginated ? itemsPerPage : itemsToShow
+      const offset = isPaginated ? (listingPage - 1) * itemsPerPage : 0
+
+      const result = await getListingViewsData({
+        site_id: siteId,
+        contentType,
+        sortBy,
+        sortOrder,
+        limit,
+        offset,
+      })
+
+      if (result.success && result.data) {
+        listingData[block.id] = result.data
+      }
+    } catch {
+      // Silently continue — the block falls back to client-side loading
+    }
+  }
+
+  return listingData
 }
 
 const PRODUCT_PAGE_NOT_FOUND_ERROR = 'PRODUCT_PAGE_NOT_FOUND'
@@ -70,12 +118,17 @@ function getCachedProductPageData(siteId: string, slug: string) {
   )()
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const { slug } = await params
 
   if (!isValidProductSlug(slug)) {
     notFound()
   }
+
+  // Pagination param for paginated listing-views blocks (mirrors [...slug]/page.tsx)
+  const pageValue = (await searchParams)?.page
+  const parsedPage = parseInt(Array.isArray(pageValue) ? pageValue[0] || "1" : pageValue || "1", 10)
+  const listingPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
 
   const { success: siteSuccess, site } = await getSiteFromHeaders()
 
@@ -104,14 +157,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ...toSnakeCase(product),
     blocks
   } as any
-  const breadcrumbs = shouldShowFrontendBreadcrumbs(site.settings, 'products')
-    ? await getContentBreadcrumbItems({
-        siteId: site.id,
-        contentId: product.id,
-        contentType: 'product',
-        currentLabel: product.title,
-      })
-    : []
+  // Listing data and breadcrumbs are independent — fetch them in parallel
+  const [listingData, breadcrumbs] = await Promise.all([
+    prefetchProductListingData(blocks, site.id, listingPage),
+    shouldShowFrontendBreadcrumbs(site.settings, 'products')
+      ? getContentBreadcrumbItems({
+          siteId: site.id,
+          contentId: product.id,
+          contentType: 'product',
+          currentLabel: product.title,
+        })
+      : Promise.resolve([]),
+  ])
 
   return (
     <>
@@ -120,6 +177,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         site={site}
         product={productWithBlocks}
         breadcrumbs={breadcrumbs}
+        listingData={listingData}
       />
     </>
   )

@@ -23,6 +23,9 @@ interface DirectoryRelatedListingBlockProps {
     id?: string | null
   }
   isPreview?: boolean
+  // Server-prefetched items (pages pattern) — renders with data in the
+  // initial HTML instead of client-fetching after hydration
+  preloadedItems?: DirectoryRelatedListingItem[]
   cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
@@ -83,6 +86,7 @@ export function DirectoryRelatedListingBlock({
   siteId,
   directory,
   isPreview = false,
+  preloadedItems,
   cardProps,
 }: DirectoryRelatedListingBlockProps) {
   const visibility = content?.visibility && typeof content.visibility === "object" ? content.visibility : {}
@@ -90,13 +94,19 @@ export function DirectoryRelatedListingBlock({
   const itemsToShow = normalizeItemsToShow(content?.itemsToShow)
   const title = typeof content?.title === "string" ? content.title.trim() : "Related Listings"
   const subtitle = typeof content?.subtitle === "string" ? content.subtitle.trim() : ""
-  const [items, setItems] = useState<DirectoryRelatedListingItem[]>([])
+  const [items, setItems] = useState<DirectoryRelatedListingItem[]>(preloadedItems || [])
   const [loading, setLoading] = useState(false)
   const useTemplatePreviewItems = isPreview && directory.id === "preview"
 
   useEffect(() => {
     if (useTemplatePreviewItems || !siteId || !directory.id || !parentCategoryId) {
       setItems([])
+      return
+    }
+
+    // Server-prefetched data — no client fetch needed
+    if (preloadedItems) {
+      setItems(preloadedItems)
       return
     }
 
@@ -122,7 +132,7 @@ export function DirectoryRelatedListingBlock({
     return () => {
       cancelled = true
     }
-  }, [directory.id, itemsToShow, parentCategoryId, siteId, useTemplatePreviewItems])
+  }, [directory.id, itemsToShow, parentCategoryId, preloadedItems, siteId, useTemplatePreviewItems])
 
   if (visibility.hideBlock === true) return null
   if (!parentCategoryId || loading) return null

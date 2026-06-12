@@ -6,6 +6,7 @@ import { DirectoryCustomBlockSection } from "./DirectoryCustomBlockSection"
 import { DirectoryGoogleMapBlock } from "./google-map/DirectoryGoogleMapBlock"
 import { DirectoryOpeningHoursBlock } from "./opening-hours/DirectoryOpeningHoursBlock"
 import { DirectoryRelatedListingBlock } from "./related-listing/DirectoryRelatedListingBlock"
+import type { DirectoryRelatedListingItem } from "@/lib/actions/directories/directory-related-listing-actions"
 import { DirectoryRichTextBlock } from "./rich-text/DirectoryRichTextBlock"
 import type { ReactNode } from "react"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
@@ -48,6 +49,9 @@ interface DirectoryBlockRendererProps {
   googleMapsEmbedApiKey?: string
   renderRichTextBody?: (block: DirectoryWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: DirectoryWithBlocks["blocks"][number]) => ReactNode
+  // Server-prefetched related-listing items keyed by block id (pages pattern) —
+  // lets the block render with data in the initial HTML, no client fetch
+  relatedListingData?: Record<string, DirectoryRelatedListingItem[]>
 }
 
 export function DirectoryBlockRenderer({
@@ -60,6 +64,7 @@ export function DirectoryBlockRenderer({
   googleMapsEmbedApiKey = '',
   renderRichTextBody,
   renderBlockOverlay,
+  relatedListingData,
 }: DirectoryBlockRendererProps) {
   const { blocks: directoryBlocks = [] } = directory
   const siteChrome = resolveSiteChrome(site.settings)
@@ -214,6 +219,7 @@ export function DirectoryBlockRenderer({
           siteId={site.id}
           directory={directory}
           isPreview={isPreview}
+          preloadedItems={relatedListingData?.[block.id]}
           cardProps={getBlockCardProps(block)}
         />
       )
