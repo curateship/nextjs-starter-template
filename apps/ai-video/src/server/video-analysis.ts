@@ -1,8 +1,8 @@
 import { z } from "zod"
 
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
+export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
 // Flash handles video input and is cheap enough to run per archived reel.
-const ANALYSIS_MODEL = "gemini-2.5-flash"
+export const ANALYSIS_MODEL = "gemini-2.5-flash"
 // Gemini marks uploaded files ACTIVE once processed; short videos take seconds.
 const FILE_POLL_INTERVAL_MS = 2_000
 const FILE_POLL_TIMEOUT_MS = 120_000
@@ -75,7 +75,7 @@ type GeminiFile = {
   state?: string
 }
 
-function requireGeminiKey() {
+export function requireGeminiKey() {
   const apiKey = process.env.AI_VIDEO_GEMINI_API_KEY
   if (!apiKey) {
     throw new Error("Video analysis is not configured")
@@ -173,7 +173,7 @@ export async function analyzeViralVideo(
 
 // Resumable upload (start + single upload/finalize chunk) — required because
 // reels regularly exceed the 20MB inline-data limit.
-async function uploadFileToGemini(
+export async function uploadFileToGemini(
   bytes: Uint8Array,
   mimeType: string,
   apiKey: string
@@ -217,7 +217,7 @@ async function uploadFileToGemini(
   return { name: payload.file.name, uri: payload.file.uri }
 }
 
-async function waitForFileActive(name: string, apiKey: string) {
+export async function waitForFileActive(name: string, apiKey: string) {
   const deadline = Date.now() + FILE_POLL_TIMEOUT_MS
 
   while (Date.now() < deadline) {
@@ -242,11 +242,11 @@ async function waitForFileActive(name: string, apiKey: string) {
 }
 
 // Best-effort body text for error logging (never throws).
-async function safeBody(response: Response) {
+export async function safeBody(response: Response) {
   return response.text().catch(() => "<unreadable body>")
 }
 
-async function deleteGeminiFile(name: string, apiKey: string) {
+export async function deleteGeminiFile(name: string, apiKey: string) {
   await fetch(`${GEMINI_BASE_URL}/v1beta/${name}`, {
     method: "DELETE",
     headers: { "x-goog-api-key": apiKey },

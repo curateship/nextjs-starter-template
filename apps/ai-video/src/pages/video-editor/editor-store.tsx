@@ -76,6 +76,9 @@ export type EditorAction =
         sourceDurationMs: number
       }
     }
+  // Insert a whole generated caption track above everything (track 0 renders
+  // on top) as a single undo step.
+  | { type: "ADD_CAPTION_CLIPS"; clips: EditorClip[] }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -258,6 +261,18 @@ export function editorReducer(
   switch (action.type) {
     case "ADD_CLIP":
       return placeClip(state, action.clip, action.atMs, action.trackId)
+
+    case "ADD_CAPTION_CLIPS": {
+      if (action.clips.length === 0) return state
+      // Captions arrive non-overlapping from the server; give them their own
+      // top track so they render above the footage.
+      const track: EditorTrack = {
+        id: editorId(),
+        muted: false,
+        clips: sortClips(action.clips),
+      }
+      return pushUndo(state, [track, ...state.tracks])
+    }
 
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
