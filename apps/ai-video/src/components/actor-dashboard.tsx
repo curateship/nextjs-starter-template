@@ -853,7 +853,7 @@ function ActorGalleryItem({
     <div className="group relative overflow-hidden rounded-lg border bg-muted">
       <button
         type="button"
-        className="relative block aspect-[3/4] w-full bg-muted"
+        className="relative block aspect-3/4 w-full bg-muted"
         onClick={onEdit}
       >
         <img
