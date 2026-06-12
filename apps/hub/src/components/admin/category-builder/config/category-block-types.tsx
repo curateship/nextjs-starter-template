@@ -1,10 +1,21 @@
-import { LayoutGrid } from "lucide-react"
+import { BadgeInfo, LayoutGrid } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
-import { CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+import { CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
 
 export type { BlockTypeDefinition }
 
 export const CATEGORY_BLOCK_TYPES: BlockTypeDefinition[] = [
+  {
+    type: CATEGORY_CORE_BLOCK_TYPE,
+    name: 'Core',
+    icon: BadgeInfo,
+    description: 'Category title, featured image and rich text introduction',
+    // Visibility is the only template-owned key; title/image are category row
+    // fields and the rich text body is a per-category value
+    defaultContent: {
+      visibility: {},
+    },
+  },
   {
     type: CATEGORY_LISTINGS_BLOCK_TYPE,
     name: 'Listings',

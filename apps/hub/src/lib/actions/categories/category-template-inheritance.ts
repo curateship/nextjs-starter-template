@@ -6,16 +6,21 @@
 
 export const CATEGORY_BLANK_TEMPLATE_NAME = 'Blank'
 export const CATEGORY_LISTINGS_BLOCK_TYPE = 'category-listings'
+export const CATEGORY_CORE_BLOCK_TYPE = 'category-core'
 
 // Per-category value keys. The Listings block is fully template-configured
 // (the rendered category is injected at runtime), so it has no value keys.
+// The Core block's rich text is edited per category (title/featured image are
+// category row fields, not block content — mirrors the directory core block).
 const CATEGORY_VALUE_KEYS: Record<string, string[]> = {
   [CATEGORY_LISTINGS_BLOCK_TYPE]: [],
+  [CATEGORY_CORE_BLOCK_TYPE]: ['body', 'format'],
 }
 
 // Template-owned config keys per block type (everything the admin editor sets).
 // categoryIds is intentionally absent — it is derived from the rendered category.
 const CATEGORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
+  [CATEGORY_CORE_BLOCK_TYPE]: ['imageWidth', 'visibility'],
   [CATEGORY_LISTINGS_BLOCK_TYPE]: [
     'title',
     'subtitle',
@@ -201,5 +206,30 @@ export function mergeCategoryTemplateBlocks(
   return mergedBlocks
 }
 
-// No template-editor preview value helpers are needed (unlike directories):
-// the Listings block has no value keys and fetches real site data itself.
+// Template-editor preview: per-category values are empty in templates, so the
+// preview substitutes sample content (mirrors withDirectoryTemplatePreviewValues).
+const CATEGORY_TEMPLATE_PREVIEW_RICH_TEXT = `
+<p>This is sample category content. Use this block to decide where the category introduction should appear in the template.</p>
+<p>Real text is edited on each category.</p>
+`.trim()
+
+export const CATEGORY_TEMPLATE_PREVIEW_CATEGORY = {
+  title: 'Preview Category',
+  featuredImage: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80',
+}
+
+export function withCategoryTemplatePreviewValues<TBlock extends { type: string; content: Record<string, any> }>(
+  blocks: TBlock[]
+) {
+  return blocks.map((block) => {
+    if (block.type !== CATEGORY_CORE_BLOCK_TYPE || hasValue(block.content?.body)) return block
+
+    return {
+      ...block,
+      content: {
+        ...(block.content || {}),
+        body: CATEGORY_TEMPLATE_PREVIEW_RICH_TEXT,
+      },
+    }
+  })
+}

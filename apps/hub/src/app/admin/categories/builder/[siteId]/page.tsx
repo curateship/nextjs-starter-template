@@ -12,7 +12,7 @@ import { CategorySettingsModal } from "@/components/admin/category-builder/layou
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
 import { CategoryBlockListPanel } from "@/components/admin/category-builder/layout/CategoryBlockListPanel"
 import { CategoryBlockEditorModal } from "@/components/admin/category-builder/layout/CategoryBlockEditorModal"
-import { categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
+import { CATEGORY_CORE_BLOCK_TYPE, categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
 import { getCategoriesForSiteAction, updateCategoryAction, updateCategoryBlockValuesAction } from "@/lib/actions/categories/category-actions"
 import type { Category } from "@/lib/actions/categories/category-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
@@ -102,6 +102,9 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   })
   const selectedBlock = builderState.selectedBlock
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  // Core block drafts for the category row's title/featured image (directory core pattern)
+  const [draftCategoryTitle, setDraftCategoryTitle] = useState("")
+  const [draftCategoryFeaturedImage, setDraftCategoryFeaturedImage] = useState("")
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
@@ -117,6 +120,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   useEffect(() => {
     if (!selectedBlock) {
       setDraftContent({})
+      setDraftCategoryTitle("")
       setBlockSaveError(null)
       return
     }
@@ -126,8 +130,10 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
         ? JSON.parse(JSON.stringify(selectedBlock.content))
         : {}
     )
+    setDraftCategoryTitle(currentCategoryData?.title || selectedCategory)
+    setDraftCategoryFeaturedImage(currentCategoryData?.featured_image || "")
     setBlockSaveError(null)
-  }, [selectedBlock])
+  }, [selectedBlock, currentCategoryData?.featured_image, currentCategoryData?.title, selectedCategory])
 
   // Handle category information updates
   const updateCurrentCategory = async (updates: { title?: string; meta_description?: string; featured_image?: string; is_published?: boolean }) => {
@@ -186,6 +192,31 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           : block
       )
 
+      // Core block edits the category row's title/featured image — save those first
+      if (selectedBlock.type === CATEGORY_CORE_BLOCK_TYPE) {
+        const nextTitle = draftCategoryTitle.trim() || currentCategoryData.title
+        const nextFeaturedImage = draftCategoryFeaturedImage.trim() || null
+        const currentFeaturedImage = currentCategoryData.featured_image || null
+        const categoryUpdates: { title?: string; featured_image?: string | null } = {}
+
+        if (nextTitle !== currentCategoryData.title) {
+          categoryUpdates.title = nextTitle
+        }
+
+        if (nextFeaturedImage !== currentFeaturedImage) {
+          categoryUpdates.featured_image = nextFeaturedImage
+        }
+
+        if (Object.keys(categoryUpdates).length > 0) {
+          const { data, error } = await updateCategoryAction(currentCategoryData.id, categoryUpdates)
+          if (error || !data) {
+            setBlockSaveError(error || "Failed to save category details")
+            return
+          }
+          setCategories(prev => prev.map(c => c.id === data.id ? data : c))
+        }
+      }
+
       const contentBlocks = categoryBlocksToValueJson(nextBlocks)
       const result = await updateCategoryBlockValuesAction(currentCategoryData.id, contentBlocks)
       if (!result.success) {
@@ -213,6 +244,15 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           : block
       ))
     : currentCategory.blocks
+
+  // Preview the in-progress title/image edits while the Core editor is open
+  const selectedBlockIsCore = selectedBlock?.type === CATEGORY_CORE_BLOCK_TYPE
+  const previewCategoryTitle = selectedBlockIsCore
+    ? draftCategoryTitle.trim() || currentCategoryData?.title
+    : currentCategoryData?.title
+  const previewCategoryFeaturedImage = selectedBlockIsCore
+    ? draftCategoryFeaturedImage.trim() || null
+    : currentCategoryData?.featured_image
 
   const viewPageHref = site && currentCategoryData
     ? `${getSiteUrl(site)}/categories/${currentCategoryData.slug}`
@@ -253,10 +293,10 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
             ...currentCategory,
             blocks: previewBlocks,
             id: currentCategoryData?.id,
-            title: currentCategoryData?.title,
+            title: previewCategoryTitle,
             meta_description: currentCategoryData?.meta_description || undefined,
             site_id: currentCategoryData?.site_id,
-            featured_image: currentCategoryData?.featured_image,
+            featured_image: previewCategoryFeaturedImage,
             parent_id: currentCategoryData?.parent_id,
             updated_at: currentCategoryData?.updated_at
           }}
@@ -280,6 +320,10 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           saving={isSavingBlock}
           error={blockSaveError}
           mode="listing"
+          categoryTitle={draftCategoryTitle}
+          categoryFeaturedImage={draftCategoryFeaturedImage}
+          onCategoryTitleChange={setDraftCategoryTitle}
+          onCategoryFeaturedImageChange={setDraftCategoryFeaturedImage}
         />
 
         {blockListOpen && (

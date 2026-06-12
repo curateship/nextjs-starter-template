@@ -7,7 +7,39 @@ import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-b
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { getRenderBlockContent, prepareBlocksForRender } from "@/lib/utils/frontend-blocks"
-import { CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+import { CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+import { CategoryCoreBlock } from "@/components/frontend/categories/core/CategoryCoreBlock"
+import type { ListingViewsData, ListingViewsItem } from "@/lib/actions/pages/page-listing-views-actions"
+
+// Sample cards for the template editor preview, where no real category exists
+// to filter by (mirrors DirectoryRelatedListingBlock's PREVIEW_ITEMS pattern)
+const TEMPLATE_PREVIEW_LISTING_ITEMS: ListingViewsItem[] = [1, 2, 3].map((index) => ({
+  id: `preview-listing-${index}`,
+  title: `Sample Listing ${index}`,
+  slug: `sample-listing-${index}`,
+  featured_image: null,
+  richText: null,
+  metaDescription: "A short listing description appears here.",
+  author: null,
+  author_image: null,
+  created_at: new Date(0).toISOString(),
+  display_order: index,
+  rating: 4.6,
+  address: "123 Main Street",
+  categories: [
+    { id: "preview-category", title: "Sample Category", slug: "sample-category", parent_id: null },
+  ],
+}))
+
+function getTemplatePreviewListingData(itemsToShow?: unknown): ListingViewsData {
+  const requestedCount = Number(itemsToShow)
+  const count = Number.isFinite(requestedCount) && requestedCount > 0
+    ? Math.min(TEMPLATE_PREVIEW_LISTING_ITEMS.length, requestedCount)
+    : TEMPLATE_PREVIEW_LISTING_ITEMS.length
+  const items = TEMPLATE_PREVIEW_LISTING_ITEMS.slice(0, count)
+
+  return { items, totalCount: items.length, currentPage: 1, totalPages: 1 }
+}
 
 interface CategoryWithBlocks {
   id: string
@@ -40,11 +72,28 @@ export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPrev
   // Sorting + hidden-block rules live in the shared frontend-blocks helper
   const visibleBlocks = prepareBlocksForRender(category.blocks || [], isPreview)
 
+  // Template editor preview has no real category to filter by — show sample
+  // cards instead of live site data (directory template preview pattern)
+  const isTemplatePreview = isPreview && category.id === "preview"
+
   return (
       <SiteLayout navigation={siteChrome.navigation || undefined} footer={siteChrome.footer || undefined} site={publicSite} isPreview={isPreview} hideChrome={hideSiteChrome}>
         <FrontendBreadcrumbs items={breadcrumbs} siteWidth={siteWidth} customWidth={customWidth} />
         {visibleBlocks.map((block) => {
           const blockContent = getRenderBlockContent(block, isPreview)
+
+          if (block.type === CATEGORY_CORE_BLOCK_TYPE) {
+            return (
+              <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+                <CategoryCoreBlock
+                  content={blockContent}
+                  category={category}
+                  siteWidth={siteWidth}
+                  customWidth={customWidth}
+                />
+              </div>
+            )
+          }
 
           if (block.type === CATEGORY_LISTINGS_BLOCK_TYPE) {
             return (
@@ -52,7 +101,8 @@ export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPrev
                 <Suspense>
                   <ListingViewsBlock
                     // The rendered category is the implicit filter for this block
-                    content={{ ...blockContent, categoryIds: [category.id] }}
+                    content={{ ...blockContent, categoryIds: isTemplatePreview ? [] : [category.id] }}
+                    preloadedData={isTemplatePreview ? getTemplatePreviewListingData(blockContent.itemsToShow) : undefined}
                     siteId={site.id}
                     urlPrefixes={{
                       products: 'products',

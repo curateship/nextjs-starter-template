@@ -23,6 +23,11 @@ interface CategoryBlockEditorModalProps {
   saving?: boolean
   error?: string | null
   mode?: CategoryBlockEditorMode
+  // Core block only: title/featured image write through to the category row
+  categoryTitle?: string
+  categoryFeaturedImage?: string | null
+  onCategoryTitleChange?: (title: string) => void
+  onCategoryFeaturedImageChange?: (featuredImage: string) => void
 }
 
 export function CategoryBlockEditorModal({
@@ -35,6 +40,10 @@ export function CategoryBlockEditorModal({
   saving = false,
   error,
   mode = "listing",
+  categoryTitle,
+  categoryFeaturedImage,
+  onCategoryTitleChange,
+  onCategoryFeaturedImageChange,
 }: CategoryBlockEditorModalProps) {
   if (!block) return null
 
@@ -71,6 +80,10 @@ export function CategoryBlockEditorModal({
             onContentChange={onContentChange}
             siteId={siteId}
             mode={mode}
+            categoryTitle={categoryTitle}
+            categoryFeaturedImage={categoryFeaturedImage}
+            onCategoryTitleChange={onCategoryTitleChange}
+            onCategoryFeaturedImageChange={onCategoryFeaturedImageChange}
           />
         </DashboardModalContent>
       </ModalTabsProvider>

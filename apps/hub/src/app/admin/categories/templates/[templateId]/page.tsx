@@ -22,6 +22,10 @@ import {
   updateCategoryTemplate,
   type CategoryTemplate,
 } from "@/lib/actions/categories/category-template-actions"
+import {
+  CATEGORY_TEMPLATE_PREVIEW_CATEGORY,
+  withCategoryTemplatePreviewValues,
+} from "@/lib/actions/categories/category-template-inheritance"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 
 interface PageProps {
@@ -227,6 +231,8 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
         settings: previewSiteSource.settings,
       }
     : undefined
+  // Per-category values are empty in templates — substitute sample content
+  const previewBlocks = withCategoryTemplatePreviewValues(blocks)
 
   if (loading) {
     return (
@@ -301,7 +307,14 @@ export default function CategoryTemplateEditorPage({ params }: PageProps) {
         <div className="flex-1 overflow-hidden border-r bg-background">
           <ScrollArea className="h-full">
             <CategoryPreview
-              blocks={blocks}
+              blocks={previewBlocks}
+              category={{
+                id: "preview",
+                title: CATEGORY_TEMPLATE_PREVIEW_CATEGORY.title,
+                slug: "preview",
+                site_id: template?.site_id || currentSite?.id || "preview-site",
+                featured_image: CATEGORY_TEMPLATE_PREVIEW_CATEGORY.featuredImage,
+              }}
               site={previewSite}
               blocksLoading={loading}
               allBlocks={blocks}
