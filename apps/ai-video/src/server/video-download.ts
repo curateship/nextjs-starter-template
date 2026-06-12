@@ -11,6 +11,11 @@ export type DownloadedViralVideo = {
   metadata: {
     title: string | null
     author: string | null
+    // Raw yt-dlp fields — handle vs display name is platform-swapped:
+    // Instagram: uploader = full name, channel = handle.
+    // TikTok: uploader = handle, channel = nickname.
+    uploaderName: string | null
+    channelName: string | null
     durationMs: number | null
     viewCount: number | null
     likeCount: number | null
@@ -134,6 +139,8 @@ export async function downloadViralVideo(
       metadata: {
         title: readString(info.title, 500),
         author: readString(info.uploader, 255) ?? readString(info.channel, 255),
+        uploaderName: readString(info.uploader, 255),
+        channelName: readString(info.channel, 255),
         durationMs:
           typeof info.duration === "number" && Number.isFinite(info.duration)
             ? Math.round(info.duration * 1000)

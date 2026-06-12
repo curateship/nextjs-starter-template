@@ -65,7 +65,8 @@ type DashboardTableFooter =
     }
 
 type DashboardTableBaseProps = {
-  title: string
+  // Plain text or a richer node (e.g. the creator drill-down breadcrumb).
+  title: React.ReactNode
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode

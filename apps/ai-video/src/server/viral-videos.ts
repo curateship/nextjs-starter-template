@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 
+import { upsertCreatorFromReel } from "@/server/creators"
 import { db } from "@/server/db"
 import {
   cleanOriginalName,
@@ -52,6 +53,7 @@ export type ViralVideoItem = {
   duration_ms: number | null
   stats: ViralVideoStats | null
   thumbnail_url: string | null
+  creator_id: string | null
   created_at: string
   updated_at: string
 }
@@ -108,6 +110,7 @@ function serializeViralVideo(row: AiVideoViralVideo): ViralVideoItem {
     thumbnail_url: row.thumbnailStoragePath
       ? getPublicMediaUrl(row.thumbnailStoragePath)
       : null,
+    creator_id: row.creatorId,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -215,7 +218,9 @@ export async function retryViralVideoForCurrentUser(
 // Removes one owned row plus the downloaded footage and the extracted
 // thumbnail (R2 objects + their media rows) — templates/projects built from
 // it keep their timing but lose the original media (UI warns before delete).
-async function destroyViralVideo(userId: string, row: AiVideoViralVideo) {
+// Exported for the creator-delete cascade (imported dynamically there to
+// avoid a static import cycle with creators.ts).
+export async function destroyViralVideo(userId: string, row: AiVideoViralVideo) {
   if (row.mediaId) {
     const [media] = await db
       .select()
@@ -408,9 +413,24 @@ async function processViralVideo(videoId: string, userId: string) {
       }
     }
 
+    // Attach the reel to its creator — handle vs display name is swapped per
+    // platform in yt-dlp metadata (see DownloadedViralVideo).
+    const platform = row.platform as ViralPlatform
+    const creatorId = await upsertCreatorFromReel(userId, platform, {
+      handle:
+        platform === "instagram"
+          ? downloaded.metadata.channelName
+          : downloaded.metadata.uploaderName,
+      displayName:
+        platform === "instagram"
+          ? downloaded.metadata.uploaderName
+          : downloaded.metadata.channelName,
+    })
+
     await updateViralRow(videoId, userId, {
       mediaId,
       thumbnailStoragePath,
+      creatorId,
       title: downloaded.metadata.title,
       author: downloaded.metadata.author,
       durationMs: downloaded.metadata.durationMs,

@@ -271,6 +271,36 @@ export const aiVideoProjects = pgTable(
   ]
 )
 
+export const aiVideoCreators = pgTable(
+  "creators",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    // Stable lowercased platform handle — the upsert key for matching new reels.
+    username: varchar("username", { length: 255 }).notNull(),
+    displayName: varchar("display_name", { length: 255 }),
+    // R2 path of the fetched profile picture (best-effort, may stay null).
+    avatarStoragePath: varchar("avatar_storage_path", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "creators_platform_check",
+      sql`${table.platform} in ('tiktok', 'instagram')`
+    ),
+    unique("creators_user_platform_username_unique").on(
+      table.userId,
+      table.platform,
+      table.username
+    ),
+    index("ix_creators_user_id").on(table.userId),
+  ]
+)
+
 export const aiVideoViralVideos = pgTable(
   "viral_videos",
   {
@@ -296,6 +326,11 @@ export const aiVideoViralVideos = pgTable(
     analysis: jsonb("analysis"),
     // R2 path for the cover-frame JPEG extracted by ffmpeg at ~1s.
     thumbnailStoragePath: varchar("thumbnail_storage_path", { length: 500 }),
+    // The reel's creator, upserted from yt-dlp metadata during processing.
+    creatorId: varchar("creator_id", { length: 36 }).references(
+      () => aiVideoCreators.id,
+      { onDelete: "set null" }
+    ),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -311,6 +346,7 @@ export const aiVideoViralVideos = pgTable(
     index("ix_viral_videos_user_id").on(table.userId),
     index("ix_viral_videos_user_created").on(table.userId, table.createdAt),
     index("ix_viral_videos_media_id").on(table.mediaId),
+    index("ix_viral_videos_creator_id").on(table.creatorId),
   ]
 )
 
@@ -359,6 +395,7 @@ export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
+export type AiVideoCreator = typeof aiVideoCreators.$inferSelect
 export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect
 export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect

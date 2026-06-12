@@ -1,7 +1,9 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import {
   AlertCircleIcon,
   CheckCircle2Icon,
+  ChevronRightIcon,
   FlameIcon,
   GridIcon,
   ListIcon,
@@ -49,6 +51,7 @@ import {
   retryViralVideo,
   type ViralVideoItem,
 } from "@/lib/api/viral-videos"
+import type { CreatorItem } from "@/lib/api/creators"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "list" | "gallery"
@@ -87,7 +90,14 @@ function labelForStatus(status: ViralVideoItem["status"] | null): string {
   return ""
 }
 
-export function ViralArchiveDashboard() {
+// With a `creator`, the dashboard becomes the drill-down level of the
+// Creators parent→child pattern: breadcrumb title, reels filtered to that
+// creator, and no Add Video (reels are added from the main archive).
+export function ViralArchiveDashboard({
+  creator,
+}: {
+  creator?: CreatorItem
+}) {
   const [videos, setVideos] = React.useState<ViralVideoItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
@@ -130,12 +140,15 @@ export function ViralArchiveDashboard() {
   }, [hasProcessing])
 
   const filteredVideos = React.useMemo(() => {
+    const scoped = creator
+      ? videos.filter((v) => v.creator_id === creator.id)
+      : videos
     const query = searchQuery.trim().toLowerCase()
-    if (!query) return videos
-    return videos.filter((v) =>
+    if (!query) return scoped
+    return scoped.filter((v) =>
       `${v.title ?? ""} ${v.author ?? ""} ${v.source_url}`.toLowerCase().includes(query)
     )
-  }, [videos, searchQuery])
+  }, [videos, searchQuery, creator])
 
   const totalPages = Math.ceil(filteredVideos.length / pageSize)
   const paginatedVideos = React.useMemo(() => {
@@ -272,12 +285,33 @@ export function ViralArchiveDashboard() {
           <GridIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
-      <DashboardToolbarButton type="button" onClick={() => setAddModalOpen(true)}>
-        <PlusIcon className="size-4" />
-        Add Video
-      </DashboardToolbarButton>
+      {!creator ? (
+        <DashboardToolbarButton type="button" onClick={() => setAddModalOpen(true)}>
+          <PlusIcon className="size-4" />
+          Add Video
+        </DashboardToolbarButton>
+      ) : null}
     </>
   )
+
+  // Drill-down level renders the hub-style breadcrumb as the table title.
+  const title = creator ? (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <Link to="/admin/creators" className="text-muted-foreground hover:text-foreground">
+        Creators
+      </Link>
+      <ChevronRightIcon className="size-3 text-muted-foreground" />
+      <span className="truncate">{creator.display_name ?? creator.username}</span>
+    </span>
+  ) : (
+    "Viral Archive"
+  )
+
+  const emptyText = loading
+    ? "Loading videos…"
+    : creator
+      ? "No reels from this creator yet."
+      : "No videos yet. Paste a TikTok or Instagram URL to analyze one."
 
   return (
     <div className="w-full pb-8">
@@ -293,7 +327,7 @@ export function ViralArchiveDashboard() {
 
       {viewMode === "gallery" ? (
         <DashboardTable
-          title="Viral Archive"
+          title={title}
           icon={<FlameIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={filteredVideos.length}
           controls={controls}
@@ -303,7 +337,7 @@ export function ViralArchiveDashboard() {
                 <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
                   <div>
                     <FlameIcon className="mx-auto mb-3 size-10" />
-                    <p>{loading ? "Loading videos…" : "No videos yet. Paste a TikTok or Instagram URL to analyze one."}</p>
+                    <p>{emptyText}</p>
                   </div>
                 </div>
               ) : (
@@ -327,7 +361,7 @@ export function ViralArchiveDashboard() {
         />
       ) : (
         <DashboardTable
-          title="Viral Archive"
+          title={title}
           icon={<FlameIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
           count={filteredVideos.length}
           controls={controls}
@@ -351,7 +385,7 @@ export function ViralArchiveDashboard() {
             </TableHeader>
           }
           isEmpty={loading || paginatedVideos.length === 0}
-          emptyText={loading ? "Loading videos..." : "No videos yet. Paste a TikTok or Instagram URL to analyze one."}
+          emptyText={emptyText}
           emptyColSpan={7}
           footer={paginationFooter}
         >
@@ -369,13 +403,15 @@ export function ViralArchiveDashboard() {
         </DashboardTable>
       )}
 
-      <AddVideoModal
-        open={addModalOpen}
-        onOpenChange={(open) => !open && closeAddModal()}
-        processingVideo={addingVideo}
-        onVideoCreated={handleVideoCreated}
-        onViewAnalysis={handleViewAnalysis}
-      />
+      {!creator ? (
+        <AddVideoModal
+          open={addModalOpen}
+          onOpenChange={(open) => !open && closeAddModal()}
+          processingVideo={addingVideo}
+          onVideoCreated={handleVideoCreated}
+          onViewAnalysis={handleViewAnalysis}
+        />
+      ) : null}
 
       <ViralVideoModal
         video={viewTarget}
