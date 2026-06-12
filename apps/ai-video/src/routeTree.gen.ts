@@ -18,7 +18,9 @@ import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminActorRouteImport } from './routes/_authenticated/admin/actor'
+import { Route as AuthenticatedAdminViralArchiveIndexRouteImport } from './routes/_authenticated/admin/viral-archive/index'
 import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor/index'
+import { Route as AuthenticatedAdminTemplatesIndexRouteImport } from './routes/_authenticated/admin/templates/index'
 import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor/$projectId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
@@ -71,10 +73,22 @@ const AuthenticatedAdminActorRoute = AuthenticatedAdminActorRouteImport.update({
   path: '/admin/actor',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminViralArchiveIndexRoute =
+  AuthenticatedAdminViralArchiveIndexRouteImport.update({
+    id: '/admin/viral-archive/',
+    path: '/admin/viral-archive/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminVideoEditorIndexRoute =
   AuthenticatedAdminVideoEditorIndexRouteImport.update({
     id: '/admin/video-editor/',
     path: '/admin/video-editor/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminTemplatesIndexRoute =
+  AuthenticatedAdminTemplatesIndexRouteImport.update({
+    id: '/admin/templates/',
+    path: '/admin/templates/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminVideoEditorProjectIdRoute =
@@ -113,7 +127,9 @@ export interface FileRoutesByFullPath {
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/admin/templates/': typeof AuthenticatedAdminTemplatesIndexRoute
   '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
+  '/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
@@ -128,7 +144,9 @@ export interface FileRoutesByTo {
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/admin/templates': typeof AuthenticatedAdminTemplatesIndexRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
+  '/admin/viral-archive': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
@@ -145,7 +163,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
   '/_authenticated/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/_authenticated/admin/templates/': typeof AuthenticatedAdminTemplatesIndexRoute
   '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
+  '/_authenticated/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -162,7 +182,9 @@ export interface FileRouteTypes {
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/admin/video-editor/$projectId'
+    | '/admin/templates/'
     | '/admin/video-editor/'
+    | '/admin/viral-archive/'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -177,7 +199,9 @@ export interface FileRouteTypes {
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
     | '/admin/video-editor/$projectId'
+    | '/admin/templates'
     | '/admin/video-editor'
+    | '/admin/viral-archive'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
@@ -193,7 +217,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
     | '/_authenticated/admin/video-editor/$projectId'
+    | '/_authenticated/admin/templates/'
     | '/_authenticated/admin/video-editor/'
+    | '/_authenticated/admin/viral-archive/'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
@@ -268,11 +294,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminActorRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/viral-archive/': {
+      id: '/_authenticated/admin/viral-archive/'
+      path: '/admin/viral-archive'
+      fullPath: '/admin/viral-archive/'
+      preLoaderRoute: typeof AuthenticatedAdminViralArchiveIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/video-editor/': {
       id: '/_authenticated/admin/video-editor/'
       path: '/admin/video-editor'
       fullPath: '/admin/video-editor/'
       preLoaderRoute: typeof AuthenticatedAdminVideoEditorIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/templates/': {
+      id: '/_authenticated/admin/templates/'
+      path: '/admin/templates'
+      fullPath: '/admin/templates/'
+      preLoaderRoute: typeof AuthenticatedAdminTemplatesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/video-editor/$projectId': {
@@ -344,7 +384,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  AuthenticatedAdminTemplatesIndexRoute: typeof AuthenticatedAdminTemplatesIndexRoute
   AuthenticatedAdminVideoEditorIndexRoute: typeof AuthenticatedAdminVideoEditorIndexRoute
+  AuthenticatedAdminViralArchiveIndexRoute: typeof AuthenticatedAdminViralArchiveIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -357,8 +399,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminVideoEditorProjectIdRoute:
     AuthenticatedAdminVideoEditorProjectIdRoute,
+  AuthenticatedAdminTemplatesIndexRoute: AuthenticatedAdminTemplatesIndexRoute,
   AuthenticatedAdminVideoEditorIndexRoute:
     AuthenticatedAdminVideoEditorIndexRoute,
+  AuthenticatedAdminViralArchiveIndexRoute:
+    AuthenticatedAdminViralArchiveIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

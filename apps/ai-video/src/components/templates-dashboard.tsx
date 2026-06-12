@@ -2,12 +2,12 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   AlertCircleIcon,
-  ClapperboardIcon,
   EditIcon,
   GridIcon,
+  LayoutTemplateIcon,
   ListIcon,
   Loader2Icon,
-  PlusIcon,
+  PlayIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -40,23 +40,20 @@ import {
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
+import { ViralVideoModal } from "@/components/viral-video-modal"
 import {
-  bulkDeleteProjects,
-  createProject,
-  deleteProject,
-  getProjectErrorMessage,
-  listProjects,
-  renameProject,
-  type ProjectItem,
-} from "@/lib/api/video-projects"
+  bulkDeleteTemplates,
+  createProjectFromTemplate,
+  deleteTemplate,
+  getTemplateErrorMessage,
+  listTemplates,
+  renameTemplate,
+  type TemplateItem,
+} from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
 
 type ViewMode = "gallery" | "list"
-type ProjectSortColumn = "name" | "clips" | "edited"
-type ProjectModalState =
-  | { type: "create" }
-  | { type: "rename"; project: ProjectItem }
-  | null
+type TemplateSortColumn = "name" | "slots" | "created"
 
 const pageSizeOptions = [10, 20, 50]
 
@@ -66,7 +63,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 })
 
-// Timeline length for list rows / gallery tiles, as m:ss.
+// Template length for list rows / gallery tiles, as m:ss.
 function formatDuration(ms: number) {
   const totalSeconds = Math.round(ms / 1000)
   const minutes = Math.floor(totalSeconds / 60)
@@ -74,42 +71,50 @@ function formatDuration(ms: number) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`
 }
 
-// Projects dashboard at /admin/video-editor: lists the user's video projects;
-// opening one launches the editor at /admin/video-editor/$projectId.
-export function ProjectsDashboard() {
+// Templates dashboard at /admin/templates: templates are created from the
+// Viral Archive; "Use" copies one into a fresh project and opens the editor.
+export function TemplatesDashboard() {
   const navigate = useNavigate()
-  const [projects, setProjects] = React.useState<ProjectItem[]>([])
+  const [templates, setTemplates] = React.useState<TemplateItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [modalError, setModalError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [viewMode, setViewMode] = React.useState<ViewMode>("list")
-  const [sortColumn, setSortColumn] = React.useState<ProjectSortColumn>("edited")
+  const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  const [sortColumn, setSortColumn] =
+    React.useState<TemplateSortColumn>("created")
   const [sortDirection, setSortDirection] =
     React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
-  const [modalState, setModalState] = React.useState<ProjectModalState>(null)
+  const [renameTarget, setRenameTarget] = React.useState<TemplateItem | null>(
+    null
+  )
   // Ids queued for deletion (single row or the whole selection).
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [name, setName] = React.useState("")
+  // Template currently being copied into a project (shows its spinner).
+  const [usingId, setUsingId] = React.useState<string | null>(null)
+  // Source viral video id + template id being previewed in the analysis modal.
+  const [viewVideoId, setViewVideoId] = React.useState<string | null>(null)
+  const [viewTemplateId, setViewTemplateId] = React.useState<string | null>(null)
 
   // One-time load; `loading` starts true so no state resets are needed here.
   React.useEffect(() => {
     let active = true
 
-    listProjects()
+    listTemplates()
       .then((data) => {
         if (!active) return
-        setProjects(data.projects)
+        setTemplates(data.templates)
       })
       .catch((loadError) => {
         if (!active) return
-        setError(getProjectErrorMessage(loadError))
+        setError(getTemplateErrorMessage(loadError))
       })
       .finally(() => {
         if (!active) return
@@ -121,28 +126,31 @@ export function ProjectsDashboard() {
     }
   }, [])
 
-  const filteredProjects = React.useMemo(() => {
+  const filteredTemplates = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const direction = sortDirection === "asc" ? 1 : -1
-    return projects
-      .filter((project) => !query || project.name.toLowerCase().includes(query))
+    return templates
+      .filter(
+        (template) => !query || template.name.toLowerCase().includes(query)
+      )
       .sort((a, b) => {
-        if (sortColumn === "clips") return (a.clip_count - b.clip_count) * direction
-        if (sortColumn === "edited")
+        if (sortColumn === "slots")
+          return (a.slot_count - b.slot_count) * direction
+        if (sortColumn === "created")
           return (
-            (new Date(a.updated_at).getTime() -
-              new Date(b.updated_at).getTime()) *
+            (new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime()) *
             direction
           )
         return a.name.localeCompare(b.name) * direction
       })
-  }, [projects, searchQuery, sortColumn, sortDirection])
+  }, [templates, searchQuery, sortColumn, sortDirection])
 
-  const totalPages = Math.ceil(filteredProjects.length / pageSize)
-  const paginatedProjects = React.useMemo(() => {
+  const totalPages = Math.ceil(filteredTemplates.length / pageSize)
+  const paginatedTemplates = React.useMemo(() => {
     const startIndex = (currentPage - 1) * pageSize
-    return filteredProjects.slice(startIndex, startIndex + pageSize)
-  }, [currentPage, filteredProjects, pageSize])
+    return filteredTemplates.slice(startIndex, startIndex + pageSize)
+  }, [currentPage, filteredTemplates, pageSize])
 
   // Filter/sort/page-size changes restart pagination from the first page.
   function updateSearch(value: string) {
@@ -155,7 +163,7 @@ export function ProjectsDashboard() {
     setCurrentPage(1)
   }
 
-  function toggleSort(column: ProjectSortColumn) {
+  function toggleSort(column: TemplateSortColumn) {
     setCurrentPage(1)
     if (sortColumn === column) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
@@ -166,85 +174,78 @@ export function ProjectsDashboard() {
     setSortDirection("asc")
   }
 
-  // Both the row click and the pencil-free tile click land in the editor.
-  function openProject(project: ProjectItem) {
-    void navigate({
-      to: "/admin/video-editor/$projectId",
-      params: { projectId: project.id },
-    })
+  function goToPage(page: number) {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
   }
 
-  function openCreateModal() {
-    setModalState({ type: "create" })
-    setName("")
+  // "Use": copy the template into a new project and open it in the editor.
+  async function handleUseTemplate(template: TemplateItem) {
+    setUsingId(template.id)
+    setError(null)
+    setNotice(null)
+    try {
+      const { projectId } = await createProjectFromTemplate(template.id)
+      void navigate({
+        to: "/admin/video-editor/$projectId",
+        params: { projectId },
+      })
+    } catch (useError) {
+      setError(getTemplateErrorMessage(useError))
+      setUsingId(null)
+    }
+  }
+
+  function openRenameModal(template: TemplateItem) {
+    setRenameTarget(template)
+    setName(template.name)
     setModalError(null)
     setError(null)
     setNotice(null)
   }
 
-  function openRenameModal(project: ProjectItem) {
-    setModalState({ type: "rename", project })
-    setName(project.name)
-    setModalError(null)
-    setError(null)
-    setNotice(null)
-  }
-
-  function closeModal() {
-    setModalState(null)
+  function closeRenameModal() {
+    setRenameTarget(null)
     setSubmitting(false)
     setModalError(null)
   }
 
-  // Create then jump straight into the editor for the new project.
-  async function handleCreateProject() {
-    setSubmitting(true)
-    setModalError(null)
-    try {
-      const created = await createProject(name)
-      void navigate({
-        to: "/admin/video-editor/$projectId",
-        params: { projectId: created.id },
-      })
-    } catch (createError) {
-      setModalError(getProjectErrorMessage(createError))
-      setSubmitting(false)
-    }
-  }
-
-  async function handleRenameProject() {
-    if (modalState?.type !== "rename") return
+  async function handleRenameTemplate() {
+    if (!renameTarget) return
 
     setSubmitting(true)
     setModalError(null)
     try {
-      const updated = await renameProject(modalState.project.id, name)
-      setProjects((current) =>
-        current.map((project) =>
-          project.id === updated.id ? updated : project
+      const updated = await renameTemplate(renameTarget.id, name)
+      // The rename response doesn't join the source video, so keep the
+      // thumbnail the list already has instead of blanking it.
+      setTemplates((current) =>
+        current.map((template) =>
+          template.id === updated.id
+            ? { ...updated, thumbnail_url: template.thumbnail_url }
+            : template
         )
       )
-      setNotice("Project renamed.")
-      closeModal()
+      setNotice("Template renamed.")
+      closeRenameModal()
     } catch (renameError) {
-      setModalError(getProjectErrorMessage(renameError))
+      setModalError(getTemplateErrorMessage(renameError))
       setSubmitting(false)
     }
   }
 
-  function toggleSelected(projectId: string) {
+  function toggleSelected(templateId: string) {
     setSelectedIds((current) => {
       const next = new Set(current)
-      if (next.has(projectId)) {
-        next.delete(projectId)
+      if (next.has(templateId)) {
+        next.delete(templateId)
       } else {
-        next.add(projectId)
+        next.add(templateId)
       }
       return next
     })
   }
 
-  const visibleIds = paginatedProjects.map((project) => project.id)
+  const visibleIds = paginatedTemplates.map((template) => template.id)
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
 
@@ -269,17 +270,17 @@ export function ProjectsDashboard() {
     setNotice(null)
     try {
       if (ids.length === 1) {
-        await deleteProject(ids[0])
-        setNotice("Project deleted.")
+        await deleteTemplate(ids[0])
+        setNotice("Template deleted.")
       } else {
-        const result = await bulkDeleteProjects(ids)
+        const result = await bulkDeleteTemplates(ids)
         setNotice(
-          `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "project" : "projects"}.`
+          `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "template" : "templates"}.`
         )
       }
       const removed = new Set(ids)
-      setProjects((current) =>
-        current.filter((project) => !removed.has(project.id))
+      setTemplates((current) =>
+        current.filter((template) => !removed.has(template.id))
       )
       setSelectedIds((current) => {
         const next = new Set(current)
@@ -288,17 +289,13 @@ export function ProjectsDashboard() {
       })
       setDeleteIds(null)
     } catch (deleteError) {
-      setError(getProjectErrorMessage(deleteError))
+      setError(getTemplateErrorMessage(deleteError))
     } finally {
       setDeleting(false)
     }
   }
 
-  function goToPage(page: number) {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
-  }
-
-  const primaryDisabled = submitting || !name.trim()
+  const renameDisabled = submitting || !name.trim()
   const controls = (
     <>
       {selectedIds.size > 0 ? (
@@ -312,9 +309,9 @@ export function ProjectsDashboard() {
         </DashboardToolbarButton>
       ) : null}
       <DashboardToolbarSearch
-        name="project-search"
-        aria-label="Search projects"
-        placeholder="Search projects..."
+        name="template-search"
+        aria-label="Search templates"
+        placeholder="Search templates..."
         value={searchQuery}
         onChange={(event) => updateSearch(event.target.value)}
       />
@@ -344,10 +341,6 @@ export function ProjectsDashboard() {
           <GridIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
-      <DashboardToolbarButton type="button" onClick={openCreateModal}>
-        <PlusIcon className="size-4" />
-        New Project
-      </DashboardToolbarButton>
     </>
   )
 
@@ -355,7 +348,7 @@ export function ProjectsDashboard() {
     type: "pagination" as const,
     page: currentPage,
     pageSize,
-    total: filteredProjects.length,
+    total: filteredTemplates.length,
     totalPages,
     pageSizeOptions,
     onPageChange: goToPage,
@@ -382,27 +375,29 @@ export function ProjectsDashboard() {
 
       {viewMode === "gallery" ? (
         <DashboardTable
-          title="Projects"
+          title="Templates"
           icon={
-            <ClapperboardIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <LayoutTemplateIcon className="size-4 text-muted-foreground sm:size-[18px]" />
           }
-          count={filteredProjects.length}
+          count={filteredTemplates.length}
           controls={controls}
           content={
             <div className="px-5 pt-3 pb-5">
-              {loading || paginatedProjects.length === 0 ? (
-                <EmptyProjects loading={loading} />
+              {loading || paginatedTemplates.length === 0 ? (
+                <EmptyTemplates loading={loading} />
               ) : (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
-                  {paginatedProjects.map((project) => (
-                    <ProjectGalleryItem
-                      key={project.id}
-                      project={project}
-                      selected={selectedIds.has(project.id)}
-                      onToggle={() => toggleSelected(project.id)}
-                      onOpen={() => openProject(project)}
-                      onRename={() => openRenameModal(project)}
-                      onDelete={() => setDeleteIds([project.id])}
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                  {paginatedTemplates.map((template) => (
+                    <TemplateGalleryItem
+                      key={template.id}
+                      template={template}
+                      using={usingId === template.id}
+                      selected={selectedIds.has(template.id)}
+                      onToggle={() => toggleSelected(template.id)}
+                      onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
+                      onUse={() => handleUseTemplate(template)}
+                      onRename={() => openRenameModal(template)}
+                      onDelete={() => setDeleteIds([template.id])}
                     />
                   ))}
                 </div>
@@ -413,11 +408,11 @@ export function ProjectsDashboard() {
         />
       ) : (
         <DashboardTable
-          title="Projects"
+          title="Templates"
           icon={
-            <ClapperboardIcon className="size-4 text-muted-foreground sm:size-[18px]" />
+            <LayoutTemplateIcon className="size-4 text-muted-foreground sm:size-[18px]" />
           }
-          count={filteredProjects.length}
+          count={filteredTemplates.length}
           controls={controls}
           header={
             <TableHeader>
@@ -426,7 +421,7 @@ export function ProjectsDashboard() {
                   <Checkbox
                     checked={allVisibleSelected}
                     onCheckedChange={toggleVisibleSelected}
-                    aria-label="Select visible projects"
+                    aria-label="Select visible templates"
                   />
                 </TableHead>
                 <TableHead column="main">
@@ -435,59 +430,69 @@ export function ProjectsDashboard() {
                     direction={sortDirection}
                     onClick={() => toggleSort("name")}
                   >
-                    Project
+                    Template
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">
                   <TableSortButton
-                    active={sortColumn === "clips"}
+                    active={sortColumn === "slots"}
                     direction={sortDirection}
-                    onClick={() => toggleSort("clips")}
+                    onClick={() => toggleSort("slots")}
                   >
-                    Clips
+                    Slots
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta" className="hidden lg:table-cell">
                   <TableSortButton
-                    active={sortColumn === "edited"}
+                    active={sortColumn === "created"}
                     direction={sortDirection}
-                    onClick={() => toggleSort("edited")}
+                    onClick={() => toggleSort("created")}
                   >
-                    Last Edited
+                    Created
                   </TableSortButton>
                 </TableHead>
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>
             </TableHeader>
           }
-          isEmpty={loading || paginatedProjects.length === 0}
-          emptyText={loading ? "Loading projects..." : "No projects found."}
+          isEmpty={loading || paginatedTemplates.length === 0}
+          emptyText={
+            loading
+              ? "Loading templates..."
+              : "No templates yet. Create one from a video in the Viral Archive."
+          }
           emptyColSpan={5}
           footer={paginationFooter}
         >
-          {paginatedProjects.map((project) => (
-            <ProjectTableRow
-              key={project.id}
-              project={project}
-              selected={selectedIds.has(project.id)}
-              onToggle={() => toggleSelected(project.id)}
-              onOpen={() => openProject(project)}
-              onRename={() => openRenameModal(project)}
-              onDelete={() => setDeleteIds([project.id])}
+          {paginatedTemplates.map((template) => (
+            <TemplateTableRow
+              key={template.id}
+              template={template}
+              using={usingId === template.id}
+              selected={selectedIds.has(template.id)}
+              onToggle={() => toggleSelected(template.id)}
+              onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
+              onUse={() => handleUseTemplate(template)}
+              onRename={() => openRenameModal(template)}
+              onDelete={() => setDeleteIds([template.id])}
             />
           ))}
         </DashboardTable>
       )}
 
+      <ViralVideoModal
+        videoId={viewVideoId}
+        templateId={viewTemplateId}
+        onOpenChange={(open) => { if (!open) { setViewVideoId(null); setViewTemplateId(null) } }}
+      />
+
       <Dialog
-        open={!!modalState}
-        onOpenChange={(open) => !open && closeModal()}
+        open={!!renameTarget}
+        onOpenChange={(open) => !open && closeRenameModal()}
       >
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>
-              {modalState?.type === "rename" ? "Rename Project" : "New Project"}
-            </DialogTitle>
+            <DialogTitle>Rename Template</DialogTitle>
           </DialogHeader>
           <DialogBody>
             <div className="space-y-5">
@@ -502,19 +507,16 @@ export function ProjectsDashboard() {
               ) : null}
 
               <div className="grid gap-2">
-                <Label htmlFor="project-name">Name</Label>
+                <Label htmlFor="template-rename">Name</Label>
                 <Input
-                  id="project-name"
+                  id="template-rename"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder="Project name"
+                  placeholder="Template name"
                   onKeyDown={(event) => {
                     // Enter submits the single-field form.
-                    if (event.key !== "Enter" || primaryDisabled) return
-                    if (modalState?.type === "rename") {
-                      void handleRenameProject()
-                    } else {
-                      void handleCreateProject()
+                    if (event.key === "Enter" && !renameDisabled) {
+                      void handleRenameTemplate()
                     }
                   }}
                 />
@@ -522,34 +524,19 @@ export function ProjectsDashboard() {
             </div>
           </DialogBody>
           <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeModal}>
+            <Button type="button" variant="outline" onClick={closeRenameModal}>
               Cancel
             </Button>
-            {modalState?.type === "rename" ? (
-              <Button
-                type="button"
-                disabled={primaryDisabled}
-                onClick={handleRenameProject}
-              >
-                {submitting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : null}
-                {submitting ? "Saving" : "Save Changes"}
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                disabled={primaryDisabled}
-                onClick={handleCreateProject}
-              >
-                {submitting ? (
-                  <Loader2Icon className="size-4 animate-spin" />
-                ) : (
-                  <PlusIcon className="size-4" />
-                )}
-                {submitting ? "Creating" : "Create Project"}
-              </Button>
-            )}
+            <Button
+              type="button"
+              disabled={renameDisabled}
+              onClick={handleRenameTemplate}
+            >
+              {submitting ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              {submitting ? "Saving" : "Save Changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -563,8 +550,8 @@ export function ProjectsDashboard() {
             <DialogTitle>
               Delete{" "}
               {(deleteIds?.length ?? 0) === 1
-                ? "Project"
-                : `${deleteIds?.length ?? 0} Projects`}
+                ? "Template"
+                : `${deleteIds?.length ?? 0} Templates`}
               ?
             </DialogTitle>
           </DialogHeader>
@@ -572,9 +559,11 @@ export function ProjectsDashboard() {
             <p className="text-sm text-muted-foreground">
               This removes{" "}
               {(deleteIds?.length ?? 0) === 1
-                ? "the project and its timeline"
-                : "these projects and their timelines"}
-              . This action cannot be undone.
+                ? "the template"
+                : "these templates"}
+              . Projects already created from{" "}
+              {(deleteIds?.length ?? 0) === 1 ? "it" : "them"} are not
+              affected. This action cannot be undone.
             </p>
           </DialogBody>
           <DialogFooter variant="plain">
@@ -603,68 +592,96 @@ export function ProjectsDashboard() {
   )
 }
 
-function ProjectTableRow({
-  project,
+function TemplateTableRow({
+  template,
+  using,
   selected,
   onToggle,
   onOpen,
+  onUse,
   onRename,
   onDelete,
 }: {
-  project: ProjectItem
+  template: TemplateItem
+  using: boolean
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onUse: () => void
   onRename: () => void
   onDelete: () => void
 }) {
+  const canOpen = !!template.source_viral_video_id
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell column="select">
         <Checkbox
           checked={selected}
           onCheckedChange={onToggle}
-          aria-label={`Select ${project.name}`}
+          aria-label={`Select ${template.name}`}
         />
       </TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
-          <button
-            type="button"
-            className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border bg-muted"
-            onClick={onOpen}
-            aria-label={`Open ${project.name}`}
-          >
-            <ClapperboardIcon className="size-5 text-muted-foreground" />
-          </button>
+          <div className="aspect-[9/16] w-9 shrink-0 overflow-hidden rounded-md border bg-muted">
+            {template.thumbnail_url ? (
+              <img
+                src={template.thumbnail_url}
+                alt=""
+                className="size-full object-cover"
+              />
+            ) : (
+              <div className="grid size-full place-items-center">
+                <LayoutTemplateIcon className="size-4 text-muted-foreground" />
+              </div>
+            )}
+          </div>
           <div className="min-w-0">
-            <button
-              type="button"
-              className="truncate font-medium group-hover:underline"
-              onClick={onOpen}
-            >
-              {project.name}
-            </button>
+            {canOpen ? (
+              <button
+                type="button"
+                className="block max-w-full truncate text-left font-medium group-hover:underline"
+                onClick={onOpen}
+              >
+                {template.name}
+              </button>
+            ) : (
+              <div className="truncate font-medium">{template.name}</div>
+            )}
             <div className="text-xs text-muted-foreground">
-              {formatDuration(project.duration_ms)}
+              {formatDuration(template.duration_ms)}
             </div>
           </div>
         </div>
       </TableCell>
       <TableCell column="meta">
-        <Badge variant="outline">{project.clip_count}</Badge>
+        <Badge variant="outline">{template.slot_count}</Badge>
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
-        {dateFormatter.format(new Date(project.updated_at))}
+        {dateFormatter.format(new Date(template.created_at))}
       </TableCell>
       <TableCell column="meta">
         <div className="flex justify-start gap-1">
           <Button
             type="button"
+            size="sm"
+            variant="outline"
+            disabled={using}
+            onClick={onUse}
+          >
+            {using ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <PlayIcon className="size-4" />
+            )}
+            Use
+          </Button>
+          <Button
+            type="button"
             variant="ghost"
             size="icon-sm"
             onClick={onRename}
-            aria-label="Rename project"
+            aria-label="Rename template"
           >
             <EditIcon className="size-4" />
           </Button>
@@ -673,7 +690,7 @@ function ProjectTableRow({
             variant="ghost"
             size="icon-sm"
             onClick={onDelete}
-            aria-label="Delete project"
+            aria-label="Delete template"
           >
             <Trash2Icon className="size-4" />
           </Button>
@@ -683,18 +700,22 @@ function ProjectTableRow({
   )
 }
 
-function ProjectGalleryItem({
-  project,
+function TemplateGalleryItem({
+  template,
+  using,
   selected,
   onToggle,
   onOpen,
+  onUse,
   onRename,
   onDelete,
 }: {
-  project: ProjectItem
+  template: TemplateItem
+  using: boolean
   selected: boolean
   onToggle: () => void
   onOpen: () => void
+  onUse: () => void
   onRename: () => void
   onDelete: () => void
 }) {
@@ -705,71 +726,93 @@ function ProjectGalleryItem({
         selected && "border-destructive ring-2 ring-destructive/25"
       )}
     >
+      {/* Preview — clicking opens the analysis modal, same as the title */}
       <button
         type="button"
-        className="relative grid aspect-video w-full place-items-center bg-muted"
-        onClick={onOpen}
-        aria-label={`Open ${project.name}`}
+        className="relative block aspect-[3/4] w-full overflow-hidden bg-muted"
+        onClick={template.source_viral_video_id ? onOpen : undefined}
+        aria-label={template.source_viral_video_id ? `View ${template.name}` : undefined}
       >
-        <ClapperboardIcon className="size-8 text-muted-foreground" />
-        <span className="absolute bottom-2 left-2">
-          <Badge variant="secondary">{formatDuration(project.duration_ms)}</Badge>
+        {template.thumbnail_url ? (
+          <img src={template.thumbnail_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="grid h-full w-full place-items-center">
+            <LayoutTemplateIcon className="size-8 text-muted-foreground" />
+          </div>
+        )}
+        {/* Duration badge bottom-left */}
+        <span className="absolute bottom-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
+          {formatDuration(template.duration_ms)}
+        </span>
+        {/* Slot count badge bottom-right */}
+        <span className="absolute bottom-2 right-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
+          {template.slot_count} slots
         </span>
       </button>
-      <div className="space-y-1 bg-card p-3">
-        <button
-          type="button"
-          className="block max-w-full truncate text-left text-sm font-medium hover:underline"
-          onClick={onOpen}
-        >
-          {project.name}
-        </button>
-        <p className="text-xs text-muted-foreground">
-          Edited {dateFormatter.format(new Date(project.updated_at))}
-        </p>
-      </div>
-      <div className="absolute right-2 top-2 flex shrink-0 items-center gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+
+      {/* Hover actions — top-right (stay visible while selected) */}
+      <div
+        className={cn(
+          "absolute right-2 top-2 flex items-center gap-1 rounded-md bg-background/90 p-1 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100",
+          selected ? "opacity-100" : "opacity-0"
+        )}
+      >
         <div className="flex h-8 w-8 items-center justify-center">
           <Checkbox
             checked={selected}
             onCheckedChange={onToggle}
             className="border-foreground"
-            aria-label={`Select ${project.name}`}
+            aria-label={`Select ${template.name}`}
           />
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={onRename}
-          aria-label="Rename project"
-        >
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onRename} aria-label="Rename template">
           <EditIcon className="size-4" />
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={onDelete}
-          aria-label="Delete project"
-        >
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete template">
           <Trash2Icon className="size-4" />
         </Button>
+      </div>
+
+      <div className="bg-card p-3">
+        {template.source_viral_video_id ? (
+          <button
+            type="button"
+            className="block w-full truncate text-left text-sm font-medium hover:underline"
+            onClick={onOpen}
+          >
+            {template.name}
+          </button>
+        ) : (
+          <div className="truncate text-sm font-medium">{template.name}</div>
+        )}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {dateFormatter.format(new Date(template.created_at))}
+          </p>
+          <Button type="button" size="sm" variant="outline" disabled={using} onClick={onUse}>
+            {using ? <Loader2Icon className="size-3 animate-spin" /> : <PlayIcon className="size-3" />}
+            Use
+          </Button>
+        </div>
       </div>
     </div>
   )
 }
 
-function EmptyProjects({ loading }: { loading: boolean }) {
+function EmptyTemplates({ loading }: { loading: boolean }) {
   return (
     <div className="grid h-72 place-items-center text-center text-sm text-muted-foreground">
       <div>
         {loading ? (
           <Loader2Icon className="mx-auto mb-3 size-10 animate-spin" />
         ) : (
-          <ClapperboardIcon className="mx-auto mb-3 size-10" />
+          <LayoutTemplateIcon className="mx-auto mb-3 size-10" />
         )}
-        <p>{loading ? "Loading projects..." : "No projects found."}</p>
+        <p>
+          {loading
+            ? "Loading templates..."
+            : "No templates yet. Create one from a video in the Viral Archive."}
+        </p>
       </div>
     </div>
   )

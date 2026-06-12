@@ -51,12 +51,11 @@ import {
 } from "@/pages/video-editor/timeline-utils"
 
 // Extra lane width past the final clip so edits have room to grow.
-const TIMELINE_TAIL_MS = 5_000
+const TIMELINE_TAIL_MS = 1_000
 
-// Shortest ruler shown for empty/short projects — also the window fitted to
-// the visible width on mount, so clips up to this long add no horizontal
-// scrolling at the default zoom.
-const MIN_VISIBLE_MS = 120_000
+// Window fitted to the visible width when an empty project mounts (no content
+// to derive a zoom from).
+const EMPTY_FIT_MS = 60_000
 
 // Playback speeds the "1x" button cycles through.
 const PLAYBACK_RATES = [1, 1.5, 2, 0.5]
@@ -82,7 +81,26 @@ export function EditorTimeline({
   // don't force a layout (getBoundingClientRect) per event.
   const scrubLeft = React.useRef(0)
 
-  const visibleMs = Math.max(durationMs + TIMELINE_TAIL_MS, MIN_VISIBLE_MS)
+  // Track the panel width so short projects still get ruler ticks and scrub
+  // space wall-to-wall — without forcing a scroll range past the content.
+  const [scrollerWidth, setScrollerWidth] = React.useState(0)
+  React.useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const observer = new ResizeObserver(() =>
+      setScrollerWidth(scroller.clientWidth)
+    )
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [])
+
+  // Scrollable span: the content plus a small tail, padded up to (but never
+  // past) whatever fills the visible panel at the current zoom.
+  const fillMs = pxToMs(
+    Math.max(0, scrollerWidth - TIMELINE_GUTTER_PX),
+    state.pxPerSecond
+  )
+  const visibleMs = Math.max(durationMs + TIMELINE_TAIL_MS, fillMs)
   const contentWidth =
     TIMELINE_GUTTER_PX + msToPx(visibleMs, state.pxPerSecond)
 
@@ -139,12 +157,22 @@ export function EditorTimeline({
     [dispatch]
   )
 
-  // --- Fit the default 60s window to the visible width once on mount ------
+  // --- Fit the project to the visible width once on mount -----------------
   // (so the timeline loads without a horizontal scrollbar at any size)
+  // didFit flips inside the frame callback (not before): a durationMs change
+  // re-runs the effect and cancels a still-pending frame, and flipping early
+  // would leave the timeline never fitted at all.
+  const didFitRef = React.useRef(false)
   React.useEffect(() => {
-    const id = requestAnimationFrame(() => fitZoomTo(MIN_VISIBLE_MS))
+    if (didFitRef.current) return
+    const target =
+      durationMs > 0 ? durationMs + TIMELINE_TAIL_MS : EMPTY_FIT_MS
+    const id = requestAnimationFrame(() => {
+      didFitRef.current = true
+      fitZoomTo(target)
+    })
     return () => cancelAnimationFrame(id)
-  }, [fitZoomTo])
+  }, [fitZoomTo, durationMs])
 
   // --- Keep the playhead in view while playing ----------------------------
   const pxPerSecondRef = React.useRef(state.pxPerSecond)

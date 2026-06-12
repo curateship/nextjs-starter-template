@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   CopyIcon,
   GripVerticalIcon,
+  ReplaceIcon,
   Trash2Icon,
   TypeIcon,
   Volume2Icon,
@@ -35,6 +36,10 @@ import {
   pxToMs,
   TRACK_HEIGHT_PX,
 } from "@/pages/video-editor/timeline-utils"
+import {
+  ReplaceMediaDialog,
+  type ReplacementMedia,
+} from "@/pages/video-editor/replace-media-dialog"
 import { getVideoThumbnail } from "@/pages/video-editor/video-thumbnails"
 
 // Repeating dark "film frames" with thin separators — the placeholder shown
@@ -265,6 +270,8 @@ function TimelineClipChip({
   const pxPerSecond = state.pxPerSecond
   const chipRef = React.useRef<HTMLDivElement>(null)
   const drag = React.useRef<DragState | null>(null)
+  // Template-slot replacement picker (only rendered for replaceable clips).
+  const [replaceOpen, setReplaceOpen] = React.useState(false)
 
   const leftPx = msToPx(clip.startMs, pxPerSecond)
   const widthPx = msToPx(clip.durationMs, pxPerSecond)
@@ -449,7 +456,15 @@ function TimelineClipChip({
           ? tileBackground(clip.url)
           : undefined
 
+  // Swap the slot's media in place; the dialog lives outside the chip node so
+  // its pointer events never reach the drag handlers.
+  function handleReplace(media: ReplacementMedia) {
+    dispatch({ type: "REPLACE_CLIP_MEDIA", clipId: clip.id, media })
+    setReplaceOpen(false)
+  }
+
   return (
+    <>
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
@@ -494,6 +509,25 @@ function TimelineClipChip({
         </div>
       )}
 
+      {/* Template slot extras: role label + hover Replace button */}
+      {clip.segmentLabel ? (
+        <span className="pointer-events-none absolute left-2 top-1 rounded bg-black/50 px-1 text-[10px] font-medium uppercase tracking-wide text-white/90">
+          {clip.segmentLabel}
+        </span>
+      ) : null}
+      {clip.replaceable && clip.kind === "video" && !state.cutMode ? (
+        <button
+          type="button"
+          className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-cyan-500 px-2 py-0.5 text-[10px] font-semibold text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100 hover:bg-cyan-400"
+          // Don't start a clip drag or lane seek from the button.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setReplaceOpen(true)}
+        >
+          <ReplaceIcon className="size-3" aria-hidden="true" />
+          Replace
+        </button>
+      ) : null}
+
       {/* Trim handles (visible on hover/selection) */}
       {(["trim-start", "trim-end"] as const).map((mode) => (
         <div
@@ -532,5 +566,13 @@ function TimelineClipChip({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+    {clip.replaceable && clip.kind === "video" ? (
+      <ReplaceMediaDialog
+        open={replaceOpen}
+        onOpenChange={setReplaceOpen}
+        onReplace={handleReplace}
+      />
+    ) : null}
+    </>
   )
 }

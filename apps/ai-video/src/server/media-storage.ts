@@ -73,3 +73,32 @@ export async function getFromR2(storagePath: string, range?: string | null) {
     })
   )
 }
+
+// Collect a GetObject response body into bytes; the SDK's stream type varies
+// by runtime, so probe its transform helpers.
+export async function bodyToBytes(body: unknown): Promise<Uint8Array> {
+  if (
+    body &&
+    typeof body === "object" &&
+    "transformToByteArray" in body &&
+    typeof body.transformToByteArray === "function"
+  ) {
+    return body.transformToByteArray() as Promise<Uint8Array>
+  }
+
+  if (
+    body &&
+    typeof body === "object" &&
+    "transformToWebStream" in body &&
+    typeof body.transformToWebStream === "function"
+  ) {
+    const stream = body.transformToWebStream() as ReadableStream
+    return new Uint8Array(await new Response(stream).arrayBuffer())
+  }
+
+  if (body instanceof Uint8Array) {
+    return body
+  }
+
+  throw new Error("Failed to read stored file")
+}

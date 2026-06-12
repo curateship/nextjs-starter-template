@@ -24,6 +24,9 @@ const clipSchema = z.object({
   text: z.string().max(5000).optional(),
   fontSize: z.number().finite().optional(),
   color: z.string().max(32).optional(),
+  // Template slot flags (see EditorClip).
+  replaceable: z.boolean().optional(),
+  segmentLabel: z.string().max(100).optional(),
 })
 
 const timelineSchema = z.object({
@@ -135,4 +138,21 @@ export function saveProjectTimeline(
 
 export function deleteProject(projectId: string) {
   return deleteProjectFn({ data: { projectId } })
+}
+
+const bulkDeleteProjectsFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      projectIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+    })
+  )
+  .handler(async ({ data }): Promise<{ deletedCount: number }> => {
+    const { deleteProjectsForCurrentUser } = await import(
+      "@/server/video-projects"
+    )
+    return deleteProjectsForCurrentUser(data.projectIds)
+  })
+
+export function bulkDeleteProjects(projectIds: string[]) {
+  return bulkDeleteProjectsFn({ data: { projectIds } })
 }

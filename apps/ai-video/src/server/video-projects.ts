@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm"
+import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
@@ -71,8 +71,9 @@ function cleanProjectName(value: string) {
 }
 
 // Derives the dashboard stats (clip count, timeline length) from the stored
-// timeline JSON without trusting its shape.
-function summarizeTimeline(timeline: unknown) {
+// timeline JSON without trusting its shape. Shared with video-templates,
+// which stores the same timeline shape.
+export function summarizeTimeline(timeline: unknown) {
   let clipCount = 0
   let durationMs = 0
   const tracks = (timeline as ProjectTimeline | null)?.tracks
@@ -222,4 +223,23 @@ export async function deleteProjectForCurrentUser(
     )
 
   return { projectId }
+}
+
+export async function deleteProjectsForCurrentUser(
+  projectIds: string[]
+): Promise<{ deletedCount: number }> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const uniqueIds = Array.from(new Set(projectIds))
+  const rows = await db
+    .delete(aiVideoProjects)
+    .where(
+      and(
+        eq(aiVideoProjects.userId, user.id),
+        inArray(aiVideoProjects.id, uniqueIds)
+      )
+    )
+    .returning({ id: aiVideoProjects.id })
+
+  return { deletedCount: rows.length }
 }

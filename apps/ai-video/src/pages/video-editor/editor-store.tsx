@@ -26,6 +26,10 @@ export type EditorClip = {
   text?: string
   fontSize?: number
   color?: string
+  // Template slots (CapCut-style): hover shows a Replace button that swaps
+  // the media while the slot keeps its timeline position and length.
+  replaceable?: boolean
+  segmentLabel?: string
 }
 
 export type EditorTrack = {
@@ -61,6 +65,17 @@ export type EditorAction =
     }
   | { type: "SPLIT_CLIP"; clipId: string; atMs: number }
   | { type: "DUPLICATE_CLIP"; clipId: string }
+  // Swap a template slot's media; the slot keeps its start and (clamped) length.
+  | {
+      type: "REPLACE_CLIP_MEDIA"
+      clipId: string
+      media: {
+        mediaId: string
+        url: string
+        name: string
+        sourceDurationMs: number
+      }
+    }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -278,6 +293,29 @@ export function editorReducer(
         clips: sortClips([...t.clips, { ...found.clip, startMs: start }]),
       }))
       return pushUndo(state, tracks)
+    }
+
+    case "REPLACE_CLIP_MEDIA": {
+      const found = findClip(state.tracks, action.clipId)
+      if (!found || found.clip.kind !== "video") return state
+      const replaced: EditorClip = {
+        ...found.clip,
+        mediaId: action.media.mediaId,
+        url: action.media.url,
+        name: action.media.name,
+        sourceDurationMs: action.media.sourceDurationMs,
+        trimStartMs: 0,
+        // Shorter replacements can't fill the slot — clamp instead of looping.
+        durationMs: Math.min(
+          found.clip.durationMs,
+          action.media.sourceDurationMs
+        ),
+      }
+      const tracks = withTrack(state.tracks, found.track.id, (t) => ({
+        ...t,
+        clips: t.clips.map((c) => (c.id === action.clipId ? replaced : c)),
+      }))
+      return { ...pushUndo(state, tracks), selectedClipId: action.clipId }
     }
 
     case "UPDATE_CLIP": {

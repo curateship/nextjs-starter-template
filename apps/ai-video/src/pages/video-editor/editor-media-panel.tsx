@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -41,6 +42,7 @@ import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
   DEFAULT_IMAGE_DURATION_MS,
   editorId,
+  loadMediaDurationMs,
   pxToMs,
 } from "@/pages/video-editor/timeline-utils"
 
@@ -355,8 +357,12 @@ export function EditorMediaPanel() {
         )}
       </div>
 
-      {/* Scrollable media list */}
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 pt-0">
+      {/* Scrollable media list. Radix wraps content in an inline-styled
+          display:table div that sizes to the tiles' intrinsic width — force
+          it back to a block pinned to the panel width (! beats the inline
+          style) so the columns stay constrained. */}
+      <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:w-full">
+        <div className="p-3 pt-0">
         {error ? (
           <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
             {error}
@@ -387,7 +393,9 @@ export function EditorMediaPanel() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          // CSS columns give each tile its natural height (portrait reels stay
+          // portrait) without same-row gaps a grid would leave.
+          <div className="columns-2 gap-2">
             {visibleMedia.map((item) => (
               <MediaThumbnail
                 key={item.id}
@@ -397,7 +405,8 @@ export function EditorMediaPanel() {
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </ScrollArea>
     </section>
   )
 }
@@ -412,9 +421,9 @@ function MediaThumbnail({
   handlers: React.DOMAttributes<HTMLDivElement>
 }) {
   return (
-    <div className="space-y-1">
+    <div className="mb-2 break-inside-avoid space-y-1">
       <div
-        className="group relative aspect-video cursor-grab touch-none overflow-hidden rounded-md border bg-muted select-none active:cursor-grabbing"
+        className="group relative min-h-10 cursor-grab touch-none overflow-hidden rounded-md border bg-muted select-none active:cursor-grabbing"
         title="Click to add at the playhead, or drag onto the timeline"
         {...handlers}
       >
@@ -422,7 +431,7 @@ function MediaThumbnail({
           <>
             <video
               src={item.url}
-              className="h-full w-full object-cover"
+              className="block w-full"
               muted
               preload="metadata"
             />
@@ -432,7 +441,7 @@ function MediaThumbnail({
           <img
             src={item.url}
             alt={item.alt_text ?? item.original_name}
-            className="h-full w-full object-cover"
+            className="block w-full"
             draggable={false}
           />
         )}
@@ -515,19 +524,4 @@ async function buildMediaClip(item: MediaItem): Promise<EditorClip> {
     startMs: 0, // the reducer resolves the actual placement
     durationMs: sourceDurationMs,
   }
-}
-
-// Load just enough metadata to read the duration of a video/audio URL.
-function loadMediaDurationMs(url: string, kind: "video" | "audio") {
-  return new Promise<number>((resolve, reject) => {
-    const el = document.createElement(kind)
-    el.preload = "metadata"
-    el.onloadedmetadata = () => {
-      const ms = Math.round(el.duration * 1000)
-      // Streams can report Infinity/NaN — fall back to a usable default.
-      resolve(Number.isFinite(ms) && ms > 0 ? ms : 5000)
-    }
-    el.onerror = () => reject(new Error(`Could not load ${kind} metadata`))
-    el.src = url
-  })
 }

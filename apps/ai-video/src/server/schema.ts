@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -270,6 +271,71 @@ export const aiVideoProjects = pgTable(
   ]
 )
 
+export const aiVideoViralVideos = pgTable(
+  "viral_videos",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    sourceUrl: text("source_url").notNull(),
+    platform: varchar("platform", { length: 20 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    error: text("error"),
+    // The downloaded reel, ingested as a regular media row.
+    mediaId: varchar("media_id", { length: 36 }).references(
+      () => aiVideoMedia.id,
+      { onDelete: "set null" }
+    ),
+    title: varchar("title", { length: 500 }),
+    author: varchar("author", { length: 255 }),
+    durationMs: integer("duration_ms"),
+    // Engagement metadata from the platform: { views, likes, comments, postedAt }
+    stats: jsonb("stats"),
+    // Gemini breakdown: { transcript: [...], segments: [...], scenes: [...] }
+    analysis: jsonb("analysis"),
+    // R2 path for the cover-frame JPEG extracted by ffmpeg at ~1s.
+    thumbnailStoragePath: varchar("thumbnail_storage_path", { length: 500 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "viral_videos_platform_check",
+      sql`${table.platform} in ('tiktok', 'instagram')`
+    ),
+    check(
+      "viral_videos_status_check",
+      sql`${table.status} in ('downloading', 'analyzing', 'ready', 'error')`
+    ),
+    index("ix_viral_videos_user_id").on(table.userId),
+    index("ix_viral_videos_user_created").on(table.userId, table.createdAt),
+    index("ix_viral_videos_media_id").on(table.mediaId),
+  ]
+)
+
+export const aiVideoTemplates = pgTable(
+  "video_templates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    sourceViralVideoId: varchar("source_viral_video_id", {
+      length: 36,
+    }).references(() => aiVideoViralVideos.id, { onDelete: "set null" }),
+    // Editor timeline with replaceable slot clips: { tracks, aspect }
+    timeline: jsonb("timeline").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_templates_user_id").on(table.userId),
+    index("ix_video_templates_user_created").on(table.userId, table.createdAt),
+  ]
+)
+
 export const aiVideoActorGenerationEvents = pgTable(
   "actor_generation_events",
   {
@@ -293,6 +359,8 @@ export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
+export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect
+export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment =
   typeof aiVideoFeedbackComments.$inferSelect

@@ -66,3 +66,19 @@ export function formatTimecode(ms: number) {
 export function editorId() {
   return crypto.randomUUID()
 }
+
+// Load just enough metadata to read the duration of a video/audio URL.
+// Used when adding media to the timeline and when replacing template slots.
+export function loadMediaDurationMs(url: string, kind: "video" | "audio") {
+  return new Promise<number>((resolve, reject) => {
+    const el = document.createElement(kind)
+    el.preload = "metadata"
+    el.onloadedmetadata = () => {
+      const ms = Math.round(el.duration * 1000)
+      // Streams can report Infinity/NaN — fall back to a usable default.
+      resolve(Number.isFinite(ms) && ms > 0 ? ms : 5000)
+    }
+    el.onerror = () => reject(new Error(`Could not load ${kind} metadata`))
+    el.src = url
+  })
+}

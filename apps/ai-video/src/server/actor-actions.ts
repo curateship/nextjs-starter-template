@@ -14,6 +14,7 @@ import {
 import { db } from "@/server/db"
 import { getOwnedMedia } from "@/server/media"
 import {
+  bodyToBytes,
   deleteFromR2,
   getFromR2,
   R2StorageNotConfiguredError,
@@ -336,33 +337,6 @@ async function enforceActorGenerationRateLimit(userId: string) {
       createdAt: currentTime,
     })
   })
-}
-
-async function bodyToBytes(body: unknown) {
-  if (
-    body &&
-    typeof body === "object" &&
-    "transformToByteArray" in body &&
-    typeof body.transformToByteArray === "function"
-  ) {
-    return body.transformToByteArray() as Promise<Uint8Array>
-  }
-
-  if (
-    body &&
-    typeof body === "object" &&
-    "transformToWebStream" in body &&
-    typeof body.transformToWebStream === "function"
-  ) {
-    const stream = body.transformToWebStream() as ReadableStream
-    return new Uint8Array(await new Response(stream).arrayBuffer())
-  }
-
-  if (body instanceof Uint8Array) {
-    return body
-  }
-
-  throw new Error("Failed to load reference image")
 }
 
 function actorImageStoragePath(
