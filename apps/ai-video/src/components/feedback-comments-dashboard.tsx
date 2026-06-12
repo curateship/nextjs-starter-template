@@ -59,6 +59,7 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
 import { useShellRuntime } from "@/components/shell-layout"
 import { cn } from "@/lib/utils"
+import { dateFormatter } from "@/lib/dashboard-format"
 
 type FeedbackPeriod = "1year" | "3months" | "30days"
 type CommentSortColumn = "message" | "feedback" | "type" | "author" | "created"
@@ -96,12 +97,6 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
   praise:
     "border-green-200 bg-green-100 text-green-900 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
 }
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 export function FeedbackCommentsDashboard() {
   const { config } = useShellRuntime()

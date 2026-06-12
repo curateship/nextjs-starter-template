@@ -61,6 +61,7 @@ import {
 } from "@/lib/api/actors"
 import type { MediaItem } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
+import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 
 type ViewMode = "gallery" | "list"
 type StatusFilter = "all" | ActorStatus
@@ -71,18 +72,10 @@ type ActorModalState =
   | null
 type SubmitAction = "generate" | "save" | "regenerate"
 
-const pageSizeOptions = [10, 20, 50]
-
 const statusLabels: Record<ActorStatus, string> = {
   active: "Active",
   inactive: "Inactive",
 }
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 export function ActorDashboard() {
   const [actors, setActors] = React.useState<ActorItem[]>([])

@@ -56,6 +56,7 @@ import {
 } from "@/lib/api/feedback"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
 import { useShellRuntime } from "@/components/shell-layout"
+import { dateFormatter } from "@/lib/dashboard-format"
 
 const feedbackTypeLabels: Record<FeedbackType, string> = {
   suggestion: "Suggestion",
@@ -86,12 +87,6 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
 const pageSizeOptions = [...DASHBOARD_ROWS_PER_PAGE_OPTIONS]
 
 type FeedbackSortColumn = "message" | "type" | "author" | "created" | "comments" | "votes"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 type FeedbackDashboardProps = {
   refreshToken: number

@@ -11,7 +11,7 @@ import { db } from "@/server/db"
 import { bodyToBytes, getFromR2, uploadToR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/security"
+import { now, requireUser } from "@/server/security"
 import type { ProjectTimeline } from "@/server/video-projects"
 import type {
   AspectRatio,
@@ -57,14 +57,6 @@ export type ProjectRenderInfo = {
   status: "idle" | "rendering" | "ready" | "error"
   error: string | null
   rendered_at: string | null
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }
 
 async function getOwnedProject(userId: string, projectId: string) {

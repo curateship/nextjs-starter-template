@@ -23,7 +23,7 @@ import {
   aiVideoViralVideoStats,
   type AiVideoViralVideo,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 import { analyzeViralVideo, type ViralVideoAnalysis } from "@/server/video-analysis"
 import {
   detectViralPlatform,
@@ -71,14 +71,6 @@ export type ViralVideoDetail = ViralVideoItem & {
 
 export type ViralVideoListResponse = {
   videos: ViralVideoItem[]
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }
 
 // Owned-row lookup; throws when the video doesn't exist or isn't the user's.

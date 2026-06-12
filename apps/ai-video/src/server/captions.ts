@@ -5,13 +5,11 @@ import { db } from "@/server/db"
 import { bodyToBytes, getFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
-import { findCurrentUser } from "@/server/security"
+import { requireUser } from "@/server/security"
 import {
-  ANALYSIS_MODEL,
   deleteGeminiFile,
-  GEMINI_BASE_URL,
+  generateJson,
   requireGeminiKey,
-  safeBody,
   uploadFileToGemini,
   waitForFileActive,
 } from "@/server/video-analysis"
@@ -35,18 +33,6 @@ const captionsSchema = z.object({
     )
     .max(1000),
 })
-
-type GeminiGenerateResponse = {
-  candidates?: { content?: { parts?: { text?: string }[] } }[]
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
-}
 
 function captionsPrompt(durationMs: number | null) {
   const durationLine = durationMs
@@ -148,54 +134,15 @@ async function transcribeWithGemini(
 
   try {
     await waitForFileActive(file.name, apiKey)
-
-    const response = await fetch(
-      `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { file_data: { file_uri: file.uri, mime_type: mimeType } },
-                { text: captionsPrompt(durationMs) },
-              ],
-            },
-          ],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
-      }
+    const result = await generateJson(
+      [
+        { file_data: { file_uri: file.uri, mime_type: mimeType } },
+        { text: captionsPrompt(durationMs) },
+      ],
+      captionsSchema,
+      "Caption generation"
     )
-
-    if (!response.ok) {
-      console.error("Gemini captions failed", await safeBody(response))
-      throw new Error(`Caption generation failed (HTTP ${response.status})`)
-    }
-
-    const payload = (await response.json()) as GeminiGenerateResponse
-    const text = (payload.candidates?.[0]?.content?.parts ?? [])
-      .map((part) => part.text ?? "")
-      .join("")
-    if (!text) {
-      throw new Error("Caption generation returned no result")
-    }
-
-    let parsedJson: unknown
-    try {
-      parsedJson = JSON.parse(text)
-    } catch {
-      throw new Error("Caption generation returned invalid JSON")
-    }
-
-    const parsed = captionsSchema.safeParse(parsedJson)
-    if (!parsed.success) {
-      throw new Error("Caption generation returned an unexpected shape")
-    }
-    return parsed.data.captions
+    return result.captions
   } finally {
     await deleteGeminiFile(file.name, apiKey)
   }

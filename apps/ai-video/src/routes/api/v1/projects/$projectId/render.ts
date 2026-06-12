@@ -4,6 +4,7 @@ import { db } from "@/server/db"
 import {
   getFromR2,
   R2StorageNotConfiguredError,
+  toBodyInit,
 } from "@/server/media-storage"
 import { aiVideoProjects } from "@/server/schema"
 import { findCurrentUser } from "@/server/security"
@@ -84,17 +85,3 @@ export const Route = createFileRoute("/api/v1/projects/$projectId/render")({
     },
   },
 })
-
-// Same stream coercion as the media file route: the SDK body exposes a web
-// stream via transformToWebStream in this runtime.
-function toBodyInit(body: unknown): BodyInit {
-  if (
-    body &&
-    typeof body === "object" &&
-    "transformToWebStream" in body &&
-    typeof body.transformToWebStream === "function"
-  ) {
-    return body.transformToWebStream() as ReadableStream
-  }
-  return body as BodyInit
-}

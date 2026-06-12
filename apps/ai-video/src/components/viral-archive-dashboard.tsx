@@ -61,28 +61,11 @@ import {
 } from "@/lib/api/viral-videos"
 import type { CreatorItem } from "@/lib/api/creators"
 import { cn } from "@/lib/utils"
+import { PLATFORM_LABELS, dateFormatter, formatCount, pageSizeOptions } from "@/lib/dashboard-format"
 
 type ViewMode = "list" | "gallery"
 
-const pageSizeOptions = [10, 20, 50]
 const POLL_INTERVAL_MS = 3000
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
-const compactFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-})
-
-function formatCount(value: number | null) {
-  return value === null ? "—" : compactFormatter.format(value)
-}
-
-const PLATFORM_LABELS = { tiktok: "TikTok", instagram: "Instagram" } as const
 
 function progressForStatus(status: ViralVideoItem["status"] | null): number {
   if (status === "downloading") return 35

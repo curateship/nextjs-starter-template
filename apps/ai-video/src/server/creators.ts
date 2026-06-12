@@ -9,7 +9,7 @@ import {
   aiVideoViralVideos,
   type AiVideoCreator,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 import type { ViralPlatform } from "@/server/video-download"
 
 // Creator rows are auto-managed: the viral pipeline upserts them from yt-dlp
@@ -31,14 +31,6 @@ export type CreatorItem = {
 
 export type CreatorListResponse = {
   creators: CreatorItem[]
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }
 
 function serializeCreator(

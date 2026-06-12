@@ -8,14 +8,8 @@ import {
   aiVideoTemplates,
   aiVideoViralVideos,
 } from "@/server/schema"
-import { findCurrentUser } from "@/server/security"
-import {
-  ANALYSIS_MODEL,
-  GEMINI_BASE_URL,
-  requireGeminiKey,
-  safeBody,
-  type ViralVideoAnalysis,
-} from "@/server/video-analysis"
+import { requireUser } from "@/server/security"
+import { generateJson, type ViralVideoAnalysis } from "@/server/video-analysis"
 
 // One beat of the generated script. Role and timing come verbatim from the
 // source reel's analyzed segments — only the line text is model-written, so
@@ -40,18 +34,6 @@ const scriptSchema = z.object({
     )
     .max(100),
 })
-
-type GeminiGenerateResponse = {
-  candidates?: { content?: { parts?: { text?: string }[] } }[]
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
-}
 
 const NOT_TEMPLATE_ERROR =
   "This project wasn't created from an analyzed template"
@@ -173,45 +155,10 @@ async function generateScriptLines(
   topic: string,
   notes: string | undefined
 ) {
-  const apiKey = requireGeminiKey()
-  const response = await fetch(
-    `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: scriptPrompt(analysis, topic, notes) }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    }
+  const result = await generateJson(
+    [{ text: scriptPrompt(analysis, topic, notes) }],
+    scriptSchema,
+    "Script generation"
   )
-
-  if (!response.ok) {
-    console.error("Gemini script generation failed", await safeBody(response))
-    throw new Error(`Script generation failed (HTTP ${response.status})`)
-  }
-
-  const payload = (await response.json()) as GeminiGenerateResponse
-  const text = (payload.candidates?.[0]?.content?.parts ?? [])
-    .map((part) => part.text ?? "")
-    .join("")
-  if (!text) {
-    throw new Error("Script generation returned no result")
-  }
-
-  let parsedJson: unknown
-  try {
-    parsedJson = JSON.parse(text)
-  } catch {
-    throw new Error("Script generation returned invalid JSON")
-  }
-
-  const parsed = scriptSchema.safeParse(parsedJson)
-  if (!parsed.success) {
-    throw new Error("Script generation returned an unexpected shape")
-  }
-  return parsed.data.beats
+  return result.beats
 }

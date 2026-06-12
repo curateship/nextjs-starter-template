@@ -22,7 +22,7 @@ import {
 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoActorGenerationEvents, aiVideoActors } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 
 const ACTOR_GENERATION_LIMIT = 10
 const ACTOR_GENERATION_WINDOW_MS = 60 * 60 * 1000
@@ -206,14 +206,6 @@ export async function deleteActorForCurrentUser(actorId: string) {
   }
 
   return { actorId: row.id }
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }
 
 async function resolveReferenceMedia(userId: string, mediaId?: string | null) {

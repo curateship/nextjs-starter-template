@@ -103,6 +103,58 @@ Rules:
 - "scenes": the visual shot boundaries, contiguous from 0 to the end of the video. A new scene starts ONLY at a real visual cut or camera/shot change — locate the actual cut points and use their exact timestamps. NEVER divide the video into equal-length intervals; scene lengths should vary like real edits do. If the whole video is one continuous shot, return a single scene covering it.`
 }
 
+// One generateContent round-trip that must return JSON matching `schema`.
+// `label` prefixes every error ("Video analysis", "Caption generation", …) so
+// the lib/api safe-error sets keep their exact message strings.
+export async function generateJson<T>(
+  parts: unknown[],
+  schema: z.ZodType<T>,
+  label: string
+): Promise<T> {
+  const apiKey = requireGeminiKey()
+  const response = await fetch(
+    `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { responseMimeType: "application/json" },
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    // Surface the status + Google's error body in the server log.
+    console.error(`Gemini ${label} failed`, await safeBody(response))
+    throw new Error(`${label} failed (HTTP ${response.status})`)
+  }
+
+  const payload = (await response.json()) as GeminiGenerateResponse
+  const text = (payload.candidates?.[0]?.content?.parts ?? [])
+    .map((part) => part.text ?? "")
+    .join("")
+  if (!text) {
+    throw new Error(`${label} returned no result`)
+  }
+
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new Error(`${label} returned invalid JSON`)
+  }
+
+  const parsed = schema.safeParse(raw)
+  if (!parsed.success) {
+    throw new Error(`${label} returned an unexpected shape`)
+  }
+  return parsed.data
+}
+
 // Full pipeline: upload the video bytes to the Gemini Files API, wait until
 // processed, run one generateContent call, validate + clamp the JSON.
 export async function analyzeViralVideo(
@@ -115,56 +167,15 @@ export async function analyzeViralVideo(
 
   try {
     await waitForFileActive(file.name, apiKey)
-
-    const response = await fetch(
-      `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { file_data: { file_uri: file.uri, mime_type: mimeType } },
-                { text: analysisPrompt(durationMs) },
-              ],
-            },
-          ],
-          generationConfig: { responseMimeType: "application/json" },
-        }),
-      }
+    const analysis = await generateJson(
+      [
+        { file_data: { file_uri: file.uri, mime_type: mimeType } },
+        { text: analysisPrompt(durationMs) },
+      ],
+      analysisSchema,
+      "Video analysis"
     )
-
-    if (!response.ok) {
-      // Surface the status + Google's error body in the archive row.
-      console.error("Gemini generateContent failed", await safeBody(response))
-      throw new Error(`Video analysis failed (HTTP ${response.status})`)
-    }
-
-    const payload = (await response.json()) as GeminiGenerateResponse
-    const text = (payload.candidates?.[0]?.content?.parts ?? [])
-      .map((part) => part.text ?? "")
-      .join("")
-    if (!text) {
-      throw new Error("Video analysis returned no result")
-    }
-
-    let raw: unknown
-    try {
-      raw = JSON.parse(text)
-    } catch {
-      throw new Error("Video analysis returned invalid JSON")
-    }
-
-    const parsed = analysisSchema.safeParse(raw)
-    if (!parsed.success) {
-      throw new Error("Video analysis returned an unexpected shape")
-    }
-
-    return cleanAnalysis(parsed.data, durationMs)
+    return cleanAnalysis(analysis, durationMs)
   } finally {
     // Files auto-expire after 48h, but don't leave them lying around.
     await deleteGeminiFile(file.name, apiKey)

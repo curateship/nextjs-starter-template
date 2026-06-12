@@ -50,6 +50,7 @@ import {
   type FeedbackType,
 } from "@/lib/api/feedback"
 import { cn } from "@/lib/utils"
+import { dateFormatter } from "@/lib/dashboard-format"
 
 const feedbackTypes: Array<{ type: FeedbackType; label: string }> = [
   { type: "suggestion", label: "Suggestion" },
@@ -83,12 +84,6 @@ const feedbackTypeClassNames: Record<FeedbackType, string> = {
   praise:
     "border-green-200 bg-green-100 text-green-900 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/50 dark:text-green-200",
 }
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 function getInitial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?"

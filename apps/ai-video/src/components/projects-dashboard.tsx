@@ -50,6 +50,7 @@ import {
   type ProjectItem,
 } from "@/lib/api/video-projects"
 import { cn } from "@/lib/utils"
+import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 
 type ViewMode = "gallery" | "list"
 type ProjectSortColumn = "name" | "clips" | "edited"
@@ -57,14 +58,6 @@ type ProjectModalState =
   | { type: "create" }
   | { type: "rename"; project: ProjectItem }
   | null
-
-const pageSizeOptions = [10, 20, 50]
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 // Timeline length for list rows / gallery tiles, as m:ss.
 function formatDuration(ms: number) {

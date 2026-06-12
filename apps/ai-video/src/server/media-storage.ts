@@ -74,6 +74,20 @@ export async function getFromR2(storagePath: string, range?: string | null) {
   )
 }
 
+// Coerce a GetObject body into something `new Response()` accepts — the SDK
+// exposes a web stream via transformToWebStream in this runtime.
+export function toBodyInit(body: unknown): BodyInit {
+  if (
+    body &&
+    typeof body === "object" &&
+    "transformToWebStream" in body &&
+    typeof body.transformToWebStream === "function"
+  ) {
+    return body.transformToWebStream() as ReadableStream
+  }
+  return body as BodyInit
+}
+
 // Collect a GetObject response body into bytes; the SDK's stream type varies
 // by runtime, so probe its transform helpers.
 export async function bodyToBytes(body: unknown): Promise<Uint8Array> {

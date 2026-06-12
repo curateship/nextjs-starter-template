@@ -62,6 +62,7 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
 import { cn } from "@/lib/utils"
 import { useShellRuntime } from "@/components/shell-layout"
+import { dateFormatter } from "@/lib/dashboard-format"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
@@ -84,12 +85,6 @@ const sortableMediaColumns: {
   { by: "file_size", label: "Size", column: "meta", className: "hidden md:table-cell" },
   { by: "created_at", label: "Added", column: "meta", className: "hidden lg:table-cell" },
 ]
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const { config } = useShellRuntime()

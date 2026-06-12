@@ -3,7 +3,7 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 import { db } from "@/server/db"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 import type {
   AspectRatio,
   EditorTrack,
@@ -36,14 +36,6 @@ export type ProjectListResponse = {
 
 // New projects start empty; the editor falls back to its default lanes.
 const EMPTY_TIMELINE: ProjectTimeline = { tracks: [], aspect: "16:9" }
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
-}
 
 // Owned-row lookup; throws when the project doesn't exist or isn't the user's.
 async function getOwnedProject(userId: string, projectId: string) {

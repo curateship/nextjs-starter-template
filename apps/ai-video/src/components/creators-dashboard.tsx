@@ -40,16 +40,7 @@ import {
   syncCreatorWatch,
   type CreatorItem,
 } from "@/lib/api/creators"
-
-const pageSizeOptions = [10, 20, 50]
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
-const PLATFORM_LABELS = { tiktok: "TikTok", instagram: "Instagram" } as const
+import { PLATFORM_LABELS, dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 
 // Two-letter initials for the avatar fallback when no picture was fetched.
 function creatorInitials(creator: CreatorItem) {

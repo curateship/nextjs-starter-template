@@ -32,17 +32,7 @@ import {
   getTemplateErrorMessage,
 } from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-
-const compactFormatter = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-})
+import { dateFormatter, formatCount } from "@/lib/dashboard-format"
 
 // Badge tint per narrative role so the pattern reads at a glance.
 const ROLE_BADGE_CLASSES: Record<SegmentRole, string> = {
@@ -71,12 +61,6 @@ function formatTimecode(ms: number) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds - minutes * 60
   return `${minutes}:${seconds < 10 ? "0" : ""}${seconds.toFixed(1)}`
-}
-
-function formatCount(value: number | null | undefined) {
-  return value === null || value === undefined
-    ? "—"
-    : compactFormatter.format(value)
 }
 
 // Fetch outcome tagged with its video id so a stale result from a previously

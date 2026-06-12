@@ -4,6 +4,7 @@ import { getOwnedMedia } from "@/server/media"
 import {
   getFromR2,
   R2StorageNotConfiguredError,
+  toBodyInit,
 } from "@/server/media-storage"
 import { findCurrentUser } from "@/server/security"
 
@@ -69,16 +70,3 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
     },
   },
 })
-
-function toBodyInit(body: unknown): BodyInit {
-  if (
-    body &&
-    typeof body === "object" &&
-    "transformToWebStream" in body &&
-    typeof body.transformToWebStream === "function"
-  ) {
-    return body.transformToWebStream() as ReadableStream
-  }
-
-  return body as BodyInit
-}

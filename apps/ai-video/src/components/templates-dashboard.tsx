@@ -51,17 +51,10 @@ import {
   type TemplateItem,
 } from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
+import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 
 type ViewMode = "gallery" | "list"
 type TemplateSortColumn = "name" | "slots" | "created"
-
-const pageSizeOptions = [10, 20, 50]
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
 
 // Template length for list rows / gallery tiles, as m:ss.
 function formatDuration(ms: number) {

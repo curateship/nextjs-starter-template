@@ -10,7 +10,7 @@ import {
   aiVideoViralVideos,
   type AiVideoTemplate,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 import { summarizeTimeline, type ProjectTimeline } from "@/server/video-projects"
 import type { ViralVideoAnalysis } from "@/server/video-analysis"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
@@ -32,14 +32,6 @@ export type TemplateItem = {
 
 export type TemplateListResponse = {
   templates: TemplateItem[]
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }
 
 // Owned-row lookup; throws when the template doesn't exist or isn't the user's.

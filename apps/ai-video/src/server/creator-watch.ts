@@ -7,7 +7,7 @@ import {
   aiVideoViralVideos,
   aiVideoViralVideoStats,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 import {
   fetchViralVideoStats,
   listRecentUploads,
@@ -33,14 +33,6 @@ export type WatchSyncResult = {
   checked: number
   added: number
   statsUpdated: number
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }
 
 // Toggle auto-ingestion for one creator.

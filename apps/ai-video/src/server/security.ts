@@ -33,6 +33,16 @@ export function uuid() {
   return randomUUID()
 }
 
+// Shared session gate for server modules: returns the signed-in user or
+// throws the standard error every lib/api safe-error set already knows.
+export async function requireUser() {
+  const user = await findCurrentUser()
+  if (!user) {
+    throw new Error("Missing AI Video session")
+  }
+  return user
+}
+
 export function createSessionToken() {
   return randomUUID() + randomUUID()
 }

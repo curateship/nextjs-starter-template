@@ -1,5 +1,4 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { TableCell, TableRow } from "@/components/ui/table"
 
 export function ShellLoadingSkeleton() {
   return (
@@ -39,33 +38,6 @@ export function LoginLoadingSkeleton() {
         </div>
       </div>
     </main>
-  )
-}
-
-type TableRowsSkeletonColumn = {
-  cellClassName?: string
-  skeletonClassName: string
-}
-
-export function TableRowsSkeleton({
-  columns,
-  rows = 6,
-}: {
-  columns: TableRowsSkeletonColumn[]
-  rows?: number
-}) {
-  return (
-    <>
-      {Array.from({ length: rows }).map((_, index) => (
-        <TableRow key={index}>
-          {columns.map((column, columnIndex) => (
-            <TableCell key={columnIndex} className={column.cellClassName}>
-              <Skeleton className={column.skeletonClassName} />
-            </TableCell>
-          ))}
-        </TableRow>
-      ))}
-    </>
   )
 }
 
