@@ -12,7 +12,7 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 
-export const customShellUsers = pgTable("custom_shell_users", {
+export const customShellUsers = pgTable("users", {
   id: varchar("id", { length: 36 }).primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -23,7 +23,7 @@ export const customShellUsers = pgTable("custom_shell_users", {
 })
 
 export const customShellSessions = pgTable(
-  "custom_shell_sessions",
+  "sessions",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 })
@@ -34,14 +34,14 @@ export const customShellSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_custom_shell_sessions_user_id").on(table.userId),
-    index("ix_custom_shell_sessions_token_hash").on(table.tokenHash),
-    index("ix_custom_shell_sessions_expires_at").on(table.expiresAt),
+    index("ix_sessions_user_id").on(table.userId),
+    index("ix_sessions_token_hash").on(table.tokenHash),
+    index("ix_sessions_expires_at").on(table.expiresAt),
   ]
 )
 
 export const customShellSettings = pgTable(
-  "custom_shell_settings",
+  "settings",
   {
     key: text("key").primaryKey(),
     settings: jsonb("settings").notNull(),
@@ -49,12 +49,12 @@ export const customShellSettings = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("custom_shell_settings_default_key", sql`${table.key} = 'default'`),
+    check("settings_default_key", sql`${table.key} = 'default'`),
   ]
 )
 
 export const customShellWorkspaces = pgTable(
-  "custom_shell_workspaces",
+  "workspaces",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 })
@@ -67,12 +67,12 @@ export const customShellWorkspaces = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_custom_shell_workspaces_user_id").on(table.userId),
+    index("ix_workspaces_user_id").on(table.userId),
   ]
 )
 
 export const customShellFeedback = pgTable(
-  "custom_shell_feedback",
+  "feedback",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 })
@@ -85,16 +85,16 @@ export const customShellFeedback = pgTable(
   },
   (table) => [
     check(
-      "custom_shell_feedback_type_check",
+      "feedback_type_check",
       sql`${table.type} in ('suggestion', 'bug_report', 'question', 'praise')`
     ),
-    index("ix_custom_shell_feedback_user_id").on(table.userId),
-    index("ix_custom_shell_feedback_type").on(table.type),
+    index("ix_feedback_user_id").on(table.userId),
+    index("ix_feedback_type").on(table.type),
   ]
 )
 
 export const customShellFeedbackVotes = pgTable(
-  "custom_shell_feedback_votes",
+  "feedback_votes",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     feedbackId: varchar("feedback_id", { length: 36 })
@@ -106,17 +106,17 @@ export const customShellFeedbackVotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("custom_shell_feedback_votes_unique_user").on(
+    unique("feedback_votes_unique_user").on(
       table.feedbackId,
       table.userId
     ),
-    index("ix_custom_shell_feedback_votes_feedback_id").on(table.feedbackId),
-    index("ix_custom_shell_feedback_votes_user_id").on(table.userId),
+    index("ix_feedback_votes_feedback_id").on(table.feedbackId),
+    index("ix_feedback_votes_user_id").on(table.userId),
   ]
 )
 
 export const customShellFeedbackComments = pgTable(
-  "custom_shell_feedback_comments",
+  "feedback_comments",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     feedbackId: varchar("feedback_id", { length: 36 })
@@ -130,14 +130,14 @@ export const customShellFeedbackComments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    index("ix_custom_shell_feedback_comments_feedback_id").on(table.feedbackId),
-    index("ix_custom_shell_feedback_comments_user_id").on(table.userId),
-    index("ix_custom_shell_feedback_comments_created_at").on(table.createdAt),
+    index("ix_feedback_comments_feedback_id").on(table.feedbackId),
+    index("ix_feedback_comments_user_id").on(table.userId),
+    index("ix_feedback_comments_created_at").on(table.createdAt),
   ]
 )
 
 export const customShellNotifications = pgTable(
-  "custom_shell_notifications",
+  "notifications",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     recipientUserId: varchar("recipient_user_id", { length: 36 })
@@ -164,23 +164,23 @@ export const customShellNotifications = pgTable(
   },
   (table) => [
     check(
-      "custom_shell_notifications_type_check",
+      "notifications_type_check",
       sql`${table.type} in ('feedback_vote', 'feedback_comment')`
     ),
-    index("ix_custom_shell_notifications_recipient_created").on(
+    index("ix_notifications_recipient_created").on(
       table.recipientUserId,
       table.createdAt
     ),
-    index("ix_custom_shell_notifications_feedback_id").on(table.feedbackId),
-    index("ix_custom_shell_notifications_vote_id").on(table.feedbackVoteId),
-    index("ix_custom_shell_notifications_comment_id").on(
+    index("ix_notifications_feedback_id").on(table.feedbackId),
+    index("ix_notifications_vote_id").on(table.feedbackVoteId),
+    index("ix_notifications_comment_id").on(
       table.feedbackCommentId
     ),
   ]
 )
 
 export const customShellMedia = pgTable(
-  "custom_shell_media",
+  "media",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     userId: varchar("user_id", { length: 36 })
@@ -198,13 +198,13 @@ export const customShellMedia = pgTable(
   },
   (table) => [
     check(
-      "custom_shell_media_file_type_check",
+      "media_file_type_check",
       sql`${table.fileType} in ('image', 'video')`
     ),
-    index("ix_custom_shell_media_user_id").on(table.userId),
-    index("ix_custom_shell_media_file_type").on(table.fileType),
-    index("ix_custom_shell_media_created_at").on(table.createdAt),
-    index("ix_custom_shell_media_user_type_created").on(
+    index("ix_media_user_id").on(table.userId),
+    index("ix_media_file_type").on(table.fileType),
+    index("ix_media_created_at").on(table.createdAt),
+    index("ix_media_user_type_created").on(
       table.userId,
       table.fileType,
       table.createdAt

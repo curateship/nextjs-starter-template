@@ -1,6 +1,6 @@
-CREATE TABLE IF NOT EXISTS "custom_shell_workspaces" (
+CREATE TABLE IF NOT EXISTS "workspaces" (
   "id" varchar(36) PRIMARY KEY NOT NULL,
-  "user_id" varchar(36) NOT NULL REFERENCES "custom_shell_users"("id") ON DELETE CASCADE,
+  "user_id" varchar(36) NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
   "name" varchar(255) NOT NULL,
   "settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
   "is_default" boolean DEFAULT false NOT NULL,
@@ -8,10 +8,10 @@ CREATE TABLE IF NOT EXISTS "custom_shell_workspaces" (
   "updated_at" timestamp with time zone NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS "ix_custom_shell_workspaces_user_id" ON "custom_shell_workspaces" ("user_id");
-CREATE UNIQUE INDEX IF NOT EXISTS "ux_custom_shell_workspaces_one_default_per_user" ON "custom_shell_workspaces" ("user_id") WHERE "is_default";
+CREATE INDEX IF NOT EXISTS "ix_workspaces_user_id" ON "workspaces" ("user_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "ux_workspaces_one_default_per_user" ON "workspaces" ("user_id") WHERE "is_default";
 
-INSERT INTO "custom_shell_workspaces" (
+INSERT INTO "workspaces" (
   "id",
   "user_id",
   "name",
@@ -22,31 +22,31 @@ INSERT INTO "custom_shell_workspaces" (
 )
 SELECT
   gen_random_uuid()::text,
-  "custom_shell_users"."id",
-  COALESCE(NULLIF("custom_shell_settings"."settings"->>'workspaceName', ''), 'My project'),
+  "users"."id",
+  COALESCE(NULLIF("settings"."settings"->>'workspaceName', ''), 'My project'),
   jsonb_build_object(
     'icon', 'briefcaseBusiness',
     'favicon', CASE
-      WHEN COALESCE("custom_shell_settings"."settings"->>'favicon', '') LIKE '/api/v1/media/%' THEN ''
-      ELSE COALESCE("custom_shell_settings"."settings"->>'favicon', '')
+      WHEN COALESCE("settings"."settings"->>'favicon', '') LIKE '/api/v1/media/%' THEN ''
+      ELSE COALESCE("settings"."settings"->>'favicon', '')
     END,
-    'topNavigation', COALESCE("custom_shell_settings"."settings"->'topNavigation', '[]'::jsonb),
+    'topNavigation', COALESCE("settings"."settings"->'topNavigation', '[]'::jsonb),
     'topRightNavigation', COALESCE(
-      "custom_shell_settings"."settings"->'topRightNavigation',
+      "settings"."settings"->'topRightNavigation',
       '[{"id":"feedback","visible":true},{"id":"theme","visible":true},{"id":"notifications","visible":true}]'::jsonb
     ),
     'sections', COALESCE(
-      "custom_shell_settings"."settings"->'sections',
+      "settings"."settings"->'sections',
       '[{"id":"section-platform-settings","title":"Platform Settings","entries":[{"type":"item","id":"item-settings","label":"Settings","href":"/admin/settings","icon":"settings","visible":true}]}]'::jsonb
     )
   ),
   true,
   NOW(),
   NOW()
-FROM "custom_shell_users"
-LEFT JOIN "custom_shell_settings" ON "custom_shell_settings"."key" = 'default'
+FROM "users"
+LEFT JOIN "settings" ON "settings"."key" = 'default'
 WHERE NOT EXISTS (
   SELECT 1
-  FROM "custom_shell_workspaces"
-  WHERE "custom_shell_workspaces"."user_id" = "custom_shell_users"."id"
+  FROM "workspaces"
+  WHERE "workspaces"."user_id" = "users"."id"
 );
