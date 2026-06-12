@@ -1,11 +1,13 @@
 import * as React from "react"
 import { useRouter } from "@tanstack/react-router"
 import {
+  ActivityIcon,
   GlobeIcon,
   Loader2Icon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
+  UploadIcon,
 } from "lucide-react"
 
 import { DashboardTable } from "@/components/dashboard-table"
@@ -36,18 +38,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import {
   createProxy,
   deleteProxy,
   getProxyErrorMessage,
+  importProxies,
+  testProxy,
   updateProxy,
   type ProxyItem,
+  type ProxyProtocol,
+  type ProxyTestResult,
 } from "@/lib/api/proxies"
 
 // Port lives as a string in the form so the input can be empty mid-typing.
 type ProxyForm = {
   label: string
   type: ProxyItem["type"]
+  protocol: ProxyProtocol
   host: string
   port: string
   username: string
@@ -58,6 +66,7 @@ type ProxyForm = {
 const emptyForm: ProxyForm = {
   label: "",
   type: "residential",
+  protocol: "http",
   host: "",
   port: "",
   username: "",
@@ -69,6 +78,12 @@ const typeLabels: Record<ProxyItem["type"], string> = {
   residential: "Residential",
   mobile: "Mobile",
   datacenter: "Datacenter",
+}
+
+const protocolLabels: Record<ProxyProtocol, string> = {
+  http: "HTTP",
+  https: "HTTPS",
+  socks5: "SOCKS5",
 }
 
 export function ProxiesDashboard({
@@ -85,6 +100,13 @@ export function ProxiesDashboard({
   )
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  // Which row is currently running a connection test (one at a time).
+  const [testingId, setTestingId] = React.useState<string | null>(null)
+  // Bulk-import dialog state.
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [importText, setImportText] = React.useState("")
+  const [importBusy, setImportBusy] = React.useState(false)
+  const [importError, setImportError] = React.useState<string | null>(null)
 
   function openCreateForm() {
     setEditing(null)
@@ -99,6 +121,7 @@ export function ProxiesDashboard({
     setForm({
       label: proxy.label,
       type: proxy.type,
+      protocol: proxy.protocol,
       host: proxy.host,
       port: String(proxy.port),
       username: proxy.username ?? "",
@@ -125,6 +148,7 @@ export function ProxiesDashboard({
       const input = {
         label,
         type: form.type,
+        protocol: form.protocol,
         host,
         port,
         username: form.username.trim() || undefined,
@@ -161,6 +185,37 @@ export function ProxiesDashboard({
     }
   }
 
+  // Probe one proxy's connection; the persisted result re-renders its badge.
+  async function testOne(proxy: ProxyItem) {
+    setTestingId(proxy.id)
+    setError(null)
+    try {
+      await testProxy(proxy.id)
+      await router.invalidate()
+    } catch (err) {
+      setError(getProxyErrorMessage(err))
+    } finally {
+      setTestingId(null)
+    }
+  }
+
+  async function runImport() {
+    const text = importText.trim()
+    if (!text) return setImportError("Paste at least one proxy line")
+    setImportBusy(true)
+    setImportError(null)
+    try {
+      await importProxies(text)
+      await router.invalidate()
+      setImportOpen(false)
+      setImportText("")
+    } catch (err) {
+      setImportError(getProxyErrorMessage(err))
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
   return (
     <div className="w-full pb-8">
       {error ? <Message>{error}</Message> : null}
@@ -170,23 +225,38 @@ export function ProxiesDashboard({
         icon={<GlobeIcon className="size-4 text-muted-foreground sm:size-[18px]" />}
         count={proxies.length}
         controls={
-          <DashboardToolbarButton type="button" onClick={openCreateForm}>
-            <PlusIcon className="size-4" />
-            Add Proxy
-          </DashboardToolbarButton>
+          <>
+            <DashboardToolbarButton
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setImportError(null)
+                setImportText("")
+                setImportOpen(true)
+              }}
+            >
+              <UploadIcon className="size-4" />
+              Import
+            </DashboardToolbarButton>
+            <DashboardToolbarButton type="button" onClick={openCreateForm}>
+              <PlusIcon className="size-4" />
+              Add Proxy
+            </DashboardToolbarButton>
+          </>
         }
         header={
           <TableHeader>
             <TableRow>
               <TableHead column="main">Proxy</TableHead>
               <TableHead column="meta">Endpoint</TableHead>
+              <TableHead column="meta">Test</TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
           </TableHeader>
         }
         isEmpty={proxies.length === 0}
         emptyText="No proxies yet. Add one so profiles can route through it."
-        emptyColSpan={3}
+        emptyColSpan={4}
         footer={{ type: "summary", count: proxies.length, label: "proxies" }}
       >
         {proxies.map((proxy) => (
@@ -199,7 +269,7 @@ export function ProxiesDashboard({
                 <div className="min-w-0">
                   <div className="truncate font-medium">{proxy.label}</div>
                   <div className="text-xs text-muted-foreground">
-                    {typeLabels[proxy.type]}
+                    {typeLabels[proxy.type]} · {protocolLabels[proxy.protocol]}
                     {proxy.country ? ` · ${proxy.country}` : ""}
                   </div>
                 </div>
@@ -211,7 +281,32 @@ export function ProxiesDashboard({
               </span>
             </TableCell>
             <TableCell column="meta">
+              {testingId === proxy.id ? (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                  Testing…
+                </span>
+              ) : (
+                <TestBadge result={proxy.last_test_result} />
+              )}
+            </TableCell>
+            <TableCell column="meta">
               <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void testOne(proxy)}
+                  disabled={testingId === proxy.id}
+                  aria-label={`Test ${proxy.label}`}
+                  title={`Test ${proxy.label}`}
+                >
+                  {testingId === proxy.id ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <ActivityIcon className="size-4" />
+                  )}
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"
@@ -278,6 +373,37 @@ export function ProxiesDashboard({
               </Select>
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="proxy-protocol">Protocol</Label>
+              <Select
+                value={form.protocol}
+                disabled={busy}
+                onValueChange={(value) =>
+                  setForm({ ...form, protocol: value as ProxyProtocol })
+                }
+              >
+                <SelectTrigger id="proxy-protocol" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(protocolLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="proxy-country">Country (ISO-2)</Label>
+              <Input
+                id="proxy-country"
+                value={form.country}
+                disabled={busy}
+                placeholder="US"
+                onChange={(e) => setForm({ ...form, country: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="proxy-host">Host</Label>
               <Input
                 id="proxy-host"
@@ -318,16 +444,6 @@ export function ProxiesDashboard({
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="proxy-country">Country (ISO-2)</Label>
-              <Input
-                id="proxy-country"
-                value={form.country}
-                disabled={busy}
-                placeholder="US"
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-              />
-            </div>
           </DialogBody>
           <DialogFooter variant="plain">
             <>
@@ -342,6 +458,54 @@ export function ProxiesDashboard({
               <Button type="button" disabled={busy} onClick={() => void saveProxy()}>
                 {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
                 {busy ? "Saving..." : "Save"}
+              </Button>
+            </>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Import Proxies</DialogTitle>
+            <DialogDescription>
+              One per line as <span className="font-mono">host:port:user:pass</span>{" "}
+              (user:pass optional). Imported as Residential · HTTP — edit any after.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {importError ? <Message>{importError}</Message> : null}
+            <Textarea
+              value={importText}
+              disabled={importBusy}
+              rows={8}
+              spellCheck={false}
+              className="font-mono text-xs"
+              placeholder={"proxy.example.com:8080:user:pass\n198.51.100.10:3128"}
+              onChange={(e) => setImportText(e.target.value)}
+            />
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={importBusy}
+                onClick={() => setImportOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={importBusy}
+                onClick={() => void runImport()}
+              >
+                {importBusy ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <UploadIcon className="size-4" />
+                )}
+                {importBusy ? "Importing..." : "Import"}
               </Button>
             </>
           </DialogFooter>
@@ -398,6 +562,31 @@ export function ProxiesDashboard({
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// Renders the stored result of the last connection test: green country+latency on
+// success, a red "Failed" (with the error in its tooltip) on failure.
+function TestBadge({ result }: { result: ProxyTestResult | null }) {
+  if (!result) {
+    return <span className="text-xs text-muted-foreground">Untested</span>
+  }
+  if (!result.ok) {
+    return (
+      <Badge variant="destructive" title={result.error ?? "Failed"}>
+        Failed
+      </Badge>
+    )
+  }
+  const tooltip = [result.ip, result.isp, result.timezone]
+    .filter(Boolean)
+    .join(" · ")
+  return (
+    <Badge variant="outline" className="gap-1.5" title={tooltip || undefined}>
+      <span className="size-1.5 rounded-full bg-emerald-500" />
+      {result.country ?? "OK"}
+      {typeof result.latencyMs === "number" ? ` · ${result.latencyMs}ms` : ""}
+    </Badge>
   )
 }
 

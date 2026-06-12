@@ -1,7 +1,12 @@
 import { and, desc, eq } from "drizzle-orm"
 
 import { db, type Db } from "@/server/db"
-import { encryptSecret } from "@/server/encryption"
+import { decryptSecret, encryptSecret } from "@/server/encryption"
+import {
+  testProxyConnection,
+  type ProxyProtocol,
+  type ProxyTestResult,
+} from "@/server/proxy-test"
 import { proxies, type Proxy } from "@/server/schema"
 import { now, uuid } from "@/server/security"
 
@@ -10,6 +15,7 @@ export type ProxyType = "residential" | "mobile" | "datacenter"
 export type ProxyInput = {
   label: string
   type: ProxyType
+  protocol: ProxyProtocol
   host: string
   port: number
   username?: string | null
@@ -50,6 +56,7 @@ export async function createUserProxy(
       userId,
       label: label.slice(0, 255),
       type: input.type,
+      protocol: input.protocol,
       host: host.slice(0, 255),
       port: input.port,
       username: input.username?.trim()
@@ -88,6 +95,7 @@ export async function updateUserProxy(
   const updates = {
     label: label.slice(0, 255),
     type: input.type,
+    protocol: input.protocol,
     host: host.slice(0, 255),
     port: input.port,
     username: input.username?.trim()
@@ -137,10 +145,104 @@ export function serializeProxy(row: Proxy) {
     id: row.id,
     label: row.label,
     type: row.type as ProxyType,
+    protocol: row.protocol as ProxyProtocol,
     host: row.host,
     port: row.port,
     username: row.username,
     country: row.country,
+    // last_test_result holds no secrets — safe to surface so the UI can badge it.
+    last_test_result: (row.lastTestResult as ProxyTestResult | null) ?? null,
+    last_tested_at: row.lastTestedAt ? row.lastTestedAt.toISOString() : null,
     created_at: row.createdAt.toISOString(),
   }
+}
+
+// Routes a probe through the proxy, records the result, and (when the proxy has
+// no country set yet) back-fills it from a successful geo lookup. Ownership is
+// the userId in the WHERE — a foreign id finds nothing and throws.
+export async function testUserProxy(
+  userId: string,
+  proxyId: string,
+  database: Db = db
+): Promise<ProxyTestResult> {
+  const [proxy] = await database
+    .select()
+    .from(proxies)
+    .where(and(eq(proxies.id, proxyId), eq(proxies.userId, userId)))
+    .limit(1)
+  if (!proxy) throw new Error("Proxy not found")
+
+  const result = await testProxyConnection({
+    protocol: (proxy.protocol as ProxyProtocol) ?? "http",
+    host: proxy.host,
+    port: proxy.port,
+    username: proxy.username,
+    password: decryptSecret(proxy.password),
+  })
+
+  const testedAt = now()
+  await database
+    .update(proxies)
+    .set({
+      lastTestedAt: testedAt,
+      lastTestResult: result,
+      updatedAt: testedAt,
+      // Non-destructive geo-detect: only fill country when it was blank.
+      ...(result.ok && result.country && !proxy.country
+        ? { country: result.country }
+        : {}),
+    })
+    .where(and(eq(proxies.id, proxyId), eq(proxies.userId, userId)))
+
+  return result
+}
+
+// Bulk-imports proxies from pasted "host:port:user:pass" lines (user:pass
+// optional; colons in the password are preserved). Defaults type=residential,
+// protocol=http, label=host — all editable afterward. All-or-nothing: one bad
+// line throws before anything is inserted.
+export async function createUserProxiesBulk(
+  userId: string,
+  text: string,
+  database: Db = db
+) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length === 0) throw new Error("No proxies to import")
+  if (lines.length > 500) throw new Error("Import is limited to 500 proxies at once")
+
+  const createdAt = now()
+  const rows = lines.map((line) => {
+    const parts = line.split(":")
+    if (parts.length < 2) {
+      throw new Error(`Invalid line (need host:port): ${line}`)
+    }
+    const [host, portStr, username, ...passwordParts] = parts
+    const port = Number.parseInt(portStr, 10)
+    if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error(`Invalid host or port: ${line}`)
+    }
+    const password = passwordParts.join(":") || null
+    return {
+      id: uuid(),
+      userId,
+      label: host.slice(0, 255),
+      type: "residential" as ProxyType,
+      protocol: "http" as ProxyProtocol,
+      host: host.slice(0, 255),
+      port,
+      username: username ? username.slice(0, 255) : null,
+      password: encryptSecret(password),
+      country: null,
+      lastTestedAt: null,
+      lastTestResult: null,
+      createdAt,
+      updatedAt: createdAt,
+    }
+  })
+
+  await database.insert(proxies).values(rows)
+  return { imported: rows.length }
 }

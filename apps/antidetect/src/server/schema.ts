@@ -223,6 +223,8 @@ export const proxies = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     label: varchar("label", { length: 255 }).notNull(),
     type: varchar("type", { length: 20 }).notNull(),
+    // Wire protocol the connection agent uses — separate from `type` above.
+    protocol: varchar("protocol", { length: 10 }).notNull().default("http"),
     host: varchar("host", { length: 255 }).notNull(),
     port: integer("port").notNull(),
     username: varchar("username", { length: 255 }),
@@ -238,6 +240,10 @@ export const proxies = pgTable(
     check(
       "proxies_type_check",
       sql`${table.type} in ('residential', 'mobile', 'datacenter')`
+    ),
+    check(
+      "proxies_protocol_check",
+      sql`${table.protocol} in ('http', 'https', 'socks5')`
     ),
     index("ix_proxies_user_id").on(table.userId),
   ]
@@ -259,6 +265,17 @@ export const profiles = pgTable(
       () => proxies.id,
       { onDelete: "set null" }
     ),
+    // Organization: optional folder + workflow status (both detach on delete),
+    // plus an inline tag array.
+    folderId: varchar("folder_id", { length: 36 }).references(
+      () => profileFolders.id,
+      { onDelete: "set null" }
+    ),
+    statusId: varchar("status_id", { length: 36 }).references(
+      () => profileStatuses.id,
+      { onDelete: "set null" }
+    ),
+    tags: jsonb("tags").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     fingerprint: jsonb("fingerprint").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -277,6 +294,40 @@ export const profiles = pgTable(
   ]
 )
 
+// Per-user folders for grouping profiles.
+export const profileFolders = pgTable(
+  "profile_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("ix_profile_folders_user_id").on(table.userId)]
+)
+
+// Per-user customizable workflow statuses (Ready / Warming / Banned …). Distinct
+// from the runtime `profiles.status` enum — this is the human-assigned state.
+export const profileStatuses = pgTable(
+  "profile_statuses",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    color: varchar("color", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_profile_statuses_user_id").on(table.userId),
+    // One status name per user — lets seeding ON CONFLICT DO NOTHING and blocks dupes.
+    unique("uq_profile_statuses_user_name").on(table.userId, table.name),
+  ]
+)
+
 export type User = typeof users.$inferSelect
 export type Workspace = typeof workspaces.$inferSelect
 export type Media = typeof media.$inferSelect
@@ -287,3 +338,5 @@ export type Notification =
   typeof notifications.$inferSelect
 export type Proxy = typeof proxies.$inferSelect
 export type Profile = typeof profiles.$inferSelect
+export type ProfileFolderRow = typeof profileFolders.$inferSelect
+export type ProfileStatusRow = typeof profileStatuses.$inferSelect

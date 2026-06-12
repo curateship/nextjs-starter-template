@@ -9,8 +9,13 @@ export const Route = createFileRoute("/_authenticated/profiles")({
 })
 
 function ProfilesRoute() {
-  const { profiles, proxies } = Route.useLoaderData()
+  const { profiles, proxies, folders, statuses } = Route.useLoaderData()
   return (
-    <ProfilesDashboard initialProfiles={profiles} initialProxies={proxies} />
+    <ProfilesDashboard
+      initialProfiles={profiles}
+      initialProxies={proxies}
+      initialFolders={folders}
+      initialStatuses={statuses}
+    />
   )
 }
