@@ -2,7 +2,9 @@ import * as React from "react"
 import {
   ChevronsDownIcon,
   ChevronsUpIcon,
+  DownloadIcon,
   ExpandIcon,
+  Loader2Icon,
   MonitorIcon,
   PauseIcon,
   PlayIcon,
@@ -11,12 +13,18 @@ import {
   SkipBackIcon,
   SkipForwardIcon,
   Undo2Icon,
+  UploadIcon,
   ZoomInIcon,
   ZoomOutIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import {
+  getProjectErrorMessage,
+  getProjectRender,
+  startProjectRender,
+} from "@/lib/api/video-projects"
 import {
   Select,
   SelectContent,
@@ -468,6 +476,8 @@ function TimelineToolbar({
             : "Saved"}
       </span>
 
+      <ExportControls />
+
       {/* View controls: aspect ratio + zoom */}
       <Select
         value={state.aspect}
@@ -532,6 +542,118 @@ function TimelineToolbar({
       >
         {collapsed ? <ChevronsUpIcon /> : <ChevronsDownIcon />}
       </ToolbarIconButton>
+    </div>
+  )
+}
+
+// How often the toolbar checks on a running export, and how long it waits
+// before assuming the server-side render died without writing a status.
+const RENDER_POLL_MS = 2_000
+const RENDER_POLL_GIVE_UP_MS = 12 * 60_000
+
+// Export lifecycle in the toolbar: flush autosave → start render → poll the
+// project's render status → offer the MP4 download.
+function ExportControls() {
+  const { projectId, flushSave } = useEditor()
+  const [status, setStatus] = React.useState<
+    "idle" | "rendering" | "ready" | "error"
+  >("idle")
+  const [error, setError] = React.useState<string | null>(null)
+  const [starting, setStarting] = React.useState(false)
+
+  // Pick up an export already running/finished when the editor mounts.
+  React.useEffect(() => {
+    let active = true
+    getProjectRender(projectId)
+      .then((info) => {
+        if (!active) return
+        setStatus(info.status)
+        setError(info.error)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [projectId])
+
+  // Poll while rendering; give up past the server's own render timeout so a
+  // crashed render can't disable the button forever.
+  React.useEffect(() => {
+    if (status !== "rendering") return
+    const startedAt = Date.now()
+    const timer = setInterval(() => {
+      if (Date.now() - startedAt > RENDER_POLL_GIVE_UP_MS) {
+        setStatus("error")
+        setError("Export timed out")
+        return
+      }
+      getProjectRender(projectId)
+        .then((info) => {
+          setStatus(info.status)
+          setError(info.error)
+        })
+        .catch(() => undefined)
+    }, RENDER_POLL_MS)
+    return () => clearInterval(timer)
+  }, [projectId, status])
+
+  async function handleExport() {
+    setStarting(true)
+    setError(null)
+    try {
+      // The render reads the saved timeline — persist any pending edits first.
+      await flushSave()
+      const info = await startProjectRender(projectId)
+      setStatus(info.status)
+    } catch (exportError) {
+      setStatus("error")
+      setError(getProjectErrorMessage(exportError))
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  const rendering = starting || status === "rendering"
+
+  return (
+    <div className="flex items-center gap-1 pl-1">
+      {status === "error" && error ? (
+        <span className="max-w-44 truncate text-xs text-destructive" title={error}>
+          {error}
+        </span>
+      ) : null}
+      {status === "ready" && !rendering ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              asChild
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground"
+            >
+              <a href={`/api/v1/projects/${projectId}/render`} download>
+                <DownloadIcon />
+                <span className="sr-only">Download MP4</span>
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Download MP4</TooltipContent>
+        </Tooltip>
+      ) : null}
+      <Button
+        type="button"
+        size="sm"
+        disabled={rendering}
+        onClick={handleExport}
+      >
+        {rendering ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
+          <UploadIcon className="size-4" />
+        )}
+        {rendering ? "Exporting…" : "Export"}
+      </Button>
     </div>
   )
 }

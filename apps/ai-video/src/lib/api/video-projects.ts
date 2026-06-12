@@ -7,8 +7,15 @@ import type {
   ProjectListResponse,
   ProjectTimeline,
 } from "@/server/video-projects"
+import type { ProjectRenderInfo } from "@/server/video-render"
 
-export type { ProjectDetail, ProjectItem, ProjectListResponse, ProjectTimeline }
+export type {
+  ProjectDetail,
+  ProjectItem,
+  ProjectListResponse,
+  ProjectRenderInfo,
+  ProjectTimeline,
+}
 
 // Bounded mirror of EditorClip — keeps persisted timelines within sane limits.
 const clipSchema = z.object({
@@ -51,6 +58,8 @@ const projectIdSchema = z.object({
 const projectSafeErrorMessages = new Set([
   "Project name is required",
   "Project not found",
+  "Nothing to export",
+  "Timeline too long to export",
 ])
 
 export function getProjectErrorMessage(error: unknown) {
@@ -138,6 +147,32 @@ export function saveProjectTimeline(
 
 export function deleteProject(projectId: string) {
   return deleteProjectFn({ data: { projectId } })
+}
+
+const startRenderFn = createServerFn({ method: "POST" })
+  .inputValidator(projectIdSchema)
+  .handler(async ({ data }): Promise<ProjectRenderInfo> => {
+    const { startProjectRenderForCurrentUser } = await import(
+      "@/server/video-render"
+    )
+    return startProjectRenderForCurrentUser(data.projectId)
+  })
+
+const getRenderFn = createServerFn({ method: "GET" })
+  .inputValidator(projectIdSchema)
+  .handler(async ({ data }): Promise<ProjectRenderInfo> => {
+    const { getProjectRenderForCurrentUser } = await import(
+      "@/server/video-render"
+    )
+    return getProjectRenderForCurrentUser(data.projectId)
+  })
+
+export function startProjectRender(projectId: string) {
+  return startRenderFn({ data: { projectId } })
+}
+
+export function getProjectRender(projectId: string) {
+  return getRenderFn({ data: { projectId } })
 }
 
 const bulkDeleteProjectsFn = createServerFn({ method: "POST" })

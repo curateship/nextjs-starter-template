@@ -1,0 +1,543 @@
+import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { createRequire } from "node:module"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { and, eq, inArray } from "drizzle-orm"
+
+import { db } from "@/server/db"
+import { bodyToBytes, getFromR2, uploadToR2 } from "@/server/media-storage"
+import { requireAppOrigin } from "@/server/origin"
+import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
+import { findCurrentUser, now } from "@/server/security"
+import type { ProjectTimeline } from "@/server/video-projects"
+import type {
+  AspectRatio,
+  EditorClip,
+  EditorTrack,
+} from "@/pages/video-editor/editor-store"
+
+// Exports run in-process like viral video processing: the row's render_status
+// is the job state and the editor polls it (no job queue).
+
+// Output frame size per project aspect (always 1080-class).
+const RENDER_SIZES: Record<AspectRatio, { width: number; height: number }> = {
+  "16:9": { width: 1920, height: 1080 },
+  "9:16": { width: 1080, height: 1920 },
+  "1:1": { width: 1080, height: 1080 },
+  "4:3": { width: 1440, height: 1080 },
+}
+
+const OUTPUT_FPS = 30
+// Text clips are authored against this height in the editor preview; export
+// scales their font size by outputHeight / DESIGN_HEIGHT to match.
+const DESIGN_HEIGHT = 1080
+// Hard caps so a runaway timeline can't pin the server.
+const MAX_TIMELINE_MS = 10 * 60_000
+const RENDER_TIMEOUT_MS = 10 * 60_000
+
+// Text overlays are rasterized with the bundled font (the editor preview uses
+// the system UI stack; Inter SemiBold is the closest redistributable match).
+// drawtext is not an option: current ffmpeg builds often ship without freetype.
+const FONT_PATH = fileURLToPath(
+  new URL("./assets/Inter-SemiBold.ttf", import.meta.url)
+)
+
+// @resvg/resvg-js is a native addon whose .node binary no bundler can inline —
+// load it at runtime instead of importing it (prod servers must have it
+// installed, like ffmpeg/yt-dlp).
+const requireNative = createRequire(import.meta.url)
+function loadResvg() {
+  return requireNative("@resvg/resvg-js") as typeof import("@resvg/resvg-js")
+}
+
+export type ProjectRenderInfo = {
+  status: "idle" | "rendering" | "ready" | "error"
+  error: string | null
+  rendered_at: string | null
+}
+
+async function requireUser() {
+  const user = await findCurrentUser()
+  if (!user) {
+    throw new Error("Missing AI Video session")
+  }
+  return user
+}
+
+async function getOwnedProject(userId: string, projectId: string) {
+  const [row] = await db
+    .select()
+    .from(aiVideoProjects)
+    .where(
+      and(eq(aiVideoProjects.id, projectId), eq(aiVideoProjects.userId, userId))
+    )
+    .limit(1)
+  if (!row) {
+    throw new Error("Project not found")
+  }
+  return row
+}
+
+function serializeRender(row: {
+  renderStatus: string | null
+  renderError: string | null
+  renderedAt: Date | null
+}): ProjectRenderInfo {
+  return {
+    status: (row.renderStatus as ProjectRenderInfo["status"]) ?? "idle",
+    error: row.renderError,
+    rendered_at: row.renderedAt ? row.renderedAt.toISOString() : null,
+  }
+}
+
+export async function getProjectRenderForCurrentUser(
+  projectId: string
+): Promise<ProjectRenderInfo> {
+  const user = await requireUser()
+  const row = await getOwnedProject(user.id, projectId)
+  return serializeRender(row)
+}
+
+// Kicks off an export. Deliberately no in-progress guard: re-clicking after a
+// crashed render must not be locked out, and a duplicate run just overwrites
+// the same R2 key (single-user cost only).
+export async function startProjectRenderForCurrentUser(
+  projectId: string
+): Promise<ProjectRenderInfo> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const row = await getOwnedProject(user.id, projectId)
+
+  const timeline = row.timeline as ProjectTimeline | null
+  const durationMs = timelineEndMs(timeline?.tracks ?? [])
+  if (durationMs <= 0) {
+    throw new Error("Nothing to export")
+  }
+  if (durationMs > MAX_TIMELINE_MS) {
+    throw new Error("Timeline too long to export")
+  }
+
+  await db
+    .update(aiVideoProjects)
+    .set({ renderStatus: "rendering", renderError: null })
+    .where(eq(aiVideoProjects.id, projectId))
+
+  void renderProject(projectId, user.id).catch((error) => {
+    // renderProject records its own failures; this guards the status write.
+    console.error("Project render crashed", projectId, error)
+  })
+
+  return { status: "rendering", error: null, rendered_at: null }
+}
+
+// Latest clip end across all tracks — the export duration.
+function timelineEndMs(tracks: EditorTrack[]) {
+  let max = 0
+  for (const track of tracks) {
+    for (const clip of track.clips ?? []) {
+      max = Math.max(max, (clip.startMs ?? 0) + (clip.durationMs ?? 0))
+    }
+  }
+  return max
+}
+
+// A clip flattened with its track's mute state; visual order is bottom-first
+// (the preview stacks track 0 on top, so later overlays must win).
+type RenderClip = { clip: EditorClip; muted: boolean }
+
+function flattenForRender(tracks: EditorTrack[]) {
+  const visuals: RenderClip[] = []
+  const audio: RenderClip[] = []
+  // Reverse track order: bottom track first so the overlay chain ends with
+  // the top track, matching the preview's z-index stacking.
+  for (let i = tracks.length - 1; i >= 0; i--) {
+    const track = tracks[i]
+    for (const clip of track.clips ?? []) {
+      if (!clip.durationMs || clip.durationMs <= 0) continue
+      if (clip.kind === "audio") {
+        audio.push({ clip, muted: track.muted })
+      } else if (clip.kind === "text") {
+        if (clip.text?.trim()) visuals.push({ clip, muted: true })
+      } else if (clip.mediaId) {
+        visuals.push({ clip, muted: track.muted })
+      }
+    }
+  }
+  return { visuals, audio }
+}
+
+// The full render pipeline. Any throw lands in render_error; the tmp dir is
+// always cleaned up.
+async function renderProject(projectId: string, userId: string) {
+  const dir = await mkdtemp(path.join(tmpdir(), "render-"))
+  try {
+    const row = await getOwnedProject(userId, projectId)
+    const timeline = row.timeline as ProjectTimeline
+    const size = RENDER_SIZES[timeline.aspect] ?? RENDER_SIZES["16:9"]
+    const durationMs = timelineEndMs(timeline.tracks)
+    const { visuals, audio } = flattenForRender(timeline.tracks)
+
+    // Resolve every referenced media row, scoped to the owner — a timeline
+    // must not be able to pull another user's files into an export.
+    const mediaIds = Array.from(
+      new Set(
+        [...visuals, ...audio]
+          .map(({ clip }) => clip.mediaId)
+          .filter((id): id is string => !!id)
+      )
+    )
+    const mediaRows = mediaIds.length
+      ? await db
+          .select()
+          .from(aiVideoMedia)
+          .where(
+            and(
+              eq(aiVideoMedia.userId, userId),
+              inArray(aiVideoMedia.id, mediaIds)
+            )
+          )
+      : []
+    if (mediaRows.length !== mediaIds.length) {
+      throw new Error("A clip's media file no longer exists")
+    }
+
+    // Download each source from R2 once, keyed by media id.
+    const sourceFiles = new Map<string, string>()
+    for (const media of mediaRows) {
+      const object = await getFromR2(media.storagePath)
+      const bytes = await bodyToBytes(object.Body)
+      const ext = path.extname(media.storagePath) || ".bin"
+      const file = path.join(dir, `src-${sourceFiles.size}${ext}`)
+      await writeFile(file, bytes)
+      sourceFiles.set(media.id, file)
+    }
+
+    // Only video sources with an actual audio stream may join the mix —
+    // referencing a missing [n:a] stream would fail the whole command.
+    const audioPresence = new Map<string, boolean>()
+    for (const media of mediaRows) {
+      if (media.fileType === "video") {
+        const file = sourceFiles.get(media.id)!
+        audioPresence.set(media.id, await hasAudioStream(file))
+      }
+    }
+
+    const command = await buildFfmpegCommand({
+      dir,
+      size,
+      durationMs,
+      visuals,
+      audio,
+      sourceFiles,
+      audioPresence,
+    })
+
+    const outFile = path.join(dir, "out.mp4")
+    await runFfmpeg([...command, outFile])
+
+    const bytes = await readFile(outFile)
+    const storagePath = `renders/${userId}/${projectId}.mp4`
+    await uploadToR2(storagePath, bytes, "video/mp4")
+
+    await db
+      .update(aiVideoProjects)
+      .set({
+        renderStatus: "ready",
+        renderError: null,
+        renderStoragePath: storagePath,
+        renderedAt: now(),
+      })
+      .where(eq(aiVideoProjects.id, projectId))
+  } catch (error) {
+    console.error("Project render failed", projectId, error)
+    await db
+      .update(aiVideoProjects)
+      .set({
+        renderStatus: "error",
+        renderError:
+          error instanceof Error && error.message
+            ? error.message.slice(0, 500)
+            : "Render failed",
+      })
+      .where(eq(aiVideoProjects.id, projectId))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
+// Assembles the ffmpeg input list + filter graph. Every clip is its own
+// input, trimmed at the input level (-ss/-t), PTS-shifted to its timeline
+// position, then overlaid in stacking order over a black base — mirroring the
+// preview, where each layer is an object-contain element over transparency.
+async function buildFfmpegCommand(options: {
+  dir: string
+  size: { width: number; height: number }
+  durationMs: number
+  visuals: RenderClip[]
+  audio: RenderClip[]
+  sourceFiles: Map<string, string>
+  audioPresence: Map<string, boolean>
+}) {
+  const { dir, size, durationMs, visuals, audio, sourceFiles, audioPresence } =
+    options
+  const durationS = durationMs / 1000
+  const inputs: string[] = []
+  const filters: string[] = [
+    `color=c=black:s=${size.width}x${size.height}:r=${OUTPUT_FPS}:d=${durationS}[v0]`,
+  ]
+  const audioLabels: string[] = []
+  let inputIndex = 0
+  let visualStep = 0
+
+  for (const { clip, muted } of visuals) {
+    const startS = clip.startMs / 1000
+    const endS = (clip.startMs + clip.durationMs) / 1000
+    const durS = clip.durationMs / 1000
+
+    if (clip.kind === "text") {
+      // Pre-rendered full-frame transparent PNG; loops for the clip window.
+      const png = await renderTextPng(clip, size)
+      const file = path.join(dir, `text-${visualStep}.png`)
+      await writeFile(file, png)
+      inputs.push("-loop", "1", "-t", String(durS), "-i", file)
+      filters.push(
+        `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+      )
+    } else {
+      const file = sourceFiles.get(clip.mediaId!)!
+      if (clip.kind === "image") {
+        inputs.push("-loop", "1", "-t", String(durS), "-i", file)
+      } else {
+        inputs.push(
+          "-ss",
+          String(clip.trimStartMs / 1000),
+          "-t",
+          String(durS),
+          "-i",
+          file
+        )
+      }
+      // object-contain: scale to fit, overlay centered — no pad, so lower
+      // layers stay visible in the letterbox area exactly like the preview.
+      filters.push(
+        `[${inputIndex}:v]scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,setpts=PTS-STARTPTS+${startS}/TB[l${visualStep}]`,
+        `[v${visualStep}][l${visualStep}]overlay=x=(W-w)/2:y=(H-h)/2:enable='between(t,${startS},${endS})'[v${visualStep + 1}]`
+      )
+      if (
+        clip.kind === "video" &&
+        !muted &&
+        audioPresence.get(clip.mediaId!)
+      ) {
+        filters.push(
+          `[${inputIndex}:a]adelay=${Math.round(clip.startMs)}:all=1[a${audioLabels.length}]`
+        )
+        audioLabels.push(`[a${audioLabels.length}]`)
+      }
+    }
+    inputIndex += 1
+    visualStep += 1
+  }
+
+  for (const { clip, muted } of audio) {
+    if (muted || !clip.mediaId) continue
+    const file = sourceFiles.get(clip.mediaId)!
+    inputs.push(
+      "-ss",
+      String(clip.trimStartMs / 1000),
+      "-t",
+      String(clip.durationMs / 1000),
+      "-i",
+      file
+    )
+    filters.push(
+      `[${inputIndex}:a]adelay=${Math.round(clip.startMs)}:all=1[a${audioLabels.length}]`
+    )
+    audioLabels.push(`[a${audioLabels.length}]`)
+    inputIndex += 1
+  }
+
+  const finalVideo = `v${visualStep}`
+  const hasAudio = audioLabels.length > 0
+  if (hasAudio) {
+    filters.push(
+      `${audioLabels.join("")}amix=inputs=${audioLabels.length}:duration=longest:normalize=0[aout]`
+    )
+  }
+
+  // Filter graphs grow with clip count — pass via script file to dodge
+  // argv length limits.
+  const scriptFile = path.join(dir, "filters.txt")
+  await writeFile(scriptFile, filters.join(";\n"))
+
+  return [
+    ...inputs,
+    "-filter_complex_script",
+    scriptFile,
+    "-map",
+    `[${finalVideo}]`,
+    ...(hasAudio ? ["-map", "[aout]", "-c:a", "aac", "-b:a", "192k"] : []),
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "18",
+    "-pix_fmt",
+    "yuv420p",
+    "-r",
+    String(OUTPUT_FPS),
+    "-t",
+    String(durationS),
+    "-movflags",
+    "+faststart",
+  ]
+}
+
+// --- Text rasterization -----------------------------------------------------
+
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+function escapeXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+// Approximate the preview's CSS wrapping (whitespace-pre-wrap inside 5%
+// padding): explicit newlines always break; long lines word-wrap at an
+// estimated average glyph width since SVG <text> cannot wrap on its own.
+function wrapTextLines(text: string, fontSize: number, maxWidth: number) {
+  const maxChars = Math.max(1, Math.floor(maxWidth / (fontSize * 0.55)))
+  const lines: string[] = []
+  for (const rawLine of text.split("\n")) {
+    if (rawLine.length <= maxChars) {
+      lines.push(rawLine)
+      continue
+    }
+    let current = ""
+    for (const word of rawLine.split(/\s+/)) {
+      const candidate = current ? `${current} ${word}` : word
+      if (candidate.length > maxChars && current) {
+        lines.push(current)
+        current = word
+      } else {
+        current = candidate
+      }
+    }
+    lines.push(current)
+  }
+  return lines
+}
+
+// Rasterizes one text clip as a full-frame transparent PNG matching the
+// preview: centered both axes, 1.15 line height, soft drop shadow, font size
+// scaled from the 1080p design space.
+async function renderTextPng(
+  clip: EditorClip,
+  size: { width: number; height: number }
+) {
+  if (!existsSync(FONT_PATH)) {
+    throw new Error("Render font is missing on the server")
+  }
+
+  const scale = size.height / DESIGN_HEIGHT
+  const fontSize = (clip.fontSize ?? 80) * scale
+  const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
+  const lineHeight = fontSize * 1.15
+  const lines = wrapTextLines(clip.text ?? "", fontSize, size.width * 0.9)
+
+  // Vertically center the line block; +0.36em nudges each baseline so the
+  // glyphs (not the em box) sit centered, like CSS centering does.
+  const blockHeight = lines.length * lineHeight
+  const firstBaseline =
+    size.height / 2 - blockHeight / 2 + lineHeight / 2 + fontSize * 0.36
+  const spans = lines
+    .map(
+      (line, index) =>
+        `<tspan x="${size.width / 2}" y="${firstBaseline + index * lineHeight}">${escapeXml(line) || " "}</tspan>`
+    )
+    .join("")
+
+  // CSS shadow is 0 2px 12px rgba(0,0,0,0.45); feDropShadow's stdDeviation is
+  // roughly half a CSS blur radius.
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
+  <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+    <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
+  </filter>
+  <text filter="url(#shadow)" text-anchor="middle" font-family="Inter" font-weight="600" font-size="${fontSize}" fill="${color}">${spans}</text>
+</svg>`
+
+  const { Resvg } = loadResvg()
+  const resvg = new Resvg(svg, {
+    font: {
+      fontFiles: [FONT_PATH],
+      loadSystemFonts: false,
+      defaultFontFamily: "Inter",
+    },
+  })
+  return resvg.render().asPng()
+}
+
+// --- Process helpers ---------------------------------------------------------
+
+// True when ffprobe reports at least one audio stream in the file.
+function hasAudioStream(file: string) {
+  return new Promise<boolean>((resolve) => {
+    const child = spawn(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=index",
+        "-of",
+        "csv=p=0",
+        file,
+      ],
+      { timeout: 30_000 }
+    )
+    let stdout = ""
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk
+    })
+    child.on("error", () => resolve(false))
+    child.on("close", (code) => resolve(code === 0 && stdout.trim().length > 0))
+  })
+}
+
+// Long-form ffmpeg runner (renders take minutes, unlike the 30s thumbnail
+// helper in video-download); keeps the stderr tail for the server log.
+function runFfmpeg(args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn("ffmpeg", ["-y", ...args], {
+      timeout: RENDER_TIMEOUT_MS,
+    })
+    let stderr = ""
+    child.stderr.on("data", (chunk) => {
+      stderr = (stderr + chunk).slice(-4000)
+    })
+    child.on("error", (error: NodeJS.ErrnoException) => {
+      reject(
+        new Error(
+          error.code === "ENOENT" ? "ffmpeg is not installed" : "Render failed"
+        )
+      )
+    })
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        console.error("ffmpeg render stderr tail:", stderr)
+        reject(new Error("Render failed"))
+      }
+    })
+  })
+}

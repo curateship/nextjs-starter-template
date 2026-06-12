@@ -461,6 +461,10 @@ type EditorContextValue = {
   clock: PlaybackClock
   durationMs: number
   saveStatus: SaveStatus
+  projectId: string
+  // Persists any snapshot still inside the autosave debounce window — export
+  // must render what the user sees, not the last saved timeline.
+  flushSave: () => Promise<void>
 }
 
 // The provider component lives in editor-provider.tsx (files exporting

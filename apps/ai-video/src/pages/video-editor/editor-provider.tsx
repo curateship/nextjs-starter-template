@@ -94,9 +94,34 @@ export function EditorProvider({
     }
   }, [project.id])
 
+  // Immediately persists a snapshot still waiting out the autosave debounce
+  // (used by export so it renders the timeline as currently seen).
+  const flushSave = React.useCallback(async () => {
+    const snapshot = pendingRef.current
+    if (!snapshot) return
+    pendingRef.current = null
+    setSaveStatus("saving")
+    try {
+      await saveProjectTimeline(project.id, snapshot)
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("error")
+      pendingRef.current ??= snapshot
+      throw error
+    }
+  }, [project.id])
+
   const value = React.useMemo(
-    () => ({ state, dispatch, clock, durationMs, saveStatus }),
-    [state, clock, durationMs, saveStatus]
+    () => ({
+      state,
+      dispatch,
+      clock,
+      durationMs,
+      saveStatus,
+      projectId: project.id,
+      flushSave,
+    }),
+    [state, clock, durationMs, saveStatus, project.id, flushSave]
   )
 
   return (

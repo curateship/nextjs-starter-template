@@ -26,6 +26,7 @@ import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './ro
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
+import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 
 const LoginRoute = LoginRouteImport.update({
@@ -123,6 +124,12 @@ const AuthenticatedAdminCreatorsCreatorIdRoute =
     path: '/admin/creators/$creatorId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiV1ProjectsProjectIdRenderRoute =
+  ApiV1ProjectsProjectIdRenderRouteImport.update({
+    id: '/api/v1/projects/$projectId/render',
+    path: '/api/v1/projects/$projectId/render',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   id: '/api/v1/media/$mediaId/file',
   path: '/api/v1/media/$mediaId/file',
@@ -147,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -166,6 +174,7 @@ export interface FileRoutesByTo {
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/admin/viral-archive': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,6 +196,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/_authenticated/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
+  '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -208,6 +218,7 @@ export interface FileRouteTypes {
     | '/admin/video-editor/'
     | '/admin/viral-archive/'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/projects/$projectId/render'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/admin/video-editor'
     | '/admin/viral-archive'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/projects/$projectId/render'
   id:
     | '__root__'
     | '/_authenticated'
@@ -247,12 +259,14 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-editor/'
     | '/_authenticated/admin/viral-archive/'
     | '/api/v1/media/$mediaId/file'
+    | '/api/v1/projects/$projectId/render'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
+  ApiV1ProjectsProjectIdRenderRoute: typeof ApiV1ProjectsProjectIdRenderRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -376,6 +390,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCreatorsCreatorIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/v1/projects/$projectId/render': {
+      id: '/api/v1/projects/$projectId/render'
+      path: '/api/v1/projects/$projectId/render'
+      fullPath: '/api/v1/projects/$projectId/render'
+      preLoaderRoute: typeof ApiV1ProjectsProjectIdRenderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/media/$mediaId/file': {
       id: '/api/v1/media/$mediaId/file'
       path: '/api/v1/media/$mediaId/file'
@@ -459,6 +480,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
+  ApiV1ProjectsProjectIdRenderRoute: ApiV1ProjectsProjectIdRenderRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

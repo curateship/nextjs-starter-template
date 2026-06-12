@@ -262,10 +262,19 @@ export const aiVideoProjects = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     // Serialized editor timeline: { tracks: EditorTrack[], aspect: AspectRatio }
     timeline: jsonb("timeline").notNull(),
+    // Latest export: rendering → ready/error; the MP4 lives at renderStoragePath.
+    renderStatus: varchar("render_status", { length: 20 }),
+    renderError: text("render_error"),
+    renderStoragePath: varchar("render_storage_path", { length: 500 }),
+    renderedAt: timestamp("rendered_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    check(
+      "video_projects_render_status_check",
+      sql`${table.renderStatus} in ('rendering', 'ready', 'error')`
+    ),
     index("ix_video_projects_user_id").on(table.userId),
     index("ix_video_projects_user_created").on(table.userId, table.createdAt),
   ]
