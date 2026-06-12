@@ -5,7 +5,6 @@ import {
   MusicIcon,
   ShapesIcon,
   SparklesIcon,
-  Trash2Icon,
   TypeIcon,
   VideoIcon,
   type LucideIcon,
@@ -67,7 +66,9 @@ export function EditorSettingsPanel() {
   return (
     <section className="hidden w-[330px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 lg:flex">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        {selected ? (
+        {/* Only text clips need an inspector (content/style editing); media
+            clips are managed on the timeline + right-click menu directly. */}
+        {selected?.clip.kind === "text" ? (
           <ClipInspector clip={selected.clip} dispatch={dispatch} />
         ) : (
           <DefaultPanels onAddText={addTextClip} />
@@ -77,8 +78,9 @@ export function EditorSettingsPanel() {
   )
 }
 
-// Per-clip property editor. Style edits are transient (no undo snapshots);
-// structural changes stay on the timeline itself.
+// Text-clip property editor (the only kind with editable content). Style
+// edits are transient (no undo snapshots); structural changes stay on the
+// timeline itself.
 function ClipInspector({
   clip,
   dispatch,
@@ -97,50 +99,43 @@ function ClipInspector({
 
   return (
     <div className="space-y-4">
-      {/* Header: kind + name */}
       <div className="space-y-1">
         <Badge variant="secondary" className="capitalize">
           {clip.kind}
         </Badge>
-        <h2 className="truncate text-sm font-semibold">
-          {clip.kind === "text" ? "Text clip" : clip.name}
-        </h2>
+        <h2 className="truncate text-sm font-semibold">Text clip</h2>
       </div>
 
-      {clip.kind === "text" && (
-        <>
-          <div className="space-y-1.5">
-            <Label htmlFor="clip-text">Content</Label>
-            <Textarea
-              id="clip-text"
-              rows={3}
-              value={clip.text ?? ""}
-              onChange={(event) => patch({ text: event.target.value })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Font size</Label>
-            <Slider
-              value={[clip.fontSize ?? 80]}
-              min={24}
-              max={240}
-              step={2}
-              onValueChange={(value) => patch({ fontSize: value[0] })}
-              aria-label="Font size"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="clip-color">Color</Label>
-            <input
-              id="clip-color"
-              type="color"
-              value={clip.color ?? "#ffffff"}
-              onChange={(event) => patch({ color: event.target.value })}
-              className="h-8 w-full cursor-pointer rounded-md border bg-background"
-            />
-          </div>
-        </>
-      )}
+      <div className="space-y-1.5">
+        <Label htmlFor="clip-text">Content</Label>
+        <Textarea
+          id="clip-text"
+          rows={3}
+          value={clip.text ?? ""}
+          onChange={(event) => patch({ text: event.target.value })}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Font size</Label>
+        <Slider
+          value={[clip.fontSize ?? 80]}
+          min={24}
+          max={240}
+          step={2}
+          onValueChange={(value) => patch({ fontSize: value[0] })}
+          aria-label="Font size"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="clip-color">Color</Label>
+        <input
+          id="clip-color"
+          type="color"
+          value={clip.color ?? "#ffffff"}
+          onChange={(event) => patch({ color: event.target.value })}
+          className="h-8 w-full cursor-pointer rounded-md border bg-background"
+        />
+      </div>
 
       {/* Timing readout */}
       <div className="space-y-1 rounded-md border bg-background p-3 text-xs">
@@ -150,27 +145,7 @@ function ClipInspector({
           value={formatTimecode(clip.startMs + clip.durationMs)}
         />
         <TimingRow label="Duration" value={formatTimecode(clip.durationMs)} />
-        {clip.kind !== "text" && clip.sourceDurationMs !== undefined && (
-          <TimingRow
-            label="Source"
-            value={formatTimecode(clip.sourceDurationMs)}
-          />
-        )}
       </div>
-
-      <Button
-        type="button"
-        variant="destructive"
-        className="w-full"
-        onClick={() => dispatch({ type: "DELETE_CLIP", clipId: clip.id })}
-      >
-        <Trash2Icon />
-        Delete clip
-      </Button>
-      <p className="text-xs text-muted-foreground">
-        Tip: drag the clip to move it, drag its edges to trim, and use the
-        scissors to split at the playhead.
-      </p>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  CopyIcon,
   GripVerticalIcon,
   Trash2Icon,
   TypeIcon,
@@ -8,6 +9,12 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import {
   Tooltip,
   TooltipContent,
@@ -443,21 +450,27 @@ function TimelineClipChip({
           : undefined
 
   return (
-    <div
-      ref={chipRef}
-      data-clip
-      className={cn(
-        "group absolute inset-y-1.5 touch-none overflow-hidden rounded-md select-none",
-        KIND_CLASSES[clip.kind],
-        selected && "ring-2 ring-primary ring-inset",
-        !state.cutMode && "cursor-grab active:cursor-grabbing"
-      )}
-      style={{ left: leftPx, width: widthPx, ...kindStyle }}
-      onPointerDown={handleBodyDown}
-      onPointerMove={handleMove}
-      onPointerUp={handleUp}
-      onPointerCancel={handleCancel}
-    >
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={chipRef}
+          data-clip
+          className={cn(
+            "group absolute inset-y-1.5 touch-none overflow-hidden rounded-md select-none",
+            KIND_CLASSES[clip.kind],
+            selected && "ring-2 ring-primary ring-inset",
+            !state.cutMode && "cursor-grab active:cursor-grabbing"
+          )}
+          style={{ left: leftPx, width: widthPx, ...kindStyle }}
+          onPointerDown={handleBodyDown}
+          onPointerMove={handleMove}
+          onPointerUp={handleUp}
+          onPointerCancel={handleCancel}
+          // Right-click selects the clip the menu will act on.
+          onContextMenu={() =>
+            dispatch({ type: "SELECT_CLIP", clipId: clip.id })
+          }
+        >
       {/* Label */}
       {clip.kind === "video" || clip.kind === "image" ? (
         <span className="pointer-events-none absolute bottom-1 left-2 max-w-full truncate text-[11px] text-white/85 drop-shadow">
@@ -499,6 +512,25 @@ function TimelineClipChip({
           />
         </div>
       ))}
-    </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          onSelect={() =>
+            dispatch({ type: "DUPLICATE_CLIP", clipId: clip.id })
+          }
+        >
+          <CopyIcon />
+          Duplicate
+        </ContextMenuItem>
+        <ContextMenuItem
+          variant="destructive"
+          onSelect={() => dispatch({ type: "DELETE_CLIP", clipId: clip.id })}
+        >
+          <Trash2Icon />
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }

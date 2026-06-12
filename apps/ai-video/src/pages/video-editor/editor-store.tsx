@@ -60,6 +60,7 @@ export type EditorAction =
       transient?: boolean
     }
   | { type: "SPLIT_CLIP"; clipId: string; atMs: number }
+  | { type: "DUPLICATE_CLIP"; clipId: string }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -187,45 +188,65 @@ function pushUndo(state: EditorState, tracks: EditorTrack[]): EditorState {
   }
 }
 
+// Place a clip as close to `atMs` as possible: the preferred track clamps
+// into its nearest gap; other tracks take it only at the exact time;
+// otherwise a fresh track is appended. Selects the placed clip.
+function placeClip(
+  state: EditorState,
+  clip: EditorClip,
+  atMs: number,
+  preferredTrackId?: string
+): EditorState {
+  const desired = Math.max(0, atMs)
+  const candidates = preferredTrackId
+    ? [
+        ...state.tracks.filter((t) => t.id === preferredTrackId),
+        ...state.tracks.filter((t) => t.id !== preferredTrackId),
+      ]
+    : state.tracks
+
+  for (const track of candidates) {
+    const start =
+      preferredTrackId === track.id
+        ? resolveStart(track, null, desired, clip.durationMs)
+        : fitsAt(track, null, desired, clip.durationMs)
+          ? desired
+          : null
+    if (start !== null) {
+      const tracks = withTrack(state.tracks, track.id, (t) => ({
+        ...t,
+        clips: sortClips([...t.clips, { ...clip, startMs: start }]),
+      }))
+      return { ...pushUndo(state, tracks), selectedClipId: clip.id }
+    }
+  }
+
+  const track = newTrack()
+  track.clips = [{ ...clip, startMs: desired }]
+  return {
+    ...pushUndo(state, [...state.tracks, track]),
+    selectedClipId: clip.id,
+  }
+}
+
 export function editorReducer(
   state: EditorState,
   action: EditorAction
 ): EditorState {
   switch (action.type) {
-    case "ADD_CLIP": {
-      const desired = Math.max(0, action.atMs)
-      const { clip } = action
+    case "ADD_CLIP":
+      return placeClip(state, action.clip, action.atMs, action.trackId)
 
-      // Preferred track first, then the first track where the clip fits at
-      // the exact requested time; otherwise a fresh track at the bottom.
-      const candidates = action.trackId
-        ? [
-            ...state.tracks.filter((t) => t.id === action.trackId),
-            ...state.tracks.filter((t) => t.id !== action.trackId),
-          ]
-        : state.tracks
-
-      for (const track of candidates) {
-        const start = action.trackId === track.id
-          ? resolveStart(track, null, desired, clip.durationMs)
-          : fitsAt(track, null, desired, clip.durationMs)
-            ? desired
-            : null
-        if (start !== null) {
-          const tracks = withTrack(state.tracks, track.id, (t) => ({
-            ...t,
-            clips: sortClips([...t.clips, { ...clip, startMs: start }]),
-          }))
-          return { ...pushUndo(state, tracks), selectedClipId: clip.id }
-        }
-      }
-
-      const track = newTrack()
-      track.clips = [{ ...clip, startMs: desired }]
-      return {
-        ...pushUndo(state, [...state.tracks, track]),
-        selectedClipId: clip.id,
-      }
+    case "DUPLICATE_CLIP": {
+      const found = findClip(state.tracks, action.clipId)
+      if (!found) return state
+      // The copy prefers the slot right after the original on its track.
+      return placeClip(
+        state,
+        { ...found.clip, id: editorId() },
+        found.clip.startMs + found.clip.durationMs,
+        found.track.id
+      )
     }
 
     case "MOVE_CLIP": {
