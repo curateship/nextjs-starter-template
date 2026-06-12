@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm"
 export const Route = createFileRoute("/api/v1/projects/$projectId/render")({
   server: {
     handlers: {
-      GET: async ({ params }) => {
+      GET: async ({ params, request }) => {
         const user = await findCurrentUser()
         if (!user) {
           return Response.json(
@@ -55,9 +55,12 @@ export const Route = createFileRoute("/api/v1/projects/$projectId/render")({
             )
           }
 
-          // Project name → safe download filename.
+          // The editor passes the user's chosen name via ?filename=; fall
+          // back to the project name. Sanitized to a safe download filename.
+          const requested = new URL(request.url).searchParams.get("filename")
           const filename =
-            project.name.replace(/[^\w. -]+/g, "").trim() || "export"
+            (requested ?? project.name).replace(/[^\w. -]+/g, "").trim() ||
+            "export"
           const headers = new Headers({
             "Content-Type": "video/mp4",
             "Content-Disposition": `attachment; filename="${filename}.mp4"`,

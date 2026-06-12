@@ -119,9 +119,10 @@ export function EditorProvider({
       durationMs,
       saveStatus,
       projectId: project.id,
+      projectName: project.name,
       flushSave,
     }),
-    [state, clock, durationMs, saveStatus, project.id, flushSave]
+    [state, clock, durationMs, saveStatus, project.id, project.name, flushSave]
   )
 
   return (

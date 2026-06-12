@@ -22,12 +22,35 @@ import type {
 // Exports run in-process like viral video processing: the row's render_status
 // is the job state and the editor polls it (no job queue).
 
-// Output frame size per project aspect (always 1080-class).
+// Output frame size per project aspect (the full-quality 1080-class size;
+// lower qualities scale this down).
 const RENDER_SIZES: Record<AspectRatio, { width: number; height: number }> = {
   "16:9": { width: 1920, height: 1080 },
   "9:16": { width: 1080, height: 1920 },
   "1:1": { width: 1080, height: 1080 },
   "4:3": { width: 1440, height: 1080 },
+}
+
+// Export quality: scales the 1080-class frame down and trades file size for
+// fidelity via the x264 CRF (higher CRF = smaller file, lower quality).
+export type RenderQuality = "high" | "medium" | "low"
+
+const QUALITY_PRESETS: Record<RenderQuality, { scale: number; crf: number }> = {
+  high: { scale: 1, crf: 18 }, // 1080p
+  medium: { scale: 2 / 3, crf: 22 }, // ~720p
+  low: { scale: 4 / 9, crf: 28 }, // ~480p
+}
+
+// h264 requires even dimensions.
+function toEven(value: number) {
+  return Math.max(2, Math.round(value / 2) * 2)
+}
+
+// Output frame size for an aspect at the chosen quality.
+function renderSize(aspect: AspectRatio, quality: RenderQuality) {
+  const base = RENDER_SIZES[aspect] ?? RENDER_SIZES["16:9"]
+  const { scale } = QUALITY_PRESETS[quality]
+  return { width: toEven(base.width * scale), height: toEven(base.height * scale) }
 }
 
 const OUTPUT_FPS = 30
@@ -97,7 +120,8 @@ export async function getProjectRenderForCurrentUser(
 // crashed render must not be locked out, and a duplicate run just overwrites
 // the same R2 key (single-user cost only).
 export async function startProjectRenderForCurrentUser(
-  projectId: string
+  projectId: string,
+  quality: RenderQuality = "high"
 ): Promise<ProjectRenderInfo> {
   requireAppOrigin()
   const user = await requireUser()
@@ -117,7 +141,7 @@ export async function startProjectRenderForCurrentUser(
     .set({ renderStatus: "rendering", renderError: null })
     .where(eq(aiVideoProjects.id, projectId))
 
-  void renderProject(projectId, user.id).catch((error) => {
+  void renderProject(projectId, user.id, quality).catch((error) => {
     // renderProject records its own failures; this guards the status write.
     console.error("Project render crashed", projectId, error)
   })
@@ -163,12 +187,16 @@ function flattenForRender(tracks: EditorTrack[]) {
 
 // The full render pipeline. Any throw lands in render_error; the tmp dir is
 // always cleaned up.
-async function renderProject(projectId: string, userId: string) {
+async function renderProject(
+  projectId: string,
+  userId: string,
+  quality: RenderQuality
+) {
   const dir = await mkdtemp(path.join(tmpdir(), "render-"))
   try {
     const row = await getOwnedProject(userId, projectId)
     const timeline = row.timeline as ProjectTimeline
-    const size = RENDER_SIZES[timeline.aspect] ?? RENDER_SIZES["16:9"]
+    const size = renderSize(timeline.aspect, quality)
     const durationMs = timelineEndMs(timeline.tracks)
     const { visuals, audio } = flattenForRender(timeline.tracks)
 
@@ -225,6 +253,7 @@ async function renderProject(projectId: string, userId: string) {
       audio,
       sourceFiles,
       audioPresence,
+      crf: QUALITY_PRESETS[quality].crf,
     })
 
     const outFile = path.join(dir, "out.mp4")
@@ -272,8 +301,9 @@ async function buildFfmpegCommand(options: {
   audio: RenderClip[]
   sourceFiles: Map<string, string>
   audioPresence: Map<string, boolean>
+  crf: number
 }) {
-  const { dir, size, durationMs, visuals, audio, sourceFiles, audioPresence } =
+  const { dir, size, durationMs, visuals, audio, sourceFiles, audioPresence, crf } =
     options
   const durationS = durationMs / 1000
   const inputs: string[] = []
@@ -377,7 +407,7 @@ async function buildFfmpegCommand(options: {
     "-preset",
     "veryfast",
     "-crf",
-    "18",
+    String(crf),
     "-pix_fmt",
     "yuv420p",
     "-r",

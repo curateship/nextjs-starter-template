@@ -7,7 +7,7 @@ import type {
   ProjectListResponse,
   ProjectTimeline,
 } from "@/server/video-projects"
-import type { ProjectRenderInfo } from "@/server/video-render"
+import type { ProjectRenderInfo, RenderQuality } from "@/server/video-render"
 
 export type {
   ProjectDetail,
@@ -15,6 +15,7 @@ export type {
   ProjectListResponse,
   ProjectRenderInfo,
   ProjectTimeline,
+  RenderQuality,
 }
 
 // Bounded mirror of EditorClip — keeps persisted timelines within sane limits.
@@ -150,12 +151,16 @@ export function deleteProject(projectId: string) {
 }
 
 const startRenderFn = createServerFn({ method: "POST" })
-  .inputValidator(projectIdSchema)
+  .inputValidator(
+    projectIdSchema.extend({
+      quality: z.enum(["high", "medium", "low"]),
+    })
+  )
   .handler(async ({ data }): Promise<ProjectRenderInfo> => {
     const { startProjectRenderForCurrentUser } = await import(
       "@/server/video-render"
     )
-    return startProjectRenderForCurrentUser(data.projectId)
+    return startProjectRenderForCurrentUser(data.projectId, data.quality)
   })
 
 const getRenderFn = createServerFn({ method: "GET" })
@@ -167,8 +172,11 @@ const getRenderFn = createServerFn({ method: "GET" })
     return getProjectRenderForCurrentUser(data.projectId)
   })
 
-export function startProjectRender(projectId: string) {
-  return startRenderFn({ data: { projectId } })
+export function startProjectRender(
+  projectId: string,
+  quality: RenderQuality = "high"
+) {
+  return startRenderFn({ data: { projectId, quality } })
 }
 
 export function getProjectRender(projectId: string) {

@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   ChevronsDownIcon,
   ChevronsUpIcon,
-  DownloadIcon,
   ExpandIcon,
   Loader2Icon,
   MonitorIcon,
@@ -24,7 +23,18 @@ import {
   getProjectErrorMessage,
   getProjectRender,
   startProjectRender,
+  type RenderQuality,
 } from "@/lib/api/video-projects"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -551,17 +561,50 @@ function TimelineToolbar({
 const RENDER_POLL_MS = 2_000
 const RENDER_POLL_GIVE_UP_MS = 12 * 60_000
 
-// Export lifecycle in the toolbar: flush autosave → start render → poll the
-// project's render status → offer the MP4 download.
+const QUALITY_OPTIONS: { value: RenderQuality; label: string; hint: string }[] = [
+  { value: "high", label: "High", hint: "1080p" },
+  { value: "medium", label: "Medium", hint: "720p" },
+  { value: "low", label: "Low", hint: "480p" },
+]
+
+// Programmatic download of a finished render with the user's chosen filename
+// (the route reads ?filename= for the Content-Disposition name).
+function downloadRender(projectId: string, filename: string) {
+  const safe = filename.trim() || "export"
+  const anchor = document.createElement("a")
+  anchor.href = `/api/v1/projects/${projectId}/render?filename=${encodeURIComponent(safe)}`
+  anchor.download = `${safe}.mp4`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
+
+// Export modal launched from the toolbar: pick quality + filename, start the
+// server-side render, and auto-download when it finishes. The render runs in
+// the background, so closing the modal mid-render is fine — a toolbar
+// indicator stays up and the file still downloads when ready.
 function ExportControls() {
-  const { projectId, flushSave } = useEditor()
+  const { projectId, projectName, flushSave } = useEditor()
+  const [modalOpen, setModalOpen] = React.useState(false)
+  const [quality, setQuality] = React.useState<RenderQuality>("high")
+  const [filename, setFilename] = React.useState(projectName)
   const [status, setStatus] = React.useState<
     "idle" | "rendering" | "ready" | "error"
   >("idle")
   const [error, setError] = React.useState<string | null>(null)
   const [starting, setStarting] = React.useState(false)
+  const [savedName, setSavedName] = React.useState<string | null>(null)
+  // True while *this* session is waiting to auto-save the result; survives
+  // closing the modal. Kept in a ref so the poll loop sees it without
+  // re-subscribing. filenameRef likewise feeds the download from the poll.
+  const autoPendingRef = React.useRef(false)
+  const filenameRef = React.useRef(filename)
+  React.useEffect(() => {
+    filenameRef.current = filename
+  }, [filename])
 
-  // Pick up an export already running/finished when the editor mounts.
+  // Pick up an export already running when the editor mounts (e.g. a refresh
+  // mid-render). A prior session's finished render won't auto-download.
   React.useEffect(() => {
     let active = true
     getProjectRender(projectId)
@@ -577,7 +620,7 @@ function ExportControls() {
   }, [projectId])
 
   // Poll while rendering; give up past the server's own render timeout so a
-  // crashed render can't disable the button forever.
+  // crashed render can't wedge the indicator. Auto-downloads on completion.
   React.useEffect(() => {
     if (status !== "rendering") return
     const startedAt = Date.now()
@@ -591,19 +634,27 @@ function ExportControls() {
         .then((info) => {
           setStatus(info.status)
           setError(info.error)
+          if (info.status === "ready" && autoPendingRef.current) {
+            autoPendingRef.current = false
+            const name = filenameRef.current.trim() || projectName
+            downloadRender(projectId, name)
+            setSavedName(name)
+          }
         })
         .catch(() => undefined)
     }, RENDER_POLL_MS)
     return () => clearInterval(timer)
-  }, [projectId, status])
+  }, [projectId, status, projectName])
 
-  async function handleExport() {
+  async function handleStartExport() {
     setStarting(true)
     setError(null)
+    setSavedName(null)
     try {
       // The render reads the saved timeline — persist any pending edits first.
       await flushSave()
-      const info = await startProjectRender(projectId)
+      const info = await startProjectRender(projectId, quality)
+      autoPendingRef.current = true
       setStatus(info.status)
     } catch (exportError) {
       setStatus("error")
@@ -616,45 +667,119 @@ function ExportControls() {
   const rendering = starting || status === "rendering"
 
   return (
-    <div className="flex items-center gap-1 pl-1">
-      {status === "error" && error ? (
-        <span className="max-w-44 truncate text-xs text-destructive" title={error}>
-          {error}
-        </span>
-      ) : null}
-      {status === "ready" && !rendering ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              asChild
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground"
-            >
-              <a href={`/api/v1/projects/${projectId}/render`} download>
-                <DownloadIcon />
-                <span className="sr-only">Download MP4</span>
-              </a>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Download MP4</TooltipContent>
-        </Tooltip>
-      ) : null}
-      <Button
-        type="button"
-        size="sm"
-        disabled={rendering}
-        onClick={handleExport}
-      >
+    <>
+      <div className="flex items-center gap-2 pl-1">
         {rendering ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2Icon className="size-3.5 animate-spin" />
+            Exporting…
+          </span>
+        ) : null}
+        <Button type="button" size="sm" onClick={() => setModalOpen(true)}>
           <UploadIcon className="size-4" />
-        )}
-        {rendering ? "Exporting…" : "Export"}
-      </Button>
-    </div>
+          Export
+        </Button>
+      </div>
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Export video</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {rendering ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Loader2Icon className="size-4 animate-spin" />
+                  Exporting your video…
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  You can close this window — the export keeps running and your
+                  file downloads automatically when it&apos;s ready.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {savedName ? (
+                  <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                    Saved “{savedName}.mp4” to your downloads.
+                  </div>
+                ) : null}
+                {error ? (
+                  <div role="alert" className="text-sm text-destructive">
+                    {error}
+                  </div>
+                ) : null}
+                <div className="space-y-1.5">
+                  <Label htmlFor="export-name">File name</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="export-name"
+                      value={filename}
+                      onChange={(event) => setFilename(event.target.value)}
+                      placeholder="my-video"
+                    />
+                    <span className="text-sm text-muted-foreground">.mp4</span>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="export-quality">Quality</Label>
+                  <Select
+                    value={quality}
+                    onValueChange={(value) =>
+                      setQuality(value as RenderQuality)
+                    }
+                  >
+                    <SelectTrigger id="export-quality" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {QUALITY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}{" "}
+                          <span className="text-muted-foreground">
+                            ({option.hint})
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+          </DialogBody>
+          <DialogFooter variant="plain">
+            {rendering ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setModalOpen(false)}
+              >
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={starting}
+                  onClick={handleStartExport}
+                >
+                  <UploadIcon className="size-4" />
+                  Export File
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
