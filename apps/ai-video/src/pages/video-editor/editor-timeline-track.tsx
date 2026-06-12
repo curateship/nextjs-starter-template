@@ -518,13 +518,13 @@ function TimelineClipChip({
       {clip.replaceable && clip.kind === "video" && !state.cutMode ? (
         <button
           type="button"
-          className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full bg-cyan-500 px-2 py-0.5 text-[10px] font-semibold text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100 hover:bg-cyan-400"
+          aria-label="Replace media"
+          className="absolute left-1/2 top-1/2 z-20 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg bg-black/60 text-white opacity-0 shadow-md transition-[opacity,background-color] group-hover:opacity-100 hover:bg-green-500"
           // Don't start a clip drag or lane seek from the button.
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => setReplaceOpen(true)}
         >
-          <ReplaceIcon className="size-3" aria-hidden="true" />
-          Replace
+          <ReplaceIcon className="size-4" aria-hidden="true" />
         </button>
       ) : null}
 
