@@ -21,13 +21,27 @@ export const VIDEO_TYPES = new Set([
   "video/x-msvideo",
   "video/x-matroska",
 ])
-export const ALLOWED_TYPES = new Set([...IMAGE_TYPES, ...VIDEO_TYPES])
+export const AUDIO_TYPES = new Set([
+  "audio/mpeg",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/mp4",
+  "audio/x-m4a",
+  "audio/aac",
+  "audio/ogg",
+])
+export const ALLOWED_TYPES = new Set([
+  ...IMAGE_TYPES,
+  ...VIDEO_TYPES,
+  ...AUDIO_TYPES,
+])
 
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024
 const VIDEO_MAX_BYTES = 100 * 1024 * 1024
+const AUDIO_MAX_BYTES = 50 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
-export type MediaFileType = "image" | "video"
+export type MediaFileType = "image" | "video" | "audio"
 export type MediaSortBy =
   | "created_at"
   | "original_name"
@@ -57,21 +71,30 @@ export type MediaListResponse = {
 }
 
 export function getMediaFileType(mimeType: string): MediaFileType {
-  return IMAGE_TYPES.has(mimeType) ? "image" : "video"
+  if (IMAGE_TYPES.has(mimeType)) return "image"
+  if (AUDIO_TYPES.has(mimeType)) return "audio"
+  return "video"
 }
 
 export function validateMediaFile(mimeType: string, size: number) {
   if (!ALLOWED_TYPES.has(mimeType)) {
     throw new Error(
-      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) and videos (MP4, WebM, MOV, AVI, MKV) are allowed."
+      "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG), videos (MP4, WebM, MOV, AVI, MKV) and audio (MP3, WAV, M4A, AAC, OGG) are allowed."
     )
   }
 
   const fileType = getMediaFileType(mimeType)
-  const maxSize = fileType === "image" ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES
-  const maxSizeLabel = fileType === "image" ? "10MB" : "100MB"
+  const maxSize =
+    fileType === "image"
+      ? IMAGE_MAX_BYTES
+      : fileType === "audio"
+        ? AUDIO_MAX_BYTES
+        : VIDEO_MAX_BYTES
   if (size > maxSize) {
-    throw new Error(`File size too large. Maximum size is ${maxSizeLabel}.`)
+    // Label derived from the byte limit so the two can't drift apart.
+    throw new Error(
+      `File size too large. Maximum size is ${maxSize / (1024 * 1024)}MB.`
+    )
   }
 }
 
@@ -99,7 +122,21 @@ export function validateMediaContent(mimeType: string, data: Uint8Array) {
       hasAscii(data, 0, "RIFF") &&
       hasAscii(data, 8, "AVI ") ||
     mimeType === "video/x-matroska" &&
-      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3])
+      hasPrefix(data, [0x1a, 0x45, 0xdf, 0xa3]) ||
+    mimeType === "audio/mpeg" &&
+      // MP3: ID3 tag or an MPEG frame-sync header.
+      (hasAscii(data, 0, "ID3") ||
+        (data[0] === 0xff && ((data[1] ?? 0) & 0xe0) === 0xe0)) ||
+    (mimeType === "audio/wav" || mimeType === "audio/x-wav") &&
+      hasAscii(data, 0, "RIFF") &&
+      hasAscii(data, 8, "WAVE") ||
+    (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") &&
+      hasAscii(data, 4, "ftyp") ||
+    mimeType === "audio/aac" &&
+      // ADTS frame-sync header.
+      data[0] === 0xff && ((data[1] ?? 0) & 0xf0) === 0xf0 ||
+    mimeType === "audio/ogg" &&
+      hasAscii(data, 0, "OggS")
 
   if (!valid) {
     throw new Error("File content does not match the selected media type.")
@@ -284,5 +321,10 @@ function defaultExtensionForMimeType(mimeType: string) {
   if (mimeType === "video/quicktime") return "mov"
   if (mimeType === "video/x-msvideo") return "avi"
   if (mimeType === "video/x-matroska") return "mkv"
+  if (mimeType === "audio/mpeg") return "mp3"
+  if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav"
+  if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "m4a"
+  if (mimeType === "audio/aac") return "aac"
+  if (mimeType === "audio/ogg") return "ogg"
   return ""
 }

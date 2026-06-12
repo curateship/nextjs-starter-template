@@ -32,7 +32,7 @@ const listMediaSchema = z
   .object({
     page: z.number().int().optional(),
     pageSize: z.number().int().optional(),
-    fileType: z.enum(["image", "video"]).optional(),
+    fileType: z.enum(["image", "video", "audio"]).optional(),
     mimeType: z.enum(["image/svg+xml"]).optional(),
     sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
     sortDirection: z.enum(["asc", "desc"]).optional(),

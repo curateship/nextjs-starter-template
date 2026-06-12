@@ -1,8 +1,10 @@
 import * as React from "react"
 import {
   ChevronsDownIcon,
+  ChevronsUpIcon,
   ExpandIcon,
   MonitorIcon,
+  PauseIcon,
   PlayIcon,
   Redo2Icon,
   ScissorsIcon,
@@ -14,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Select,
   SelectContent,
@@ -28,151 +31,413 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  DEMO_DURATION_MS,
-  DEMO_TRACKS,
-  formatTimecode,
-  msToPx,
-  TIMELINE_GUTTER_PX,
-} from "@/pages/video-editor/demo-timeline"
+  useEditor,
+  type AspectRatio,
+} from "@/pages/video-editor/editor-store"
+import {
+  PlaybackClock,
+  usePlaybackPlaying,
+  usePlaybackRate,
+  usePlaybackTime,
+} from "@/pages/video-editor/playback-clock"
 import { TimelineTrackRow } from "@/pages/video-editor/editor-timeline-track"
+import {
+  formatTimecode,
+  MAX_PX_PER_SECOND,
+  MIN_PX_PER_SECOND,
+  msToPx,
+  pxToMs,
+  TIMELINE_GUTTER_PX,
+} from "@/pages/video-editor/timeline-utils"
 
-// Last whole second shown on the ruler.
-const RULER_SECONDS = Math.floor(DEMO_DURATION_MS / 1000)
+// Extra lane width past the final clip so edits have room to grow.
+const TIMELINE_TAIL_MS = 5_000
 
-// Extra lane width past the final clip so it isn't flush with the edge.
-const TIMELINE_TAIL_PX = 24
+// Shortest ruler shown for empty/short projects — also the window fitted to
+// the visible width on mount, so clips up to this long add no horizontal
+// scrolling at the default zoom.
+const MIN_VISIBLE_MS = 120_000
 
-// Bottom strip: transport toolbar over a single scroll container that holds
-// the ruler (sticky top), the demo tracks, and the playhead. UI-only — the
-// playhead is fixed at 0 and all transport controls are inert.
-export function EditorTimeline() {
-  // Total scrollable content width: controls gutter + the full demo duration.
+// Playback speeds the "1x" button cycles through.
+const PLAYBACK_RATES = [1, 1.5, 2, 0.5]
+
+// One video frame at 30fps, used by the frame-step buttons.
+const FRAME_MS = 1000 / 30
+
+// Bottom strip: transport toolbar over a single scroll container holding the
+// ruler (sticky top), the track lanes, and the live playhead. Clicking or
+// dragging on empty timeline space scrubs the playhead.
+export function EditorTimeline({
+  onToggleCollapse,
+  collapsed,
+}: {
+  onToggleCollapse: () => void
+  collapsed: boolean
+}) {
+  const { state, dispatch, clock, durationMs } = useEditor()
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  const scrubbing = React.useRef(false)
+  // Content-box left edge, captured once per scrub gesture so pointermoves
+  // don't force a layout (getBoundingClientRect) per event.
+  const scrubLeft = React.useRef(0)
+
+  const visibleMs = Math.max(durationMs + TIMELINE_TAIL_MS, MIN_VISIBLE_MS)
   const contentWidth =
-    TIMELINE_GUTTER_PX + msToPx(DEMO_DURATION_MS) + TIMELINE_TAIL_PX
+    TIMELINE_GUTTER_PX + msToPx(visibleMs, state.pxPerSecond)
+
+  // --- Scrub by pointer on ruler / empty lane space -----------------------
+  function seekAtPointer(e: React.PointerEvent) {
+    const x = e.clientX - scrubLeft.current - TIMELINE_GUTTER_PX
+    clock.seek(pxToMs(Math.max(0, x), state.pxPerSecond))
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    // Clips own their pointer interactions (drag/trim/select/cut).
+    if (target.closest("[data-clip]")) return
+    // Only lane space and the ruler scrub. Anything else (track gutter
+    // buttons, grips) must keep its own clicks — capturing here would
+    // swallow them.
+    if (!target.closest("[data-track-lane], [data-ruler]")) return
+    // With the cut tool active, only the ruler scrubs — clicking lane space
+    // shouldn't jump the playhead mid-cutting.
+    if (state.cutMode && !target.closest("[data-ruler]")) return
+    dispatch({ type: "SELECT_CLIP", clipId: null })
+    scrubbing.current = true
+    scrubLeft.current =
+      contentRef.current?.getBoundingClientRect().left ?? 0
+    contentRef.current?.setPointerCapture(e.pointerId)
+    seekAtPointer(e)
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (scrubbing.current) seekAtPointer(e)
+  }
+
+  function handlePointerUp(e: React.PointerEvent) {
+    if (!scrubbing.current) return
+    scrubbing.current = false
+    contentRef.current?.releasePointerCapture(e.pointerId)
+  }
+
+  // Zoom so the given span of timeline fits the visible lane width.
+  const fitZoomTo = React.useCallback(
+    (ms: number) => {
+      const scroller = scrollRef.current
+      if (!scroller || ms <= 0) return
+      const lanePx = scroller.clientWidth - TIMELINE_GUTTER_PX - 24
+      dispatch({
+        type: "SET_ZOOM",
+        pxPerSecond: Math.min(
+          Math.max(lanePx / (ms / 1000), MIN_PX_PER_SECOND),
+          MAX_PX_PER_SECOND
+        ),
+      })
+    },
+    [dispatch]
+  )
+
+  // --- Fit the default 60s window to the visible width once on mount ------
+  // (so the timeline loads without a horizontal scrollbar at any size)
+  React.useEffect(() => {
+    const id = requestAnimationFrame(() => fitZoomTo(MIN_VISIBLE_MS))
+    return () => cancelAnimationFrame(id)
+  }, [fitZoomTo])
+
+  // --- Keep the playhead in view while playing ----------------------------
+  const pxPerSecondRef = React.useRef(state.pxPerSecond)
+  React.useEffect(() => {
+    pxPerSecondRef.current = state.pxPerSecond
+  }, [state.pxPerSecond])
+
+  React.useEffect(
+    () =>
+      clock.subscribe(() => {
+        if (!clock.playing) return
+        const scroller = scrollRef.current
+        if (!scroller) return
+        const px =
+          TIMELINE_GUTTER_PX + msToPx(clock.getTime(), pxPerSecondRef.current)
+        const viewStart = scroller.scrollLeft + TIMELINE_GUTTER_PX
+        const viewEnd = scroller.scrollLeft + scroller.clientWidth - 60
+        if (px < viewStart || px > viewEnd) {
+          scroller.scrollLeft = Math.max(0, px - TIMELINE_GUTTER_PX - 16)
+        }
+      }),
+    [clock]
+  )
+
+  // --- Keyboard: space toggles playback, delete removes the selection -----
+  const selectedRef = React.useRef(state.selectedClipId)
+  React.useEffect(() => {
+    selectedRef.current = state.selectedClipId
+  }, [state.selectedClipId])
+
+  React.useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.tagName === "BUTTON" ||
+          target.isContentEditable)
+      ) {
+        return
+      }
+      if (e.code === "Space") {
+        e.preventDefault()
+        clock.toggle()
+      } else if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedRef.current
+      ) {
+        e.preventDefault()
+        dispatch({ type: "DELETE_CLIP", clipId: selectedRef.current })
+      } else if (e.key === "Escape") {
+        // Escape drops back to the normal pointer tool and clears selection.
+        dispatch({ type: "SET_CUT_MODE", on: false })
+        dispatch({ type: "SELECT_CLIP", clipId: null })
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [clock, dispatch])
+
+  // Zoom so the whole project fits the visible lane width.
+  function fitToView() {
+    if (durationMs === 0) return
+    fitZoomTo(durationMs)
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0
+  }
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <TimelineToolbar />
+      <TimelineToolbar
+        onFit={fitToView}
+        onToggleCollapse={onToggleCollapse}
+        collapsed={collapsed}
+      />
 
       {/* One shared x/y scroll container so ruler and tracks stay aligned */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <div
+          ref={contentRef}
           className="relative"
           style={{ width: contentWidth, minWidth: "100%" }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
         >
-          {/* Ruler row: sticks to the top during vertical scroll */}
-          <div className="sticky top-0 z-30 flex h-7 border-b bg-background">
-            {/* Corner spacer above the track gutters */}
-            <div className="sticky left-0 z-40 w-24 shrink-0 border-r bg-background" />
-            <div className="relative min-w-0 flex-1">
-              <RulerTicks />
-              {/* Playhead flag at 0s */}
-              <div className="absolute bottom-0 left-0 h-3 w-2 -translate-x-1/2 rounded-[3px] bg-red-500" />
+          {/* Ruler row: sticks to the top during vertical scroll; stays
+              above everything, including dragged clips (z-35) */}
+          <div
+            data-ruler
+            className="sticky top-0 z-40 flex h-8 cursor-pointer border-b bg-background"
+          >
+            <div className="sticky left-0 z-50 w-24 shrink-0 border-r bg-background" />
+            {/* overflow-hidden: the last tick label must not extend the
+                scrollable width past the fitted content */}
+            <div className="relative min-w-0 flex-1 overflow-hidden">
+              <RulerTicks
+                visibleMs={visibleMs}
+                pxPerSecond={state.pxPerSecond}
+              />
+              <RulerPlayheadFlag clock={clock} pxPerSecond={state.pxPerSecond} />
             </div>
           </div>
 
-          {DEMO_TRACKS.map((track) => (
-            <TimelineTrackRow key={track.id} track={track} />
+          {state.tracks.map((track, trackIndex) => (
+            <TimelineTrackRow
+              key={track.id}
+              track={track}
+              trackIndex={trackIndex}
+            />
           ))}
 
-          {/* Playhead line at 0s, dropping through the tracks. Sits under the
-              sticky gutter/ruler (z-30) so it gets occluded when scrolled. */}
-          <div
-            className="pointer-events-none absolute inset-y-0 z-20 w-px bg-red-500"
-            style={{ left: TIMELINE_GUTTER_PX }}
-          />
+          <PlayheadLine clock={clock} pxPerSecond={state.pxPerSecond} />
         </div>
       </div>
     </div>
   )
 }
 
-// Tick marks every second, labels every 5 seconds ("0s" ... "30s").
-function RulerTicks() {
+// Vertical red line dropping through the tracks at the current time.
+function PlayheadLine({
+  clock,
+  pxPerSecond,
+}: {
+  clock: PlaybackClock
+  pxPerSecond: number
+}) {
+  const timeMs = usePlaybackTime(clock)
   return (
-    <>
-      {Array.from({ length: RULER_SECONDS + 1 }, (_, second) => {
-        const isMajor = second % 5 === 0
-        const left = msToPx(second * 1000)
-        return (
-          <React.Fragment key={second}>
-            <div
-              className={
-                isMajor
-                  ? "absolute bottom-0 h-2.5 w-px bg-border"
-                  : "absolute bottom-0 h-1.5 w-px bg-border/70"
-              }
-              style={{ left }}
-            />
-            {isMajor && (
-              <span
-                className="absolute top-0.5 text-[10px] text-muted-foreground"
-                style={{ left: left + 4 }}
-              >
-                {second}s
-              </span>
-            )}
-          </React.Fragment>
-        )
-      })}
-    </>
+    <div
+      className="pointer-events-none absolute inset-y-0 z-20 w-px bg-red-500"
+      style={{ left: TIMELINE_GUTTER_PX + msToPx(timeMs, pxPerSecond) }}
+    />
   )
 }
 
-// Transport + view controls. Everything is inert except the aspect select and
-// zoom slider, which hold cosmetic local state so they feel real.
-function TimelineToolbar() {
-  const [aspectRatio, setAspectRatio] = React.useState("16:9")
+// Small red marker inside the ruler at the current time.
+function RulerPlayheadFlag({
+  clock,
+  pxPerSecond,
+}: {
+  clock: PlaybackClock
+  pxPerSecond: number
+}) {
+  const timeMs = usePlaybackTime(clock)
+  return (
+    <div
+      className="pointer-events-none absolute bottom-0 h-3.5 w-2.5 -translate-x-1/2 rounded-[3px] bg-red-500"
+      style={{ left: msToPx(timeMs, pxPerSecond) }}
+    />
+  )
+}
+
+// Tick marks with zoom-adaptive density and second labels. Memoized: the
+// timeline re-renders on every store change, but ticks only depend on zoom
+// and visible length.
+const RulerTicks = React.memo(function RulerTicks({
+  visibleMs,
+  pxPerSecond,
+}: {
+  visibleMs: number
+  pxPerSecond: number
+}) {
+  const labelStepS =
+    pxPerSecond >= 80 ? 1 : pxPerSecond >= 30 ? 5 : pxPerSecond >= 12 ? 10 : 30
+  const tickStepS = Math.max(1, Math.round(labelStepS / 5))
+  const lastSecond = Math.ceil(visibleMs / 1000)
+
+  const ticks: React.ReactNode[] = []
+  for (let second = 0; second <= lastSecond; second += tickStepS) {
+    const isMajor = second % labelStepS === 0
+    const left = msToPx(second * 1000, pxPerSecond)
+    ticks.push(
+      <React.Fragment key={second}>
+        <div
+          className={
+            isMajor
+              ? "absolute bottom-0 h-3 w-px bg-border"
+              : "absolute bottom-0 h-2 w-px bg-border/70"
+          }
+          style={{ left }}
+        />
+        {isMajor && (
+          <span
+            className="absolute top-1 text-xs text-muted-foreground"
+            style={{ left: left + 5 }}
+          >
+            {second}s
+          </span>
+        )}
+      </React.Fragment>
+    )
+  }
+  return <>{ticks}</>
+})
+
+// Transport + view controls, all wired to the store/clock.
+function TimelineToolbar({
+  onFit,
+  onToggleCollapse,
+  collapsed,
+}: {
+  onFit: () => void
+  onToggleCollapse: () => void
+  collapsed: boolean
+}) {
+  const { state, dispatch, clock, durationMs } = useEditor()
+  const playing = usePlaybackPlaying(clock)
+  const rate = usePlaybackRate(clock)
+
+  function cycleRate() {
+    const index = PLAYBACK_RATES.indexOf(rate)
+    clock.setRate(PLAYBACK_RATES[(index + 1) % PLAYBACK_RATES.length])
+  }
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-0.5 border-b bg-background px-2">
-      <ToolbarIconButton label="Undo">
+    <div className="flex h-12 shrink-0 items-center gap-1 border-b bg-background px-2.5">
+      <ToolbarIconButton
+        label="Undo"
+        disabled={state.past.length === 0}
+        onClick={() => dispatch({ type: "UNDO" })}
+      >
         <Undo2Icon />
       </ToolbarIconButton>
-      <ToolbarIconButton label="Redo">
+      <ToolbarIconButton
+        label="Redo"
+        disabled={state.future.length === 0}
+        onClick={() => dispatch({ type: "REDO" })}
+      >
         <Redo2Icon />
       </ToolbarIconButton>
-      <ToolbarIconButton label="Split clip">
+      {/* Toggles the razor: while active, clicking a clip cuts it there */}
+      <ToolbarIconButton
+        label={state.cutMode ? "Exit cut tool (Esc)" : "Cut tool"}
+        active={state.cutMode}
+        onClick={() =>
+          dispatch({ type: "SET_CUT_MODE", on: !state.cutMode })
+        }
+      >
         <ScissorsIcon />
       </ToolbarIconButton>
 
       {/* Centered transport cluster */}
-      <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5">
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type="button"
               variant="ghost"
-              size="sm"
-              className="text-xs tabular-nums"
+              className="text-sm tabular-nums"
+              onClick={cycleRate}
             >
-              1x
+              {rate}x
             </Button>
           </TooltipTrigger>
           <TooltipContent>Playback speed</TooltipContent>
         </Tooltip>
-        <ToolbarIconButton label="Previous frame">
+        <ToolbarIconButton
+          label="Previous frame"
+          onClick={() => clock.seek(clock.getTime() - FRAME_MS)}
+        >
           <SkipBackIcon />
         </ToolbarIconButton>
-        <ToolbarIconButton label="Play">
-          <PlayIcon />
+        <ToolbarIconButton
+          label={playing ? "Pause" : "Play"}
+          onClick={() => clock.toggle()}
+        >
+          {playing ? <PauseIcon /> : <PlayIcon />}
         </ToolbarIconButton>
-        <ToolbarIconButton label="Next frame">
+        <ToolbarIconButton
+          label="Next frame"
+          onClick={() => clock.seek(clock.getTime() + FRAME_MS)}
+        >
           <SkipForwardIcon />
         </ToolbarIconButton>
-        <span className="pl-2 text-xs tabular-nums whitespace-nowrap text-muted-foreground">
-          {formatTimecode(0)} / {formatTimecode(DEMO_DURATION_MS)}
-        </span>
+        <TimeReadout clock={clock} durationMs={durationMs} />
       </div>
 
-      {/* View controls: aspect ratio + zoom (cosmetic) */}
-      <Select value={aspectRatio} onValueChange={setAspectRatio}>
+      {/* View controls: aspect ratio + zoom */}
+      <Select
+        value={state.aspect}
+        onValueChange={(value) =>
+          dispatch({ type: "SET_ASPECT", aspect: value as AspectRatio })
+        }
+      >
         {/* Borderless, styled like the ghost toolbar buttons around it */}
         <SelectTrigger
-          className="w-auto border-transparent hover:bg-muted dark:bg-transparent dark:hover:bg-muted/50"
+          className="w-auto border-transparent text-sm hover:bg-muted dark:bg-transparent dark:hover:bg-muted/50"
           aria-label="Aspect ratio"
         >
-          <MonitorIcon className="size-3.5 text-muted-foreground" />
+          <MonitorIcon className="size-4 text-muted-foreground" />
           <SelectValue />
         </SelectTrigger>
         <SelectContent align="end">
@@ -182,41 +447,98 @@ function TimelineToolbar() {
           <SelectItem value="4:3">4:3</SelectItem>
         </SelectContent>
       </Select>
-      <ToolbarIconButton label="Zoom out">
+      <ToolbarIconButton
+        label="Zoom out"
+        onClick={() =>
+          dispatch({
+            type: "SET_ZOOM",
+            pxPerSecond: Math.max(state.pxPerSecond - 10, MIN_PX_PER_SECOND),
+          })
+        }
+      >
         <ZoomOutIcon />
       </ToolbarIconButton>
       <Slider
-        defaultValue={[50]}
-        max={100}
+        value={[state.pxPerSecond]}
+        min={MIN_PX_PER_SECOND}
+        max={MAX_PX_PER_SECOND}
         step={1}
-        className="mx-1 w-24"
+        onValueChange={(value) =>
+          dispatch({ type: "SET_ZOOM", pxPerSecond: value[0] })
+        }
+        className="mx-1 w-28"
         aria-label="Timeline zoom"
       />
-      <ToolbarIconButton label="Zoom in">
+      <ToolbarIconButton
+        label="Zoom in"
+        onClick={() =>
+          dispatch({
+            type: "SET_ZOOM",
+            pxPerSecond: Math.min(state.pxPerSecond + 10, MAX_PX_PER_SECOND),
+          })
+        }
+      >
         <ZoomInIcon />
       </ToolbarIconButton>
-      <ToolbarIconButton label="Fit timeline">
+      <ToolbarIconButton label="Fit timeline" onClick={onFit}>
         <ExpandIcon />
       </ToolbarIconButton>
-      <ToolbarIconButton label="Collapse timeline">
-        <ChevronsDownIcon />
+      <ToolbarIconButton
+        label={collapsed ? "Expand timeline" : "Collapse timeline"}
+        onClick={onToggleCollapse}
+      >
+        {collapsed ? <ChevronsUpIcon /> : <ChevronsDownIcon />}
       </ToolbarIconButton>
     </div>
   )
 }
 
-// Inert ghost icon button with a tooltip, used across the toolbar.
+// Current time / total duration readout (re-renders per clock tick).
+function TimeReadout({
+  clock,
+  durationMs,
+}: {
+  clock: PlaybackClock
+  durationMs: number
+}) {
+  const timeMs = usePlaybackTime(clock)
+  return (
+    <span className="pl-2.5 text-sm tabular-nums whitespace-nowrap text-muted-foreground">
+      {formatTimecode(timeMs)} / {formatTimecode(durationMs)}
+    </span>
+  )
+}
+
+// Ghost icon button with a tooltip, used across the toolbar.
 function ToolbarIconButton({
   label,
+  onClick,
+  disabled,
+  active,
   children,
 }: {
   label: string
+  onClick?: () => void
+  disabled?: boolean
+  active?: boolean
   children: React.ReactNode
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={label}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={label}
+          aria-pressed={active}
+          onClick={onClick}
+          disabled={disabled}
+          className={cn(
+            "[&_svg:not([class*='size-'])]:size-4.5",
+            active && "bg-muted text-foreground"
+          )}
+        >
           {children}
         </Button>
       </TooltipTrigger>

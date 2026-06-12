@@ -6,6 +6,7 @@ import {
   ImageIcon,
   ListIcon,
   Loader2Icon,
+  MusicIcon,
   Trash2Icon,
   UploadIcon,
   VideoIcon,
@@ -682,6 +683,8 @@ function MediaPreview({ item, className }: { item: MediaItem; className?: string
           <video src={item.url} className="h-full w-full object-contain" muted preload="metadata" />
           <VideoIcon className="absolute top-2 left-2 size-4 text-white drop-shadow" />
         </>
+      ) : item.file_type === "audio" ? (
+        <MusicIcon className="size-8 text-muted-foreground" />
       ) : (
         <img
           src={item.url}
