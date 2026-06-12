@@ -20,6 +20,7 @@ import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoMedia,
   aiVideoViralVideos,
+  aiVideoViralVideoStats,
   type AiVideoViralVideo,
 } from "@/server/schema"
 import { findCurrentUser, now, uuid } from "@/server/security"
@@ -54,6 +55,10 @@ export type ViralVideoItem = {
   stats: ViralVideoStats | null
   thumbnail_url: string | null
   creator_id: string | null
+  // Engagement growth per day between the two most recent stat snapshots —
+  // views when the platform exposes them, otherwise likes (Instagram hides
+  // view counts without login). Null until a re-sync adds a second snapshot.
+  trend_per_day: number | null
   created_at: string
   updated_at: string
 }
@@ -96,7 +101,10 @@ async function getOwnedViralVideo(userId: string, videoId: string) {
   return row
 }
 
-function serializeViralVideo(row: AiVideoViralVideo): ViralVideoItem {
+function serializeViralVideo(
+  row: AiVideoViralVideo,
+  trendPerDay: number | null = null
+): ViralVideoItem {
   return {
     id: row.id,
     source_url: row.sourceUrl,
@@ -111,9 +119,54 @@ function serializeViralVideo(row: AiVideoViralVideo): ViralVideoItem {
       ? getPublicMediaUrl(row.thumbnailStoragePath)
       : null,
     creator_id: row.creatorId,
+    trend_per_day: trendPerDay,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
+}
+
+// Trend per video: engagement growth per day between the latest two
+// snapshots — views when both have them, else likes (Instagram hides view
+// counts without login, but likes still come through).
+async function queryTrendPerDay(videoIds: string[]) {
+  const velocity = new Map<string, number>()
+  if (videoIds.length === 0) return velocity
+
+  const snapshots = await db
+    .select({
+      videoId: aiVideoViralVideoStats.videoId,
+      capturedAt: aiVideoViralVideoStats.capturedAt,
+      views: aiVideoViralVideoStats.views,
+      likes: aiVideoViralVideoStats.likes,
+    })
+    .from(aiVideoViralVideoStats)
+    .where(inArray(aiVideoViralVideoStats.videoId, videoIds))
+    .orderBy(aiVideoViralVideoStats.videoId, aiVideoViralVideoStats.capturedAt)
+
+  // Keep the last two snapshots per video (rows arrive ordered by time).
+  const lastTwo = new Map<string, typeof snapshots>()
+  for (const snapshot of snapshots) {
+    const list = lastTwo.get(snapshot.videoId) ?? []
+    list.push(snapshot)
+    if (list.length > 2) list.shift()
+    lastTwo.set(snapshot.videoId, list)
+  }
+
+  for (const [videoId, [prev, latest]] of lastTwo) {
+    if (!latest) continue
+    const days =
+      (latest.capturedAt.getTime() - prev.capturedAt.getTime()) / 86_400_000
+    if (days <= 0) continue
+    const delta =
+      prev.views != null && latest.views != null
+        ? latest.views - prev.views
+        : prev.likes != null && latest.likes != null
+          ? latest.likes - prev.likes
+          : null
+    if (delta === null) continue
+    velocity.set(videoId, Math.round(delta / days))
+  }
+  return velocity
 }
 
 export async function listViralVideosForCurrentUser(): Promise<ViralVideoListResponse> {
@@ -124,7 +177,12 @@ export async function listViralVideosForCurrentUser(): Promise<ViralVideoListRes
     .where(eq(aiVideoViralVideos.userId, user.id))
     .orderBy(desc(aiVideoViralVideos.createdAt))
 
-  return { videos: rows.map(serializeViralVideo) }
+  const velocity = await queryTrendPerDay(rows.map((row) => row.id))
+  return {
+    videos: rows.map((row) =>
+      serializeViralVideo(row, velocity.get(row.id) ?? null)
+    ),
+  }
 }
 
 export async function getViralVideoForCurrentUser(
@@ -160,15 +218,24 @@ export async function createViralVideoForCurrentUser(data: {
 }): Promise<ViralVideoItem> {
   requireAppOrigin()
   const user = await requireUser()
-  const platform = detectViralPlatform(data.url)
+  return ingestViralVideoForUser(user.id, data.url)
+}
+
+// Session-free ingest used by both the Add Video modal (above) and the
+// creator watcher, which runs on a timer without a request context.
+export async function ingestViralVideoForUser(
+  userId: string,
+  url: string
+): Promise<ViralVideoItem> {
+  const platform = detectViralPlatform(url)
   const createdAt = now()
 
   const [created] = await db
     .insert(aiVideoViralVideos)
     .values({
       id: uuid(),
-      userId: user.id,
-      sourceUrl: data.url,
+      userId,
+      sourceUrl: url,
       platform,
       status: "downloading",
       createdAt,
@@ -180,7 +247,7 @@ export async function createViralVideoForCurrentUser(data: {
     throw new Error("Video was not created")
   }
 
-  startProcessing(created.id, user.id)
+  startProcessing(created.id, userId)
   return serializeViralVideo(created)
 }
 
@@ -442,6 +509,20 @@ async function processViralVideo(videoId: string, userId: string) {
       } satisfies ViralVideoStats,
       status: "analyzing",
     })
+
+    // First engagement snapshot; later re-syncs append more and unlock the
+    // trending velocity. Best-effort — never fails the pipeline.
+    await db
+      .insert(aiVideoViralVideoStats)
+      .values({
+        id: uuid(),
+        videoId,
+        capturedAt: now(),
+        views: downloaded.metadata.viewCount,
+        likes: downloaded.metadata.likeCount,
+        comments: downloaded.metadata.commentCount,
+      })
+      .catch(() => undefined)
 
     const analysis = await analyzeViralVideo(
       fileData,

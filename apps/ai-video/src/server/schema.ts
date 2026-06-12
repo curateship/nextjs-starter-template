@@ -300,6 +300,9 @@ export const aiVideoCreators = pgTable(
     displayName: varchar("display_name", { length: 255 }),
     // R2 path of the fetched profile picture (best-effort, may stay null).
     avatarStoragePath: varchar("avatar_storage_path", { length: 500 }),
+    // Watched creators get their newest reels auto-ingested by the watcher.
+    watch: boolean("watch").notNull().default(false),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -366,6 +369,28 @@ export const aiVideoViralVideos = pgTable(
   ]
 )
 
+// Periodic engagement snapshots per archived reel — two or more snapshots
+// yield a views-per-day velocity for "Trending" sorting.
+export const aiVideoViralVideoStats = pgTable(
+  "viral_video_stats",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    videoId: varchar("video_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoViralVideos.id, { onDelete: "cascade" }),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    views: bigint("views", { mode: "number" }),
+    likes: bigint("likes", { mode: "number" }),
+    comments: bigint("comments", { mode: "number" }),
+  },
+  (table) => [
+    index("ix_viral_video_stats_video_captured").on(
+      table.videoId,
+      table.capturedAt
+    ),
+  ]
+)
+
 export const aiVideoTemplates = pgTable(
   "video_templates",
   {
@@ -413,6 +438,7 @@ export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
 export type AiVideoCreator = typeof aiVideoCreators.$inferSelect
 export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect
+export type AiVideoViralVideoStat = typeof aiVideoViralVideoStats.$inferSelect
 export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment =

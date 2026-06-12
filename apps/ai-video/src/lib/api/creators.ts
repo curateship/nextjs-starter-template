@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { CreatorItem, CreatorListResponse } from "@/server/creators"
+import type { WatchSyncResult } from "@/server/creator-watch"
 
-export type { CreatorItem, CreatorListResponse }
+export type { CreatorItem, CreatorListResponse, WatchSyncResult }
 
 const creatorIdSchema = z.object({
   creatorId: z.string().min(1).max(36),
@@ -39,6 +40,34 @@ const bulkDeleteCreatorsFn = createServerFn({ method: "POST" })
     const { deleteCreatorsForCurrentUser } = await import("@/server/creators")
     return deleteCreatorsForCurrentUser(data.creatorIds)
   })
+
+const setCreatorWatchFn = createServerFn({ method: "POST" })
+  .inputValidator(creatorIdSchema.extend({ watch: z.boolean() }))
+  .handler(
+    async ({ data }): Promise<{ creatorId: string; watch: boolean }> => {
+      const { setCreatorWatchForCurrentUser } = await import(
+        "@/server/creator-watch"
+      )
+      return setCreatorWatchForCurrentUser(data.creatorId, data.watch)
+    }
+  )
+
+const syncCreatorWatchFn = createServerFn({ method: "POST" }).handler(
+  async (): Promise<WatchSyncResult> => {
+    const { syncCreatorWatchForCurrentUser } = await import(
+      "@/server/creator-watch"
+    )
+    return syncCreatorWatchForCurrentUser()
+  }
+)
+
+export function setCreatorWatch(creatorId: string, watch: boolean) {
+  return setCreatorWatchFn({ data: { creatorId, watch } })
+}
+
+export function syncCreatorWatch() {
+  return syncCreatorWatchFn()
+}
 
 export function listCreators() {
   return listCreatorsFn()

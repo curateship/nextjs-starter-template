@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   AlertCircleIcon,
   Loader2Icon,
+  RefreshCwIcon,
   Trash2Icon,
   UsersIcon,
 } from "lucide-react"
@@ -30,10 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
 import {
   bulkDeleteCreators,
   getCreatorErrorMessage,
   listCreators,
+  setCreatorWatch,
+  syncCreatorWatch,
   type CreatorItem,
 } from "@/lib/api/creators"
 
@@ -71,6 +75,7 @@ export function CreatorsDashboard() {
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   const [deleting, setDeleting] = React.useState(false)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [syncing, setSyncing] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
@@ -127,6 +132,40 @@ export function CreatorsDashboard() {
     })
   }
 
+  // Optimistic watch toggle; reverts on failure.
+  async function handleToggleWatch(creatorId: string, watch: boolean) {
+    setCreators((current) =>
+      current.map((c) => (c.id === creatorId ? { ...c, watch } : c))
+    )
+    try {
+      await setCreatorWatch(creatorId, watch)
+    } catch (toggleError) {
+      setCreators((current) =>
+        current.map((c) => (c.id === creatorId ? { ...c, watch: !watch } : c))
+      )
+      setError(getCreatorErrorMessage(toggleError))
+    }
+  }
+
+  // Manual run of both watcher passes (new reels + stats re-sync).
+  async function handleSyncNow() {
+    setSyncing(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const result = await syncCreatorWatch()
+      setNotice(
+        `Checked ${result.checked} watched ${result.checked === 1 ? "creator" : "creators"}, added ${result.added} new ${result.added === 1 ? "reel" : "reels"}, refreshed stats for ${result.statsUpdated} ${result.statsUpdated === 1 ? "video" : "videos"}.`
+      )
+      const data = await listCreators()
+      setCreators(data.creators)
+    } catch (syncError) {
+      setError(getCreatorErrorMessage(syncError))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   async function handleConfirmDelete() {
     if (!deleteIds?.length) return
     const ids = deleteIds
@@ -168,6 +207,15 @@ export function CreatorsDashboard() {
           Delete {selectedIds.size}
         </DashboardToolbarButton>
       ) : null}
+      <DashboardToolbarButton
+        type="button"
+        variant="outline"
+        disabled={syncing}
+        onClick={handleSyncNow}
+      >
+        <RefreshCwIcon className={syncing ? "size-4 animate-spin" : "size-4"} />
+        {syncing ? "Syncing…" : "Sync now"}
+      </DashboardToolbarButton>
       <DashboardToolbarSearch
         name="creator-search"
         aria-label="Search creators"
@@ -208,6 +256,7 @@ export function CreatorsDashboard() {
               <TableHead column="main">Creator</TableHead>
               <TableHead column="meta">Platform</TableHead>
               <TableHead column="meta">Reels</TableHead>
+              <TableHead column="meta">Watch</TableHead>
               <TableHead column="meta" className="hidden lg:table-cell">Last Added</TableHead>
               <TableHead column="meta">Actions</TableHead>
             </TableRow>
@@ -215,7 +264,7 @@ export function CreatorsDashboard() {
         }
         isEmpty={loading || paginatedCreators.length === 0}
         emptyText={loading ? "Loading creators..." : "No creators yet. They appear automatically when you add videos to the Viral Archive."}
-        emptyColSpan={6}
+        emptyColSpan={7}
         footer={{
           type: "pagination",
           page: currentPage,
@@ -233,6 +282,7 @@ export function CreatorsDashboard() {
             creator={creator}
             selected={selectedIds.has(creator.id)}
             onToggle={() => toggleSelected(creator.id)}
+            onToggleWatch={(watch) => handleToggleWatch(creator.id, watch)}
             onDelete={() => setDeleteIds([creator.id])}
           />
         ))}
@@ -270,11 +320,13 @@ function CreatorTableRow({
   creator,
   selected,
   onToggle,
+  onToggleWatch,
   onDelete,
 }: {
   creator: CreatorItem
   selected: boolean
   onToggle: () => void
+  onToggleWatch: (watch: boolean) => void
   onDelete: () => void
 }) {
   return (
@@ -312,6 +364,19 @@ function CreatorTableRow({
       </TableCell>
       <TableCell column="meta">
         {creator.reel_count} {creator.reel_count === 1 ? "reel" : "reels"}
+      </TableCell>
+      <TableCell column="meta">
+        {/* Auto-ingest new reels from this creator on sync runs. */}
+        <Switch
+          checked={creator.watch}
+          onCheckedChange={onToggleWatch}
+          aria-label={`Watch ${creator.display_name ?? creator.username}`}
+          title={
+            creator.last_checked_at
+              ? `Last checked ${dateFormatter.format(new Date(creator.last_checked_at))}`
+              : undefined
+          }
+        />
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
         {creator.last_reel_at ? dateFormatter.format(new Date(creator.last_reel_at)) : "—"}

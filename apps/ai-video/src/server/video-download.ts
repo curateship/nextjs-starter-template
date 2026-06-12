@@ -159,6 +159,85 @@ export async function downloadViralVideo(
   }
 }
 
+// Lists a creator's most recent uploads (URL per entry) without downloading
+// anything. Instagram profile listings often need login and may fail — the
+// watcher treats that as non-fatal.
+export async function listRecentUploads(
+  platform: ViralPlatform,
+  handle: string,
+  limit: number
+): Promise<string[]> {
+  // Instagram must be the profile root: yt-dlp's instagram:user extractor
+  // doesn't support /reels/ pages. It still needs login server-side, so IG
+  // watching stays best-effort (fails gracefully) while TikTok is reliable.
+  const profileUrl =
+    platform === "tiktok"
+      ? `https://www.tiktok.com/@${encodeURIComponent(handle)}`
+      : `https://www.instagram.com/${encodeURIComponent(handle)}/`
+
+  const args = [
+    "--flat-playlist",
+    "--playlist-end",
+    String(limit),
+    "-j",
+    profileUrl,
+  ]
+  let stdout: string
+  try {
+    stdout = await runYtDlp(["--impersonate", "chrome", ...args])
+  } catch {
+    stdout = await runYtDlp(args)
+  }
+
+  // One JSON object per line; keep only entries that resolve to a supported
+  // platform URL.
+  const urls: string[] = []
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue
+    try {
+      const entry = JSON.parse(line) as { url?: unknown; webpage_url?: unknown }
+      const url =
+        readString(entry.url, 2048) ?? readString(entry.webpage_url, 2048)
+      if (!url) continue
+      detectViralPlatform(url)
+      urls.push(url)
+    } catch {
+      // Skip malformed lines / non-platform URLs.
+    }
+  }
+  return urls
+}
+
+// Re-fetches a single video's engagement counts without downloading the file.
+export async function fetchViralVideoStats(url: string): Promise<{
+  views: number | null
+  likes: number | null
+  comments: number | null
+}> {
+  detectViralPlatform(url)
+
+  const args = ["-j", "--skip-download", "--no-playlist", url]
+  let stdout: string
+  try {
+    stdout = await runYtDlp(["--impersonate", "chrome", ...args])
+  } catch {
+    stdout = await runYtDlp(args)
+  }
+
+  let info: YtDlpInfo
+  try {
+    info = JSON.parse(stdout) as YtDlpInfo
+  } catch {
+    throw new Error("Stats fetch failed")
+  }
+
+  return {
+    views: readCount(info.view_count),
+    likes: readCount(info.like_count),
+    comments: readCount(info.comment_count),
+  }
+}
+
 function readString(value: unknown, maxLength: number) {
   return typeof value === "string" && value.trim()
     ? value.trim().slice(0, maxLength)

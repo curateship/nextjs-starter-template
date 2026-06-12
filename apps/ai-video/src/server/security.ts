@@ -11,6 +11,13 @@ import {
   type AiVideoUser,
 } from "@/server/schema"
 
+// This module loads with the first server request, which makes it the
+// de-facto server boot hook: start the creator-watch scheduler here (no-op
+// unless AI_VIDEO_WATCH_ENABLED=1; dynamic import avoids a module cycle).
+void import("@/server/creator-watch")
+  .then((module) => module.registerWatchScheduler())
+  .catch(() => undefined)
+
 export const SESSION_COOKIE_NAME = "ai_video_session"
 const TEN_YEARS_IN_HOURS = 24 * 365 * 10
 const SESSION_TTL_HOURS = Number.parseInt(

@@ -23,6 +23,9 @@ export type CreatorItem = {
   avatar_url: string | null
   reel_count: number
   last_reel_at: string | null
+  // Auto-ingestion toggle + when the watcher last listed this profile.
+  watch: boolean
+  last_checked_at: string | null
   created_at: string
 }
 
@@ -53,6 +56,8 @@ function serializeCreator(
       : null,
     reel_count: reelCount,
     last_reel_at: lastReelAt ? lastReelAt.toISOString() : null,
+    watch: row.watch,
+    last_checked_at: row.lastCheckedAt ? row.lastCheckedAt.toISOString() : null,
     created_at: row.createdAt.toISOString(),
   }
 }
