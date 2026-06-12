@@ -146,7 +146,8 @@ export function DirectoryRelatedListingBlock({
         </CardHeader>
       ) : null}
 
-      <CardContent className="gap-0 p-0">
+      {/* grid-cols-1 keeps the rows from widening the card past the viewport on mobile — the truncated address line otherwise sets the grid track's min width */}
+      <CardContent className="grid-cols-1 gap-0 p-0">
         <div className="divide-y">
           {relatedItems.map((item) => {
             const href = `/directory/${item.slug}`

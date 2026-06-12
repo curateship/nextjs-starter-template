@@ -230,17 +230,18 @@ export function DirectoryBlockRenderer({
             className={containerClassName}
             style={outerContainerStyle}
           >
-            <CardGroup className="grid gap-6 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
-              <CardGroup className={cn("grid gap-6 lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
+            {/* grid-cols-1 (minmax(0,1fr)) lets cards shrink below their content's min width on mobile — a bare `grid` track sizes to the widest nowrap content and overflows the viewport */}
+            <CardGroup className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.36fr)_minmax(224px,0.64fr)] lg:items-start">
+              <CardGroup className={cn("grid grid-cols-1 gap-6 lg:order-2", sidebarHasStickyBlock && "lg:self-stretch")}>
                 {sidebarBlocks.map((block) => renderDirectoryBlock(block))}
               </CardGroup>
-              <CardGroup className={cn("grid gap-6 lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
+              <CardGroup className={cn("grid grid-cols-1 gap-6 lg:order-1", mainHasStickyBlock && "lg:self-stretch")}>
                 {mainBlocks.map((block) => renderDirectoryBlock(block))}
               </CardGroup>
             </CardGroup>
           </div>
         ) : (
-          <CardGroup className={cn(containerClassName, "grid gap-6")} style={outerContainerStyle}>
+          <CardGroup className={cn(containerClassName, "grid grid-cols-1 gap-6")} style={outerContainerStyle}>
             {[...sidebarBlocks, ...mainBlocks].map((block) => renderDirectoryBlock(block))}
           </CardGroup>
         )}
