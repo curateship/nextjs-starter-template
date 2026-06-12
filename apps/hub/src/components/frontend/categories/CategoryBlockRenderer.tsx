@@ -7,8 +7,10 @@ import type { FrontendBreadcrumbItem } from "@/lib/actions/categories/frontend-b
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
 import { getRenderBlockContent, prepareBlocksForRender } from "@/lib/utils/frontend-blocks"
-import { CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
 import { CategoryCoreBlock } from "@/components/frontend/categories/core/CategoryCoreBlock"
+import { CategoryChildrenGridBlock } from "@/components/frontend/categories/children-grid/CategoryChildrenGridBlock"
+import type { CategoryChildItem } from "@/lib/actions/categories/category-children-actions"
 import type { ListingViewsData, ListingViewsItem } from "@/lib/actions/pages/page-listing-views-actions"
 
 // Sample cards for the template editor preview, where no real category exists
@@ -63,9 +65,11 @@ interface CategoryBlockRendererProps {
   // Server-prefetched listing data keyed by block id (pages pattern) — lets
   // the Listings block render with data in the initial HTML, no client fetch
   listingData?: Record<string, any>
+  // Server-prefetched child categories keyed by block id
+  childrenData?: Record<string, CategoryChildItem[]>
 }
 
-export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false, listingData }: CategoryBlockRendererProps) {
+export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPreview = false, hideSiteChrome = false, listingData, childrenData }: CategoryBlockRendererProps) {
   const siteChrome = resolveSiteChrome(site.settings)
 
   const siteWidth = (site.settings?.site_width || 'custom') as 'full' | 'custom';
@@ -116,6 +120,20 @@ export function CategoryBlockRenderer({ site, category, breadcrumbs = [], isPrev
                     customWidth={customWidth}
                   />
                 </Suspense>
+              </div>
+            )
+          }
+
+          if (block.type === CATEGORY_CHILDREN_GRID_BLOCK_TYPE) {
+            return (
+              <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+                <CategoryChildrenGridBlock
+                  content={blockContent}
+                  preloadedItems={childrenData?.[block.id]}
+                  siteWidth={siteWidth}
+                  customWidth={customWidth}
+                  isPreview={isPreview}
+                />
               </div>
             )
           }

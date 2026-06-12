@@ -7,6 +7,7 @@
 export const CATEGORY_BLANK_TEMPLATE_NAME = 'Blank'
 export const CATEGORY_LISTINGS_BLOCK_TYPE = 'category-listings'
 export const CATEGORY_CORE_BLOCK_TYPE = 'category-core'
+export const CATEGORY_CHILDREN_GRID_BLOCK_TYPE = 'category-children-grid'
 
 // Per-category value keys. The Listings block is fully template-configured
 // (the rendered category is injected at runtime), so it has no value keys.
@@ -15,12 +16,22 @@ export const CATEGORY_CORE_BLOCK_TYPE = 'category-core'
 const CATEGORY_VALUE_KEYS: Record<string, string[]> = {
   [CATEGORY_LISTINGS_BLOCK_TYPE]: [],
   [CATEGORY_CORE_BLOCK_TYPE]: ['body', 'format'],
+  [CATEGORY_CHILDREN_GRID_BLOCK_TYPE]: [],
 }
 
 // Template-owned config keys per block type (everything the admin editor sets).
 // categoryIds is intentionally absent — it is derived from the rendered category.
 const CATEGORY_TEMPLATE_CONTENT_KEYS: Record<string, string[]> = {
   [CATEGORY_CORE_BLOCK_TYPE]: ['imageWidth', 'visibility'],
+  [CATEGORY_CHILDREN_GRID_BLOCK_TYPE]: [
+    'title',
+    'columns',
+    'mobileColumns',
+    'imageFit',
+    'imageHeight',
+    'imageQuality',
+    'visibility',
+  ],
   [CATEGORY_LISTINGS_BLOCK_TYPE]: [
     'title',
     'subtitle',

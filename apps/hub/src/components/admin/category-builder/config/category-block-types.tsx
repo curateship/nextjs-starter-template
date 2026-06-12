@@ -1,6 +1,6 @@
-import { BadgeInfo, LayoutGrid } from "lucide-react"
+import { BadgeInfo, LayoutGrid, Grid2X2 } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
-import { CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
 
 export type { BlockTypeDefinition }
 
@@ -13,6 +13,20 @@ export const CATEGORY_BLOCK_TYPES: BlockTypeDefinition[] = [
     // Visibility is the only template-owned key; title/image are category row
     // fields and the rich text body is a per-category value
     defaultContent: {
+      visibility: {},
+    },
+  },
+  {
+    type: CATEGORY_CHILDREN_GRID_BLOCK_TYPE,
+    name: 'Sub-category Grid',
+    icon: Grid2X2,
+    description: 'Grid of child categories — ideal for parent category pages',
+    defaultContent: {
+      title: '',
+      columns: 3,
+      mobileColumns: 2,
+      imageFit: 'crop',
+      imageQuality: 25,
       visibility: {},
     },
   },

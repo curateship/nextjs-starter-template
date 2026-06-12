@@ -4,7 +4,8 @@ import { db } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
-import { CATEGORY_LISTINGS_BLOCK_TYPE, mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
+import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE, mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
+import { getCategoryChildrenAction, type CategoryChildItem } from "@/lib/actions/categories/category-children-actions"
 import { getListingViewsData } from "@/lib/actions/pages/page-listing-views-actions"
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
@@ -71,6 +72,32 @@ async function prefetchCategoryListingData(
   }
 
   return listingData
+}
+
+async function prefetchCategoryChildrenData(
+  blocks: Array<{ id: string; type: string }>,
+  siteId: string,
+  categoryId: string
+): Promise<Record<string, CategoryChildItem[]>> {
+  const hasChildrenBlock = blocks.some((b) => b.type === CATEGORY_CHILDREN_GRID_BLOCK_TYPE)
+  if (!hasChildrenBlock) return {}
+
+  let items: CategoryChildItem[] = []
+  try {
+    items = await getCategoryChildrenAction(siteId, categoryId)
+  } catch {
+    // Silently continue — the block renders empty rather than throwing
+  }
+
+  // All children-grid blocks on this page share the same parent, so one fetch
+  // covers all of them
+  const result: Record<string, CategoryChildItem[]> = {}
+  for (const block of blocks) {
+    if (block.type === CATEGORY_CHILDREN_GRID_BLOCK_TYPE) {
+      result[block.id] = items
+    }
+  }
+  return result
 }
 
 const CATEGORY_PAGE_NOT_FOUND_ERROR = 'CATEGORY_PAGE_NOT_FOUND'
@@ -174,9 +201,10 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
     ...toSnakeCase(category),
     blocks
   } as any
-  // Listing data and breadcrumbs are independent — fetch them in parallel
-  const [listingData, breadcrumbs] = await Promise.all([
+  // Listing data, child category data, and breadcrumbs are independent — fetch in parallel
+  const [listingData, childrenData, breadcrumbs] = await Promise.all([
     prefetchCategoryListingData(blocks, site.id, category.id, listingPage),
+    prefetchCategoryChildrenData(blocks, site.id, category.id),
     shouldShowFrontendBreadcrumbs(site.settings, 'categories')
       ? getCategoryBreadcrumbItems({
           siteId: site.id,
@@ -193,6 +221,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
         category={categoryWithBlocks}
         breadcrumbs={breadcrumbs}
         listingData={listingData}
+        childrenData={childrenData}
       />
     </>
   )

@@ -1,8 +1,9 @@
 "use client"
 
-import { CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
+import { CATEGORY_CHILDREN_GRID_BLOCK_TYPE, CATEGORY_CORE_BLOCK_TYPE, CATEGORY_LISTINGS_BLOCK_TYPE } from "@/lib/actions/categories/category-template-inheritance"
 import { CategoryCoreBlock } from "@/components/admin/category-builder/blocks/core/CategoryCoreBlock"
 import { CategoryCoreTemplateBlock } from "@/components/admin/category-builder/blocks/core/CategoryCoreTemplateBlock"
+import { CategoryChildrenGridTemplateBlock } from "@/components/admin/category-builder/blocks/children-grid/CategoryChildrenGridTemplateBlock"
 import { CategoryListingsBlock } from "@/components/admin/category-builder/blocks/listings/CategoryListingsBlock"
 import { CategoryListingsInfoBlock } from "@/components/admin/category-builder/blocks/listings/CategoryListingsInfoBlock"
 
@@ -61,6 +62,24 @@ export function CategoryBlockEditor({
         categoryFeaturedImage={categoryFeaturedImage}
         onCategoryTitleChange={onCategoryTitleChange}
         onCategoryFeaturedImageChange={onCategoryFeaturedImageChange}
+      />
+    )
+  }
+
+  if (block.type === CATEGORY_CHILDREN_GRID_BLOCK_TYPE) {
+    if (mode === "template") {
+      return (
+        <CategoryChildrenGridTemplateBlock
+          content={content}
+          onContentChange={onContentChange}
+        />
+      )
+    }
+
+    return (
+      <CategoryListingsInfoBlock
+        title="Sub-category Grid"
+        message="This block is configured from the category template. It automatically displays child categories of the category being viewed."
       />
     )
   }
