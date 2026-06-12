@@ -13,12 +13,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
-import { Route as AuthenticatedAdminVideoEditorRouteImport } from './routes/_authenticated/admin/video-editor'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminActorRouteImport } from './routes/_authenticated/admin/actor'
+import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor/index'
+import { Route as AuthenticatedAdminVideoEditorProjectIdRouteImport } from './routes/_authenticated/admin/video-editor/$projectId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
@@ -42,12 +43,6 @@ const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   path: '/workspaces',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAdminVideoEditorRoute =
-  AuthenticatedAdminVideoEditorRouteImport.update({
-    id: '/admin/video-editor',
-    path: '/admin/video-editor',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
@@ -76,6 +71,18 @@ const AuthenticatedAdminActorRoute = AuthenticatedAdminActorRouteImport.update({
   path: '/admin/actor',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminVideoEditorIndexRoute =
+  AuthenticatedAdminVideoEditorIndexRouteImport.update({
+    id: '/admin/video-editor/',
+    path: '/admin/video-editor/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminVideoEditorProjectIdRoute =
+  AuthenticatedAdminVideoEditorProjectIdRouteImport.update({
+    id: '/admin/video-editor/$projectId',
+    path: '/admin/video-editor/$projectId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminSettingsTabRoute =
   AuthenticatedAdminSettingsTabRouteImport.update({
     id: '/$tab',
@@ -103,9 +110,10 @@ export interface FileRoutesByFullPath {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesByTo {
@@ -117,9 +125,10 @@ export interface FileRoutesByTo {
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/admin/video-editor': typeof AuthenticatedAdminVideoEditorRoute
   '/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRoutesById {
@@ -133,9 +142,10 @@ export interface FileRoutesById {
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
-  '/_authenticated/admin/video-editor': typeof AuthenticatedAdminVideoEditorRoute
   '/_authenticated/admin/feedback/comments': typeof AuthenticatedAdminFeedbackCommentsRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/_authenticated/admin/video-editor/$projectId': typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
 }
 export interface FileRouteTypes {
@@ -149,9 +159,10 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
-    | '/admin/video-editor'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
+    | '/admin/video-editor/$projectId'
+    | '/admin/video-editor/'
     | '/api/v1/media/$mediaId/file'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -163,9 +174,10 @@ export interface FileRouteTypes {
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
-    | '/admin/video-editor'
     | '/admin/feedback/comments'
     | '/admin/settings/$tab'
+    | '/admin/video-editor/$projectId'
+    | '/admin/video-editor'
     | '/api/v1/media/$mediaId/file'
   id:
     | '__root__'
@@ -178,9 +190,10 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
-    | '/_authenticated/admin/video-editor'
     | '/_authenticated/admin/feedback/comments'
     | '/_authenticated/admin/settings/$tab'
+    | '/_authenticated/admin/video-editor/$projectId'
+    | '/_authenticated/admin/video-editor/'
     | '/api/v1/media/$mediaId/file'
   fileRoutesById: FileRoutesById
 }
@@ -220,13 +233,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/admin/video-editor': {
-      id: '/_authenticated/admin/video-editor'
-      path: '/admin/video-editor'
-      fullPath: '/admin/video-editor'
-      preLoaderRoute: typeof AuthenticatedAdminVideoEditorRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/admin/settings': {
       id: '/_authenticated/admin/settings'
       path: '/admin/settings'
@@ -260,6 +266,20 @@ declare module '@tanstack/react-router' {
       path: '/admin/actor'
       fullPath: '/admin/actor'
       preLoaderRoute: typeof AuthenticatedAdminActorRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/video-editor/': {
+      id: '/_authenticated/admin/video-editor/'
+      path: '/admin/video-editor'
+      fullPath: '/admin/video-editor/'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/video-editor/$projectId': {
+      id: '/_authenticated/admin/video-editor/$projectId'
+      path: '/admin/video-editor/$projectId'
+      fullPath: '/admin/video-editor/$projectId'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorProjectIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/settings/$tab': {
@@ -323,7 +343,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
-  AuthenticatedAdminVideoEditorRoute: typeof AuthenticatedAdminVideoEditorRoute
+  AuthenticatedAdminVideoEditorProjectIdRoute: typeof AuthenticatedAdminVideoEditorProjectIdRoute
+  AuthenticatedAdminVideoEditorIndexRoute: typeof AuthenticatedAdminVideoEditorIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -334,7 +355,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
-  AuthenticatedAdminVideoEditorRoute: AuthenticatedAdminVideoEditorRoute,
+  AuthenticatedAdminVideoEditorProjectIdRoute:
+    AuthenticatedAdminVideoEditorProjectIdRoute,
+  AuthenticatedAdminVideoEditorIndexRoute:
+    AuthenticatedAdminVideoEditorIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

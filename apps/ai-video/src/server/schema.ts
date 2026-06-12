@@ -251,6 +251,25 @@ export const aiVideoActors = pgTable(
   ]
 )
 
+export const aiVideoProjects = pgTable(
+  "video_projects",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    // Serialized editor timeline: { tracks: EditorTrack[], aspect: AspectRatio }
+    timeline: jsonb("timeline").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("ix_video_projects_user_id").on(table.userId),
+    index("ix_video_projects_user_created").on(table.userId, table.createdAt),
+  ]
+)
+
 export const aiVideoActorGenerationEvents = pgTable(
   "actor_generation_events",
   {
@@ -273,6 +292,7 @@ export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
+export type AiVideoProject = typeof aiVideoProjects.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment =
   typeof aiVideoFeedbackComments.$inferSelect

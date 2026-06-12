@@ -78,13 +78,20 @@ function newTrack(): EditorTrack {
   return { id: editorId(), muted: false, clips: [] }
 }
 
-// Editors usually start with a few empty lanes to drop media onto.
-export function createInitialEditorState(): EditorState {
+// Restores a saved project timeline; new/empty projects get the usual few
+// empty lanes to drop media onto.
+export function createInitialEditorState(timeline?: {
+  tracks: EditorTrack[]
+  aspect: AspectRatio
+}): EditorState {
+  const hasSavedTracks = timeline && timeline.tracks.length > 0
   return {
-    tracks: [newTrack(), newTrack(), newTrack()],
+    tracks: hasSavedTracks
+      ? timeline.tracks
+      : [newTrack(), newTrack(), newTrack()],
     selectedClipId: null,
     pxPerSecond: DEFAULT_PX_PER_SECOND,
-    aspect: "16:9",
+    aspect: timeline?.aspect ?? "16:9",
     cutMode: false,
     past: [],
     future: [],
@@ -407,11 +414,15 @@ export function editorReducer(
   }
 }
 
+// Autosave lifecycle, surfaced in the timeline toolbar.
+export type SaveStatus = "saved" | "saving" | "error"
+
 type EditorContextValue = {
   state: EditorState
   dispatch: React.Dispatch<EditorAction>
   clock: PlaybackClock
   durationMs: number
+  saveStatus: SaveStatus
 }
 
 // The provider component lives in editor-provider.tsx (files exporting

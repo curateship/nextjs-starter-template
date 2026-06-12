@@ -145,9 +145,10 @@ export function ShellLayout({
     window.location.href = "/login"
   }, [])
 
-  // The video editor fills the viewport itself: strip the content padding and
-  // let the page manage its own overflow instead of the shell scrolling.
-  const isVideoEditorPath = currentPath.startsWith("/admin/video-editor")
+  // The editor (/admin/video-editor/$projectId) fills the viewport itself:
+  // strip the content padding and let the page manage its own overflow. The
+  // projects dashboard at the bare path renders as a normal padded page.
+  const isVideoEditorPath = currentPath.startsWith("/admin/video-editor/")
 
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
@@ -340,19 +341,6 @@ function getStickyHeaderNavLinks(config: ShellConfig, currentPath: string) {
         label: activeItem.label,
         href: activeItem.href,
         icon: renderShellIcon(activeItem.icon, "h-3.5 w-3.5"),
-        active: true,
-      },
-    ]
-  }
-
-  // Fallback chip for the video editor when it isn't in the user's sidebar
-  // config — config-driven items (and their children) above take priority.
-  if (currentPath.startsWith("/admin/video-editor")) {
-    return [
-      {
-        label: "Video Editor",
-        href: "/admin/video-editor",
-        icon: renderShellIcon("clapperboard", "h-3.5 w-3.5"),
         active: true,
       },
     ]
