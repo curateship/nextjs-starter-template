@@ -260,6 +260,12 @@ export const aiVideoProjects = pgTable(
       .notNull()
       .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 255 }).notNull(),
+    // Set when the project was created via "Use template" — the script writer
+    // follows it to the template's source reel analysis.
+    templateId: varchar("template_id", { length: 36 }).references(
+      () => aiVideoTemplates.id,
+      { onDelete: "set null" }
+    ),
     // Serialized editor timeline: { tracks: EditorTrack[], aspect: AspectRatio }
     timeline: jsonb("timeline").notNull(),
     // Latest export: rendering → ready/error; the MP4 lives at renderStoragePath.
@@ -277,6 +283,7 @@ export const aiVideoProjects = pgTable(
     ),
     index("ix_video_projects_user_id").on(table.userId),
     index("ix_video_projects_user_created").on(table.userId, table.createdAt),
+    index("ix_video_projects_template_id").on(table.templateId),
   ]
 )
 

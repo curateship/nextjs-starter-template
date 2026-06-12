@@ -272,6 +272,8 @@ export async function createProjectFromTemplateForCurrentUser(
       id: uuid(),
       userId: user.id,
       name: template.name,
+      // Remembered so the script writer can reach the source reel's analysis.
+      templateId: template.id,
       timeline: template.timeline,
       createdAt,
       updatedAt: createdAt,

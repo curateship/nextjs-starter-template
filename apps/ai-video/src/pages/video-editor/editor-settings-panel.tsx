@@ -1,9 +1,11 @@
 import * as React from "react"
 import {
   CaptionsIcon,
+  CopyIcon,
   ImageIcon,
   Loader2Icon,
   MusicIcon,
+  PenLineIcon,
   ShapesIcon,
   SparklesIcon,
   TypeIcon,
@@ -26,6 +28,12 @@ import {
   generateProjectCaptions,
   getCaptionErrorMessage,
 } from "@/lib/api/captions"
+import {
+  getScriptErrorMessage,
+  writeProjectScript,
+  type ScriptBeat,
+} from "@/lib/api/script-writer"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -54,6 +62,7 @@ import {
 export function EditorSettingsPanel() {
   const { state, dispatch, clock } = useEditor()
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
+  const [scriptOpen, setScriptOpen] = React.useState(false)
   const selected = state.selectedClipId
     ? findClip(state.tracks, state.selectedClipId)
     : null
@@ -88,10 +97,12 @@ export function EditorSettingsPanel() {
           <DefaultPanels
             onAddText={addTextClip}
             onAddCaptions={() => setCaptionsOpen(true)}
+            onWriteScript={() => setScriptOpen(true)}
           />
         )}
       </div>
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
+      <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
     </section>
   )
 }
@@ -192,9 +203,11 @@ const ELEMENT_TILES: { label: string; icon: LucideIcon; inert?: boolean }[] = [
 function DefaultPanels({
   onAddText,
   onAddCaptions,
+  onWriteScript,
 }: {
   onAddText: () => void
   onAddCaptions: () => void
+  onWriteScript: () => void
 }) {
   return (
     <>
@@ -226,6 +239,27 @@ function DefaultPanels({
             </button>
           ))}
         </div>
+      </div>
+
+      <Separator />
+
+      {/* Template-aware script writer */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold">AI Script</h2>
+          <p className="text-xs text-muted-foreground">
+            Rewrite the source reel&apos;s script beats for your own topic.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={onWriteScript}
+        >
+          <PenLineIcon />
+          Write Script
+        </Button>
       </div>
 
       <Separator />
@@ -393,6 +427,189 @@ function CaptionsDialog({
             )}
             {generating ? "Transcribing…" : "Generate"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Writes a beat-matched script from the source reel's analysis (projects
+// created via "Use template" only). The result can be copied or inserted as
+// a caption track at the beats' exact timings.
+function ScriptDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { dispatch, projectId } = useEditor()
+  const [topic, setTopic] = React.useState("")
+  const [notes, setNotes] = React.useState("")
+  const [generating, setGenerating] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [beats, setBeats] = React.useState<ScriptBeat[] | null>(null)
+  const [copied, setCopied] = React.useState(false)
+
+  async function handleGenerate() {
+    if (!topic.trim()) {
+      setError("Enter a topic first.")
+      return
+    }
+    setGenerating(true)
+    setError(null)
+    setCopied(false)
+    try {
+      const result = await writeProjectScript(
+        projectId,
+        topic.trim(),
+        notes.trim() || undefined
+      )
+      setBeats(result.beats)
+    } catch (generateError) {
+      setError(getScriptErrorMessage(generateError))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleCopy() {
+    if (!beats) return
+    const script = beats
+      .map((beat) => `[${beat.role}] ${beat.line}`)
+      .join("\n\n")
+    await navigator.clipboard.writeText(script).catch(() => undefined)
+    setCopied(true)
+  }
+
+  // Drops the script onto the timeline as a caption track at the beat times.
+  function handleAddAsCaptions() {
+    if (!beats) return
+    dispatch({
+      type: "ADD_CAPTION_CLIPS",
+      clips: beats.map((beat) => ({
+        id: editorId(),
+        kind: "text" as const,
+        name: "Script",
+        text: beat.line,
+        fontSize: 64,
+        color: "#ffffff",
+        trimStartMs: 0,
+        startMs: beat.startMs,
+        durationMs: beat.endMs - beat.startMs,
+      })),
+    })
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => !generating && onOpenChange(next)}
+    >
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Write Script</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Writes a new script for your topic that follows the source
+              reel&apos;s analyzed beats — same structure, same pacing.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="script-topic">Your topic</Label>
+              <Input
+                id="script-topic"
+                value={topic}
+                placeholder="e.g. my coffee shop's new matcha menu"
+                onChange={(event) => setTopic(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="script-notes">Notes (optional)</Label>
+              <Textarea
+                id="script-notes"
+                rows={2}
+                value={notes}
+                placeholder="Anything the script must mention or avoid..."
+                onChange={(event) => setNotes(event.target.value)}
+              />
+            </div>
+            {beats ? (
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border bg-background p-3">
+                {beats.map((beat, index) => (
+                  <div key={index} className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="capitalize">
+                        {beat.role}
+                      </Badge>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {formatTimecode(beat.startMs)} –{" "}
+                        {formatTimecode(beat.endMs)}
+                      </span>
+                    </div>
+                    <p className="text-sm">{beat.line}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          {beats ? (
+            <>
+              <Button type="button" variant="outline" onClick={handleCopy}>
+                <CopyIcon className="size-4" />
+                {copied ? "Copied" : "Copy Script"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={generating}
+                onClick={handleGenerate}
+              >
+                {generating ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PenLineIcon className="size-4" />
+                )}
+                Rewrite
+              </Button>
+              <Button type="button" onClick={handleAddAsCaptions}>
+                <CaptionsIcon className="size-4" />
+                Add as Captions
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={generating}
+                onClick={() => onOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={generating}
+                onClick={handleGenerate}
+              >
+                {generating ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PenLineIcon className="size-4" />
+                )}
+                {generating ? "Writing…" : "Generate"}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
