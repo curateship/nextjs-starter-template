@@ -7,6 +7,8 @@ This document describes the current local dev server setup for the apps in this 
 - Hub: `http://localhost:3000`
 - Custom Shell: `http://localhost:3002`
 - Core: `http://localhost:3003`
+- AI Video: `http://localhost:3004`
+- Antidetect: `http://localhost:3005`
 
 ## Why These Ports
 
@@ -15,6 +17,8 @@ The local apps now use a simple sequential port layout so they are easier to rem
 - `3000`
 - `3002`
 - `3003`
+- `3004`
+- `3005`
 
 This replaces the previous mix of `3000`, `5173`, and `5174`.
 
@@ -29,6 +33,12 @@ The fixed ports are configured in the app-level dev setup:
   - `server.strictPort = true`
 - `apps/core/vite.config.ts`
   - `server.port = 3003`
+  - `server.strictPort = true`
+- `apps/ai-video/vite.config.ts`
+  - `server.port = 3004`
+  - `server.strictPort = true`
+- `apps/antidetect/vite.config.ts`
+  - `server.port = 3005`
   - `server.strictPort = true`
 
 `strictPort: true` is enabled for the TanStack Start apps so they fail instead of silently moving to another port. These apps include their UI and backend in one dev server, so there is no separate Python API dev server.
@@ -52,4 +62,6 @@ Running `localapps` should show:
 hub: http://localhost:3000
 custom-shell: http://localhost:3002
 core: http://localhost:3003
+ai-video: http://localhost:3004
+antidetect: http://localhost:3005
 ```
