@@ -1,5 +1,6 @@
 import { sanitizeRichMediaHtml } from "@/lib/utils/html-sanitizer"
 import { cn } from "@/lib/utils"
+import { resolveMediaUrl } from "@/lib/utils/media-url"
 
 interface CategoryCoreBlockProps {
   content?: {
@@ -13,18 +14,6 @@ interface CategoryCoreBlockProps {
   }
   siteWidth?: 'full' | 'custom'
   customWidth?: number
-}
-
-// R2 media is served through the authenticated proxy (no public CORS)
-function resolveMediaUrl(url?: string | null) {
-  const trimmedUrl = url?.trim() || ""
-  if (!trimmedUrl) return ""
-
-  if (trimmedUrl.startsWith("r2://")) {
-    return `/api/media/proxy?url=${encodeURIComponent(trimmedUrl)}`
-  }
-
-  return trimmedUrl
 }
 
 // Category page header: featured image on the left, title + rich text on the

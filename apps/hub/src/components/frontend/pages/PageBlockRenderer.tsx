@@ -7,6 +7,7 @@ import { ListingViewsBlock } from "@/components/frontend/pages/listing-view/Page
 import { DividerBlock } from "@/components/frontend/pages/divider/PageDividerBlock"
 import dynamic from "next/dynamic"
 const AuthBlock = dynamic(() => import("@/components/frontend/pages/auth/AuthBlock").then(m => ({ default: m.AuthBlock })))
+const AccountCoreBlock = dynamic(() => import("@/components/frontend/account/core/AccountCoreBlock").then(m => ({ default: m.AccountCoreBlock })))
 const AccountEditProfileBlock = dynamic(() => import("@/components/frontend/account/edit-profile/AccountEditProfileBlock").then(m => ({ default: m.AccountEditProfileBlock })))
 const AccountClaimedListingsBlock = dynamic(() => import("@/components/frontend/account/claimed-listings/AccountClaimedListingsBlock").then(m => ({ default: m.AccountClaimedListingsBlock })))
 import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbeddedBlock"
@@ -207,6 +208,22 @@ export function BlockRenderer({
                 content={blockContent}
                 siteWidth={siteWidth}
                 customWidth={customWidth}
+              />
+            </div>
+          )
+        }
+
+        if (block.type === 'account-core') {
+          if (!accountContext) return null
+
+          return (
+            <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
+              <AccountCoreBlock
+                siteId={site.id}
+                content={blockContent}
+                siteWidth={siteWidth}
+                customWidth={customWidth}
+                isPreview={isPreview}
               />
             </div>
           )

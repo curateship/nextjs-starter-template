@@ -108,6 +108,24 @@ export function AccountEditProfileBlock({
                       </div>
 
                       <div className="space-y-2">
+                        <Label htmlFor="account-profile-bio-label">Bio</Label>
+                        <Input
+                          id="account-profile-bio-label"
+                          value={content.bioLabel ?? ""}
+                          onChange={(event) => onContentChange("bioLabel", event.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="account-profile-social-links-label">Social Links</Label>
+                        <Input
+                          id="account-profile-social-links-label"
+                          value={content.socialLinksLabel ?? ""}
+                          onChange={(event) => onContentChange("socialLinksLabel", event.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
                         <Label htmlFor="account-profile-email-label">Email</Label>
                         <Input
                           id="account-profile-email-label"
@@ -200,6 +218,8 @@ export function AccountEditProfileBlock({
                   { key: "description", label: "Description" },
                   { key: "profileSection", label: "Profile Section" },
                   { key: "avatar", label: "Avatar" },
+                  { key: "bio", label: "Bio" },
+                  { key: "socialLinks", label: "Social Links" },
                   { key: "emailSection", label: "Email Section" },
                   { key: "passwordSection", label: "Password Section" },
                 ]}

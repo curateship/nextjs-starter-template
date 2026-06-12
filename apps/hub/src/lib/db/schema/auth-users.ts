@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, timestamp, jsonb } from 'drizzle-orm/pg-core'
 
 export const authUsers = pgTable('users', {
   id: text('id').primaryKey(),
@@ -13,4 +13,7 @@ export const authUsers = pgTable('users', {
   banReason: text('banReason'),
   banExpires: timestamp('banExpires', { withTimezone: true }),
   displayName: text('displayName'),
+  // Front-facing profile fields shown by the account Core block
+  bio: text('bio'),
+  socialLinks: jsonb('socialLinks').notNull().default([]),
 })

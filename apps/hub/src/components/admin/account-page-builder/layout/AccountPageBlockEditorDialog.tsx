@@ -5,6 +5,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { DashboardModalContent } from "@/components/admin/layout/dashboard/modals"
 import { AccountClaimedListingsBlock } from "../blocks/claimed-listings/AccountClaimedListingsBlock"
+import { AccountCoreBlock } from "../blocks/core/AccountCoreBlock"
 import { AccountEditProfileBlock } from "../blocks/edit-profile/AccountEditProfileBlock"
 import { getBlockName } from "../config/account-page-block-types"
 import type { ContentBlock as AccountPageBlock } from "@/lib/utils/block-utils"
@@ -46,6 +47,12 @@ export function AccountPageBlockEditorDialog({
             </>
           }
         >
+          {selectedBlock.type === "account-core" && (
+            <AccountCoreBlock
+              content={draftContent}
+              onContentChange={onContentChange}
+            />
+          )}
           {selectedBlock.type === "account-edit-profile" && (
             <AccountEditProfileBlock
               content={draftContent}

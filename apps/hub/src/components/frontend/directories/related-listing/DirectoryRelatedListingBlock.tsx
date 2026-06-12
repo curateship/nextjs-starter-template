@@ -9,6 +9,7 @@ import {
   getDirectoryRelatedListingsAction,
   type DirectoryRelatedListingItem,
 } from "@/lib/actions/directories/directory-related-listing-actions"
+import { resolveMediaUrl } from "@/lib/utils/media-url"
 
 interface DirectoryRelatedListingBlockProps {
   content?: {
@@ -45,17 +46,6 @@ const PREVIEW_ITEMS: DirectoryRelatedListingItem[] = [
     },
   },
 ]
-
-function resolveMediaUrl(url?: string | null) {
-  const trimmedUrl = url?.trim() || ""
-  if (!trimmedUrl) return ""
-
-  if (trimmedUrl.startsWith("r2://")) {
-    return `/api/media/proxy?url=${encodeURIComponent(trimmedUrl)}`
-  }
-
-  return trimmedUrl
-}
 
 function getShortDescription(value?: string | null) {
   const plainText = (value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()

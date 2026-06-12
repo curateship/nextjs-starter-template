@@ -1,4 +1,3 @@
-import { Facebook, Github, Globe, Instagram, Linkedin, Music2, Twitter, type LucideIcon, Youtube } from "lucide-react"
 import {
   buildDirectoryCoreMenuHref,
   buildDirectoryCoreUrlHref,
@@ -14,6 +13,8 @@ import { DirectorySaveDropdown } from "@/components/frontend/directories/Directo
 import { Rating } from "@/components/shadcnblocks/rating"
 import { Card, CardSection } from "@/components/ui/card"
 import { renderQuickLinkIcon } from "@/lib/utils/site-quick-links"
+import { resolveMediaUrl } from "@/lib/utils/media-url"
+import { getSocialMeta } from "@/lib/utils/social-icons"
 import { cn } from "@/lib/utils/tailwind"
 import type { HTMLAttributes } from "react"
 
@@ -30,42 +31,11 @@ interface DirectoryCoreBlockProps {
   cardProps?: HTMLAttributes<HTMLDivElement>
 }
 
-const SOCIAL_ICON_MAP: Record<string, { label: string; Icon: LucideIcon }> = {
-  facebook: { label: "Facebook", Icon: Facebook },
-  instagram: { label: "Instagram", Icon: Instagram },
-  twitter: { label: "Twitter", Icon: Twitter },
-  linkedin: { label: "LinkedIn", Icon: Linkedin },
-  youtube: { label: "YouTube", Icon: Youtube },
-  tiktok: { label: "TikTok", Icon: Music2 },
-  github: { label: "GitHub", Icon: Github }
-}
-
 const ACTION_ROW_CLASS = "flex min-h-8 items-center gap-3 px-6 py-2 text-primary transition-colors hover:bg-primary/5 hover:text-primary/85"
 const MUTED_ACTION_ROW_CLASS = "flex min-h-8 items-center gap-3 px-6 py-2 text-muted-foreground"
 
-function resolveMediaUrl(url?: string | null) {
-  const trimmedUrl = url?.trim() || ""
-  if (!trimmedUrl) return ""
-
-  if (trimmedUrl.startsWith("r2://")) {
-    return `/api/media/proxy?url=${encodeURIComponent(trimmedUrl)}`
-  }
-
-  return trimmedUrl
-}
-
 function isExternalHref(href: string) {
   return /^https?:\/\//i.test(href)
-}
-
-function getSocialMeta(platform?: string) {
-  const normalizedPlatform = platform?.toLowerCase() || ""
-  return (
-    SOCIAL_ICON_MAP[normalizedPlatform] || {
-      label: platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Social Link",
-      Icon: Globe
-    }
-  )
 }
 
 function SocialLink({ link, className }: { link: DirectoryCoreSocialLink; className?: string }) {

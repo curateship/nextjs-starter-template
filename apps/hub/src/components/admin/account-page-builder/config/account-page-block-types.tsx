@@ -1,9 +1,29 @@
-import { Building2, FileText, UserRoundCog } from "lucide-react"
+import { Building2, FileText, UserRound, UserRoundCog } from "lucide-react"
 import { BlockTypeDefinition, findBlockType, getBlockName as _getBlockName } from "@/lib/utils/block-types"
 
 export type { BlockTypeDefinition }
 
 export const ACCOUNT_PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
+  {
+    type: 'account-core',
+    name: 'Core',
+    icon: UserRound,
+    description: 'Front-facing member profile with avatar, bio, social links, and saved listings',
+    defaultContent: {
+      savedTitle: 'Saved Listings',
+      emptyText: 'No saved listings yet.',
+      imageFit: 'crop',
+      imageQuality: 25,
+      saveIconOpacity: 70,
+      displayMode: 'grid',
+      mobileColumns: 1,
+      columns: 3,
+      sortBy: 'date',
+      sortOrder: 'desc',
+      visibility: {},
+    },
+    conflictsWith: ['account-core'],
+  },
   {
     type: 'account-edit-profile',
     name: 'Edit Profile',
@@ -17,6 +37,8 @@ export const ACCOUNT_PAGE_BLOCK_TYPES: BlockTypeDefinition[] = [
       passwordTitle: 'Security Settings',
       avatarLabel: 'Avatar',
       nameLabel: 'Display Name',
+      bioLabel: 'Bio',
+      socialLinksLabel: 'Social Links',
       emailLabel: 'New Email Address',
       currentPasswordLabel: 'Current Password',
       newPasswordLabel: 'New Password',

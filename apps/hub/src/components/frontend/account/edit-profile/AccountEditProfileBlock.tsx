@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
-import { AlertTriangle, CheckCircle2, ImageIcon, Lock, Mail, User, X } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ImageIcon, Lock, Mail, Plus, Trash2, User, X } from "lucide-react"
 import { BlockContainer } from "@/components/frontend/layout/block-container"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getCurrentUser, requestEmailChange, updatePassword, updateProfile } from "@/lib/actions/auth/auth-actions"
+import { Textarea } from "@/components/ui/textarea"
+import { getMyProfile, requestEmailChange, updatePassword, updateProfile, type ProfileSocialLink } from "@/lib/actions/auth/auth-actions"
 
 interface AccountEditProfileBlockProps {
   content?: {
@@ -21,6 +22,8 @@ interface AccountEditProfileBlockProps {
     passwordTitle?: string
     avatarLabel?: string
     nameLabel?: string
+    bioLabel?: string
+    socialLinksLabel?: string
     emailLabel?: string
     currentPasswordLabel?: string
     newPasswordLabel?: string
@@ -41,6 +44,8 @@ type CurrentUser = {
   name?: string | null
   displayName?: string | null
   image?: string | null
+  bio?: string | null
+  socialLinks?: ProfileSocialLink[]
 }
 
 type Message = {
@@ -76,6 +81,8 @@ export function AccountEditProfileBlock({
   const [message, setMessage] = useState<Message | null>(null)
   const [displayName, setDisplayName] = useState("")
   const [avatarUrl, setAvatarUrl] = useState("")
+  const [bio, setBio] = useState("")
+  const [socialLinks, setSocialLinks] = useState<ProfileSocialLink[]>([])
   const [newEmail, setNewEmail] = useState("")
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -98,19 +105,24 @@ export function AccountEditProfileBlock({
       })
       setDisplayName("Member Name")
       setAvatarUrl("")
+      setBio("")
+      setSocialLinks([])
       setLoading(false)
       return
     }
 
     let cancelled = false
 
-    getCurrentUser().then((currentUser) => {
+    // getMyProfile reads the users row directly — the session lacks bio/socialLinks
+    getMyProfile().then((currentUser) => {
       if (cancelled) return
 
       if (currentUser) {
         setUser(currentUser)
         setDisplayName(currentUser.displayName || currentUser.name || currentUser.email?.split("@")[0] || "")
         setAvatarUrl(currentUser.image || "")
+        setBio(currentUser.bio || "")
+        setSocialLinks(currentUser.socialLinks || [])
       }
 
       setLoading(false)
@@ -132,12 +144,15 @@ export function AccountEditProfileBlock({
       formData.set("display_name", displayName)
       formData.set("email", user?.email || "")
       formData.set("image", avatarUrl)
+      formData.set("bio", bio)
+      // Drop incomplete rows (no URL) before saving
+      formData.set("social_links", JSON.stringify(socialLinks.filter((link) => link.url.trim())))
 
       const result = await updateProfile(formData)
       if (result.error) {
         setMessage({ type: "error", text: result.error })
       } else {
-        setUser((current) => (current ? { ...current, name: displayName, displayName, image: avatarUrl } : current))
+        setUser((current) => (current ? { ...current, name: displayName, displayName, image: avatarUrl, bio, socialLinks } : current))
         setMessage({ type: "success", text: "Profile updated successfully." })
       }
     } catch {
@@ -358,14 +373,87 @@ export function AccountEditProfileBlock({
                         </div>
                       )}
 
-                      <div className="space-y-2">
-                        <Label htmlFor="account-display-name">{content?.nameLabel || "Display Name"}</Label>
-                        <Input
-                          id="account-display-name"
-                          value={displayName}
-                          onChange={(event) => setDisplayName(event.target.value)}
-                          disabled={isPreview || savingProfile}
-                        />
+                      <div className="space-y-5">
+                        <div className="space-y-2">
+                          <Label htmlFor="account-display-name">{content?.nameLabel || "Display Name"}</Label>
+                          <Input
+                            id="account-display-name"
+                            value={displayName}
+                            onChange={(event) => setDisplayName(event.target.value)}
+                            disabled={isPreview || savingProfile}
+                          />
+                        </div>
+
+                        {isVisible("bio") && (
+                          <div className="space-y-2">
+                            <Label htmlFor="account-bio">{content?.bioLabel || "Bio"}</Label>
+                            <Textarea
+                              id="account-bio"
+                              value={bio}
+                              onChange={(event) => setBio(event.target.value)}
+                              rows={3}
+                              maxLength={500}
+                              disabled={isPreview || savingProfile}
+                            />
+                          </div>
+                        )}
+
+                        {isVisible("socialLinks") && (
+                          <div className="space-y-2">
+                            <Label>{content?.socialLinksLabel || "Social Links"}</Label>
+                            {socialLinks.map((link, index) => (
+                              <div key={index} className="flex gap-2">
+                                <Input
+                                  value={link.platform}
+                                  placeholder="instagram"
+                                  className="w-36"
+                                  onChange={(event) =>
+                                    setSocialLinks((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index ? { ...item, platform: event.target.value } : item
+                                      )
+                                    )
+                                  }
+                                  disabled={isPreview || savingProfile}
+                                />
+                                <Input
+                                  value={link.url}
+                                  placeholder="https://instagram.com/username"
+                                  className="flex-1"
+                                  onChange={(event) =>
+                                    setSocialLinks((current) =>
+                                      current.map((item, itemIndex) =>
+                                        itemIndex === index ? { ...item, url: event.target.value } : item
+                                      )
+                                    )
+                                  }
+                                  disabled={isPreview || savingProfile}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setSocialLinks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                                  disabled={isPreview || savingProfile}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                            {socialLinks.length < 10 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setSocialLinks((current) => [...current, { platform: "", url: "" }])}
+                                disabled={isPreview || savingProfile}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Link
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 

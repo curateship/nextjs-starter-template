@@ -481,6 +481,168 @@ export async function createDirectorySaveCollectionAction(input: {
   }
 }
 
+export interface MySavedListingItem {
+  id: string
+  title: string
+  slug: string
+  featured_image: string | null
+  meta_description: string | null
+  rating: number | null
+  address: string | null
+  saved_at: string
+}
+
+// Same address cleanup the listing-views data layer applies (strip country +
+// postal codes) so saved cards match the Listing Views block exactly
+function formatSavedListingAddress(address?: string | null) {
+  const parts = (address || '').split(',').map((part) => part.trim()).filter(Boolean)
+  const countryNames = ['united states', 'usa', 'us', 'canada', 'ca']
+
+  return parts
+    .filter((part, index) => index !== parts.length - 1 || !countryNames.includes(part.toLowerCase()))
+    .map((part) => part
+      .replace(/\b[A-Z]\d[A-Z][ -]?\d[A-Z]\d\b/gi, '')
+      .replace(/\b\d{5}(?:-\d{4})?\b/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    )
+    .filter(Boolean)
+    .join(', ')
+}
+
+export interface MySavedCollection {
+  id: string | null
+  name: string
+  default_key: string | null
+  items: MySavedListingItem[]
+}
+
+// Caps how many saved listings each folder returns to the account Core block
+const MY_SAVED_ITEMS_PER_FOLDER = 50
+
+// Current user's save folders with their saved (published) listings — powers
+// the account Core block tabs. Per-user data: never wrapped in unstable_cache.
+export async function getMySavedCollectionsAction(siteId: string): Promise<{
+  collections: MySavedCollection[]
+  error: string | null
+}> {
+  try {
+    if (!UUID_REGEX.test(siteId)) {
+      return { collections: [], error: 'Invalid site ID' }
+    }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { collections: [], error: null }
+
+    const [site] = await db
+      .select({ settings: sites.settings })
+      .from(sites)
+      .where(eq(sites.id, siteId))
+      .limit(1)
+
+    if (!site) return { collections: [], error: 'Site not found' }
+
+    const [collectionRows, itemRows] = await Promise.all([
+      db
+        .select({
+          id: directorySaveCollections.id,
+          name: directorySaveCollections.name,
+          defaultKey: directorySaveCollections.defaultKey,
+        })
+        .from(directorySaveCollections)
+        .where(and(
+          eq(directorySaveCollections.siteId, siteId),
+          eq(directorySaveCollections.userId, user.id)
+        ))
+        .orderBy(sql`${directorySaveCollections.defaultKey} asc nulls last`, asc(directorySaveCollections.createdAt), asc(directorySaveCollections.id)),
+      // Raw SQL for the lateral directory-core extraction (rating/address live
+      // inside the listing's content blocks) — mirrors getListingViewsData
+      db.execute<{
+        collection_id: string
+        directory_id: string
+        title: string
+        slug: string
+        featured_image: string | null
+        meta_description: string | null
+        rating: string | null
+        address: string | null
+        saved_at: Date
+      }>(sql`
+        select
+          dsi.collection_id,
+          d.id as directory_id,
+          d.title,
+          d.slug,
+          d.featured_image,
+          d.meta_description,
+          case
+            when core_block.content #>> '{rating}' ~ '^[0-9]+(\\.[0-9]+)?$'
+            then core_block.content #>> '{rating}'
+            else null
+          end as rating,
+          nullif(core_block.content #>> '{address}', '') as address,
+          dsi.created_at as saved_at
+        from directory_save_items dsi
+        inner join directory d on d.id = dsi.directory_id
+        left join lateral (
+          select block.value->'content' as content
+          from jsonb_each(coalesce(d.content_blocks, '{}'::jsonb)) as block(key, value)
+          where block.value->>'type' = 'directory-core'
+          limit 1
+        ) core_block on true
+        where dsi.site_id = ${siteId}
+          and dsi.user_id = ${user.id}
+          and d.status = 'published'
+        order by dsi.created_at desc, dsi.id desc
+      `),
+    ])
+
+    // Group saved items under their folder, capped per folder
+    const itemsByCollection = new Map<string, MySavedListingItem[]>()
+    for (const row of itemRows.rows) {
+      const list = itemsByCollection.get(row.collection_id) || []
+      if (list.length >= MY_SAVED_ITEMS_PER_FOLDER) continue
+      list.push({
+        id: row.directory_id,
+        title: row.title,
+        slug: row.slug,
+        featured_image: row.featured_image,
+        meta_description: row.meta_description,
+        rating: row.rating == null ? null : Number(row.rating),
+        address: formatSavedListingAddress(row.address) || null,
+        saved_at: toIso(row.saved_at),
+      })
+      itemsByCollection.set(row.collection_id, list)
+    }
+
+    // Default folders always appear (labels from site settings), even before
+    // the user's row exists; custom folders follow in creation order
+    const rowsByDefaultKey = new Map(collectionRows.map((row) => [row.defaultKey, row]))
+    const defaultCollections = getDefaultCollections(site.settings).map((item) => {
+      const row = rowsByDefaultKey.get(item.key)
+      return {
+        id: row?.id || null,
+        name: item.label,
+        default_key: item.key,
+        items: row ? (itemsByCollection.get(row.id) || []) : [],
+      }
+    })
+    const customCollections = collectionRows
+      .filter((row) => !row.defaultKey)
+      .map((row) => ({
+        id: row.id as string | null,
+        name: row.name,
+        default_key: null,
+        items: itemsByCollection.get(row.id) || [],
+      }))
+
+    return { collections: [...defaultCollections, ...customCollections], error: null }
+  } catch (error) {
+    console.error('Failed to load saved listings:', error)
+    return { collections: [], error: 'Saved listings are unavailable' }
+  }
+}
+
 export async function getDirectorySaveFoldersDashboardAction(input: {
   siteId: string
   page?: number

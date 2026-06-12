@@ -4,7 +4,7 @@ import { headers } from 'next/headers'
 import { auth } from '@/lib/actions/auth/server'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { media } from '@/lib/db/schema'
+import { authUsers, media } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { getClientIp, isRateLimited } from '@/lib/utils/rate-limit'
 
@@ -27,6 +27,72 @@ function isSafeAvatarUrl(imageUrl: string) {
 
 export async function getCurrentUser() {
   return await getAuthenticatedUser()
+}
+
+export interface ProfileSocialLink {
+  platform: string
+  url: string
+}
+
+// Strip HTML tags and angle-bracket/quote characters (same approach as display name)
+function sanitizeProfileText(value: string, maxLength: number) {
+  return value.replace(/<[^>]*>?/gm, '').replace(/[<>"']/g, '').trim().slice(0, maxLength)
+}
+
+// Validate and normalize user-submitted social links — http/https URLs only,
+// capped count/lengths. Returns null when the payload is malformed.
+function sanitizeSocialLinks(rawJson: string): ProfileSocialLink[] | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(rawJson)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed)) return null
+
+  const links: ProfileSocialLink[] = []
+  for (const entry of parsed.slice(0, 10)) {
+    if (!entry || typeof entry !== 'object') continue
+    const platform = sanitizeProfileText(String((entry as any).platform || ''), 30)
+    const url = String((entry as any).url || '').trim()
+    if (!url || url.length > 2048) continue
+    try {
+      const parsedUrl = new URL(url)
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) continue
+    } catch {
+      continue
+    }
+    links.push({ platform, url })
+  }
+  return links
+}
+
+// Full profile row for the current user — the session object doesn't carry
+// the bio/socialLinks columns, so the account Core block reads via this action.
+export async function getMyProfile() {
+  const authUser = await getAuthenticatedUser()
+  if (!authUser) return null
+
+  const [row] = await db
+    .select({
+      id: authUsers.id,
+      name: authUsers.name,
+      displayName: authUsers.displayName,
+      email: authUsers.email,
+      image: authUsers.image,
+      bio: authUsers.bio,
+      socialLinks: authUsers.socialLinks,
+    })
+    .from(authUsers)
+    .where(eq(authUsers.id, authUser.id))
+    .limit(1)
+
+  if (!row) return null
+
+  return {
+    ...row,
+    socialLinks: Array.isArray(row.socialLinks) ? (row.socialLinks as ProfileSocialLink[]) : [],
+  }
 }
 
 export async function updateProfile(formData: FormData) {
@@ -79,12 +145,34 @@ export async function updateProfile(formData: FormData) {
       }
     }
 
+    // Bio + social links are custom columns better-auth's updateUser won't
+    // persist — write them directly to the users table instead.
+    const profileUpdates: Record<string, any> = {}
+
+    if (formData.has('bio')) {
+      // Bio renders as escaped plain text — only strip tags/angle brackets so
+      // apostrophes and quotes survive in prose
+      const bio = String(formData.get('bio') || '').replace(/<[^>]*>?/gm, '').replace(/[<>]/g, '').trim().slice(0, 500)
+      profileUpdates.bio = bio || null
+    }
+
+    if (formData.has('social_links')) {
+      const socialLinks = sanitizeSocialLinks(String(formData.get('social_links') || '[]'))
+      if (!socialLinks) return { error: 'Invalid social links' }
+      profileUpdates.socialLinks = socialLinks
+    }
+
     if (Object.keys(updates).length > 0) {
       updates.updatedAt = new Date()
       await auth.api.updateUser({
         body: updates,
         headers: await headers(),
       })
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      profileUpdates.updatedAt = new Date()
+      await db.update(authUsers).set(profileUpdates).where(eq(authUsers.id, authUser.id))
     }
 
     return { success: true }
