@@ -1,12 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { createCategoryAction, type Category } from "@/lib/actions/categories/category-actions"
+import { getCategoryTemplatesBySite, type CategoryTemplate } from "@/lib/actions/categories/category-template-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Dialog } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ChevronDown } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
 import {
@@ -39,6 +49,33 @@ export function CreateCategoryModal({
   const [parentId, setParentId] = useState<string>(defaultParentId || "")
   const [featuredImage, setFeaturedImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
+  const [templates, setTemplates] = useState<CategoryTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+
+  // Load category templates and preselect the default (or first)
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      setTemplatesLoading(true)
+      const { data } = await getCategoryTemplatesBySite(siteId)
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        const defaultTemplate = loaded.find((template) => template.is_default)
+        setSelectedTemplateId(defaultTemplate?.id || loaded[0]?.id || '')
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [siteId])
 
   const { loading, loadingAction, error, submit } = useCreateContent<Category>({
     entityLabel: "category",
@@ -48,6 +85,8 @@ export function CreateCategoryModal({
     create: (publish) => createCategoryAction(siteId, {
       title,
       slug,
+      // Server falls back to the site default template when unset
+      template_id: selectedTemplateId || undefined,
       meta_description: metaDescription.trim() || null,
       parent_id: parentId || null,
       featured_image: featuredImage || null,
@@ -131,6 +170,29 @@ export function CreateCategoryModal({
                 <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
               </CardHeader>
               <CardContent>
+                <Field>
+                  <FieldLabel htmlFor="template">Start from Template</FieldLabel>
+                  {templatesLoading ? (
+                    <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
+                      <Skeleton className="h-4 w-24 rounded-sm" />
+                      <ChevronDown className="size-4 opacity-50" />
+                    </div>
+                  ) : (
+                    <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                      <SelectTrigger id="template">
+                        <SelectValue placeholder="Select template" />
+                      </SelectTrigger>
+                      <SelectContent className="z-60">
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </Field>
+
                 <TitleSlugFields
                   titleLabel="Category Title *"
                   titlePlaceholder="e.g., Technology, Health, Travel"

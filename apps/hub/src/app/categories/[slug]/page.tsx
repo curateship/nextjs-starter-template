@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
+import { mergeCategoryTemplateBlocks } from '@/lib/actions/categories/category-template-inheritance'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
@@ -37,6 +38,7 @@ function getCachedCategoryPageData(siteId: string, slug: string) {
           select
             c.id,
             c.site_id as "siteId",
+            c.template_id as "templateId",
             c.title,
             c.slug,
             c.parent_id as "parentId",
@@ -54,15 +56,20 @@ function getCachedCategoryPageData(siteId: string, slug: string) {
           limit 1
         )
         select
-          to_jsonb(category_row) as category
+          to_jsonb(category_row) as category,
+          ct.content_blocks as "templateContentBlocks"
         from category_row
+        inner join category_templates ct
+          on ct.id = category_row."templateId"
+          and ct.site_id = category_row."siteId"
       `)
 
       const row = rows.rows[0] as any
       if (!row) throw new Error(CATEGORY_PAGE_NOT_FOUND_ERROR)
       return row
     },
-    ['category-page-data', siteId, slug],
+    // v2: template-merged content blocks
+    ['category-page-data-v2', siteId, slug],
     {
       revalidate: false,
       tags: ['categories', `site-${siteId}`, 'all'],
@@ -94,7 +101,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
   let blocks: any[] = []
   try {
-    blocks = convertContentBlocksToArray((category.contentBlocks as any) || {}, category.id)
+    // Template owns block structure; the category row stores only values
+    const mergedContentBlocks = mergeCategoryTemplateBlocks(
+      (pageData.templateContentBlocks as any) || {},
+      (category.contentBlocks as any) || {}
+    )
+    blocks = convertContentBlocksToArray(mergedContentBlocks, category.id)
   } catch (error) {
     console.warn('Error loading category blocks:', error)
     blocks = []

@@ -10,10 +10,10 @@ import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/St
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { CategorySettingsModal } from "@/components/admin/category-builder/layout/CategorySettingsModal"
 import { BlockPropertiesPanel } from "@/components/admin/category-builder/layout/BlockPropertiesPanel"
-import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
-import { CATEGORY_BLOCK_TYPES } from "@/components/admin/category-builder/config/category-block-types"
-import { getCategoriesForSiteAction, updateCategoryAction } from "@/lib/actions/categories/category-actions"
+import { CategoryBlockListPanel } from "@/components/admin/category-builder/layout/CategoryBlockListPanel"
+import { CategoryBlockEditorModal } from "@/components/admin/category-builder/layout/CategoryBlockEditorModal"
+import { categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
+import { getCategoriesForSiteAction, updateCategoryAction, updateCategoryBlockValuesAction } from "@/lib/actions/categories/category-actions"
 import type { Category } from "@/lib/actions/categories/category-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
@@ -28,7 +28,6 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
   const urlCategory = searchParams.get('category') || ''
 
   const [selectedCategory, setSelectedCategory] = useState(urlCategory)
-  const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
@@ -47,7 +46,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     }
   }, [currentSite, router, setCurrentSite, siteId, sites, urlCategory])
 
-  // Load categories
+  // Load categories (raw rows — settings modal needs row-level _settings)
   useEffect(() => {
     async function loadCategories() {
       try {
@@ -86,7 +85,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     }
   }, [categories, router, selectedCategory, siteId, urlCategory])
 
-  // Custom hooks for data and state management
+  // Custom hooks for data and state management (blocks are template-merged)
   const { site, blocks, blocksLoading } = useCategoryData(siteId, selectedCategory)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
@@ -100,8 +99,11 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     setBlocks: setLocalBlocks,
     selectedCategory,
     categoryId: categories.find(c => c.slug === selectedCategory)?.id,
-    currentCategory: categories.find(c => c.slug === selectedCategory)
   })
+  const selectedBlock = builderState.selectedBlock
+  const [draftContent, setDraftContent] = useState<Record<string, any>>({})
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
   // Current category data
   const currentCategoryData = categories.find(c => c.slug === selectedCategory)
@@ -110,6 +112,22 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
     name: currentCategoryData?.title || selectedCategory,
     blocks: localBlocks[selectedCategory] || []
   }
+
+  // Draft block content edits stay local until saved
+  useEffect(() => {
+    if (!selectedBlock) {
+      setDraftContent({})
+      setBlockSaveError(null)
+      return
+    }
+
+    setDraftContent(
+      selectedBlock.content
+        ? JSON.parse(JSON.stringify(selectedBlock.content))
+        : {}
+    )
+    setBlockSaveError(null)
+  }, [selectedBlock])
 
   // Handle category information updates
   const updateCurrentCategory = async (updates: { title?: string; meta_description?: string; featured_image?: string; is_published?: boolean }) => {
@@ -139,6 +157,62 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
       setIsPublishing(false)
     }
   }
+
+  const handleDraftChange = (field: string, value: any) => {
+    setDraftContent((current) => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCloseBlockEditor = () => {
+    if (isSavingBlock) return
+    builderState.setSelectedBlock(null)
+    setBlockSaveError(null)
+  }
+
+  // Save the selected block's value edits (template-owned keys are pruned server-side)
+  const handleSaveBlockEditor = async () => {
+    if (!selectedBlock || !currentCategoryData?.id) return
+
+    setIsSavingBlock(true)
+    setBlockSaveError(null)
+
+    try {
+      const currentBlocks = localBlocks[selectedCategory] || []
+      const nextBlocks = currentBlocks.map((block) =>
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      )
+
+      const contentBlocks = categoryBlocksToValueJson(nextBlocks)
+      const result = await updateCategoryBlockValuesAction(currentCategoryData.id, contentBlocks)
+      if (!result.success) {
+        setBlockSaveError(result.error || "Failed to save block")
+        return
+      }
+
+      setLocalBlocks((current) => ({
+        ...current,
+        [selectedCategory]: nextBlocks,
+      }))
+      builderState.setSelectedBlock(null)
+    } catch (error) {
+      setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
+    } finally {
+      setIsSavingBlock(false)
+    }
+  }
+
+  // Overlay the in-progress draft on the preview
+  const previewBlocks = selectedBlock
+    ? currentCategory.blocks.map((block) => (
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      ))
+    : currentCategory.blocks
 
   const viewPageHref = site && currentCategoryData
     ? `${getSiteUrl(site)}/categories/${currentCategoryData.slug}`
@@ -177,6 +251,7 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           siteId={siteId}
           currentCategory={{
             ...currentCategory,
+            blocks: previewBlocks,
             id: currentCategoryData?.id,
             title: currentCategoryData?.title,
             meta_description: currentCategoryData?.meta_description || undefined,
@@ -195,30 +270,27 @@ export default function CategoryBuilderEditor({ params }: { params: Promise<{ si
           onSelectBlock={builderState.setSelectedBlock}
         />
 
+        <CategoryBlockEditorModal
+          block={selectedBlock}
+          content={draftContent}
+          siteId={siteId}
+          onContentChange={handleDraftChange}
+          onClose={handleCloseBlockEditor}
+          onSave={handleSaveBlockEditor}
+          saving={isSavingBlock}
+          error={blockSaveError}
+          mode="listing"
+        />
+
         {blockListOpen && (
-          <BlockListPanel
+          <CategoryBlockListPanel
             blocks={currentCategory.blocks}
-            blockTypes={CATEGORY_BLOCK_TYPES}
-            entityName="category"
-            selectedBlock={builderState.selectedBlock}
+            selectedBlock={selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
             viewPageHref={viewPageHref}
-            onAddBlock={() => setBlockModalOpen(true)}
-            deleting={null}
             blocksLoading={blocksLoading}
           />
         )}
-
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={builderState.handleAddBlocks}
-          existingBlockTypes={currentCategory.blocks.map(b => b.type)}
-          blockTypes={CATEGORY_BLOCK_TYPES}
-          entityName="category"
-        />
       </div>
     </div>
   )

@@ -1,62 +1,75 @@
-import { updateCategoryBlocksAction } from "@/lib/actions/categories/category-actions"
-import { getBlockTypeDefinition } from "./category-block-types"
-import {
-  useContentBlocksEditor,
-  type BuilderBlockSelection,
-} from "@/components/admin/layout/builder/useContentBlocksEditor"
-
-interface CategoryBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+import { useState, useEffect } from "react"
+import { updateCategoryBlockValuesAction } from "@/lib/actions/categories/category-actions"
+import { categoryBlocksToValueJson } from "@/lib/actions/categories/category-template-inheritance"
+import type { CategoryEditorBlock } from "./category-block-utils"
 
 interface UseCategoryBuilderParams {
-  blocks: Record<string, CategoryBlock[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, CategoryBlock[]>>>
+  blocks: Record<string, CategoryEditorBlock[]>
+  setBlocks: React.Dispatch<React.SetStateAction<Record<string, CategoryEditorBlock[]>>>
   selectedCategory: string
   categoryId?: string
-  currentCategory?: {
-    title?: string
-    content_blocks?: Record<string, any>
-  }
 }
 
 interface UseCategoryBuilderReturn {
-  selectedBlock: CategoryBlock | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<CategoryBlock | null>>
+  selectedBlock: CategoryEditorBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<CategoryEditorBlock | null>>
   isSaving: boolean
   saveMessage: string
-  handleDeleteBlock: (block: CategoryBlock) => void
-  handleReorderBlocks: (blocks: CategoryBlock[]) => void
-  handleAddBlocks: (selections: BuilderBlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
 
-// Thin wrapper over the shared slug-keyed blocks editor; supplies the category
-// block registry, id format, and save action.
+// Value-only editing (mirrors useDirectoryBuilder): block structure lives in the
+// category template; saving stores only per-category value keys on the row.
 export function useCategoryBuilder({
   blocks,
   setBlocks,
   selectedCategory,
   categoryId,
-  currentCategory
 }: UseCategoryBuilderParams): UseCategoryBuilderReturn {
-  return useContentBlocksEditor<CategoryBlock>({
-    blocks,
-    setBlocks,
-    selectedKey: selectedCategory,
-    contentId: categoryId,
-    existingContentBlocks: currentCategory?.content_blocks,
-    getDefinition: getBlockTypeDefinition,
-    makeBlock: (type, definition) => ({
-      id: `block-${Date.now()}-${Math.random()}`,
-      type,
-      title: definition.name,
-      content: { ...definition.defaultContent }
-    }),
-    saveAction: updateCategoryBlocksAction,
-    missingIdMessage: "Error: Category ID required",
-  })
+  const [selectedBlock, setSelectedBlock] = useState<CategoryEditorBlock | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState("")
+
+  // Clear selection when switching categories
+  useEffect(() => {
+    setSelectedBlock(null)
+  }, [selectedCategory])
+
+  const handleSaveAllBlocks = async () => {
+    if (!categoryId) {
+      setSaveMessage("Error: Category ID required")
+      setTimeout(() => setSaveMessage(""), 3000)
+      return
+    }
+
+    const contentBlocks = categoryBlocksToValueJson(blocks[selectedCategory] || [])
+
+    setIsSaving(true)
+    setSaveMessage("Saving...")
+
+    try {
+      const result = await updateCategoryBlockValuesAction(categoryId, contentBlocks)
+
+      if (result.success) {
+        setSaveMessage("Saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      } else {
+        setSaveMessage(`Error: ${result.error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+      }
+    } catch (error) {
+      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return {
+    selectedBlock,
+    setSelectedBlock,
+    isSaving,
+    saveMessage,
+    handleSaveAllBlocks
+  }
 }

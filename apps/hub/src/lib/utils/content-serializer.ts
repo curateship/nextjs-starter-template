@@ -98,6 +98,7 @@ export function serializeCategory(row: CategoryRow | ContentRow): Category {
 
   return {
     ...serializeContentRow(row),
+    template_id: requireValue(contentRow.templateId ?? contentRow.template_id, 'template_id'),
     parent_id: contentRow.parentId ?? contentRow.parent_id ?? null,
   } as Category
 }

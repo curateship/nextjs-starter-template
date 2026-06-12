@@ -1,10 +1,13 @@
 import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { relations, sql } from 'drizzle-orm'
 import { sites } from './sites'
+import { categoryTemplates } from './category-templates'
 
 export const categories = pgTable('categories', {
   id: uuid('id').defaultRandom().primaryKey(),
   siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // Template owns block structure; this row stores only block values (plus _settings)
+  templateId: uuid('template_id').notNull().references(() => categoryTemplates.id, { onDelete: 'restrict' }),
   title: varchar('title', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 100 }).notNull(),
   parentId: uuid('parent_id'),
@@ -18,6 +21,7 @@ export const categories = pgTable('categories', {
 }, (table) => [
   uniqueIndex('idx_categories_site_slug').on(table.siteId, table.slug),
   index('idx_categories_parent_id').on(table.parentId),
+  index('idx_categories_template').on(table.templateId),
 ])
 
 export const contentCategoryRelationships = pgTable('category_relationships', {
@@ -43,5 +47,9 @@ export const categoriesRelations = relations(categories, ({ one }) => ({
   parent: one(categories, {
     fields: [categories.parentId],
     references: [categories.id],
+  }),
+  template: one(categoryTemplates, {
+    fields: [categories.templateId],
+    references: [categoryTemplates.id],
   }),
 }))

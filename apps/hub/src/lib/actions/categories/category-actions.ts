@@ -3,7 +3,7 @@
 import { eq, and, desc, inArray, isNull, sql } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { categories, contentCategoryRelationships, sites } from '@/lib/db/schema'
+import { categories, categoryTemplates, contentCategoryRelationships, sites } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { generateSlug } from '@/lib/utils/slug'
 import { serializeCategory } from '@/lib/utils/content-serializer'
@@ -13,12 +13,19 @@ import {
   requireOwnedSite,
   validateContentSlugUpdate,
 } from '@/lib/actions/content/content-action-helpers'
+import {
+  getCategoryNonBlockEntries,
+  mergeCategoryTemplateBlocks,
+  pruneCategoryValueBlocksForTemplate,
+} from './category-template-inheritance'
+import { getDefaultCategoryTemplateIdForSite } from './category-template-ensure'
 
 type CategoryRow = typeof categories.$inferSelect
 
 export interface Category {
   id: string
   site_id: string
+  template_id: string
   title: string
   slug: string
   parent_id: string | null
@@ -34,6 +41,7 @@ export interface Category {
 export interface CreateCategoryData {
   title: string
   slug?: string
+  template_id?: string
   parent_id?: string | null
   featured_image?: string | null
   meta_description?: string | null
@@ -44,6 +52,7 @@ export interface CreateCategoryData {
 export interface UpdateCategoryData {
   title?: string
   slug?: string
+  template_id?: string
   parent_id?: string | null
   featured_image?: string | null
   meta_description?: string | null
@@ -146,6 +155,7 @@ export async function getCategoriesWithCountsAction(siteId: string, options?: { 
         .select({
           id: categories.id,
           site_id: categories.siteId,
+          template_id: categories.templateId,
           title: categories.title,
           slug: categories.slug,
           parent_id: categories.parentId,
@@ -259,6 +269,28 @@ export async function createCategoryAction(
       }
     }
 
+    // Resolve the template: explicit choice must belong to this site,
+    // otherwise fall back to the site default (ensures Blank exists)
+    let templateId: string
+    if (data.template_id) {
+      if (!UUID_REGEX.test(data.template_id)) {
+        return { data: null, error: 'Invalid template ID format' }
+      }
+
+      const template = await db.query.categoryTemplates.findFirst({
+        where: and(eq(categoryTemplates.id, data.template_id), eq(categoryTemplates.siteId, siteId)),
+        columns: { id: true },
+      })
+
+      if (!template) {
+        return { data: null, error: 'Template not found' }
+      }
+
+      templateId = template.id
+    } else {
+      templateId = await getDefaultCategoryTemplateIdForSite(siteId)
+    }
+
     // Get the highest display_order
     const maxOrderResult = await db
       .select({ displayOrder: categories.displayOrder })
@@ -274,6 +306,7 @@ export async function createCategoryAction(
       .insert(categories)
       .values({
         siteId,
+        templateId,
         title: data.title,
         slug,
         parentId: data.parent_id || null,
@@ -310,6 +343,25 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
       return { data: null, error: access.error }
     }
     const category = access.row
+
+    // If the template is switching, load it for the value prune below
+    let nextTemplateContentBlocks: Record<string, any> | null = null
+    if (data.template_id !== undefined) {
+      if (!UUID_REGEX.test(data.template_id)) {
+        return { data: null, error: 'Invalid template ID format' }
+      }
+
+      const template = await db.query.categoryTemplates.findFirst({
+        where: and(eq(categoryTemplates.id, data.template_id), eq(categoryTemplates.siteId, category.siteId)),
+        columns: { id: true, contentBlocks: true },
+      })
+
+      if (!template) {
+        return { data: null, error: 'Template not found' }
+      }
+
+      nextTemplateContentBlocks = (template.contentBlocks || {}) as Record<string, any>
+    }
 
     // Validate and process slug if being updated
     if (data.slug !== undefined) {
@@ -370,6 +422,15 @@ export async function updateCategoryAction(categoryId: string, data: UpdateCateg
     }
     if (data.content_blocks !== undefined) {
       finalUpdates.contentBlocks = data.content_blocks
+    }
+    if (data.template_id !== undefined) {
+      // Switching templates drops values for blocks the new template lacks
+      // (row settings like _settings.is_private survive the prune)
+      finalUpdates.templateId = data.template_id
+      finalUpdates.contentBlocks = pruneCategoryValueBlocksForTemplate(
+        (finalUpdates.contentBlocks ?? category.contentBlocks ?? {}) as Record<string, any>,
+        nextTemplateContentBlocks || {}
+      )
     }
 
     finalUpdates.updatedAt = new Date()
@@ -528,9 +589,10 @@ export async function deleteCategoriesAction(categoryIds: string[]): Promise<{ s
 }
 
 /**
- * Update category blocks (for builder)
+ * Update category block values (for builder). The template owns structure;
+ * only value keys for blocks present in the template are stored on the row.
  */
-export async function updateCategoryBlocksAction(categoryId: string, contentBlocks: Record<string, any>) {
+export async function updateCategoryBlockValuesAction(categoryId: string, contentBlocks: Record<string, any>) {
   try {
     // Auth + row + site ownership (fast-fail helper; check runs on every call)
     const access = await requireOwnedContentRow<CategoryRow>(categories, categoryId, 'Category')
@@ -539,10 +601,27 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
     }
     const category = access.row
 
+    const template = await db.query.categoryTemplates.findFirst({
+      where: and(eq(categoryTemplates.id, category.templateId), eq(categoryTemplates.siteId, category.siteId)),
+      columns: { contentBlocks: true },
+    })
+
+    if (!template) {
+      return { success: false, error: 'Template not found' }
+    }
+
+    // Keep row settings (_settings.is_private etc.) from the existing row when
+    // the incoming value JSON doesn't carry them, then prune against the template
+    const existingSettings = getCategoryNonBlockEntries((category.contentBlocks || {}) as Record<string, any>)
+    const valueBlocks = pruneCategoryValueBlocksForTemplate(
+      { ...existingSettings, ...contentBlocks },
+      (template.contentBlocks || {}) as Record<string, any>
+    )
+
     await db
       .update(categories)
       .set({
-        contentBlocks,
+        contentBlocks: valueBlocks,
         updatedAt: new Date(),
       })
       .where(eq(categories.id, categoryId))
@@ -555,5 +634,40 @@ export async function updateCategoryBlocksAction(categoryId: string, contentBloc
   } catch (error) {
     console.error('Error updating category blocks:', error)
     return { success: false, error: 'Failed to update category blocks' }
+  }
+}
+
+/**
+ * Get categories with template-merged content blocks (builder preview only —
+ * writers must keep using the raw rows from getCategoriesForSiteAction)
+ */
+export async function getCategoriesWithMergedBlocksAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
+  const result = await getCategoriesForSiteAction(siteId, options)
+  if (!result.data) return result
+
+  try {
+    // One fetch for all distinct templates referenced by the returned categories
+    const templateIds = [...new Set(result.data.map((category) => category.template_id))]
+    const templates = templateIds.length
+      ? await db
+          .select({ id: categoryTemplates.id, contentBlocks: categoryTemplates.contentBlocks })
+          .from(categoryTemplates)
+          .where(inArray(categoryTemplates.id, templateIds))
+      : []
+    const templateMap = new Map(templates.map((template) => [template.id, (template.contentBlocks || {}) as Record<string, any>]))
+
+    return {
+      ...result,
+      data: result.data.map((category) => ({
+        ...category,
+        content_blocks: mergeCategoryTemplateBlocks(
+          templateMap.get(category.template_id) || {},
+          category.content_blocks || {}
+        ),
+      })),
+    }
+  } catch (error) {
+    console.error('Error merging category template blocks:', error)
+    return { data: null, total: 0, error: 'Failed to fetch categories' }
   }
 }

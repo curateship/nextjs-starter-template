@@ -8,7 +8,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import { updateCategoryAction, type Category, type UpdateCategoryData } from "@/lib/actions/categories/category-actions"
+import { getCategoryTemplatesBySite, type CategoryTemplate } from "@/lib/actions/categories/category-template-actions"
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   FeaturedImageField,
   MetaDescriptionField,
@@ -38,6 +46,9 @@ export function CategorySettingsModal({
   const [featuredImage, setFeaturedImage] = useState('')
   const [parentId, setParentId] = useState<string>("")
   const [isPrivate, setIsPrivate] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [templates, setTemplates] = useState<CategoryTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
 
   const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Category>({
     entityLabel: "category",
@@ -48,6 +59,8 @@ export function CategorySettingsModal({
       const payload: UpdateCategoryData = {
         title,
         slug,
+        // Switching templates prunes block values server-side
+        template_id: selectedTemplateId || undefined,
         meta_description: metaDescription,
         is_published: publish,
         featured_image: featuredImage || null,
@@ -112,7 +125,18 @@ export function CategorySettingsModal({
       setIsPrivate(category.content_blocks?._settings?.is_private === true)
       setFeaturedImage(category.featured_image || '')
       setParentId(category.parent_id || '')
+      setSelectedTemplateId(category.template_id || '')
       setError(null)
+
+      // Load the site's templates for the switcher
+      setTemplatesLoading(true)
+      getCategoryTemplatesBySite(category.site_id).then(({ data }) => {
+        const loadedTemplates = data || []
+        setTemplates(loadedTemplates)
+        setSelectedTemplateId(category.template_id || loadedTemplates.find((template) => template.is_default)?.id || loadedTemplates[0]?.id || '')
+      }).finally(() => {
+        setTemplatesLoading(false)
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category])
@@ -209,6 +233,24 @@ export function CategorySettingsModal({
                     allowClear={true}
                   />
                   <FieldDescription>Create nested hierarchies. Search to find parent categories.</FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="modal-template">Template</FieldLabel>
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading || saving}>
+                    <SelectTrigger id="modal-template">
+                      <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select template"} />
+                    </SelectTrigger>
+                    <SelectContent className="z-60">
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    Changing the template updates this category&apos;s inherited blocks immediately after saving.
+                  </FieldDescription>
                 </Field>
               </CardContent>
             </Card>

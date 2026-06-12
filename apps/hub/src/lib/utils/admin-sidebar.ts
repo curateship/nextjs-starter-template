@@ -155,7 +155,9 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             "Categories",
             sitePath(resolvedSiteId, (id) => `/admin/categories/${id}`),
             "categories",
-            undefined,
+            [
+              child("child-category-templates", "Templates", "/admin/categories/templates", "file"),
+            ],
             resolvedSiteId ? [`/admin/categories/builder/${resolvedSiteId}`] : undefined
           ),
           item("item-media", "Media Library", "/admin/media", "media", [
@@ -222,6 +224,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "product-orders": "child-product-orders",
   "product-templates": "child-product-templates",
   "post-templates": "child-post-templates",
+  "category-templates": "child-category-templates",
   "directory-custom-blocks": "child-directory-custom-blocks",
   "directory-claims": "child-directory-claims",
   "directory-saved": "child-directory-saved",
@@ -392,6 +395,12 @@ function resolveDefault<T>(map: Map<string, T>, id: string) {
   return map.get(id) ?? map.get(getAliasedDefaultId(id))
 }
 
+// Default children added after sidebar configs were first persisted, keyed by parent item id
+const INJECTED_DEFAULT_CHILDREN: Record<string, string[]> = {
+  "item-directory": ["child-directory-saved"],
+  "item-categories": ["child-category-templates"],
+}
+
 function hydrateSiteIdPlaceholder(href: string, siteId: string | null) {
   if (!href.includes("[siteId]")) return href
   return siteId ? href.replaceAll("[siteId]", siteId) : "/admin/sites"
@@ -438,10 +447,12 @@ export function resolveAdminSidebarSettings(
               : {}),
           }
         })
-        const hasSavedDirectoryChild = resolvedChildren?.some((childItem) => childItem.id === "child-directory-saved")
-        const savedDirectoryChild = defaultEntry?.id === "item-directory" && !hasSavedDirectoryChild
-          ? resolveDefault(metadata.children, "child-directory-saved")
-          : null
+        // Stored configs predate newer default children — inject them so existing sidebars pick them up
+        const injectedChildIds = INJECTED_DEFAULT_CHILDREN[defaultEntry?.id ?? ""] || []
+        const injectedChildren = injectedChildIds
+          .filter((childId) => !resolvedChildren?.some((childItem) => childItem.id === childId))
+          .map((childId) => resolveDefault(metadata.children, childId))
+          .filter((childItem): childItem is AdminSidebarChildItem => Boolean(childItem))
 
         const resolvedEntry = {
           ...entry,
@@ -450,9 +461,9 @@ export function resolveAdminSidebarSettings(
           ...(defaultEntry?.activePaths?.length
             ? { activePaths: defaultEntry.activePaths }
             : {}),
-          children: savedDirectoryChild
+          children: injectedChildren.length
             ? [
-                savedDirectoryChild,
+                ...injectedChildren,
                 ...(resolvedChildren ?? []),
               ]
             : resolvedChildren,

@@ -14,6 +14,7 @@ import { directoryTemplates } from '@/lib/db/schema/directory-templates'
 import { media } from '@/lib/db/schema/media'
 import { sites } from '@/lib/db/schema/sites'
 import { ensureDirectoryBlankTemplateForSite } from '@/lib/actions/directories/directory-template-ensure'
+import { getDefaultCategoryTemplateIdForSite } from '@/lib/actions/categories/category-template-ensure'
 import {
   deriveDirectoryMetaDescriptionFromBlocks,
   getDirectoryTemplateDefaultCategoryParentId,
@@ -546,6 +547,8 @@ async function createHubCategory(siteId: string, title: string, parentCategoryId
   const [category] = await db.insert(categories)
     .values({
       siteId,
+      // categories.template_id is NOT NULL — auto-created categories get the site default
+      templateId: await getDefaultCategoryTemplateIdForSite(siteId),
       title,
       slug,
       parentId: parentCategoryId,

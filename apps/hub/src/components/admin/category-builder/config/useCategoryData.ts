@@ -1,5 +1,5 @@
 import { type SiteWithTheme } from '@/lib/actions/sites/site-actions'
-import { getCategoriesForSiteAction, type Category } from '@/lib/actions/categories/category-actions'
+import { getCategoriesWithMergedBlocksAction, type Category } from '@/lib/actions/categories/category-actions'
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
 import { getBlockName, isCategoryBuilderBlockType } from './category-block-types'
 import { useSiteContentData } from '@/components/admin/layout/builder/useSiteContentData'
@@ -28,9 +28,10 @@ function getCategoryBlocksBySlug(categories: Category[]) {
   return convertedBlocks
 }
 
-// Stable reference for the generic hook's fetchItems dependency
+// Stable reference for the generic hook's fetchItems dependency.
+// Merged blocks (template structure + category values) — builder preview only.
 function fetchCategories(siteId: string, options: { selectedSlug?: string }) {
-  return getCategoriesForSiteAction(siteId, options)
+  return getCategoriesWithMergedBlocksAction(siteId, options)
 }
 
 interface UseCategoryDataReturn {
