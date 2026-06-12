@@ -8,11 +8,13 @@
     "dev:custom-shell-ui": "npm run dev --workspace=custom-shell",
     "dev:ai-video": "npm run dev --workspace=ai-video",
     "dev:core": "npm run dev --workspace=core",
+    "dev:antidetect": "npm run dev --workspace=antidetect",
     "dev:hub": "npm run dev --workspace=@repo/hub",
     "build": "turbo build",
     "build:custom-shell": "npm run build --workspace=custom-shell",
     "build:ai-video": "npm run build --workspace=ai-video",
     "build:core": "npm run build --workspace=core",
+    "build:antidetect": "npm run build --workspace=antidetect",
     "lint": "turbo lint"
   },
   "packageManager": "npm@11.3.0",

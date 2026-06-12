@@ -1,0 +1,17 @@
+{
+  "_comment": "SAMPLE ONLY — verify against itbrowser's real schema on first run. Fields below are the documented spoofable parameters.",
+  "useragent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  "canvas": "noise",
+  "webgl": "noise",
+  "webglVendor": "Google Inc. (NVIDIA)",
+  "webglRenderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "audioContext": "noise",
+  "timezone": "America/New_York",
+  "language": "en-US",
+  "hardwareConcurrency": 8,
+  "deviceMemory": 8,
+  "screenResolution": "1920x1080",
+  "colorDepth": 24,
+  "touchEnabled": false,
+  "proxy": ""
+}

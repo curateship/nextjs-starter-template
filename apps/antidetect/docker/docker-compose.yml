@@ -1,0 +1,55 @@
+# Phase 0 — stealth + streaming bake-off.
+# Each service wraps an anti-detect browser engine inside Neko, which provides
+# the Xvfb virtual display + WebRTC streaming + web client. You open the Neko URL
+# in your own browser, drive the anti-detect browser by hand, and run it through
+# the fingerprint gauntlet (see README). A proxy is REQUIRED for a meaningful
+# test — copy .env.example to .env and fill it in.
+
+services:
+  # --- Candidate 1: Camoufox (anti-detect Firefox). Turnkey: binary baked at build. ---
+  camoufox:
+    build: ./camoufox
+    shm_size: "2gb" # browsers need ample shared memory or they crash/blank
+    env_file:
+      - .env
+    environment:
+      # Neko v3 config (namespaced). If your base image is v2, see README for the
+      # older NEKO_SCREEN / NEKO_PASSWORD / NEKO_EPR names.
+      NEKO_DESKTOP_SCREEN: "1920x1080@30"
+      NEKO_MEMBER_PROVIDER: "multiuser"
+      NEKO_MEMBER_MULTIUSER_USER_PASSWORD: "neko"
+      NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD: "admin"
+      NEKO_WEBRTC_EPR: "52000-52019"
+      NEKO_WEBRTC_NAT1TO1: "127.0.0.1" # local testing: advertise loopback to the client
+      NEKO_WEBRTC_ICELITE: "true"
+    ports:
+      - "8080:8080" # Neko web UI -> http://localhost:8080
+      - "52000-52019:52000-52019/udp" # WebRTC media (must be published for the stream)
+    volumes:
+      - camoufox-profile:/data/profile # persistent cookies/storage across restarts
+
+  # --- Candidate 2: itbrowser (anti-detect Chromium). Opt-in; release needs verifying. ---
+  # Start with:  docker compose --profile itbrowser up itbrowser
+  itbrowser:
+    build: ./itbrowser
+    shm_size: "2gb"
+    env_file:
+      - .env
+    environment:
+      NEKO_DESKTOP_SCREEN: "1920x1080@30"
+      NEKO_MEMBER_PROVIDER: "multiuser"
+      NEKO_MEMBER_MULTIUSER_USER_PASSWORD: "neko"
+      NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD: "admin"
+      NEKO_WEBRTC_EPR: "52020-52039"
+      NEKO_WEBRTC_NAT1TO1: "127.0.0.1"
+      NEKO_WEBRTC_ICELITE: "true"
+    ports:
+      - "8081:8080" # http://localhost:8081
+      - "52020-52039:52020-52039/udp"
+    volumes:
+      - itbrowser-profile:/data/profile
+    profiles: ["itbrowser"] # excluded from a plain `docker compose up`
+
+volumes:
+  camoufox-profile:
+  itbrowser-profile:

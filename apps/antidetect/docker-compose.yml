@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: postgres:18
+    ports:
+      - "54321:5432"
+    environment:
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:
