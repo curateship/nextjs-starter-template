@@ -7,7 +7,6 @@ import {
   MusicIcon,
   PenLineIcon,
   ShapesIcon,
-  SparklesIcon,
   TypeIcon,
   VideoIcon,
   type LucideIcon,
@@ -42,7 +41,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -60,31 +58,13 @@ import {
 // Right panel: shows the inspector for the selected clip, or the default
 // Elements / AI Generation content when nothing is selected.
 export function EditorSettingsPanel() {
-  const { state, dispatch, clock } = useEditor()
+  const { state, dispatch } = useEditor()
+  const [textOpen, setTextOpen] = React.useState(false)
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [scriptOpen, setScriptOpen] = React.useState(false)
   const selected = state.selectedClipId
     ? findClip(state.tracks, state.selectedClipId)
     : null
-
-  // Adds a starter text clip at the playhead and selects it for editing.
-  function addTextClip() {
-    dispatch({
-      type: "ADD_CLIP",
-      clip: {
-        id: editorId(),
-        kind: "text",
-        name: "Text",
-        text: "Your text here",
-        fontSize: 80,
-        color: "#ffffff",
-        trimStartMs: 0,
-        startMs: 0, // the reducer resolves the actual placement
-        durationMs: DEFAULT_TEXT_DURATION_MS,
-      },
-      atMs: clock.getTime(),
-    })
-  }
 
   return (
     <section className="hidden w-[330px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 lg:flex">
@@ -95,12 +75,13 @@ export function EditorSettingsPanel() {
           <ClipInspector clip={selected.clip} dispatch={dispatch} />
         ) : (
           <DefaultPanels
-            onAddText={addTextClip}
+            onAddText={() => setTextOpen(true)}
             onAddCaptions={() => setCaptionsOpen(true)}
             onWriteScript={() => setScriptOpen(true)}
           />
         )}
       </div>
+      <TextDialog open={textOpen} onOpenChange={setTextOpen} />
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
       <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
     </section>
@@ -188,18 +169,24 @@ function TimingRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-// Building blocks the editor supports. Text and Captions are wired up; the
-// rest are placeholders for future element kinds.
-const ELEMENT_TILES: { label: string; icon: LucideIcon; inert?: boolean }[] = [
-  { label: "Text", icon: TypeIcon },
-  { label: "Image", icon: ImageIcon, inert: true },
-  { label: "Video", icon: VideoIcon, inert: true },
-  { label: "Audio", icon: MusicIcon, inert: true },
-  { label: "Captions", icon: CaptionsIcon },
-  { label: "Shapes", icon: ShapesIcon, inert: true },
+// Building blocks the editor supports. Tiles with an `action` are wired up;
+// the rest are placeholders for future element kinds.
+const ELEMENT_TILES: {
+  label: string
+  icon: LucideIcon
+  action?: "text" | "captions" | "script"
+}[] = [
+  { label: "Text", icon: TypeIcon, action: "text" },
+  { label: "Image", icon: ImageIcon },
+  { label: "Video", icon: VideoIcon },
+  { label: "Audio", icon: MusicIcon },
+  { label: "Captions", icon: CaptionsIcon, action: "captions" },
+  { label: "AI Script", icon: PenLineIcon, action: "script" },
+  { label: "Shapes", icon: ShapesIcon },
 ]
 
-// Default (nothing selected): element tiles + static AI generation form.
+// Default (nothing selected): the element tile grid. Each wired tile opens its
+// own dialog; placeholder tiles are disabled.
 function DefaultPanels({
   onAddText,
   onAddCaptions,
@@ -209,110 +196,139 @@ function DefaultPanels({
   onAddCaptions: () => void
   onWriteScript: () => void
 }) {
+  // Maps a tile's action to its handler.
+  const actions = {
+    text: onAddText,
+    captions: onAddCaptions,
+    script: onWriteScript,
+  }
+
   return (
-    <>
-      <div>
-        <h2 className="text-sm font-semibold">Elements</h2>
-        <p className="text-xs text-muted-foreground">
-          Building blocks for your video.
-        </p>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {ELEMENT_TILES.map((tile) => (
-            <button
-              key={tile.label}
-              type="button"
-              onClick={
-                tile.inert
-                  ? undefined
-                  : tile.label === "Captions"
-                    ? onAddCaptions
-                    : onAddText
-              }
-              className={cn(
-                "flex flex-col items-center gap-1.5 rounded-lg border bg-background p-3 text-xs font-medium transition-colors",
-                tile.inert ? "opacity-50" : "hover:bg-muted"
-              )}
-              disabled={tile.inert}
-            >
-              <tile.icon className="size-4 text-muted-foreground" />
-              {tile.label}
-            </button>
-          ))}
-        </div>
+    <div>
+      <h2 className="text-sm font-semibold">Elements</h2>
+      <p className="text-xs text-muted-foreground">
+        Building blocks for your video.
+      </p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {ELEMENT_TILES.map((tile) => (
+          <button
+            key={tile.label}
+            type="button"
+            onClick={tile.action ? actions[tile.action] : undefined}
+            className={cn(
+              "flex flex-col items-center gap-1.5 rounded-lg border bg-background p-3 text-xs font-medium transition-colors",
+              tile.action ? "hover:bg-muted" : "opacity-50"
+            )}
+            disabled={!tile.action}
+          >
+            <tile.icon className="size-4 text-muted-foreground" />
+            {tile.label}
+          </button>
+        ))}
       </div>
+    </div>
+  )
+}
 
-      <Separator />
+// Composes a text clip's content/style, then adds it at the playhead. The
+// new clip is auto-selected, so closing this dialog drops the user into the
+// ClipInspector for further tweaks.
+function TextDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { dispatch, clock } = useEditor()
+  const [text, setText] = React.useState("Your text here")
+  const [fontSize, setFontSize] = React.useState(80)
+  const [color, setColor] = React.useState("#ffffff")
 
-      {/* Template-aware script writer */}
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold">AI Script</h2>
-          <p className="text-xs text-muted-foreground">
-            Rewrite the source reel&apos;s script beats for your own topic.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={onWriteScript}
-        >
-          <PenLineIcon />
-          Write Script
-        </Button>
-      </div>
+  // Reset to defaults on close so the dialog starts fresh next open.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setText("Your text here")
+      setFontSize(80)
+      setColor("#ffffff")
+    }
+    onOpenChange(next)
+  }
 
-      <Separator />
+  function handleAdd() {
+    dispatch({
+      type: "ADD_CLIP",
+      clip: {
+        id: editorId(),
+        kind: "text",
+        name: "Text",
+        text: text.trim() || "Your text here",
+        fontSize,
+        color,
+        trimStartMs: 0,
+        startMs: 0, // the reducer resolves the actual placement
+        durationMs: DEFAULT_TEXT_DURATION_MS,
+      },
+      atMs: clock.getTime(),
+    })
+    handleOpenChange(false)
+  }
 
-      {/* AI generation form (static placeholder) */}
-      <div className="space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold">AI Generation</h2>
-          <p className="text-xs text-muted-foreground">
-            Generate clips from a prompt.
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ai-model">Model</Label>
-          <Select defaultValue="veo-3">
-            <SelectTrigger id="ai-model" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="veo-3">Veo 3</SelectItem>
-              <SelectItem value="sora-2">Sora 2</SelectItem>
-              <SelectItem value="runway-gen-4">Runway Gen-4</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ai-style">Style</Label>
-          <Select defaultValue="cinematic">
-            <SelectTrigger id="ai-style" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cinematic">Cinematic</SelectItem>
-              <SelectItem value="photoreal">Photoreal</SelectItem>
-              <SelectItem value="anime">Anime</SelectItem>
-              <SelectItem value="3d">3D Render</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="ai-prompt">Prompt</Label>
-          <Textarea
-            id="ai-prompt"
-            rows={4}
-            placeholder="Describe the clip you want to generate..."
-          />
-        </div>
-        <Button type="button" className="w-full">
-          <SparklesIcon />
-          Generate
-        </Button>
-      </div>
-    </>
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Add Text</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="text-content">Content</Label>
+              <Textarea
+                id="text-content"
+                rows={3}
+                value={text}
+                onChange={(event) => setText(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Font size</Label>
+              <Slider
+                value={[fontSize]}
+                min={24}
+                max={240}
+                step={2}
+                onValueChange={(value) => setFontSize(value[0])}
+                aria-label="Font size"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="text-color">Color</Label>
+              <input
+                id="text-color"
+                type="color"
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+                className="h-8 w-full cursor-pointer rounded-md border bg-background"
+              />
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="button" onClick={handleAdd}>
+            <TypeIcon className="size-4" />
+            Add Text
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
