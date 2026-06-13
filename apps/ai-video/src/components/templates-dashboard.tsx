@@ -8,6 +8,7 @@ import {
   ListIcon,
   Loader2Icon,
   PlayIcon,
+  PlusIcon,
   SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
@@ -45,6 +46,7 @@ import {
 import { ViralVideoModal } from "@/components/viral-video-modal"
 import {
   bulkDeleteTemplates,
+  createBlankTemplate,
   createProjectFromTemplate,
   deleteTemplate,
   getTemplateErrorMessage,
@@ -96,6 +98,12 @@ export function TemplatesDashboard() {
   const [useName, setUseName] = React.useState("")
   const [useError, setUseError] = React.useState<string | null>(null)
   const [useSubmitting, setUseSubmitting] = React.useState(false)
+  // "Create Template" naming dialog: a blank template is created (and opened in
+  // the editor) only after the user confirms a name.
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [createName, setCreateName] = React.useState("")
+  const [createError, setCreateError] = React.useState<string | null>(null)
+  const [createSubmitting, setCreateSubmitting] = React.useState(false)
   // Source viral video id + template id being previewed in the analysis modal.
   const [viewVideoId, setViewVideoId] = React.useState<string | null>(null)
   const [viewTemplateId, setViewTemplateId] = React.useState<string | null>(null)
@@ -220,6 +228,39 @@ export function TemplatesDashboard() {
     })
   }
 
+  // "New Template" opens a naming dialog; the blank template isn't created
+  // until the user confirms a name.
+  function openCreateModal() {
+    setCreateOpen(true)
+    setCreateName("")
+    setCreateError(null)
+    setError(null)
+    setNotice(null)
+  }
+
+  function closeCreateModal() {
+    setCreateOpen(false)
+    setCreateSubmitting(false)
+    setCreateError(null)
+  }
+
+  // Create a blank template under the typed name, then open it in the editor
+  // to build from scratch.
+  async function handleConfirmCreate() {
+    setCreateSubmitting(true)
+    setCreateError(null)
+    try {
+      const created = await createBlankTemplate(createName)
+      void navigate({
+        to: "/admin/video-editor/template/$templateId",
+        params: { templateId: created.id },
+      })
+    } catch (createErr) {
+      setCreateError(getTemplateErrorMessage(createErr))
+      setCreateSubmitting(false)
+    }
+  }
+
   function openRenameModal(template: TemplateItem) {
     setRenameTarget(template)
     setName(template.name)
@@ -284,6 +325,7 @@ export function TemplatesDashboard() {
 
   const renameDisabled = submitting || !name.trim()
   const useDisabled = useSubmitting || !useName.trim()
+  const createDisabled = createSubmitting || !createName.trim()
   const controls = (
     <>
       {selectedIds.size > 0 ? (
@@ -329,6 +371,10 @@ export function TemplatesDashboard() {
           <GridIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
+      <DashboardToolbarButton type="button" onClick={openCreateModal}>
+        <PlusIcon className="size-4" />
+        New Template
+      </DashboardToolbarButton>
     </>
   )
 
@@ -447,7 +493,7 @@ export function TemplatesDashboard() {
           emptyText={
             loading
               ? "Loading templates..."
-              : "No templates yet. Create one from a video in the Viral Archive."
+              : "No templates yet. Click \"New Template\" to start one, or build one from a video in the Viral Archive."
           }
           emptyColSpan={5}
           footer={paginationFooter}
@@ -577,6 +623,66 @@ export function TemplatesDashboard() {
                 <Loader2Icon className="size-4 animate-spin" />
               ) : null}
               {useSubmitting ? "Creating" : "Create Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* "New Template" naming dialog — name the blank template before it opens
+          in the editor to be built from scratch. */}
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => !open && closeCreateModal()}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>New Template</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-5">
+              {createError ? (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{createError}</span>
+                </div>
+              ) : null}
+
+              <div className="grid gap-2">
+                <Label htmlFor="create-template-name">Name</Label>
+                <Input
+                  id="create-template-name"
+                  autoFocus
+                  value={createName}
+                  onChange={(event) => setCreateName(event.target.value)}
+                  placeholder="Template name"
+                  onKeyDown={(event) => {
+                    // Enter submits the single-field form.
+                    if (event.key === "Enter" && !createDisabled) {
+                      void handleConfirmCreate()
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button type="button" variant="outline" onClick={closeCreateModal}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={createDisabled}
+              onClick={handleConfirmCreate}
+            >
+              {createSubmitting ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <PlusIcon className="size-4" />
+              )}
+              {createSubmitting ? "Creating" : "Create Template"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -865,7 +971,7 @@ function EmptyTemplates({ loading }: { loading: boolean }) {
         <p>
           {loading
             ? "Loading templates..."
-            : "No templates yet. Create one from a video in the Viral Archive."}
+            : "No templates yet. Click \"New Template\" to start one, or build one from a video in the Viral Archive."}
         </p>
       </div>
     </div>

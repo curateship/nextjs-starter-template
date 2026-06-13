@@ -52,6 +52,15 @@ const createTemplateFromViralVideoFn = createServerFn({ method: "POST" })
     return createTemplateFromViralVideoForCurrentUser(data.videoId, data.name)
   })
 
+const createBlankTemplateFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ name: templateNameSchema }))
+  .handler(async ({ data }): Promise<TemplateItem> => {
+    const { createBlankTemplateForCurrentUser } = await import(
+      "@/server/video-templates"
+    )
+    return createBlankTemplateForCurrentUser(data.name)
+  })
+
 const renameTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(templateIdSchema.extend({ name: templateNameSchema }))
   .handler(async ({ data }): Promise<TemplateItem> => {
@@ -114,6 +123,10 @@ export function listTemplates() {
 
 export function createTemplateFromViralVideo(videoId: string, name: string) {
   return createTemplateFromViralVideoFn({ data: { videoId, name } })
+}
+
+export function createBlankTemplate(name: string) {
+  return createBlankTemplateFn({ data: { name } })
 }
 
 export function renameTemplate(templateId: string, name: string) {

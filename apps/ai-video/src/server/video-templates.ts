@@ -29,6 +29,10 @@ import type { EditorClip } from "@/pages/video-editor/editor-store"
 // Scenes shorter than this make useless template slots and are skipped.
 const MIN_SLOT_MS = 100
 
+// Empty timeline a blank template starts from (and the editor falls back to
+// when a template has no timeline yet). Reels are vertical, so 9:16.
+const EMPTY_TEMPLATE_TIMELINE: ProjectTimeline = { tracks: [], aspect: "9:16" }
+
 // Dashboard list rows — the timeline stays out of the list payload.
 export type TemplateItem = {
   id: string
@@ -174,10 +178,7 @@ export async function getTemplateForEditingForCurrentUser(
   return {
     id: row.id,
     name: row.name,
-    timeline: (row.timeline as ProjectTimeline) ?? {
-      tracks: [],
-      aspect: "9:16",
-    },
+    timeline: (row.timeline as ProjectTimeline) ?? EMPTY_TEMPLATE_TIMELINE,
   }
 }
 
@@ -358,6 +359,37 @@ export async function createTemplateFromViralVideoForCurrentUser(
   // Caller discards this and reloads the templates list (which re-derives the
   // creator chip from the join), so no creator lookup is needed here.
   return serializeTemplate(created, created.thumbnailStoragePath)
+}
+
+// Create an empty template from scratch (no source reel). It opens in the
+// editor for the user to build by hand — the counterpart to building one from
+// an analyzed reel in the Viral Archive.
+export async function createBlankTemplateForCurrentUser(
+  name: string
+): Promise<TemplateItem> {
+  requireAppOrigin()
+  const user = await requireUser()
+
+  const createdAt = now()
+  const [created] = await db
+    .insert(aiVideoTemplates)
+    .values({
+      id: uuid(),
+      userId: user.id,
+      name: cleanTemplateName(name),
+      timeline: EMPTY_TEMPLATE_TIMELINE,
+      createdAt,
+      updatedAt: createdAt,
+    })
+    .returning()
+
+  if (!created) {
+    throw new Error("Template was not created")
+  }
+
+  // No source reel → no thumbnail or creator chip (the gallery shows a
+  // placeholder icon until the user adds footage in the editor).
+  return serializeTemplate(created)
 }
 
 export async function renameTemplateForCurrentUser(
