@@ -13,7 +13,7 @@ import {
 } from "@/server/actors"
 import { db } from "@/server/db"
 import { getLlmKey } from "@/server/llm-keys"
-import { getOwnedMedia } from "@/server/media"
+import { getOwnedMedia, saveGeneratedImageToLibrary } from "@/server/media"
 import {
   bodyToBytes,
   deleteFromR2,
@@ -89,10 +89,34 @@ export async function createActorForCurrentUser(
     if (!created) {
       throw new Error("Actor was not created")
     }
+    // Also drop the generated headshot into the media library as an independent
+    // asset (best-effort: a library failure must not lose the created actor).
+    await saveActorImageToLibrary(user.id, name, image)
     return serializeActor(created, referenceMedia)
   } catch (error) {
     await deleteFromR2(storagePath).catch(() => undefined)
     throw error
+  }
+}
+
+// Saves a copy of a freshly generated actor headshot to the media library so it
+// shows up there as a standalone image. Best-effort and self-contained: it
+// swallows/logs its own failure so the actor create/regenerate it follows can
+// still succeed (the library copy is decoupled from the actor).
+async function saveActorImageToLibrary(
+  userId: string,
+  actorName: string,
+  image: { bytes: Buffer; mimeType: string }
+) {
+  try {
+    await saveGeneratedImageToLibrary(
+      userId,
+      image.bytes,
+      image.mimeType,
+      `${actorName}.${extensionForMimeType(image.mimeType)}`
+    )
+  } catch (error) {
+    console.error("Actor image library copy failed", error)
   }
 }
 
@@ -140,6 +164,7 @@ export async function regenerateActorForCurrentUser(
     user.id,
     data.referenceMediaId
   )
+  const name = cleanActorName(data.name)
   const prompt = cleanActorPrompt(data.prompt)
   await enforceActorGenerationRateLimit(user.id)
   const image = await generateActorImage(prompt, data.model, referenceMedia)
@@ -159,7 +184,7 @@ export async function regenerateActorForCurrentUser(
     const [row] = await db
       .update(aiVideoActors)
       .set({
-        name: cleanActorName(data.name),
+        name,
         prompt,
         status: data.status,
         model: data.model,
@@ -189,6 +214,8 @@ export async function regenerateActorForCurrentUser(
   if (!updatedActor) {
     throw new Error("Actor not found")
   }
+  // Save the regenerated headshot to the library too (independent copy).
+  await saveActorImageToLibrary(user.id, name, image)
   return serializeActor(updatedActor, referenceMedia)
 }
 

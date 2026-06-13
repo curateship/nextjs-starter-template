@@ -2,9 +2,13 @@ import sanitizeHtml from "sanitize-html"
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { getPublicMediaUrl } from "@/server/media-storage"
+import {
+  deleteFromR2,
+  getPublicMediaUrl,
+  uploadToR2,
+} from "@/server/media-storage"
 import { aiVideoMedia, type AiVideoMedia } from "@/server/schema"
-import { uuid } from "@/server/security"
+import { now, uuid } from "@/server/security"
 
 export const IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -290,6 +294,48 @@ export async function getOwnedMedia(userId: string, mediaId: string) {
 
   if (!row) {
     throw new Error("Media not found")
+  }
+
+  return row
+}
+
+// Saves already-validated image bytes as an independent media-library row with
+// its own R2 object. Used for generated images (e.g. actor headshots) so they
+// show up in the library as standalone assets the user fully controls —
+// decoupled from the source record's lifecycle. Callers pass bytes that have
+// already passed their own type/size checks (this skips re-validation).
+export async function saveGeneratedImageToLibrary(
+  userId: string,
+  bytes: Uint8Array,
+  mimeType: string,
+  displayName: string
+): Promise<AiVideoMedia> {
+  const originalName = cleanOriginalName(displayName)
+  const filename = storedFilename(originalName, mimeType)
+  const storagePath = `${userId}/${filename}`
+  await uploadToR2(storagePath, bytes, mimeType)
+
+  const createdAt = now()
+  const row = {
+    id: uuid(),
+    userId,
+    filename,
+    originalName,
+    altText: null,
+    fileSize: bytes.byteLength,
+    mimeType,
+    fileType: getMediaFileType(mimeType),
+    storagePath,
+    createdAt,
+    updatedAt: createdAt,
+  }
+
+  try {
+    await db.insert(aiVideoMedia).values(row)
+  } catch (error) {
+    // Don't leave the uploaded object orphaned if the row insert fails.
+    await deleteFromR2(storagePath).catch(() => undefined)
+    throw error
   }
 
   return row
