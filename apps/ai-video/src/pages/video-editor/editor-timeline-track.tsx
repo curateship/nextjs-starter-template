@@ -477,7 +477,6 @@ function TimelineClipChip({
           className={cn(
             "group absolute inset-y-1.5 touch-none overflow-hidden rounded-md select-none",
             KIND_CLASSES[clip.kind],
-            selected && "ring-2 ring-primary ring-inset",
             !state.cutMode && "cursor-grab active:cursor-grabbing"
           )}
           style={{ left: leftPx, width: widthPx, ...kindStyle }}
@@ -564,6 +563,13 @@ function TimelineClipChip({
           />
         </div>
       ))}
+
+      {/* Selection border. Drawn as a top overlay (z-30) so it sits ABOVE the
+          filmstrip frames, which would otherwise paint over an inset ring on
+          the chip itself. */}
+      {selected ? (
+        <div className="pointer-events-none absolute inset-0 z-30 rounded-md ring-2 ring-green-500 ring-inset" />
+      ) : null}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
