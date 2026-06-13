@@ -4,44 +4,45 @@ import { AlertCircleIcon, Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
-  getProject,
-  getProjectErrorMessage,
-  type ProjectDetail,
-} from "@/lib/api/video-projects"
+  getTemplateForEditing,
+  getTemplateErrorMessage,
+  type TemplateDetail,
+} from "@/lib/api/video-templates"
 import { VideoEditorPage } from "@/pages/video-editor/video-editor-page"
 
-// Fetch outcome tagged with its project id, so stale results from a previous
-// project are ignored without resetting state inside the effect.
+// Fetch outcome tagged with its template id, so stale results from a previous
+// template are ignored without resetting state inside the effect.
 type LoadResult =
-  | { projectId: string; project: ProjectDetail }
-  | { projectId: string; error: string }
+  | { templateId: string; template: TemplateDetail }
+  | { templateId: string; error: string }
 
-// Loads the project (including its saved timeline) before mounting the
-// editor, so EditorProvider can initialize its store from it.
-export function ProjectEditorPage() {
-  const { projectId } = useParams({
-    from: "/_authenticated/admin/video-editor/$projectId",
+// Loads the template (including its saved timeline) before mounting the editor,
+// so EditorProvider can initialize its store from it. Edits autosave back to
+// the template (Edit Template flow), reusing the project editor unchanged.
+export function TemplateEditorPage() {
+  const { templateId } = useParams({
+    from: "/_authenticated/admin/video-editor/template/$templateId",
   })
   const [result, setResult] = React.useState<LoadResult | null>(null)
 
   React.useEffect(() => {
     let active = true
 
-    getProject(projectId)
+    getTemplateForEditing(templateId)
       .then((data) => {
-        if (active) setResult({ projectId, project: data })
+        if (active) setResult({ templateId, template: data })
       })
       .catch((loadError) => {
         if (active)
-          setResult({ projectId, error: getProjectErrorMessage(loadError) })
+          setResult({ templateId, error: getTemplateErrorMessage(loadError) })
       })
 
     return () => {
       active = false
     }
-  }, [projectId])
+  }, [templateId])
 
-  const current = result?.projectId === projectId ? result : null
+  const current = result?.templateId === templateId ? result : null
 
   if (current && "error" in current) {
     return (
@@ -55,7 +56,7 @@ export function ProjectEditorPage() {
             <span>{current.error}</span>
           </div>
           <Button asChild variant="outline">
-            <Link to="/admin/video-editor">Back to projects</Link>
+            <Link to="/admin/templates">Back to templates</Link>
           </Button>
         </div>
       </div>
@@ -70,5 +71,5 @@ export function ProjectEditorPage() {
     )
   }
 
-  return <VideoEditorPage document={current.project} kind="project" />
+  return <VideoEditorPage document={current.template} kind="template" />
 }

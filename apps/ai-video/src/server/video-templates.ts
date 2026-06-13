@@ -13,7 +13,11 @@ import {
   type AiVideoTemplate,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
-import { summarizeTimeline, type ProjectTimeline } from "@/server/video-projects"
+import {
+  cleanProjectName,
+  summarizeTimeline,
+  type ProjectTimeline,
+} from "@/server/video-projects"
 import type { ViralVideoAnalysis } from "@/server/video-analysis"
 import type { EditorClip } from "@/pages/video-editor/editor-store"
 
@@ -40,6 +44,14 @@ export type TemplateItem = {
 
 export type TemplateListResponse = {
   templates: TemplateItem[]
+}
+
+// Editor payload: just what EditorProvider needs to mount on a template's
+// timeline (same shape as a project's, so the editor is reused as-is).
+export type TemplateDetail = {
+  id: string
+  name: string
+  timeline: ProjectTimeline
 }
 
 // Owned-row lookup; throws when the template doesn't exist or isn't the user's.
@@ -139,6 +151,50 @@ export async function listTemplatesForCurrentUser(): Promise<TemplateListRespons
       serializeTemplate(r.template, r.thumbnailStoragePath ?? null, r.creator)
     ),
   }
+}
+
+// Load a template's timeline for the editor (Edit Template). Same payload the
+// project editor uses, so EditorProvider mounts on it unchanged.
+export async function getTemplateForEditingForCurrentUser(
+  templateId: string
+): Promise<TemplateDetail> {
+  const user = await requireUser()
+  const row = await getOwnedTemplate(user.id, templateId)
+  return {
+    id: row.id,
+    name: row.name,
+    timeline: (row.timeline as ProjectTimeline) ?? {
+      tracks: [],
+      aspect: "9:16",
+    },
+  }
+}
+
+// Persist edits made to a template's timeline in the editor. Derived fields
+// (slot_count, duration_ms) recompute from this on the next list load.
+export async function saveTemplateTimelineForCurrentUser(
+  templateId: string,
+  timeline: ProjectTimeline
+): Promise<{ templateId: string }> {
+  requireAppOrigin()
+  const user = await requireUser()
+
+  const [row] = await db
+    .update(aiVideoTemplates)
+    .set({ timeline, updatedAt: now() })
+    .where(
+      and(
+        eq(aiVideoTemplates.id, templateId),
+        eq(aiVideoTemplates.userId, user.id)
+      )
+    )
+    .returning({ id: aiVideoTemplates.id })
+
+  if (!row) {
+    throw new Error("Template not found")
+  }
+
+  return { templateId: row.id }
 }
 
 // Turns an analyzed viral video into a template: the timeline is the original
@@ -273,9 +329,11 @@ export async function deleteTemplatesForCurrentUser(
 }
 
 // "Use template": copy the template timeline into a fresh project the editor
-// opens; the slots stay replaceable there.
+// opens; the slots stay replaceable there. The user names the project (the
+// "Use" dialog), so the project isn't tied to the template's name.
 export async function createProjectFromTemplateForCurrentUser(
-  templateId: string
+  templateId: string,
+  name: string
 ): Promise<{ projectId: string }> {
   requireAppOrigin()
   const user = await requireUser()
@@ -287,7 +345,7 @@ export async function createProjectFromTemplateForCurrentUser(
     .values({
       id: uuid(),
       userId: user.id,
-      name: template.name,
+      name: cleanProjectName(name),
       // Remembered so the script writer can reach the source reel's analysis.
       templateId: template.id,
       timeline: template.timeline,

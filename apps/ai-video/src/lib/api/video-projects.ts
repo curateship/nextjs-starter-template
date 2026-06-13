@@ -37,7 +37,9 @@ const clipSchema = z.object({
   segmentLabel: z.string().max(100).optional(),
 })
 
-const timelineSchema = z.object({
+// Exported so the templates API can validate template-timeline saves with the
+// exact same rules (a template's timeline is the same shape as a project's).
+export const timelineSchema = z.object({
   tracks: z
     .array(
       z.object({

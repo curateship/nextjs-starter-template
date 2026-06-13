@@ -414,7 +414,7 @@ function TimelineToolbar({
   onToggleCollapse: () => void
   collapsed: boolean
 }) {
-  const { state, dispatch, clock, durationMs, saveStatus } = useEditor()
+  const { state, dispatch, clock, durationMs, saveStatus, kind } = useEditor()
   const playing = usePlaybackPlaying(clock)
   const rate = usePlaybackRate(clock)
 
@@ -501,7 +501,8 @@ function TimelineToolbar({
             : "Saved"}
       </span>
 
-      <ExportControls />
+      {/* Export is project-only — a template isn't a renderable output. */}
+      {kind === "project" ? <ExportControls /> : null}
 
       {/* View controls: aspect ratio + zoom */}
       <Select
@@ -599,7 +600,9 @@ function downloadRender(projectId: string, filename: string) {
 // the background, so closing the modal mid-render is fine — a toolbar
 // indicator stays up and the file still downloads when ready.
 function ExportControls() {
-  const { projectId, projectName, flushSave } = useEditor()
+  // Export only mounts in project mode, so the document is a project here.
+  const { documentId: projectId, documentName: projectName, flushSave } =
+    useEditor()
   const [modalOpen, setModalOpen] = React.useState(false)
   const [quality, setQuality] = React.useState<RenderQuality>("high")
   const [filename, setFilename] = React.useState(projectName)

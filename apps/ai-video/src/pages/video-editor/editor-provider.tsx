@@ -1,15 +1,13 @@
 import * as React from "react"
 
-import {
-  saveProjectTimeline,
-  type ProjectDetail,
-  type ProjectTimeline,
-} from "@/lib/api/video-projects"
+import { saveProjectTimeline, type ProjectTimeline } from "@/lib/api/video-projects"
+import { saveTemplateTimeline } from "@/lib/api/video-templates"
 import {
   createInitialEditorState,
   EditorContext,
   editorReducer,
   timelineDurationMs,
+  type EditorDocumentKind,
   type SaveStatus,
 } from "@/pages/video-editor/editor-store"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
@@ -17,19 +15,37 @@ import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 // How long after the last edit the timeline snapshot is persisted.
 const AUTOSAVE_DEBOUNCE_MS = 1500
 
+// The thing being edited — a project or a template. Both carry the same
+// timeline shape, so the editor mounts on either.
+export type EditorDocument = {
+  id: string
+  name: string
+  timeline: ProjectTimeline
+}
+
 // Hosts all editor state: the tracks reducer, the playback clock, and the
-// project autosave loop.
+// autosave loop (writes back to the project or template per `kind`).
 export function EditorProvider({
-  project,
+  document,
+  kind,
   children,
 }: {
-  project: ProjectDetail
+  document: EditorDocument
+  kind: EditorDocumentKind
   children: React.ReactNode
 }) {
   const [state, dispatch] = React.useReducer(
     editorReducer,
-    project.timeline,
+    document.timeline,
     createInitialEditorState
+  )
+  // Route a timeline snapshot to the right persistence fn for this document.
+  const saveTimeline = React.useCallback(
+    (snapshot: ProjectTimeline) =>
+      kind === "template"
+        ? saveTemplateTimeline(document.id, snapshot).then(() => undefined)
+        : saveProjectTimeline(document.id, snapshot).then(() => undefined),
+    [kind, document.id]
   )
   // One playback clock per editor mount; lives outside React so per-frame
   // ticks don't re-render the tree.
@@ -71,7 +87,7 @@ export function EditorProvider({
     const timer = setTimeout(() => {
       pendingRef.current = null
       setSaveStatus("saving")
-      saveProjectTimeline(project.id, snapshot)
+      saveTimeline(snapshot)
         .then(() => setSaveStatus("saved"))
         .catch(() => {
           setSaveStatus("error")
@@ -81,18 +97,18 @@ export function EditorProvider({
     }, AUTOSAVE_DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
-  }, [project.id, state.tracks, state.aspect])
+  }, [saveTimeline, state.tracks, state.aspect])
 
   // Fire-and-forget flush for edits still inside the debounce window when
-  // the editor unmounts (e.g. navigating back to the projects dashboard).
+  // the editor unmounts (e.g. navigating back to the dashboard).
   React.useEffect(() => {
     return () => {
       const snapshot = pendingRef.current
       if (snapshot) {
-        void saveProjectTimeline(project.id, snapshot).catch(() => undefined)
+        void saveTimeline(snapshot).catch(() => undefined)
       }
     }
-  }, [project.id])
+  }, [saveTimeline])
 
   // Immediately persists a snapshot still waiting out the autosave debounce
   // (used by export so it renders the timeline as currently seen).
@@ -102,14 +118,14 @@ export function EditorProvider({
     pendingRef.current = null
     setSaveStatus("saving")
     try {
-      await saveProjectTimeline(project.id, snapshot)
+      await saveTimeline(snapshot)
       setSaveStatus("saved")
     } catch (error) {
       setSaveStatus("error")
       pendingRef.current ??= snapshot
       throw error
     }
-  }, [project.id])
+  }, [saveTimeline])
 
   const value = React.useMemo(
     () => ({
@@ -118,11 +134,12 @@ export function EditorProvider({
       clock,
       durationMs,
       saveStatus,
-      projectId: project.id,
-      projectName: project.name,
+      kind,
+      documentId: document.id,
+      documentName: document.name,
       flushSave,
     }),
-    [state, clock, durationMs, saveStatus, project.id, project.name, flushSave]
+    [state, clock, durationMs, saveStatus, kind, document.id, document.name, flushSave]
   )
 
   return (

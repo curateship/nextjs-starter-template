@@ -1,12 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { timelineSchema, type ProjectTimeline } from "@/lib/api/video-projects"
 import type {
+  TemplateDetail,
   TemplateItem,
   TemplateListResponse,
 } from "@/server/video-templates"
 
-export type { TemplateItem, TemplateListResponse }
+export type { TemplateDetail, TemplateItem, TemplateListResponse }
 
 const templateIdSchema = z.object({
   templateId: z.string().min(1).max(36),
@@ -16,6 +18,7 @@ const templateNameSchema = z.string().min(1).max(255)
 
 const templateSafeErrorMessages = new Set([
   "Template name is required",
+  "Project name is required",
   "Template not found",
   "Video not found",
   "Video analysis is not ready",
@@ -68,13 +71,42 @@ const deleteTemplateFn = createServerFn({ method: "POST" })
   })
 
 const createProjectFromTemplateFn = createServerFn({ method: "POST" })
-  .inputValidator(templateIdSchema)
+  .inputValidator(templateIdSchema.extend({ name: templateNameSchema }))
   .handler(async ({ data }): Promise<{ projectId: string }> => {
     const { createProjectFromTemplateForCurrentUser } = await import(
       "@/server/video-templates"
     )
-    return createProjectFromTemplateForCurrentUser(data.templateId)
+    return createProjectFromTemplateForCurrentUser(data.templateId, data.name)
   })
+
+const getTemplateForEditingFn = createServerFn({ method: "GET" })
+  .inputValidator(templateIdSchema)
+  .handler(async ({ data }): Promise<TemplateDetail> => {
+    const { getTemplateForEditingForCurrentUser } = await import(
+      "@/server/video-templates"
+    )
+    return getTemplateForEditingForCurrentUser(data.templateId)
+  })
+
+const saveTemplateTimelineFn = createServerFn({ method: "POST" })
+  .inputValidator(templateIdSchema.extend({ timeline: timelineSchema }))
+  .handler(async ({ data }): Promise<{ templateId: string }> => {
+    const { saveTemplateTimelineForCurrentUser } = await import(
+      "@/server/video-templates"
+    )
+    return saveTemplateTimelineForCurrentUser(data.templateId, data.timeline)
+  })
+
+export function getTemplateForEditing(templateId: string) {
+  return getTemplateForEditingFn({ data: { templateId } })
+}
+
+export function saveTemplateTimeline(
+  templateId: string,
+  timeline: ProjectTimeline
+) {
+  return saveTemplateTimelineFn({ data: { templateId, timeline } })
+}
 
 export function listTemplates() {
   return listTemplatesFn()
@@ -109,6 +141,6 @@ export function bulkDeleteTemplates(templateIds: string[]) {
   return bulkDeleteTemplatesFn({ data: { templateIds } })
 }
 
-export function createProjectFromTemplate(templateId: string) {
-  return createProjectFromTemplateFn({ data: { templateId } })
+export function createProjectFromTemplate(templateId: string, name: string) {
+  return createProjectFromTemplateFn({ data: { templateId, name } })
 }

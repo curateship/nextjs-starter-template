@@ -54,7 +54,8 @@ async function getOwnedProject(userId: string, projectId: string) {
   return row
 }
 
-function cleanProjectName(value: string) {
+// Exported so the template→project flow names new projects the same way.
+export function cleanProjectName(value: string) {
   const name = value.trim()
   if (!name) {
     throw new Error("Project name is required")

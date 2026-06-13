@@ -6,12 +6,15 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
-import type { ProjectDetail } from "@/lib/api/video-projects"
 import { EditorMediaPanel } from "@/pages/video-editor/editor-media-panel"
 import { EditorPlayerPanel } from "@/pages/video-editor/editor-player-panel"
-import { EditorProvider } from "@/pages/video-editor/editor-provider"
+import {
+  EditorProvider,
+  type EditorDocument,
+} from "@/pages/video-editor/editor-provider"
 import { EditorSettingsPanel } from "@/pages/video-editor/editor-settings-panel"
 import { EditorTimeline } from "@/pages/video-editor/editor-timeline"
+import type { EditorDocumentKind } from "@/pages/video-editor/editor-store"
 
 // Default timeline height (% of the editor) — also the expand-fallback size.
 const TIMELINE_DEFAULT_PCT = 38
@@ -20,7 +23,13 @@ const TIMELINE_DEFAULT_PCT = 38
 // strip. All editor state (tracks, selection, playback clock) lives in
 // EditorProvider; the shell strips its content padding for this route, so the
 // page owns the full area under the sticky header.
-export function VideoEditorPage({ project }: { project: ProjectDetail }) {
+export function VideoEditorPage({
+  document,
+  kind,
+}: {
+  document: EditorDocument
+  kind: EditorDocumentKind
+}) {
   const timelinePanelRef = usePanelRef()
   // Tracked from onResize so it also follows handle-drag collapses,
   // not just the toolbar button.
@@ -44,7 +53,7 @@ export function VideoEditorPage({ project }: { project: ProjectDetail }) {
   }
 
   return (
-    <EditorProvider project={project}>
+    <EditorProvider document={document} kind={kind}>
       <ResizablePanelGroup orientation="vertical" className="h-full">
         {/* Panels area; px min keeps the cards usable at any viewport height */}
         <ResizablePanel defaultSize="62%" minSize="220px">

@@ -3,6 +3,7 @@ import {
   AlertCircleIcon,
   ImageIcon,
   Loader2Icon,
+  MusicIcon,
   PlusIcon,
   SearchIcon,
   UploadIcon,
@@ -49,27 +50,35 @@ export type ReplacementMedia = {
   mediaId: string
   url: string
   name: string
-  fileType: "video" | "image"
+  fileType: "video" | "image" | "audio"
   sourceDurationMs: number
 }
 
-// CapCut-style slot replacement picker: drop one of your videos or images into
-// a visual slot (or upload on the spot). The slot keeps its position/length.
+// CapCut-style slot replacement picker. A visual slot (video/image clip) swaps
+// between videos and images; an audio slot swaps audio tracks. Either way the
+// slot keeps its position/length. `clipKind` is the kind of the slot being
+// replaced — audio slots only accept audio, so the type toggle is hidden.
 export function ReplaceMediaDialog({
+  clipKind,
   open,
   onOpenChange,
   onReplace,
 }: {
+  clipKind: "video" | "image" | "audio"
   open: boolean
   onOpenChange: (open: boolean) => void
   onReplace: (media: ReplacementMedia) => void
 }) {
+  const isAudioSlot = clipKind === "audio"
   const [items, setItems] = React.useState<MediaItem[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   // Tile currently probing its duration before handing back the selection.
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [uploading, setUploading] = React.useState(false)
-  const [mediaType, setMediaType] = React.useState<"video" | "image">("video")
+  // Audio slots are locked to audio; visual slots toggle video/image.
+  const [mediaType, setMediaType] = React.useState<"video" | "image" | "audio">(
+    isAudioSlot ? "audio" : "video"
+  )
   const [search, setSearch] = React.useState("")
   const [searchOpen, setSearchOpen] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -96,15 +105,20 @@ export function ReplaceMediaDialog({
     }
   }, [open, mediaType])
 
-  // Videos need their intrinsic length to clamp the slot; images don't (they
-  // fill any duration), so skip the probe for them.
+  // Timed media (video/audio) needs its intrinsic length to clamp the slot;
+  // images fill any duration, so skip the probe for them.
   async function selectMedia(item: MediaItem) {
     setBusyId(item.id)
     setError(null)
     try {
-      const fileType = item.file_type === "image" ? "image" : "video"
+      const fileType =
+        item.file_type === "image"
+          ? "image"
+          : item.file_type === "audio"
+            ? "audio"
+            : "video"
       const sourceDurationMs =
-        fileType === "video" ? await loadMediaDurationMs(item.url, "video") : 0
+        fileType === "image" ? 0 : await loadMediaDurationMs(item.url, fileType)
       onReplace({
         mediaId: item.id,
         url: item.url,
@@ -148,7 +162,8 @@ export function ReplaceMediaDialog({
     items && query
       ? items.filter((item) => item.original_name.toLowerCase().includes(query))
       : (items ?? [])
-  const typeLabel = mediaType === "video" ? "videos" : "images"
+  const typeLabel =
+    mediaType === "video" ? "videos" : mediaType === "audio" ? "audio" : "images"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,31 +173,33 @@ export function ReplaceMediaDialog({
           scrolls away with the grid. */}
           {/* Title and controls on ONE row — the controls sit beside the title
               in the sticky header so they stay put while the grid scrolls. pr-8
-              keeps them clear of the absolute close (X) button. Videos and
-              images can fill a visual slot; audio can't, so it's not offered. */}
+              keeps them clear of the absolute close (X) button. Visual slots
+              toggle video/image; an audio slot only accepts audio. */}
           <div className="flex items-center gap-3 pr-8">
-            <DialogTitle>Replace Clip</DialogTitle>
+            <DialogTitle>{isAudioSlot ? "Replace Audio" : "Replace Clip"}</DialogTitle>
             <div className="flex items-center gap-1">
-              <Select
-                value={mediaType}
-                onValueChange={(value) =>
-                  setMediaType(value as "video" | "image")
-                }
-              >
-                <SelectTrigger aria-label="Media type" className="w-auto">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="video">
-                    <VideoIcon className="size-4 text-muted-foreground" />
-                    Videos
-                  </SelectItem>
-                  <SelectItem value="image">
-                    <ImageIcon className="size-4 text-muted-foreground" />
-                    Images
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              {isAudioSlot ? null : (
+                <Select
+                  value={mediaType}
+                  onValueChange={(value) =>
+                    setMediaType(value as "video" | "image")
+                  }
+                >
+                  <SelectTrigger aria-label="Media type" className="w-auto">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="video">
+                      <VideoIcon className="size-4 text-muted-foreground" />
+                      Videos
+                    </SelectItem>
+                    <SelectItem value="image">
+                      <ImageIcon className="size-4 text-muted-foreground" />
+                      Images
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               <Popover open={searchOpen} onOpenChange={handleSearchOpenChange}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -238,7 +255,13 @@ export function ReplaceMediaDialog({
           <input
             ref={fileInputRef}
             type="file"
-            accept={mediaType === "video" ? "video/*" : "image/*"}
+            accept={
+              mediaType === "video"
+                ? "video/*"
+                : mediaType === "audio"
+                  ? "audio/*"
+                  : "image/*"
+            }
             className="hidden"
             onChange={handleUpload}
           />
@@ -264,6 +287,8 @@ export function ReplaceMediaDialog({
                 <div>
                   {mediaType === "video" ? (
                     <VideoIcon className="mx-auto mb-2 size-8" />
+                  ) : mediaType === "audio" ? (
+                    <MusicIcon className="mx-auto mb-2 size-8" />
                   ) : (
                     <ImageIcon className="mx-auto mb-2 size-8" />
                   )}
@@ -325,11 +350,18 @@ function ReplaceMediaTile({
             className="block w-full"
             draggable={false}
           />
+        ) : item.file_type === "audio" ? (
+          // Audio has no visual — show a waveform-style icon tile.
+          <div className="grid aspect-square w-full place-items-center">
+            <MusicIcon className="size-8 text-muted-foreground" />
+          </div>
         ) : (
           <video src={item.url} className="block w-full" muted preload="metadata" />
         )}
         {item.file_type === "image" ? (
           <ImageIcon className="absolute top-1.5 left-1.5 size-3.5 text-white drop-shadow" />
+        ) : item.file_type === "audio" ? (
+          <MusicIcon className="absolute top-1.5 left-1.5 size-3.5 text-white drop-shadow" />
         ) : (
           <VideoIcon className="absolute top-1.5 left-1.5 size-3.5 text-white drop-shadow" />
         )}

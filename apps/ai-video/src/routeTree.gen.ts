@@ -28,6 +28,7 @@ import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes
 import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
 import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
+import { Route as AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport } from './routes/_authenticated/admin/video-editor/template/$templateId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -135,6 +136,12 @@ const ApiV1MediaMediaIdFileRoute = ApiV1MediaMediaIdFileRouteImport.update({
   path: '/api/v1/media/$mediaId/file',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminVideoEditorTemplateTemplateIdRoute =
+  AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport.update({
+    id: '/admin/video-editor/template/$templateId',
+    path: '/admin/video-editor/template/$templateId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/admin/templates/': typeof AuthenticatedAdminTemplatesIndexRoute
   '/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
+  '/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
 }
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
   '/admin/templates': typeof AuthenticatedAdminTemplatesIndexRoute
   '/admin/video-editor': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/admin/viral-archive': typeof AuthenticatedAdminViralArchiveIndexRoute
+  '/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
 }
@@ -195,6 +204,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/templates/': typeof AuthenticatedAdminTemplatesIndexRoute
   '/_authenticated/admin/video-editor/': typeof AuthenticatedAdminVideoEditorIndexRoute
   '/_authenticated/admin/viral-archive/': typeof AuthenticatedAdminViralArchiveIndexRoute
+  '/_authenticated/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
 }
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/admin/templates/'
     | '/admin/video-editor/'
     | '/admin/viral-archive/'
+    | '/admin/video-editor/template/$templateId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
   fileRoutesByTo: FileRoutesByTo
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/admin/templates'
     | '/admin/video-editor'
     | '/admin/viral-archive'
+    | '/admin/video-editor/template/$templateId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
   id:
@@ -258,6 +270,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/templates/'
     | '/_authenticated/admin/video-editor/'
     | '/_authenticated/admin/viral-archive/'
+    | '/_authenticated/admin/video-editor/template/$templateId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
   fileRoutesById: FileRoutesById
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MediaMediaIdFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin/video-editor/template/$templateId': {
+      id: '/_authenticated/admin/video-editor/template/$templateId'
+      path: '/admin/video-editor/template/$templateId'
+      fullPath: '/admin/video-editor/template/$templateId'
+      preLoaderRoute: typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
@@ -450,6 +470,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminTemplatesIndexRoute: typeof AuthenticatedAdminTemplatesIndexRoute
   AuthenticatedAdminVideoEditorIndexRoute: typeof AuthenticatedAdminVideoEditorIndexRoute
   AuthenticatedAdminViralArchiveIndexRoute: typeof AuthenticatedAdminViralArchiveIndexRoute
+  AuthenticatedAdminVideoEditorTemplateTemplateIdRoute: typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -470,6 +491,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
     AuthenticatedAdminVideoEditorIndexRoute,
   AuthenticatedAdminViralArchiveIndexRoute:
     AuthenticatedAdminViralArchiveIndexRoute,
+  AuthenticatedAdminVideoEditorTemplateTemplateIdRoute:
+    AuthenticatedAdminVideoEditorTemplateTemplateIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

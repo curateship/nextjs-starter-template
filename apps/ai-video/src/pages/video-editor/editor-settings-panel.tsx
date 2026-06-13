@@ -236,6 +236,16 @@ function DefaultPanels({
     script: onWriteScript,
   }
 
+  // Captions and AI Script are project-only (they call project-scoped server
+  // fns); hide those tiles when editing a template.
+  const { kind } = useEditor()
+  const tiles =
+    kind === "template"
+      ? ELEMENT_TILES.filter(
+          (tile) => tile.action !== "captions" && tile.action !== "script"
+        )
+      : ELEMENT_TILES
+
   return (
     <div>
       <h2 className="text-sm font-semibold">Elements</h2>
@@ -243,7 +253,7 @@ function DefaultPanels({
         Building blocks for your video.
       </p>
       <div className="mt-3 grid grid-cols-3 gap-2">
-        {ELEMENT_TILES.map((tile) => (
+        {tiles.map((tile) => (
           <button
             key={tile.label}
             type="button"
@@ -354,7 +364,8 @@ function CaptionsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { dispatch, projectId, flushSave } = useEditor()
+  // Captions are project-only, so this dialog only mounts in project mode.
+  const { dispatch, documentId: projectId, flushSave } = useEditor()
   const [styleId, setStyleId] = React.useState(CAPTION_STYLES[0].id)
   const [provider, setProvider] = React.useState<CaptionProvider>("gemini")
   const [generating, setGenerating] = React.useState(false)
@@ -479,7 +490,8 @@ function ScriptDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { dispatch, projectId } = useEditor()
+  // AI Script is project-only, so this dialog only mounts in project mode.
+  const { dispatch, documentId: projectId } = useEditor()
   const [topic, setTopic] = React.useState("")
   const [notes, setNotes] = React.useState("")
   const [generating, setGenerating] = React.useState(false)

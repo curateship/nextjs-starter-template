@@ -65,7 +65,7 @@ export type EditorAction =
     }
   | { type: "SPLIT_CLIP"; clipId: string; atMs: number }
   | { type: "DUPLICATE_CLIP"; clipId: string }
-  // Swap a template slot's media; the slot keeps its start and (clamped) length.
+  // Swap a slot's media; the slot keeps its start and (clamped) length.
   | {
       type: "REPLACE_CLIP_MEDIA"
       clipId: string
@@ -73,7 +73,7 @@ export type EditorAction =
         mediaId: string
         url: string
         name: string
-        fileType: "video" | "image"
+        fileType: "video" | "image" | "audio"
         sourceDurationMs: number
       }
     }
@@ -313,22 +313,25 @@ export function editorReducer(
 
     case "REPLACE_CLIP_MEDIA": {
       const found = findClip(state.tracks, action.clipId)
-      // Visual slots only (video or image); audio has no place in a video slot.
-      if (!found || (found.clip.kind !== "video" && found.clip.kind !== "image"))
-        return state
-      const isVideo = action.media.fileType === "video"
+      // Any media slot (video/image/audio); text clips aren't replaceable. The
+      // picker only offers compatible types (audio slots take audio, visual
+      // slots take video/image), so no cross-kind swap reaches here.
+      if (!found || found.clip.kind === "text") return state
+      const { fileType } = action.media
+      // Video and audio carry an intrinsic length that clamps the slot; images
+      // fill any duration, so the slot keeps its length.
+      const isTimed = fileType === "video" || fileType === "audio"
       const replaced: EditorClip = {
         ...found.clip,
-        kind: isVideo ? "video" : "image",
+        kind: fileType,
         mediaId: action.media.mediaId,
         url: action.media.url,
         name: action.media.name,
-        // Images have no intrinsic length; only videos carry a source duration.
-        sourceDurationMs: isVideo ? action.media.sourceDurationMs : undefined,
+        sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         trimStartMs: 0,
-        // A shorter video can't fill the slot — clamp it; an image fills any
+        // A shorter source can't fill the slot — clamp it; an image fills any
         // length, so it keeps the slot's duration.
-        durationMs: isVideo
+        durationMs: isTimed
           ? Math.min(found.clip.durationMs, action.media.sourceDurationMs)
           : found.clip.durationMs,
       }
@@ -476,14 +479,19 @@ export function editorReducer(
 // Autosave lifecycle, surfaced in the timeline toolbar.
 export type SaveStatus = "saved" | "saving" | "error"
 
+// What the editor is editing: a project or a template (both have the same
+// timeline shape). `kind` gates project-only tools (export, captions, script).
+export type EditorDocumentKind = "project" | "template"
+
 type EditorContextValue = {
   state: EditorState
   dispatch: React.Dispatch<EditorAction>
   clock: PlaybackClock
   durationMs: number
   saveStatus: SaveStatus
-  projectId: string
-  projectName: string
+  kind: EditorDocumentKind
+  documentId: string
+  documentName: string
   // Persists any snapshot still inside the autosave debounce window — export
   // must render what the user sees, not the last saved timeline.
   flushSave: () => Promise<void>

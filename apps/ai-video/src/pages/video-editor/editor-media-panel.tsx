@@ -96,7 +96,8 @@ type TileDrag = {
 // the timeline by clicking (at the playhead) or dragging onto a track lane;
 // each tab can also upload new files.
 export function EditorMediaPanel() {
-  const { state, dispatch, clock, projectName } = useEditor()
+  // documentName is the project or template name (shown in the panel header).
+  const { state, dispatch, clock, kind, documentName: projectName } = useEditor()
   const [tab, setTab] = React.useState<MediaTab>("videos")
   const [search, setSearch] = React.useState("")
   // Search lives in a popover so opening it never pushes the grid down.
@@ -161,7 +162,9 @@ export function EditorMediaPanel() {
       const clip = await buildMediaClip(item)
       dispatch({
         type: "ADD_CLIP",
-        clip,
+        // In the template editor every media clip is a replaceable slot, so
+        // videos built from the template can swap it (project clips are not).
+        clip: kind === "template" ? { ...clip, replaceable: true } : clip,
         atMs: atMs ?? clock.getTime(),
         trackId,
       })

@@ -536,7 +536,7 @@ function TimelineClipChip({
           {clip.segmentLabel}
         </span>
       ) : null}
-      {clip.replaceable && clip.kind === "video" && !state.cutMode ? (
+      {clip.replaceable && clip.kind !== "text" && !state.cutMode ? (
         <button
           type="button"
           aria-label="Replace media"
@@ -600,8 +600,9 @@ function TimelineClipChip({
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
-    {clip.replaceable && clip.kind === "video" ? (
+    {clip.replaceable && clip.kind !== "text" ? (
       <ReplaceMediaDialog
+        clipKind={clip.kind}
         open={replaceOpen}
         onOpenChange={setReplaceOpen}
         onReplace={handleReplace}

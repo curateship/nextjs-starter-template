@@ -8,6 +8,7 @@ import {
   ListIcon,
   Loader2Icon,
   PlayIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react"
 
@@ -100,8 +101,12 @@ export function TemplatesDashboard() {
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [name, setName] = React.useState("")
-  // Template currently being copied into a project (shows its spinner).
-  const [usingId, setUsingId] = React.useState<string | null>(null)
+  // "Use template" naming dialog: the template being used + the typed project
+  // name, plus its own in-flight/error state (creation happens from the modal).
+  const [useTarget, setUseTarget] = React.useState<TemplateItem | null>(null)
+  const [useName, setUseName] = React.useState("")
+  const [useError, setUseError] = React.useState<string | null>(null)
+  const [useSubmitting, setUseSubmitting] = React.useState(false)
   // Source viral video id + template id being previewed in the analysis modal.
   const [viewVideoId, setViewVideoId] = React.useState<string | null>(null)
   const [viewTemplateId, setViewTemplateId] = React.useState<string | null>(null)
@@ -181,21 +186,49 @@ export function TemplatesDashboard() {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
   }
 
-  // "Use": copy the template into a new project and open it in the editor.
-  async function handleUseTemplate(template: TemplateItem) {
-    setUsingId(template.id)
+  // "Use" opens a naming dialog (prefilled with the template name); the project
+  // isn't created until the user confirms a name.
+  function openUseModal(template: TemplateItem) {
+    setUseTarget(template)
+    setUseName(template.name)
+    setUseError(null)
     setError(null)
     setNotice(null)
+  }
+
+  function closeUseModal() {
+    setUseTarget(null)
+    setUseSubmitting(false)
+    setUseError(null)
+  }
+
+  // Create the project from the template under the typed name, then open it.
+  async function handleConfirmUse() {
+    if (!useTarget) return
+    setUseSubmitting(true)
+    setUseError(null)
     try {
-      const { projectId } = await createProjectFromTemplate(template.id)
+      const { projectId } = await createProjectFromTemplate(
+        useTarget.id,
+        useName
+      )
       void navigate({
         to: "/admin/video-editor/$projectId",
         params: { projectId },
       })
-    } catch (useError) {
-      setError(getTemplateErrorMessage(useError))
-      setUsingId(null)
+    } catch (createError) {
+      setUseError(getTemplateErrorMessage(createError))
+      setUseSubmitting(false)
     }
+  }
+
+  // "Edit Template": open the template itself in the editor (edits flow into
+  // every future "Use"); distinct from Rename, which only changes the name.
+  function handleEditTemplate(template: TemplateItem) {
+    void navigate({
+      to: "/admin/video-editor/template/$templateId",
+      params: { templateId: template.id },
+    })
   }
 
   function openRenameModal(template: TemplateItem) {
@@ -303,6 +336,7 @@ export function TemplatesDashboard() {
   }
 
   const renameDisabled = submitting || !name.trim()
+  const useDisabled = useSubmitting || !useName.trim()
   const controls = (
     <>
       {selectedIds.size > 0 ? (
@@ -398,11 +432,11 @@ export function TemplatesDashboard() {
                     <TemplateGalleryItem
                       key={template.id}
                       template={template}
-                      using={usingId === template.id}
                       selected={selectedIds.has(template.id)}
                       onToggle={() => toggleSelected(template.id)}
                       onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
-                      onUse={() => handleUseTemplate(template)}
+                      onUse={() => openUseModal(template)}
+                      onEdit={() => handleEditTemplate(template)}
                       onRename={() => openRenameModal(template)}
                       onDelete={() => setDeleteIds([template.id])}
                     />
@@ -475,11 +509,11 @@ export function TemplatesDashboard() {
             <TemplateTableRow
               key={template.id}
               template={template}
-              using={usingId === template.id}
               selected={selectedIds.has(template.id)}
               onToggle={() => toggleSelected(template.id)}
               onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
-              onUse={() => handleUseTemplate(template)}
+              onUse={() => openUseModal(template)}
+              onEdit={() => handleEditTemplate(template)}
               onRename={() => openRenameModal(template)}
               onDelete={() => setDeleteIds([template.id])}
             />
@@ -548,6 +582,59 @@ export function TemplatesDashboard() {
         </DialogContent>
       </Dialog>
 
+      {/* "Use" naming dialog — name the new project before it's created. */}
+      <Dialog
+        open={!!useTarget}
+        onOpenChange={(open) => !open && closeUseModal()}
+      >
+        <DialogContent variant="admin">
+          <DialogHeader>
+            <DialogTitle>Name Your Project</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <div className="space-y-5">
+              {useError ? (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{useError}</span>
+                </div>
+              ) : null}
+
+              <div className="grid gap-2">
+                <Label htmlFor="use-project-name">Project name</Label>
+                <Input
+                  id="use-project-name"
+                  autoFocus
+                  value={useName}
+                  onChange={(event) => setUseName(event.target.value)}
+                  placeholder="My video"
+                  onKeyDown={(event) => {
+                    // Enter submits the single-field form.
+                    if (event.key === "Enter" && !useDisabled) {
+                      void handleConfirmUse()
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter variant="plain">
+            <Button type="button" variant="outline" onClick={closeUseModal}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={useDisabled} onClick={handleConfirmUse}>
+              {useSubmitting ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : null}
+              {useSubmitting ? "Creating" : "Create Project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={!!deleteIds}
         onOpenChange={(open) => !open && setDeleteIds(null)}
@@ -601,24 +688,26 @@ export function TemplatesDashboard() {
 
 function TemplateTableRow({
   template,
-  using,
   selected,
   onToggle,
   onOpen,
   onUse,
+  onEdit,
   onRename,
   onDelete,
 }: {
   template: TemplateItem
-  using: boolean
   selected: boolean
   onToggle: () => void
   onOpen: () => void
   onUse: () => void
+  onEdit: () => void
   onRename: () => void
   onDelete: () => void
 }) {
-  const canOpen = !!template.source_viral_video_id
+  // The source reel's AI analysis is only available when the template was
+  // built from one.
+  const hasAnalysis = !!template.source_viral_video_id
   return (
     <TableRow className="group" data-state={selected ? "selected" : undefined}>
       <TableCell column="select">
@@ -630,7 +719,13 @@ function TemplateTableRow({
       </TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="aspect-[9/16] w-9 shrink-0 overflow-hidden rounded-md border bg-muted">
+          {/* Thumbnail + name both open the template editor. */}
+          <button
+            type="button"
+            className="aspect-[9/16] w-9 shrink-0 overflow-hidden rounded-md border bg-muted"
+            onClick={onEdit}
+            aria-label={`Edit ${template.name}`}
+          >
             {template.thumbnail_url ? (
               <img
                 src={template.thumbnail_url}
@@ -642,19 +737,15 @@ function TemplateTableRow({
                 <LayoutTemplateIcon className="size-4 text-muted-foreground" />
               </div>
             )}
-          </div>
+          </button>
           <div className="min-w-0">
-            {canOpen ? (
-              <button
-                type="button"
-                className="block max-w-full truncate text-left font-medium group-hover:underline"
-                onClick={onOpen}
-              >
-                {template.name}
-              </button>
-            ) : (
-              <div className="truncate font-medium">{template.name}</div>
-            )}
+            <button
+              type="button"
+              className="block max-w-full truncate text-left font-medium group-hover:underline"
+              onClick={onEdit}
+            >
+              {template.name}
+            </button>
             <div className="text-xs text-muted-foreground">
               {formatDuration(template.duration_ms)}
             </div>
@@ -669,20 +760,21 @@ function TemplateTableRow({
       </TableCell>
       <TableCell column="meta">
         <div className="flex justify-start gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={using}
-            onClick={onUse}
-          >
-            {using ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : (
-              <PlayIcon className="size-4" />
-            )}
+          <Button type="button" size="sm" variant="outline" onClick={onUse}>
+            <PlayIcon className="size-4" />
             Use
           </Button>
+          {hasAnalysis ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onOpen}
+              aria-label="View AI analysis"
+            >
+              <SparklesIcon className="size-4" />
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -709,23 +801,26 @@ function TemplateTableRow({
 
 function TemplateGalleryItem({
   template,
-  using,
   selected,
   onToggle,
   onOpen,
   onUse,
+  onEdit,
   onRename,
   onDelete,
 }: {
   template: TemplateItem
-  using: boolean
   selected: boolean
   onToggle: () => void
   onOpen: () => void
   onUse: () => void
+  onEdit: () => void
   onRename: () => void
   onDelete: () => void
 }) {
+  // The source reel's AI analysis is only available when the template was
+  // built from one.
+  const hasAnalysis = !!template.source_viral_video_id
   return (
     <div
       className={cn(
@@ -733,12 +828,12 @@ function TemplateGalleryItem({
         selected && "border-destructive ring-2 ring-destructive/25"
       )}
     >
-      {/* Preview — clicking opens the analysis modal, same as the title */}
+      {/* Preview — clicking opens the template editor (same as the title). */}
       <button
         type="button"
         className="relative block aspect-[3/4] w-full overflow-hidden bg-muted"
-        onClick={template.source_viral_video_id ? onOpen : undefined}
-        aria-label={template.source_viral_video_id ? `View ${template.name}` : undefined}
+        onClick={onEdit}
+        aria-label={`Edit ${template.name}`}
       >
         {template.thumbnail_url ? (
           <img src={template.thumbnail_url} alt="" className="h-full w-full object-cover" />
@@ -806,19 +901,22 @@ function TemplateGalleryItem({
 
       <div className="bg-card p-3">
         <div className="flex items-center justify-between gap-2">
-          {template.source_viral_video_id ? (
-            <button
-              type="button"
-              className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
-              onClick={onOpen}
-            >
-              {template.name}
-            </button>
-          ) : (
-            <div className="min-w-0 flex-1 truncate text-sm font-medium">{template.name}</div>
-          )}
-          <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={using} onClick={onUse}>
-            {using ? <Loader2Icon className="size-3 animate-spin" /> : <PlayIcon className="size-3" />}
+          {/* Title opens the template editor (same as the thumbnail). */}
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
+            onClick={onEdit}
+          >
+            {template.name}
+          </button>
+          {/* View the source reel's AI analysis (only when there's a source). */}
+          {hasAnalysis ? (
+            <Button type="button" size="icon-sm" variant="outline" className="shrink-0" onClick={onOpen} aria-label="View AI analysis">
+              <SparklesIcon className="size-3" />
+            </Button>
+          ) : null}
+          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onUse}>
+            <PlayIcon className="size-3" />
             Use
           </Button>
         </div>
