@@ -56,7 +56,6 @@ import {
   PlaybackClock,
   usePlaybackPlaying,
   usePlaybackRate,
-  usePlaybackTime,
 } from "@/pages/video-editor/playback-clock"
 import { TimelineTrackRow } from "@/pages/video-editor/editor-timeline-track"
 import {
@@ -320,12 +319,20 @@ function PlayheadLine({
   clock: PlaybackClock
   pxPerSecond: number
 }) {
-  const timeMs = usePlaybackTime(clock)
+  const ref = React.useRef<HTMLDivElement>(null)
+  // Move the line imperatively on each clock tick so playback never re-renders.
+  React.useEffect(() => {
+    function update() {
+      const el = ref.current
+      if (el) {
+        el.style.left = `${TIMELINE_GUTTER_PX + msToPx(clock.getTime(), pxPerSecond)}px`
+      }
+    }
+    update()
+    return clock.subscribe(update)
+  }, [clock, pxPerSecond])
   return (
-    <div
-      className="pointer-events-none absolute inset-y-0 z-20 w-px bg-red-500"
-      style={{ left: TIMELINE_GUTTER_PX + msToPx(timeMs, pxPerSecond) }}
-    />
+    <div className="pointer-events-none absolute inset-y-0 z-20 w-px bg-red-500" ref={ref} />
   )
 }
 
@@ -337,11 +344,19 @@ function RulerPlayheadFlag({
   clock: PlaybackClock
   pxPerSecond: number
 }) {
-  const timeMs = usePlaybackTime(clock)
+  const ref = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    function update() {
+      const el = ref.current
+      if (el) el.style.left = `${msToPx(clock.getTime(), pxPerSecond)}px`
+    }
+    update()
+    return clock.subscribe(update)
+  }, [clock, pxPerSecond])
   return (
     <div
       className="pointer-events-none absolute bottom-0 h-3.5 w-2.5 -translate-x-1/2 rounded-[3px] bg-red-500"
-      style={{ left: msToPx(timeMs, pxPerSecond) }}
+      ref={ref}
     />
   )
 }
@@ -791,11 +806,23 @@ function TimeReadout({
   clock: PlaybackClock
   durationMs: number
 }) {
-  const timeMs = usePlaybackTime(clock)
+  const ref = React.useRef<HTMLSpanElement>(null)
+  // Update the timecode text imperatively to avoid a per-frame re-render.
+  React.useEffect(() => {
+    function update() {
+      const el = ref.current
+      if (el) {
+        el.textContent = `${formatTimecode(clock.getTime())} / ${formatTimecode(durationMs)}`
+      }
+    }
+    update()
+    return clock.subscribe(update)
+  }, [clock, durationMs])
   return (
-    <span className="pl-2.5 text-sm tabular-nums whitespace-nowrap text-muted-foreground">
-      {formatTimecode(timeMs)} / {formatTimecode(durationMs)}
-    </span>
+    <span
+      className="pl-2.5 text-sm tabular-nums whitespace-nowrap text-muted-foreground"
+      ref={ref}
+    />
   )
 }
 

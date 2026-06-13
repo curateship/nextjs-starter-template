@@ -75,6 +75,33 @@ Finished exports are streamed back through the app route (not the public R2
 URL) so a re-export at the same key can't serve stale bytes from the CDN, and
 the download filename comes from the editor via `?filename=`.
 
+## Playback Engine
+
+The editor preview is tuned so playback stays smooth even on modest hardware in
+dev mode. Four design choices, all in `playback-clock.ts`, `editor-preview.tsx`,
+and `editor-timeline.tsx` (see `docs/performance.md` for the rules):
+
+- **The sound source is the clock.** `PlaybackClock` normally advances by wall
+  time, but during playback the preview registers a `timeSource` — the element
+  carrying the heard audio (an unmuted audio track if present, since captions
+  are transcribed from it; otherwise the topmost playing video). The clock
+  follows that element's decoded position; it's never seeked to chase the clock
+  (seeking mid-play is what stuttered the picture and desynced captions). The
+  playhead, captions, and other media follow the clock, so caption text stays
+  locked to the sound, and a buffering source just pauses the clock instead of
+  letting it run ahead.
+- **No React renders during playback.** The preview renders its elements once
+  and a single clock-subscribed loop drives all per-frame work imperatively
+  (media play/seek/mute + visibility). The playhead line, ruler flag, and time
+  readout likewise update via direct DOM writes, not per-tick re-renders.
+- **Windowed video elements.** Only video clips near the playhead (active +
+  ~2.5s lookahead) keep a live `<video>`, so a timeline of many clips — or a
+  template whose slots are all the same file — mounts a few decoders, not one
+  per clip.
+- **Immutable media caching.** The media proxy route serves `Cache-Control:
+  private, max-age=…, immutable` (a media id's bytes never change), so filmstrip
+  extraction and the media panel don't re-download from R2 on every load.
+
 ## Server Function Layering
 
 Every feature follows the same three layers:

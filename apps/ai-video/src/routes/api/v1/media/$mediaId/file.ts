@@ -38,7 +38,11 @@ export const Route = createFileRoute("/api/v1/media/$mediaId/file")({
 
           const headers = new Headers({
             "Accept-Ranges": "bytes",
-            "Cache-Control": "private, no-store",
+            // A media id's bytes never change, so let the browser cache them
+            // privately. Without this the player re-downloads from remote
+            // storage for every <video> element and every seek/replay — and a
+            // template's slots are all the same file, multiplying the cost.
+            "Cache-Control": "private, max-age=31536000, immutable",
             "Content-Type": object.ContentType || media.mimeType,
             "X-Content-Type-Options": "nosniff",
           })

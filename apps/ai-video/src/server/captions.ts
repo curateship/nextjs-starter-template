@@ -4,6 +4,7 @@ import { z } from "zod"
 import { db } from "@/server/db"
 import { bodyToBytes, getFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
+import { extractAudioWav } from "@/server/video-download"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { requireUser } from "@/server/security"
 import {
@@ -119,7 +120,13 @@ export async function generateProjectCaptionsForCurrentUser(
     ? Math.round(source.sourceDurationMs)
     : null
 
-  const raw = await transcribeWithGemini(bytes, media.mimeType, sourceDurationMs)
+  // Transcribe the AUDIO track, not the video: Gemini samples video at ~1 fps,
+  // which makes caption timestamps coarse and laggy. Fall back to the original
+  // file if audio extraction fails (e.g. ffmpeg unavailable).
+  const audio = await extractAudioWav(bytes, media.mimeType)
+  const raw = audio
+    ? await transcribeWithGemini(audio, "audio/wav", sourceDurationMs)
+    : await transcribeWithGemini(bytes, media.mimeType, sourceDurationMs)
   return { captions: mapToTimeline(raw, source, sourceDurationMs) }
 }
 

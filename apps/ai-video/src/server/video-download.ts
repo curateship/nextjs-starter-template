@@ -279,6 +279,38 @@ export async function extractVideoThumbnail(
   }
 }
 
+// Extracts the audio track as 16 kHz mono WAV for transcription. Gemini times
+// VIDEO inputs against ~1 fps frame sampling, which makes caption timestamps
+// coarse and laggy; transcribing audio-only restores accurate timing. PCM WAV
+// needs no external codec, so it works on any ffmpeg build. Returns null on
+// failure so the caller can fall back to the original file.
+export async function extractAudioWav(
+  bytes: Uint8Array,
+  mimeType: string
+): Promise<Uint8Array | null> {
+  const ext = mimeType === "video/webm" ? "webm" : "mp4"
+  const dir = await mkdtemp(path.join(tmpdir(), "audio-"))
+  const inputPath = path.join(dir, `input.${ext}`)
+  const outputPath = path.join(dir, "audio.wav")
+  try {
+    await writeFile(inputPath, bytes)
+    await runFfmpeg([
+      "-i", inputPath,
+      "-vn", // drop the video stream
+      "-ac", "1", // mono
+      "-ar", "16000", // 16 kHz is plenty for speech
+      "-c:a", "pcm_s16le",
+      outputPath,
+    ])
+    const data = await readFile(outputPath)
+    return new Uint8Array(data)
+  } catch {
+    return null
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
 function runFfmpeg(args: string[]) {
   return new Promise<void>((resolve, reject) => {
     const child = spawn("ffmpeg", ["-y", ...args], { timeout: 30_000 })

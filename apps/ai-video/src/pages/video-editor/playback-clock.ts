@@ -12,6 +12,17 @@ export class PlaybackClock {
   private rafHandle = 0
   private lastTick = 0
   private listeners = new Set<() => void>()
+  // Optional time source: when set and it returns a finite value, the clock
+  // follows it instead of advancing by wall time. The preview registers the
+  // currently-playing video here so playback is driven by the actual decoded
+  // video position — the clock never has to seek the video to catch up (seeking
+  // mid-play is what made the picture stutter), and a buffering video simply
+  // pauses the clock instead of letting it run ahead.
+  private timeSource: (() => number | null) | null = null
+
+  setTimeSource(source: (() => number | null) | null) {
+    this.timeSource = source
+  }
 
   get playing() {
     return this.playingValue
@@ -83,7 +94,15 @@ export class PlaybackClock {
   private tick = (now: number) => {
     const elapsed = (now - this.lastTick) * this.rateValue
     this.lastTick = now
-    this.timeMs += elapsed
+
+    // Follow the playing video if one is registered; otherwise advance by wall
+    // time (gaps, image/text/audio-only stretches, or before the video starts).
+    const sourced = this.timeSource ? this.timeSource() : null
+    if (sourced != null && Number.isFinite(sourced)) {
+      this.timeMs = Math.max(0, sourced)
+    } else {
+      this.timeMs += elapsed
+    }
 
     // Stop at the end of the last clip.
     if (this.timeMs >= this.durationMs) {
