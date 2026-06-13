@@ -2,21 +2,30 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
-  ACTOR_MODEL,
+  ACTOR_MODEL_IDS,
+  ACTOR_MODELS,
+  DEFAULT_ACTOR_MODEL,
+  type ActorModelId,
   type ActorPayload,
   type ActorStatus,
 } from "@/lib/actor-models"
 import type { ActorItem, ActorListResponse } from "@/server/actors"
 
-export { ACTOR_MODEL }
-export type { ActorItem, ActorListResponse, ActorPayload, ActorStatus }
+export { ACTOR_MODELS, DEFAULT_ACTOR_MODEL }
+export type {
+  ActorItem,
+  ActorListResponse,
+  ActorModelId,
+  ActorPayload,
+  ActorStatus,
+}
 
 const actorPayloadSchema = z.object({
   name: z.string().min(1).max(255),
   prompt: z.string().min(1).max(5000),
   status: z.enum(["active", "inactive"]),
   tags: z.string().max(1000),
-  model: z.literal(ACTOR_MODEL),
+  model: z.enum(ACTOR_MODEL_IDS),
   referenceMediaId: z.string().min(1).max(36).nullable().optional(),
 })
 
@@ -95,6 +104,19 @@ const deleteActorFn = createServerFn({ method: "POST" })
     return deleteActorForCurrentUser(data.actorId)
   })
 
+const bulkDeleteActorsFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      actorIds: z.array(z.string().min(1).max(36)).min(1).max(100),
+    })
+  )
+  .handler(async ({ data }): Promise<{ deletedCount: number }> => {
+    const { deleteActorsForCurrentUser } = await import(
+      "@/server/actor-actions"
+    )
+    return deleteActorsForCurrentUser(data.actorIds)
+  })
+
 export function listActors() {
   return listActorsFn()
 }
@@ -113,4 +135,8 @@ export function regenerateActor(actorId: string, payload: ActorPayload) {
 
 export function deleteActor(actorId: string) {
   return deleteActorFn({ data: { actorId } })
+}
+
+export function bulkDeleteActors(actorIds: string[]) {
+  return bulkDeleteActorsFn({ data: { actorIds } })
 }

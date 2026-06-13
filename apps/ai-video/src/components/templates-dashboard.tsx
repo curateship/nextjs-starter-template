@@ -12,7 +12,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CreatorChip } from "@/components/creator-chip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -54,6 +54,8 @@ import {
 } from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
+import { useSelection } from "@/lib/use-selection"
+import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
 type TemplateSortColumn = "name" | "slots" | "created"
@@ -64,15 +66,6 @@ function formatDuration(ms: number) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${String(seconds).padStart(2, "0")}`
-}
-
-// Two-letter initials for the creator chip's avatar fallback (no picture).
-function creatorChipInitials(creator: NonNullable<TemplateItem["creator"]>) {
-  const source = creator.display_name?.trim() || creator.username
-  const words = source.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word[0]))
-  const letters =
-    words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2)
-  return letters.toUpperCase()
 }
 
 // Templates dashboard at /admin/templates: templates are created from the
@@ -95,10 +88,6 @@ export function TemplatesDashboard() {
   const [renameTarget, setRenameTarget] = React.useState<TemplateItem | null>(
     null
   )
-  // Ids queued for deletion (single row or the whole selection).
-  const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [name, setName] = React.useState("")
   // "Use template" naming dialog: the template being used + the typed project
@@ -273,67 +262,25 @@ export function TemplatesDashboard() {
     }
   }
 
-  function toggleSelected(templateId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(templateId)) {
-        next.delete(templateId)
-      } else {
-        next.add(templateId)
-      }
-      return next
-    })
-  }
-
   const visibleIds = paginatedTemplates.map((template) => template.id)
-  const allVisibleSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const {
+    selectedIds,
+    toggleSelected,
+    allVisibleSelected,
+    toggleVisibleSelected,
+    clearSelection,
+  } = useSelection(visibleIds)
 
-  function toggleVisibleSelected() {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteIds?.length) return
-    const ids = deleteIds
-
-    setDeleting(true)
-    setError(null)
-    setNotice(null)
-    try {
-      if (ids.length === 1) {
-        await deleteTemplate(ids[0])
-        setNotice("Template deleted.")
-      } else {
-        const result = await bulkDeleteTemplates(ids)
-        setNotice(
-          `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "template" : "templates"}.`
-        )
-      }
-      const removed = new Set(ids)
-      setTemplates((current) =>
-        current.filter((template) => !removed.has(template.id))
-      )
-      setSelectedIds((current) => {
-        const next = new Set(current)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
-      setDeleteIds(null)
-    } catch (deleteError) {
-      setError(getTemplateErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const { deleteIds, setDeleteIds, deleting, confirmDelete } = useBulkDelete({
+    noun: "template",
+    deleteOne: deleteTemplate,
+    deleteMany: bulkDeleteTemplates,
+    setItems: setTemplates,
+    clearSelection,
+    setNotice,
+    setError,
+    formatError: getTemplateErrorMessage,
+  })
 
   const renameDisabled = submitting || !name.trim()
   const useDisabled = useSubmitting || !useName.trim()
@@ -672,7 +619,7 @@ export function TemplatesDashboard() {
               type="button"
               variant="destructive"
               disabled={deleting}
-              onClick={handleConfirmDelete}
+              onClick={confirmDelete}
             >
               {deleting ? (
                 <Loader2Icon className="size-4 animate-spin" />
@@ -845,26 +792,7 @@ function TemplateGalleryItem({
         {/* Bottom bar: creator chip on the left, duration + slot count on the
             right. The chip truncates so it never crowds the badges. */}
         <div className="absolute inset-x-2 bottom-2 flex items-end gap-2">
-          {template.creator ? (
-            <span className="flex min-w-0 items-center gap-2 rounded-md bg-black/15 px-2 py-1.5 backdrop-blur-sm">
-              <Avatar className="size-7 shrink-0">
-                {template.creator.avatar_url ? (
-                  <AvatarImage src={template.creator.avatar_url} alt="" />
-                ) : null}
-                <AvatarFallback className="text-[10px]">
-                  {creatorChipInitials(template.creator)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="min-w-0 text-left leading-tight">
-                <span className="block truncate text-xs font-medium text-white">
-                  {template.creator.display_name ?? template.creator.username}
-                </span>
-                <span className="block truncate text-[10px] text-white/70">
-                  @{template.creator.username}
-                </span>
-              </span>
-            </span>
-          ) : null}
+          <CreatorChip creator={template.creator} className="min-w-0 bg-black/15" />
           <span className="ml-auto flex shrink-0 items-center gap-1">
             <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
               {formatDuration(template.duration_ms)}

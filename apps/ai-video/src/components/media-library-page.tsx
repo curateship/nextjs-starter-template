@@ -63,6 +63,8 @@ import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/ai-video"
 import { cn } from "@/lib/utils"
 import { useShellRuntime } from "@/components/shell-layout"
 import { dateFormatter } from "@/lib/dashboard-format"
+import { useSelection } from "@/lib/use-selection"
+import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 const imageTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
 const videoTypes = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska"]
@@ -99,17 +101,14 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   const [sortBy, setSortBy] = React.useState<MediaSortBy>("created_at")
   const [sortDirection, setSortDirection] = React.useState<MediaSortDirection>("desc")
   const [uploading, setUploading] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [editingMedia, setEditingMedia] = React.useState<MediaItem | null>(null)
   const [editAltText, setEditAltText] = React.useState("")
   const [savingEdit, setSavingEdit] = React.useState(false)
-  const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     setMediaTypeFilter(activeTabToFileType(activeTab) ?? "all")
     setCurrentPage(1)
-    setSelectedIds(new Set())
   }, [activeTab])
 
   const fileType = mediaTypeFilter === "all" || mediaTypeFilter === "svg" ? undefined : mediaTypeFilter
@@ -146,20 +145,29 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
   }, [data?.media, searchQuery])
 
   const visibleIds = visibleMedia.map((item) => item.id)
-  const allVisibleSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const {
+    selectedIds,
+    toggleSelected,
+    allVisibleSelected,
+    toggleVisibleSelected,
+    clearSelection,
+  } = useSelection(visibleIds)
 
-  function handleToggleOne(mediaId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(mediaId)) {
-        next.delete(mediaId)
-      } else {
-        next.add(mediaId)
-      }
-      return next
-    })
-  }
+  // Server-paginated: reload the page after delete instead of local-filtering.
+  // The API returns `deleted_count`, so adapt it to the hook's `deletedCount`.
+  const { deleteIds, setDeleteIds, deleting, confirmDelete } = useBulkDelete({
+    noun: "media item",
+    deleteOne: deleteMedia,
+    deleteMany: async (ids) => {
+      const result = await bulkDeleteMedia(ids)
+      return { deletedCount: result.deleted_count }
+    },
+    reload: loadCurrentPage,
+    clearSelection,
+    setNotice,
+    setError,
+    formatError: getMediaErrorMessage,
+  })
 
   function handleSort(by: MediaSortBy) {
     setSortDirection((current) =>
@@ -169,18 +177,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
     )
     setSortBy(by)
     setCurrentPage(1)
-  }
-
-  function handleToggleVisible() {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
   }
 
   async function handleUploadSelect(event: React.ChangeEvent<HTMLInputElement>) {
@@ -244,32 +240,6 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       setError(getMediaErrorMessage(saveError))
     } finally {
       setSavingEdit(false)
-    }
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteIds?.length) return
-
-    const ids = deleteIds
-    setError(null)
-    setNotice(null)
-    try {
-      if (ids.length === 1) {
-        await deleteMedia(ids[0])
-        setNotice("Media deleted.")
-      } else {
-        const result = await bulkDeleteMedia(ids)
-        setNotice(`Deleted ${result.deleted_count} media ${result.deleted_count === 1 ? "item" : "items"}.`)
-      }
-      setSelectedIds((current) => {
-        const next = new Set(current)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
-      setDeleteIds(null)
-      await loadCurrentPage()
-    } catch (deleteError) {
-      setError(getMediaErrorMessage(deleteError))
     }
   }
 
@@ -399,7 +369,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                       selected={selectedIds.has(item.id)}
                       onEdit={() => handleEdit(item)}
                       onDelete={() => setDeleteIds([item.id])}
-                      onToggle={() => handleToggleOne(item.id)}
+                      onToggle={() => toggleSelected(item.id)}
                     />
                   ))}
                 </div>
@@ -432,7 +402,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
                 <TableHead column="select">
                   <Checkbox
                     checked={allVisibleSelected}
-                    onCheckedChange={handleToggleVisible}
+                    onCheckedChange={toggleVisibleSelected}
                     aria-label="Select visible media"
                   />
                 </TableHead>
@@ -478,7 +448,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
               key={item.id}
               item={item}
               selected={selectedIds.has(item.id)}
-              onToggle={() => handleToggleOne(item.id)}
+              onToggle={() => toggleSelected(item.id)}
               onEdit={() => handleEdit(item)}
               onDelete={() => setDeleteIds([item.id])}
             />
@@ -562,7 +532,7 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
             <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={handleConfirmDelete}>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={confirmDelete}>
               Delete
             </Button>
           </DialogFooter>

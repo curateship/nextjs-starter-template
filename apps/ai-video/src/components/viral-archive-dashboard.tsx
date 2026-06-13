@@ -13,7 +13,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CreatorChip } from "@/components/creator-chip"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -57,6 +57,8 @@ import {
 import type { CreatorItem } from "@/lib/api/creators"
 import { cn } from "@/lib/utils"
 import { PLATFORM_LABELS, dateFormatter, formatCount, pageSizeOptions } from "@/lib/dashboard-format"
+import { useSelection } from "@/lib/use-selection"
+import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "list" | "gallery"
 
@@ -98,10 +100,6 @@ export function ViralArchiveDashboard({
   const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
-  // Ids queued for deletion (single row or the whole selection).
-  const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [viewTarget, setViewTarget] = React.useState<ViralVideoItem | null>(null)
   const [addModalOpen, setAddModalOpen] = React.useState(false)
   const [addingVideoId, setAddingVideoId] = React.useState<string | null>(null)
@@ -199,60 +197,25 @@ export function ViralArchiveDashboard({
     }
   }
 
-  function toggleSelected(videoId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(videoId)) {
-        next.delete(videoId)
-      } else {
-        next.add(videoId)
-      }
-      return next
-    })
-  }
-
   const visibleIds = paginatedVideos.map((video) => video.id)
-  const allVisibleSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const {
+    selectedIds,
+    toggleSelected,
+    allVisibleSelected,
+    toggleVisibleSelected,
+    clearSelection,
+  } = useSelection(visibleIds)
 
-  function toggleVisibleSelected() {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteIds?.length) return
-    const ids = deleteIds
-    setDeleting(true); setError(null); setNotice(null)
-    try {
-      if (ids.length === 1) {
-        await deleteViralVideo(ids[0])
-        setNotice("Video deleted.")
-      } else {
-        const result = await bulkDeleteViralVideos(ids)
-        setNotice(`Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "video" : "videos"}.`)
-      }
-      const removed = new Set(ids)
-      setVideos((current) => current.filter((v) => !removed.has(v.id)))
-      setSelectedIds((current) => {
-        const next = new Set(current)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
-      setDeleteIds(null)
-    } catch (deleteError) {
-      setError(getViralVideoErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const { deleteIds, setDeleteIds, deleting, confirmDelete } = useBulkDelete({
+    noun: "video",
+    deleteOne: deleteViralVideo,
+    deleteMany: bulkDeleteViralVideos,
+    setItems: setVideos,
+    clearSelection,
+    setNotice,
+    setError,
+    formatError: getViralVideoErrorMessage,
+  })
 
   const paginationFooter = {
     type: "pagination" as const,
@@ -477,7 +440,7 @@ export function ViralArchiveDashboard({
           </DialogBody>
           <DialogFooter variant="plain">
             <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" disabled={deleting} onClick={handleConfirmDelete}>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={confirmDelete}>
               {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
               {deleting ? "Deleting" : "Delete"}
             </Button>
@@ -486,15 +449,6 @@ export function ViralArchiveDashboard({
       </Dialog>
     </div>
   )
-}
-
-// Two-letter initials for the creator chip's avatar fallback (no picture).
-function creatorChipInitials(creator: NonNullable<ViralVideoItem["creator"]>) {
-  const source = creator.display_name?.trim() || creator.username
-  const words = source.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word[0]))
-  const letters =
-    words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2)
-  return letters.toUpperCase()
 }
 
 function ViralVideoGalleryCard({
@@ -537,26 +491,10 @@ function ViralVideoGalleryCard({
           {PLATFORM_LABELS[video.platform]}
         </span>
         {/* Creator chip — avatar + name + handle over the bottom of the thumb. */}
-        {video.creator ? (
-          <span className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-2 rounded-md bg-black/0 px-2 py-1.5 backdrop-blur-sm">
-            <Avatar className="size-7 shrink-0">
-              {video.creator.avatar_url ? (
-                <AvatarImage src={video.creator.avatar_url} alt="" />
-              ) : null}
-              <AvatarFallback className="text-[10px]">
-                {creatorChipInitials(video.creator)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="min-w-0 text-left leading-tight">
-              <span className="block truncate text-xs font-medium text-white">
-                {video.creator.display_name ?? video.creator.username}
-              </span>
-              <span className="block truncate text-[10px] text-white/70">
-                @{video.creator.username}
-              </span>
-            </span>
-          </span>
-        ) : null}
+        <CreatorChip
+          creator={video.creator}
+          className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] bg-black/0"
+        />
       </button>
 
       {/* Hover actions — top-right of preview (stay visible while selected) */}

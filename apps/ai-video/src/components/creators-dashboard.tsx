@@ -40,17 +40,14 @@ import {
   syncCreatorWatch,
   type CreatorItem,
 } from "@/lib/api/creators"
-import { PLATFORM_LABELS, dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
-
-// Two-letter initials for the avatar fallback when no picture was fetched.
-function creatorInitials(creator: CreatorItem) {
-  const source = creator.display_name?.trim() || creator.username
-  // Skip decorative words like the "|" in "Mikee | Toronto Foodie".
-  const words = source.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word[0]))
-  const letters =
-    words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2)
-  return letters.toUpperCase()
-}
+import {
+  PLATFORM_LABELS,
+  creatorInitials,
+  dateFormatter,
+  pageSizeOptions,
+} from "@/lib/dashboard-format"
+import { useSelection } from "@/lib/use-selection"
+import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 // Parent level of the Creators drill-down: rows are auto-created by the viral
 // pipeline; clicking a creator opens their reel grid.
@@ -62,10 +59,6 @@ export function CreatorsDashboard() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
-  // Ids queued for deletion (single row or the whole selection).
-  const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [syncing, setSyncing] = React.useState(false)
 
   React.useEffect(() => {
@@ -95,33 +88,14 @@ export function CreatorsDashboard() {
   function changePageSize(size: number) { setPageSize(size); setCurrentPage(1) }
   function goToPage(page: number) { setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))) }
 
-  function toggleSelected(creatorId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(creatorId)) {
-        next.delete(creatorId)
-      } else {
-        next.add(creatorId)
-      }
-      return next
-    })
-  }
-
   const visibleIds = paginatedCreators.map((creator) => creator.id)
-  const allVisibleSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
-
-  function toggleVisibleSelected() {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
+  const {
+    selectedIds,
+    toggleSelected,
+    allVisibleSelected,
+    toggleVisibleSelected,
+    clearSelection,
+  } = useSelection(visibleIds)
 
   // Optimistic watch toggle; reverts on failure.
   async function handleToggleWatch(creatorId: string, watch: boolean) {
@@ -157,27 +131,17 @@ export function CreatorsDashboard() {
     }
   }
 
-  async function handleConfirmDelete() {
-    if (!deleteIds?.length) return
-    const ids = deleteIds
-    setDeleting(true); setError(null); setNotice(null)
-    try {
-      const result = await bulkDeleteCreators(ids)
-      setNotice(`Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "creator" : "creators"} and their reels.`)
-      const removed = new Set(ids)
-      setCreators((current) => current.filter((c) => !removed.has(c.id)))
-      setSelectedIds((current) => {
-        const next = new Set(current)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
-      setDeleteIds(null)
-    } catch (deleteError) {
-      setError(getCreatorErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const { deleteIds, setDeleteIds, deleting, confirmDelete } = useBulkDelete({
+    noun: "creator",
+    deleteMany: bulkDeleteCreators,
+    setItems: setCreators,
+    clearSelection,
+    setNotice,
+    setError,
+    formatError: getCreatorErrorMessage,
+    // Deleting a creator cascades to their archived reels — warn the user.
+    noticeSuffix: "and their reels",
+  })
 
   const deleteCount = deleteIds?.length ?? 0
   // Reel total for the confirm dialog — deleting creators removes reels too.
@@ -296,7 +260,7 @@ export function CreatorsDashboard() {
           </DialogBody>
           <DialogFooter variant="plain">
             <Button type="button" variant="outline" onClick={() => setDeleteIds(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" disabled={deleting} onClick={handleConfirmDelete}>
+            <Button type="button" variant="destructive" disabled={deleting} onClick={confirmDelete}>
               {deleting ? <Loader2Icon className="size-4 animate-spin" /> : null}
               {deleting ? "Deleting" : "Delete"}
             </Button>

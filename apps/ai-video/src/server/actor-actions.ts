@@ -1,6 +1,6 @@
-import { and, eq, gte, lt, sql } from "drizzle-orm"
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm"
 
-import { ACTOR_MODEL, type ActorPayload } from "@/lib/actor-models"
+import { actorModelProvider, type ActorPayload } from "@/lib/actor-models"
 import {
   cleanActorName,
   cleanActorPrompt,
@@ -24,6 +24,7 @@ import {
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoActorGenerationEvents, aiVideoActors } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
+import { safeBody } from "@/server/video-analysis"
 
 const ACTOR_GENERATION_LIMIT = 10
 const ACTOR_GENERATION_WINDOW_MS = 60 * 60 * 1000
@@ -209,6 +210,32 @@ export async function deleteActorForCurrentUser(actorId: string) {
   return { actorId: row.id }
 }
 
+export async function deleteActorsForCurrentUser(
+  actorIds: string[]
+): Promise<{ deletedCount: number }> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const uniqueIds = Array.from(new Set(actorIds))
+
+  // Delete the owned rows, returning each one's stored image path so the R2
+  // objects can be cleaned up after (best-effort, like the single delete).
+  const rows = await db
+    .delete(aiVideoActors)
+    .where(
+      and(
+        eq(aiVideoActors.userId, user.id),
+        inArray(aiVideoActors.id, uniqueIds)
+      )
+    )
+    .returning({ imageStoragePath: aiVideoActors.imageStoragePath })
+
+  await Promise.all(
+    rows.map((row) => deleteFromR2(row.imageStoragePath).catch(() => undefined))
+  )
+
+  return { deletedCount: rows.length }
+}
+
 async function resolveReferenceMedia(userId: string, mediaId?: string | null) {
   if (!mediaId) return null
   const media = await getOwnedMedia(userId, mediaId)
@@ -218,15 +245,28 @@ async function resolveReferenceMedia(userId: string, mediaId?: string | null) {
   return media
 }
 
+// Routes to the right provider API for the chosen model. Both paths return
+// { bytes, mimeType } ready to upload.
 async function generateActorImage(
   prompt: string,
   model: string,
   referenceMedia: Awaited<ReturnType<typeof resolveReferenceMedia>>
 ) {
-  if (model !== ACTOR_MODEL) {
-    throw new Error("Unsupported actor model")
+  const provider = actorModelProvider(model)
+  if (provider === "gemini") {
+    return generateGeminiImage(prompt, model, referenceMedia)
   }
+  if (provider === "openai") {
+    return generateOpenAiImage(prompt, model, referenceMedia)
+  }
+  throw new Error("Unsupported actor model")
+}
 
+async function generateGeminiImage(
+  prompt: string,
+  model: string,
+  referenceMedia: Awaited<ReturnType<typeof resolveReferenceMedia>>
+) {
   // Prefer the key saved in Settings → AI Providers, else the env var.
   const apiKey = await getLlmKey("gemini")
   if (!apiKey) {
@@ -261,6 +301,14 @@ async function generateActorImage(
   )
 
   if (!response.ok) {
+    // Surface the real Gemini rejection (invalid key, no model access, quota)
+    // in the logs so failures are diagnosable; the client still sees the safe
+    // generic message rather than a raw API error.
+    console.error(
+      "Gemini actor image failed",
+      response.status,
+      await safeBody(response)
+    )
     throw new Error("Image generation failed")
   }
 
@@ -269,27 +317,95 @@ async function generateActorImage(
   if (!generated) {
     throw new Error("Image generation did not return an image")
   }
+  return decodeActorImage(generated.data, generated.mimeType || "image/png")
+}
 
-  const mimeType = generated.mimeType || "image/png"
+// OpenAI image generation. gpt-image-1 can edit a reference image (the edits
+// endpoint); dall-e-3 is text-only and must be told to return base64.
+async function generateOpenAiImage(
+  prompt: string,
+  model: string,
+  referenceMedia: Awaited<ReturnType<typeof resolveReferenceMedia>>
+) {
+  const apiKey = await getLlmKey("openai")
+  if (!apiKey) {
+    throw new Error("Image generation is not configured")
+  }
+
+  // Portrait sizes suit actor headshots; the two models allow different values.
+  const size = model === "dall-e-3" ? "1024x1792" : "1024x1536"
+
+  let response: Response
+  if (model === "gpt-image-1" && referenceMedia) {
+    // Send the reference image alongside the prompt via the edits endpoint.
+    const object = await getFromR2(referenceMedia.storagePath)
+    const bytes = await bodyToBytes(object.Body)
+    const form = new FormData()
+    form.append("model", model)
+    form.append("prompt", prompt)
+    form.append("size", size)
+    form.append(
+      "image",
+      new Blob([Buffer.from(bytes)], { type: referenceMedia.mimeType }),
+      `reference.${extensionForMimeType(referenceMedia.mimeType)}`
+    )
+    response = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
+  } else {
+    const body: Record<string, unknown> = { model, prompt, n: 1, size }
+    // dall-e-3 returns a URL by default; force base64 like gpt-image-1.
+    if (model === "dall-e-3") {
+      body.response_format = "b64_json"
+    }
+    response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    })
+  }
+
+  if (!response.ok) {
+    // Surface the real OpenAI rejection (unverified org, quota, invalid key) in
+    // the logs; the client still sees the safe generic message.
+    console.error(
+      "OpenAI actor image failed",
+      response.status,
+      await safeBody(response)
+    )
+    throw new Error("Image generation failed")
+  }
+
+  const payload = (await response.json()) as OpenAiImageResponse
+  const data = payload.data?.[0]?.b64_json
+  if (!data) {
+    throw new Error("Image generation did not return an image")
+  }
+  // OpenAI returns PNG by default for both models.
+  return decodeActorImage(data, "image/png")
+}
+
+// Validates a base64 image from any provider against the actor image limits and
+// decodes it to bytes. Shared by the Gemini and OpenAI paths.
+function decodeActorImage(data: string, mimeType: string) {
   if (!ACTOR_GENERATION_MIME_TYPES.has(mimeType)) {
     throw new Error("Image generation returned an invalid file type")
   }
-
-  if (
-    Math.floor((generated.data.length * 3) / 4) >
-    ACTOR_GENERATION_MAX_BYTES
-  ) {
+  if (Math.floor((data.length * 3) / 4) > ACTOR_GENERATION_MAX_BYTES) {
     throw new Error("Image generation returned an image that is too large")
   }
-
-  const bytes = Buffer.from(generated.data, "base64")
+  const bytes = Buffer.from(data, "base64")
   if (!bytes.byteLength) {
     throw new Error("Image generation returned an empty image")
   }
   if (bytes.byteLength > ACTOR_GENERATION_MAX_BYTES) {
     throw new Error("Image generation returned an image that is too large")
   }
-
   return { bytes, mimeType }
 }
 
@@ -345,6 +461,10 @@ function extensionForMimeType(mimeType: string) {
   if (mimeType === "image/jpeg" || mimeType === "image/jpg") return "jpg"
   if (mimeType === "image/webp") return "webp"
   return "png"
+}
+
+type OpenAiImageResponse = {
+  data?: { b64_json?: string }[]
 }
 
 type GeminiGenerateResponse = {

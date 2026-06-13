@@ -12,6 +12,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
   DashboardToolbarButton,
@@ -49,19 +50,24 @@ import {
 } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  ACTOR_MODEL,
+  ACTOR_MODELS,
+  bulkDeleteActors,
   createActor,
   deleteActor,
+  DEFAULT_ACTOR_MODEL,
   getActorErrorMessage,
   listActors,
   regenerateActor,
   updateActor,
   type ActorItem,
+  type ActorModelId,
   type ActorStatus,
 } from "@/lib/api/actors"
 import type { MediaItem } from "@/lib/api/media"
 import { cn } from "@/lib/utils"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
+import { useSelection } from "@/lib/use-selection"
+import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
 type StatusFilter = "all" | ActorStatus
@@ -93,8 +99,6 @@ export function ActorDashboard() {
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [modalState, setModalState] = React.useState<ActorModalState>(null)
   const [pickerOpen, setPickerOpen] = React.useState(false)
-  const [deleteTarget, setDeleteTarget] = React.useState<ActorItem | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
   const [submitAction, setSubmitAction] = React.useState<SubmitAction | null>(
     null
   )
@@ -102,7 +106,7 @@ export function ActorDashboard() {
   const [prompt, setPrompt] = React.useState("")
   const [status, setStatus] = React.useState<ActorStatus>("active")
   const [tags, setTags] = React.useState("")
-  const [model, setModel] = React.useState<typeof ACTOR_MODEL>(ACTOR_MODEL)
+  const [model, setModel] = React.useState<ActorModelId>(DEFAULT_ACTOR_MODEL)
   const [referenceMediaId, setReferenceMediaId] = React.useState<string | null>(
     null
   )
@@ -186,7 +190,7 @@ export function ActorDashboard() {
     setPrompt("")
     setStatus("active")
     setTags("")
-    setModel(ACTOR_MODEL)
+    setModel(DEFAULT_ACTOR_MODEL)
     clearReferenceMedia()
     setModalError(null)
     setError(null)
@@ -199,7 +203,7 @@ export function ActorDashboard() {
     setPrompt(actor.prompt)
     setStatus(actor.status)
     setTags(actor.tags.join(", "))
-    setModel(ACTOR_MODEL)
+    setModel(actor.model as ActorModelId)
     setReferenceMediaId(actor.reference_media_id)
     setReferenceMediaUrl(actor.reference_media_url)
     setModalError(null)
@@ -285,25 +289,25 @@ export function ActorDashboard() {
     }
   }
 
-  async function handleDeleteActor() {
-    if (!deleteTarget) return
+  const visibleIds = paginatedActors.map((actor) => actor.id)
+  const {
+    selectedIds,
+    toggleSelected,
+    allVisibleSelected,
+    toggleVisibleSelected,
+    clearSelection,
+  } = useSelection(visibleIds)
 
-    setDeleting(true)
-    setError(null)
-    setNotice(null)
-    try {
-      await deleteActor(deleteTarget.id)
-      setActors((current) =>
-        current.filter((actor) => actor.id !== deleteTarget.id)
-      )
-      setNotice("Actor deleted.")
-      setDeleteTarget(null)
-    } catch (deleteError) {
-      setError(getActorErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const { deleteIds, setDeleteIds, deleting, confirmDelete } = useBulkDelete({
+    noun: "actor",
+    deleteOne: deleteActor,
+    deleteMany: bulkDeleteActors,
+    setItems: setActors,
+    clearSelection,
+    setNotice,
+    setError,
+    formatError: getActorErrorMessage,
+  })
 
   function replaceActor(updated: ActorItem) {
     setActors((current) =>
@@ -330,6 +334,16 @@ export function ActorDashboard() {
   const primaryDisabled = busy || !name.trim() || !prompt.trim()
   const controls = (
     <>
+      {selectedIds.size > 0 ? (
+        <DashboardToolbarButton
+          type="button"
+          variant="destructive"
+          onClick={() => setDeleteIds(Array.from(selectedIds))}
+        >
+          <Trash2Icon className="size-4" />
+          Delete {selectedIds.size}
+        </DashboardToolbarButton>
+      ) : null}
       <DashboardToolbarSearch
         name="actor-search"
         aria-label="Search actors"
@@ -438,8 +452,10 @@ export function ActorDashboard() {
                     <ActorGalleryItem
                       key={actor.id}
                       actor={actor}
+                      selected={selectedIds.has(actor.id)}
+                      onToggle={() => toggleSelected(actor.id)}
                       onEdit={() => openEditModal(actor)}
-                      onDelete={() => setDeleteTarget(actor)}
+                      onDelete={() => setDeleteIds([actor.id])}
                     />
                   ))}
                 </div>
@@ -468,6 +484,13 @@ export function ActorDashboard() {
           header={
             <TableHeader>
               <TableRow>
+                <TableHead column="select">
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onCheckedChange={toggleVisibleSelected}
+                    aria-label="Select visible actors"
+                  />
+                </TableHead>
                 <TableHead column="main">
                   <TableSortButton active={sortColumn === "name"} direction={sortDirection} onClick={() => toggleSort("name")}>
                     Actor
@@ -494,7 +517,7 @@ export function ActorDashboard() {
           }
           isEmpty={loading || paginatedActors.length === 0}
           emptyText={loading ? "Loading actors..." : "No actors found."}
-          emptyColSpan={5}
+          emptyColSpan={6}
           footer={{
             type: "pagination",
             page: currentPage,
@@ -510,8 +533,10 @@ export function ActorDashboard() {
             <ActorTableRow
               key={actor.id}
               actor={actor}
+              selected={selectedIds.has(actor.id)}
+              onToggle={() => toggleSelected(actor.id)}
               onEdit={() => openEditModal(actor)}
-              onDelete={() => setDeleteTarget(actor)}
+              onDelete={() => setDeleteIds([actor.id])}
             />
           ))}
         </DashboardTable>
@@ -573,15 +598,17 @@ export function ActorDashboard() {
                   <Label>AI Model</Label>
                   <Select
                     value={model}
-                    onValueChange={(value) =>
-                      setModel(value as typeof ACTOR_MODEL)
-                    }
+                    onValueChange={(value) => setModel(value as ActorModelId)}
                   >
                     <SelectTrigger id="actor-model" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ACTOR_MODEL}>Nano Banana</SelectItem>
+                      {ACTOR_MODELS.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -720,24 +747,33 @@ export function ActorDashboard() {
       />
 
       <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        open={!!deleteIds}
+        onOpenChange={(open) => !open && setDeleteIds(null)}
       >
         <DialogContent variant="admin">
           <DialogHeader>
-            <DialogTitle>Delete Actor?</DialogTitle>
+            <DialogTitle>
+              Delete{" "}
+              {(deleteIds?.length ?? 0) === 1
+                ? "Actor"
+                : `${deleteIds?.length ?? 0} Actors`}
+              ?
+            </DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="text-sm text-muted-foreground">
-              This removes the actor and its generated image. This action cannot
-              be undone.
+              This removes{" "}
+              {(deleteIds?.length ?? 0) === 1 ? "the actor" : "these actors"}{" "}
+              and {(deleteIds?.length ?? 0) === 1 ? "its" : "their"} generated
+              {(deleteIds?.length ?? 0) === 1 ? " image" : " images"}. This
+              action cannot be undone.
             </p>
           </DialogBody>
           <DialogFooter variant="plain">
             <Button
               type="button"
               variant="outline"
-              onClick={() => setDeleteTarget(null)}
+              onClick={() => setDeleteIds(null)}
             >
               Cancel
             </Button>
@@ -745,7 +781,7 @@ export function ActorDashboard() {
               type="button"
               variant="destructive"
               disabled={deleting}
-              onClick={handleDeleteActor}
+              onClick={confirmDelete}
             >
               {deleting ? (
                 <Loader2Icon className="size-4 animate-spin" />
@@ -761,15 +797,26 @@ export function ActorDashboard() {
 
 function ActorTableRow({
   actor,
+  selected,
+  onToggle,
   onEdit,
   onDelete,
 }: {
   actor: ActorItem
+  selected: boolean
+  onToggle: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
   return (
-    <TableRow className="group">
+    <TableRow className="group" data-state={selected ? "selected" : undefined}>
+      <TableCell column="select">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={`Select ${actor.name}`}
+        />
+      </TableCell>
       <TableCell column="main">
         <div className="flex min-w-0 items-center gap-3">
           <button
@@ -835,19 +882,29 @@ function ActorTableRow({
 
 function ActorGalleryItem({
   actor,
+  selected,
+  onToggle,
   onEdit,
   onDelete,
 }: {
   actor: ActorItem
+  selected: boolean
+  onToggle: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-lg border bg-muted">
+    <div
+      className={cn(
+        "group relative overflow-hidden rounded-lg border bg-muted",
+        selected && "border-destructive ring-2 ring-destructive/25"
+      )}
+    >
       <button
         type="button"
         className="relative block aspect-3/4 w-full bg-muted"
         onClick={onEdit}
+        aria-label={`Edit ${actor.name}`}
       >
         <img
           src={actor.image_url}
@@ -858,17 +915,22 @@ function ActorGalleryItem({
           <ActorStatusBadge status={actor.status} />
         </span>
       </button>
-      <div className="space-y-2 bg-card p-3">
-        <button
-          type="button"
-          className="block max-w-full truncate text-left text-sm font-medium hover:underline"
-          onClick={onEdit}
-        >
-          {actor.name}
-        </button>
-        <ActorTags tags={actor.tags} />
-      </div>
-      <div className="absolute right-2 top-2 flex shrink-0 gap-1 rounded-md bg-background/90 p-1 shadow-sm">
+
+      {/* Hover actions — top-right (stay visible while selected) */}
+      <div
+        className={cn(
+          "absolute right-2 top-2 flex items-center gap-1 rounded-md bg-background/90 p-1 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100",
+          selected ? "opacity-100" : "opacity-0"
+        )}
+      >
+        <div className="flex h-8 w-8 items-center justify-center">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggle}
+            className="border-foreground"
+            aria-label={`Select ${actor.name}`}
+          />
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -887,6 +949,17 @@ function ActorGalleryItem({
         >
           <Trash2Icon className="size-4" />
         </Button>
+      </div>
+
+      <div className="space-y-2 bg-card p-3">
+        <button
+          type="button"
+          className="block max-w-full truncate text-left text-sm font-medium hover:underline"
+          onClick={onEdit}
+        >
+          {actor.name}
+        </button>
+        <ActorTags tags={actor.tags} />
       </div>
     </div>
   )

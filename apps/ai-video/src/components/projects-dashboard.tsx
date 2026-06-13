@@ -51,6 +51,8 @@ import {
 } from "@/lib/api/video-projects"
 import { cn } from "@/lib/utils"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
+import { useSelection } from "@/lib/use-selection"
+import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
 type ProjectSortColumn = "name" | "clips" | "edited"
@@ -84,10 +86,6 @@ export function ProjectsDashboard() {
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   const [modalState, setModalState] = React.useState<ProjectModalState>(null)
-  // Ids queued for deletion (single row or the whole selection).
-  const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = React.useState(false)
   const [name, setName] = React.useState("")
 
@@ -225,67 +223,25 @@ export function ProjectsDashboard() {
     }
   }
 
-  function toggleSelected(projectId: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (next.has(projectId)) {
-        next.delete(projectId)
-      } else {
-        next.add(projectId)
-      }
-      return next
-    })
-  }
-
   const visibleIds = paginatedProjects.map((project) => project.id)
-  const allVisibleSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const {
+    selectedIds,
+    toggleSelected,
+    allVisibleSelected,
+    toggleVisibleSelected,
+    clearSelection,
+  } = useSelection(visibleIds)
 
-  function toggleVisibleSelected() {
-    setSelectedIds((current) => {
-      const next = new Set(current)
-      if (allVisibleSelected) {
-        visibleIds.forEach((id) => next.delete(id))
-      } else {
-        visibleIds.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
-  async function handleConfirmDelete() {
-    if (!deleteIds?.length) return
-    const ids = deleteIds
-
-    setDeleting(true)
-    setError(null)
-    setNotice(null)
-    try {
-      if (ids.length === 1) {
-        await deleteProject(ids[0])
-        setNotice("Project deleted.")
-      } else {
-        const result = await bulkDeleteProjects(ids)
-        setNotice(
-          `Deleted ${result.deletedCount} ${result.deletedCount === 1 ? "project" : "projects"}.`
-        )
-      }
-      const removed = new Set(ids)
-      setProjects((current) =>
-        current.filter((project) => !removed.has(project.id))
-      )
-      setSelectedIds((current) => {
-        const next = new Set(current)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
-      setDeleteIds(null)
-    } catch (deleteError) {
-      setError(getProjectErrorMessage(deleteError))
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const { deleteIds, setDeleteIds, deleting, confirmDelete } = useBulkDelete({
+    noun: "project",
+    deleteOne: deleteProject,
+    deleteMany: bulkDeleteProjects,
+    setItems: setProjects,
+    clearSelection,
+    setNotice,
+    setError,
+    formatError: getProjectErrorMessage,
+  })
 
   function goToPage(page: number) {
     setCurrentPage(Math.max(1, Math.min(page, totalPages || 1)))
@@ -582,7 +538,7 @@ export function ProjectsDashboard() {
               type="button"
               variant="destructive"
               disabled={deleting}
-              onClick={handleConfirmDelete}
+              onClick={confirmDelete}
             >
               {deleting ? (
                 <Loader2Icon className="size-4 animate-spin" />
