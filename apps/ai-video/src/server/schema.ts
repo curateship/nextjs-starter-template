@@ -387,28 +387,6 @@ export const aiVideoViralVideos = pgTable(
   ]
 )
 
-// Periodic engagement snapshots per archived reel — two or more snapshots
-// yield a views-per-day velocity for "Trending" sorting.
-export const aiVideoViralVideoStats = pgTable(
-  "viral_video_stats",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    videoId: varchar("video_id", { length: 36 })
-      .notNull()
-      .references(() => aiVideoViralVideos.id, { onDelete: "cascade" }),
-    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
-    views: bigint("views", { mode: "number" }),
-    likes: bigint("likes", { mode: "number" }),
-    comments: bigint("comments", { mode: "number" }),
-  },
-  (table) => [
-    index("ix_viral_video_stats_video_captured").on(
-      table.videoId,
-      table.capturedAt
-    ),
-  ]
-)
-
 export const aiVideoTemplates = pgTable(
   "video_templates",
   {
@@ -456,7 +434,6 @@ export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
 export type AiVideoCreator = typeof aiVideoCreators.$inferSelect
 export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect
-export type AiVideoViralVideoStat = typeof aiVideoViralVideoStats.$inferSelect
 export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect
 export type AiVideoFeedback = typeof aiVideoFeedback.$inferSelect
 export type AiVideoFeedbackComment =

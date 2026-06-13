@@ -11,9 +11,9 @@ import {
   PlusIcon,
   RotateCcwIcon,
   Trash2Icon,
-  TrendingUpIcon,
 } from "lucide-react"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -36,13 +36,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   TableCell,
   TableHead,
@@ -95,7 +88,6 @@ export function ViralArchiveDashboard({
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
-  const [sortMode, setSortMode] = React.useState<"newest" | "trending">("newest")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   // Ids queued for deletion (single row or the whole selection).
@@ -136,18 +128,12 @@ export function ViralArchiveDashboard({
       ? videos.filter((v) => v.creator_id === creator.id)
       : videos
     const query = searchQuery.trim().toLowerCase()
-    const matched = query
+    return query
       ? scoped.filter((v) =>
           `${v.title ?? ""} ${v.author ?? ""} ${v.source_url}`.toLowerCase().includes(query)
         )
       : scoped
-    if (sortMode === "newest") return matched
-    // Trending: engagement growth per day first (videos without a velocity
-    // sink to the bottom in their original newest-first order).
-    return [...matched].sort(
-      (a, b) => (b.trend_per_day ?? -1) - (a.trend_per_day ?? -1)
-    )
-  }, [videos, searchQuery, creator, sortMode])
+  }, [videos, searchQuery, creator])
 
   const totalPages = Math.ceil(filteredVideos.length / pageSize)
   const paginatedVideos = React.useMemo(() => {
@@ -264,22 +250,6 @@ export function ViralArchiveDashboard({
         value={searchQuery}
         onChange={(event) => updateSearch(event.target.value)}
       />
-      {/* Trending orders by view growth/day (needs ≥2 stat snapshots). */}
-      <Select
-        value={sortMode}
-        onValueChange={(value) => {
-          setSortMode(value as "newest" | "trending")
-          setCurrentPage(1)
-        }}
-      >
-        <SelectTrigger aria-label="Sort videos">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="end">
-          <SelectItem value="newest">Newest</SelectItem>
-          <SelectItem value="trending">Trending</SelectItem>
-        </SelectContent>
-      </Select>
       <div className={dashboardToolbarButtonGroupClassName}>
         <DashboardToolbarButton
           type="button"
@@ -459,6 +429,15 @@ export function ViralArchiveDashboard({
   )
 }
 
+// Two-letter initials for the creator chip's avatar fallback (no picture).
+function creatorChipInitials(creator: NonNullable<ViralVideoItem["creator"]>) {
+  const source = creator.display_name?.trim() || creator.username
+  const words = source.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word[0]))
+  const letters =
+    words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2)
+  return letters.toUpperCase()
+}
+
 function ViralVideoGalleryCard({
   video,
   selected,
@@ -498,11 +477,25 @@ function ViralVideoGalleryCard({
         <span className="absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
           {PLATFORM_LABELS[video.platform]}
         </span>
-        {/* Velocity badge — appears once stat re-syncs produce a trend. */}
-        {video.trend_per_day !== null && video.trend_per_day > 0 ? (
-          <span className="absolute bottom-2 left-2 inline-flex items-center gap-0.5 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium">
-            <TrendingUpIcon className="size-3" />
-            {formatCount(video.trend_per_day)}/day
+        {/* Creator chip — avatar + name + handle over the bottom of the thumb. */}
+        {video.creator ? (
+          <span className="absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-2 rounded-md bg-black/0 px-2 py-1.5 backdrop-blur-sm">
+            <Avatar className="size-7 shrink-0">
+              {video.creator.avatar_url ? (
+                <AvatarImage src={video.creator.avatar_url} alt="" />
+              ) : null}
+              <AvatarFallback className="text-[10px]">
+                {creatorChipInitials(video.creator)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="min-w-0 text-left leading-tight">
+              <span className="block truncate text-xs font-medium text-white">
+                {video.creator.display_name ?? video.creator.username}
+              </span>
+              <span className="block truncate text-[10px] text-white/70">
+                @{video.creator.username}
+              </span>
+            </span>
           </span>
         ) : null}
       </button>
@@ -532,25 +525,13 @@ function ViralVideoGalleryCard({
         </Button>
       </div>
 
-      <div className="bg-card p-3">
-        {isReady ? (
-          <button
-            type="button"
-            className="block w-full truncate text-left text-sm font-medium hover:underline"
-            onClick={onOpen}
-          >
-            {video.title ?? video.source_url}
-          </button>
-        ) : (
-          <div className="truncate text-sm font-medium">{video.title ?? video.source_url}</div>
-        )}
-        <div className="mt-1.5 flex items-center justify-between gap-2">
+      {/* Ready cards are just the thumbnail + creator chip; in-progress/error
+          cards keep a status bar for feedback. */}
+      {!isReady ? (
+        <div className="bg-card p-3">
           <ViralVideoStatusBadge status={video.status} />
-          <span className="text-xs text-muted-foreground">
-            {formatCount(video.stats?.views ?? null)} views
-          </span>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

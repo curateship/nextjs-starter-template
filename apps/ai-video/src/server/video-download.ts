@@ -208,36 +208,6 @@ export async function listRecentUploads(
   return urls
 }
 
-// Re-fetches a single video's engagement counts without downloading the file.
-export async function fetchViralVideoStats(url: string): Promise<{
-  views: number | null
-  likes: number | null
-  comments: number | null
-}> {
-  detectViralPlatform(url)
-
-  const args = ["-j", "--skip-download", "--no-playlist", url]
-  let stdout: string
-  try {
-    stdout = await runYtDlp(["--impersonate", "chrome", ...args])
-  } catch {
-    stdout = await runYtDlp(args)
-  }
-
-  let info: YtDlpInfo
-  try {
-    info = JSON.parse(stdout) as YtDlpInfo
-  } catch {
-    throw new Error("Stats fetch failed")
-  }
-
-  return {
-    views: readCount(info.view_count),
-    likes: readCount(info.like_count),
-    comments: readCount(info.comment_count),
-  }
-}
-
 function readString(value: unknown, maxLength: number) {
   return typeof value === "string" && value.trim()
     ? value.trim().slice(0, maxLength)

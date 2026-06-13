@@ -146,7 +146,7 @@ export function CreatorsDashboard() {
     try {
       const result = await syncCreatorWatch()
       setNotice(
-        `Checked ${result.checked} watched ${result.checked === 1 ? "creator" : "creators"}, added ${result.added} new ${result.added === 1 ? "reel" : "reels"}, refreshed stats for ${result.statsUpdated} ${result.statsUpdated === 1 ? "video" : "videos"}.`
+        `Checked ${result.checked} watched ${result.checked === 1 ? "creator" : "creators"}, added ${result.added} new ${result.added === 1 ? "reel" : "reels"}.`
       )
       const data = await listCreators()
       setCreators(data.creators)
