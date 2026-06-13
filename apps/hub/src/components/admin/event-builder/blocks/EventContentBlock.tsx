@@ -34,6 +34,9 @@ interface EventContentBlockProps {
   onContentChange: (field: string, value: any) => void
   siteId: string
   blockId: string
+  // template: edit block config (style/styling/visibility) owned by the template.
+  // instance: edit per-event values (title + rich text body).
+  mode?: "template" | "instance"
   eventData?: {
     title?: string
     name?: string
@@ -172,7 +175,7 @@ function EditorToolbar({
   )
 }
 
-export function EventContentBlock({ content, onContentChange, siteId, blockId, eventData, onEventTitleChange, onBack }: EventContentBlockProps) {
+export function EventContentBlock({ content, onContentChange, siteId, blockId, mode = "instance", eventData, onEventTitleChange, onBack }: EventContentBlockProps) {
   const [isImagePickerOpen, setIsImagePickerOpen] = useState(false)
   const [localTitle, setLocalTitle] = useState(eventData?.title || eventData?.name || 'Untitled Event')
 
@@ -252,87 +255,86 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
     return <div>Loading editor...</div>
   }
 
-  return (
-    <>
-      <BlockTabs
-        onBack={onBack}
-        headerClassName="pt-0"
-        tabs={[
-          {
-            value: "content",
-            label: "Content",
-            content: (
-              <CardGroup className="grid">
-                <Card>
-                  <CardHeader>
-                    <DashboardModalCardTitle>Block Style</DashboardModalCardTitle>
-                    <CardDescription>Choose the content layout for this event.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 gap-2 max-w-sm">
-                      {Object.entries(EVENT_CONTENT_STYLES).map(([key, style]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => onContentChange('eventContentStyle', key)}
-                          className={cn(
-                            "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
-                            eventContentStyle === key
-                              ? "border-primary bg-primary/5"
-                              : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                          )}
-                        >
-                          <div className={cn(
-                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                            eventContentStyle === key
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-muted-foreground/30"
-                          )}>
-                            {eventContentStyle === key && <Check className="h-3 w-3" />}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">{style.label}</div>
-                            {style.description && (
-                              <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
-                            )}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+  // Template mode owns the layout (style picker + Styling + Settings tabs);
+  // instance mode edits per-event values (title + rich text body).
+  const contentTab = mode === "template" ? (
+    <CardGroup className="grid">
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Block Style</DashboardModalCardTitle>
+          <CardDescription>Choose the content layout for events using this template.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            {Object.entries(EVENT_CONTENT_STYLES).map(([key, style]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => onContentChange('eventContentStyle', key)}
+                className={cn(
+                  "relative flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  eventContentStyle === key
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
+                )}
+              >
+                <div className={cn(
+                  "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                  eventContentStyle === key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30"
+                )}>
+                  {eventContentStyle === key && <Check className="h-3 w-3" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{style.label}</div>
+                  {style.description && (
+                    <div className="text-xs text-muted-foreground mt-0.5">{style.description}</div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </CardGroup>
+  ) : (
+    <CardGroup className="grid">
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Event Title</DashboardModalCardTitle>
+        </CardHeader>
+        <CardContent>
+          <Input
+            id="event-title"
+            value={localTitle}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            placeholder="Enter event title..."
+            className="text-lg font-medium"
+          />
+        </CardContent>
+      </Card>
 
-                <Card>
-                  <CardHeader>
-                    <DashboardModalCardTitle>Event Title</DashboardModalCardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Input
-                      id="event-title"
-                      value={localTitle}
-                      onChange={(e) => handleTitleChange(e.target.value)}
-                      placeholder="Enter event title..."
-                      className="text-lg font-medium"
-                    />
-                  </CardContent>
-                </Card>
+      <Card>
+        <CardHeader>
+          <DashboardModalCardTitle>Content</DashboardModalCardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-md overflow-hidden">
+            <EditorToolbar editor={editor} onPickImage={() => setIsImagePickerOpen(true)} />
+            <div className="bg-background">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </CardGroup>
+  )
 
-                <Card>
-                  <CardHeader>
-                    <DashboardModalCardTitle>Content</DashboardModalCardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="border rounded-md overflow-hidden">
-                      <EditorToolbar editor={editor} onPickImage={() => setIsImagePickerOpen(true)} />
-                      <div className="bg-background">
-                        <EditorContent editor={editor} />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </CardGroup>
-            ),
-          },
+  const tabs = [
+    { value: "content", label: "Content", content: contentTab },
+    ...(mode === "template"
+      ? [
           {
             value: "styling",
             label: "Styling",
@@ -363,7 +365,16 @@ export function EventContentBlock({ content, onContentChange, siteId, blockId, e
               </CardGroup>
             ),
           },
-        ]}
+        ]
+      : []),
+  ]
+
+  return (
+    <>
+      <BlockTabs
+        onBack={onBack}
+        headerClassName="pt-0"
+        tabs={tabs}
       />
 
       <MediaPicker

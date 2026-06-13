@@ -104,7 +104,12 @@ export function serializeCategory(row: CategoryRow | ContentRow): Category {
 }
 
 export function serializeEvent(row: EventRow | ContentRow): Event {
-  return serializeContentRow(row) as Event
+  const contentRow = row as ContentRow
+
+  return {
+    ...serializeContentRow(row),
+    template_id: requireValue(contentRow.templateId ?? contentRow.template_id, 'template_id'),
+  } as Event
 }
 
 export function serializePost(row: PostRow | ContentRow): Post {

@@ -9,9 +9,8 @@ import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switch
 import { StickybarTopRightActions } from "@/components/admin/layout/stickybar/StickybarTopRightActions"
 import { StickyHeader as DashboardStickyHeader } from "@/components/admin/layout/stickybar/StickyHeader"
 import { EventSettingsModal } from "@/components/admin/event-builder/layout/EventSettingsModal"
-import { BlockListPanel } from "@/components/admin/layout/builder/BlockListPanel"
-import { BlockSelectionModal } from "@/components/admin/layout/builder/BlockSelectionModal"
-import { EVENT_BLOCK_TYPES } from "@/components/admin/event-builder/config/event-block-types"
+import { EventBlockListPanel } from "@/components/admin/event-builder/layout/EventBlockListPanel"
+import { EVENT_CONTENT_BLOCK_TYPE, eventBlocksToValueJson } from "@/lib/actions/events/event-template-inheritance"
 import { getSiteEventsAction, updateEventAction, updateEventBlocksAction } from "@/lib/actions/events/event-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
@@ -27,7 +26,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const [events, setEvents] = useState<Event[]>([])
   const eventFromUrl = searchParams.get('event') || ''
   const [selectedEvent, setSelectedEvent] = useState(eventFromUrl)
-  const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [blockListOpen, setBlockListOpen] = useState(false)
 
   // Keep the site switcher aligned with the route before redirecting.
@@ -46,7 +44,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     }
   }, [currentSite, eventFromUrl, router, setCurrentSite, siteId, sites])
 
-  // Load events data
+  // Load events (raw rows — settings modal needs row-level _settings/title)
   useEffect(() => {
     async function loadEvents() {
       try {
@@ -84,7 +82,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     }
   }, [eventFromUrl, events, router, selectedEvent, siteId])
 
-  // Custom hooks for data and state management
+  // Custom hooks for data and state management (blocks are template-merged)
   const { site, blocks, blocksLoading } = useEventData(siteId, selectedEvent)
   const [localBlocks, setLocalBlocks] = useState(blocks)
 
@@ -95,10 +93,8 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
 
   const builderState = useEventBuilder({
     blocks: localBlocks,
-    setBlocks: setLocalBlocks,
     selectedEvent,
     eventId: events.find(d => d.slug === selectedEvent)?.id,
-    currentEvent: events.find(d => d.slug === selectedEvent)
   })
   const selectedBlock = builderState.selectedBlock
   const [draftContent, setDraftContent] = useState<Record<string, any>>({})
@@ -106,7 +102,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
   const [isSavingBlock, setIsSavingBlock] = useState(false)
   const [blockSaveError, setBlockSaveError] = useState<string | null>(null)
 
-  // Current event data with staged deletions filtered out
+  // Current event data
   const currentEventData = events.find(d => d.slug === selectedEvent)
   const currentEvent = {
     slug: selectedEvent,
@@ -114,6 +110,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     blocks: localBlocks[selectedEvent] || []
   }
 
+  // Draft block content edits stay local until saved
   useEffect(() => {
     if (!selectedBlock) {
       setDraftContent({})
@@ -131,14 +128,12 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     setBlockSaveError(null)
   }, [selectedBlock, currentEventData?.title, selectedEvent])
 
-  // Handle event updates
+  // Handle event updates (also remaps local blocks + URL when the slug changes)
   const handleEventUpdated = (updatedEvent: Event) => {
     setEvents(prev => prev.map(d => d.id === updatedEvent.id ? updatedEvent : d))
 
-    // If the slug changed, we need to update our local blocks and URL
     const currentEvent = events.find(d => d.id === updatedEvent.id)
     if (currentEvent && currentEvent.slug !== updatedEvent.slug) {
-      // Move blocks from old slug to new slug
       setLocalBlocks(prev => {
         const blocksForEvent = prev[currentEvent.slug] || []
         const { [currentEvent.slug]: removed, ...rest } = prev
@@ -148,7 +143,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         }
       })
 
-      // Update selected event and URL
       setSelectedEvent(updatedEvent.slug)
       router.replace(`/admin/events/builder/${siteId}?event=${updatedEvent.slug}`)
     }
@@ -196,6 +190,7 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     setBlockSaveError(null)
   }
 
+  // Save the selected block's value edits (template-owned keys are pruned server-side)
   const handleSaveBlockEditor = async () => {
     if (!selectedBlock || !currentEventData?.id) return
 
@@ -210,39 +205,21 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
           : block
       )
 
-      let updatedEvent: Event | null = null
-      if (
-        selectedBlock.type === "event-content" &&
-        draftEventTitle.trim() &&
-        draftEventTitle.trim() !== (currentEventData?.title || "")
-      ) {
-        const { data, error } = await updateEventAction(currentEventData.id, { title: draftEventTitle.trim() })
-        if (error || !data) {
-          setBlockSaveError(error || "Failed to save event title")
-          return
+      // The content block edits the event row's title — save it first
+      if (selectedBlock.type === EVENT_CONTENT_BLOCK_TYPE) {
+        const nextTitle = draftEventTitle.trim() || currentEventData.title
+        if (nextTitle !== currentEventData.title) {
+          const { data, error } = await updateEventAction(currentEventData.id, { title: nextTitle })
+          if (error || !data) {
+            setBlockSaveError(error || "Failed to save event details")
+            return
+          }
+          handleEventUpdated(data)
         }
-        updatedEvent = data
       }
 
-      const existingContentBlocks = currentEventData?.content_blocks || {}
-      const preservedSettings: Record<string, any> = {}
-      Object.entries(existingContentBlocks).forEach(([key, value]) => {
-        if (typeof value !== "object" || value === null || key.startsWith("_")) {
-          preservedSettings[key] = value
-        }
-      })
-
-      const nextContentBlocks: Record<string, any> = { ...preservedSettings }
-      nextBlocks.forEach((block, index) => {
-        nextContentBlocks[block.id] = {
-          id: block.id,
-          type: block.type,
-          content: block.content,
-          display_order: index,
-        }
-      })
-
-      const result = await updateEventBlocksAction(currentEventData.id, nextContentBlocks)
+      const contentBlocks = eventBlocksToValueJson(nextBlocks)
+      const result = await updateEventBlocksAction(currentEventData.id, contentBlocks)
       if (!result.success) {
         setBlockSaveError(result.error || "Failed to save block")
         return
@@ -252,9 +229,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         ...current,
         [selectedEvent]: nextBlocks,
       }))
-      if (updatedEvent) {
-        handleEventUpdated(updatedEvent)
-      }
       builderState.setSelectedBlock(null)
     } catch (error) {
       setBlockSaveError(error instanceof Error ? error.message : "Failed to save block")
@@ -263,10 +237,24 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
     }
   }
 
+  // Overlay the in-progress draft on the preview
+  const previewBlocks = selectedBlock
+    ? currentEvent.blocks.map((block) => (
+        block.id === selectedBlock.id
+          ? { ...block, content: draftContent }
+          : block
+      ))
+    : currentEvent.blocks
+
+  // Preview the in-progress title edit while the content editor is open
+  const selectedBlockIsContent = selectedBlock?.type === EVENT_CONTENT_BLOCK_TYPE
+  const previewEventTitle = selectedBlockIsContent
+    ? draftEventTitle.trim() || currentEventData?.title
+    : currentEventData?.title
+
   const viewPageHref = site && currentEventData
     ? `${getSiteUrl(site)}/events/${currentEventData.slug}`
     : null
-
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -287,7 +275,6 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
                 open={show}
                 onOpenChange={setShow}
                 event={currentEventData || null}
-                site={currentSite}
                 onSuccess={handleEventUpdated}
               />
             )}
@@ -298,10 +285,10 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         <div className="flex-1 overflow-hidden border-r bg-background">
           <ScrollArea className="h-full">
             <EventPreview
-              blocks={currentEvent.blocks}
+              blocks={previewBlocks}
               event={currentEventData ? {
                 id: currentEventData.id || 'preview',
-                title: currentEventData.title || currentEvent.name,
+                title: previewEventTitle || currentEvent.name,
                 slug: currentEventData.slug,
                 meta_description: currentEventData.meta_description || undefined,
                 site_id: currentEventData.site_id,
@@ -337,29 +324,14 @@ export default function EventBuilderEditor({ params }: { params: Promise<{ siteI
         />
 
         {blockListOpen && (
-          <BlockListPanel
+          <EventBlockListPanel
             blocks={currentEvent.blocks}
-            blockTypes={EVENT_BLOCK_TYPES}
-            entityName="event"
-            selectedBlock={builderState.selectedBlock}
+            selectedBlock={selectedBlock}
             onSelectBlock={builderState.setSelectedBlock}
-            onDeleteBlock={builderState.handleDeleteBlock}
-            onReorderBlocks={builderState.handleReorderBlocks}
             viewPageHref={viewPageHref}
-            onAddBlock={() => setBlockModalOpen(true)}
-            deleting={null}
             blocksLoading={blocksLoading}
           />
         )}
-
-        <BlockSelectionModal
-          open={blockModalOpen}
-          onOpenChange={setBlockModalOpen}
-          onAddBlocks={builderState.handleAddBlocks}
-          existingBlockTypes={currentEvent.blocks.map(b => b.type)}
-          blockTypes={EVENT_BLOCK_TYPES}
-          entityName="event"
-        />
       </div>
     </div>
   )

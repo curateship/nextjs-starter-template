@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { sql } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { convertContentBlocksToArray } from '@/lib/utils/block-utils'
+import { mergeEventTemplateBlocks } from '@/lib/actions/events/event-template-inheritance'
 import { toSnakeCase } from "@/lib/db/to-snake-case"
 import { notFound } from "next/navigation"
 import { buildSeoMetadata } from "@/lib/utils/seo-helpers"
@@ -37,6 +38,7 @@ function getCachedEventPageData(siteId: string, slug: string) {
           select
             e.id,
             e.site_id as "siteId",
+            e.template_id as "templateId",
             e.title,
             e.slug,
             e.meta_description as "metaDescription",
@@ -53,15 +55,20 @@ function getCachedEventPageData(siteId: string, slug: string) {
           limit 1
         )
         select
-          to_jsonb(event_row) as event
+          to_jsonb(event_row) as event,
+          et.content_blocks as "templateContentBlocks"
         from event_row
+        inner join event_templates et
+          on et.id = event_row."templateId"
+          and et.site_id = event_row."siteId"
       `)
 
       const row = rows.rows[0] as any
       if (!row) throw new Error(EVENT_PAGE_NOT_FOUND_ERROR)
       return row
     },
-    ['event-page-data', siteId, slug],
+    // v2: template-merged content blocks
+    ['event-page-data-v2', siteId, slug],
     {
       revalidate: false,
       tags: ['events', 'categories', 'content-categories', `site-${siteId}`, 'all'],
@@ -93,7 +100,12 @@ export default async function EventPage({ params }: EventPageProps) {
 
   let blocks: any[] = []
   try {
-    blocks = convertContentBlocksToArray((event.contentBlocks as any) || {}, event.id)
+    // Template owns block structure; the event row stores only values
+    const mergedContentBlocks = mergeEventTemplateBlocks(
+      (pageData.templateContentBlocks as any) || {},
+      (event.contentBlocks as any) || {}
+    )
+    blocks = convertContentBlocksToArray(mergedContentBlocks, event.id)
   } catch (error) {
     console.warn('Error loading event blocks:', error)
     blocks = []

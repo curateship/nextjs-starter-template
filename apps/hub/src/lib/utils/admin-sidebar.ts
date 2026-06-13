@@ -123,7 +123,9 @@ export function createDefaultAdminSidebarSettings(siteId?: string | null): Admin
             child("child-newsletter-automations", "Automations", "/admin/newsletters/automations", "zap"),
             child("child-newsletter-templates", "Templates", "/admin/newsletters/templates", "file"),
           ], ["/admin/newsletters"]),
-          item("item-events", "Events", "/admin/events", "events", undefined, ["/admin/events/builder"]),
+          item("item-events", "Events", "/admin/events", "events", [
+            child("child-event-templates", "Templates", "/admin/events/templates", "file"),
+          ], ["/admin/events/builder"]),
         ],
       },
       {
@@ -225,6 +227,7 @@ const DEFAULT_ADMIN_SIDEBAR_ID_ALIASES: Record<string, string> = {
   "product-templates": "child-product-templates",
   "post-templates": "child-post-templates",
   "category-templates": "child-category-templates",
+  "event-templates": "child-event-templates",
   "directory-custom-blocks": "child-directory-custom-blocks",
   "directory-claims": "child-directory-claims",
   "directory-saved": "child-directory-saved",
@@ -399,6 +402,7 @@ function resolveDefault<T>(map: Map<string, T>, id: string) {
 const INJECTED_DEFAULT_CHILDREN: Record<string, string[]> = {
   "item-directory": ["child-directory-saved"],
   "item-categories": ["child-category-templates"],
+  "item-events": ["child-event-templates"],
 }
 
 function hydrateSiteIdPlaceholder(href: string, siteId: string | null) {

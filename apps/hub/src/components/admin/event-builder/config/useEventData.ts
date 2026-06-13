@@ -1,7 +1,7 @@
 import type { SiteWithTheme } from "@/lib/actions/sites/site-actions"
-import { getSiteEventsAction } from "@/lib/actions/events/event-actions"
+import { getSiteEventsWithMergedBlocksAction } from "@/lib/actions/events/event-actions"
 import { convertContentBlocksToArray } from "@/lib/utils/block-utils"
-import { getBlockName } from "./event-block-types"
+import { getBlockName, isEventBuilderBlockType } from "./event-block-types"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { useSiteContentData } from "@/components/admin/layout/builder/useSiteContentData"
 
@@ -33,18 +33,21 @@ function getEventBlocksBySlug(events: EventRow[]) {
 
   events.forEach((event) => {
     const eventBlocks = convertContentBlocksToArray(event.content_blocks || {}, event.id)
-    convertedBlocks[event.slug] = eventBlocks.map(block => ({
-      ...block,
-      title: getBlockName(block.type)
-    }))
+    convertedBlocks[event.slug] = eventBlocks
+      .filter(block => isEventBuilderBlockType(block.type))
+      .map(block => ({
+        ...block,
+        title: getBlockName(block.type)
+      }))
   })
 
   return convertedBlocks
 }
 
-// Stable reference for the generic hook's fetchItems dependency
+// Stable reference for the generic hook's fetchItems dependency.
+// Merged blocks (template structure + event values) — builder preview only.
 function fetchEvents(siteId: string, options: { selectedSlug?: string }) {
-  return getSiteEventsAction(siteId, options)
+  return getSiteEventsWithMergedBlocksAction(siteId, options)
 }
 
 export function useEventData(siteId: string, selectedEvent = ""): UseEventDataReturn {

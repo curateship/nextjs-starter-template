@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog } from "@/components/ui/dialog"
 import { ModalTabs, ModalTabsProvider } from "@/components/admin/layout/dashboard/modal-tabs"
 import { DashboardModalContent, DashboardModalFooterActions } from "@/components/admin/layout/dashboard/modals"
-import { EventBlockEditor } from "./EventBlockEditor"
+import { EventBlockEditor, type EventBlockEditorMode } from "./EventBlockEditor"
 
 interface EventBlock {
   id: string
@@ -17,8 +17,9 @@ interface EventBlockEditorModalProps {
   block: EventBlock | null
   content: Record<string, any>
   siteId: string
-  eventTitle: string
-  onEventTitleChange: (title: string) => void
+  mode?: EventBlockEditorMode
+  eventTitle?: string
+  onEventTitleChange?: (title: string) => void
   onContentChange: (field: string, value: any) => void
   onClose: () => void
   onSave: () => void
@@ -30,7 +31,8 @@ export function EventBlockEditorModal({
   block,
   content,
   siteId,
-  eventTitle,
+  mode = "instance",
+  eventTitle = "",
   onEventTitleChange,
   onContentChange,
   onClose,
@@ -49,7 +51,7 @@ export function EventBlockEditorModal({
     >
       <ModalTabsProvider>
         <DashboardModalContent
-          title={`Edit ${block.title}`}
+          title={`${mode === "template" ? "Configure" : "Edit"} ${block.title}`}
           titleAccessory={<ModalTabs />}
           className="h-[calc(100vh-4rem)] max-h-[820px] max-w-[960px]"
           footer={
@@ -72,6 +74,7 @@ export function EventBlockEditorModal({
             content={content}
             onContentChange={onContentChange}
             siteId={siteId}
+            mode={mode}
             eventTitle={eventTitle}
             onEventTitleChange={onEventTitleChange}
           />

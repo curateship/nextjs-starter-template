@@ -10,11 +10,18 @@ export const EVENT_BLOCK_TYPES: BlockTypeDefinition[] = [
     icon: FileText,
     description: 'Display event details and information',
     defaultContent: {
+      eventContentStyle: 'default',
       body: '',
       format: 'html'
     }
   }
 ]
+
+const EVENT_BLOCK_TYPE_SET = new Set(EVENT_BLOCK_TYPES.map(blockType => blockType.type))
+
+export function isEventBuilderBlockType(type: string | null | undefined) {
+  return !!type && EVENT_BLOCK_TYPE_SET.has(type)
+}
 
 export function getBlockTypeDefinition(type: string): BlockTypeDefinition | undefined {
   return findBlockType(EVENT_BLOCK_TYPES, type)

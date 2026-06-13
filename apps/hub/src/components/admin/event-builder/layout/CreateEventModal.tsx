@@ -1,10 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardGroup, CardHeader } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ChevronDown } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker"
 import { DashboardModalContent, DashboardModalFooterActions, DashboardModalCardTitle } from "@/components/admin/layout/dashboard/modals"
 import {
@@ -18,6 +27,7 @@ import {
 } from "@/components/admin/layout/dashboard/content-modal-shared"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
+import { getEventTemplatesBySite, type EventTemplate } from "@/lib/actions/events/event-template-actions"
 import { generateSlug } from "@/lib/utils/slug"
 import type { Event } from "@/lib/actions/events/event-actions"
 
@@ -34,6 +44,39 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const [featuredImage, setFeaturedImage] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
+  const [templates, setTemplates] = useState<EventTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [selectedTemplateId, setSelectedTemplateId] = useState("")
+
+  // Load event templates and preselect the default (or first)
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadTemplates() {
+      if (!currentSite?.id) {
+        setTemplates([])
+        setTemplatesLoading(false)
+        return
+      }
+
+      setTemplatesLoading(true)
+      const { data } = await getEventTemplatesBySite(currentSite.id)
+
+      if (!cancelled) {
+        const loaded = data || []
+        setTemplates(loaded)
+        const defaultTemplate = loaded.find((template) => template.is_default)
+        setSelectedTemplateId(defaultTemplate?.id || loaded[0]?.id || "")
+        setTemplatesLoading(false)
+      }
+    }
+
+    loadTemplates()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSite?.id])
 
   const { loading, loadingAction, error, setError, submit } = useCreateContent<Event>({
     entityLabel: "event",
@@ -43,6 +86,7 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
       title: title.trim(),
       slug: slug.trim() || generateSlug(title.trim()),
       site_id: currentSite?.id,
+      template_id: selectedTemplateId,
       meta_description: metaDescription.trim() || null,
       featured_image: featuredImage || null,
       is_published: publish,
@@ -63,6 +107,10 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
   const handleSave = async (continueToBuilder: boolean, publishNow = false) => {
     if (!currentSite?.id) {
       setError("No site selected")
+      return
+    }
+    if (!selectedTemplateId) {
+      setError("Template is required")
       return
     }
     const action = publishNow ? "publish" : continueToBuilder ? "continue" : "draft"
@@ -103,9 +151,32 @@ export function CreateEventModal({ onSuccess, onCancel }: CreateEventModalProps)
           <Card>
             <CardHeader>
               <DashboardModalCardTitle>Setup</DashboardModalCardTitle>
-              <CardDescription>Set the title and URL for this event.</CardDescription>
+              <CardDescription>Choose a template and set the title and URL for this event.</CardDescription>
             </CardHeader>
             <CardContent>
+              <Field>
+                <FieldLabel htmlFor="template">Start from Template</FieldLabel>
+                {templatesLoading ? (
+                  <div className="border-input inline-flex h-10 items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap">
+                    <Skeleton className="h-4 w-24 rounded-sm" />
+                    <ChevronDown className="size-4 opacity-50" />
+                  </div>
+                ) : (
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger id="template">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent className="z-60">
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Field>
+
               <TitleSlugFields
                 titleLabel="Event Title *"
                 titlePlaceholder="Enter event title"

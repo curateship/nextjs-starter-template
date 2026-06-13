@@ -1,63 +1,73 @@
+import { useState, useEffect } from "react"
 import { updateEventBlocksAction } from "@/lib/actions/events/event-actions"
-import { getBlockTypeDefinition } from "./event-block-types"
-import {
-  useContentBlocksEditor,
-  type BuilderBlockSelection,
-} from "@/components/admin/layout/builder/useContentBlocksEditor"
-
-interface EventBlock {
-  id: string
-  type: string
-  title: string
-  content: Record<string, any>
-}
+import { eventBlocksToValueJson } from "@/lib/actions/events/event-template-inheritance"
+import type { EventEditorBlock } from "./event-block-utils"
 
 interface UseEventBuilderParams {
-  blocks: Record<string, EventBlock[]>
-  setBlocks: React.Dispatch<React.SetStateAction<Record<string, EventBlock[]>>>
+  blocks: Record<string, EventEditorBlock[]>
   selectedEvent: string
   eventId?: string
-  currentEvent?: {
-    title?: string
-    content_blocks?: Record<string, any>
-  }
 }
 
 interface UseEventBuilderReturn {
-  selectedBlock: EventBlock | null
-  setSelectedBlock: React.Dispatch<React.SetStateAction<EventBlock | null>>
+  selectedBlock: EventEditorBlock | null
+  setSelectedBlock: React.Dispatch<React.SetStateAction<EventEditorBlock | null>>
   isSaving: boolean
   saveMessage: string
-  updateBlockContent: (field: string, value: any) => void
-  handleDeleteBlock: (block: EventBlock) => void
-  handleReorderBlocks: (blocks: EventBlock[]) => void
-  handleAddBlocks: (selections: BuilderBlockSelection[]) => void
   handleSaveAllBlocks: () => void
 }
 
-// Thin wrapper over the shared slug-keyed blocks editor; supplies the event
-// block registry, id format, and save action.
+// Value-only editing (mirrors useCategoryBuilder): block structure lives in the
+// event template; saving stores only per-event value keys on the row.
 export function useEventBuilder({
   blocks,
-  setBlocks,
   selectedEvent,
   eventId,
-  currentEvent
 }: UseEventBuilderParams): UseEventBuilderReturn {
-  return useContentBlocksEditor<EventBlock>({
-    blocks,
-    setBlocks,
-    selectedKey: selectedEvent,
-    contentId: eventId,
-    existingContentBlocks: currentEvent?.content_blocks,
-    getDefinition: getBlockTypeDefinition,
-    makeBlock: (type, definition, i) => ({
-      id: `${type}-${Date.now() + i}`,
-      type,
-      title: definition.name,
-      content: { ...definition.defaultContent }
-    }),
-    saveAction: updateEventBlocksAction,
-    missingIdMessage: "Error: Event ID required",
-  })
+  const [selectedBlock, setSelectedBlock] = useState<EventEditorBlock | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState("")
+
+  // Clear selection when switching events
+  useEffect(() => {
+    setSelectedBlock(null)
+  }, [selectedEvent])
+
+  const handleSaveAllBlocks = async () => {
+    if (!eventId) {
+      setSaveMessage("Error: Event ID required")
+      setTimeout(() => setSaveMessage(""), 3000)
+      return
+    }
+
+    const contentBlocks = eventBlocksToValueJson(blocks[selectedEvent] || [])
+
+    setIsSaving(true)
+    setSaveMessage("Saving...")
+
+    try {
+      const result = await updateEventBlocksAction(eventId, contentBlocks)
+
+      if (result.success) {
+        setSaveMessage("Saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      } else {
+        setSaveMessage(`Error: ${result.error}`)
+        setTimeout(() => setSaveMessage(""), 5000)
+      }
+    } catch (error) {
+      setSaveMessage(`Error: ${error instanceof Error ? error.message : 'Failed to save'}`)
+      setTimeout(() => setSaveMessage(""), 5000)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return {
+    selectedBlock,
+    setSelectedBlock,
+    isSaving,
+    saveMessage,
+    handleSaveAllBlocks
+  }
 }

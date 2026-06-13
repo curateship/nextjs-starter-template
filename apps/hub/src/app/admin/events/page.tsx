@@ -50,12 +50,11 @@ export default function EventsPage() {
       renderCreateModal={({ onCancel, onSuccess }) => (
         <CreateEventModal onSuccess={onSuccess} onCancel={onCancel} />
       )}
-      renderSettingsModal={({ currentSite, item, onOpenChange, onSuccess, open }) => (
+      renderSettingsModal={({ item, onOpenChange, onSuccess, open }) => (
         <EventSettingsModal
           open={open}
           onOpenChange={onOpenChange}
           event={item}
-          site={currentSite}
           onSuccess={onSuccess}
         />
       )}

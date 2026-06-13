@@ -16,17 +16,24 @@ import { CategoryPicker } from "@/components/admin/layout/builder/CategoryPicker
 import { ImageIcon, X } from "lucide-react"
 import { getContentCategoriesAction, bulkAssignCategoriesToContentAction } from "@/lib/actions/categories/category-relationship-actions"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   putJson,
   useCreateContent,
   useTitleSlug,
 } from "@/components/admin/layout/dashboard/content-modal-shared"
+import { getEventTemplatesBySite, type EventTemplate } from "@/lib/actions/events/event-template-actions"
 import type { Event } from "@/lib/actions/events/event-actions"
 
 interface EventSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   event: Event | null
-  site: any | null
   onSuccess?: (updatedEvent: Event) => void
 }
 
@@ -43,6 +50,9 @@ export function EventSettingsModal({
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [primaryCategoryId, setPrimaryCategoryId] = useState<string | null>(null)
   const [loadingCategories, setLoadingCategories] = useState(false)
+  const [templates, setTemplates] = useState<EventTemplate[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<Event>({
     entityLabel: "event",
@@ -54,6 +64,7 @@ export function EventSettingsModal({
       meta_description: metaDescription,
       is_published: publish,
       featured_image: featuredImage || null,
+      template_id: selectedTemplateId,
     }),
     // Persist category selection after the event row is updated
     afterCreate: async (updated) => {
@@ -72,6 +83,18 @@ export function EventSettingsModal({
       reset(event.title || '', event.slug || '', { detectManualEdit: false })
       setMetaDescription(event.meta_description || '')
       setFeaturedImage(event.featured_image || '')
+
+      setSelectedTemplateId(event.template_id || '')
+      setTemplatesLoading(true)
+      getEventTemplatesBySite(event.site_id).then(({ data }) => {
+        if (cancelled) return
+        const loadedTemplates = data || []
+        setTemplates(loadedTemplates)
+        setSelectedTemplateId(event.template_id || loadedTemplates.find((template) => template.is_default)?.id || loadedTemplates[0]?.id || '')
+      }).finally(() => {
+        if (cancelled) return
+        setTemplatesLoading(false)
+      })
 
       setSelectedCategoryIds([])
       setPrimaryCategoryId(null)
@@ -96,6 +119,10 @@ export function EventSettingsModal({
 
   const handleSave = async (publish: boolean) => {
     if (!event) return
+    if (!selectedTemplateId) {
+      setError('Template is required')
+      return
+    }
     await submit(publish ? "publish" : "draft", publish, (updated) => {
       onSuccess?.(updated)
       onOpenChange(false)
@@ -138,6 +165,26 @@ export function EventSettingsModal({
         <form onSubmit={handleSubmit} className="space-y-6 [&_label+input]:mt-2 [&_label+textarea]:mt-2">
           {/* Event Title */}
           <div className="grid grid-cols-2 gap-6">
+            {/* Template */}
+            <div className="col-span-2">
+              <Label htmlFor="modal-template">Template</Label>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId} disabled={templatesLoading || saving}>
+                <SelectTrigger id="modal-template" className="mt-2 w-full">
+                  <SelectValue placeholder={templatesLoading ? "Loading templates..." : "Select template"} />
+                </SelectTrigger>
+                <SelectContent className="z-60">
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Changing the template updates this event&apos;s inherited blocks after saving.
+              </p>
+            </div>
+
             <div className="col-span-2">
               <Label htmlFor="modal-title">Event Title *</Label>
               <Input

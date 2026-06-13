@@ -3,7 +3,7 @@
 import { eq, and, asc, desc, sql, inArray } from 'drizzle-orm'
 import { revalidateTag } from 'next/cache'
 import { db } from '@/lib/db'
-import { events, sites, contentCategoryRelationships, categories } from '@/lib/db/schema'
+import { events, eventTemplates, sites, contentCategoryRelationships, categories } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { serializeEvent } from '@/lib/utils/content-serializer'
 import { UUID_REGEX, normalizePagination } from '@/lib/utils/validation'
@@ -13,12 +13,18 @@ import {
   requireOwnedSite,
   validateContentSlugUpdate,
 } from '@/lib/actions/content/content-action-helpers'
+import {
+  getEventNonBlockEntries,
+  mergeEventTemplateBlocks,
+  pruneEventValueBlocksForTemplate,
+} from './event-template-inheritance'
 
 type EventRow = typeof events.$inferSelect
 
 export interface Event {
   id: string
   site_id: string
+  template_id: string
   title: string
   slug: string
   is_published: boolean
@@ -154,6 +160,41 @@ export async function getSiteEventsWithCategoriesAction(
     return { data: evts, categories: categoryMap, total: countResult[0]?.count ?? 0, error: null }
   } catch (error) {
     return { data: null, categories: {}, total: 0, error: 'Failed to fetch events' }
+  }
+}
+
+/**
+ * Get events with template-merged content blocks (builder preview only —
+ * writers must keep using the raw rows from getSiteEventsAction)
+ */
+export async function getSiteEventsWithMergedBlocksAction(siteId: string, options?: { page?: number; pageSize?: number; selectedSlug?: string }) {
+  const result = await getSiteEventsAction(siteId, options)
+  if (!result.data) return result
+
+  try {
+    // One fetch for all distinct templates referenced by the returned events
+    const templateIds = [...new Set(result.data.map((event) => event.template_id))]
+    const templates = templateIds.length
+      ? await db
+          .select({ id: eventTemplates.id, contentBlocks: eventTemplates.contentBlocks })
+          .from(eventTemplates)
+          .where(inArray(eventTemplates.id, templateIds))
+      : []
+    const templateMap = new Map(templates.map((template) => [template.id, (template.contentBlocks || {}) as Record<string, any>]))
+
+    return {
+      ...result,
+      data: result.data.map((event) => ({
+        ...event,
+        content_blocks: mergeEventTemplateBlocks(
+          templateMap.get(event.template_id) || {},
+          event.content_blocks || {}
+        ),
+      })),
+    }
+  } catch (error) {
+    console.error('Error merging event template blocks:', error)
+    return { data: null, total: 0, error: 'Failed to fetch events' }
   }
 }
 
@@ -329,6 +370,7 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
       .insert(events)
       .values({
         siteId: originalEvent.siteId,
+        templateId: originalEvent.templateId,
         title: newTitle,
         slug,
         isPublished: false, // Always create duplicates as draft
@@ -354,6 +396,10 @@ export async function duplicateEventAction(eventId: string, newTitle: string) {
   }
 }
 
+/**
+ * Update event block values (for builder). The template owns structure;
+ * only value keys for blocks present in the template are stored on the row.
+ */
 export async function updateEventBlocksAction(eventId: string, contentBlocks: Record<string, any>) {
   try {
     // Auth + row + site ownership (fast-fail helper; check runs on every call)
@@ -363,11 +409,28 @@ export async function updateEventBlocksAction(eventId: string, contentBlocks: Re
     }
     const event = access.row
 
-    // Update the event blocks
+    const template = await db.query.eventTemplates.findFirst({
+      where: and(eq(eventTemplates.id, event.templateId), eq(eventTemplates.siteId, event.siteId)),
+      columns: { contentBlocks: true },
+    })
+
+    if (!template) {
+      return { success: false, error: 'Template not found' }
+    }
+
+    // Keep row settings (_settings.is_private etc.) from the existing row when the
+    // incoming value JSON doesn't carry them, then prune against the template
+    const existingSettings = getEventNonBlockEntries((event.contentBlocks || {}) as Record<string, any>)
+    const valueBlocks = pruneEventValueBlocksForTemplate(
+      { ...existingSettings, ...contentBlocks },
+      (template.contentBlocks || {}) as Record<string, any>
+    )
+
+    // Update the event blocks (value-only)
     await db
       .update(events)
       .set({
-        contentBlocks,
+        contentBlocks: valueBlocks,
         updatedAt: new Date()
       })
       .where(eq(events.id, eventId))
