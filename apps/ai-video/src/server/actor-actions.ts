@@ -12,6 +12,7 @@ import {
   type ActorListResponse,
 } from "@/server/actors"
 import { db } from "@/server/db"
+import { getLlmKey } from "@/server/llm-keys"
 import { getOwnedMedia } from "@/server/media"
 import {
   bodyToBytes,
@@ -226,7 +227,8 @@ async function generateActorImage(
     throw new Error("Unsupported actor model")
   }
 
-  const apiKey = process.env.AI_VIDEO_GEMINI_API_KEY
+  // Prefer the key saved in Settings → AI Providers, else the env var.
+  const apiKey = await getLlmKey("gemini")
   if (!apiKey) {
     throw new Error("Image generation is not configured")
   }

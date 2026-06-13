@@ -14,7 +14,7 @@ import {
   type AiVideoFeedbackComment,
   type AiVideoUser,
 } from "@/server/schema"
-import { findCurrentUser, now, uuid } from "@/server/security"
+import { now, requireAdminUser, requireUser, uuid } from "@/server/security"
 
 export type FeedbackType = "suggestion" | "bug_report" | "question" | "praise"
 
@@ -474,22 +474,6 @@ export function deleteFeedbackComment(commentId: string) {
 
 export function deleteFeedbackCommentsMany(commentIds: string[]) {
   return deleteFeedbackCommentsManyFn({ data: { commentIds } })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
-}
-
-async function requireAdminUser() {
-  const user = await requireUser()
-  if (user.role !== "admin") {
-    throw new Error("Not authorized")
-  }
-  return user
 }
 
 async function requireFeedback(feedbackId: string) {

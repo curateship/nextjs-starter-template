@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { db } from "@/server/db"
+import { getLlmKey } from "@/server/llm-keys"
 import { bodyToBytes, getFromR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { extractAudioWav } from "@/server/video-download"
@@ -22,6 +23,11 @@ import type { EditorClip } from "@/pages/video-editor/editor-store"
 export type CaptionLine = { startMs: number; endMs: number; text: string }
 
 export type ProjectCaptionsResult = { captions: CaptionLine[] }
+
+// Which model transcribes the audio. Gemini estimates timestamps; OpenAI's
+// Whisper returns forced-aligned word timings (tighter sync). Claude can't do
+// audio, so it isn't an option here.
+export type CaptionProvider = "gemini" | "openai"
 
 const captionsSchema = z.object({
   captions: z
@@ -80,7 +86,8 @@ function findCaptionSource(timeline: ProjectTimeline) {
 // lines mapped into timeline time. Synchronous from the caller's view —
 // short reels transcribe in seconds, so the UI just shows a spinner.
 export async function generateProjectCaptionsForCurrentUser(
-  projectId: string
+  projectId: string,
+  provider: CaptionProvider = "gemini"
 ): Promise<ProjectCaptionsResult> {
   requireAppOrigin()
   const user = await requireUser()
@@ -124,10 +131,88 @@ export async function generateProjectCaptionsForCurrentUser(
   // which makes caption timestamps coarse and laggy. Fall back to the original
   // file if audio extraction fails (e.g. ffmpeg unavailable).
   const audio = await extractAudioWav(bytes, media.mimeType)
-  const raw = audio
-    ? await transcribeWithGemini(audio, "audio/wav", sourceDurationMs)
-    : await transcribeWithGemini(bytes, media.mimeType, sourceDurationMs)
+  const audioBytes = audio ?? bytes
+  const audioMime = audio ? "audio/wav" : media.mimeType
+
+  const raw =
+    provider === "openai"
+      ? await transcribeWithOpenAI(audioBytes, audioMime)
+      : await transcribeWithGemini(audioBytes, audioMime, sourceDurationMs)
   return { captions: mapToTimeline(raw, source, sourceDurationMs) }
+}
+
+// OpenAI Whisper transcription with word-level timestamps (forced-aligned, so
+// tighter than Gemini's estimates), grouped into short caption chunks.
+async function transcribeWithOpenAI(
+  bytes: Uint8Array,
+  mimeType: string
+): Promise<CaptionLine[]> {
+  const apiKey = await getLlmKey("openai")
+  if (!apiKey) {
+    throw new Error("OpenAI key is not configured")
+  }
+
+  const ext = mimeType.includes("wav")
+    ? "wav"
+    : mimeType.includes("webm")
+      ? "webm"
+      : "mp4"
+  const form = new FormData()
+  form.append("file", new Blob([bytes], { type: mimeType }), `audio.${ext}`)
+  form.append("model", "whisper-1")
+  form.append("response_format", "verbose_json")
+  form.append("timestamp_granularities[]", "word")
+
+  const response = await fetch(
+    "https://api.openai.com/v1/audio/transcriptions",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    }
+  )
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "")
+    console.error("OpenAI transcription failed", response.status, detail)
+    throw new Error(`Caption generation failed (HTTP ${response.status})`)
+  }
+
+  const payload = (await response.json()) as {
+    words?: { word: string; start: number; end: number }[]
+  }
+  return chunkWords(payload.words ?? [])
+}
+
+// Groups word timings into caption-sized chunks (≤ 4 words / ≤ 1.5s), matching
+// the reel-caption style the Gemini prompt asks for.
+function chunkWords(
+  words: { word: string; start: number; end: number }[]
+): CaptionLine[] {
+  const lines: CaptionLine[] = []
+  let chunk: { word: string; start: number; end: number }[] = []
+
+  const flush = () => {
+    if (chunk.length === 0) return
+    lines.push({
+      startMs: Math.round(chunk[0].start * 1000),
+      endMs: Math.round(chunk[chunk.length - 1].end * 1000),
+      // Join words, then tuck punctuation back against the previous word.
+      text: chunk
+        .map((w) => w.word)
+        .join(" ")
+        .replace(/\s+([,.!?;:])/g, "$1")
+        .trim(),
+    })
+    chunk = []
+  }
+
+  for (const word of words) {
+    const span = chunk.length ? word.end - chunk[0].start : 0
+    if (chunk.length >= 4 || span > 1.5) flush()
+    chunk.push(word)
+  }
+  flush()
+  return lines.filter((line) => line.text && line.endMs > line.startMs)
 }
 
 // Files API upload + one generateContent call, mirroring analyzeViralVideo.
@@ -136,7 +221,7 @@ async function transcribeWithGemini(
   mimeType: string,
   durationMs: number | null
 ): Promise<CaptionLine[]> {
-  const apiKey = requireGeminiKey()
+  const apiKey = await requireGeminiKey()
   const file = await uploadFileToGemini(bytes, mimeType, apiKey)
 
   try {

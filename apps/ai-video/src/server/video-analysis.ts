@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { getLlmKey } from "@/server/llm-keys"
+
 export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
 // Flash handles video input and is cheap enough to run per archived reel.
 export const ANALYSIS_MODEL = "gemini-2.5-flash"
@@ -75,8 +77,9 @@ type GeminiFile = {
   state?: string
 }
 
-export function requireGeminiKey() {
-  const apiKey = process.env.AI_VIDEO_GEMINI_API_KEY
+export async function requireGeminiKey() {
+  // Prefer a key saved in Settings → AI Providers, falling back to the env var.
+  const apiKey = await getLlmKey("gemini")
   if (!apiKey) {
     throw new Error("Video analysis is not configured")
   }
@@ -111,7 +114,7 @@ export async function generateJson<T>(
   schema: z.ZodType<T>,
   label: string
 ): Promise<T> {
-  const apiKey = requireGeminiKey()
+  const apiKey = await requireGeminiKey()
   const response = await fetch(
     `${GEMINI_BASE_URL}/v1beta/models/${ANALYSIS_MODEL}:generateContent`,
     {
@@ -162,7 +165,7 @@ export async function analyzeViralVideo(
   mimeType: string,
   durationMs: number | null
 ): Promise<ViralVideoAnalysis> {
-  const apiKey = requireGeminiKey()
+  const apiKey = await requireGeminiKey()
   const file = await uploadFileToGemini(bytes, mimeType, apiKey)
 
   try {

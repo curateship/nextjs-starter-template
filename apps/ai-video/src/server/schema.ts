@@ -54,6 +54,24 @@ export const aiVideoSettings = pgTable(
   ]
 )
 
+// App-wide LLM provider API keys (one row per provider). Server-only secrets —
+// never sent to the client; the settings UI only sees a masked tail.
+export const aiVideoLlmApiKeys = pgTable(
+  "llm_api_keys",
+  {
+    provider: varchar("provider", { length: 20 }).primaryKey(),
+    apiKey: text("api_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "llm_provider_valid",
+      sql`${table.provider} IN ('openai', 'claude', 'gemini')`
+    ),
+  ]
+)
+
 export const aiVideoWorkspaces = pgTable(
   "workspaces",
   {

@@ -22,8 +22,7 @@ import {
 import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/security"
-import { uuid } from "@/server/security"
+import { now, requireUser, uuid } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
 export type { MediaSortBy, MediaSortDirection }
@@ -250,12 +249,4 @@ export function deleteMedia(mediaId: string) {
 
 export function bulkDeleteMedia(mediaIds: string[]) {
   return bulkDeleteMediaFn({ data: { mediaIds } })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
 }

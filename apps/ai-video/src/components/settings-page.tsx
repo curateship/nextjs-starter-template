@@ -1,6 +1,8 @@
+import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import { DashboardToolbarButton } from "@/components/dashboard-toolbar"
 import { GeneralSettings } from "@/components/general-settings"
+import { LlmProviderSettings } from "@/components/llm-provider-settings"
 import { SidebarSettings } from "@/components/sidebar-settings"
 import { TopNavigationSettings } from "@/components/top-navigation-settings"
 import { cn } from "@/lib/utils"
@@ -11,6 +13,7 @@ const settingsTabs = [
   { id: "general", label: "General Settings" },
   { id: "sidebar", label: "Sidebar" },
   { id: "top-navigation", label: "Top Navigation" },
+  { id: "ai-providers", label: "AI Providers" },
 ] as const
 
 export type SettingsTabId = (typeof settingsTabs)[number]["id"]
@@ -38,7 +41,24 @@ export function SettingsPage({
   onConfigChange: (config: ShellConfig) => void
   onSaveConfig: () => Promise<boolean>
 }) {
-  const isSaving = saveStatus === "saving"
+  // The AI Providers tab stores keys through its own server fns, so it
+  // publishes a save function here and the top Save button calls it.
+  const aiSaveRef = React.useRef<(() => Promise<void>) | null>(null)
+  const [aiSaving, setAiSaving] = React.useState(false)
+  const isSaving = saveStatus === "saving" || aiSaving
+
+  async function handleSave() {
+    if (activeTab === "ai-providers") {
+      setAiSaving(true)
+      try {
+        await aiSaveRef.current?.()
+      } finally {
+        setAiSaving(false)
+      }
+      return
+    }
+    await onSaveConfig()
+  }
 
   return (
     <div className="w-full pb-8">
@@ -58,7 +78,7 @@ export function SettingsPage({
           ) : null}
           <DashboardToolbarButton
             type="button"
-            onClick={onSaveConfig}
+            onClick={handleSave}
             disabled={isSaving}
           >
             {isSaving ? (
@@ -116,6 +136,11 @@ export function SettingsPage({
               onConfigChange={onConfigChange}
               onSaveConfig={onSaveConfig}
             />
+          ) : null}
+          {/* Manages its own server-side key storage — independent of the
+              shell config save flow. */}
+          {activeTab === "ai-providers" ? (
+            <LlmProviderSettings saveRef={aiSaveRef} />
           ) : null}
         </div>
       </div>

@@ -43,6 +43,17 @@ export async function requireUser() {
   return user
 }
 
+// Gate for workspace-admin actions (settings, provider keys). Server functions
+// are callable directly by any client, so admin-only mutations must verify the
+// role themselves — middleware/route gating doesn't protect server fns.
+export async function requireAdminUser() {
+  const user = await requireUser()
+  if (user.role !== "admin") {
+    throw new Error("Not authorized")
+  }
+  return user
+}
+
 export function createSessionToken() {
   return randomUUID() + randomUUID()
 }

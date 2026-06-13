@@ -26,6 +26,7 @@ import {
 import {
   generateProjectCaptions,
   getCaptionErrorMessage,
+  type CaptionProvider,
 } from "@/lib/api/captions"
 import {
   getScriptErrorMessage,
@@ -355,6 +356,7 @@ function CaptionsDialog({
 }) {
   const { dispatch, projectId, flushSave } = useEditor()
   const [styleId, setStyleId] = React.useState(CAPTION_STYLES[0].id)
+  const [provider, setProvider] = React.useState<CaptionProvider>("gemini")
   const [generating, setGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -365,7 +367,7 @@ function CaptionsDialog({
       // The server transcribes the SAVED timeline's audio source — persist
       // any edits still inside the autosave debounce first.
       await flushSave()
-      const result = await generateProjectCaptions(projectId)
+      const result = await generateProjectCaptions(projectId, provider)
       if (result.captions.length === 0) {
         setError("No speech found to caption.")
         return
@@ -407,6 +409,21 @@ function CaptionsDialog({
               caption track. Each caption is a normal text clip you can edit
               afterwards.
             </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="caption-model">Model</Label>
+              <Select
+                value={provider}
+                onValueChange={(value) => setProvider(value as CaptionProvider)}
+              >
+                <SelectTrigger id="caption-model" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gemini">Google Gemini</SelectItem>
+                  <SelectItem value="openai">OpenAI Whisper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="caption-style">Style</Label>
               <Select value={styleId} onValueChange={setStyleId}>

@@ -13,7 +13,7 @@ import {
   aiVideoSettings,
   aiVideoWorkspaces,
 } from "@/server/schema"
-import { findCurrentUser, now } from "@/server/security"
+import { now, requireAdminUser, requireUser } from "@/server/security"
 
 const DEFAULT_SETTINGS_KEY = "default"
 
@@ -178,22 +178,6 @@ export function loadShellSettings() {
 
 export function saveShellSettings(settings: ShellConfig) {
   return saveShellSettingsFn({ data: settings })
-}
-
-async function requireUser() {
-  const user = await findCurrentUser()
-  if (!user) {
-    throw new Error("Missing AI Video session")
-  }
-  return user
-}
-
-async function requireAdminUser() {
-  const user = await requireUser()
-  if (user.role !== "admin") {
-    throw new Error("Not authorized")
-  }
-  return user
 }
 
 function parseShellGlobals(value: unknown) {
