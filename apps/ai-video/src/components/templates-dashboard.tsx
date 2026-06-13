@@ -11,6 +11,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -62,6 +63,15 @@ function formatDuration(ms: number) {
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
   return `${minutes}:${String(seconds).padStart(2, "0")}`
+}
+
+// Two-letter initials for the creator chip's avatar fallback (no picture).
+function creatorChipInitials(creator: NonNullable<TemplateItem["creator"]>) {
+  const source = creator.display_name?.trim() || creator.username
+  const words = source.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word[0]))
+  const letters =
+    words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2)
+  return letters.toUpperCase()
 }
 
 // Templates dashboard at /admin/templates: templates are created from the
@@ -210,11 +220,15 @@ export function TemplatesDashboard() {
     try {
       const updated = await renameTemplate(renameTarget.id, name)
       // The rename response doesn't join the source video, so keep the
-      // thumbnail the list already has instead of blanking it.
+      // thumbnail and creator chip the list already has instead of blanking them.
       setTemplates((current) =>
         current.map((template) =>
           template.id === updated.id
-            ? { ...updated, thumbnail_url: template.thumbnail_url }
+            ? {
+                ...updated,
+                thumbnail_url: template.thumbnail_url,
+                creator: template.creator,
+              }
             : template
         )
       )
@@ -733,14 +747,38 @@ function TemplateGalleryItem({
             <LayoutTemplateIcon className="size-8 text-muted-foreground" />
           </div>
         )}
-        {/* Duration badge bottom-left */}
-        <span className="absolute bottom-2 left-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
-          {formatDuration(template.duration_ms)}
-        </span>
-        {/* Slot count badge bottom-right */}
-        <span className="absolute bottom-2 right-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
-          {template.slot_count} slots
-        </span>
+        {/* Bottom bar: creator chip on the left, duration + slot count on the
+            right. The chip truncates so it never crowds the badges. */}
+        <div className="absolute inset-x-2 bottom-2 flex items-end gap-2">
+          {template.creator ? (
+            <span className="flex min-w-0 items-center gap-2 rounded-md bg-black/15 px-2 py-1.5 backdrop-blur-sm">
+              <Avatar className="size-7 shrink-0">
+                {template.creator.avatar_url ? (
+                  <AvatarImage src={template.creator.avatar_url} alt="" />
+                ) : null}
+                <AvatarFallback className="text-[10px]">
+                  {creatorChipInitials(template.creator)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="min-w-0 text-left leading-tight">
+                <span className="block truncate text-xs font-medium text-white">
+                  {template.creator.display_name ?? template.creator.username}
+                </span>
+                <span className="block truncate text-[10px] text-white/70">
+                  @{template.creator.username}
+                </span>
+              </span>
+            </span>
+          ) : null}
+          <span className="ml-auto flex shrink-0 items-center gap-1">
+            <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
+              {formatDuration(template.duration_ms)}
+            </span>
+            <span className="rounded bg-background/90 px-1.5 py-0.5 text-[10px]">
+              {template.slot_count} slots
+            </span>
+          </span>
+        </div>
       </button>
 
       {/* Hover actions — top-right (stay visible while selected) */}
@@ -767,22 +805,19 @@ function TemplateGalleryItem({
       </div>
 
       <div className="bg-card p-3">
-        {template.source_viral_video_id ? (
-          <button
-            type="button"
-            className="block w-full truncate text-left text-sm font-medium hover:underline"
-            onClick={onOpen}
-          >
-            {template.name}
-          </button>
-        ) : (
-          <div className="truncate text-sm font-medium">{template.name}</div>
-        )}
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {dateFormatter.format(new Date(template.created_at))}
-          </p>
-          <Button type="button" size="sm" variant="outline" disabled={using} onClick={onUse}>
+        <div className="flex items-center justify-between gap-2">
+          {template.source_viral_video_id ? (
+            <button
+              type="button"
+              className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:underline"
+              onClick={onOpen}
+            >
+              {template.name}
+            </button>
+          ) : (
+            <div className="min-w-0 flex-1 truncate text-sm font-medium">{template.name}</div>
+          )}
+          <Button type="button" size="sm" variant="outline" className="shrink-0" disabled={using} onClick={onUse}>
             {using ? <Loader2Icon className="size-3 animate-spin" /> : <PlayIcon className="size-3" />}
             Use
           </Button>

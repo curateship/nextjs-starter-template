@@ -41,6 +41,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableSortButton,
+  type TableSortDirection,
 } from "@/components/ui/table"
 import { ViralVideoModal } from "@/components/viral-video-modal"
 import {
@@ -57,6 +59,9 @@ import { cn } from "@/lib/utils"
 import { PLATFORM_LABELS, dateFormatter, formatCount, pageSizeOptions } from "@/lib/dashboard-format"
 
 type ViewMode = "list" | "gallery"
+
+// Sortable columns in the list (table) view.
+type SortColumn = "video" | "platform" | "views" | "likes" | "status" | "added"
 
 const POLL_INTERVAL_MS = 3000
 
@@ -88,6 +93,9 @@ export function ViralArchiveDashboard({
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
+  // List-view sort — defaults to newest first (matches the server order).
+  const [sortColumn, setSortColumn] = React.useState<SortColumn>("added")
+  const [sortDirection, setSortDirection] = React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
   // Ids queued for deletion (single row or the whole selection).
@@ -128,12 +136,28 @@ export function ViralArchiveDashboard({
       ? videos.filter((v) => v.creator_id === creator.id)
       : videos
     const query = searchQuery.trim().toLowerCase()
-    return query
+    const matched = query
       ? scoped.filter((v) =>
           `${v.title ?? ""} ${v.author ?? ""} ${v.source_url}`.toLowerCase().includes(query)
         )
       : scoped
-  }, [videos, searchQuery, creator])
+
+    const direction = sortDirection === "asc" ? 1 : -1
+    return [...matched].sort((a, b) => {
+      if (sortColumn === "video")
+        return (a.title ?? a.source_url).localeCompare(b.title ?? b.source_url) * direction
+      if (sortColumn === "platform")
+        return PLATFORM_LABELS[a.platform].localeCompare(PLATFORM_LABELS[b.platform]) * direction
+      // Missing counts (null) sort below any real number.
+      if (sortColumn === "views")
+        return ((a.stats?.views ?? -1) - (b.stats?.views ?? -1)) * direction
+      if (sortColumn === "likes")
+        return ((a.stats?.likes ?? -1) - (b.stats?.likes ?? -1)) * direction
+      if (sortColumn === "status")
+        return a.status.localeCompare(b.status) * direction
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction
+    })
+  }, [videos, searchQuery, creator, sortColumn, sortDirection])
 
   const totalPages = Math.ceil(filteredVideos.length / pageSize)
   const paginatedVideos = React.useMemo(() => {
@@ -143,6 +167,16 @@ export function ViralArchiveDashboard({
 
   function updateSearch(value: string) { setSearchQuery(value); setCurrentPage(1) }
   function changePageSize(size: number) { setPageSize(size); setCurrentPage(1) }
+  // Same-column click flips direction; a new column starts ascending.
+  function toggleSort(column: SortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+    } else {
+      setSortColumn(column)
+      setSortDirection("asc")
+    }
+    setCurrentPage(1)
+  }
   function goToPage(page: number) { setCurrentPage(Math.max(1, Math.min(page, totalPages || 1))) }
 
   function handleVideoCreated(video: ViralVideoItem) {
@@ -360,18 +394,43 @@ export function ViralArchiveDashboard({
                     aria-label="Select visible videos"
                   />
                 </TableHead>
-                <TableHead column="main">Video</TableHead>
-                <TableHead column="meta">Platform</TableHead>
-                <TableHead column="meta" className="hidden lg:table-cell">Stats</TableHead>
-                <TableHead column="meta">Status</TableHead>
-                <TableHead column="meta" className="hidden lg:table-cell">Added</TableHead>
+                <TableHead column="main">
+                  <TableSortButton active={sortColumn === "video"} direction={sortDirection} onClick={() => toggleSort("video")}>
+                    Video
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton active={sortColumn === "platform"} direction={sortDirection} onClick={() => toggleSort("platform")}>
+                    Platform
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "views"} direction={sortDirection} onClick={() => toggleSort("views")}>
+                    Views
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "likes"} direction={sortDirection} onClick={() => toggleSort("likes")}>
+                    Likes
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta">
+                  <TableSortButton active={sortColumn === "status"} direction={sortDirection} onClick={() => toggleSort("status")}>
+                    Status
+                  </TableSortButton>
+                </TableHead>
+                <TableHead column="meta" className="hidden lg:table-cell">
+                  <TableSortButton active={sortColumn === "added"} direction={sortDirection} onClick={() => toggleSort("added")}>
+                    Added
+                  </TableSortButton>
+                </TableHead>
                 <TableHead column="meta">Actions</TableHead>
               </TableRow>
             </TableHeader>
           }
           isEmpty={loading || paginatedVideos.length === 0}
           emptyText={emptyText}
-          emptyColSpan={7}
+          emptyColSpan={8}
           footer={paginationFooter}
         >
           {paginatedVideos.map((video) => (
@@ -592,10 +651,10 @@ function ViralVideoTableRow({
         <Badge variant="outline">{PLATFORM_LABELS[video.platform]}</Badge>
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
-        <div className="text-xs">
-          <div>{formatCount(video.stats?.views ?? null)} views</div>
-          <div>{formatCount(video.stats?.likes ?? null)} likes</div>
-        </div>
+        {formatCount(video.stats?.views ?? null)}
+      </TableCell>
+      <TableCell column="mutedMeta" className="hidden lg:table-cell">
+        {formatCount(video.stats?.likes ?? null)}
       </TableCell>
       <TableCell column="meta">
         <ViralVideoStatusBadge status={video.status} />

@@ -4,10 +4,12 @@ import { db } from "@/server/db"
 import { getPublicMediaUrl } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import {
+  aiVideoCreators,
   aiVideoMedia,
   aiVideoProjects,
   aiVideoTemplates,
   aiVideoViralVideos,
+  type AiVideoCreator,
   type AiVideoTemplate,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -26,6 +28,12 @@ export type TemplateItem = {
   thumbnail_url: string | null
   slot_count: number
   duration_ms: number
+  // Author chip shown on the gallery card (from the source reel's creator).
+  creator: {
+    username: string
+    display_name: string | null
+    avatar_url: string | null
+  } | null
   created_at: string
   updated_at: string
 }
@@ -78,7 +86,8 @@ function countTemplateSlots(timeline: unknown) {
 
 function serializeTemplate(
   row: AiVideoTemplate,
-  thumbnailStoragePath: string | null = null
+  thumbnailStoragePath: string | null = null,
+  creator: AiVideoCreator | null = null
 ): TemplateItem {
   const stats = summarizeTimeline(row.timeline)
   return {
@@ -90,6 +99,15 @@ function serializeTemplate(
       : null,
     slot_count: countTemplateSlots(row.timeline),
     duration_ms: stats.durationMs,
+    creator: creator
+      ? {
+          username: creator.username,
+          display_name: creator.displayName,
+          avatar_url: creator.avatarStoragePath
+            ? getPublicMediaUrl(creator.avatarStoragePath)
+            : null,
+        }
+      : null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   }
@@ -101,18 +119,24 @@ export async function listTemplatesForCurrentUser(): Promise<TemplateListRespons
     .select({
       template: aiVideoTemplates,
       thumbnailStoragePath: aiVideoViralVideos.thumbnailStoragePath,
+      creator: aiVideoCreators,
     })
     .from(aiVideoTemplates)
     .leftJoin(
       aiVideoViralVideos,
       eq(aiVideoTemplates.sourceViralVideoId, aiVideoViralVideos.id)
     )
+    // Source reel → its creator, for the gallery card's author chip.
+    .leftJoin(
+      aiVideoCreators,
+      eq(aiVideoViralVideos.creatorId, aiVideoCreators.id)
+    )
     .where(eq(aiVideoTemplates.userId, user.id))
     .orderBy(desc(aiVideoTemplates.createdAt))
 
   return {
     templates: rows.map((r) =>
-      serializeTemplate(r.template, r.thumbnailStoragePath ?? null)
+      serializeTemplate(r.template, r.thumbnailStoragePath ?? null, r.creator)
     ),
   }
 }
