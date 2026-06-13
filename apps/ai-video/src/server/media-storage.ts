@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
@@ -51,6 +52,20 @@ export async function uploadToR2(
       Body: data,
       ContentType: contentType,
       CacheControl: "public, max-age=31536000, immutable",
+    })
+  )
+}
+
+// Server-side copy within the bucket (no download/re-upload). Used to give a
+// template its own footage/thumbnail so it survives deletion of the source reel.
+export async function copyR2Object(sourcePath: string, destPath: string) {
+  const bucket = getBucketName()
+  await getR2Client().send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      // CopySource is the URL-encoded "bucket/key"; metadata (type, cache) copies.
+      CopySource: encodeURI(`${bucket}/${sourcePath.replace(/^\/+/, "")}`),
+      Key: destPath.replace(/^\/+/, ""),
     })
   )
 }

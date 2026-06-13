@@ -1,7 +1,11 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { getPublicMediaUrl } from "@/server/media-storage"
+import {
+  copyR2Object,
+  deleteFromR2,
+  getPublicMediaUrl,
+} from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import {
   aiVideoCreators,
@@ -10,6 +14,7 @@ import {
   aiVideoTemplates,
   aiVideoViralVideos,
   type AiVideoCreator,
+  type AiVideoMedia,
   type AiVideoTemplate,
 } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -148,7 +153,13 @@ export async function listTemplatesForCurrentUser(): Promise<TemplateListRespons
 
   return {
     templates: rows.map((r) =>
-      serializeTemplate(r.template, r.thumbnailStoragePath ?? null, r.creator)
+      serializeTemplate(
+        r.template,
+        // The template's own copied thumbnail; fall back to the source reel's
+        // for pre-migration templates (works while the reel still exists).
+        r.template.thumbnailStoragePath ?? r.thumbnailStoragePath ?? null,
+        r.creator
+      )
     ),
   }
 }
@@ -197,9 +208,72 @@ export async function saveTemplateTimelineForCurrentUser(
   return { templateId: row.id }
 }
 
+// Copies the source reel's footage into a template-owned media object (R2 file
+// + DB row) so the template's clips keep working after the reel is deleted.
+async function copyMediaForTemplate(
+  userId: string,
+  templateId: string,
+  source: AiVideoMedia
+): Promise<AiVideoMedia> {
+  const id = uuid()
+  const ext = source.storagePath.split(".").pop() || "mp4"
+  const storagePath = `templates/${userId}/${templateId}/${id}.${ext}`
+  await copyR2Object(source.storagePath, storagePath)
+  const ts = now()
+  const [row] = await db
+    .insert(aiVideoMedia)
+    .values({
+      id,
+      userId,
+      filename: source.filename,
+      originalName: source.originalName,
+      altText: source.altText,
+      fileSize: source.fileSize,
+      mimeType: source.mimeType,
+      fileType: source.fileType,
+      storagePath,
+      createdAt: ts,
+      updatedAt: ts,
+    })
+    .returning()
+  return row
+}
+
+// Copies the source reel's thumbnail into a template-owned R2 object (display
+// only — no media row). Returns the new storage path.
+async function copyTemplateThumbnail(
+  userId: string,
+  templateId: string,
+  sourcePath: string
+): Promise<string> {
+  const ext = sourcePath.split(".").pop() || "jpg"
+  const storagePath = `templates/${userId}/${templateId}/thumbnail.${ext}`
+  await copyR2Object(sourcePath, storagePath)
+  return storagePath
+}
+
+// Best-effort cleanup of the copies above when the template insert fails, so a
+// failure doesn't orphan R2 objects or a media row.
+async function rollbackTemplateCopies(
+  media: AiVideoMedia,
+  thumbnailPath: string | null
+) {
+  await deleteFromR2(media.storagePath).catch(() => undefined)
+  if (thumbnailPath) {
+    await deleteFromR2(thumbnailPath).catch(() => undefined)
+  }
+  try {
+    await db.delete(aiVideoMedia).where(eq(aiVideoMedia.id, media.id))
+  } catch {
+    // best effort
+  }
+}
+
 // Turns an analyzed viral video into a template: the timeline is the original
 // reel cut into its detected scenes, every slot replaceable in the editor
-// (CapCut behavior) with durations locked to the original pacing.
+// (CapCut behavior) with durations locked to the original pacing. The footage
+// and thumbnail are COPIED into template-owned storage so the template survives
+// deletion of the source reel/creator.
 export async function createTemplateFromViralVideoForCurrentUser(
   videoId: string,
   name: string
@@ -237,32 +311,53 @@ export async function createTemplateFromViralVideoForCurrentUser(
     throw new Error("Video analysis is not ready")
   }
 
+  // Copy footage + thumbnail into template-owned storage before inserting, so
+  // the template never depends on the source reel surviving.
+  const templateId = uuid()
+  const copiedMedia = await copyMediaForTemplate(user.id, templateId, media)
+  const thumbnailStoragePath = video.thumbnailStoragePath
+    ? await copyTemplateThumbnail(
+        user.id,
+        templateId,
+        video.thumbnailStoragePath
+      )
+    : null
+
   const timeline = buildTemplateTimeline(
     analysis,
-    video.mediaId,
-    getPublicMediaUrl(media.storagePath),
+    copiedMedia.id,
+    getPublicMediaUrl(copiedMedia.storagePath),
     video.durationMs
   )
 
   const createdAt = now()
-  const [created] = await db
-    .insert(aiVideoTemplates)
-    .values({
-      id: uuid(),
-      userId: user.id,
-      name: cleanTemplateName(name),
-      sourceViralVideoId: video.id,
-      timeline,
-      createdAt,
-      updatedAt: createdAt,
-    })
-    .returning()
-
-  if (!created) {
-    throw new Error("Template was not created")
+  let created: AiVideoTemplate
+  try {
+    const [row] = await db
+      .insert(aiVideoTemplates)
+      .values({
+        id: templateId,
+        userId: user.id,
+        name: cleanTemplateName(name),
+        sourceViralVideoId: video.id,
+        thumbnailStoragePath,
+        timeline,
+        createdAt,
+        updatedAt: createdAt,
+      })
+      .returning()
+    if (!row) {
+      throw new Error("Template was not created")
+    }
+    created = row
+  } catch (error) {
+    await rollbackTemplateCopies(copiedMedia, thumbnailStoragePath)
+    throw error
   }
 
-  return serializeTemplate(created)
+  // Caller discards this and reloads the templates list (which re-derives the
+  // creator chip from the join), so no creator lookup is needed here.
+  return serializeTemplate(created, created.thumbnailStoragePath)
 }
 
 export async function renameTemplateForCurrentUser(

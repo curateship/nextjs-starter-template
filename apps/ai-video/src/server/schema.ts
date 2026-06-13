@@ -398,6 +398,9 @@ export const aiVideoTemplates = pgTable(
     sourceViralVideoId: varchar("source_viral_video_id", {
       length: 36,
     }).references(() => aiVideoViralVideos.id, { onDelete: "set null" }),
+    // Template-owned copy of the source reel's thumbnail (R2 path), so the card
+    // survives deletion of the source reel/creator. Null for pre-migration rows.
+    thumbnailStoragePath: text("thumbnail_storage_path"),
     // Editor timeline with replaceable slot clips: { tracks, aspect }
     timeline: jsonb("timeline").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
