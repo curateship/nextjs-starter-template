@@ -40,7 +40,7 @@ import {
   ReplaceMediaDialog,
   type ReplacementMedia,
 } from "@/pages/video-editor/replace-media-dialog"
-import { getVideoThumbnail } from "@/pages/video-editor/video-thumbnails"
+import { getVideoFilmstrip } from "@/pages/video-editor/video-thumbnails"
 
 // Repeating dark "film frames" with thin separators — the placeholder shown
 // while a video clip's real frame thumbnail loads (or if extraction fails).
@@ -276,21 +276,26 @@ function TimelineClipChip({
   const leftPx = msToPx(clip.startMs, pxPerSecond)
   const widthPx = msToPx(clip.durationMs, pxPerSecond)
 
-  // Real frame preview for video clips; until it resolves (or if extraction
+  // Real frame filmstrip for video clips; until it resolves (or if extraction
   // fails) the CSS filmstrip placeholder shows instead.
-  const [thumbUrl, setThumbUrl] = React.useState<string | null>(null)
+  const [frames, setFrames] = React.useState<string[]>([])
   React.useEffect(() => {
     if (clip.kind !== "video" || !clip.mediaId) return
     let active = true
-    getVideoThumbnail(clip.mediaId)
-      .then((url) => {
-        if (active) setThumbUrl(url)
+    // Sample only the slice this clip shows — template slots and split clips
+    // are short trims of the same source, so the window drives the frames.
+    getVideoFilmstrip(clip.mediaId, {
+      startMs: clip.trimStartMs,
+      durationMs: clip.durationMs,
+    })
+      .then((urls) => {
+        if (active) setFrames(urls)
       })
       .catch(() => undefined)
     return () => {
       active = false
     }
-  }, [clip.kind, clip.mediaId])
+  }, [clip.kind, clip.mediaId, clip.trimStartMs, clip.durationMs])
 
   // Closest neighbor edges in this track — trims may not cross them.
   function neighborBounds() {
@@ -443,13 +448,12 @@ function TimelineClipChip({
     resetChipStyles()
   }
 
-  // Video clips tile a real extracted frame (CSS placeholder until ready);
-  // image clips tile their actual picture.
+  // Video clips show a real frame filmstrip (rendered as a child layer); the
+  // CSS placeholder is the chip background until the frames resolve. Image
+  // clips tile their actual picture.
   const kindStyle: React.CSSProperties | undefined =
     clip.kind === "video"
-      ? thumbUrl
-        ? tileBackground(thumbUrl)
-        : FILMSTRIP_STYLE
+      ? FILMSTRIP_STYLE
       : clip.kind === "audio"
         ? WAVEFORM_STYLE
         : clip.kind === "image" && clip.url
@@ -486,6 +490,20 @@ function TimelineClipChip({
             dispatch({ type: "SELECT_CLIP", clipId: clip.id })
           }
         >
+      {/* Video filmstrip: the extracted frames laid out evenly across the
+          clip. Each fills its 1/N cell with cover (crop, no distortion). */}
+      {clip.kind === "video" && frames.length > 0 ? (
+        <div className="pointer-events-none absolute inset-0 flex">
+          {frames.map((frame, index) => (
+            <div
+              key={index}
+              className="h-full flex-1 bg-cover bg-center"
+              style={{ backgroundImage: `url("${frame}")` }}
+            />
+          ))}
+        </div>
+      ) : null}
+
       {/* Label */}
       {clip.kind === "video" || clip.kind === "image" ? (
         <span className="pointer-events-none absolute bottom-1 left-2 max-w-full truncate text-[11px] text-white/85 drop-shadow">

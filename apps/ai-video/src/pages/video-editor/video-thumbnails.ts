@@ -1,29 +1,69 @@
-// Extracts a single representative frame from a video and caches it per
-// media id; timeline clips tile the frame as a filmstrip preview. Sources go
-// through the same-origin media proxy route because the public R2 bucket
-// sends no CORS headers, which would taint the extraction canvas.
+// Extracts frames from a video and caches them per media id; timeline clips
+// lay the frames out side-by-side as a filmstrip preview. Sources go through
+// the same-origin media proxy route because the public R2 bucket sends no CORS
+// headers, which would taint the extraction canvas.
 
-// 2x the rendered clip height so the tiled frames stay crisp on retina.
-const THUMB_HEIGHT_PX = 72
+// Captured frame height. Kept well above the on-screen clip height (~52px,
+// double that on retina) so frames stay crisp when the filmstrip downscales
+// them — capturing small and upscaling is what made the strip blurry.
+const FRAME_HEIGHT_PX = 160
 
-// mediaId -> in-flight/resolved data-URL. Shared across chips so split clip
-// halves and re-mounts never re-extract.
+// One sample every ~2 seconds of source, so longer clips get more frames and
+// the strip density is constant in time rather than stretched to a fixed count.
+const SECONDS_PER_FRAME = 2
+
+// Upper bound on frames per clip so a long source can't trigger dozens of
+// sequential seeks.
+const MAX_FRAMES = 30
+
+// The slice of source video a clip shows on the timeline. Template slots and
+// split clips share one mediaId but display different windows, so the window
+// is part of the cache key.
+export type ClipWindow = { startMs: number; durationMs: number }
+
+// `${mediaId}:${startMs}:${durationMs}` -> in-flight/resolved filmstrip frames.
+const filmstripCache = new Map<string, Promise<string[]>>()
+// Separate cache for the single-frame preview (the replace-media picker), so
+// it never triggers a full-filmstrip extraction.
 const thumbnailCache = new Map<string, Promise<string>>()
 
+// Returns one frame per ~2 seconds across a clip's visible trim window, so a
+// short template slot samples only its own scene rather than the whole reel.
+export function getVideoFilmstrip(
+  mediaId: string,
+  window: ClipWindow
+): Promise<string[]> {
+  const key = `${mediaId}:${window.startMs}:${window.durationMs}`
+  let pending = filmstripCache.get(key)
+  if (!pending) {
+    pending = withRetry(() => extractFrames(mediaUrl(mediaId), "filmstrip", window))
+    filmstripCache.set(key, pending)
+    pending.catch(() => filmstripCache.delete(key)) // allow a retry next mount
+  }
+  return pending
+}
+
+// Single representative frame — used for compact previews that don't need the
+// full strip.
 export function getVideoThumbnail(mediaId: string): Promise<string> {
   let pending = thumbnailCache.get(mediaId)
   if (!pending) {
-    const src = `/api/v1/media/${mediaId}/file`
-    pending = extractFrame(src)
-      // One delayed retry — covers transient dev-server/network hiccups.
-      .catch(() => sleep(800).then(() => extractFrame(src)))
-      .catch((error) => {
-        thumbnailCache.delete(mediaId) // allow a retry on the next mount
-        throw error
-      })
+    pending = withRetry(() =>
+      extractFrames(mediaUrl(mediaId), "single").then((frames) => frames[0])
+    )
     thumbnailCache.set(mediaId, pending)
+    pending.catch(() => thumbnailCache.delete(mediaId))
   }
   return pending
+}
+
+function mediaUrl(mediaId: string) {
+  return `/api/v1/media/${mediaId}/file`
+}
+
+// One delayed retry — covers transient dev-server/network hiccups.
+function withRetry<T>(run: () => Promise<T>): Promise<T> {
+  return run().catch(() => sleep(800).then(run))
 }
 
 function sleep(ms: number) {
@@ -34,27 +74,67 @@ function sleep(ms: number) {
 // blob URL: a single plain request (media elements fire multi-range request
 // sequences that the dev proxy handles unreliably) and a same-origin source,
 // so the canvas never taints.
-async function extractFrame(src: string): Promise<string> {
+async function extractFrames(
+  src: string,
+  mode: "filmstrip" | "single",
+  window?: ClipWindow
+): Promise<string[]> {
   const response = await fetch(src)
   if (!response.ok) {
     throw new Error(`Thumbnail fetch failed (${response.status})`)
   }
   const blobUrl = URL.createObjectURL(await response.blob())
   try {
-    return await drawFrameFromVideo(blobUrl)
+    return await drawFramesFromVideo(blobUrl, mode, window)
   } finally {
     URL.revokeObjectURL(blobUrl)
   }
 }
 
-// Load the video far enough to seek, draw one frame to a canvas, and return
-// it as a compact JPEG data-URL.
-function drawFrameFromVideo(src: string): Promise<string> {
+// Picks the sample times (in source seconds): for the filmstrip, one per ~2s
+// across the clip's visible window (centered in each slice); for the compact
+// preview, a single frame a little way into the whole video.
+function sampleTimes(
+  totalDuration: number,
+  mode: "filmstrip" | "single",
+  window?: ClipWindow
+) {
+  if (mode === "single" || !window) {
+    // A bit in — the very first frames are often black.
+    return [Math.min(totalDuration - 0.01, Math.max(0.1, totalDuration * 0.25))]
+  }
+  // Clamp the requested window to what the file actually contains.
+  const startSec = Math.max(0, window.startMs / 1000)
+  const endSec = Math.min(totalDuration, (window.startMs + window.durationMs) / 1000)
+  const span = Math.max(0, endSec - startSec)
+  const count = Math.min(
+    MAX_FRAMES,
+    Math.max(1, Math.round(span / SECONDS_PER_FRAME))
+  )
+  return Array.from({ length: count }, (_, i) =>
+    Math.min(
+      totalDuration - 0.01,
+      Math.max(0.05, startSec + (span * (i + 0.5)) / count)
+    )
+  )
+}
+
+// Load the video once, then seek to each sample point in turn, drawing a
+// frame to a canvas at every `seeked` event. Returns compact JPEG data-URLs.
+function drawFramesFromVideo(
+  src: string,
+  mode: "filmstrip" | "single",
+  window?: ClipWindow
+): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video")
     video.muted = true
     video.playsInline = true
     video.preload = "auto"
+
+    const results: string[] = []
+    let times: number[] = []
+    let index = 0
 
     function cleanup() {
       video.removeAttribute("src")
@@ -66,10 +146,13 @@ function drawFrameFromVideo(src: string): Promise<string> {
       reject(new Error("Could not load video for thumbnail"))
     }
 
-    // Seek a little way in — the very first frames are often black.
     video.onloadedmetadata = () => {
-      const duration = Number.isFinite(video.duration) ? video.duration : 1
-      video.currentTime = Math.min(0.5, duration * 0.25)
+      const duration =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? video.duration
+          : 1
+      times = sampleTimes(duration, mode, window)
+      video.currentTime = times[0]
     }
 
     video.onseeked = () => {
@@ -77,16 +160,23 @@ function drawFrameFromVideo(src: string): Promise<string> {
         const ratio =
           video.videoWidth && video.videoHeight
             ? video.videoWidth / video.videoHeight
-            : 16 / 9
+            : 9 / 16
         const canvas = document.createElement("canvas")
-        canvas.height = THUMB_HEIGHT_PX
-        canvas.width = Math.max(1, Math.round(THUMB_HEIGHT_PX * ratio))
+        canvas.height = FRAME_HEIGHT_PX
+        canvas.width = Math.max(1, Math.round(FRAME_HEIGHT_PX * ratio))
         const context = canvas.getContext("2d")
         if (!context) throw new Error("Canvas 2d context unavailable")
         context.drawImage(video, 0, 0, canvas.width, canvas.height)
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.6)
-        cleanup()
-        resolve(dataUrl)
+        results.push(canvas.toDataURL("image/jpeg", 0.72))
+
+        // Advance to the next sample, or finish once every frame is captured.
+        index += 1
+        if (index >= times.length) {
+          cleanup()
+          resolve(results)
+          return
+        }
+        video.currentTime = times[index]
       } catch (error) {
         cleanup()
         reject(error instanceof Error ? error : new Error("Thumbnail failed"))
