@@ -12,14 +12,6 @@ import { DESIGN_HEIGHT } from "@/pages/video-editor/timeline-utils"
 const PLAYING_DRIFT_S = 0.25
 const PAUSED_DRIFT_S = 0.04
 
-// Only video clips within this window of the playhead keep a live <video>
-// element. Mounting a decoder per clip (the timeline can hold dozens, often of
-// the same source) wastes memory; this caps the live decoders to the few
-// around the playhead. The lookahead gives the next clip time to load (media
-// streams from remote storage) before it plays.
-const MOUNT_LOOKAHEAD_MS = 2500
-const MOUNT_LOOKBEHIND_MS = 500
-
 // Clock-synced video/audio elements need their track (mute state)...
 type MediaEntry = { clip: EditorClip; track: EditorTrack; zIndex: number }
 // ...while images/text are static visuals that only need stacking order.
@@ -45,51 +37,68 @@ function flattenTracks(tracks: EditorTrack[]) {
   return { media, images, texts }
 }
 
-// Registers/unregisters a clip's element in a shared map. The ref object is
+// Registers/unregisters an element in a shared map. The ref object is
 // dereferenced inside the callback (commit time), never in render.
-function registerRef<T extends HTMLElement>(
-  refs: { current: Map<string, T> },
-  clipId: string
+function registerRef<K, T extends HTMLElement>(
+  refs: { current: Map<K, T> },
+  key: K
 ) {
   return (el: T | null) => {
-    if (el) refs.current.set(clipId, el)
-    else refs.current.delete(clipId)
+    if (el) refs.current.set(key, el)
+    else refs.current.delete(key)
   }
-}
-
-// A video clip needs a live <video> only while it's near the playhead — active
-// now, about to start, or just ended.
-function shouldMountVideo(clip: EditorClip, timeMs: number) {
-  return (
-    timeMs >= clip.startMs - MOUNT_LOOKAHEAD_MS &&
-    timeMs < clip.startMs + clip.durationMs + MOUNT_LOOKBEHIND_MS
-  )
 }
 
 function isActive(clip: EditorClip, timeMs: number) {
   return timeMs >= clip.startMs && timeMs < clip.startMs + clip.durationMs
 }
 
-// Renders the composed timeline. The element tree is built from the clip lists
-// and only re-rendered on edits (or when the set of near-playhead videos
-// changes) — NOT every clock tick. A single clock-subscribed loop drives all
-// per-frame work imperatively: it plays/pauses/seeks the media elements and
-// toggles each clip's visibility. Re-rendering the whole tree per frame is what
-// dropped playback well below the display rate.
+// Topmost active video clip per source URL at the given time. Clips of the same
+// source share one <video>, so this picks which clip each shared element shows.
+function activeVideoBySource(media: MediaEntry[], timeMs: number) {
+  const map = new Map<string, MediaEntry>()
+  for (const entry of media) {
+    if (entry.clip.kind !== "video" || !entry.clip.url) continue
+    if (!isActive(entry.clip, timeMs)) continue
+    const current = map.get(entry.clip.url)
+    if (!current || entry.zIndex > current.zIndex) map.set(entry.clip.url, entry)
+  }
+  return map
+}
+
+// In-point (seconds) of the next clip of `url` starting after `timeMs` — used to
+// pre-seek a source's element when none of its clips is currently on screen.
+function nextInPointForSource(
+  media: MediaEntry[],
+  url: string,
+  timeMs: number
+): number | null {
+  let bestStart = Infinity
+  let inPoint: number | null = null
+  for (const { clip } of media) {
+    if (clip.kind !== "video" || clip.url !== url) continue
+    if (clip.startMs > timeMs && clip.startMs < bestStart) {
+      bestStart = clip.startMs
+      inPoint = clip.trimStartMs / 1000
+    }
+  }
+  return inPoint
+}
+
+// Renders the composed timeline. ONE <video> per source URL (clips of the same
+// source share it, driven to whichever clip is active) — so contiguous splits
+// play straight through with no element handoff. Audio/image/text stay one
+// element per clip. The element tree only re-renders on edits; a single
+// clock-subscribed loop drives all per-frame work imperatively.
 export function EditorPreview() {
   const { state, clock } = useEditor()
 
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const mediaRefs = React.useRef(new Map<string, HTMLMediaElement>())
+  const videoRefs = React.useRef(new Map<string, HTMLVideoElement>())
+  const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
   const [containerBox, setContainerBox] = React.useState({ w: 0, h: 0 })
-  // Which video clips currently have a live element. Updated by the sync loop,
-  // but only when the set actually changes (at clip boundaries) so playback
-  // doesn't re-render every frame.
-  const [mountedVideoIds, setMountedVideoIds] = React.useState<Set<string>>(
-    () => new Set()
-  )
 
   // Track the available panel space; the stage is sized in JS because CSS
   // aspect-ratio can't fit a box against BOTH max-width and max-height.
@@ -120,96 +129,122 @@ export function EditorPreview() {
     () => flattenTracks(state.tracks),
     [state.tracks]
   )
+  // Unique video source URLs (one <video> each) and the per-clip audio list.
+  const videoSources = React.useMemo(() => {
+    const seen = new Set<string>()
+    const urls: string[] = []
+    for (const { clip } of media) {
+      if (clip.kind === "video" && clip.url && !seen.has(clip.url)) {
+        seen.add(clip.url)
+        urls.push(clip.url)
+      }
+    }
+    return urls
+  }, [media])
+  const audioClips = React.useMemo(
+    () => media.filter((m) => m.clip.kind === "audio"),
+    [media]
+  )
 
-  // Drive the clock from the element that carries the SOUND, so playback (and
-  // therefore the caption text, which is timed to that audio) follows the
-  // actual heard audio rather than seeking it to a wall clock. Preference:
-  // an unmuted audio track (a reel's soundtrack) wins, since captions are
-  // transcribed from it; otherwise the topmost video (its own audio, or just
-  // its frames when silent). The chosen element is never seeked to catch up —
-  // seeking the sound/video mid-play is what desynced and stuttered playback.
+  // Drive the clock from the element carrying the SOUND (an unmuted audio track
+  // wins, since captions are timed to it; else the topmost active video). The
+  // source is read even while momentarily paused — only seeked/undecodable
+  // elements are skipped — so the clock HOLDS at a cut rather than running
+  // ahead on wall time and snapping back.
   React.useEffect(() => {
     clock.setTimeSource(() => {
       const t = clock.getTime()
-      // An element is a usable clock only while it's smoothly playing.
-      const timelineTimeIfPlaying = (clip: EditorClip) => {
-        const el = mediaRefs.current.get(clip.id)
-        if (!el || el.paused || el.seeking || el.readyState < 2) return null
-        return clip.startMs + (el.currentTime * 1000 - clip.trimStartMs)
+      let audioTime: number | null = null
+      for (const { clip, track } of audioClips) {
+        if (track.muted || !isActive(clip, t)) continue
+        const el = audioRefs.current.get(clip.id)
+        if (el && !el.seeking && el.readyState >= 2) {
+          audioTime = clip.startMs + (el.currentTime * 1000 - clip.trimStartMs)
+          break
+        }
       }
 
-      let audioTime: number | null = null
       let videoTime: number | null = null
       let bestVideoZ = -Infinity
-      for (const { clip, track, zIndex } of media) {
-        if (!isActive(clip, t)) continue
-        if (clip.kind === "audio") {
-          // Only an audible (unmuted) audio track is the sound source.
-          if (!track.muted && audioTime == null) audioTime = timelineTimeIfPlaying(clip)
-        } else if (clip.kind === "video" && zIndex > bestVideoZ) {
-          const time = timelineTimeIfPlaying(clip)
-          if (time != null) {
-            bestVideoZ = zIndex
-            videoTime = time
-          }
+      for (const [url, entry] of activeVideoBySource(media, t)) {
+        const el = videoRefs.current.get(url)
+        if (el && !el.seeking && el.readyState >= 2 && entry.zIndex > bestVideoZ) {
+          bestVideoZ = entry.zIndex
+          videoTime =
+            entry.clip.startMs + (el.currentTime * 1000 - entry.clip.trimStartMs)
         }
       }
       return audioTime ?? videoTime
     })
     return () => clock.setTimeSource(null)
-  }, [clock, media])
+  }, [clock, media, audioClips])
 
   // The single per-frame loop, driven by the clock (ticks while playing, and
   // fires once per seek). All DOM updates here are imperative — no React render.
   React.useEffect(() => {
-    let lastMountKey = ""
-
     function syncFrame() {
       const timeMs = clock.getTime()
       const playing = clock.playing
 
-      // Mount only the videos near the playhead; re-render solely when that
-      // set changes (compared as a stable key).
-      const mountIds: string[] = []
-      for (const { clip } of media) {
-        if (clip.kind !== "video" || shouldMountVideo(clip, timeMs)) {
-          mountIds.push(clip.id)
-        }
-      }
-      const mountKey = mountIds.join(",")
-      if (mountKey !== lastMountKey) {
-        lastMountKey = mountKey
-        setMountedVideoIds(new Set(mountIds))
-      }
-
-      // Sync each live media element to the clock and toggle video visibility.
-      for (const { clip, track } of media) {
-        const el = mediaRefs.current.get(clip.id)
+      // One <video> per source, driven to its active clip. Contiguous clips of
+      // the same source keep the same target position across the cut, so the
+      // element plays straight through with no seek.
+      const activeVid = activeVideoBySource(media, timeMs)
+      for (const url of videoSources) {
+        const el = videoRefs.current.get(url)
         if (!el) continue
-
-        const active = isActive(clip, timeMs)
-        if (clip.kind === "video") {
-          el.style.visibility = active ? "visible" : "hidden"
-        }
-        const targetS = (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
-        el.muted = track.muted
-
-        if (active) {
-          const drift = Math.abs(el.currentTime - targetS)
+        const entry = activeVid.get(url)
+        if (entry) {
+          el.style.opacity = "1"
+          el.style.zIndex = String(entry.zIndex)
+          el.muted = entry.track.muted
+          const targetS =
+            (entry.clip.trimStartMs + (timeMs - entry.clip.startMs)) / 1000
           if (playing) {
-            if (drift > PLAYING_DRIFT_S) el.currentTime = targetS
+            if (Math.abs(el.currentTime - targetS) > PLAYING_DRIFT_S) {
+              el.currentTime = targetS
+            }
             if (el.paused) void el.play().catch(() => undefined)
           } else {
             if (!el.paused) el.pause()
-            if (drift > PAUSED_DRIFT_S) el.currentTime = targetS
+            if (Math.abs(el.currentTime - targetS) > PAUSED_DRIFT_S) {
+              el.currentTime = targetS
+            }
           }
         } else {
+          el.style.opacity = "0"
           if (!el.paused) el.pause()
-          // Pre-seek upcoming clips to their in-point for a clean start.
-          const inPointS = clip.trimStartMs / 1000
-          if (timeMs < clip.startMs && Math.abs(el.currentTime - inPointS) > 0.1) {
-            el.currentTime = inPointS
+          // Pre-seek to the next clip of this source for a clean entry.
+          const nextInPointS = nextInPointForSource(media, url, timeMs)
+          if (
+            nextInPointS != null &&
+            Math.abs(el.currentTime - nextInPointS) > 0.1
+          ) {
+            el.currentTime = nextInPointS
           }
+        }
+      }
+
+      // Audio: one element per clip, kept in sync with the clock.
+      for (const { clip, track } of audioClips) {
+        const el = audioRefs.current.get(clip.id)
+        if (!el) continue
+        el.muted = track.muted
+        const targetS = (clip.trimStartMs + (timeMs - clip.startMs)) / 1000
+        if (isActive(clip, timeMs)) {
+          if (playing) {
+            if (Math.abs(el.currentTime - targetS) > PLAYING_DRIFT_S) {
+              el.currentTime = targetS
+            }
+            if (el.paused) void el.play().catch(() => undefined)
+          } else {
+            if (!el.paused) el.pause()
+            if (Math.abs(el.currentTime - targetS) > PAUSED_DRIFT_S) {
+              el.currentTime = targetS
+            }
+          }
+        } else if (!el.paused) {
+          el.pause()
         }
       }
 
@@ -226,12 +261,10 @@ export function EditorPreview() {
 
     syncFrame()
     return clock.subscribe(syncFrame)
-  }, [clock, media, images, texts])
+  }, [clock, media, videoSources, audioClips, images, texts])
 
   const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
   const textScale = stageHeight > 0 ? stageHeight / DESIGN_HEIGHT : 0
-  // Current time for the initial visibility of freshly rendered elements; the
-  // sync loop keeps them correct afterwards.
   const now = clock.getTime()
 
   return (
@@ -240,36 +273,30 @@ export function EditorPreview() {
         className="relative overflow-hidden rounded-md bg-black"
         style={{ width: stageWidth, height: stageHeight }}
       >
-        {/* Media elements. Videos mount only near the playhead (one decoder per
-            clip otherwise wastes memory); audio stays mounted so the soundtrack
-            plays continuously. */}
-        {media.map(({ clip, zIndex }) => {
-          if (clip.kind === "video") {
-            if (!mountedVideoIds.has(clip.id)) return null
-            return (
-              <video
-                key={clip.id}
-                ref={registerRef(mediaRefs, clip.id)}
-                src={clip.url}
-                preload="auto"
-                playsInline
-                className="absolute inset-0 h-full w-full object-contain"
-                style={{
-                  zIndex,
-                  visibility: isActive(clip, now) ? "visible" : "hidden",
-                }}
-              />
-            )
-          }
-          return (
-            <audio
-              key={clip.id}
-              ref={registerRef(mediaRefs, clip.id)}
-              src={clip.url}
-              preload="auto"
-            />
-          )
-        })}
+        {/* One <video> per source; the sync loop sets its opacity/z and drives
+            it to whichever clip of that source is active. */}
+        {videoSources.map((url) => (
+          <video
+            key={url}
+            ref={registerRef(videoRefs, url)}
+            src={url}
+            preload="auto"
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain"
+            style={{ opacity: 0 }}
+          />
+        ))}
+
+        {/* Audio: one element per clip (no visual; the soundtrack plays
+            continuously). */}
+        {audioClips.map(({ clip }) => (
+          <audio
+            key={clip.id}
+            ref={registerRef(audioRefs, clip.id)}
+            src={clip.url}
+            preload="auto"
+          />
+        ))}
 
         {/* Image clips: static, just toggled by the playhead window */}
         {images.map(({ clip, zIndex }) => (
