@@ -5,6 +5,7 @@ import {
   MusicIcon,
   PlusIcon,
   SearchIcon,
+  SettingsIcon,
   UploadIcon,
   VideoIcon,
   type LucideIcon,
@@ -38,6 +39,7 @@ import {
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
+import { EditorSettingsDialog } from "@/pages/video-editor/editor-settings-dialog"
 import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
   DEFAULT_IMAGE_DURATION_MS,
@@ -99,6 +101,7 @@ export function EditorMediaPanel() {
   // documentName is the project or template name (shown in the panel header).
   const { state, dispatch, clock, kind, documentName: projectName } = useEditor()
   const [tab, setTab] = React.useState<MediaTab>("videos")
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
   // Search lives in a popover so opening it never pushes the grid down.
   const [searchOpen, setSearchOpen] = React.useState(false)
@@ -353,6 +356,20 @@ export function EditorMediaPanel() {
               </TooltipTrigger>
               <TooltipContent>Upload media</TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Settings"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <SettingsIcon />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Settings</TooltipContent>
+            </Tooltip>
           </div>
         </div>
         <input
@@ -417,6 +434,8 @@ export function EditorMediaPanel() {
         )}
         </div>
       </ScrollArea>
+
+      <EditorSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </section>
   )
 }

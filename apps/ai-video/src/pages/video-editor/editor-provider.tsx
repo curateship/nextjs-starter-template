@@ -51,6 +51,10 @@ export function EditorProvider({
   // ticks don't re-render the tree.
   const [clock] = React.useState(() => new PlaybackClock())
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("saved")
+  // The document name lives in state so a rename (settings modal) updates the
+  // header live. Initialized once from the prop, like the timeline reducer —
+  // the editor remounts per document, so it never needs to re-sync the prop.
+  const [documentName, setDocumentName] = React.useState(document.name)
   // Latest unsaved snapshot; cleared once persisted. Lets the unmount flush
   // catch edits made inside the debounce window when navigating away.
   const pendingRef = React.useRef<ProjectTimeline | null>(null)
@@ -136,10 +140,11 @@ export function EditorProvider({
       saveStatus,
       kind,
       documentId: document.id,
-      documentName: document.name,
+      documentName,
+      setDocumentName,
       flushSave,
     }),
-    [state, clock, durationMs, saveStatus, kind, document.id, document.name, flushSave]
+    [state, clock, durationMs, saveStatus, kind, document.id, documentName, flushSave]
   )
 
   return (

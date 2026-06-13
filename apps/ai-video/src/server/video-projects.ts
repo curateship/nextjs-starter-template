@@ -34,8 +34,10 @@ export type ProjectListResponse = {
   projects: ProjectItem[]
 }
 
-// New projects start empty; the editor falls back to its default lanes.
-const EMPTY_TIMELINE: ProjectTimeline = { tracks: [], aspect: "16:9" }
+// New projects start empty and vertical (9:16) — this is a short-form reel
+// app, so portrait is the common case and the editor's preview fills the stage
+// instead of letterboxing a vertical clip into a wide frame.
+const EMPTY_TIMELINE: ProjectTimeline = { tracks: [], aspect: "9:16" }
 
 // Owned-row lookup; throws when the project doesn't exist or isn't the user's.
 async function getOwnedProject(userId: string, projectId: string) {
