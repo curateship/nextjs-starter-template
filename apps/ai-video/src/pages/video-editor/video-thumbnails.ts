@@ -36,7 +36,7 @@ export function getVideoFilmstrip(
   const key = `${mediaId}:${window.startMs}:${window.durationMs}`
   let pending = filmstripCache.get(key)
   if (!pending) {
-    pending = withRetry(() => extractFrames(mediaUrl(mediaId), "filmstrip", window))
+    pending = withRetry(() => extractFrames(mediaUrl(mediaId), window))
     filmstripCache.set(key, pending)
     pending.catch(() => filmstripCache.delete(key)) // allow a retry next mount
   }
@@ -44,12 +44,12 @@ export function getVideoFilmstrip(
 }
 
 // Single representative frame — used for compact previews that don't need the
-// full strip.
+// full strip. No window means "one frame from the whole video".
 export function getVideoThumbnail(mediaId: string): Promise<string> {
   let pending = thumbnailCache.get(mediaId)
   if (!pending) {
     pending = withRetry(() =>
-      extractFrames(mediaUrl(mediaId), "single").then((frames) => frames[0])
+      extractFrames(mediaUrl(mediaId)).then((frames) => frames[0])
     )
     thumbnailCache.set(mediaId, pending)
     pending.catch(() => thumbnailCache.delete(mediaId))
@@ -76,7 +76,6 @@ function sleep(ms: number) {
 // so the canvas never taints.
 async function extractFrames(
   src: string,
-  mode: "filmstrip" | "single",
   window?: ClipWindow
 ): Promise<string[]> {
   const response = await fetch(src)
@@ -85,21 +84,17 @@ async function extractFrames(
   }
   const blobUrl = URL.createObjectURL(await response.blob())
   try {
-    return await drawFramesFromVideo(blobUrl, mode, window)
+    return await drawFramesFromVideo(blobUrl, window)
   } finally {
     URL.revokeObjectURL(blobUrl)
   }
 }
 
-// Picks the sample times (in source seconds): for the filmstrip, one per ~2s
-// across the clip's visible window (centered in each slice); for the compact
-// preview, a single frame a little way into the whole video.
-function sampleTimes(
-  totalDuration: number,
-  mode: "filmstrip" | "single",
-  window?: ClipWindow
-) {
-  if (mode === "single" || !window) {
+// Picks the sample times (in source seconds): with a window, one per ~2s across
+// the clip's visible slice (centered in each); without one, a single frame a
+// little way into the whole video.
+function sampleTimes(totalDuration: number, window?: ClipWindow) {
+  if (!window) {
     // A bit in — the very first frames are often black.
     return [Math.min(totalDuration - 0.01, Math.max(0.1, totalDuration * 0.25))]
   }
@@ -123,7 +118,6 @@ function sampleTimes(
 // frame to a canvas at every `seeked` event. Returns compact JPEG data-URLs.
 function drawFramesFromVideo(
   src: string,
-  mode: "filmstrip" | "single",
   window?: ClipWindow
 ): Promise<string[]> {
   return new Promise((resolve, reject) => {
@@ -151,7 +145,7 @@ function drawFramesFromVideo(
         Number.isFinite(video.duration) && video.duration > 0
           ? video.duration
           : 1
-      times = sampleTimes(duration, mode, window)
+      times = sampleTimes(duration, window)
       video.currentTime = times[0]
     }
 

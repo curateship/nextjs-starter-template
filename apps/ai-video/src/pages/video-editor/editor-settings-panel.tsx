@@ -116,36 +116,13 @@ function ClipInspector({
         <h2 className="truncate text-sm font-semibold">Text clip</h2>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="clip-text">Content</Label>
-        <Textarea
-          id="clip-text"
-          rows={3}
-          value={clip.text ?? ""}
-          onChange={(event) => patch({ text: event.target.value })}
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label>Font size</Label>
-        <Slider
-          value={[clip.fontSize ?? 80]}
-          min={24}
-          max={240}
-          step={2}
-          onValueChange={(value) => patch({ fontSize: value[0] })}
-          aria-label="Font size"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="clip-color">Color</Label>
-        <input
-          id="clip-color"
-          type="color"
-          value={clip.color ?? "#ffffff"}
-          onChange={(event) => patch({ color: event.target.value })}
-          className="h-8 w-full cursor-pointer rounded-md border bg-background"
-        />
-      </div>
+      <TextClipFields
+        idPrefix="clip"
+        text={clip.text ?? ""}
+        fontSize={clip.fontSize ?? 80}
+        color={clip.color ?? "#ffffff"}
+        onChange={patch}
+      />
 
       {/* Timing readout */}
       <div className="space-y-1 rounded-md border bg-background p-3 text-xs">
@@ -168,6 +145,61 @@ function TimingRow({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
+// The content/size/color fields for a text clip, shared by the "Add Text"
+// dialog and the selected-clip inspector. `idPrefix` keeps label ids unique
+// across the two mount points.
+function TextClipFields({
+  idPrefix,
+  text,
+  fontSize,
+  color,
+  onChange,
+}: {
+  idPrefix: string
+  text: string
+  fontSize: number
+  color: string
+  onChange: (patch: { text?: string; fontSize?: number; color?: string }) => void
+}) {
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-text`}>Content</Label>
+        <Textarea
+          id={`${idPrefix}-text`}
+          rows={3}
+          value={text}
+          onChange={(event) => onChange({ text: event.target.value })}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Font size</Label>
+        <Slider
+          value={[fontSize]}
+          min={24}
+          max={240}
+          step={2}
+          onValueChange={(value) => onChange({ fontSize: value[0] })}
+          aria-label="Font size"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-color`}>Color</Label>
+        <input
+          id={`${idPrefix}-color`}
+          type="color"
+          value={color}
+          onChange={(event) => onChange({ color: event.target.value })}
+          className="h-8 w-full cursor-pointer rounded-md border bg-background"
+        />
+      </div>
+    </>
+  )
+}
+
+// Starting values for a brand-new text clip.
+const DEFAULT_TEXT_DRAFT = { text: "Your text here", fontSize: 80, color: "#ffffff" }
 
 // Building blocks the editor supports. Tiles with an `action` are wired up;
 // the rest are placeholders for future element kinds.
@@ -241,17 +273,11 @@ function TextDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const { dispatch, clock } = useEditor()
-  const [text, setText] = React.useState("Your text here")
-  const [fontSize, setFontSize] = React.useState(80)
-  const [color, setColor] = React.useState("#ffffff")
+  const [draft, setDraft] = React.useState(DEFAULT_TEXT_DRAFT)
 
   // Reset to defaults on close so the dialog starts fresh next open.
   function handleOpenChange(next: boolean) {
-    if (!next) {
-      setText("Your text here")
-      setFontSize(80)
-      setColor("#ffffff")
-    }
+    if (!next) setDraft(DEFAULT_TEXT_DRAFT)
     onOpenChange(next)
   }
 
@@ -262,9 +288,9 @@ function TextDialog({
         id: editorId(),
         kind: "text",
         name: "Text",
-        text: text.trim() || "Your text here",
-        fontSize,
-        color,
+        text: draft.text.trim() || "Your text here",
+        fontSize: draft.fontSize,
+        color: draft.color,
         trimStartMs: 0,
         startMs: 0, // the reducer resolves the actual placement
         durationMs: DEFAULT_TEXT_DURATION_MS,
@@ -282,36 +308,13 @@ function TextDialog({
         </DialogHeader>
         <DialogBody>
           <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="text-content">Content</Label>
-              <Textarea
-                id="text-content"
-                rows={3}
-                value={text}
-                onChange={(event) => setText(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Font size</Label>
-              <Slider
-                value={[fontSize]}
-                min={24}
-                max={240}
-                step={2}
-                onValueChange={(value) => setFontSize(value[0])}
-                aria-label="Font size"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="text-color">Color</Label>
-              <input
-                id="text-color"
-                type="color"
-                value={color}
-                onChange={(event) => setColor(event.target.value)}
-                className="h-8 w-full cursor-pointer rounded-md border bg-background"
-              />
-            </div>
+            <TextClipFields
+              idPrefix="text"
+              text={draft.text}
+              fontSize={draft.fontSize}
+              color={draft.color}
+              onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
+            />
           </div>
         </DialogBody>
         <DialogFooter variant="plain">
