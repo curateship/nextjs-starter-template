@@ -73,6 +73,7 @@ export type EditorAction =
         mediaId: string
         url: string
         name: string
+        fileType: "video" | "image"
         sourceDurationMs: number
       }
     }
@@ -312,19 +313,24 @@ export function editorReducer(
 
     case "REPLACE_CLIP_MEDIA": {
       const found = findClip(state.tracks, action.clipId)
-      if (!found || found.clip.kind !== "video") return state
+      // Visual slots only (video or image); audio has no place in a video slot.
+      if (!found || (found.clip.kind !== "video" && found.clip.kind !== "image"))
+        return state
+      const isVideo = action.media.fileType === "video"
       const replaced: EditorClip = {
         ...found.clip,
+        kind: isVideo ? "video" : "image",
         mediaId: action.media.mediaId,
         url: action.media.url,
         name: action.media.name,
-        sourceDurationMs: action.media.sourceDurationMs,
+        // Images have no intrinsic length; only videos carry a source duration.
+        sourceDurationMs: isVideo ? action.media.sourceDurationMs : undefined,
         trimStartMs: 0,
-        // Shorter replacements can't fill the slot — clamp instead of looping.
-        durationMs: Math.min(
-          found.clip.durationMs,
-          action.media.sourceDurationMs
-        ),
+        // A shorter video can't fill the slot — clamp it; an image fills any
+        // length, so it keeps the slot's duration.
+        durationMs: isVideo
+          ? Math.min(found.clip.durationMs, action.media.sourceDurationMs)
+          : found.clip.durationMs,
       }
       const tracks = withTrack(state.tracks, found.track.id, (t) => ({
         ...t,

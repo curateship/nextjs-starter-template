@@ -96,7 +96,7 @@ type TileDrag = {
 // the timeline by clicking (at the playhead) or dragging onto a track lane;
 // each tab can also upload new files.
 export function EditorMediaPanel() {
-  const { state, dispatch, clock } = useEditor()
+  const { state, dispatch, clock, projectName } = useEditor()
   const [tab, setTab] = React.useState<MediaTab>("videos")
   const [search, setSearch] = React.useState("")
   // Search lives in a popover so opening it never pushes the grid down.
@@ -270,29 +270,36 @@ export function EditorMediaPanel() {
 
   return (
     <section className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 md:flex">
-      {/* Header: media-type dropdown + right-aligned search/upload icons */}
+      {/* Header: project name on the left; media-type dropdown + search/upload
+          icons grouped on the right. */}
       <div className="shrink-0 space-y-2 p-3">
         <div className="flex items-center gap-1">
-          <Select
-            value={tab}
-            onValueChange={(value) => setTab(value as MediaTab)}
+          <span
+            className="min-w-0 flex-1 truncate text-sm font-semibold"
+            title={projectName}
           >
-            <SelectTrigger aria-label="Media type">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MEDIA_TABS.map((key) => {
-                const { label, icon: Icon } = TAB_CONFIG[key]
-                return (
-                  <SelectItem key={key} value={key}>
-                    <Icon className="size-4 text-muted-foreground" />
-                    {label}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-          <div className="ml-auto flex items-center">
+            {projectName}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Select
+              value={tab}
+              onValueChange={(value) => setTab(value as MediaTab)}
+            >
+              <SelectTrigger aria-label="Media type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MEDIA_TABS.map((key) => {
+                  const { label, icon: Icon } = TAB_CONFIG[key]
+                  return (
+                    <SelectItem key={key} value={key}>
+                      <Icon className="size-4 text-muted-foreground" />
+                      {label}
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
             <Popover open={searchOpen} onOpenChange={handleSearchOpenChange}>
               <Tooltip>
                 <TooltipTrigger asChild>

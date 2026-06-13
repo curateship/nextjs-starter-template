@@ -44,12 +44,7 @@ import {
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  findClip,
-  useEditor,
-  type EditorAction,
-  type EditorClip,
-} from "@/pages/video-editor/editor-store"
+import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
@@ -59,28 +54,20 @@ import {
 // Right panel: shows the inspector for the selected clip, or the default
 // Elements / AI Generation content when nothing is selected.
 export function EditorSettingsPanel() {
-  const { state, dispatch } = useEditor()
   const [textOpen, setTextOpen] = React.useState(false)
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [scriptOpen, setScriptOpen] = React.useState(false)
-  const selected = state.selectedClipId
-    ? findClip(state.tracks, state.selectedClipId)
-    : null
 
   return (
     <section className="hidden w-[330px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 lg:flex">
+      {/* Element tools + AI helpers. Text clips are edited in a modal opened
+          from the clip's right-click "Edit", not an inline inspector here. */}
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        {/* Only text clips need an inspector (content/style editing); media
-            clips are managed on the timeline + right-click menu directly. */}
-        {selected?.clip.kind === "text" ? (
-          <ClipInspector clip={selected.clip} dispatch={dispatch} />
-        ) : (
-          <DefaultPanels
-            onAddText={() => setTextOpen(true)}
-            onAddCaptions={() => setCaptionsOpen(true)}
-            onWriteScript={() => setScriptOpen(true)}
-          />
-        )}
+        <DefaultPanels
+          onAddText={() => setTextOpen(true)}
+          onAddCaptions={() => setCaptionsOpen(true)}
+          onWriteScript={() => setScriptOpen(true)}
+        />
       </div>
       <TextDialog open={textOpen} onOpenChange={setTextOpen} />
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
@@ -89,16 +76,19 @@ export function EditorSettingsPanel() {
   )
 }
 
-// Text-clip property editor (the only kind with editable content). Style
-// edits are transient (no undo snapshots); structural changes stay on the
-// timeline itself.
-function ClipInspector({
+// Edits a text clip's content/style in a modal, opened from the clip's
+// right-click "Edit". Changes apply live (transient — no per-keystroke undo
+// snapshot), matching the old inline inspector.
+export function EditTextDialog({
   clip,
-  dispatch,
+  open,
+  onOpenChange,
 }: {
   clip: EditorClip
-  dispatch: React.Dispatch<EditorAction>
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
+  const { dispatch } = useEditor()
   function patch(value: Partial<EditorClip>) {
     dispatch({
       type: "UPDATE_CLIP",
@@ -109,32 +99,42 @@ function ClipInspector({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <Badge variant="secondary" className="capitalize">
-          {clip.kind}
-        </Badge>
-        <h2 className="truncate text-sm font-semibold">Text clip</h2>
-      </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Edit Text</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-4">
+            <TextClipFields
+              idPrefix="edit"
+              text={clip.text ?? ""}
+              fontSize={clip.fontSize ?? 80}
+              color={clip.color ?? "#ffffff"}
+              onChange={patch}
+            />
 
-      <TextClipFields
-        idPrefix="clip"
-        text={clip.text ?? ""}
-        fontSize={clip.fontSize ?? 80}
-        color={clip.color ?? "#ffffff"}
-        onChange={patch}
-      />
-
-      {/* Timing readout */}
-      <div className="space-y-1 rounded-md border bg-background p-3 text-xs">
-        <TimingRow label="Start" value={formatTimecode(clip.startMs)} />
-        <TimingRow
-          label="End"
-          value={formatTimecode(clip.startMs + clip.durationMs)}
-        />
-        <TimingRow label="Duration" value={formatTimecode(clip.durationMs)} />
-      </div>
-    </div>
+            {/* Timing readout */}
+            <div className="space-y-1 rounded-md border bg-background p-3 text-xs">
+              <TimingRow label="Start" value={formatTimecode(clip.startMs)} />
+              <TimingRow
+                label="End"
+                value={formatTimecode(clip.startMs + clip.durationMs)}
+              />
+              <TimingRow
+                label="Duration"
+                value={formatTimecode(clip.durationMs)}
+              />
+            </div>
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button type="button" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
