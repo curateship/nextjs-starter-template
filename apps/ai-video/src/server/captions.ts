@@ -190,8 +190,9 @@ async function transcribeWithOpenAI(
 }
 
 // Groups word timings into caption-sized chunks (≤ 4 words / ≤ 1.5s), matching
-// the reel-caption style the Gemini prompt asks for.
-function chunkWords(
+// the reel-caption style the Gemini prompt asks for. Exported so the ElevenLabs
+// voice module can turn its word timings into the same karaoke caption lines.
+export function chunkWords(
   words: { word: string; start: number; end: number }[]
 ): CaptionLine[] {
   const lines: CaptionLine[] = []

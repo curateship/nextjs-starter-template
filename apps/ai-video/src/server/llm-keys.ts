@@ -11,8 +11,9 @@ import { requireAppOrigin } from "@/server/origin"
 import { aiVideoLlmApiKeys } from "@/server/schema"
 import { now, requireAdminUser } from "@/server/security"
 
-// The LLM providers whose keys the workspace can configure.
-const LLM_PROVIDERS = ["openai", "claude", "gemini"] as const
+// The providers whose keys the workspace can configure. ElevenLabs isn't an
+// LLM but reuses this same key store/settings UI for its voice-generation key.
+const LLM_PROVIDERS = ["openai", "claude", "gemini", "elevenlabs"] as const
 export type LlmProvider = (typeof LLM_PROVIDERS)[number]
 
 // Env var that backs each provider when no key is saved in settings. Settings
@@ -21,6 +22,7 @@ const ENV_VAR: Record<LlmProvider, string> = {
   openai: "AI_VIDEO_OPENAI_API_KEY",
   claude: "AI_VIDEO_ANTHROPIC_API_KEY",
   gemini: "AI_VIDEO_GEMINI_API_KEY",
+  elevenlabs: "AI_VIDEO_ELEVENLABS_API_KEY",
 }
 
 // What the settings UI is allowed to know about a key: that it exists, where it

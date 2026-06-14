@@ -30,6 +30,7 @@ const PROVIDERS: {
   { id: "openai", name: "OpenAI", placeholder: "Your OpenAI API key" },
   { id: "claude", name: "Claude (Anthropic)", placeholder: "Your Anthropic API key" },
   { id: "gemini", name: "Google Gemini", placeholder: "Your Google AI key" },
+  { id: "elevenlabs", name: "ElevenLabs", placeholder: "Your ElevenLabs API key" },
 ]
 
 // `saveRef` lets the Settings page's top "Save" button save this tab — the

@@ -67,7 +67,7 @@ export const aiVideoLlmApiKeys = pgTable(
   (table) => [
     check(
       "llm_provider_valid",
-      sql`${table.provider} IN ('openai', 'claude', 'gemini')`
+      sql`${table.provider} IN ('openai', 'claude', 'gemini', 'elevenlabs')`
     ),
   ]
 )

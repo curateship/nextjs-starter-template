@@ -5,7 +5,7 @@ import type { LlmKeyStatus, LlmProvider } from "@/server/llm-keys"
 
 export type { LlmKeyStatus, LlmProvider }
 
-const providerSchema = z.enum(["openai", "claude", "gemini"])
+const providerSchema = z.enum(["openai", "claude", "gemini", "elevenlabs"])
 
 const getStatusFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<LlmKeyStatus[]> => {
