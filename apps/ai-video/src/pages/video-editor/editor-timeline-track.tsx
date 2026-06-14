@@ -2,7 +2,6 @@ import * as React from "react"
 import {
   CopyIcon,
   GripVerticalIcon,
-  PencilIcon,
   ReplaceIcon,
   Trash2Icon,
   TypeIcon,
@@ -42,7 +41,6 @@ import {
   type ReplacementMedia,
 } from "@/pages/video-editor/replace-media-dialog"
 import { getVideoFilmstrip } from "@/pages/video-editor/video-thumbnails"
-import { EditTextDialog } from "@/pages/video-editor/editor-settings-panel"
 
 // Repeating dark "film frames" with thin separators — the placeholder shown
 // while a video clip's real frame thumbnail loads (or if extraction fails).
@@ -274,8 +272,6 @@ function TimelineClipChip({
   const drag = React.useRef<DragState | null>(null)
   // Template-slot replacement picker (only rendered for replaceable clips).
   const [replaceOpen, setReplaceOpen] = React.useState(false)
-  // Text-clip editor (opened from the right-click "Edit").
-  const [editOpen, setEditOpen] = React.useState(false)
 
   const leftPx = msToPx(clip.startMs, pxPerSecond)
   const widthPx = msToPx(clip.durationMs, pxPerSecond)
@@ -581,12 +577,6 @@ function TimelineClipChip({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        {clip.kind === "text" ? (
-          <ContextMenuItem onSelect={() => setEditOpen(true)}>
-            <PencilIcon />
-            Edit
-          </ContextMenuItem>
-        ) : null}
         <ContextMenuItem
           onSelect={() =>
             dispatch({ type: "DUPLICATE_CLIP", clipId: clip.id })
@@ -611,9 +601,6 @@ function TimelineClipChip({
         onOpenChange={setReplaceOpen}
         onReplace={handleReplace}
       />
-    ) : null}
-    {clip.kind === "text" ? (
-      <EditTextDialog clip={clip} open={editOpen} onOpenChange={setEditOpen} />
     ) : null}
     </>
   )

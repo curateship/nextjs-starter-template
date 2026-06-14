@@ -18,20 +18,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import {
   getMediaErrorMessage,
   listMedia,
@@ -40,6 +34,7 @@ import {
   type MediaListResponse,
 } from "@/lib/api/media"
 import { EditorSettingsDialog } from "@/pages/video-editor/editor-settings-dialog"
+import { ElementsPanel } from "@/pages/video-editor/editor-settings-panel"
 import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
   DEFAULT_IMAGE_DURATION_MS,
@@ -276,39 +271,47 @@ export function EditorMediaPanel() {
 
   return (
     <section className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 md:flex">
-      {/* Header: project name on the left; media-type dropdown + search/upload
-          icons grouped on the right. */}
-      <div className="shrink-0 space-y-2 p-3">
-        <div className="flex items-center gap-1">
+      <Tabs defaultValue="media" className="min-h-0 flex-1 gap-0">
+        {/* Row 1: project name on the left, the Media/Elements switcher right. */}
+        <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
           <span
             className="min-w-0 flex-1 truncate text-sm font-semibold"
             title={projectName}
           >
             {projectName}
           </span>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <Select
-              value={tab}
-              onValueChange={(value) => setTab(value as MediaTab)}
-            >
-              <SelectTrigger aria-label="Media type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MEDIA_TABS.map((key) => {
-                  const { label, icon: Icon } = TAB_CONFIG[key]
-                  return (
-                    <SelectItem key={key} value={key}>
-                      <Icon className="size-4 text-muted-foreground" />
-                      {label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-            <Popover open={searchOpen} onOpenChange={handleSearchOpenChange}>
-              <Tooltip>
-                <TooltipTrigger asChild>
+          <TabsList className="shrink-0">
+            <TabsTrigger value="media">Media</TabsTrigger>
+            <TabsTrigger value="elements">Elements</TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Media tab: the action controls (second row) over the library grid. */}
+        <TabsContent value="media" className="flex min-h-0 flex-col">
+          {/* Row 2: media-type dropdown + search/upload/settings icons. */}
+          <div className="shrink-0 space-y-2 px-3 pb-2">
+            <div className="flex items-center gap-1">
+              {/* Media-type switch: a compact row of icon tabs (video / image
+                  / audio). */}
+              <Tabs
+                value={tab}
+                onValueChange={(value) => setTab(value as MediaTab)}
+              >
+                <TabsList>
+                  {MEDIA_TABS.map((key) => {
+                    const { label, icon: Icon } = TAB_CONFIG[key]
+                    return (
+                      <TabsTrigger key={key} value={key} aria-label={label}>
+                        <Icon />
+                      </TabsTrigger>
+                    )
+                  })}
+                </TabsList>
+              </Tabs>
+              {/* Search / upload / settings — their own group, pinned right and
+                  kept separate from the media-type filter. */}
+              <div className="ml-auto flex items-center gap-1">
+                <Popover open={searchOpen} onOpenChange={handleSearchOpenChange}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
@@ -320,25 +323,20 @@ export function EditorMediaPanel() {
                       <SearchIcon />
                     </Button>
                   </PopoverTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Search media</TooltipContent>
-              </Tooltip>
-              <PopoverContent align="end" className="w-64 p-2">
-                <div className="relative">
-                  <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    autoFocus
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search media..."
-                    className="pl-8"
-                    aria-label="Search media"
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Tooltip>
-              <TooltipTrigger asChild>
+                  <PopoverContent align="end" className="w-64 p-2">
+                    <div className="relative">
+                      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        autoFocus
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Search media..."
+                        className="pl-8"
+                        aria-label="Search media"
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <Button
                   type="button"
                   variant="ghost"
@@ -353,11 +351,6 @@ export function EditorMediaPanel() {
                     <UploadIcon />
                   )}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Upload media</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button
                   type="button"
                   variant="ghost"
@@ -367,74 +360,81 @@ export function EditorMediaPanel() {
                 >
                   <SettingsIcon />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>Settings</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={UPLOAD_ACCEPT}
-          className="hidden"
-          onChange={handleUpload}
-        />
-        {actionError && (
-          <p className="text-xs text-destructive">{actionError}</p>
-        )}
-      </div>
-
-      {/* Scrollable media list. Radix wraps content in an inline-styled
-          display:table div that sizes to the tiles' intrinsic width — force
-          it back to a block pinned to the panel width (! beats the inline
-          style) so the columns stay constrained. */}
-      <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:w-full">
-        <div className="p-3 pt-0">
-        {error ? (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
-            {error}
-          </div>
-        ) : !data ? (
-          <div className="grid grid-cols-2 gap-2">
-            {Array.from({ length: 6 }, (_, index) => (
-              <Skeleton key={index} className="aspect-video" />
-            ))}
-          </div>
-        ) : visibleMedia.length === 0 ? (
-          <MediaPanelEmpty tab={tab} searching={search.trim().length > 0} />
-        ) : tab === "audio" ? (
-          <div className="space-y-1.5">
-            {visibleMedia.map((item) => (
-              <div
-                key={item.id}
-                className="flex cursor-grab touch-none items-center gap-2 rounded-md border bg-background p-2 select-none active:cursor-grabbing"
-                title="Click to add at the playhead, or drag onto the timeline"
-                {...tileHandlers(item)}
-              >
-                <MusicIcon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-xs">
-                  {item.original_name}
-                </span>
-                <PlusIcon className="size-3.5 shrink-0 text-muted-foreground" />
               </div>
-            ))}
+            </div>
+            {actionError && (
+              <p className="text-xs text-destructive">{actionError}</p>
+            )}
           </div>
-        ) : (
-          // CSS columns give each tile its natural height (portrait reels stay
-          // portrait) without same-row gaps a grid would leave.
-          <div className="columns-2 gap-2">
-            {visibleMedia.map((item) => (
-              <MediaThumbnail
-                key={item.id}
-                item={item}
-                handlers={tileHandlers(item)}
-              />
-            ))}
-          </div>
-        )}
-        </div>
-      </ScrollArea>
 
+          {/* Scrollable media list. Radix wraps content in an inline-styled
+              display:table div that sizes to the tiles' intrinsic width — force
+              it back to a block pinned to the panel width (! beats the inline
+              style) so the columns stay constrained. */}
+          <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:w-full">
+            <div className="p-3 pt-0">
+            {error ? (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+                {error}
+              </div>
+            ) : !data ? (
+              <div className="grid grid-cols-2 gap-2">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <Skeleton key={index} className="aspect-video" />
+                ))}
+              </div>
+            ) : visibleMedia.length === 0 ? (
+              <MediaPanelEmpty tab={tab} searching={search.trim().length > 0} />
+            ) : tab === "audio" ? (
+              <div className="space-y-1.5">
+                {visibleMedia.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex cursor-grab touch-none items-center gap-2 rounded-md border bg-background p-2 select-none active:cursor-grabbing"
+                    title="Click to add at the playhead, or drag onto the timeline"
+                    {...tileHandlers(item)}
+                  >
+                    <MusicIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-xs">
+                      {item.original_name}
+                    </span>
+                    <PlusIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // CSS columns give each tile its natural height (portrait reels
+              // stay portrait) without same-row gaps a grid would leave.
+              <div className="columns-2 gap-2">
+                {visibleMedia.map((item) => (
+                  <MediaThumbnail
+                    key={item.id}
+                    item={item}
+                    handlers={tileHandlers(item)}
+                  />
+                ))}
+              </div>
+            )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        {/* Elements tab: the building-block tiles + their Add dialogs. */}
+        <TabsContent
+          value="elements"
+          className="min-h-0 overflow-y-auto p-3 pt-1"
+        >
+          <ElementsPanel />
+        </TabsContent>
+      </Tabs>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={UPLOAD_ACCEPT}
+        className="hidden"
+        onChange={handleUpload}
+      />
       <EditorSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </section>
   )

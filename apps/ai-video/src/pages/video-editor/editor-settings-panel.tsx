@@ -54,53 +54,44 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
+import {
+  findClip,
+  useEditor,
+  type EditorClip,
+} from "@/pages/video-editor/editor-store"
 import {
   DEFAULT_TEXT_DURATION_MS,
   editorId,
   formatTimecode,
 } from "@/pages/video-editor/timeline-utils"
 
-// Right panel: shows the inspector for the selected clip, or the default
-// Elements / AI Generation content when nothing is selected.
+// Right panel: a contextual inspector for the selected clip. Renders nothing
+// when no clip is selected, so the center preview expands to fill the space.
 export function EditorSettingsPanel() {
-  const [textOpen, setTextOpen] = React.useState(false)
-  const [captionsOpen, setCaptionsOpen] = React.useState(false)
-  const [voiceOpen, setVoiceOpen] = React.useState(false)
-  const [scriptOpen, setScriptOpen] = React.useState(false)
+  const { state } = useEditor()
+  const selected = state.selectedClipId
+    ? findClip(state.tracks, state.selectedClipId)
+    : null
+
+  // Nothing selected (incl. first load) → no panel; the preview takes the room.
+  if (!selected) return null
 
   return (
     <section className="hidden w-[330px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 lg:flex">
-      {/* Element tools + AI helpers. Text clips are edited in a modal opened
-          from the clip's right-click "Edit", not an inline inspector here. */}
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        <DefaultPanels
-          onAddText={() => setTextOpen(true)}
-          onAddCaptions={() => setCaptionsOpen(true)}
-          onAddVoice={() => setVoiceOpen(true)}
-          onWriteScript={() => setScriptOpen(true)}
-        />
+        <ClipInspector clip={selected.clip} />
       </div>
-      <TextDialog open={textOpen} onOpenChange={setTextOpen} />
-      <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
-      <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
-      <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
     </section>
   )
 }
 
-// Edits a text clip's content/style in a modal, opened from the clip's
-// right-click "Edit". Changes apply live (transient — no per-keystroke undo
-// snapshot), matching the old inline inspector.
-export function EditTextDialog({
-  clip,
-  open,
-  onOpenChange,
-}: {
-  clip: EditorClip
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
+// The selected clip's controls. Text clips expose the same content/style fields
+// the Add Text dialog uses, with edits applied live (transient — no per-keystroke
+// undo snapshot). Other kinds just show their name + timeline position (their
+// timing is trimmed on the timeline; Duplicate/Delete live on the right-click
+// menu). The fields are fully controlled from the store, so changing selection
+// just re-renders them with the new clip's values.
+function ClipInspector({ clip }: { clip: EditorClip }) {
   const { dispatch } = useEditor()
   function patch(value: Partial<EditorClip>) {
     dispatch({
@@ -112,30 +103,28 @@ export function EditTextDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent variant="admin">
-        <DialogHeader>
-          <DialogTitle>Edit Text</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <div className="space-y-4">
-            <TextClipFields
-              idPrefix="edit"
-              text={clip.text ?? ""}
-              fontSize={clip.fontSize ?? 80}
-              color={clip.color ?? "#ffffff"}
-              highlightColor={clip.highlightColor}
-              onChange={patch}
-            />
-          </div>
-        </DialogBody>
-        <DialogFooter variant="plain">
-          <Button type="button" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="space-y-4">
+      {/* Header: clip name + its span on the timeline. */}
+      <div>
+        <h2 className="truncate text-sm font-semibold" title={clip.name}>
+          {clip.name}
+        </h2>
+        <p className="text-xs tabular-nums text-muted-foreground">
+          {formatTimecode(clip.startMs)} –{" "}
+          {formatTimecode(clip.startMs + clip.durationMs)}
+        </p>
+      </div>
+      {clip.kind === "text" ? (
+        <TextClipFields
+          idPrefix="inspector"
+          text={clip.text ?? ""}
+          fontSize={clip.fontSize ?? 80}
+          color={clip.color ?? "#ffffff"}
+          highlightColor={clip.highlightColor}
+          onChange={patch}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -284,25 +273,20 @@ const ELEMENT_TILES: {
   { label: "Shapes", icon: ShapesIcon },
 ]
 
-// Default (nothing selected): the element tile grid. Each wired tile opens its
-// own dialog; placeholder tiles are disabled.
-function DefaultPanels({
-  onAddText,
-  onAddCaptions,
-  onAddVoice,
-  onWriteScript,
-}: {
-  onAddText: () => void
-  onAddCaptions: () => void
-  onAddVoice: () => void
-  onWriteScript: () => void
-}) {
-  // Maps a tile's action to its handler.
+// The Elements tab (left panel): the building-block tile grid plus the Add /
+// generate dialogs each wired tile opens. Placeholder tiles are disabled.
+export function ElementsPanel() {
+  const [textOpen, setTextOpen] = React.useState(false)
+  const [captionsOpen, setCaptionsOpen] = React.useState(false)
+  const [voiceOpen, setVoiceOpen] = React.useState(false)
+  const [scriptOpen, setScriptOpen] = React.useState(false)
+
+  // Maps a tile's action to its dialog opener.
   const actions = {
-    text: onAddText,
-    captions: onAddCaptions,
-    voice: onAddVoice,
-    script: onWriteScript,
+    text: () => setTextOpen(true),
+    captions: () => setCaptionsOpen(true),
+    voice: () => setVoiceOpen(true),
+    script: () => setScriptOpen(true),
   }
 
   // Captions and AI Script are project-only (they call project-scoped server
@@ -338,6 +322,11 @@ function DefaultPanels({
           </button>
         ))}
       </div>
+
+      <TextDialog open={textOpen} onOpenChange={setTextOpen} />
+      <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
+      <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
+      <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
     </div>
   )
 }

@@ -1,7 +1,6 @@
 import * as React from "react"
 import { PlayIcon } from "lucide-react"
 
-import { EditTextDialog } from "@/pages/video-editor/editor-settings-panel"
 import {
   useEditor,
   type EditorClip,
@@ -132,8 +131,6 @@ export function EditorPreview() {
     moved: boolean
   } | null>(null)
   const [containerBox, setContainerBox] = React.useState({ w: 0, h: 0 })
-  // Text clip opened for editing via double-click (the Edit Text dialog).
-  const [editingClipId, setEditingClipId] = React.useState<string | null>(null)
 
   // Track the available panel space; the stage is sized in JS because CSS
   // aspect-ratio can't fit a box against BOTH max-width and max-height.
@@ -313,6 +310,10 @@ export function EditorPreview() {
   // center is preserved so it tracks the cursor naturally.
   function handleTextDown(e: React.PointerEvent, clip: EditorClip) {
     if (e.button !== 0) return
+    // Select the clip so the right-panel inspector opens for it (same as a
+    // single-click on the timeline); a plain click then just selects, while a
+    // drag past the threshold repositions it.
+    dispatch({ type: "SELECT_CLIP", clipId: clip.id })
     const stage = stageRef.current
     if (!stage) return
     const rect = stage.getBoundingClientRect()
@@ -370,11 +371,6 @@ export function EditorPreview() {
   const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
   const textScale = stageHeight > 0 ? stageHeight / DESIGN_HEIGHT : 0
   const now = clock.getTime()
-  // Look the editing clip up live (not a snapshot) so the dialog reflects edits;
-  // resolves to null if the clip was deleted, which closes the dialog.
-  const editingClip = editingClipId
-    ? (texts.find((entry) => entry.clip.id === editingClipId)?.clip ?? null)
-    : null
 
   return (
     <div ref={containerRef} className="grid h-full w-full place-items-center">
@@ -424,10 +420,10 @@ export function EditorPreview() {
           />
         ))}
 
-        {/* Text overlays — drag to reposition, double-click to edit. Absolutely
-            positioned and shrink-to-fit (wrapping at 90% frame width), anchored
-            at the clip's center (x,y); scaled from the 1080p design space;
-            shown/hidden by the sync loop. */}
+        {/* Text overlays — drag to reposition. Absolutely positioned and
+            shrink-to-fit (wrapping at 90% frame width), anchored at the clip's
+            center (x,y); scaled from the 1080p design space; shown/hidden by
+            the sync loop. */}
         {texts.map(({ clip, zIndex }) => {
           const words = clip.words
           // Active word for karaoke clips, computed once per clip (the sync
@@ -443,8 +439,7 @@ export function EditorPreview() {
             onPointerMove={handleTextMove}
             onPointerUp={handleTextUp}
             onPointerCancel={handleTextUp}
-            onDoubleClick={() => setEditingClipId(clip.id)}
-            title="Drag to move · double-click to edit"
+            title="Click to edit · drag to move"
             className="absolute max-w-[90%] cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
             style={{
               left: `${(clip.x ?? 0.5) * 100}%`,
@@ -490,17 +485,6 @@ export function EditorPreview() {
           </div>
         )}
       </div>
-
-      {/* Edit Text dialog, opened by double-clicking a text overlay. */}
-      {editingClip ? (
-        <EditTextDialog
-          clip={editingClip}
-          open
-          onOpenChange={(next) => {
-            if (!next) setEditingClipId(null)
-          }}
-        />
-      ) : null}
     </div>
   )
 }
