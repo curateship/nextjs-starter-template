@@ -33,6 +33,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   TableCell,
   TableHead,
   TableHeader,
@@ -49,6 +56,11 @@ import {
   renameProject,
   type ProjectItem,
 } from "@/lib/api/video-projects"
+import {
+  createProjectFromTemplate,
+  getTemplateErrorMessage,
+  listTemplates,
+} from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
 import { useSelection } from "@/lib/use-selection"
@@ -88,6 +100,14 @@ export function ProjectsDashboard() {
   const [modalState, setModalState] = React.useState<ProjectModalState>(null)
   const [submitting, setSubmitting] = React.useState(false)
   const [name, setName] = React.useState("")
+  // Optional template the new project starts from (null = blank). Templates are
+  // lazy-loaded the first time the create modal opens; null = not loaded yet.
+  const [templates, setTemplates] = React.useState<
+    { id: string; name: string }[] | null
+  >(null)
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<
+    string | null
+  >(null)
 
   // One-time load; `loading` starts true so no state resets are needed here.
   React.useEffect(() => {
@@ -168,9 +188,19 @@ export function ProjectsDashboard() {
   function openCreateModal() {
     setModalState({ type: "create" })
     setName("")
+    setSelectedTemplateId(null)
     setModalError(null)
     setError(null)
     setNotice(null)
+    // Lazy-load the user's templates for the picker on first open. On failure
+    // it stays null so the next open retries; the picker just won't show.
+    if (templates === null) {
+      listTemplates()
+        .then((data) =>
+          setTemplates(data.templates.map((t) => ({ id: t.id, name: t.name })))
+        )
+        .catch(() => undefined)
+    }
   }
 
   function openRenameModal(project: ProjectItem) {
@@ -187,18 +217,25 @@ export function ProjectsDashboard() {
     setModalError(null)
   }
 
-  // Create then jump straight into the editor for the new project.
+  // Create then jump straight into the editor for the new project. A selected
+  // template copies its timeline into the project; otherwise it starts blank.
   async function handleCreateProject() {
     setSubmitting(true)
     setModalError(null)
     try {
-      const created = await createProject(name)
+      const projectId = selectedTemplateId
+        ? (await createProjectFromTemplate(selectedTemplateId, name)).projectId
+        : (await createProject(name)).id
       void navigate({
         to: "/admin/video-editor/$projectId",
-        params: { projectId: created.id },
+        params: { projectId },
       })
     } catch (createError) {
-      setModalError(getProjectErrorMessage(createError))
+      setModalError(
+        selectedTemplateId
+          ? getTemplateErrorMessage(createError)
+          : getProjectErrorMessage(createError)
+      )
       setSubmitting(false)
     }
   }
@@ -468,6 +505,35 @@ export function ProjectsDashboard() {
                   }}
                 />
               </div>
+
+              {/* Template picker (create only). Hidden until templates load and
+                  only when the user has at least one; "Blank project" is the
+                  default. Selecting one copies its timeline into the project. */}
+              {modalState?.type === "create" &&
+              templates &&
+              templates.length > 0 ? (
+                <div className="grid gap-2">
+                  <Label htmlFor="project-template">Template</Label>
+                  <Select
+                    value={selectedTemplateId ?? "blank"}
+                    onValueChange={(value) =>
+                      setSelectedTemplateId(value === "blank" ? null : value)
+                    }
+                  >
+                    <SelectTrigger id="project-template">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="blank">Blank project</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
           </DialogBody>
           <DialogFooter variant="plain">
