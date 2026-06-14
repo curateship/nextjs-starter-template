@@ -32,6 +32,22 @@ const clipSchema = z.object({
   text: z.string().max(5000).optional(),
   fontSize: z.number().finite().optional(),
   color: z.string().max(32).optional(),
+  // Background color behind a text overlay (highlight box); omitted = none.
+  highlightColor: z.string().max(32).optional(),
+  // Per-word timings for voice-synced captions (clip-relative ms).
+  words: z
+    .array(
+      z.object({
+        text: z.string().max(100),
+        startMs: z.number().nonnegative().finite(),
+        endMs: z.number().nonnegative().finite(),
+      })
+    )
+    .max(50)
+    .optional(),
+  // Normalized 0–1 center position of a text overlay (drag-to-position).
+  x: z.number().min(0).max(1).optional(),
+  y: z.number().min(0).max(1).optional(),
   // Template slot flags (see EditorClip).
   replaceable: z.boolean().optional(),
   segmentLabel: z.string().max(100).optional(),

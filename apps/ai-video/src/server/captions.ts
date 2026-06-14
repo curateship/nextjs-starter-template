@@ -16,11 +16,17 @@ import {
   waitForFileActive,
 } from "@/server/video-analysis"
 import type { ProjectTimeline } from "@/server/video-projects"
-import type { EditorClip } from "@/pages/video-editor/editor-store"
+import type { ClipWord, EditorClip } from "@/pages/video-editor/editor-store"
 
 // One caption line, already mapped to TIMELINE time (the client just turns
-// these into text clips).
-export type CaptionLine = { startMs: number; endMs: number; text: string }
+// these into text clips). `words` (OpenAI/Whisper only) carries clip-relative
+// per-word timings for voice-synced ("karaoke") captions.
+export type CaptionLine = {
+  startMs: number
+  endMs: number
+  text: string
+  words?: ClipWord[]
+}
 
 export type ProjectCaptionsResult = { captions: CaptionLine[] }
 
@@ -193,8 +199,9 @@ function chunkWords(
 
   const flush = () => {
     if (chunk.length === 0) return
+    const chunkStart = chunk[0].start
     lines.push({
-      startMs: Math.round(chunk[0].start * 1000),
+      startMs: Math.round(chunkStart * 1000),
       endMs: Math.round(chunk[chunk.length - 1].end * 1000),
       // Join words, then tuck punctuation back against the previous word.
       text: chunk
@@ -202,6 +209,12 @@ function chunkWords(
         .join(" ")
         .replace(/\s+([,.!?;:])/g, "$1")
         .trim(),
+      // Clip-relative word timings (offsets from the chunk start) for karaoke.
+      words: chunk.map((w) => ({
+        text: w.word.trim(),
+        startMs: Math.round((w.start - chunkStart) * 1000),
+        endMs: Math.round((w.end - chunkStart) * 1000),
+      })),
     })
     chunk = []
   }
@@ -260,7 +273,7 @@ function mapToTimeline(
         startMs = Math.min(startMs, sourceDurationMs)
         endMs = Math.min(endMs, sourceDurationMs)
       }
-      return { startMs, endMs, text: line.text.trim() }
+      return { startMs, endMs, text: line.text.trim(), words: line.words }
     })
     .filter(
       (line) =>
@@ -270,6 +283,9 @@ function mapToTimeline(
       startMs: Math.max(line.startMs, windowStart) + offset,
       endMs: Math.min(line.endMs, windowEnd) + offset,
       text: line.text,
+      // Word offsets are relative to the line start, so they ride along
+      // unchanged when the line is shifted into timeline time.
+      words: line.words,
     }))
     .filter((line) => line.endMs > line.startMs)
     .sort((a, b) => a.startMs - b.startMs)

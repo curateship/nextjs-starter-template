@@ -1,6 +1,7 @@
 import * as React from "react"
 import { PlayIcon } from "lucide-react"
 
+import { EditTextDialog } from "@/pages/video-editor/editor-settings-panel"
 import {
   useEditor,
   type EditorClip,
@@ -53,6 +54,25 @@ function isActive(clip: EditorClip, timeMs: number) {
   return timeMs >= clip.startMs && timeMs < clip.startMs + clip.durationMs
 }
 
+// Clamp a normalized coordinate to the [0,1] frame bounds.
+function clamp01(value: number) {
+  return Math.min(1, Math.max(0, value))
+}
+
+// Inactive karaoke words are dimmed to this opacity; the active word is full.
+const KARAOKE_DIM = 0.5
+
+// Index of the word the playhead has reached (last word whose start <= time),
+// so one word stays lit through inter-word gaps. relativeMs is clip-relative.
+function activeWordIndex(words: { startMs: number }[], relativeMs: number) {
+  let active = 0
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].startMs <= relativeMs) active = i
+    else break
+  }
+  return active
+}
+
 // Topmost active video clip per source URL at the given time. Clips of the same
 // source share one <video>, so this picks which clip each shared element shows.
 function activeVideoBySource(media: MediaEntry[], timeMs: number) {
@@ -91,14 +111,29 @@ function nextInPointForSource(
 // element per clip. The element tree only re-renders on edits; a single
 // clock-subscribed loop drives all per-frame work imperatively.
 export function EditorPreview() {
-  const { state, clock } = useEditor()
+  const { state, clock, dispatch } = useEditor()
 
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const stageRef = React.useRef<HTMLDivElement>(null)
   const videoRefs = React.useRef(new Map<string, HTMLVideoElement>())
   const audioRefs = React.useRef(new Map<string, HTMLAudioElement>())
   const imageRefs = React.useRef(new Map<string, HTMLImageElement>())
   const textRefs = React.useRef(new Map<string, HTMLDivElement>())
+  // Per-word spans for karaoke captions, keyed `${clipId}:${index}`.
+  const wordRefs = React.useRef(new Map<string, HTMLSpanElement>())
+  // Active text-overlay drag (preview positioning). Position is updated
+  // imperatively during the drag, then committed to the store on release.
+  const textDragRef = React.useRef<{
+    clipId: string
+    offsetX: number
+    offsetY: number
+    startX: number
+    startY: number
+    moved: boolean
+  } | null>(null)
   const [containerBox, setContainerBox] = React.useState({ w: 0, h: 0 })
+  // Text clip opened for editing via double-click (the Edit Text dialog).
+  const [editingClipId, setEditingClipId] = React.useState<string | null>(null)
 
   // Track the available panel space; the stage is sized in JS because CSS
   // aspect-ratio can't fit a box against BOTH max-width and max-height.
@@ -256,6 +291,16 @@ export function EditorPreview() {
       for (const { clip } of texts) {
         const el = textRefs.current.get(clip.id)
         if (el) el.style.visibility = isActive(clip, timeMs) ? "visible" : "hidden"
+        // Karaoke: light the word the audio has reached, dim the rest.
+        if (clip.words?.length) {
+          const active = activeWordIndex(clip.words, timeMs - clip.startMs)
+          for (let i = 0; i < clip.words.length; i++) {
+            const wordEl = wordRefs.current.get(`${clip.id}:${i}`)
+            if (wordEl) {
+              wordEl.style.opacity = i === active ? "1" : String(KARAOKE_DIM)
+            }
+          }
+        }
       }
     }
 
@@ -263,13 +308,78 @@ export function EditorPreview() {
     return clock.subscribe(syncFrame)
   }, [clock, media, videoSources, audioClips, images, texts])
 
+  // --- Drag a text overlay to reposition it on the frame -------------------
+  // Grab anywhere on the text; the offset between the pointer and the text's
+  // center is preserved so it tracks the cursor naturally.
+  function handleTextDown(e: React.PointerEvent, clip: EditorClip) {
+    if (e.button !== 0) return
+    const stage = stageRef.current
+    if (!stage) return
+    const rect = stage.getBoundingClientRect()
+    const centerX = (clip.x ?? 0.5) * rect.width
+    const centerY = (clip.y ?? 0.5) * rect.height
+    textDragRef.current = {
+      clipId: clip.id,
+      offsetX: centerX - (e.clientX - rect.left),
+      offsetY: centerY - (e.clientY - rect.top),
+      startX: e.clientX,
+      startY: e.clientY,
+      moved: false,
+    }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function handleTextMove(e: React.PointerEvent) {
+    const drag = textDragRef.current
+    const stage = stageRef.current
+    if (!drag || !stage) return
+    // Small threshold so a click (to double-click) doesn't register as a move.
+    if (
+      !drag.moved &&
+      Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 4
+    ) {
+      return
+    }
+    drag.moved = true
+    const rect = stage.getBoundingClientRect()
+    const nx = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
+    const ny = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
+    const el = textRefs.current.get(drag.clipId)
+    if (el) {
+      // Imperative during the drag — avoids re-rendering the whole preview
+      // (and reloading <video> elements) on every pointer move.
+      el.style.left = `${nx * 100}%`
+      el.style.top = `${ny * 100}%`
+    }
+  }
+
+  function handleTextUp(e: React.PointerEvent) {
+    const drag = textDragRef.current
+    textDragRef.current = null
+    const stage = stageRef.current
+    if (!drag) return
+    ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
+    if (!drag.moved || !stage) return
+    // Commit the final position once, as a single undo step.
+    const rect = stage.getBoundingClientRect()
+    const nx = clamp01((e.clientX - rect.left + drag.offsetX) / rect.width)
+    const ny = clamp01((e.clientY - rect.top + drag.offsetY) / rect.height)
+    dispatch({ type: "UPDATE_CLIP", clipId: drag.clipId, patch: { x: nx, y: ny } })
+  }
+
   const hasClips = media.length > 0 || images.length > 0 || texts.length > 0
   const textScale = stageHeight > 0 ? stageHeight / DESIGN_HEIGHT : 0
   const now = clock.getTime()
+  // Look the editing clip up live (not a snapshot) so the dialog reflects edits;
+  // resolves to null if the clip was deleted, which closes the dialog.
+  const editingClip = editingClipId
+    ? (texts.find((entry) => entry.clip.id === editingClipId)?.clip ?? null)
+    : null
 
   return (
     <div ref={containerRef} className="grid h-full w-full place-items-center">
       <div
+        ref={stageRef}
         className="relative overflow-hidden rounded-md bg-black"
         style={{ width: stageWidth, height: stageHeight }}
       >
@@ -314,31 +424,64 @@ export function EditorPreview() {
           />
         ))}
 
-        {/* Text overlays, scaled from the 1080p design space; shown/hidden by
-            the sync loop rather than mounted per frame. */}
-        {texts.map(({ clip, zIndex }) => (
+        {/* Text overlays — drag to reposition, double-click to edit. Absolutely
+            positioned and shrink-to-fit (wrapping at 90% frame width), anchored
+            at the clip's center (x,y); scaled from the 1080p design space;
+            shown/hidden by the sync loop. */}
+        {texts.map(({ clip, zIndex }) => {
+          const words = clip.words
+          // Active word for karaoke clips, computed once per clip (the sync
+          // loop also updates these opacities imperatively during playback).
+          const active = words?.length
+            ? activeWordIndex(words, now - clip.startMs)
+            : -1
+          return (
           <div
             key={clip.id}
             ref={registerRef(textRefs, clip.id)}
-            className="pointer-events-none absolute inset-0 grid place-items-center p-[5%]"
+            onPointerDown={(e) => handleTextDown(e, clip)}
+            onPointerMove={handleTextMove}
+            onPointerUp={handleTextUp}
+            onPointerCancel={handleTextUp}
+            onDoubleClick={() => setEditingClipId(clip.id)}
+            title="Drag to move · double-click to edit"
+            className="absolute max-w-[90%] cursor-move touch-none text-center font-semibold whitespace-pre-wrap outline-1 outline-dashed outline-transparent select-none hover:outline-white/70"
             style={{
+              left: `${(clip.x ?? 0.5) * 100}%`,
+              top: `${(clip.y ?? 0.5) * 100}%`,
+              transform: "translate(-50%, -50%)",
+              color: clip.color ?? "#ffffff",
+              fontSize: (clip.fontSize ?? 80) * textScale,
+              lineHeight: 1.15,
+              // Highlight box behind the text (when set); drop the shadow then
+              // so boxed text stays clean, like a caption sticker.
+              backgroundColor: clip.highlightColor,
+              padding: clip.highlightColor ? "0.2em 0.45em" : undefined,
+              borderRadius: clip.highlightColor ? "0.14em" : undefined,
+              textShadow: clip.highlightColor
+                ? undefined
+                : "0 2px 12px rgba(0,0,0,0.45)",
               zIndex,
               visibility: isActive(clip, now) ? "visible" : "hidden",
             }}
           >
-            <span
-              className="text-center font-semibold whitespace-pre-wrap"
-              style={{
-                color: clip.color ?? "#ffffff",
-                fontSize: (clip.fontSize ?? 80) * textScale,
-                lineHeight: 1.15,
-                textShadow: "0 2px 12px rgba(0,0,0,0.45)",
-              }}
-            >
-              {clip.text}
-            </span>
+            {words?.length
+              ? words.map((word, i) => (
+                  // Karaoke: each word is a span the sync loop dims/lights;
+                  // initial opacity matches the (paused) playhead.
+                  <span
+                    key={i}
+                    ref={registerRef(wordRefs, `${clip.id}:${i}`)}
+                    style={{ opacity: i === active ? 1 : KARAOKE_DIM }}
+                  >
+                    {word.text}
+                    {i < words.length - 1 ? " " : ""}
+                  </span>
+                ))
+              : clip.text}
           </div>
-        ))}
+          )
+        })}
 
         {/* Empty-project hint */}
         {!hasClips && (
@@ -347,6 +490,17 @@ export function EditorPreview() {
           </div>
         )}
       </div>
+
+      {/* Edit Text dialog, opened by double-clicking a text overlay. */}
+      {editingClip ? (
+        <EditTextDialog
+          clip={editingClip}
+          open
+          onOpenChange={(next) => {
+            if (!next) setEditingClipId(null)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

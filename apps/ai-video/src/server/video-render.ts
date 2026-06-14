@@ -15,6 +15,7 @@ import { now, requireUser } from "@/server/security"
 import type { ProjectTimeline } from "@/server/video-projects"
 import type {
   AspectRatio,
+  ClipWord,
   EditorClip,
   EditorTrack,
 } from "@/pages/video-editor/editor-store"
@@ -57,6 +58,8 @@ const OUTPUT_FPS = 30
 // Text clips are authored against this height in the editor preview; export
 // scales their font size by outputHeight / DESIGN_HEIGHT to match.
 const DESIGN_HEIGHT = 1080
+// Inactive karaoke words render at this opacity; the active word is full.
+const KARAOKE_DIM = 0.5
 // Hard caps so a runaway timeline can't pin the server.
 const MAX_TIMELINE_MS = 10 * 60_000
 const RENDER_TIMEOUT_MS = 10 * 60_000
@@ -320,6 +323,31 @@ async function buildFfmpegCommand(options: {
     const durS = clip.durationMs / 1000
 
     if (clip.kind === "text") {
+      const words = clip.words
+      if (words?.length) {
+        // Karaoke: the highlight moves word-by-word, so render one frame per
+        // active word and overlay each for that word's sub-window.
+        for (let i = 0; i < words.length; i++) {
+          const fromMs = i === 0 ? 0 : words[i].startMs
+          const toMs =
+            i === words.length - 1 ? clip.durationMs : words[i + 1].startMs
+          const segStartS = (clip.startMs + fromMs) / 1000
+          const segEndS = (clip.startMs + toMs) / 1000
+          if (segEndS <= segStartS) continue
+          const png = await renderTextPng(clip, size, i)
+          const file = path.join(dir, `text-${visualStep}.png`)
+          await writeFile(file, png)
+          inputs.push("-loop", "1", "-t", String(segEndS - segStartS), "-i", file)
+          filters.push(
+            `[${inputIndex}:v]format=rgba,setpts=PTS-STARTPTS+${segStartS}/TB[l${visualStep}]`,
+            `[v${visualStep}][l${visualStep}]overlay=x=0:y=0:enable='between(t,${segStartS.toFixed(3)},${segEndS.toFixed(3)})'[v${visualStep + 1}]`
+          )
+          inputIndex += 1
+          visualStep += 1
+        }
+        // Frames + increments handled above; skip the single-overlay path.
+        continue
+      }
       // Pre-rendered full-frame transparent PNG; loops for the clip window.
       const png = await renderTextPng(clip, size)
       const file = path.join(dir, `text-${visualStep}.png`)
@@ -457,12 +485,44 @@ function wrapTextLines(text: string, fontSize: number, maxWidth: number) {
   return lines
 }
 
+// A laid-out word: text, global index (so the renderer can light the active
+// one), and estimated width.
+type WordSeg = { text: string; index: number; width: number }
+
+// Wraps karaoke words into lines, each word keeping its global index so the
+// renderer can light the active one. Widths use the same glyph-advance
+// estimate as wrapTextLines.
+function layoutWords(
+  words: ClipWord[],
+  charWidth: number,
+  maxWidth: number
+): WordSeg[][] {
+  const lines: WordSeg[][] = []
+  let line: WordSeg[] = []
+  let lineWidth = 0
+  words.forEach((word, index) => {
+    const wordWidth = word.text.length * charWidth
+    const addWidth = line.length ? charWidth + wordWidth : wordWidth // + space
+    if (line.length && lineWidth + addWidth > maxWidth) {
+      lines.push(line)
+      line = [{ text: word.text, index, width: wordWidth }]
+      lineWidth = wordWidth
+    } else {
+      line.push({ text: word.text, index, width: wordWidth })
+      lineWidth += addWidth
+    }
+  })
+  if (line.length) lines.push(line)
+  return lines.length ? lines : [[]]
+}
+
 // Rasterizes one text clip as a full-frame transparent PNG matching the
 // preview: centered both axes, 1.15 line height, soft drop shadow, font size
 // scaled from the 1080p design space.
 async function renderTextPng(
   clip: EditorClip,
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  activeWordIndex?: number
 ) {
   if (!existsSync(FONT_PATH)) {
     throw new Error("Render font is missing on the server")
@@ -472,27 +532,80 @@ async function renderTextPng(
   const fontSize = (clip.fontSize ?? 80) * scale
   const color = HEX_COLOR.test(clip.color ?? "") ? clip.color! : "#ffffff"
   const lineHeight = fontSize * 1.15
-  const lines = wrapTextLines(clip.text ?? "", fontSize, size.width * 0.9)
+  const maxWidth = size.width * 0.9
+  const charWidth = fontSize * 0.55 // estimated glyph advance (matches wrapping)
 
-  // Vertically center the line block; +0.36em nudges each baseline so the
-  // glyphs (not the em box) sit centered, like CSS centering does.
-  const blockHeight = lines.length * lineHeight
+  // Block center from the clip's normalized position (default 0.5/0.5 =
+  // centered) — matches the draggable position set in the editor preview.
+  const centerX = (clip.x ?? 0.5) * size.width
+  const centerY = (clip.y ?? 0.5) * size.height
+
+  // Karaoke clips keep per-word segments (so each word can carry its own
+  // opacity); plain text wraps into whole-line segments.
+  const karaoke = clip.words?.length ? clip.words : null
+  const lineSegments: WordSeg[][] =
+    karaoke
+      ? layoutWords(karaoke, charWidth, maxWidth)
+      : wrapTextLines(clip.text ?? "", fontSize, maxWidth).map((line) => [
+          { text: line, index: -1, width: line.length * charWidth },
+        ])
+
+  // Center the block on centerY; +0.36em nudges each baseline so glyphs (not
+  // the em box) sit centered, like CSS centering does.
+  const blockHeight = lineSegments.length * lineHeight
   const firstBaseline =
-    size.height / 2 - blockHeight / 2 + lineHeight / 2 + fontSize * 0.36
-  const spans = lines
-    .map(
-      (line, index) =>
-        `<tspan x="${size.width / 2}" y="${firstBaseline + index * lineHeight}">${escapeXml(line) || " "}</tspan>`
-    )
-    .join("")
+    centerY - blockHeight / 2 + lineHeight / 2 + fontSize * 0.36
+
+  let maxLineWidth = 0
+  const spans: string[] = []
+  lineSegments.forEach((segs, li) => {
+    const baseline = firstBaseline + li * lineHeight
+    const lineWidth =
+      segs.reduce((sum, seg) => sum + seg.width, 0) +
+      (karaoke ? Math.max(0, segs.length - 1) * charWidth : 0)
+    maxLineWidth = Math.max(maxLineWidth, lineWidth)
+    if (karaoke) {
+      // Each word positioned individually so the active one can be full-opacity
+      // and the rest dimmed.
+      let x = centerX - lineWidth / 2
+      for (const seg of segs) {
+        const opacity = seg.index === activeWordIndex ? 1 : KARAOKE_DIM
+        spans.push(
+          `<tspan x="${x.toFixed(1)}" y="${baseline.toFixed(1)}" fill-opacity="${opacity}">${escapeXml(seg.text) || " "}</tspan>`
+        )
+        x += seg.width + charWidth
+      }
+    } else {
+      spans.push(
+        `<tspan x="${centerX.toFixed(1)}" y="${baseline.toFixed(1)}">${escapeXml(segs[0]?.text ?? "") || " "}</tspan>`
+      )
+    }
+  })
+
+  // Highlight box behind the text (when set & valid), matching the preview's
+  // padded, rounded background. Width uses the estimated glyph widths.
+  const highlight =
+    clip.highlightColor && HEX_COLOR.test(clip.highlightColor)
+      ? clip.highlightColor
+      : null
+  let highlightRect = ""
+  if (highlight) {
+    const boxWidth = maxLineWidth + fontSize * 0.9 // 0.45em padding each side
+    const boxHeight = blockHeight + fontSize * 0.4 // 0.2em padding top/bottom
+    highlightRect = `<rect x="${(centerX - boxWidth / 2).toFixed(1)}" y="${(centerY - boxHeight / 2).toFixed(1)}" width="${boxWidth.toFixed(1)}" height="${boxHeight.toFixed(1)}" rx="${(fontSize * 0.14).toFixed(1)}" fill="${highlight}"/>`
+  }
 
   // CSS shadow is 0 2px 12px rgba(0,0,0,0.45); feDropShadow's stdDeviation is
-  // roughly half a CSS blur radius.
+  // roughly half a CSS blur radius. Boxed text drops the shadow (like the
+  // preview) so it reads cleanly on the highlight.
+  const textFilter = highlight ? "" : ` filter="url(#shadow)"`
+  const textAnchor = karaoke ? "start" : "middle"
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size.width}" height="${size.height}">
   <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
     <feDropShadow dx="0" dy="${2 * scale}" stdDeviation="${6 * scale}" flood-color="#000000" flood-opacity="0.45"/>
   </filter>
-  <text filter="url(#shadow)" text-anchor="middle" font-family="Inter" font-weight="600" font-size="${fontSize}" fill="${color}">${spans}</text>
+  ${highlightRect}
+  <text${textFilter} text-anchor="${textAnchor}" font-family="Inter" font-weight="600" font-size="${fontSize}" fill="${color}">${spans.join("")}</text>
 </svg>`
 
   const { Resvg } = loadResvg()

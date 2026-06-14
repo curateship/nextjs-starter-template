@@ -44,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
@@ -112,6 +113,7 @@ export function EditTextDialog({
               text={clip.text ?? ""}
               fontSize={clip.fontSize ?? 80}
               color={clip.color ?? "#ffffff"}
+              highlightColor={clip.highlightColor}
               onChange={patch}
             />
           </div>
@@ -126,6 +128,14 @@ export function EditTextDialog({
   )
 }
 
+// Partial style patch emitted by the style controls; TextClipFields also emits
+// `text` from the Content field.
+type TextStylePatch = {
+  fontSize?: number
+  color?: string
+  highlightColor?: string
+}
+
 // The content/size/color fields for a text clip, shared by the "Add Text"
 // dialog and the selected-clip inspector. `idPrefix` keeps label ids unique
 // across the two mount points.
@@ -134,13 +144,15 @@ function TextClipFields({
   text,
   fontSize,
   color,
+  highlightColor,
   onChange,
 }: {
   idPrefix: string
   text: string
   fontSize: number
   color: string
-  onChange: (patch: { text?: string; fontSize?: number; color?: string }) => void
+  highlightColor?: string
+  onChange: (patch: TextStylePatch & { text?: string }) => void
 }) {
   return (
     <>
@@ -148,16 +160,47 @@ function TextClipFields({
         <Label htmlFor={`${idPrefix}-text`}>Content</Label>
         <Textarea
           id={`${idPrefix}-text`}
-          rows={3}
+          rows={1}
+          // The base Textarea has min-h-24 (~3 rows); drop the floor so rows=1
+          // actually opens at one row. Still draggable/grows as needed.
+          className="min-h-0"
           value={text}
           onChange={(event) => onChange({ text: event.target.value })}
         />
       </div>
+      <TextStyleFields
+        idPrefix={idPrefix}
+        fontSize={fontSize}
+        color={color}
+        highlightColor={highlightColor}
+        onChange={onChange}
+      />
+    </>
+  )
+}
+
+// Font size + text color + optional highlight box. Shared by the Edit/Add Text
+// dialogs and the caption generator so caption styling can be tuned up front.
+function TextStyleFields({
+  idPrefix,
+  fontSize,
+  color,
+  highlightColor,
+  onChange,
+}: {
+  idPrefix: string
+  fontSize: number
+  color: string
+  highlightColor?: string
+  onChange: (patch: TextStylePatch) => void
+}) {
+  return (
+    <>
       <div className="space-y-1.5">
         <Label>Font size</Label>
         <Slider
           value={[fontSize]}
-          min={24}
+          min={8}
           max={240}
           step={2}
           onValueChange={(value) => onChange({ fontSize: value[0] })}
@@ -165,19 +208,53 @@ function TextClipFields({
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-color`}>Color</Label>
+        <Label htmlFor={`${idPrefix}-color`}>Text Color</Label>
         <ColorPicker
           id={`${idPrefix}-color`}
           value={color}
           onChange={(value) => onChange({ color: value })}
         />
       </div>
+      <div className="space-y-1.5">
+        {/* Optional highlight box behind the text. The toggle adds/removes the
+            background; the picker sets its color (defaults to white). */}
+        <div className="flex items-center justify-between">
+          <Label htmlFor={`${idPrefix}-highlight-toggle`}>Highlight</Label>
+          <Switch
+            id={`${idPrefix}-highlight-toggle`}
+            checked={!!highlightColor}
+            onCheckedChange={(on) =>
+              onChange({ highlightColor: on ? highlightColor || "#ffffff" : undefined })
+            }
+            aria-label="Toggle highlight background"
+          />
+        </div>
+        {highlightColor ? (
+          <ColorPicker
+            id={`${idPrefix}-highlight`}
+            value={highlightColor}
+            onChange={(value) => onChange({ highlightColor: value })}
+            aria-label="Highlight color"
+          />
+        ) : null}
+      </div>
     </>
   )
 }
 
 // Starting values for a brand-new text clip.
-const DEFAULT_TEXT_DRAFT = { text: "Your text here", fontSize: 80, color: "#ffffff" }
+const DEFAULT_TEXT_DRAFT: {
+  text: string
+  fontSize: number
+  color: string
+  highlightColor?: string
+} = {
+  // Matches the default "Boxed" caption look: dark text on a white box.
+  text: "Your text here",
+  fontSize: 20,
+  color: "#000000",
+  highlightColor: "#ffffff",
+}
 
 // Building blocks the editor supports. Tiles with an `action` are wired up;
 // the rest are placeholders for future element kinds.
@@ -279,6 +356,9 @@ function TextDialog({
         text: draft.text.trim() || "Your text here",
         fontSize: draft.fontSize,
         color: draft.color,
+        highlightColor: draft.highlightColor,
+        // Lower-third by default, like captions (draggable afterwards).
+        y: 0.78,
         trimStartMs: 0,
         startMs: 0, // the reducer resolves the actual placement
         durationMs: DEFAULT_TEXT_DURATION_MS,
@@ -301,6 +381,7 @@ function TextDialog({
               text={draft.text}
               fontSize={draft.fontSize}
               color={draft.color}
+              highlightColor={draft.highlightColor}
               onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
             />
           </div>
@@ -323,13 +404,30 @@ function TextDialog({
   )
 }
 
-// Caption style presets: plain fontSize/color combos applied at insert time —
-// caption lines are ordinary text clips afterwards.
-const CAPTION_STYLES = [
-  { id: "standard", label: "Standard", fontSize: 64, color: "#ffffff" },
-  { id: "bold", label: "Big Bold", fontSize: 96, color: "#ffffff" },
-  { id: "yellow", label: "Yellow Pop", fontSize: 72, color: "#facc15" },
-  { id: "subtle", label: "Subtle", fontSize: 48, color: "#e5e7eb" },
+// Caption style presets applied at insert time — caption lines are ordinary
+// text clips afterwards. `y` places them in the lower third (reel convention);
+// `highlightColor` adds the background box. The default ("Boxed") matches the
+// burnt-in reel look: dark text on a white box, with karaoke dimming upcoming
+// words to gray on the box.
+const CAPTION_STYLES: {
+  id: string
+  label: string
+  fontSize: number
+  color: string
+  highlightColor?: string
+  y: number
+}[] = [
+  {
+    id: "boxed",
+    label: "Boxed",
+    fontSize: 20,
+    color: "#000000",
+    highlightColor: "#ffffff",
+    y: 0.78,
+  },
+  { id: "white", label: "White", fontSize: 64, color: "#ffffff", y: 0.78 },
+  { id: "bold", label: "Big Bold", fontSize: 96, color: "#ffffff", y: 0.78 },
+  { id: "yellow", label: "Yellow Pop", fontSize: 72, color: "#facc15", y: 0.78 },
 ]
 
 // Transcribes the project's audio with Gemini and inserts the result as a new
@@ -344,7 +442,25 @@ function CaptionsDialog({
   // Captions are project-only, so this dialog only mounts in project mode.
   const { dispatch, documentId: projectId, flushSave } = useEditor()
   const [styleId, setStyleId] = React.useState(CAPTION_STYLES[0].id)
-  const [provider, setProvider] = React.useState<CaptionProvider>("gemini")
+  // Editable style, seeded from the preset. The preset dropdown refills these;
+  // the controls below let the user tweak before generating.
+  const [fontSize, setFontSize] = React.useState(CAPTION_STYLES[0].fontSize)
+  const [color, setColor] = React.useState(CAPTION_STYLES[0].color)
+  const [highlightColor, setHighlightColor] = React.useState<
+    string | undefined
+  >(CAPTION_STYLES[0].highlightColor)
+  // Default to OpenAI: it returns per-word timestamps, which the karaoke
+  // (two-color, word-by-word) captions need. Gemini is line-level only.
+  const [provider, setProvider] = React.useState<CaptionProvider>("openai")
+
+  // Picking a preset refills the editable style controls.
+  function applyPreset(id: string) {
+    const preset = CAPTION_STYLES.find((s) => s.id === id) ?? CAPTION_STYLES[0]
+    setStyleId(id)
+    setFontSize(preset.fontSize)
+    setColor(preset.color)
+    setHighlightColor(preset.highlightColor)
+  }
   const [generating, setGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -369,8 +485,13 @@ function CaptionsDialog({
           kind: "text" as const,
           name: "Caption",
           text: line.text,
-          fontSize: style.fontSize,
-          color: style.color,
+          // Per-word timings (OpenAI captions) enable the karaoke highlight.
+          words: line.words,
+          // Editable style from the controls below; position stays per-preset.
+          fontSize,
+          color,
+          highlightColor,
+          y: style.y,
           trimStartMs: 0,
           startMs: line.startMs,
           durationMs: line.endMs - line.startMs,
@@ -414,7 +535,7 @@ function CaptionsDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="caption-style">Style</Label>
-              <Select value={styleId} onValueChange={setStyleId}>
+              <Select value={styleId} onValueChange={applyPreset}>
                 <SelectTrigger id="caption-style" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -427,6 +548,21 @@ function CaptionsDialog({
                 </SelectContent>
               </Select>
             </div>
+            {/* Adjustable styling — seeded by the preset, tweakable before
+                generating. */}
+            <TextStyleFields
+              idPrefix="caption"
+              fontSize={fontSize}
+              color={color}
+              highlightColor={highlightColor}
+              onChange={(patch) => {
+                if (patch.fontSize !== undefined) setFontSize(patch.fontSize)
+                if (patch.color !== undefined) setColor(patch.color)
+                if ("highlightColor" in patch) {
+                  setHighlightColor(patch.highlightColor)
+                }
+              }}
+            />
             {error ? (
               <p role="alert" className="text-sm text-destructive">
                 {error}

@@ -509,9 +509,13 @@ function TimelineClipChip({
 
       {/* Label */}
       {clip.kind === "video" || clip.kind === "image" ? (
-        <span className="pointer-events-none absolute bottom-1 left-2 max-w-full truncate text-[11px] text-white/85 drop-shadow">
-          {clip.name}
-        </span>
+        // Template slots get the role badge below; their name is the same role,
+        // so skip this generic label to avoid a duplicate ("Solution" twice).
+        clip.segmentLabel ? null : (
+          <span className="pointer-events-none absolute bottom-1 left-2 max-w-full truncate text-[11px] text-white/85 drop-shadow">
+            {clip.name}
+          </span>
+        )
       ) : (
         <div className="pointer-events-none flex h-full items-center gap-1.5 px-2.5">
           {clip.kind === "text" ? (

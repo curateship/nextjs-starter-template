@@ -9,6 +9,11 @@ import {
 
 export type ClipKind = "video" | "audio" | "image" | "text"
 
+// One spoken word with clip-relative timing (ms from the clip's start), for
+// voice-synced "karaoke" captions — the word is highlighted as the audio
+// reaches it. Present only on captions generated with word-level timestamps.
+export type ClipWord = { text: string; startMs: number; endMs: number }
+
 export type EditorClip = {
   id: string
   kind: ClipKind
@@ -26,6 +31,16 @@ export type EditorClip = {
   text?: string
   fontSize?: number
   color?: string
+  // Optional background color drawn behind the whole text block (a highlight
+  // box); unset = no background.
+  highlightColor?: string
+  // Per-word timings for voice-synced captions; the active word is highlighted
+  // as playback reaches it. Unset = static text (rendered all one color).
+  words?: ClipWord[]
+  // Normalized 0–1 position of the text block's CENTER on the frame
+  // (default 0.5/0.5 = centered). Set by dragging the text in the preview.
+  x?: number
+  y?: number
   // Template slots (CapCut-style): hover shows a Replace button that swaps
   // the media while the slot keeps its timeline position and length.
   replaceable?: boolean
