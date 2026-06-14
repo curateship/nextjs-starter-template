@@ -113,19 +113,6 @@ export function EditTextDialog({
               color={clip.color ?? "#ffffff"}
               onChange={patch}
             />
-
-            {/* Timing readout */}
-            <div className="space-y-1 rounded-md border bg-background p-3 text-xs">
-              <TimingRow label="Start" value={formatTimecode(clip.startMs)} />
-              <TimingRow
-                label="End"
-                value={formatTimecode(clip.startMs + clip.durationMs)}
-              />
-              <TimingRow
-                label="Duration"
-                value={formatTimecode(clip.durationMs)}
-              />
-            </div>
           </div>
         </DialogBody>
         <DialogFooter variant="plain">
@@ -135,15 +122,6 @@ export function EditTextDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function TimingRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="tabular-nums">{value}</span>
-    </div>
   )
 }
 
