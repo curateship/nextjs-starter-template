@@ -14,6 +14,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { ColorPicker } from "@/components/ui/color-picker"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -165,12 +166,10 @@ function TextClipFields({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-color`}>Color</Label>
-        <input
+        <ColorPicker
           id={`${idPrefix}-color`}
-          type="color"
           value={color}
-          onChange={(event) => onChange({ color: event.target.value })}
-          className="h-8 w-full cursor-pointer rounded-md border bg-background"
+          onChange={(value) => onChange({ color: value })}
         />
       </div>
     </>
