@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select"
 import {
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
 } from "@/lib/ai-video"
 
@@ -105,6 +106,26 @@ export function GeneralSettings({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="media-upload-max-mb">
+              Max media upload size (MB)
+            </Label>
+            <Input
+              id="media-upload-max-mb"
+              type="number"
+              min={1}
+              max={MEDIA_UPLOAD_MAX_MB_LIMIT}
+              value={config.mediaUploadMaxMb}
+              disabled={isSaving}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  mediaUploadMaxMb: Number(event.target.value),
+                })
+              }
+            />
           </div>
 
           <div className="grid gap-2">

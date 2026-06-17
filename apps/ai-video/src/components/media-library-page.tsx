@@ -190,10 +190,9 @@ export function MediaLibraryPage({ activeTab }: { activeTab: MediaTabId }) {
       return
     }
 
-    const kind = imageTypes.includes(file.type) ? "image" : "video"
-    const maxSize = kind === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
+    const maxSize = config.mediaUploadMaxMb * 1024 * 1024
     if (file.size > maxSize) {
-      setError(`File size too large. Maximum size is ${kind === "image" ? "10MB" : "100MB"}.`)
+      setError(`File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`)
       event.target.value = ""
       return
     }

@@ -2,6 +2,10 @@ import { createServerFn } from "@tanstack/react-start"
 import { and, eq, inArray } from "drizzle-orm"
 import { z } from "zod"
 
+import {
+  DEFAULT_MEDIA_UPLOAD_MAX_MB,
+  MEDIA_UPLOAD_MAX_MB_LIMIT,
+} from "@/lib/ai-video"
 import { db } from "@/server/db"
 import {
   cleanAltText,
@@ -21,7 +25,7 @@ import {
 } from "@/server/media"
 import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
-import { aiVideoMedia } from "@/server/schema"
+import { aiVideoMedia, aiVideoSettings } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
@@ -51,6 +55,31 @@ const bulkDeleteMediaSchema = z.object({
 
 export function getMediaErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Media request failed."
+}
+
+const activeMediaUploads = new Set<string>()
+
+async function loadMediaUploadMaxBytes() {
+  const [row] = await db
+    .select({ settings: aiVideoSettings.settings })
+    .from(aiVideoSettings)
+    .where(eq(aiVideoSettings.key, "default"))
+    .limit(1)
+
+  const settings = row?.settings
+  const maxMb =
+    settings && typeof settings === "object" && !Array.isArray(settings)
+      ? (settings as { mediaUploadMaxMb?: unknown }).mediaUploadMaxMb
+      : undefined
+
+  return (
+    typeof maxMb === "number" &&
+    Number.isInteger(maxMb) &&
+    maxMb >= 1 &&
+    maxMb <= MEDIA_UPLOAD_MAX_MB_LIMIT
+      ? maxMb
+      : DEFAULT_MEDIA_UPLOAD_MAX_MB
+  ) * 1024 * 1024
 }
 
 const listMediaFn = createServerFn({ method: "GET" })
@@ -87,53 +116,62 @@ const uploadMediaFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
-    const mimeType = data.file.type || "application/octet-stream"
-    validateMediaFile(mimeType, data.file.size)
-
-    const rawFileData = new Uint8Array(await data.file.arrayBuffer())
-    if (!rawFileData.byteLength) {
-      throw new Error("File is empty")
+    if (activeMediaUploads.has(user.id)) {
+      throw new Error("Another media upload is already in progress.")
     }
-    const fileData = prepareMediaContent(mimeType, rawFileData)
 
-    const originalName = cleanOriginalName(data.file.name)
-    const filename = storedFilename(originalName, mimeType)
-    const storagePath = `${user.id}/${filename}`
-
+    activeMediaUploads.add(user.id)
     try {
-      await uploadToR2(storagePath, fileData, mimeType)
-    } catch (error) {
-      if (error instanceof R2StorageNotConfiguredError) {
-        throw new Error(
-          "R2 storage is not configured. Set the AI_VIDEO_R2_* environment variables, including AI_VIDEO_R2_PUBLIC_URL."
-        )
+      const mimeType = data.file.type || "application/octet-stream"
+      validateMediaFile(mimeType, data.file.size, await loadMediaUploadMaxBytes())
+
+      const rawFileData = new Uint8Array(await data.file.arrayBuffer())
+      if (!rawFileData.byteLength) {
+        throw new Error("File is empty")
       }
-      throw new Error("Upload failed")
-    }
+      const fileData = prepareMediaContent(mimeType, rawFileData)
 
-    const createdAt = now()
-    const row = {
-      id: uuid(),
-      userId: user.id,
-      filename,
-      originalName,
-      altText: cleanAltText(data.altText),
-      fileSize: fileData.byteLength,
-      mimeType,
-      fileType: getMediaFileType(mimeType),
-      storagePath,
-      createdAt,
-      updatedAt: createdAt,
-    }
+      const originalName = cleanOriginalName(data.file.name)
+      const filename = storedFilename(originalName, mimeType)
+      const storagePath = `${user.id}/${filename}`
 
-    try {
-      await db.insert(aiVideoMedia).values(row)
-    } catch (error) {
-      await deleteFromR2(storagePath).catch(() => undefined)
-      throw error
-    }
+      try {
+        await uploadToR2(storagePath, fileData, mimeType)
+      } catch (error) {
+        if (error instanceof R2StorageNotConfiguredError) {
+          throw new Error(
+            "R2 storage is not configured. Set the AI_VIDEO_R2_* environment variables, including AI_VIDEO_R2_PUBLIC_URL."
+          )
+        }
+        throw new Error("Upload failed")
+      }
 
-    return serializeMedia(row)
+      const createdAt = now()
+      const row = {
+        id: uuid(),
+        userId: user.id,
+        filename,
+        originalName,
+        altText: cleanAltText(data.altText),
+        fileSize: fileData.byteLength,
+        mimeType,
+        fileType: getMediaFileType(mimeType),
+        storagePath,
+        createdAt,
+        updatedAt: createdAt,
+      }
+
+      try {
+        await db.insert(aiVideoMedia).values(row)
+      } catch (error) {
+        await deleteFromR2(storagePath).catch(() => undefined)
+        throw error
+      }
+
+      return serializeMedia(row)
+    } finally {
+      activeMediaUploads.delete(user.id)
+    }
   })
 
 const updateMediaFn = createServerFn({ method: "POST" })

@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 
 import { MediaGridSkeleton } from "@/components/loading-skeleton"
+import { useShellRuntime } from "@/components/shell-layout"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -58,6 +59,7 @@ export function MediaPicker({
   currentMediaUrl,
   showVideos = true,
 }: MediaPickerProps) {
+  const { config } = useShellRuntime()
   const [data, setData] = React.useState<MediaListResponse | null>(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -152,10 +154,9 @@ export function MediaPicker({
       return
     }
 
-    const fileType = imageTypes.includes(file.type) ? "image" : "video"
-    const maxSize = fileType === "image" ? 10 * 1024 * 1024 : 100 * 1024 * 1024
+    const maxSize = config.mediaUploadMaxMb * 1024 * 1024
     if (file.size > maxSize) {
-      setError(`File size too large. Maximum size is ${fileType === "image" ? "10MB" : "100MB"}.`)
+      setError(`File size too large. Maximum size is ${config.mediaUploadMaxMb}MB.`)
       event.target.value = ""
       return
     }

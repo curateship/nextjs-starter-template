@@ -40,9 +40,7 @@ export const ALLOWED_TYPES = new Set([
   ...AUDIO_TYPES,
 ])
 
-const IMAGE_MAX_BYTES = 10 * 1024 * 1024
-const VIDEO_MAX_BYTES = 100 * 1024 * 1024
-const AUDIO_MAX_BYTES = 50 * 1024 * 1024
+const MEDIA_MAX_BYTES = 500 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
 export type MediaFileType = "image" | "video" | "audio"
@@ -80,20 +78,17 @@ export function getMediaFileType(mimeType: string): MediaFileType {
   return "video"
 }
 
-export function validateMediaFile(mimeType: string, size: number) {
+export function validateMediaFile(
+  mimeType: string,
+  size: number,
+  maxSize = MEDIA_MAX_BYTES
+) {
   if (!ALLOWED_TYPES.has(mimeType)) {
     throw new Error(
       "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG), videos (MP4, WebM, MOV, AVI, MKV) and audio (MP3, WAV, M4A, AAC, OGG) are allowed."
     )
   }
 
-  const fileType = getMediaFileType(mimeType)
-  const maxSize =
-    fileType === "image"
-      ? IMAGE_MAX_BYTES
-      : fileType === "audio"
-        ? AUDIO_MAX_BYTES
-        : VIDEO_MAX_BYTES
   if (size > maxSize) {
     // Label derived from the byte limit so the two can't drift apart.
     throw new Error(

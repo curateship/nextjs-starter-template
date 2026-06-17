@@ -5,6 +5,7 @@ import { z } from "zod"
 import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  MEDIA_UPLOAD_MAX_MB_LIMIT,
   type ShellConfig,
 } from "@/lib/ai-video"
 import { db } from "@/server/db"
@@ -52,6 +53,7 @@ const shellConfigSchema = z.object({
       value as (typeof DASHBOARD_ROWS_PER_PAGE_OPTIONS)[number]
     )
   ),
+  mediaUploadMaxMb: z.number().int().min(1).max(MEDIA_UPLOAD_MAX_MB_LIMIT),
   favicon: z.string(),
   topNavigation: z.array(
     z.object({
@@ -198,6 +200,13 @@ function parseShellGlobals(value: unknown) {
       )
         ? settings.dashboardRowsPerPage
         : fallback.dashboardRowsPerPage,
+    mediaUploadMaxMb:
+      typeof settings.mediaUploadMaxMb === "number" &&
+      Number.isInteger(settings.mediaUploadMaxMb) &&
+      settings.mediaUploadMaxMb >= 1 &&
+      settings.mediaUploadMaxMb <= MEDIA_UPLOAD_MAX_MB_LIMIT
+        ? settings.mediaUploadMaxMb
+        : fallback.mediaUploadMaxMb,
   }
 }
 
@@ -207,5 +216,6 @@ function pickShellGlobals(settings: ShellConfig) {
     workspaceName: settings.workspaceName,
     workspacePlan: settings.workspacePlan,
     dashboardRowsPerPage: settings.dashboardRowsPerPage,
+    mediaUploadMaxMb: settings.mediaUploadMaxMb,
   }
 }

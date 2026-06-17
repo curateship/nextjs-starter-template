@@ -9,6 +9,7 @@ import { StickyHeader } from "@/pages/dashboard/sticky-header/sticky-header"
 import {
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  MEDIA_UPLOAD_MAX_MB_LIMIT,
   isShellItem,
   normalizeTopRightNavigation,
   renderShellIcon,
@@ -226,6 +227,13 @@ function normalizeConfig(settings: ShellConfig | null) {
     )
       ? settings.dashboardRowsPerPage
       : fallback.dashboardRowsPerPage,
+    mediaUploadMaxMb:
+      typeof settings.mediaUploadMaxMb === "number" &&
+      Number.isInteger(settings.mediaUploadMaxMb) &&
+      settings.mediaUploadMaxMb >= 1 &&
+      settings.mediaUploadMaxMb <= MEDIA_UPLOAD_MAX_MB_LIMIT
+        ? settings.mediaUploadMaxMb
+        : fallback.mediaUploadMaxMb,
     favicon: settings.favicon ?? fallback.favicon,
     topNavigation: Array.isArray(settings.topNavigation)
       ? settings.topNavigation
