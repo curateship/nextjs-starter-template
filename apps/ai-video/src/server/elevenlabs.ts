@@ -17,7 +17,11 @@ import { requireUser } from "@/server/security"
 const ELEVENLABS_BASE_URL = "https://api.elevenlabs.io"
 
 // A voice the user can pick in the Voice dialog.
-export type ElevenLabsVoice = { id: string; name: string }
+export type ElevenLabsVoice = {
+  id: string
+  name: string
+  previewUrl?: string | null
+}
 
 // Generation output handed back to the client: the saved audio (media library
 // item with a public URL), its length, and the caption lines (clip-relative
@@ -46,28 +50,41 @@ async function requireElevenLabsKey(): Promise<string> {
   return key
 }
 
-// Lists the workspace account's voices for the picker. Any signed-in user can
-// read them (like captions); managing the key stays an admin Settings action.
+// Lists the workspace account's saved voices ("My Voices") for the picker. Any
+// signed-in user can read them; managing the key stays an admin Settings action.
 export async function listVoicesForCurrentUser(): Promise<{
   voices: ElevenLabsVoice[]
 }> {
   await requireUser()
   const apiKey = await requireElevenLabsKey()
 
-  const response = await fetch(`${ELEVENLABS_BASE_URL}/v1/voices`, {
-    headers: { "xi-api-key": apiKey },
-  })
+  const response = await fetch(
+    `${ELEVENLABS_BASE_URL}/v2/voices?voice_type=saved&page_size=100&sort=name&sort_direction=asc&include_total_count=false`,
+    {
+      headers: { "xi-api-key": apiKey },
+    }
+  )
   if (!response.ok) {
     throw await elevenLabsError("Voice list failed", response)
   }
 
   const payload = (await response.json()) as {
-    voices?: { voice_id: string; name: string }[]
+    voices?: {
+      voice_id: string
+      name: string
+      preview_url?: string | null
+      verified_languages?: { preview_url?: string | null }[] | null
+    }[]
   }
   return {
     voices: (payload.voices ?? []).map((voice) => ({
       id: voice.voice_id,
       name: voice.name,
+      previewUrl:
+        voice.preview_url ??
+        voice.verified_languages?.find((language) => language.preview_url)
+          ?.preview_url ??
+        null,
     })),
   }
 }

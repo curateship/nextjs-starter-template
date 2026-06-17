@@ -6,7 +6,9 @@ import {
   Loader2Icon,
   MicIcon,
   MusicIcon,
+  PauseIcon,
   PenLineIcon,
+  PlayIcon,
   ShapesIcon,
   TypeIcon,
   VideoIcon,
@@ -54,6 +56,11 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   findClip,
   useEditor,
@@ -653,6 +660,20 @@ function VoiceDialog({
   const captionStyle = useCaptionStyle()
   const [generating, setGenerating] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const previewAudioRef = React.useRef<HTMLAudioElement | null>(null)
+  const [previewing, setPreviewing] = React.useState(false)
+  const selectedVoice = voices?.find((voice) => voice.id === voiceId) ?? null
+  const previewUrl = selectedVoice?.previewUrl || ""
+
+  const stopPreview = React.useCallback(() => {
+    const audio = previewAudioRef.current
+    if (audio) {
+      audio.pause()
+      audio.currentTime = 0
+      previewAudioRef.current = null
+    }
+    setPreviewing(false)
+  }, [])
 
   // Load voices each time the dialog opens. A missing key surfaces as the
   // "not configured" message (which hides the form and disables Generate). All
@@ -674,9 +695,12 @@ function VoiceDialog({
     }
   }, [open])
 
+  React.useEffect(() => stopPreview, [stopPreview])
+
   // Clears the text on close so the dialog reopens fresh (keeps voice/model).
   function handleClose(next: boolean) {
     if (!next) {
+      stopPreview()
       setText("")
       setError(null)
     }
@@ -690,6 +714,7 @@ function VoiceDialog({
     }
     setGenerating(true)
     setError(null)
+    stopPreview()
     try {
       const result = await generateVoiceover({
         voiceId,
@@ -744,9 +769,30 @@ function VoiceDialog({
     }
   }
 
+  function handlePreview() {
+    if (previewing) {
+      stopPreview()
+      return
+    }
+    if (!previewUrl) return
+
+    stopPreview()
+    const audio = new Audio(previewUrl)
+    previewAudioRef.current = audio
+    audio.addEventListener("ended", stopPreview, { once: true })
+    audio.addEventListener("error", stopPreview, { once: true })
+    setPreviewing(true)
+    void audio.play().catch(stopPreview)
+  }
+
   // True when the voice load failed because no key is configured — show a
   // helpful message instead of the form.
   const notConfigured = error === "ElevenLabs is not configured"
+  const previewLabel = previewUrl
+    ? previewing
+      ? "Stop preview"
+      : "Preview voice"
+    : "No preview available"
 
   return (
     <Dialog
@@ -768,24 +814,51 @@ function VoiceDialog({
               <>
                 <div className="space-y-1.5">
                   <Label htmlFor="voice-voice">Voice</Label>
-                  <Select
-                    value={voiceId}
-                    onValueChange={setVoiceId}
-                    disabled={!voices || voices.length === 0}
-                  >
-                    <SelectTrigger id="voice-voice" className="w-full">
-                      <SelectValue
-                        placeholder={voices ? "Select a voice" : "Loading…"}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(voices ?? []).map((voice) => (
-                        <SelectItem key={voice.id} value={voice.id}>
-                          {voice.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select
+                      value={voiceId}
+                      onValueChange={(value) => {
+                        stopPreview()
+                        setVoiceId(value)
+                      }}
+                      disabled={!voices || voices.length === 0}
+                    >
+                      <SelectTrigger
+                        id="voice-voice"
+                        className="min-w-0 flex-1"
+                      >
+                        <SelectValue
+                          placeholder={voices ? "Select a voice" : "Loading…"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(voices ?? []).map((voice) => (
+                          <SelectItem key={voice.id} value={voice.id}>
+                            {voice.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon-lg"
+                          aria-label={previewLabel}
+                          disabled={!previewUrl}
+                          onClick={handlePreview}
+                        >
+                          {previewing ? (
+                            <PauseIcon className="size-4" />
+                          ) : (
+                            <PlayIcon className="size-4" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{previewLabel}</TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="voice-model">Model</Label>
