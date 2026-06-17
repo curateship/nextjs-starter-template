@@ -62,7 +62,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  findClip,
   useEditor,
   type EditorClip,
 } from "@/pages/video-editor/editor-store"
@@ -72,21 +71,12 @@ import {
   formatTimecode,
 } from "@/pages/video-editor/timeline-utils"
 
-// Right panel: a contextual inspector for the selected clip. Renders nothing
-// when no clip is selected, so the center preview expands to fill the space.
-export function EditorSettingsPanel() {
-  const { state } = useEditor()
-  const selected = state.selectedClipId
-    ? findClip(state.tracks, state.selectedClipId)
-    : null
-
-  // Nothing selected (incl. first load) → no panel; the preview takes the room.
-  if (!selected) return null
-
+// Right panel: a contextual inspector for the selected clip.
+export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
   return (
-    <section className="hidden w-[330px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 lg:flex">
+    <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        <ClipInspector clip={selected.clip} />
+        <ClipInspector clip={clip} />
       </div>
     </section>
   )

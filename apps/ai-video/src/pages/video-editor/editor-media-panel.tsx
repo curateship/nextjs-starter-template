@@ -270,7 +270,7 @@ export function EditorMediaPanel() {
   })
 
   return (
-    <section className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-xl bg-muted/60 md:flex">
+    <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <Tabs defaultValue="media" className="min-h-0 flex-1 gap-0">
         {/* Row 1: project name on the left, the Media/Elements switcher right. */}
         <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
