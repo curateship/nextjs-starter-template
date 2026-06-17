@@ -46,7 +46,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
@@ -430,7 +429,6 @@ function App() {
             <aside className="h-full min-h-0 overflow-hidden bg-muted/35">
               <WorkspacesPanel
                 statuses={workspaceStatuses}
-                onAction={setActivity}
                 onCreate={() => setActivity("Create workspace")}
                 onToggleStatus={toggleWorkspaceStatus}
               />
@@ -890,7 +888,7 @@ function ActionBar({
   onSkillChange: (value: string) => void
 }) {
   return (
-    <div className="flex items-center gap-2 border-t bg-muted/35 px-3">
+    <div className="flex items-center gap-2 bg-muted/35 px-3">
       {["Mark complete", "Audit code", "Feature suggestions"].map((action) => (
         <Button key={action} variant="ghost" size="sm" onClick={() => onAction(action)}>
           {action}
@@ -914,12 +912,10 @@ function ActionBar({
 
 function WorkspacesPanel({
   statuses,
-  onAction,
   onCreate,
   onToggleStatus,
 }: {
   statuses: { name: string; status: string }[]
-  onAction: (value: string) => void
   onCreate: () => void
   onToggleStatus: (index: number) => void
 }) {
@@ -959,45 +955,6 @@ function WorkspacesPanel({
             </Badge>
           </button>
         ))}
-      </div>
-
-      <Separator className="my-3" />
-
-      <div className="space-y-5">
-        <section>
-          <div className="mb-2">
-            <div className="text-sm font-semibold">Agents</div>
-            <p className="text-xs text-muted-foreground">
-              Mocked execution surface
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="bg-background">Planner</Badge>
-            <Badge variant="outline" className="bg-background">Coder</Badge>
-            <Badge variant="outline" className="bg-background">Reviewer</Badge>
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-2">
-            <div className="text-sm font-semibold">Skills</div>
-            <p className="text-xs text-muted-foreground">Clickable placeholders</p>
-          </div>
-          <div className="grid gap-1.5">
-            {["Refactor", "Security", "Docs"].map((skill) => (
-              <Button
-                key={skill}
-                variant="ghost"
-                size="sm"
-                className="justify-start"
-                onClick={() => onAction(skill)}
-              >
-                <Sparkles />
-                {skill}
-              </Button>
-            ))}
-          </div>
-        </section>
       </div>
     </div>
   )
