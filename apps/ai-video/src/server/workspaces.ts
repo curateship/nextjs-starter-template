@@ -94,6 +94,11 @@ export async function createUserWorkspace(
     throw new Error("Workspace name is required")
   }
 
+  const currentWorkspace = await findCurrentWorkspace(userId, database)
+  const baseSettings = currentWorkspace
+    ? parseWorkspaceSettings(currentWorkspace.settings)
+    : defaultWorkspaceSettings()
+
   return database.transaction(async (tx) => {
     const createdAt = now()
     const [workspace] = await tx
@@ -102,7 +107,7 @@ export async function createUserWorkspace(
         id: uuid(),
         userId,
         name: trimmedName.slice(0, 255),
-        settings: cleanWorkspaceSettings(settings),
+        settings: cleanWorkspaceSettings({ ...baseSettings, ...settings }),
         isDefault: false,
         createdAt,
         updatedAt: createdAt,
