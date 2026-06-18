@@ -6,8 +6,23 @@ export function requireAppOrigin() {
     throw new Error("Invalid origin")
   }
 
-  if (!getAllowedOrigins().has(origin.replace(/\/$/, ""))) {
+  const normalized = origin.replace(/\/$/, "")
+  if (!getAllowedOrigins().has(normalized) && !isAllowedDevOrigin(normalized)) {
     throw new Error("Invalid origin")
+  }
+}
+
+function isAllowedDevOrigin(origin: string) {
+  if (process.env.AI_VIDEO_API_ENV === "production") return false
+
+  try {
+    const url = new URL(origin)
+    return (
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    )
+  } catch {
+    return false
   }
 }
 
