@@ -64,6 +64,7 @@ struct WorkspaceInfo {
     id: String,
     name: String,
     app_name: String,
+    is_tauri: bool,
 }
 
 #[derive(Serialize)]
@@ -231,6 +232,7 @@ async fn create_workspace(
         ],
     )?;
 
+    copy_local_env_files(&app_folder, &app_root)?;
     create_support_dirs(&app_root)?;
     let worktree_root = fs::canonicalize(worktree_root).map_err(|error| error.to_string())?;
     let app_root = fs::canonicalize(app_root).map_err(|error| error.to_string())?;
@@ -1169,6 +1171,7 @@ fn workspace_list(state: &State<'_, WorkspaceState>) -> Result<WorkspaceList, St
                 id: workspace.id.clone(),
                 name: workspace.name.clone(),
                 app_name: workspace.app_name.clone(),
+                is_tauri: workspace.app_root.join("src-tauri").is_dir(),
             })
             .collect(),
     })
@@ -1234,6 +1237,16 @@ fn create_support_dirs(app_root: &Path) -> Result<(), String> {
     for child in ["tasks", "skills", "docs"] {
         fs::create_dir_all(app_root.join(WORKSPACE_DIR).join(child))
             .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+fn copy_local_env_files(source_app: &Path, target_app: &Path) -> Result<(), String> {
+    for name in [".env", ".env.local", ".env.development", ".env.development.local"] {
+        let source = source_app.join(name);
+        if source.is_file() {
+            fs::copy(&source, target_app.join(name)).map_err(|error| error.to_string())?;
+        }
     }
     Ok(())
 }

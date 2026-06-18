@@ -97,6 +97,7 @@ type WorkspaceInfo = {
   id: string
   name: string
   appName: string
+  isTauri: boolean
 }
 
 type WorkspaceList = {
@@ -643,6 +644,10 @@ function App() {
   }
 
   function startWorkspaceServer(workspace: WorkspaceInfo) {
+    if (workspace.isTauri) {
+      setFileError("Personal IDE is a desktop app. Run it with tauri:dev, not the web server button.")
+      return
+    }
     if (workspace.id !== activeWorkspaceId) void selectWorkspace(workspace.id)
 
     const port = serverPortForWorkspace(workspace)
@@ -673,6 +678,11 @@ function App() {
   }
 
   async function openWorkspaceServer(workspace: WorkspaceInfo) {
+    if (workspace.isTauri) {
+      setFileError("Personal IDE is a desktop app. It cannot run as a normal browser page.")
+      return
+    }
+
     try {
       await invoke("open_server_url", { port: serverPortForWorkspace(workspace) })
     } catch (error) {
@@ -3841,35 +3851,43 @@ function WorkspacesPanel({
 
       {activeWorkspace ? (
         <div className="mt-3 flex min-w-0 items-center gap-2 pt-3">
-          <button
-            type="button"
-            className="min-w-0 truncate text-sm font-medium hover:underline"
-            onClick={() => onOpenServer(activeWorkspace)}
-            title={activeServerUrl}
-          >
-            {activeServerUrl}
-          </button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
+          {activeWorkspace.isTauri ? (
+            <span className="min-w-0 truncate text-sm text-muted-foreground">
+              Desktop app
+            </span>
+          ) : (
+            <>
+              <button
                 type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="ml-auto shrink-0"
-                onClick={() =>
-                  serverRunning
-                    ? onStopServer(activeWorkspace)
-                    : onStartServer(activeWorkspace)
-                }
-                aria-label={serverRunning ? "Stop server" : "Start server"}
+                className="min-w-0 truncate text-sm font-medium hover:underline"
+                onClick={() => onOpenServer(activeWorkspace)}
+                title={activeServerUrl}
               >
-                {serverRunning ? <Square className="size-3 fill-current" /> : <Play />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {serverRunning ? "Stop server" : "Start server"}
-            </TooltipContent>
-          </Tooltip>
+                {activeServerUrl}
+              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="ml-auto shrink-0"
+                    onClick={() =>
+                      serverRunning
+                        ? onStopServer(activeWorkspace)
+                        : onStartServer(activeWorkspace)
+                    }
+                    aria-label={serverRunning ? "Stop server" : "Start server"}
+                  >
+                    {serverRunning ? <Square className="size-3 fill-current" /> : <Play />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {serverRunning ? "Stop server" : "Start server"}
+                </TooltipContent>
+              </Tooltip>
+            </>
+          )}
         </div>
       ) : null}
     </div>
