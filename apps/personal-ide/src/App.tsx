@@ -46,7 +46,8 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
-  GitBranch,
+  GitCommitHorizontal,
+  GitMerge,
   GripVertical,
   MoreVertical,
   PanelBottom,
@@ -157,9 +158,18 @@ type GitFile = {
   changedLines: number[]
 }
 
+type GitCommit = {
+  hash: string
+  subject: string
+}
+
 type GitStatus = {
   branch: string
   files: GitFile[]
+  unpushedCommitCount: number
+  unmergedCommitCount: number
+  mergeCommits: GitCommit[]
+  mergeFiles: GitFile[]
 }
 
 type TerminalOutput = {
@@ -175,6 +185,10 @@ const EMPTY_WORKSPACES: WorkspaceList = {
 const EMPTY_GIT_STATUS: GitStatus = {
   branch: "",
   files: [],
+  unpushedCommitCount: 0,
+  unmergedCommitCount: 0,
+  mergeCommits: [],
+  mergeFiles: [],
 }
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
@@ -986,6 +1000,24 @@ function App() {
     }
   }
 
+  async function mergeToDevelop() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("merge")
+
+    try {
+      const next = await invoke<GitStatus>("git_merge_to_develop", {
+        workspaceId: activeWorkspaceId,
+      })
+      setGitStatus(next)
+      await refreshResources()
+    } catch (error) {
+      setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
   async function discardChanges() {
     if (!activeWorkspaceId) return
     setGitError("")
@@ -1027,6 +1059,27 @@ function App() {
 
     try {
       const originalContents = await invoke<string>("read_original_text_file", {
+        workspaceId: activeWorkspaceId,
+        path: file.appPath,
+      })
+
+      setGitError("")
+      await openPath(file.appPath, fileName(file.appPath), file.changedLines, originalContents)
+    } catch (error) {
+      setGitError(readableError(error))
+    }
+  }
+
+  async function openMergeFile(file: GitFile) {
+    if (!activeWorkspaceId) return
+
+    if (!file.appPath) {
+      setGitError("That merge file is outside the selected app folder.")
+      return
+    }
+
+    try {
+      const originalContents = await invoke<string>("read_develop_text_file", {
         workspaceId: activeWorkspaceId,
         path: file.appPath,
       })
@@ -1157,7 +1210,9 @@ function App() {
                     onCommit={commitChanges}
                     onCommitMessageChange={setCommitMessage}
                     onDiscard={discardChanges}
+                    onMerge={mergeToDevelop}
                     onOpenFile={openChangedFile}
+                    onOpenMergeFile={openMergeFile}
                     onRefresh={refreshGit}
                     onSync={syncChanges}
                   />
@@ -2412,7 +2467,9 @@ function ChangesPanel({
   onCommit,
   onCommitMessageChange,
   onDiscard,
+  onMerge,
   onOpenFile,
+  onOpenMergeFile,
   onRefresh,
   onSync,
 }: {
@@ -2423,7 +2480,9 @@ function ChangesPanel({
   onCommit: () => void
   onCommitMessageChange: (value: string) => void
   onDiscard: () => void
+  onMerge: () => void
   onOpenFile: (file: GitFile) => void
+  onOpenMergeFile: (file: GitFile) => void
   onRefresh: () => void
   onSync: () => void
 }) {
@@ -2452,7 +2511,51 @@ function ChangesPanel({
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-1 pr-1">
+        <div className="space-y-3 pr-1">
+          {gitStatus.mergeCommits.length ? (
+            <div className="space-y-2 border-b pb-3">
+              <div>
+                <div className="text-xs font-semibold">Pending merge</div>
+                <div className="text-xs text-muted-foreground">
+                  {gitStatus.mergeCommits.length} commits ahead of develop
+                </div>
+              </div>
+              <div className="space-y-1">
+                {gitStatus.mergeCommits.map((commit) => (
+                  <div key={commit.hash} className="flex gap-2 text-xs">
+                    <span className="shrink-0 font-mono text-muted-foreground">
+                      {commit.hash}
+                    </span>
+                    <span className="min-w-0 truncate">{commit.subject}</span>
+                  </div>
+                ))}
+              </div>
+              {gitStatus.mergeFiles.length ? (
+                <div className="space-y-1">
+                  <div className="text-xs font-semibold">Files changed</div>
+                  {gitStatus.mergeFiles.map((file) => (
+                    <button
+                      key={`${file.status}-${file.path}`}
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
+                        !file.appPath && "text-muted-foreground"
+                      )}
+                      onClick={() => onOpenMergeFile(file)}
+                      title={file.appPath ? "Open merge diff" : "Outside selected app folder"}
+                    >
+                      <span className="w-8 shrink-0 font-mono text-muted-foreground">
+                        {file.status || "M"}
+                      </span>
+                      <span className="min-w-0 truncate">{file.path}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="space-y-1">
           {gitStatus.files.length ? (
             gitStatus.files.map((file) => (
               <button
@@ -2476,6 +2579,7 @@ function ChangesPanel({
               No changes.
             </div>
           )}
+          </div>
         </div>
       </ScrollArea>
 
@@ -2495,24 +2599,37 @@ function ChangesPanel({
           />
           <Sparkles className="absolute top-2 right-2 size-4 text-muted-foreground" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Button
             variant="outline"
             className="bg-background"
             disabled={busyAction === "commit" || !commitMessage.trim()}
             onClick={onCommit}
           >
-            <GitBranch />
+            <GitCommitHorizontal />
             Commit
           </Button>
           <Button
             variant="outline"
             className="bg-background"
-            disabled={busyAction === "sync"}
+            disabled={busyAction === "sync" || !gitStatus.unpushedCommitCount}
             onClick={onSync}
           >
-            <GitBranch />
-            Sync
+            <RefreshCw />
+            {busyAction === "sync"
+              ? "Syncing..."
+              : countLabel("Sync", gitStatus.unpushedCommitCount)}
+          </Button>
+          <Button
+            variant="outline"
+            className="bg-background"
+            disabled={busyAction === "merge" || !gitStatus.unmergedCommitCount}
+            onClick={onMerge}
+          >
+            <GitMerge />
+            {busyAction === "merge"
+              ? "Merging..."
+              : countLabel("Merge", gitStatus.unmergedCommitCount)}
           </Button>
         </div>
       </div>
@@ -2539,6 +2656,10 @@ function ChangesPanel({
       ) : null}
     </div>
   )
+}
+
+function countLabel(label: string, count: number) {
+  return count > 0 ? `${label} (${count})` : label
 }
 
 function EditorPanel({

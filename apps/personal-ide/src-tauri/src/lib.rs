@@ -107,9 +107,20 @@ struct GitFile {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct GitCommit {
+    hash: String,
+    subject: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct GitStatus {
     branch: String,
     files: Vec<GitFile>,
+    unpushed_commit_count: u32,
+    unmerged_commit_count: u32,
+    merge_commits: Vec<GitCommit>,
+    merge_files: Vec<GitFile>,
 }
 
 #[derive(Serialize, Clone)]
@@ -397,13 +408,31 @@ fn read_original_text_file(
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
+    read_git_text_file(&workspace, &path, "HEAD")
+}
+
+#[tauri::command]
+fn read_develop_text_file(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    read_git_text_file(&workspace, &path, "develop")
+}
+
+fn read_git_text_file(
+    workspace: &WorkspaceRecord,
+    path: &str,
+    reference: &str,
+) -> Result<String, String> {
     let file = resolve_inside(&workspace.app_root, Some(&path))?;
     let repo_path = relative_path(&workspace.worktree_root, &file)?;
     let output = Command::new("git")
         .arg("-C")
         .arg(&workspace.worktree_root)
         .arg("show")
-        .arg(format!("HEAD:{}", repo_path))
+        .arg(format!("{}:{}", reference, repo_path))
         .output()
         .map_err(|error| error.to_string())?;
 
@@ -787,10 +816,16 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
+    let merge_commits = merge_commits_for(&workspace)?;
+    let merge_files = merge_files_for(&workspace)?;
 
     Ok(GitStatus {
-        branch: workspace.branch,
+        branch: workspace.branch.clone(),
         files,
+        unpushed_commit_count: unpushed_commit_count(&workspace)?,
+        unmerged_commit_count: merge_commits.len() as u32,
+        merge_commits,
+        merge_files,
     })
 }
 
@@ -818,10 +853,29 @@ fn git_commit(
 #[tauri::command]
 fn git_sync(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<GitStatus, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
+    push_workspace_branch(&workspace)?;
+    git_status(workspace_id, state)
+}
+
+#[tauri::command]
+fn git_merge_to_develop(
+    workspace_id: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<GitStatus, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+
+    if !git_status_lines(&workspace.worktree_root)?.is_empty() {
+        return Err("Commit or discard changes before merging to develop".to_string());
+    }
+
+    push_workspace_branch(&workspace)?;
+    run_git(&workspace.git_root, &["checkout", "develop"])?;
+    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
     run_git(
-        &workspace.worktree_root,
-        &["push", "-u", "origin", &workspace.branch],
+        &workspace.git_root,
+        &["merge", "--no-ff", "--no-edit", &workspace.branch],
     )?;
+    run_git(&workspace.git_root, &["push", "origin", "develop"])?;
     git_status(workspace_id, state)
 }
 
@@ -1385,6 +1439,17 @@ fn git_branch_exists(git_root: &Path, branch: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn git_ref_exists(root: &Path, reference: &str) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["show-ref", "--verify", "--quiet"])
+        .arg(reference)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
 fn git_status_lines(root: &Path) -> Result<Vec<String>, String> {
     let output = run_git(root, &["status", "--short", "--untracked-files=all"])?;
     Ok(output
@@ -1400,6 +1465,97 @@ fn git_status_path(line: &str) -> String {
         .last()
         .unwrap_or(path.as_str())
         .to_string()
+}
+
+fn unpushed_commit_count(workspace: &WorkspaceRecord) -> Result<u32, String> {
+    let remote_ref = format!("refs/remotes/origin/{}", workspace.branch);
+    let base = if git_ref_exists(&workspace.worktree_root, &remote_ref) {
+        format!("origin/{}", workspace.branch)
+    } else {
+        "develop".to_string()
+    };
+
+    commit_count(
+        &workspace.worktree_root,
+        &format!("{}..{}", base, workspace.branch),
+    )
+}
+
+fn push_workspace_branch(workspace: &WorkspaceRecord) -> Result<(), String> {
+    run_git(
+        &workspace.worktree_root,
+        &["push", "-u", "origin", &workspace.branch],
+    )?;
+    run_git(
+        &workspace.worktree_root,
+        &[
+            "update-ref",
+            &format!("refs/remotes/origin/{}", workspace.branch),
+            &workspace.branch,
+        ],
+    )
+    .map(|_| ())
+}
+
+fn merge_commits_for(workspace: &WorkspaceRecord) -> Result<Vec<GitCommit>, String> {
+    let output = run_git(
+        &workspace.worktree_root,
+        &[
+            "log",
+            "--reverse",
+            "--pretty=format:%h%x00%s",
+            &format!("develop..{}", workspace.branch),
+        ],
+    )?;
+
+    Ok(output
+        .lines()
+        .filter_map(|line| {
+            let (hash, subject) = line.split_once('\0')?;
+            Some(GitCommit {
+                hash: hash.to_string(),
+                subject: subject.to_string(),
+            })
+        })
+        .collect())
+}
+
+fn merge_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
+    let range = format!("develop...{}", workspace.branch);
+    let output = run_git(
+        &workspace.worktree_root,
+        &["diff", "--name-status", &range],
+    )?;
+
+    output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let status = line.split_whitespace().next().unwrap_or("M").to_string();
+            let path = line
+                .split_whitespace()
+                .last()
+                .unwrap_or_default()
+                .to_string();
+            let app_path = app_relative_status_path(workspace, &path);
+            let changed_lines = changed_lines_between(&workspace.worktree_root, &range, &path)?;
+
+            Ok(GitFile {
+                status,
+                path,
+                app_path,
+                changed_lines,
+            })
+        })
+        .collect()
+}
+
+fn commit_count(root: &Path, range: &str) -> Result<u32, String> {
+    let output = run_git(root, &["rev-list", "--count", range])?;
+    output
+        .trim()
+        .parse::<u32>()
+        .map_err(|error| error.to_string())
 }
 
 fn app_relative_status_path(workspace: &WorkspaceRecord, repo_path: &str) -> Option<String> {
@@ -1429,6 +1585,15 @@ fn changed_lines_for(root: &Path, repo_path: &str, status: &str) -> Result<Vec<u
     let staged = run_git(root, &["diff", "--cached", "--unified=0", "--", repo_path])?;
     collect_changed_lines(&unstaged, &mut lines);
     collect_changed_lines(&staged, &mut lines);
+    lines.sort_unstable();
+    lines.dedup();
+    Ok(lines)
+}
+
+fn changed_lines_between(root: &Path, range: &str, repo_path: &str) -> Result<Vec<usize>, String> {
+    let mut lines = Vec::new();
+    let diff = run_git(root, &["diff", "--unified=0", range, "--", repo_path])?;
+    collect_changed_lines(&diff, &mut lines);
     lines.sort_unstable();
     lines.dedup();
     Ok(lines)
@@ -1554,6 +1719,7 @@ pub fn run() {
             list_dir,
             read_text_file,
             read_original_text_file,
+            read_develop_text_file,
             write_text_file,
             create_text_file,
             create_folder,
@@ -1570,6 +1736,7 @@ pub fn run() {
             git_status,
             git_commit,
             git_sync,
+            git_merge_to_develop,
             git_discard_changes,
             start_terminal,
             write_terminal,
