@@ -190,9 +190,13 @@ export function EditorPreview() {
       for (const { clip, track } of audioClips) {
         if (track.muted || !isActive(clip, t)) continue
         const el = audioRefs.current.get(clip.id)
-        if (el && !el.seeking && el.readyState >= 2) {
-          audioTime = clip.startMs + (el.currentTime * 1000 - clip.trimStartMs)
-          break
+        if (el && !el.paused && !el.ended && !el.seeking && el.readyState >= 2) {
+          const timelineTime =
+            clip.startMs + (el.currentTime * 1000 - clip.trimStartMs)
+          if (timelineTime > t) {
+            audioTime = timelineTime
+            break
+          }
         }
       }
 
@@ -200,10 +204,20 @@ export function EditorPreview() {
       let bestVideoZ = -Infinity
       for (const [url, entry] of activeVideoBySource(media, t)) {
         const el = videoRefs.current.get(url)
-        if (el && !el.seeking && el.readyState >= 2 && entry.zIndex > bestVideoZ) {
-          bestVideoZ = entry.zIndex
-          videoTime =
+        if (
+          el &&
+          !el.paused &&
+          !el.ended &&
+          !el.seeking &&
+          el.readyState >= 2 &&
+          entry.zIndex > bestVideoZ
+        ) {
+          const timelineTime =
             entry.clip.startMs + (el.currentTime * 1000 - entry.clip.trimStartMs)
+          if (timelineTime > t) {
+            bestVideoZ = entry.zIndex
+            videoTime = timelineTime
+          }
         }
       }
       return audioTime ?? videoTime
