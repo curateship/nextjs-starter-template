@@ -178,6 +178,7 @@ type GitStatus = {
 type TerminalItem = {
   id: string
   name: string
+  startupCommand?: string
 }
 
 type WorkspaceTerminalState = {
@@ -536,14 +537,27 @@ function App() {
     }
   }
 
-  function addTerminal(workspaceId = activeWorkspaceId) {
+  function addTerminal(
+    workspaceId = activeWorkspaceId,
+    options: { id?: string; name?: string; startupCommand?: string } = {}
+  ) {
     if (!workspaceId) return null
 
     const state = terminalStateFor(workspaceId, terminalsByWorkspace)
+    const existing = options.id
+      ? state.terminals.find((terminal) => terminal.id === options.id)
+      : undefined
+
+    if (existing) {
+      selectTerminal(workspaceId, existing.id)
+      return existing
+    }
+
     const name = nextTerminalName(state.terminals)
     const terminal = {
-      id: `${workspaceId}-terminal-${Date.now()}`,
-      name,
+      id: options.id ?? `${workspaceId}-terminal-${Date.now()}`,
+      name: options.name ?? name,
+      startupCommand: options.startupCommand,
     }
 
     setTerminalsByWorkspace((current) => {
@@ -559,6 +573,32 @@ function App() {
     setTerminalTab("terminal")
     setTerminalFocusNonce((current) => current + 1)
     return terminal
+  }
+
+  function startWorkspaceServer(workspace: WorkspaceInfo) {
+    if (workspace.id !== activeWorkspaceId) void selectWorkspace(workspace.id)
+
+    const port = serverPortForWorkspace(workspace)
+    const terminalId = `${workspace.id}-server`
+    const command = serverStartCommand(port)
+    const existingServer = terminalStateFor(workspace.id, terminalsByWorkspace).terminals.find(
+      (terminal) => terminal.id === terminalId
+    )
+
+    if (existingServer) {
+      selectTerminal(workspace.id, terminalId)
+      void invoke("write_terminal", {
+        terminalId,
+        data: `\u0003${command}`,
+      }).catch((error) => setFileError(readableError(error)))
+      return
+    }
+
+    addTerminal(workspace.id, {
+      id: terminalId,
+      name: "Server",
+      startupCommand: command,
+    })
   }
 
   function selectTerminal(workspaceId: string, terminalId: string) {
@@ -1191,14 +1231,15 @@ function App() {
     }
   }
 
-  async function discardChanges() {
+  async function discardChangedFile(file: GitFile) {
     if (!activeWorkspaceId) return
     setGitError("")
     setBusyAction("discard")
 
     try {
-      const next = await invoke<GitStatus>("git_discard_changes", {
+      const next = await invoke<GitStatus>("git_discard_file", {
         workspaceId: activeWorkspaceId,
+        path: file.path,
       })
       setGitStatus(next)
       await refreshOpenTabsFromDisk()
@@ -1210,19 +1251,20 @@ function App() {
     }
   }
 
-  async function refreshGit(workspaceId = activeWorkspaceId) {
-    if (!workspaceId) return
+  async function refreshGit(workspaceId?: string) {
+    const targetWorkspaceId = typeof workspaceId === "string" ? workspaceId : activeWorkspaceId
+    if (!targetWorkspaceId) return
 
     try {
       const next = await invoke<GitStatus>("git_status", {
-        workspaceId,
+        workspaceId: targetWorkspaceId,
       })
-      if (activeWorkspaceIdRef.current !== workspaceId) return
+      if (activeWorkspaceIdRef.current !== targetWorkspaceId) return
 
       setGitStatus(next)
       setGitError("")
     } catch (error) {
-      if (activeWorkspaceIdRef.current !== workspaceId) return
+      if (activeWorkspaceIdRef.current !== targetWorkspaceId) return
 
       setGitError(readableError(error))
     }
@@ -1399,7 +1441,7 @@ function App() {
                     gitStatus={gitStatus}
                     onCommit={commitChanges}
                     onCommitMessageChange={setCommitMessage}
-                    onDiscard={discardChanges}
+                    onDiscardFile={discardChangedFile}
                     onMerge={mergeToDevelop}
                     onOpenFile={openChangedFile}
                     onOpenMergeFile={openMergeFile}
@@ -1487,6 +1529,7 @@ function App() {
                 onDelete={deleteWorkspace}
                 onDetach={detachWorkspace}
                 onSelect={selectWorkspace}
+                onStartServer={startWorkspaceServer}
               />
             </aside>
           </ResizablePanel>
@@ -2644,7 +2687,7 @@ function ChangesPanel({
   gitStatus,
   onCommit,
   onCommitMessageChange,
-  onDiscard,
+  onDiscardFile,
   onMerge,
   onOpenFile,
   onOpenMergeFile,
@@ -2657,25 +2700,23 @@ function ChangesPanel({
   gitStatus: GitStatus
   onCommit: () => void
   onCommitMessageChange: (value: string) => void
-  onDiscard: () => void
+  onDiscardFile: (file: GitFile) => void
   onMerge: () => void
   onOpenFile: (file: GitFile) => void
   onOpenMergeFile: (file: GitFile) => void
   onRefresh: () => void
   onSync: () => void
 }) {
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null)
+  const [discardMenu, setDiscardMenu] = useState<{
+    file: GitFile
+    x: number
+    y: number
+  } | null>(null)
 
-  useDismissibleMenu(menuPosition, setMenuPosition)
+  useDismissibleMenu(discardMenu, setDiscardMenu)
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col p-3"
-      onContextMenu={(event) => {
-        event.preventDefault()
-        setMenuPosition({ x: event.clientX, y: event.clientY })
-      }}
-    >
+    <div className="flex h-full min-h-0 flex-col p-3">
       <div className="mb-3 grid grid-cols-[1fr_auto] items-start">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Changes</div>
@@ -2734,29 +2775,33 @@ function ChangesPanel({
           ) : null}
 
           <div className="space-y-1">
-          {gitStatus.files.length ? (
-            gitStatus.files.map((file) => (
-              <button
-                key={`${file.status}-${file.path}`}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
-                  !file.appPath && "text-muted-foreground"
-                )}
-                onClick={() => onOpenFile(file)}
-                title={file.appPath ? "Open changed file" : "Outside selected app folder"}
-              >
-                <span className="w-8 shrink-0 font-mono text-muted-foreground">
-                  {file.status || "M"}
-                </span>
-                <span className="min-w-0 truncate">{file.path}</span>
-              </button>
-            ))
-          ) : (
-            <div className="px-2 py-2 text-sm text-muted-foreground">
-              No changes.
-            </div>
-          )}
+            {gitStatus.files.length ? (
+              gitStatus.files.map((file) => (
+                <button
+                  key={`${file.status}-${file.path}`}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
+                    !file.appPath && "text-muted-foreground"
+                  )}
+                  onClick={() => onOpenFile(file)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    setDiscardMenu({ file, x: event.clientX, y: event.clientY })
+                  }}
+                  title={file.appPath ? "Open changed file" : "Outside selected app folder"}
+                >
+                  <span className="w-8 shrink-0 font-mono text-muted-foreground">
+                    {file.status || "M"}
+                  </span>
+                  <span className="min-w-0 truncate">{file.path}</span>
+                </button>
+              ))
+            ) : (
+              <div className="px-2 py-2 text-sm text-muted-foreground">
+                No changes.
+              </div>
+            )}
           </div>
         </div>
       </ScrollArea>
@@ -2812,23 +2857,24 @@ function ChangesPanel({
         </div>
       </div>
 
-      {menuPosition ? (
+      {discardMenu ? (
         <div
           className="fixed z-50 w-44 rounded-lg border bg-popover p-1 shadow-md"
-          style={{ left: menuPosition.x, top: menuPosition.y }}
+          style={{ left: discardMenu.x, top: discardMenu.y }}
           role="menu"
         >
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-            disabled={busyAction === "discard" || !gitStatus.files.length}
+            disabled={busyAction === "discard"}
             onClick={() => {
-              setMenuPosition(null)
-              onDiscard()
+              const { file } = discardMenu
+              setDiscardMenu(null)
+              onDiscardFile(file)
             }}
           >
             <Trash2 className="size-4" />
-            Discard Changes
+            Discard File
           </button>
         </div>
       ) : null}
@@ -3097,6 +3143,7 @@ function BottomPanel({
                 focusNonce={terminal.id === activeTerminalId ? focusNonce : 0}
                 onSizeChange={onSizeChange}
                 onError={onError}
+                startupCommand={terminal.startupCommand}
                 terminalId={terminal.id}
                 workspaceId={workspaceId}
               />
@@ -3122,12 +3169,14 @@ function TerminalPane({
   onSizeChange,
   onError,
   terminalId,
+  startupCommand,
   workspaceId,
 }: {
   active: boolean
   focusNonce: number
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
+  startupCommand?: string
   terminalId: string
   workspaceId: string
 }) {
@@ -3135,6 +3184,7 @@ function TerminalPane({
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const frameRef = useRef<number | null>(null)
+  const startupCommandSentRef = useRef(false)
 
   useEffect(() => {
     const container = containerRef.current
@@ -3202,6 +3252,12 @@ function TerminalPane({
         onSizeChange(cols, rows)
         void invoke("start_terminal", { workspaceId, terminalId, cols, rows })
           .then(() => invoke("resize_terminal", { terminalId, cols, rows }))
+          .then(() => {
+            if (!startupCommand || startupCommandSentRef.current) return undefined
+
+            startupCommandSentRef.current = true
+            return invoke("write_terminal", { terminalId, data: startupCommand })
+          })
           .catch((error) => onError(readableError(error)))
       } catch (error) {
         onError(readableError(error))
@@ -3249,7 +3305,7 @@ function TerminalPane({
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [onError, onSizeChange, terminalId, workspaceId])
+  }, [onError, onSizeChange, startupCommand, terminalId, workspaceId])
 
   useEffect(() => {
     terminalRef.current?.focus()
@@ -3396,6 +3452,7 @@ function WorkspacesPanel({
   onDelete,
   onDetach,
   onSelect,
+  onStartServer,
 }: {
   activeWorkspaceId: string
   busy: boolean
@@ -3405,6 +3462,7 @@ function WorkspacesPanel({
   onDelete: (workspaceId: string) => void
   onDetach: (workspaceId: string) => void
   onSelect: (workspaceId: string) => void
+  onStartServer: (workspace: WorkspaceInfo) => void
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   useDismissibleMenu(openMenuId, setOpenMenuId)
@@ -3471,9 +3529,21 @@ function WorkspacesPanel({
 
               {openMenuId === workspace.id ? (
                 <div
-                  className="absolute right-3 top-12 z-10 grid w-32 gap-1 rounded-md border bg-popover p-1 shadow-md"
+                  className="absolute right-3 top-12 z-10 grid w-36 gap-1 rounded-md border bg-popover p-1 shadow-md"
                   onClick={(event) => event.stopPropagation()}
                 >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => {
+                      setOpenMenuId(null)
+                      onStartServer(workspace)
+                    }}
+                  >
+                    <Play />
+                    Start server
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -3542,6 +3612,23 @@ function fileName(path: string) {
 
 function parentPath(path: string) {
   return path.split("/").slice(0, -1).join("/")
+}
+
+function serverPortForWorkspace(workspace: WorkspaceInfo) {
+  const workspaceNumber = Number(workspace.name.match(/#(\d+)/)?.[1])
+  if (Number.isFinite(workspaceNumber) && workspaceNumber > 0) {
+    return 3005 + workspaceNumber
+  }
+
+  const fallbackNumber = Number(workspace.id.match(/(\d+)$/)?.[1])
+  return Number.isFinite(fallbackNumber) && fallbackNumber > 0
+    ? 3005 + fallbackNumber
+    : 3006
+}
+
+function serverStartCommand(port: number) {
+  const origins = `http://127.0.0.1:${port},http://localhost:${port}`
+  return `app_name=$(node -p "require('./package.json').name")\ntest -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="$app_name" -- --host 127.0.0.1 --port ${port}\n`
 }
 
 function taskFileEntry(task: TaskItem): FileEntry {

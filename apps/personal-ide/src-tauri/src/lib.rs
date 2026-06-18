@@ -919,6 +919,23 @@ fn git_discard_changes(
 }
 
 #[tauri::command]
+fn git_discard_file(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<GitStatus, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = clean_repo_path(&path)?;
+    let lines = git_status_lines(&workspace.worktree_root)?;
+    let line = lines
+        .iter()
+        .find(|line| git_status_path(line) == repo_path)
+        .ok_or_else(|| "Changed file not found".to_string())?;
+    discard_status_line(&workspace.worktree_root, line)?;
+    git_status(workspace_id, state)
+}
+
+#[tauri::command]
 fn start_terminal(
     workspace_id: String,
     terminal_id: String,
@@ -1622,6 +1639,52 @@ fn repo_path_for_app_path(workspace: &WorkspaceRecord, app_path: &str) -> Result
     }
 }
 
+fn clean_repo_path(path: &str) -> Result<String, String> {
+    let path = path.trim();
+    if path.is_empty() {
+        return Err("Path is required".to_string());
+    }
+
+    let relative_path = Path::new(path);
+    if relative_path.is_absolute()
+        || relative_path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err("Path must stay inside the workspace".to_string());
+    }
+
+    Ok(path.replace('\\', "/"))
+}
+
+fn discard_status_line(root: &Path, line: &str) -> Result<(), String> {
+    let paths = status_paths(line);
+
+    if !line.starts_with("??") {
+        run_git_with_paths(
+            root,
+            &["restore", "--source=HEAD", "--staged", "--worktree", "--"],
+            &paths,
+        )?;
+    }
+
+    run_git_with_paths(root, &["clean", "-fd", "--"], &paths)?;
+    Ok(())
+}
+
+fn status_paths(line: &str) -> Vec<String> {
+    let status = line.chars().take(2).collect::<String>();
+    let path_text = line.chars().skip(3).collect::<String>();
+
+    if status.contains('R') {
+        if let Some((old_path, new_path)) = path_text.split_once(" -> ") {
+            return vec![old_path.to_string(), new_path.to_string()];
+        }
+    }
+
+    vec![git_status_path(line)]
+}
+
 fn changed_lines_for(root: &Path, repo_path: &str, status: &str) -> Result<Vec<usize>, String> {
     if status == "??" {
         let path = root.join(repo_path);
@@ -1688,6 +1751,12 @@ fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
     }
 
     String::from_utf8(output.stdout).map_err(|error| error.to_string())
+}
+
+fn run_git_with_paths(root: &Path, args: &[&str], paths: &[String]) -> Result<String, String> {
+    let mut all_args = args.to_vec();
+    all_args.extend(paths.iter().map(String::as_str));
+    run_git(root, &all_args)
 }
 
 fn command_error(command: &str, output: &std::process::Output) -> String {
@@ -1825,6 +1894,7 @@ pub fn run() {
             git_sync,
             git_merge_to_develop,
             git_discard_changes,
+            git_discard_file,
             start_terminal,
             write_terminal,
             resize_terminal,
