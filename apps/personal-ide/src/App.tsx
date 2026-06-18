@@ -125,7 +125,12 @@ type EditorTab = {
 
 type WorkspaceEditorState = {
   activePath: string
+  directories: Record<string, DirectoryState>
+  docs: DocItem[]
+  gitStatus: GitStatus
+  skills: SkillItem[]
   tabs: EditorTab[]
+  tasks: TaskItem[]
 }
 
 type TaskStatus = "active" | "done"
@@ -265,13 +270,20 @@ function App() {
   const [gitError, setGitError] = useState("")
   const [busyAction, setBusyAction] = useState("")
   const activePathRef = useRef("")
+  const activeWorkspaceIdRef = useRef("")
+  const directoriesRef = useRef<Record<string, DirectoryState>>({})
+  const docsRef = useRef<DocItem[]>([])
+  const gitStatusRef = useRef<GitStatus>(EMPTY_GIT_STATUS)
+  const skillsRef = useRef<SkillItem[]>([])
   const saveActiveFileRef = useRef<() => void>(() => {})
   const tabsRef = useRef<EditorTab[]>([])
+  const tasksRef = useRef<TaskItem[]>([])
   const terminalSizeRef = useRef({ cols: 80, rows: 24 })
   const previousWorkspaceIdRef = useRef("")
   const workspaceEditorsRef = useRef<Record<string, WorkspaceEditorState>>({})
 
   const activeWorkspaceId = workspaceList.activeWorkspaceId ?? ""
+  activeWorkspaceIdRef.current = activeWorkspaceId
   const activeWorkspace = workspaceList.workspaces.find(
     (workspace) => workspace.id === activeWorkspaceId
   )
@@ -320,8 +332,13 @@ function App() {
 
   useEffect(() => {
     activePathRef.current = activePath
+    directoriesRef.current = directories
+    docsRef.current = docs
+    gitStatusRef.current = gitStatus
+    skillsRef.current = skills
     tabsRef.current = tabs
-  }, [activePath, tabs])
+    tasksRef.current = tasks
+  }, [activePath, directories, docs, gitStatus, skills, tabs, tasks])
 
   useEffect(() => {
     let cancelled = false
@@ -347,7 +364,12 @@ function App() {
     if (previousWorkspaceId && previousWorkspaceId !== activeWorkspaceId) {
       workspaceEditorsRef.current[previousWorkspaceId] = {
         activePath: activePathRef.current,
+        directories: directoriesRef.current,
+        docs: docsRef.current,
+        gitStatus: gitStatusRef.current,
+        skills: skillsRef.current,
         tabs: tabsRef.current,
+        tasks: tasksRef.current,
       }
     }
     previousWorkspaceIdRef.current = activeWorkspaceId
@@ -367,40 +389,77 @@ function App() {
     const savedEditor = workspaceEditorsRef.current[activeWorkspaceId]
     setTabs(savedEditor?.tabs ?? [])
     setActivePath(savedEditor?.activePath ?? "")
+    setDirectories(savedEditor?.directories ?? { "": { open: true, loading: true } })
+    setTasks(savedEditor?.tasks ?? [])
+    setSkills(savedEditor?.skills ?? [])
+    setDocs(savedEditor?.docs ?? [])
+    setGitStatus(savedEditor?.gitStatus ?? EMPTY_GIT_STATUS)
 
-    async function loadActiveWorkspace() {
+    async function loadRootDirectory() {
       setFileError("")
-      setGitError("")
-      setDirectories({})
 
       try {
-        const [rootEntries, nextTasks, nextSkills, nextDocs, nextGitStatus] =
-          await Promise.all([
-            invoke<FileEntry[]>("list_dir", {
-              workspaceId: activeWorkspaceId,
-              path: null,
-            }),
-            invoke<TaskItem[]>("list_tasks", { workspaceId: activeWorkspaceId }),
-            invoke<SkillItem[]>("list_skills", { workspaceId: activeWorkspaceId }),
-            invoke<DocItem[]>("list_docs", { workspaceId: activeWorkspaceId }),
-            invoke<GitStatus>("git_status", { workspaceId: activeWorkspaceId }),
-          ])
+        const rootEntries = await invoke<FileEntry[]>("list_dir", {
+          workspaceId: activeWorkspaceId,
+          path: null,
+        })
 
         if (cancelled) return
 
-        setDirectories({
-          "": { open: true, loading: false, entries: rootEntries },
-        })
+        setDirectories((current) => ({
+          ...current,
+          "": { open: current[""]?.open ?? true, loading: false, entries: rootEntries },
+        }))
+      } catch (error) {
+        if (!cancelled) {
+          setDirectories((current) => ({
+            ...current,
+            "": {
+              ...current[""],
+              open: true,
+              loading: false,
+              error: readableError(error),
+            },
+          }))
+        }
+      }
+    }
+
+    async function loadResources() {
+      try {
+        const [nextTasks, nextSkills, nextDocs] = await Promise.all([
+          invoke<TaskItem[]>("list_tasks", { workspaceId: activeWorkspaceId }),
+          invoke<SkillItem[]>("list_skills", { workspaceId: activeWorkspaceId }),
+          invoke<DocItem[]>("list_docs", { workspaceId: activeWorkspaceId }),
+        ])
+
+        if (cancelled) return
+
         setTasks(nextTasks)
         setSkills(nextSkills)
         setDocs(nextDocs)
-        setGitStatus(nextGitStatus)
       } catch (error) {
         if (!cancelled) setFileError(readableError(error))
       }
     }
 
-    void loadActiveWorkspace()
+    async function loadGit() {
+      setGitError("")
+
+      try {
+        const nextGitStatus = await invoke<GitStatus>("git_status", {
+          workspaceId: activeWorkspaceId,
+        })
+
+        if (!cancelled) setGitStatus(nextGitStatus)
+      } catch (error) {
+        if (!cancelled) setGitError(readableError(error))
+      }
+    }
+
+    void loadRootDirectory()
+    void loadResources()
+    void loadGit()
 
     return () => {
       cancelled = true
@@ -410,17 +469,19 @@ function App() {
   async function refreshResources() {
     if (!activeWorkspaceId) return
 
-    const [nextTasks, nextSkills, nextDocs, nextGitStatus] = await Promise.all([
-      invoke<TaskItem[]>("list_tasks", { workspaceId: activeWorkspaceId }),
-      invoke<SkillItem[]>("list_skills", { workspaceId: activeWorkspaceId }),
-      invoke<DocItem[]>("list_docs", { workspaceId: activeWorkspaceId }),
-      invoke<GitStatus>("git_status", { workspaceId: activeWorkspaceId }),
+    const workspaceId = activeWorkspaceId
+    const [nextTasks, nextSkills, nextDocs] = await Promise.all([
+      invoke<TaskItem[]>("list_tasks", { workspaceId }),
+      invoke<SkillItem[]>("list_skills", { workspaceId }),
+      invoke<DocItem[]>("list_docs", { workspaceId }),
     ])
+
+    if (activeWorkspaceIdRef.current !== workspaceId) return
 
     setTasks(nextTasks)
     setSkills(nextSkills)
     setDocs(nextDocs)
-    setGitStatus(nextGitStatus)
+    void refreshGit(workspaceId)
   }
 
   async function addWorkspace() {
@@ -544,8 +605,8 @@ function App() {
     })
   }
 
-  async function loadDirectory(path: string) {
-    if (!activeWorkspaceId) return
+  async function loadDirectory(path: string, workspaceId = activeWorkspaceId) {
+    if (!workspaceId) return
 
     setDirectories((current) => ({
       ...current,
@@ -554,15 +615,19 @@ function App() {
 
     try {
       const entries = await invoke<FileEntry[]>("list_dir", {
-        workspaceId: activeWorkspaceId,
+        workspaceId,
         path: path || null,
       })
+
+      if (activeWorkspaceIdRef.current !== workspaceId) return
 
       setDirectories((current) => ({
         ...current,
         [path]: { open: true, loading: false, entries },
       }))
     } catch (error) {
+      if (activeWorkspaceIdRef.current !== workspaceId) return
+
       setDirectories((current) => ({
         ...current,
         [path]: {
@@ -1145,16 +1210,20 @@ function App() {
     }
   }
 
-  async function refreshGit() {
-    if (!activeWorkspaceId) return
+  async function refreshGit(workspaceId = activeWorkspaceId) {
+    if (!workspaceId) return
 
     try {
       const next = await invoke<GitStatus>("git_status", {
-        workspaceId: activeWorkspaceId,
+        workspaceId,
       })
+      if (activeWorkspaceIdRef.current !== workspaceId) return
+
       setGitStatus(next)
       setGitError("")
     } catch (error) {
+      if (activeWorkspaceIdRef.current !== workspaceId) return
+
       setGitError(readableError(error))
     }
   }
@@ -1166,13 +1235,20 @@ function App() {
     }
 
     try {
-      const originalContents = await invoke<string>("read_original_text_file", {
-        workspaceId: activeWorkspaceId,
-        path: file.appPath,
-      })
+      const [originalContents, changedLines] = await Promise.all([
+        invoke<string>("read_original_text_file", {
+          workspaceId: activeWorkspaceId,
+          path: file.appPath,
+        }),
+        invoke<number[]>("changed_lines", {
+          workspaceId: activeWorkspaceId,
+          path: file.appPath,
+          status: file.status,
+        }),
+      ])
 
       setGitError("")
-      await openPath(file.appPath, fileName(file.appPath), file.changedLines, originalContents)
+      await openPath(file.appPath, fileName(file.appPath), changedLines, originalContents)
     } catch (error) {
       setGitError(readableError(error))
     }
@@ -1187,13 +1263,19 @@ function App() {
     }
 
     try {
-      const originalContents = await invoke<string>("read_develop_text_file", {
-        workspaceId: activeWorkspaceId,
-        path: file.appPath,
-      })
+      const [originalContents, changedLines] = await Promise.all([
+        invoke<string>("read_develop_text_file", {
+          workspaceId: activeWorkspaceId,
+          path: file.appPath,
+        }),
+        invoke<number[]>("merge_changed_lines", {
+          workspaceId: activeWorkspaceId,
+          path: file.appPath,
+        }),
+      ])
 
       setGitError("")
-      await openPath(file.appPath, fileName(file.appPath), file.changedLines, originalContents)
+      await openPath(file.appPath, fileName(file.appPath), changedLines, originalContents)
     } catch (error) {
       setGitError(readableError(error))
     }
@@ -1904,7 +1986,6 @@ function FilesPanel({
               setRenamePath("")
               setRenameValue("")
             }}
-            onRenameStart={startRename}
             onRenameValueChange={setRenameValue}
             onToggleDirectory={onToggleDirectory}
           />
@@ -1945,7 +2026,6 @@ function FileEntries({
   onOpenFile,
   onRename,
   onRenameCancel,
-  onRenameStart,
   onRenameValueChange,
   onToggleDirectory,
 }: {
@@ -1962,18 +2042,9 @@ function FileEntries({
   onOpenFile: (entry: FileEntry) => void
   onRename: (entry: FileEntry, value: string) => void
   onRenameCancel: () => void
-  onRenameStart: (entry: FileEntry) => void
   onRenameValueChange: (value: string) => void
   onToggleDirectory: (path: string) => void
 }) {
-  const clickTimer = useRef<number | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (clickTimer.current) window.clearTimeout(clickTimer.current)
-    }
-  }, [])
-
   return (
     <div className="space-y-0.5">
       {createRequest?.basePath === basePath ? (
@@ -1999,21 +2070,13 @@ function FileEntries({
               style={{ paddingLeft: 8 + level * 16 }}
               onClick={(event) => {
                 if (renaming || event.detail > 1) return
-                if (clickTimer.current) window.clearTimeout(clickTimer.current)
-                clickTimer.current = window.setTimeout(() => {
-                  if (entry.isDir) {
-                    onToggleDirectory(entry.path)
-                  } else {
-                    onOpenFile(entry)
-                  }
-                }, 180)
+                if (entry.isDir) {
+                  onToggleDirectory(entry.path)
+                } else {
+                  onOpenFile(entry)
+                }
               }}
               onContextMenu={(event) => onContextMenu(entry, event)}
-              onDoubleClick={() => {
-                if (renaming) return
-                if (clickTimer.current) window.clearTimeout(clickTimer.current)
-                onRenameStart(entry)
-              }}
             >
               {entry.isDir ? (
                 open ? (
@@ -2093,7 +2156,6 @@ function FileEntries({
                   onOpenFile={onOpenFile}
                   onRename={onRename}
                   onRenameCancel={onRenameCancel}
-                  onRenameStart={onRenameStart}
                   onRenameValueChange={onRenameValueChange}
                   onToggleDirectory={onToggleDirectory}
                 />

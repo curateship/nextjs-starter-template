@@ -370,9 +370,9 @@ fn list_dir(
 
     for entry in fs::read_dir(&folder).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
-        let metadata = entry.metadata().map_err(|error| error.to_string())?;
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
 
-        if !metadata.is_dir() && !metadata.is_file() {
+        if !file_type.is_dir() && !file_type.is_file() {
             continue;
         }
 
@@ -380,7 +380,7 @@ fn list_dir(
         entries.push(FileEntry {
             name: entry.file_name().to_string_lossy().to_string(),
             path: relative_path(&workspace.app_root, &path)?,
-            is_dir: metadata.is_dir(),
+            is_dir: file_type.is_dir(),
         });
     }
 
@@ -808,13 +808,12 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
             let status = line.chars().take(2).collect::<String>().trim().to_string();
             let path = git_status_path(&line);
             let app_path = app_relative_status_path(&workspace, &path);
-            let changed_lines = changed_lines_for(&workspace.worktree_root, &path, &status)?;
 
             Ok(GitFile {
                 status,
                 path,
                 app_path,
-                changed_lines,
+                changed_lines: Vec::new(),
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -829,6 +828,30 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
         merge_commits,
         merge_files,
     })
+}
+
+#[tauri::command]
+fn changed_lines(
+    workspace_id: String,
+    path: String,
+    status: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<usize>, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = repo_path_for_app_path(&workspace, &path)?;
+    changed_lines_for(&workspace.worktree_root, &repo_path, &status)
+}
+
+#[tauri::command]
+fn merge_changed_lines(
+    workspace_id: String,
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<usize>, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let repo_path = repo_path_for_app_path(&workspace, &path)?;
+    let range = format!("develop...{}", workspace.branch);
+    changed_lines_between(&workspace.worktree_root, &range, &repo_path)
 }
 
 #[tauri::command]
@@ -1532,10 +1555,7 @@ fn merge_commits_for(workspace: &WorkspaceRecord) -> Result<Vec<GitCommit>, Stri
 
 fn merge_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
     let range = format!("develop...{}", workspace.branch);
-    let output = run_git(
-        &workspace.worktree_root,
-        &["diff", "--name-status", &range],
-    )?;
+    let output = run_git(&workspace.worktree_root, &["diff", "--name-status", &range])?;
 
     output
         .lines()
@@ -1548,13 +1568,12 @@ fn merge_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> 
                 .unwrap_or_default()
                 .to_string();
             let app_path = app_relative_status_path(workspace, &path);
-            let changed_lines = changed_lines_between(&workspace.worktree_root, &range, &path)?;
 
             Ok(GitFile {
                 status,
                 path,
                 app_path,
-                changed_lines,
+                changed_lines: Vec::new(),
             })
         })
         .collect()
@@ -1579,6 +1598,28 @@ fn app_relative_status_path(workspace: &WorkspaceRecord, repo_path: &str) -> Opt
     repo_path
         .strip_prefix(&format!("{}/", app_prefix))
         .map(|path| path.to_string())
+}
+
+fn repo_path_for_app_path(workspace: &WorkspaceRecord, app_path: &str) -> Result<String, String> {
+    let app_path = app_path.trim();
+    let relative_path = Path::new(app_path);
+
+    if relative_path.is_absolute()
+        || relative_path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err("Path must stay inside the workspace".to_string());
+    }
+
+    let app_path = app_path.replace('\\', "/");
+    let app_prefix = workspace.app_relative_path.replace('\\', "/");
+
+    if app_prefix.is_empty() {
+        Ok(app_path)
+    } else {
+        Ok(format!("{}/{}", app_prefix, app_path))
+    }
 }
 
 fn changed_lines_for(root: &Path, repo_path: &str, status: &str) -> Result<Vec<usize>, String> {
@@ -1778,6 +1819,8 @@ pub fn run() {
             list_docs,
             create_doc,
             git_status,
+            changed_lines,
+            merge_changed_lines,
             git_commit,
             git_sync,
             git_merge_to_develop,
