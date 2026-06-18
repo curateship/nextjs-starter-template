@@ -305,6 +305,13 @@ function App() {
   }, [pinnedSkillsByWorkspace])
 
   useEffect(() => {
+    if (!fileError) return
+
+    const timeout = window.setTimeout(() => setFileError(""), 4000)
+    return () => window.clearTimeout(timeout)
+  }, [fileError])
+
+  useEffect(() => {
     const preventContextMenu = (event: MouseEvent) => event.preventDefault()
 
     document.addEventListener("contextmenu", preventContextMenu)
