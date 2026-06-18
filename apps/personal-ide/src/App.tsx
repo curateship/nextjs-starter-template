@@ -3929,7 +3929,7 @@ function serverPortForWorkspace(workspace: WorkspaceInfo) {
 
 function serverStartCommand(port: number) {
   const origins = `http://127.0.0.1:${port},http://localhost:${port}`
-  return `app_name=$(node -p "require('./package.json').name")\ntest -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="$app_name" -- --host 127.0.0.1 --port ${port}\n`
+  return `app_name=$(node -p "require('./package.json').name")\ntest -d ../../node_modules || (cd ../.. && npm install)\ncd ../.. && CORE_APP_ORIGINS="${origins}" npm run dev --workspace="$app_name" -- --port ${port}\n`
 }
 
 function taskFileEntry(task: TaskItem): FileEntry {
