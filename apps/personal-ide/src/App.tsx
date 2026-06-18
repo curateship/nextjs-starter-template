@@ -254,6 +254,30 @@ function changedLineExtension(lines: number[]): Extension {
   })
 }
 
+function clipboardImage(event: ReactClipboardEvent | ClipboardEvent) {
+  const clipboardData = event.clipboardData
+  if (!clipboardData) return null
+
+  return (
+    Array.from(clipboardData.files).find((item) => item.type.startsWith("image/")) ??
+    Array.from(clipboardData.items)
+      .find((item) => item.type.startsWith("image/"))
+      ?.getAsFile() ??
+    null
+  )
+}
+
+function pastedImageExtension(image: File) {
+  return (
+    {
+      "image/gif": "gif",
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    }[image.type.toLowerCase()] ?? image.name.split(".").pop()?.toLowerCase()
+  )
+}
+
 function App() {
   const [workspaceList, setWorkspaceList] = useState<WorkspaceList>(EMPTY_WORKSPACES)
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({})
@@ -1205,47 +1229,50 @@ function App() {
     }
   }
 
+  async function createPastedImageFile(image: File) {
+    if (!activeWorkspaceId) throw new Error("Create or select a workspace first")
+
+    const extension = pastedImageExtension(image)
+    if (!extension || !["gif", "jpeg", "jpg", "png", "webp"].includes(extension)) {
+      throw new Error("Only PNG, JPEG, WebP, or GIF images can be pasted")
+    }
+
+    const bytes = Array.from(new Uint8Array(await image.arrayBuffer()))
+    const file = await invoke<FileEntry>("create_pasted_image", {
+      workspaceId: activeWorkspaceId,
+      extension,
+      bytes,
+    })
+    setFileError("")
+    await loadDirectory("")
+    await loadDirectory(parentPath(file.path))
+    await refreshResources()
+    void refreshGit(activeWorkspaceId)
+    return file
+  }
+
   async function pasteTerminalImage(event: ReactClipboardEvent | ClipboardEvent) {
-    const clipboardData = event.clipboardData
-    const image = clipboardData
-      ? Array.from(clipboardData.files).find((item) => item.type.startsWith("image/")) ??
-        Array.from(clipboardData.items)
-          .find((item) => item.type.startsWith("image/"))
-          ?.getAsFile()
-      : null
+    const image = clipboardImage(event)
     if (!image) return
 
     event.preventDefault()
-    if (!activeWorkspaceId) {
-      setFileError("Create or select a workspace first")
-      return
-    }
-
-    const extension =
-      {
-        "image/gif": "gif",
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/webp": "webp",
-      }[image.type.toLowerCase()] ?? image.name.split(".").pop()?.toLowerCase()
-    if (!extension || !["gif", "jpeg", "jpg", "png", "webp"].includes(extension)) {
-      setFileError("Only PNG, JPEG, WebP, or GIF images can be pasted")
-      return
-    }
-
     try {
-      const bytes = Array.from(new Uint8Array(await image.arrayBuffer()))
-      const file = await invoke<FileEntry>("create_pasted_image", {
-        workspaceId: activeWorkspaceId,
-        extension,
-        bytes,
-      })
-      setFileError("")
-      await loadDirectory("")
-      await loadDirectory(parentPath(file.path))
-      await refreshResources()
+      const file = await createPastedImageFile(image)
       await pasteTerminalPrompt(` ${file.path} `)
-      void refreshGit(activeWorkspaceId)
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function pasteEditorImage(event: ClipboardEvent, view: EditorView) {
+    const image = clipboardImage(event)
+    if (!image) return
+
+    event.preventDefault()
+    try {
+      const file = await createPastedImageFile(image)
+      view.dispatch(view.state.replaceSelection(`![image](${file.path})`))
+      view.focus()
     } catch (error) {
       setFileError(readableError(error))
     }
@@ -1588,6 +1615,7 @@ function App() {
                     tabs={tabs}
                     onChange={updateActiveContents}
                     onCloseTab={closeTab}
+                    onPasteImage={pasteEditorImage}
                     onSave={saveActiveFile}
                     onSelectTab={setActivePath}
                   />
@@ -3051,6 +3079,7 @@ function EditorPanel({
   tabs,
   onChange,
   onCloseTab,
+  onPasteImage,
   onSave,
   onSelectTab,
 }: {
@@ -3061,9 +3090,25 @@ function EditorPanel({
   tabs: EditorTab[]
   onChange: (value: string) => void
   onCloseTab: (path: string) => void
+  onPasteImage: (event: ClipboardEvent, view: EditorView) => void
   onSave: () => void
   onSelectTab: (path: string) => void
 }) {
+  const pasteImageExtension = useMemo(
+    () =>
+      EditorView.domEventHandlers({
+        paste(event, view) {
+          if (!clipboardImage(event)) return false
+          onPasteImage(event, view)
+          return true
+        },
+      }),
+    [onPasteImage]
+  )
+  const editableExtensions = useMemo(
+    () => [...extensions, pasteImageExtension],
+    [extensions, pasteImageExtension]
+  )
   const originalExtensions = tab
     ? [
         editorTheme,
@@ -3157,7 +3202,7 @@ function EditorPanel({
                   <CodeMirror
                     value={tab.contents}
                     height="100%"
-                    extensions={extensions}
+                    extensions={editableExtensions}
                     basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                     onChange={onChange}
                   />
@@ -3167,7 +3212,7 @@ function EditorPanel({
               <CodeMirror
                 value={tab.contents}
                 height="100%"
-                extensions={extensions}
+                extensions={editableExtensions}
                 basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                 onChange={onChange}
               />
