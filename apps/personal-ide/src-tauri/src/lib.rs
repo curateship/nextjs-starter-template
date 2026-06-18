@@ -870,7 +870,11 @@ fn start_terminal(
         .take_writer()
         .map_err(|error| error.to_string())?;
     let mut command = CommandBuilder::new(default_shell());
+    if cfg!(unix) {
+        command.arg("-l");
+    }
     command.cwd(workspace.app_root.as_os_str());
+    command.env("PATH", default_command_path());
     command.env("TERM", "xterm-256color");
     command.env("COLORTERM", "truecolor");
     command.env("LANG", "en_US.UTF-8");
@@ -1503,6 +1507,14 @@ fn default_shell() -> String {
             "/bin/zsh".to_string()
         }
     })
+}
+
+fn default_command_path() -> String {
+    let app_paths = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    match std::env::var("PATH") {
+        Ok(path) if !path.is_empty() => format!("{}:{}", app_paths, path),
+        _ => app_paths.to_string(),
+    }
 }
 
 fn kill_terminal_by_id(
