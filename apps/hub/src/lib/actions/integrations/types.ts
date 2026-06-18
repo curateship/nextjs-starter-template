@@ -62,11 +62,11 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
           { value: 'sandbox', label: 'Use sandbox keys' },
         ],
       },
-      { key: 'secret_key', label: 'Live Secret Key', type: 'password', placeholder: 'sk_live_...' },
-      { key: 'publishable_key', label: 'Live Publishable Key', type: 'text', placeholder: 'pk_live_...' },
+      { key: 'secret_key', label: 'Live Secret Key', type: 'password', placeholder: 'Enter live secret key' },
+      { key: 'publishable_key', label: 'Live Publishable Key', type: 'text', placeholder: 'Enter live publishable key' },
       { key: 'webhook_secret', label: 'Live Webhook Secret', type: 'password' },
-      { key: 'sandbox_secret_key', label: 'Sandbox Secret Key', type: 'password', placeholder: 'sk_test_...' },
-      { key: 'sandbox_publishable_key', label: 'Sandbox Publishable Key', type: 'text', placeholder: 'pk_test_...' },
+      { key: 'sandbox_secret_key', label: 'Sandbox Secret Key', type: 'password', placeholder: 'Enter sandbox secret key' },
+      { key: 'sandbox_publishable_key', label: 'Sandbox Publishable Key', type: 'text', placeholder: 'Enter sandbox publishable key' },
       { key: 'sandbox_webhook_secret', label: 'Sandbox Webhook Secret', type: 'password' },
     ],
   },
@@ -102,7 +102,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     description: 'Claude AI models',
     category: 'ai',
     fields: [
-      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-ant-...', required: true },
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'Enter API key', required: true },
     ],
   },
   {
@@ -111,7 +111,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     description: 'GPT and DALL-E models',
     category: 'ai',
     fields: [
-      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-...', required: true },
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'Enter API key', required: true },
     ],
   },
   {
@@ -120,7 +120,7 @@ export const INTEGRATION_REGISTRY: IntegrationRegistryEntry[] = [
     description: 'Perplexity AI search and generation',
     category: 'ai',
     fields: [
-      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'pplx-...', required: true },
+      { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'Enter API key', required: true },
     ],
   },
   {

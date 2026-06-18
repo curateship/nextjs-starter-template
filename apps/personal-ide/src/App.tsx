@@ -1,6 +1,3 @@
-import { invoke } from "@tauri-apps/api/core"
-import CodeMirror from "@uiw/react-codemirror"
-import type { Extension } from "@codemirror/state"
 import { css } from "@codemirror/lang-css"
 import { html } from "@codemirror/lang-html"
 import { javascript } from "@codemirror/lang-javascript"
@@ -9,28 +6,47 @@ import { markdown } from "@codemirror/lang-markdown"
 import { python } from "@codemirror/lang-python"
 import { rust } from "@codemirror/lang-rust"
 import { sql } from "@codemirror/lang-sql"
-import { EditorView } from "@codemirror/view"
+import { EditorState, StateField } from "@codemirror/state"
+import type { Extension } from "@codemirror/state"
+import { Decoration, EditorView } from "@codemirror/view"
+import type { DecorationSet } from "@codemirror/view"
+import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
+import CodeMirror from "@uiw/react-codemirror"
+import { FitAddon } from "@xterm/addon-fit"
+import { Terminal } from "@xterm/xterm"
+import "@xterm/xterm/css/xterm.css"
 import {
   Bot,
+  Check,
   ChevronDown,
   ChevronRight,
   CircleCheck,
-  Clock3,
   Code2,
+  Copy,
+  ExternalLink,
+  Files,
   FileText,
   Folder,
   FolderOpen,
+  FolderPlus,
   GitBranch,
   MoreVertical,
   PanelBottom,
+  Pencil,
+  Play,
   Plus,
+  RefreshCw,
   Save,
   Sparkles,
+  Trash2,
+  Unlink,
   X,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { MouseEvent as ReactMouseEvent } from "react"
+import type { ReactNode } from "react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -56,7 +72,14 @@ import {
 import { cn } from "@/lib/utils"
 
 type WorkspaceInfo = {
+  id: string
   name: string
+  appName: string
+}
+
+type WorkspaceList = {
+  activeWorkspaceId: string | null
+  workspaces: WorkspaceInfo[]
 }
 
 type FileEntry = {
@@ -77,10 +100,66 @@ type EditorTab = {
   name: string
   contents: string
   savedContents: string
+  originalContents?: string
+  changedLines?: number[]
   error?: string
 }
 
-type TaskStatus = "ready" | "in-progress" | "done"
+type WorkspaceEditorState = {
+  activePath: string
+  tabs: EditorTab[]
+}
+
+type TaskStatus = "active" | "done"
+
+type TaskItem = {
+  title: string
+  path: string
+  status: TaskStatus
+  skill?: string | null
+  error?: string | null
+}
+
+type SkillItem = {
+  name: string
+  slug: string
+  path: string
+}
+
+type DocItem = {
+  name: string
+  path: string
+}
+
+type GitFile = {
+  status: string
+  path: string
+  appPath?: string | null
+  changedLines: number[]
+}
+
+type GitStatus = {
+  branch: string
+  files: GitFile[]
+}
+
+type TerminalOutput = {
+  workspaceId: string
+  data: number[]
+}
+
+const EMPTY_WORKSPACES: WorkspaceList = {
+  activeWorkspaceId: null,
+  workspaces: [],
+}
+
+const EMPTY_GIT_STATUS: GitStatus = {
+  branch: "",
+  files: [],
+}
+
+const TERMINAL_HISTORY_LIMIT = 300
+const terminalHistory = new Map<string, Uint8Array[]>()
 
 const editorTheme = EditorView.theme({
   "&": { height: "100%" },
@@ -88,64 +167,248 @@ const editorTheme = EditorView.theme({
   ".cm-gutters": { backgroundColor: "#f8f8f8", borderRight: "1px solid #d4d4d4" },
   ".cm-activeLine": { backgroundColor: "#f4f4f4" },
   ".cm-activeLineGutter": { backgroundColor: "#ececec" },
+  ".cm-changed-line": { backgroundColor: "#fff8d6" },
 })
 
-const tasks: { id: number; title: string; initialStatus: TaskStatus }[] = [
-  { id: 1, title: "Task #1", initialStatus: "ready" },
-  { id: 2, title: "Task #2", initialStatus: "in-progress" },
-  { id: 3, title: "Task #3", initialStatus: "ready" },
-  { id: 4, title: "Task #4", initialStatus: "ready" },
-]
-
 const SIDE_HANDLE_CLASS =
-  "h-full w-px cursor-col-resize bg-border after:absolute after:top-0 after:left-1/2 after:h-full after:w-2 after:-translate-x-1/2 after:content-[''] hover:bg-border"
+  "h-full w-px cursor-col-resize bg-border hover:bg-border"
+
+function changedLineExtension(lines: number[]): Extension {
+  const changedLines = new Set(lines)
+  const lineMark = Decoration.line({ class: "cm-changed-line" })
+
+  function buildDecorations(state: EditorState) {
+    const decorations = Array.from(changedLines)
+      .filter((line) => line >= 1 && line <= state.doc.lines)
+      .map((line) => lineMark.range(state.doc.line(line).from))
+
+    return Decoration.set(decorations)
+  }
+
+  return StateField.define<DecorationSet>({
+    create: buildDecorations,
+    update(value, transaction) {
+      return transaction.docChanged ? buildDecorations(transaction.state) : value
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  })
+}
 
 function App() {
-  const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null)
+  const [workspaceList, setWorkspaceList] = useState<WorkspaceList>(EMPTY_WORKSPACES)
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({})
   const [fileError, setFileError] = useState("")
   const [tabs, setTabs] = useState<EditorTab[]>([])
   const [activePath, setActivePath] = useState("")
   const [savingPath, setSavingPath] = useState("")
+  const [tasks, setTasks] = useState<TaskItem[]>([])
   const [taskFilter, setTaskFilter] = useState("all")
-  const [taskStatuses, setTaskStatuses] = useState<Record<number, TaskStatus>>(
-    Object.fromEntries(tasks.map((task) => [task.id, task.initialStatus]))
-  )
-  const [terminalTab, setTerminalTab] = useState("terminal")
-  const [workspaceStatuses, setWorkspaceStatuses] = useState([
-    { name: "Workspace #1", status: "Running" },
-    { name: "Workspace #2", status: "Waiting your input" },
-  ])
+  const [skills, setSkills] = useState<SkillItem[]>([])
+  const [docs, setDocs] = useState<DocItem[]>([])
+  const [gitStatus, setGitStatus] = useState<GitStatus>(EMPTY_GIT_STATUS)
   const [commitMessage, setCommitMessage] = useState("")
   const [selectedSkill, setSelectedSkill] = useState("all")
-  const [activity, setActivity] = useState("Ready")
+  const [terminalTab, setTerminalTab] = useState("terminal")
+  const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
+  const [workspaceError, setWorkspaceError] = useState("")
+  const [gitError, setGitError] = useState("")
+  const [busyAction, setBusyAction] = useState("")
+  const activePathRef = useRef("")
+  const saveActiveFileRef = useRef<() => void>(() => {})
+  const tabsRef = useRef<EditorTab[]>([])
+  const terminalSizeRef = useRef({ cols: 80, rows: 24 })
+  const previousWorkspaceIdRef = useRef("")
+  const workspaceEditorsRef = useRef<Record<string, WorkspaceEditorState>>({})
 
+  const activeWorkspaceId = workspaceList.activeWorkspaceId ?? ""
+  const activeWorkspace = workspaceList.workspaces.find(
+    (workspace) => workspace.id === activeWorkspaceId
+  )
   const activeTab = tabs.find((tab) => tab.path === activePath)
   const visibleTasks = tasks.filter((task) => {
     if (taskFilter === "all") return true
-    return taskStatuses[task.id] === taskFilter
+    return task.status === taskFilter
   })
+  const selectedSkillItem = skills.find((skill) => skill.slug === selectedSkill)
 
   const codeExtensions = useMemo(
-    () => [editorTheme, ...languageForPath(activeTab?.path ?? "")],
-    [activeTab?.path]
+    () => [
+      editorTheme,
+      changedLineExtension(activeTab?.changedLines ?? []),
+      ...languageForPath(activeTab?.path ?? ""),
+    ],
+    [activeTab?.changedLines, activeTab?.path]
   )
+  const handleTerminalSizeChange = useCallback((cols: number, rows: number) => {
+    terminalSizeRef.current = { cols, rows }
+  }, [])
 
-  async function openWorkspace() {
-    setFileError("")
-    const selected = await invoke<WorkspaceInfo | null>("pick_workspace_folder")
+  useEffect(() => {
+    const preventContextMenu = (event: MouseEvent) => event.preventDefault()
 
-    if (!selected) return
+    document.addEventListener("contextmenu", preventContextMenu)
+    return () => document.removeEventListener("contextmenu", preventContextMenu)
+  }, [])
 
-    setWorkspace(selected)
-    setDirectories({})
-    setTabs([])
-    setActivePath("")
-    setActivity(`Opened ${selected.name}`)
-    await loadDirectory("")
+  useEffect(() => {
+    activePathRef.current = activePath
+    tabsRef.current = tabs
+  }, [activePath, tabs])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      try {
+        const next = await invoke<WorkspaceList>("list_workspaces")
+        if (!cancelled) setWorkspaceList(next)
+      } catch (error) {
+        if (!cancelled) setWorkspaceError(readableError(error))
+      }
+    }
+
+    void load()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const previousWorkspaceId = previousWorkspaceIdRef.current
+    if (previousWorkspaceId && previousWorkspaceId !== activeWorkspaceId) {
+      workspaceEditorsRef.current[previousWorkspaceId] = {
+        activePath: activePathRef.current,
+        tabs: tabsRef.current,
+      }
+    }
+    previousWorkspaceIdRef.current = activeWorkspaceId
+
+    if (!activeWorkspaceId) {
+      setDirectories({})
+      setTabs([])
+      setActivePath("")
+      setTasks([])
+      setSkills([])
+      setDocs([])
+      setGitStatus(EMPTY_GIT_STATUS)
+      return
+    }
+
+    let cancelled = false
+    const savedEditor = workspaceEditorsRef.current[activeWorkspaceId]
+    setTabs(savedEditor?.tabs ?? [])
+    setActivePath(savedEditor?.activePath ?? "")
+
+    async function loadActiveWorkspace() {
+      setFileError("")
+      setGitError("")
+      setDirectories({})
+      setSelectedSkill("all")
+
+      try {
+        const [rootEntries, nextTasks, nextSkills, nextDocs, nextGitStatus] =
+          await Promise.all([
+            invoke<FileEntry[]>("list_dir", {
+              workspaceId: activeWorkspaceId,
+              path: null,
+            }),
+            invoke<TaskItem[]>("list_tasks", { workspaceId: activeWorkspaceId }),
+            invoke<SkillItem[]>("list_skills", { workspaceId: activeWorkspaceId }),
+            invoke<DocItem[]>("list_docs", { workspaceId: activeWorkspaceId }),
+            invoke<GitStatus>("git_status", { workspaceId: activeWorkspaceId }),
+          ])
+
+        if (cancelled) return
+
+        setDirectories({
+          "": { open: true, loading: false, entries: rootEntries },
+        })
+        setTasks(nextTasks)
+        setSkills(nextSkills)
+        setDocs(nextDocs)
+        setGitStatus(nextGitStatus)
+      } catch (error) {
+        if (!cancelled) setFileError(readableError(error))
+      }
+    }
+
+    void loadActiveWorkspace()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeWorkspaceId])
+
+  async function refreshResources() {
+    if (!activeWorkspaceId) return
+
+    const [nextTasks, nextSkills, nextDocs, nextGitStatus] = await Promise.all([
+      invoke<TaskItem[]>("list_tasks", { workspaceId: activeWorkspaceId }),
+      invoke<SkillItem[]>("list_skills", { workspaceId: activeWorkspaceId }),
+      invoke<DocItem[]>("list_docs", { workspaceId: activeWorkspaceId }),
+      invoke<GitStatus>("git_status", { workspaceId: activeWorkspaceId }),
+    ])
+
+    setTasks(nextTasks)
+    setSkills(nextSkills)
+    setDocs(nextDocs)
+    setGitStatus(nextGitStatus)
+  }
+
+  async function addWorkspace() {
+    setWorkspaceError("")
+    setBusyAction("workspace")
+
+    try {
+      const next = await invoke<WorkspaceList | null>("create_workspace")
+      if (!next) return
+
+      setWorkspaceList(next)
+    } catch (error) {
+      setWorkspaceError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
+  async function selectWorkspace(workspaceId: string) {
+    setWorkspaceError("")
+    try {
+      const next = await invoke<WorkspaceList>("set_active_workspace", { workspaceId })
+      setWorkspaceList(next)
+    } catch (error) {
+      setWorkspaceError(readableError(error))
+    }
+  }
+
+  async function detachWorkspace(workspaceId: string) {
+    if (!window.confirm("Detach this workspace from the app? Files stay on disk.")) return
+
+    setWorkspaceError("")
+    try {
+      const next = await invoke<WorkspaceList>("detach_workspace", { workspaceId })
+      setWorkspaceList(next)
+    } catch (error) {
+      setWorkspaceError(readableError(error))
+    }
+  }
+
+  async function deleteWorkspace(workspaceId: string) {
+    if (!window.confirm("Delete this clean workspace worktree? The branch remains.")) return
+
+    setWorkspaceError("")
+    try {
+      const next = await invoke<WorkspaceList>("delete_workspace", { workspaceId })
+      setWorkspaceList(next)
+    } catch (error) {
+      setWorkspaceError(readableError(error))
+    }
   }
 
   async function loadDirectory(path: string) {
+    if (!activeWorkspaceId) return
+
     setDirectories((current) => ({
       ...current,
       [path]: { ...current[path], open: true, loading: true, error: undefined },
@@ -153,6 +416,7 @@ function App() {
 
     try {
       const entries = await invoke<FileEntry[]>("list_dir", {
+        workspaceId: activeWorkspaceId,
         path: path || null,
       })
 
@@ -187,33 +451,51 @@ function App() {
     await loadDirectory(path)
   }
 
-  async function openFile(entry: FileEntry) {
+  async function openPath(
+    path: string,
+    name = fileName(path),
+    changedLines: number[] = [],
+    originalContents?: string
+  ) {
+    if (!activeWorkspaceId) return
+
     setFileError("")
-    const existing = tabs.find((tab) => tab.path === entry.path)
+    const existing = tabs.find((tab) => tab.path === path)
 
     if (existing) {
+      setTabs((current) =>
+        current.map((tab) =>
+          tab.path === path ? { ...tab, changedLines, originalContents } : tab
+        )
+      )
       setActivePath(existing.path)
       return
     }
 
     try {
       const contents = await invoke<string>("read_text_file", {
-        path: entry.path,
+        workspaceId: activeWorkspaceId,
+        path,
       })
       setTabs((current) => [
         ...current,
         {
-          path: entry.path,
-          name: entry.name,
+          path,
+          name,
           contents,
           savedContents: contents,
+          originalContents,
+          changedLines,
         },
       ])
-      setActivePath(entry.path)
-      setActivity(`Opened ${entry.name}`)
+      setActivePath(path)
     } catch (error) {
       setFileError(readableError(error))
     }
+  }
+
+  async function openFile(entry: FileEntry) {
+    await openPath(entry.path, entry.name)
   }
 
   function updateActiveContents(contents: string) {
@@ -228,11 +510,12 @@ function App() {
 
   async function saveActiveFile() {
     const tab = tabs.find((item) => item.path === activePath)
-    if (!tab) return
+    if (!tab || !activeWorkspaceId) return
 
     setSavingPath(tab.path)
     try {
       await invoke("write_text_file", {
+        workspaceId: activeWorkspaceId,
         path: tab.path,
         contents: tab.contents,
       })
@@ -243,7 +526,7 @@ function App() {
             : item
         )
       )
-      setActivity(`Saved ${tab.name}`)
+      await refreshResources()
     } catch (error) {
       const message = readableError(error)
       setTabs((current) =>
@@ -254,6 +537,59 @@ function App() {
     } finally {
       setSavingPath("")
     }
+  }
+
+  useEffect(() => {
+    saveActiveFileRef.current = saveActiveFile
+  })
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key.toLowerCase() !== "s" || (!event.metaKey && !event.ctrlKey)) return
+
+      event.preventDefault()
+      void saveActiveFileRef.current()
+    }
+
+    document.addEventListener("keydown", handleKeyDown, true)
+    return () => document.removeEventListener("keydown", handleKeyDown, true)
+  }, [])
+
+  async function refreshOpenTabsFromDisk() {
+    if (!activeWorkspaceId || !tabs.length) return
+
+    const nextTabs: EditorTab[] = []
+    let nextActivePath = activePath
+    let firstError = ""
+
+    for (const tab of tabs) {
+      try {
+        const contents = await invoke<string>("read_text_file", {
+          workspaceId: activeWorkspaceId,
+          path: tab.path,
+        })
+
+        nextTabs.push({
+          ...tab,
+          contents,
+          savedContents: contents,
+          originalContents: undefined,
+          changedLines: [],
+          error: undefined,
+        })
+      } catch (error) {
+        firstError ||= `${tab.name}: ${readableError(error)}`
+      }
+    }
+
+    setTabs(nextTabs)
+
+    if (!nextTabs.some((tab) => tab.path === nextActivePath)) {
+      nextActivePath = nextTabs[nextTabs.length - 1]?.path ?? ""
+    }
+    setActivePath(nextActivePath)
+
+    if (firstError) setFileError(firstError)
   }
 
   function closeTab(path: string) {
@@ -272,38 +608,358 @@ function App() {
     }
   }
 
-  function cycleTaskStatus(id: number) {
-    const nextStatus: Record<TaskStatus, TaskStatus> = {
-      ready: "in-progress",
-      "in-progress": "done",
-      done: "ready",
+  async function createTask(title: string) {
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
     }
 
-    setTaskStatuses((current) => ({
-      ...current,
-      [id]: nextStatus[current[id]],
-    }))
+    try {
+      const task = await invoke<TaskItem>("create_task", {
+        workspaceId: activeWorkspaceId,
+        title,
+      })
+      await refreshResources()
+      await openPath(task.path, fileName(task.path))
+    } catch (error) {
+      setFileError(readableError(error))
+    }
   }
 
-  function toggleWorkspaceStatus(index: number) {
-    setWorkspaceStatuses((current) =>
-      current.map((workspace, workspaceIndex) =>
-        workspaceIndex === index
-          ? {
-              ...workspace,
-              status:
-                workspace.status === "Running"
-                  ? "Waiting your input"
-                  : "Running",
-            }
-          : workspace
-      )
+  async function startTask(task: TaskItem) {
+    const skill = selectedSkillItem
+      ? ` Use the ${selectedSkillItem.name} skill from ${selectedSkillItem.path}.`
+      : ""
+    await pasteTerminalPrompt(
+      `Work on task "${task.title}" from ${task.path}.${skill} Update the task status frontmatter as progress changes.`
     )
+  }
+
+  async function createSkill(name: string) {
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
+    }
+
+    try {
+      const skill = await invoke<SkillItem>("create_skill", {
+        workspaceId: activeWorkspaceId,
+        name,
+      })
+      await refreshResources()
+      await openPath(skill.path, "SKILL.md")
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function createFile(path: string) {
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
+    }
+
+    try {
+      const file = await invoke<FileEntry>("create_text_file", {
+        workspaceId: activeWorkspaceId,
+        path,
+      })
+      setFileError("")
+      await loadDirectory("")
+      await loadDirectory(parentPath(file.path))
+      await openFile(file)
+      await refreshResources()
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function createFolder(path: string) {
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
+    }
+
+    try {
+      const folder = await invoke<FileEntry>("create_folder", {
+        workspaceId: activeWorkspaceId,
+        path,
+      })
+      setFileError("")
+      await loadDirectory("")
+      await loadDirectory(parentPath(folder.path))
+      await refreshResources()
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function renameEntry(entry: FileEntry, newName: string) {
+    if (!activeWorkspaceId) return
+
+    try {
+      const renamed = await invoke<FileEntry>("rename_path", {
+        workspaceId: activeWorkspaceId,
+        oldPath: entry.path,
+        newName,
+      })
+      setFileError("")
+      updateTabsForRename(entry.path, renamed.path)
+      setDirectories((current) => removeDirectoryPrefix(current, entry.path))
+      await loadDirectory("")
+      await loadDirectory(parentPath(entry.path))
+      if (parentPath(renamed.path) !== parentPath(entry.path)) {
+        await loadDirectory(parentPath(renamed.path))
+      }
+      await refreshResources()
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function trashEntry(entry: FileEntry) {
+    if (!activeWorkspaceId) return
+    const message = entry.isDir
+      ? `Move folder "${entry.name}" and its contents to Trash?`
+      : `Move "${entry.name}" to Trash?`
+    if (!window.confirm(message)) return
+
+    try {
+      await invoke("trash_path", {
+        workspaceId: activeWorkspaceId,
+        path: entry.path,
+      })
+      setFileError("")
+      closeTabsUnderPath(entry.path)
+      setDirectories((current) => removeDirectoryPrefix(current, entry.path))
+      await loadDirectory("")
+      await loadDirectory(parentPath(entry.path))
+      await refreshResources()
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function duplicateEntry(entry: FileEntry) {
+    if (!activeWorkspaceId) return
+
+    try {
+      const duplicate = await invoke<FileEntry>("duplicate_path", {
+        workspaceId: activeWorkspaceId,
+        path: entry.path,
+      })
+      setFileError("")
+      await loadDirectory("")
+      await loadDirectory(parentPath(duplicate.path))
+      await refreshResources()
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function revealEntry(entry: FileEntry) {
+    if (!activeWorkspaceId) return
+
+    try {
+      await invoke("reveal_path", {
+        workspaceId: activeWorkspaceId,
+        path: entry.path,
+      })
+      setFileError("")
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function copyEntryPath(entry: FileEntry) {
+    try {
+      await navigator.clipboard.writeText(entry.path)
+      setFileError("")
+    } catch {
+      setFileError("Could not copy path")
+    }
+  }
+
+  async function refreshFiles(path = "") {
+    await loadDirectory(path)
+    await refreshResources()
+  }
+
+  function updateTabsForRename(oldPath: string, newPath: string) {
+    setTabs((current) =>
+      current.map((tab) => {
+        if (!isSameOrChildPath(tab.path, oldPath)) return tab
+        const path = replacePathPrefix(tab.path, oldPath, newPath)
+        return { ...tab, path, name: fileName(path) }
+      })
+    )
+    setActivePath((current) =>
+      isSameOrChildPath(current, oldPath)
+        ? replacePathPrefix(current, oldPath, newPath)
+        : current
+    )
+  }
+
+  function closeTabsUnderPath(path: string) {
+    setTabs((current) => {
+      const nextTabs = current.filter((tab) => !isSameOrChildPath(tab.path, path))
+      setActivePath((currentPath) => {
+        if (!isSameOrChildPath(currentPath, path)) return currentPath
+        return nextTabs[nextTabs.length - 1]?.path ?? ""
+      })
+      return nextTabs
+    })
+  }
+
+  async function createDoc(title: string) {
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
+    }
+
+    try {
+      const doc = await invoke<DocItem>("create_doc", {
+        workspaceId: activeWorkspaceId,
+        title,
+      })
+      await refreshResources()
+      await openPath(doc.path, fileName(doc.path))
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function pasteTerminalPrompt(prompt: string) {
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
+    }
+
+    try {
+      setTerminalTab("terminal")
+      setTerminalFocusNonce((current) => current + 1)
+      await nextFrame()
+      await nextFrame()
+      const { cols, rows } = terminalSizeRef.current
+      await invoke("start_terminal", {
+        workspaceId: activeWorkspaceId,
+        cols,
+        rows,
+      })
+      await invoke("resize_terminal", {
+        workspaceId: activeWorkspaceId,
+        cols,
+        rows,
+      }).catch(() => undefined)
+      await invoke("write_terminal", {
+        workspaceId: activeWorkspaceId,
+        data: prompt,
+      })
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
+  async function commitChanges() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("commit")
+
+    try {
+      const next = await invoke<GitStatus>("git_commit", {
+        workspaceId: activeWorkspaceId,
+        message: commitMessage,
+      })
+      setGitStatus(next)
+      setCommitMessage("")
+      await refreshResources()
+    } catch (error) {
+      setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
+  async function syncChanges() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("sync")
+
+    try {
+      const next = await invoke<GitStatus>("git_sync", {
+        workspaceId: activeWorkspaceId,
+      })
+      setGitStatus(next)
+    } catch (error) {
+      setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
+  async function discardChanges() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("discard")
+
+    try {
+      const next = await invoke<GitStatus>("git_discard_changes", {
+        workspaceId: activeWorkspaceId,
+      })
+      setGitStatus(next)
+      await refreshOpenTabsFromDisk()
+      await refreshResources()
+    } catch (error) {
+      setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
+  async function refreshGit() {
+    if (!activeWorkspaceId) return
+
+    try {
+      const next = await invoke<GitStatus>("git_status", {
+        workspaceId: activeWorkspaceId,
+      })
+      setGitStatus(next)
+      setGitError("")
+    } catch (error) {
+      setGitError(readableError(error))
+    }
+  }
+
+  async function openChangedFile(file: GitFile) {
+    if (!file.appPath) {
+      setGitError("That changed file is outside the selected app folder.")
+      return
+    }
+
+    try {
+      const originalContents = await invoke<string>("read_original_text_file", {
+        workspaceId: activeWorkspaceId,
+        path: file.appPath,
+      })
+
+      setGitError("")
+      await openPath(file.appPath, fileName(file.appPath), file.changedLines, originalContents)
+    } catch (error) {
+      setGitError(readableError(error))
+    }
+  }
+
+  function handleSkillChange(value: string) {
+    setSelectedSkill(value)
+    const skill = skills.find((item) => item.slug === value)
+    if (skill) {
+      void pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
+    }
   }
 
   return (
     <TooltipProvider>
-      <main className="h-full min-h-0 border-t bg-background text-sm">
+      <main className="h-full min-h-0 overflow-hidden border-t bg-background text-sm">
         <ResizablePanelGroup orientation="horizontal" className="min-h-0">
           <ResizablePanel
             id="left-sidebar"
@@ -318,24 +974,33 @@ function App() {
                   minSize="220px"
                 >
                   <section className="h-full min-h-0 overflow-hidden">
-                    <Tabs defaultValue="tasks" className="min-h-0 gap-0">
+                    <Tabs defaultValue="tasks" className="h-full min-h-0 gap-0">
                       <div className="flex items-center justify-between gap-2 p-3 pb-2">
                         <span className="text-sm font-semibold">Navigator</span>
                         <TabsList>
                           <TabsTrigger value="tasks">Tasks</TabsTrigger>
                           <TabsTrigger value="files">Files</TabsTrigger>
+                          <TabsTrigger value="skills">Skills</TabsTrigger>
                           <TabsTrigger value="docs">Docs</TabsTrigger>
                         </TabsList>
                       </div>
 
                       <TabsContent value="tasks" className="min-h-0">
                         <TasksPanel
+                          error={fileError}
                           filter={taskFilter}
-                          statuses={taskStatuses}
                           tasks={visibleTasks}
+                          onCreate={createTask}
+                          onCreateFolder={createFolder}
+                          onCopyPath={copyEntryPath}
+                          onDuplicate={duplicateEntry}
                           onFilterChange={setTaskFilter}
-                          onTaskClick={cycleTaskStatus}
-                          onCreate={() => setActivity("Create task")}
+                          onOpenTask={(task) => openPath(task.path, fileName(task.path))}
+                          onRefresh={refreshFiles}
+                          onRename={renameEntry}
+                          onReveal={revealEntry}
+                          onStartTask={startTask}
+                          onTrash={trashEntry}
                         />
                       </TabsContent>
 
@@ -343,15 +1008,51 @@ function App() {
                         <FilesPanel
                           directories={directories}
                           error={fileError}
-                          workspace={workspace}
-                          onOpenWorkspace={openWorkspace}
+                          workspace={activeWorkspace}
+                          onCreateFile={createFile}
+                          onCreateFolder={createFolder}
+                          onCopyPath={copyEntryPath}
+                          onDuplicate={duplicateEntry}
+                          onOpenWorkspace={addWorkspace}
                           onOpenFile={openFile}
+                          onRefresh={refreshFiles}
+                          onRename={renameEntry}
+                          onReveal={revealEntry}
+                          onTrash={trashEntry}
                           onToggleDirectory={toggleDirectory}
                         />
                       </TabsContent>
 
+                      <TabsContent value="skills" className="min-h-0">
+                        <SkillsPanel
+                          error={fileError}
+                          skills={skills}
+                          onCreate={createSkill}
+                          onCreateFolder={createFolder}
+                          onCopyPath={copyEntryPath}
+                          onDuplicate={duplicateEntry}
+                          onOpenSkill={(skill) => openPath(skill.path, "SKILL.md")}
+                          onRefresh={refreshFiles}
+                          onRename={renameEntry}
+                          onReveal={revealEntry}
+                          onTrash={trashEntry}
+                        />
+                      </TabsContent>
+
                       <TabsContent value="docs" className="min-h-0">
-                        <DocsPanel onClick={setActivity} />
+                        <DocsPanel
+                          error={fileError}
+                          docs={docs}
+                          onCreate={createDoc}
+                          onCreateFolder={createFolder}
+                          onCopyPath={copyEntryPath}
+                          onDuplicate={duplicateEntry}
+                          onOpenDoc={(doc) => openPath(doc.path, fileName(doc.path))}
+                          onRefresh={refreshFiles}
+                          onRename={renameEntry}
+                          onReveal={revealEntry}
+                          onTrash={trashEntry}
+                        />
                       </TabsContent>
                     </Tabs>
                   </section>
@@ -361,14 +1062,20 @@ function App() {
 
                 <ResizablePanel
                   id="changes"
-                  defaultSize="180px"
-                  minSize="140px"
+                  defaultSize="220px"
+                  minSize="150px"
                 >
                   <ChangesPanel
+                    busyAction={busyAction}
                     commitMessage={commitMessage}
+                    error={gitError}
+                    gitStatus={gitStatus}
+                    onCommit={commitChanges}
                     onCommitMessageChange={setCommitMessage}
-                    onMore={() => setActivity("Changes menu")}
-                    onSync={() => setActivity(commitMessage || "Sync Changes")}
+                    onDiscard={discardChanges}
+                    onOpenFile={openChangedFile}
+                    onRefresh={refreshGit}
+                    onSync={syncChanges}
                   />
                 </ResizablePanel>
               </ResizablePanelGroup>
@@ -404,14 +1111,18 @@ function App() {
                   <div className="grid h-full min-h-0 grid-rows-[1fr_46px]">
                     <BottomPanel
                       activeTab={terminalTab}
-                      activity={activity}
+                      focusNonce={terminalFocusNonce}
+                      onSizeChange={handleTerminalSizeChange}
+                      onError={setFileError}
                       onTabChange={setTerminalTab}
+                      workspaceId={activeWorkspaceId}
                     />
 
                     <ActionBar
                       selectedSkill={selectedSkill}
-                      onAction={setActivity}
-                      onSkillChange={setSelectedSkill}
+                      skills={skills}
+                      onAction={(action) => pasteTerminalPrompt(action)}
+                      onSkillChange={handleSkillChange}
                     />
                   </div>
                 </ResizablePanel>
@@ -428,9 +1139,14 @@ function App() {
           >
             <aside className="h-full min-h-0 overflow-hidden bg-muted/35">
               <WorkspacesPanel
-                statuses={workspaceStatuses}
-                onCreate={() => setActivity("Create workspace")}
-                onToggleStatus={toggleWorkspaceStatus}
+                activeWorkspaceId={activeWorkspaceId}
+                busy={busyAction === "workspace"}
+                error={workspaceError}
+                workspaces={workspaceList.workspaces}
+                onCreate={addWorkspace}
+                onDelete={deleteWorkspace}
+                onDetach={detachWorkspace}
+                onSelect={selectWorkspace}
               />
             </aside>
           </ResizablePanel>
@@ -440,27 +1156,211 @@ function App() {
   )
 }
 
+function InlineCreate({
+  buttonLabel,
+  onCancel,
+  placeholder,
+  onCreate,
+}: {
+  buttonLabel: string
+  onCancel?: () => void
+  placeholder: string
+  onCreate: (value: string) => void | Promise<void>
+}) {
+  const [value, setValue] = useState("")
+  const inputIcon = buttonLabel.toLowerCase().includes("folder") ? (
+    <Folder className="size-4 shrink-0 text-neutral-600" />
+  ) : buttonLabel.toLowerCase().includes("file") ? (
+    <FileText className="size-4 shrink-0 text-neutral-500" />
+  ) : (
+    <Plus className="size-4 shrink-0 text-muted-foreground" />
+  )
+
+  return (
+    <form
+      className="flex h-8 min-w-0 items-center gap-1 rounded-md border bg-background px-1.5"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const next = value.trim()
+        if (!next) return
+        setValue("")
+        void onCreate(next)
+      }}
+    >
+      {inputIcon}
+      <Input
+        autoFocus
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault()
+            setValue("")
+            onCancel?.()
+          }
+        }}
+        placeholder={placeholder}
+        className="h-7 min-w-0 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+      />
+      <Button
+        type="submit"
+        size="icon-sm"
+        variant="ghost"
+        className="size-6"
+        aria-label={buttonLabel}
+      >
+        <Check />
+      </Button>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        className="size-6"
+        aria-label="Cancel"
+        onClick={() => {
+          setValue("")
+          onCancel?.()
+        }}
+      >
+        <X />
+      </Button>
+    </form>
+  )
+}
+
+function RenameInput({
+  value,
+  onCancel,
+  onChange,
+  onSubmit,
+}: {
+  value: string
+  onCancel: () => void
+  onChange: (value: string) => void
+  onSubmit: (value: string) => void
+}) {
+  return (
+    <form
+      className="min-w-0 flex-1"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const next = value.trim()
+        if (!next) {
+          onCancel()
+          return
+        }
+        onSubmit(next)
+      }}
+    >
+      <Input
+        autoFocus
+        value={value}
+        className="h-7 bg-background px-2 text-sm"
+        onBlur={onCancel}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault()
+            onCancel()
+          }
+        }}
+      />
+    </form>
+  )
+}
+
+function PanelError({ error }: { error: string }) {
+  if (!error) return null
+
+  return (
+    <div className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      {error}
+    </div>
+  )
+}
+
+function useDismissibleMenu<T>(menu: T | null, setMenu: (value: T | null) => void) {
+  useEffect(() => {
+    if (!menu) return
+
+    const closeMenu = () => setMenu(null)
+
+    document.addEventListener("click", closeMenu)
+    document.addEventListener("keydown", closeMenu)
+    return () => {
+      document.removeEventListener("click", closeMenu)
+      document.removeEventListener("keydown", closeMenu)
+    }
+  }, [menu, setMenu])
+}
+
 function TasksPanel({
+  error,
   filter,
-  statuses,
   tasks,
   onCreate,
+  onCreateFolder,
+  onCopyPath,
+  onDuplicate,
   onFilterChange,
-  onTaskClick,
+  onOpenTask,
+  onRefresh,
+  onRename,
+  onReveal,
+  onStartTask,
+  onTrash,
 }: {
+  error: string
   filter: string
-  statuses: Record<number, TaskStatus>
-  tasks: { id: number; title: string }[]
-  onCreate: () => void
+  tasks: TaskItem[]
+  onCreate: (value: string) => void
+  onCreateFolder: (value: string) => void
+  onCopyPath: (entry: FileEntry) => void
+  onDuplicate: (entry: FileEntry) => void
   onFilterChange: (value: string) => void
-  onTaskClick: (id: number) => void
+  onOpenTask: (task: TaskItem) => void
+  onRefresh: (path?: string) => void
+  onRename: (entry: FileEntry, newName: string) => void
+  onReveal: (entry: FileEntry) => void
+  onStartTask: (task: TaskItem) => void
+  onTrash: (entry: FileEntry) => void
 }) {
+  const [menu, setMenu] = useState<FileMenuState | null>(null)
+  const [createRequest, setCreateRequest] = useState<FileCreateRequest | null>(null)
+  const [renamePath, setRenamePath] = useState("")
+  const [renameValue, setRenameValue] = useState("")
+  const operations = {
+    onCopyPath,
+    onDuplicate,
+    onRefresh,
+    onRename,
+    onReveal,
+    onTrash,
+  }
+
+  useDismissibleMenu(menu, setMenu)
+
+  function createInRequest(value: string) {
+    if (!createRequest) return
+
+    const path = joinRelativePath(
+      createRequest.basePath,
+      createRequest.kind === "file" ? ensureMarkdownPath(value) : value
+    )
+    if (createRequest.kind === "file") {
+      onCreate(resourceNameFromPath(path))
+    } else {
+      onCreateFolder(path)
+    }
+    setCreateRequest(null)
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col px-3 pb-3">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Tasks</h2>
-          <p className="text-xs text-muted-foreground">Mocked agent queue</p>
+          <p className="text-xs text-muted-foreground">workspace/tasks</p>
         </div>
         <Select value={filter} onValueChange={onFilterChange}>
           <SelectTrigger className="h-7 w-24 bg-background">
@@ -468,67 +1368,203 @@ function TasksPanel({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="ready">Ready</SelectItem>
-            <SelectItem value="in-progress">Active</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
             <SelectItem value="done">Done</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="space-y-1.5">
-        {tasks.map((task) => (
-          <button
-            key={task.id}
-            type="button"
-            className="grid w-full grid-cols-[1fr_auto] items-center gap-3 rounded-lg border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/70"
-            onClick={() => onTaskClick(task.id)}
-          >
-            <span className="text-sm font-medium">{task.title}</span>
-            <Badge
-              variant={
-                statuses[task.id] === "in-progress"
-                  ? "success"
-                  : statuses[task.id] === "done"
-                    ? "muted"
-                    : "outline"
-              }
-              className={cn(
-                "min-w-20 justify-center",
-                statuses[task.id] === "ready" && "bg-background"
-              )}
-            >
-              {taskLabel(statuses[task.id])}
-            </Badge>
-          </button>
-        ))}
-      </div>
+      <PanelError error={error} />
 
-      <div className="mt-auto pt-3">
-        <Button variant="outline" className="w-full justify-start bg-background" onClick={onCreate}>
-          <Plus />
-          Create task
-        </Button>
-      </div>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        onContextMenu={(event) => {
+          event.preventDefault()
+          setMenu({ x: event.clientX, y: event.clientY, basePath: "workspace/tasks" })
+        }}
+      >
+        <div className="space-y-1.5 pr-1">
+          {createRequest ? (
+            <InlineCreate
+              key={createRequest.nonce}
+              buttonLabel={createRequest.kind === "file" ? "Create file" : "Create folder"}
+              placeholder={createRequest.kind === "file" ? "file.md" : "folder"}
+              onCancel={() => setCreateRequest(null)}
+              onCreate={createInRequest}
+            />
+          ) : null}
+          {tasks.length ? (
+            tasks.map((task) => {
+              const entry = taskFileEntry(task)
+              const renaming = renamePath === entry.path
+
+              return (
+              <div
+                key={task.path}
+                className="rounded-lg border bg-background px-3 py-2"
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  setMenu({
+                    x: event.clientX,
+                    y: event.clientY,
+                    entry,
+                    basePath: parentPath(entry.path),
+                  })
+                }}
+              >
+                <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                  {renaming ? (
+                    <RenameInput
+                      value={renameValue}
+                      onCancel={() => {
+                        setRenamePath("")
+                        setRenameValue("")
+                      }}
+                      onChange={setRenameValue}
+                      onSubmit={(value) => {
+                        setRenamePath("")
+                        setRenameValue("")
+                        onRename(entry, value)
+                      }}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="min-w-0 truncate text-left text-sm font-medium"
+                      onClick={() => onOpenTask(task)}
+                      onDoubleClick={() => {
+                        setRenamePath(entry.path)
+                        setRenameValue(entry.name)
+                      }}
+                    >
+                      {task.title}
+                    </button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onStartTask(task)}
+                  >
+                    <Play />
+                    Start
+                  </Button>
+                </div>
+                {task.error ? (
+                  <div className="mt-2 text-xs text-amber-700">{task.error}</div>
+                ) : null}
+              </div>
+              )
+            })
+          ) : (
+            <div className="px-2 py-2 text-sm text-muted-foreground">
+              No tasks yet.
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      <ResourceContextMenu
+        basePath="workspace/tasks"
+        menu={menu}
+        operations={operations}
+        onClose={() => setMenu(null)}
+        onStartCreate={(kind, basePath) => {
+          setCreateRequest({ kind, basePath, nonce: Date.now() })
+        }}
+        onRenameEntry={(entry) => {
+          setRenamePath(entry.path)
+          setRenameValue(entry.name)
+        }}
+      />
     </div>
   )
+}
+
+type FileCreateRequest = {
+  basePath: string
+  kind: "file" | "folder"
+  nonce: number
+}
+
+type FileMenuState = {
+  basePath: string
+  entry?: FileEntry
+  x: number
+  y: number
+}
+
+type FileOperationProps = {
+  onCopyPath: (entry: FileEntry) => void
+  onDuplicate: (entry: FileEntry) => void
+  onRefresh: (path?: string) => void
+  onRename: (entry: FileEntry, newName: string) => void
+  onReveal: (entry: FileEntry) => void
+  onTrash: (entry: FileEntry) => void
 }
 
 function FilesPanel({
   directories,
   error,
   workspace,
+  onCreateFile,
+  onCreateFolder,
+  onCopyPath,
+  onDuplicate,
   onOpenFile,
   onOpenWorkspace,
+  onRefresh,
+  onRename,
+  onReveal,
+  onTrash,
   onToggleDirectory,
 }: {
   directories: Record<string, DirectoryState>
   error: string
-  workspace: WorkspaceInfo | null
+  workspace?: WorkspaceInfo
+  onCreateFile: (value: string) => void
+  onCreateFolder: (value: string) => void
+  onCopyPath: (entry: FileEntry) => void
+  onDuplicate: (entry: FileEntry) => void
   onOpenFile: (entry: FileEntry) => void
   onOpenWorkspace: () => void
+  onRefresh: (path?: string) => void
+  onRename: (entry: FileEntry, newName: string) => void
+  onReveal: (entry: FileEntry) => void
+  onTrash: (entry: FileEntry) => void
   onToggleDirectory: (path: string) => void
 }) {
   const root = directories[""]
+  const [createRequest, setCreateRequest] = useState<FileCreateRequest | null>(null)
+  const [menu, setMenu] = useState<FileMenuState | null>(null)
+  const [renamePath, setRenamePath] = useState("")
+  const [renameValue, setRenameValue] = useState("")
+
+  useDismissibleMenu(menu, setMenu)
+
+  function startCreate(kind: "file" | "folder", basePath: string) {
+    if (basePath) void onRefresh(basePath)
+    setCreateRequest({ kind, basePath, nonce: Date.now() })
+    setMenu(null)
+  }
+
+  function startRename(entry: FileEntry) {
+    setRenamePath(entry.path)
+    setRenameValue(entry.name)
+    setMenu(null)
+  }
+
+  function createInRequest(value: string) {
+    if (!createRequest) return
+
+    const path = joinRelativePath(createRequest.basePath, value)
+    if (createRequest.kind === "file") {
+      onCreateFile(path)
+    } else {
+      onCreateFolder(path)
+    }
+    setCreateRequest(null)
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -536,14 +1572,16 @@ function FilesPanel({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Files</h2>
           {workspace ? (
-            <p className="truncate text-xs text-muted-foreground">{workspace.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{workspace.appName}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">Local workspace</p>
+            <p className="text-xs text-muted-foreground">No workspace</p>
           )}
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onOpenWorkspace} aria-label="Open folder">
-          <FolderOpen />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon-sm" onClick={onOpenWorkspace} aria-label="Add workspace">
+            <FolderOpen />
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -552,18 +1590,25 @@ function FilesPanel({
         </div>
       ) : null}
 
-      <ScrollArea className="min-h-0 flex-1 px-2 pb-3">
+      <ScrollArea
+        className="min-h-0 flex-1 px-2 pb-3"
+        onContextMenu={(event) => {
+          if (!workspace) return
+          event.preventDefault()
+          setMenu({ x: event.clientX, y: event.clientY, basePath: "" })
+        }}
+      >
         {!workspace ? (
           <div className="rounded-lg border bg-background p-3">
             <div className="mb-3">
-              <div className="text-sm font-medium">No folder open</div>
+              <div className="text-sm font-medium">No workspace open</div>
               <p className="text-xs text-muted-foreground">
-                Choose a folder to browse files.
+                Add a workspace to browse an isolated app copy.
               </p>
             </div>
             <Button variant="outline" className="w-full justify-start" onClick={onOpenWorkspace}>
               <FolderOpen />
-              Open folder
+              Add workspace
             </Button>
           </div>
         ) : root?.loading ? (
@@ -572,46 +1617,145 @@ function FilesPanel({
           <div className="px-2 py-2 text-sm text-amber-700">{root.error}</div>
         ) : (
           <FileEntries
+            basePath=""
+            createRequest={createRequest}
             directories={directories}
             entries={root?.entries ?? []}
             level={0}
+            renamePath={renamePath}
+            renameValue={renameValue}
+            onCreate={createInRequest}
+            onCreateCancel={() => setCreateRequest(null)}
+            onContextMenu={(entry, event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setMenu({
+                x: event.clientX,
+                y: event.clientY,
+                entry,
+                basePath: entry.isDir ? entry.path : parentPath(entry.path),
+              })
+            }}
             onOpenFile={onOpenFile}
+            onRename={(entry, newName) => {
+              setRenamePath("")
+              setRenameValue("")
+              onRename(entry, newName)
+            }}
+            onRenameCancel={() => {
+              setRenamePath("")
+              setRenameValue("")
+            }}
+            onRenameStart={startRename}
+            onRenameValueChange={setRenameValue}
             onToggleDirectory={onToggleDirectory}
           />
         )}
       </ScrollArea>
+      {menu ? (
+        <FileContextMenu
+          menu={menu}
+          onClose={() => setMenu(null)}
+          onCopyPath={onCopyPath}
+          onCreateFile={() => startCreate("file", menu.basePath)}
+          onCreateFolder={() => startCreate("folder", menu.basePath)}
+          onDuplicate={onDuplicate}
+          onRefresh={() => {
+            setMenu(null)
+            onRefresh(menu.entry?.isDir ? menu.entry.path : menu.basePath)
+          }}
+          onRename={startRename}
+          onReveal={onReveal}
+          onTrash={onTrash}
+        />
+      ) : null}
     </div>
   )
 }
 
 function FileEntries({
+  basePath,
+  createRequest,
   directories,
   entries,
   level,
+  renamePath,
+  renameValue,
+  onCreate,
+  onCreateCancel,
+  onContextMenu,
   onOpenFile,
+  onRename,
+  onRenameCancel,
+  onRenameStart,
+  onRenameValueChange,
   onToggleDirectory,
 }: {
+  basePath: string
+  createRequest: FileCreateRequest | null
   directories: Record<string, DirectoryState>
   entries: FileEntry[]
   level: number
+  renamePath: string
+  renameValue: string
+  onCreate: (value: string) => void
+  onCreateCancel: () => void
+  onContextMenu: (entry: FileEntry, event: ReactMouseEvent) => void
   onOpenFile: (entry: FileEntry) => void
+  onRename: (entry: FileEntry, value: string) => void
+  onRenameCancel: () => void
+  onRenameStart: (entry: FileEntry) => void
+  onRenameValueChange: (value: string) => void
   onToggleDirectory: (path: string) => void
 }) {
+  const clickTimer = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (clickTimer.current) window.clearTimeout(clickTimer.current)
+    }
+  }, [])
+
   return (
     <div className="space-y-0.5">
+      {createRequest?.basePath === basePath ? (
+        <div style={{ paddingLeft: 8 + level * 16 }}>
+          <InlineCreate
+            key={createRequest.nonce}
+            buttonLabel={createRequest.kind === "file" ? "Create file" : "Create folder"}
+            placeholder={createRequest.kind === "file" ? "file.md" : "folder"}
+            onCancel={onCreateCancel}
+            onCreate={onCreate}
+          />
+        </div>
+      ) : null}
       {entries.map((entry) => {
         const directory = directories[entry.path]
         const open = Boolean(directory?.open)
+        const renaming = renamePath === entry.path
 
         return (
           <div key={entry.path}>
-            <button
-              type="button"
-              onClick={() =>
-                entry.isDir ? onToggleDirectory(entry.path) : onOpenFile(entry)
-              }
+            <div
               className="flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-sm hover:bg-background"
               style={{ paddingLeft: 8 + level * 16 }}
+              onClick={(event) => {
+                if (renaming || event.detail > 1) return
+                if (clickTimer.current) window.clearTimeout(clickTimer.current)
+                clickTimer.current = window.setTimeout(() => {
+                  if (entry.isDir) {
+                    onToggleDirectory(entry.path)
+                  } else {
+                    onOpenFile(entry)
+                  }
+                }, 180)
+              }}
+              onContextMenu={(event) => onContextMenu(entry, event)}
+              onDoubleClick={() => {
+                if (renaming) return
+                if (clickTimer.current) window.clearTimeout(clickTimer.current)
+                onRenameStart(entry)
+              }}
             >
               {entry.isDir ? (
                 open ? (
@@ -627,8 +1771,39 @@ function FileEntries({
               ) : (
                 <FileText className="size-4 shrink-0 text-neutral-500" />
               )}
-              <span className="truncate">{entry.name}</span>
-            </button>
+              {renaming ? (
+                <form
+                  className="min-w-0 flex-1"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    const value = renameValue.trim()
+                    if (!value || value === entry.name) {
+                      onRenameCancel()
+                      return
+                    }
+                    onRename(entry, value)
+                  }}
+                >
+                  <Input
+                    autoFocus
+                    value={renameValue}
+                    className="h-6 bg-background px-1 text-sm"
+                    onBlur={onRenameCancel}
+                    onChange={(event) => onRenameValueChange(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault()
+                        onRenameCancel()
+                      }
+                    }}
+                  />
+                </form>
+              ) : (
+                <span className="min-w-0 flex-1 truncate">
+                  {entry.name}
+                </span>
+              )}
+            </div>
 
             {entry.isDir && open ? (
               directory?.loading ? (
@@ -647,10 +1822,21 @@ function FileEntries({
                 </div>
               ) : (
                 <FileEntries
+                  basePath={entry.path}
+                  createRequest={createRequest}
                   directories={directories}
                   entries={directory?.entries ?? []}
                   level={level + 1}
+                  renamePath={renamePath}
+                  renameValue={renameValue}
+                  onCreate={onCreate}
+                  onCreateCancel={onCreateCancel}
+                  onContextMenu={onContextMenu}
                   onOpenFile={onOpenFile}
+                  onRename={onRename}
+                  onRenameCancel={onRenameCancel}
+                  onRenameStart={onRenameStart}
+                  onRenameValueChange={onRenameValueChange}
                   onToggleDirectory={onToggleDirectory}
                 />
               )
@@ -662,67 +1848,571 @@ function FileEntries({
   )
 }
 
-function DocsPanel({ onClick }: { onClick: (value: string) => void }) {
+function FileContextMenu({
+  menu,
+  onClose,
+  onCopyPath,
+  onCreateFile,
+  onCreateFolder,
+  onDuplicate,
+  onRefresh,
+  onRename,
+  onReveal,
+  onTrash,
+}: {
+  menu: FileMenuState
+  onClose: () => void
+  onCopyPath: (entry: FileEntry) => void
+  onCreateFile: () => void
+  onCreateFolder: () => void
+  onDuplicate: (entry: FileEntry) => void
+  onRefresh: () => void
+  onRename: (entry: FileEntry) => void
+  onReveal: (entry: FileEntry) => void
+  onTrash: (entry: FileEntry) => void
+}) {
+  const entry = menu.entry
+
+  function run(action: () => void) {
+    action()
+    onClose()
+  }
+
   return (
-    <div className="space-y-3 px-3 pb-3">
-      <div>
+    <div
+      className="fixed z-50 w-48 rounded-lg border bg-popover p-1 shadow-md"
+      style={{ left: menu.x, top: menu.y }}
+      onContextMenu={(event) => event.preventDefault()}
+      role="menu"
+    >
+      <FileMenuButton icon={<FileText />} label="New File" onClick={() => run(onCreateFile)} />
+      <FileMenuButton icon={<FolderPlus />} label="New Folder" onClick={() => run(onCreateFolder)} />
+      <FileMenuButton icon={<RefreshCw />} label="Refresh" onClick={() => run(onRefresh)} />
+
+      {entry ? (
+        <>
+          <div className="my-1 h-px bg-border" />
+          <FileMenuButton icon={<Pencil />} label="Rename" onClick={() => run(() => onRename(entry))} />
+          <FileMenuButton icon={<Files />} label="Duplicate" onClick={() => run(() => onDuplicate(entry))} />
+          <FileMenuButton icon={<Copy />} label="Copy Relative Path" onClick={() => run(() => onCopyPath(entry))} />
+          <FileMenuButton icon={<ExternalLink />} label="Reveal in Finder" onClick={() => run(() => onReveal(entry))} />
+          <FileMenuButton
+            danger
+            icon={<Trash2 />}
+            label="Delete"
+            onClick={() => run(() => onTrash(entry))}
+          />
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function FileMenuButton({
+  danger,
+  icon,
+  label,
+  onClick,
+}: {
+  danger?: boolean
+  icon: ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted [&_svg]:size-3.5",
+        danger && "text-red-600"
+      )}
+      onClick={onClick}
+    >
+      {icon}
+      <span className="truncate">{label}</span>
+    </button>
+  )
+}
+
+function ResourceContextMenu({
+  basePath,
+  menu,
+  operations,
+  onClose,
+  onStartCreate,
+  onRenameEntry,
+}: {
+  basePath: string
+  menu: FileMenuState | null
+  operations: FileOperationProps
+  onClose: () => void
+  onStartCreate: (kind: "file" | "folder", basePath: string) => void
+  onRenameEntry: (entry: FileEntry) => void
+}) {
+  if (!menu) return null
+
+  return (
+    <FileContextMenu
+      menu={menu}
+      onClose={onClose}
+      onCopyPath={operations.onCopyPath}
+      onCreateFile={() => {
+        onStartCreate("file", menu.basePath || basePath)
+      }}
+      onCreateFolder={() => {
+        onStartCreate("folder", menu.basePath || basePath)
+      }}
+      onDuplicate={operations.onDuplicate}
+      onRefresh={() => {
+        operations.onRefresh(menu.entry?.isDir ? menu.entry.path : menu.basePath || basePath)
+      }}
+      onRename={(entry) => {
+        onRenameEntry(entry)
+      }}
+      onReveal={operations.onReveal}
+      onTrash={operations.onTrash}
+    />
+  )
+}
+
+function SkillsPanel({
+  error,
+  skills,
+  onCreate,
+  onCreateFolder,
+  onCopyPath,
+  onDuplicate,
+  onOpenSkill,
+  onRefresh,
+  onRename,
+  onReveal,
+  onTrash,
+}: {
+  error: string
+  skills: SkillItem[]
+  onCreate: (value: string) => void
+  onCreateFolder: (value: string) => void
+  onCopyPath: (entry: FileEntry) => void
+  onDuplicate: (entry: FileEntry) => void
+  onOpenSkill: (skill: SkillItem) => void
+  onRefresh: (path?: string) => void
+  onRename: (entry: FileEntry, newName: string) => void
+  onReveal: (entry: FileEntry) => void
+  onTrash: (entry: FileEntry) => void
+}) {
+  const [menu, setMenu] = useState<FileMenuState | null>(null)
+  const [createRequest, setCreateRequest] = useState<FileCreateRequest | null>(null)
+  const [renamePath, setRenamePath] = useState("")
+  const [renameValue, setRenameValue] = useState("")
+  const operations = {
+    onCopyPath,
+    onDuplicate,
+    onRefresh,
+    onRename,
+    onReveal,
+    onTrash,
+  }
+
+  useDismissibleMenu(menu, setMenu)
+
+  function createInRequest(value: string) {
+    if (!createRequest) return
+
+    const path = joinRelativePath(createRequest.basePath, value)
+    if (createRequest.kind === "file") {
+      onCreate(resourceNameFromPath(path))
+    } else {
+      onCreateFolder(path)
+    }
+    setCreateRequest(null)
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold">Skills</h2>
+        <p className="text-xs text-muted-foreground">workspace/skills</p>
+      </div>
+      <PanelError error={error} />
+      <ScrollArea
+        className="min-h-0 flex-1"
+        onContextMenu={(event) => {
+          event.preventDefault()
+          setMenu({ x: event.clientX, y: event.clientY, basePath: "workspace/skills" })
+        }}
+      >
+        <div className="space-y-1.5 pr-1">
+          {createRequest ? (
+            <InlineCreate
+              key={createRequest.nonce}
+              buttonLabel={createRequest.kind === "file" ? "Create file" : "Create folder"}
+              placeholder={createRequest.kind === "file" ? "file.md" : "folder"}
+              onCancel={() => setCreateRequest(null)}
+              onCreate={createInRequest}
+            />
+          ) : null}
+          {skills.length ? (
+            skills.map((skill) => {
+              const entry = skillFolderEntry(skill)
+              const renaming = renamePath === entry.path
+
+              return (
+                <div
+                  key={skill.slug}
+                  className="rounded-md"
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setMenu({
+                      x: event.clientX,
+                      y: event.clientY,
+                      entry,
+                      basePath: parentPath(entry.path),
+                    })
+                  }}
+                >
+                  {renaming ? (
+                    <RenameInput
+                      value={renameValue}
+                      onCancel={() => {
+                        setRenamePath("")
+                        setRenameValue("")
+                      }}
+                      onChange={setRenameValue}
+                      onSubmit={(value) => {
+                        setRenamePath("")
+                        setRenameValue("")
+                        onRename(entry, value)
+                      }}
+                    />
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start bg-background"
+                      onClick={() => onOpenSkill(skill)}
+                      onDoubleClick={() => {
+                        setRenamePath(entry.path)
+                        setRenameValue(entry.name)
+                      }}
+                    >
+                      <Bot />
+                      {skill.name}
+                    </Button>
+                  )}
+                </div>
+              )
+            })
+          ) : (
+            <div className="px-2 py-2 text-sm text-muted-foreground">
+              No skills yet.
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+      <ResourceContextMenu
+        basePath="workspace/skills"
+        menu={menu}
+        operations={operations}
+        onClose={() => setMenu(null)}
+        onStartCreate={(kind, basePath) => {
+          setCreateRequest({ kind, basePath, nonce: Date.now() })
+        }}
+        onRenameEntry={(entry) => {
+          setRenamePath(entry.path)
+          setRenameValue(entry.name)
+        }}
+      />
+    </div>
+  )
+}
+
+function DocsPanel({
+  error,
+  docs,
+  onCreate,
+  onCreateFolder,
+  onCopyPath,
+  onDuplicate,
+  onOpenDoc,
+  onRefresh,
+  onRename,
+  onReveal,
+  onTrash,
+}: {
+  error: string
+  docs: DocItem[]
+  onCreate: (value: string) => void
+  onCreateFolder: (value: string) => void
+  onCopyPath: (entry: FileEntry) => void
+  onDuplicate: (entry: FileEntry) => void
+  onOpenDoc: (doc: DocItem) => void
+  onRefresh: (path?: string) => void
+  onRename: (entry: FileEntry, newName: string) => void
+  onReveal: (entry: FileEntry) => void
+  onTrash: (entry: FileEntry) => void
+}) {
+  const [menu, setMenu] = useState<FileMenuState | null>(null)
+  const [createRequest, setCreateRequest] = useState<FileCreateRequest | null>(null)
+  const [renamePath, setRenamePath] = useState("")
+  const [renameValue, setRenameValue] = useState("")
+  const operations = {
+    onCopyPath,
+    onDuplicate,
+    onRefresh,
+    onRename,
+    onReveal,
+    onTrash,
+  }
+
+  useDismissibleMenu(menu, setMenu)
+
+  function createInRequest(value: string) {
+    if (!createRequest) return
+
+    const path = joinRelativePath(
+      createRequest.basePath,
+      createRequest.kind === "file" ? ensureMarkdownPath(value) : value
+    )
+    if (createRequest.kind === "file") {
+      onCreate(resourceNameFromPath(path))
+    } else {
+      onCreateFolder(path)
+    }
+    setCreateRequest(null)
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+      <div className="mb-3">
         <h2 className="text-sm font-semibold">Docs</h2>
-        <p className="text-xs text-muted-foreground">Mocked references</p>
+        <p className="text-xs text-muted-foreground">workspace/docs</p>
       </div>
-      <div className="space-y-2">
-        {["Agent notes", "Skill library", "Workspace brief"].map((item) => (
-          <Button
-            key={item}
-            variant="outline"
-            className="w-full justify-start bg-background"
-            onClick={() => onClick(item)}
-          >
-            <Bot />
-            {item}
-          </Button>
-        ))}
-      </div>
+      <PanelError error={error} />
+      <ScrollArea
+        className="min-h-0 flex-1"
+        onContextMenu={(event) => {
+          event.preventDefault()
+          setMenu({ x: event.clientX, y: event.clientY, basePath: "workspace/docs" })
+        }}
+      >
+        <div className="space-y-1.5 pr-1">
+          {createRequest ? (
+            <InlineCreate
+              key={createRequest.nonce}
+              buttonLabel={createRequest.kind === "file" ? "Create file" : "Create folder"}
+              placeholder={createRequest.kind === "file" ? "file.md" : "folder"}
+              onCancel={() => setCreateRequest(null)}
+              onCreate={createInRequest}
+            />
+          ) : null}
+          {docs.length ? (
+            docs.map((doc) => {
+              const entry = docFileEntry(doc)
+              const renaming = renamePath === entry.path
+
+              return (
+                <div
+                  key={doc.path}
+                  className="rounded-md"
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setMenu({
+                      x: event.clientX,
+                      y: event.clientY,
+                      entry,
+                      basePath: parentPath(entry.path),
+                    })
+                  }}
+                >
+                  {renaming ? (
+                    <RenameInput
+                      value={renameValue}
+                      onCancel={() => {
+                        setRenamePath("")
+                        setRenameValue("")
+                      }}
+                      onChange={setRenameValue}
+                      onSubmit={(value) => {
+                        setRenamePath("")
+                        setRenameValue("")
+                        onRename(entry, value)
+                      }}
+                    />
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start bg-background"
+                      onClick={() => onOpenDoc(doc)}
+                      onDoubleClick={() => {
+                        setRenamePath(entry.path)
+                        setRenameValue(entry.name)
+                      }}
+                    >
+                      <FileText />
+                      {doc.name}
+                    </Button>
+                  )}
+                </div>
+              )
+            })
+          ) : (
+            <div className="px-2 py-2 text-sm text-muted-foreground">
+              No docs yet.
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+      <ResourceContextMenu
+        basePath="workspace/docs"
+        menu={menu}
+        operations={operations}
+        onClose={() => setMenu(null)}
+        onStartCreate={(kind, basePath) => {
+          setCreateRequest({ kind, basePath, nonce: Date.now() })
+        }}
+        onRenameEntry={(entry) => {
+          setRenamePath(entry.path)
+          setRenameValue(entry.name)
+        }}
+      />
     </div>
   )
 }
 
 function ChangesPanel({
+  busyAction,
   commitMessage,
+  error,
+  gitStatus,
+  onCommit,
   onCommitMessageChange,
-  onMore,
+  onDiscard,
+  onOpenFile,
+  onRefresh,
   onSync,
 }: {
+  busyAction: string
   commitMessage: string
+  error: string
+  gitStatus: GitStatus
+  onCommit: () => void
   onCommitMessageChange: (value: string) => void
-  onMore: () => void
+  onDiscard: () => void
+  onOpenFile: (file: GitFile) => void
+  onRefresh: () => void
   onSync: () => void
 }) {
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null)
+
+  useDismissibleMenu(menuPosition, setMenuPosition)
+
   return (
-    <div className="p-3">
+    <div
+      className="flex h-full min-h-0 flex-col p-3"
+      onContextMenu={(event) => {
+        event.preventDefault()
+        setMenuPosition({ x: event.clientX, y: event.clientY })
+      }}
+    >
       <div className="mb-3 grid grid-cols-[1fr_auto] items-start">
-        <div>
+        <div className="min-w-0">
           <div className="text-sm font-semibold">Changes</div>
-          <p className="text-xs text-muted-foreground">Mocked git controls</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {gitStatus.branch || "No workspace"}
+          </p>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onMore} aria-label="Changes menu">
-          <MoreVertical />
+        <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="Refresh changes">
+          <RefreshCw />
         </Button>
       </div>
-      <div className="space-y-3">
+
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-1 pr-1">
+          {gitStatus.files.length ? (
+            gitStatus.files.map((file) => (
+              <button
+                key={`${file.status}-${file.path}`}
+                type="button"
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
+                  !file.appPath && "text-muted-foreground"
+                )}
+                onClick={() => onOpenFile(file)}
+                title={file.appPath ? "Open changed file" : "Outside selected app folder"}
+              >
+                <span className="w-8 shrink-0 font-mono text-muted-foreground">
+                  {file.status || "M"}
+                </span>
+                <span className="min-w-0 truncate">{file.path}</span>
+              </button>
+            ))
+          ) : (
+            <div className="px-2 py-2 text-sm text-muted-foreground">
+              No changes.
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+
+      {error ? (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-3 space-y-2">
         <div className="relative">
           <Input
             value={commitMessage}
             onChange={(event) => onCommitMessageChange(event.target.value)}
-            placeholder="Message (Commit on Develop)"
+            placeholder="Commit message"
             className="bg-background pr-9"
           />
           <Sparkles className="absolute top-2 right-2 size-4 text-muted-foreground" />
         </div>
-        <Button variant="outline" className="w-full bg-background" onClick={onSync}>
-          <GitBranch />
-          Sync Changes
-        </Button>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            className="bg-background"
+            disabled={busyAction === "commit" || !commitMessage.trim()}
+            onClick={onCommit}
+          >
+            <GitBranch />
+            Commit
+          </Button>
+          <Button
+            variant="outline"
+            className="bg-background"
+            disabled={busyAction === "sync"}
+            onClick={onSync}
+          >
+            <GitBranch />
+            Sync
+          </Button>
+        </div>
       </div>
+
+      {menuPosition ? (
+        <div
+          className="fixed z-50 w-44 rounded-lg border bg-popover p-1 shadow-md"
+          style={{ left: menuPosition.x, top: menuPosition.y }}
+          role="menu"
+        >
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+            disabled={busyAction === "discard" || !gitStatus.files.length}
+            onClick={() => {
+              setMenuPosition(null)
+              onDiscard()
+            }}
+          >
+            <Trash2 className="size-4" />
+            Discard Changes
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -748,8 +2438,17 @@ function EditorPanel({
   onSave: () => void
   onSelectTab: (path: string) => void
 }) {
+  const originalExtensions = tab
+    ? [
+        editorTheme,
+        EditorState.readOnly.of(true),
+        EditorView.editable.of(false),
+        ...languageForPath(tab.path),
+      ]
+    : []
+
   return (
-    <div className="grid min-h-0 grid-rows-[42px_1fr]">
+    <div className="grid h-full min-h-0 grid-rows-[42px_1fr]">
       <div className="flex min-w-0 items-center justify-between border-b bg-muted/35">
         <div className="flex min-w-0 flex-1 items-stretch overflow-hidden">
           {tabs.length ? (
@@ -812,13 +2511,41 @@ function EditorPanel({
       <div className="min-h-0 bg-background">
         {tab ? (
           <div className="grid h-full min-h-0 grid-rows-[1fr_auto]">
-            <CodeMirror
-              value={tab.contents}
-              height="100%"
-              extensions={extensions}
-              basicSetup={{ foldGutter: true, highlightActiveLine: true }}
-              onChange={onChange}
-            />
+            {tab.originalContents !== undefined ? (
+              <div className="grid h-full min-h-0 grid-cols-2">
+                <div className="grid min-w-0 grid-rows-[28px_1fr] border-r">
+                  <div className="flex items-center border-b bg-muted/35 px-3 text-xs font-medium text-muted-foreground">
+                    Original
+                  </div>
+                  <CodeMirror
+                    value={tab.originalContents}
+                    height="100%"
+                    extensions={originalExtensions}
+                    basicSetup={{ foldGutter: true, highlightActiveLine: false }}
+                  />
+                </div>
+                <div className="grid min-w-0 grid-rows-[28px_1fr]">
+                  <div className="flex items-center border-b bg-muted/35 px-3 text-xs font-medium text-muted-foreground">
+                    Current
+                  </div>
+                  <CodeMirror
+                    value={tab.contents}
+                    height="100%"
+                    extensions={extensions}
+                    basicSetup={{ foldGutter: true, highlightActiveLine: true }}
+                    onChange={onChange}
+                  />
+                </div>
+              </div>
+            ) : (
+              <CodeMirror
+                value={tab.contents}
+                height="100%"
+                extensions={extensions}
+                basicSetup={{ foldGutter: true, highlightActiveLine: true }}
+                onChange={onChange}
+              />
+            )}
             {tab.error ? (
               <div className="border-t border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-800">
                 {tab.error}
@@ -835,7 +2562,7 @@ function EditorPanel({
                 Open a text file
               </div>
               <p className="mt-1 text-sm">
-                Use the Files tab to browse a workspace and edit local text files.
+                Choose a workspace file, task, skill, or doc to edit.
               </p>
             </div>
           </div>
@@ -847,28 +2574,46 @@ function EditorPanel({
 
 function BottomPanel({
   activeTab,
-  activity,
+  focusNonce,
+  onSizeChange,
+  onError,
   onTabChange,
+  workspaceId,
 }: {
   activeTab: string
-  activity: string
+  focusNonce: number
+  onSizeChange: (cols: number, rows: number) => void
+  onError: (value: string) => void
   onTabChange: (value: string) => void
+  workspaceId: string
 }) {
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="min-h-0 border-b bg-muted/35">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="h-full min-h-0 border-b bg-muted/35">
       <div className="flex h-10 items-center border-b px-3">
         <TabsList>
           <TabsTrigger value="terminal">
             <PanelBottom />
-          Terminal
+            Terminal
           </TabsTrigger>
           <TabsTrigger value="problems">Problems</TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="terminal" className="bg-background p-4 font-mono text-xs text-muted-foreground">
-        <span className="text-foreground">$</span> {activity}
+      <TabsContent forceMount value="terminal" className="min-h-0 bg-background p-0">
+        {workspaceId ? (
+          <TerminalPane
+            active={activeTab === "terminal"}
+            focusNonce={focusNonce}
+            onSizeChange={onSizeChange}
+            onError={onError}
+            workspaceId={workspaceId}
+          />
+        ) : (
+          <div className="p-4 font-mono text-xs text-muted-foreground">
+            <span className="text-foreground">$</span> Add a workspace to start a terminal.
+          </div>
+        )}
       </TabsContent>
-      <TabsContent value="problems" className="bg-background p-4 text-xs text-muted-foreground">
+      <TabsContent forceMount value="problems" className="bg-background p-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
           <CircleCheck className="size-4 text-emerald-600" />
           No problems
@@ -878,31 +2623,208 @@ function BottomPanel({
   )
 }
 
+function TerminalPane({
+  active,
+  focusNonce,
+  onSizeChange,
+  onError,
+  workspaceId,
+}: {
+  active: boolean
+  focusNonce: number
+  onSizeChange: (cols: number, rows: number) => void
+  onError: (value: string) => void
+  workspaceId: string
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const terminalRef = useRef<Terminal | null>(null)
+  const fitRef = useRef<FitAddon | null>(null)
+  const frameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    let cancelled = false
+    let unlisten: (() => void) | undefined
+
+    const terminal = new Terminal({
+      cursorBlink: true,
+      convertEol: false,
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      fontSize: 12,
+      scrollback: 10000,
+      theme: {
+        background: "#ffffff",
+        foreground: "#171717",
+        cursor: "#171717",
+      },
+    })
+    const fit = new FitAddon()
+    terminal.loadAddon(fit)
+    terminal.open(container)
+    terminalRef.current = terminal
+    fitRef.current = fit
+    for (const chunk of terminalHistory.get(workspaceId) ?? []) {
+      terminal.write(chunk)
+    }
+
+    const fitTerminal = () => {
+      if (frameRef.current) window.cancelAnimationFrame(frameRef.current)
+      frameRef.current = window.requestAnimationFrame(() => {
+        frameRef.current = null
+        if (!container.isConnected || container.clientWidth === 0 || container.clientHeight === 0) {
+          return
+        }
+
+        try {
+          fit.fit()
+          onSizeChange(terminal.cols || 80, terminal.rows || 24)
+          void invoke("resize_terminal", {
+            workspaceId,
+            cols: terminal.cols || 80,
+            rows: terminal.rows || 24,
+          }).catch(() => undefined)
+        } catch {
+          // xterm can throw while the panel is hidden during resize.
+        }
+      })
+    }
+
+    const startAfterFit = () => {
+      try {
+        fit.fit()
+        const cols = terminal.cols || 80
+        const rows = terminal.rows || 24
+        onSizeChange(cols, rows)
+        void invoke("start_terminal", { workspaceId, cols, rows })
+          .then(() => invoke("resize_terminal", { workspaceId, cols, rows }))
+          .catch((error) => onError(readableError(error)))
+      } catch (error) {
+        onError(readableError(error))
+      }
+    }
+
+    const dataDisposable = terminal.onData((data) => {
+      void invoke("write_terminal", { workspaceId, data }).catch((error) =>
+        onError(readableError(error))
+      )
+    })
+    const observer = new ResizeObserver(fitTerminal)
+    observer.observe(container)
+
+    listen<TerminalOutput>("terminal-output", (event) => {
+      if (event.payload.workspaceId !== workspaceId) return
+      const data = new Uint8Array(event.payload.data)
+      const history = terminalHistory.get(workspaceId) ?? []
+      history.push(data)
+      if (history.length > TERMINAL_HISTORY_LIMIT) history.shift()
+      terminalHistory.set(workspaceId, history)
+      terminal.write(data)
+    })
+      .then((dispose) => {
+        if (cancelled) {
+          dispose()
+          return
+        }
+
+        unlisten = dispose
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(startAfterFit)
+        })
+      })
+      .catch((error) => onError(readableError(error)))
+
+    return () => {
+      cancelled = true
+      if (frameRef.current) window.cancelAnimationFrame(frameRef.current)
+      unlisten?.()
+      observer.disconnect()
+      dataDisposable.dispose()
+      terminal.dispose()
+      terminalRef.current = null
+      fitRef.current = null
+    }
+  }, [onError, onSizeChange, workspaceId])
+
+  useEffect(() => {
+    terminalRef.current?.focus()
+  }, [focusNonce])
+
+  useEffect(() => {
+    if (!active) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const terminal = terminalRef.current
+      const fit = fitRef.current
+      if (!terminal || !fit) return
+
+      try {
+        fit.fit()
+        onSizeChange(terminal.cols || 80, terminal.rows || 24)
+        void invoke("resize_terminal", {
+          workspaceId,
+          cols: terminal.cols || 80,
+          rows: terminal.rows || 24,
+        }).catch(() => undefined)
+        terminal.focus()
+      } catch {
+        // xterm can throw while the panel is being shown.
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [active, onSizeChange, workspaceId])
+
+  return (
+    <div className="h-full min-h-0 p-2">
+      <div ref={containerRef} className="h-full min-h-0 overflow-hidden" />
+    </div>
+  )
+}
+
 function ActionBar({
   selectedSkill,
+  skills,
   onAction,
   onSkillChange,
 }: {
   selectedSkill: string
+  skills: SkillItem[]
   onAction: (value: string) => void
   onSkillChange: (value: string) => void
 }) {
+  const actions = [
+    { label: "Mark complete", prompt: "Mark the active task complete." },
+    { label: "Audit code", prompt: "Audit the recent code changes." },
+    { label: "Feature suggestions", prompt: "Suggest the next useful feature." },
+  ]
+
   return (
-    <div className="flex items-center gap-2 bg-muted/35 px-3">
-      {["Mark complete", "Audit code", "Feature suggestions"].map((action) => (
-        <Button key={action} variant="ghost" size="sm" onClick={() => onAction(action)}>
-          {action}
-        </Button>
-      ))}
+    <div className="flex h-full items-center gap-2 bg-muted/35 px-3">
+      <div className="flex items-center gap-2">
+        {actions.map((action) => (
+          <Button
+            key={action.label}
+            variant="ghost"
+            size="sm"
+            onClick={() => onAction(action.prompt)}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </div>
       <div className="ml-auto">
         <Select value={selectedSkill} onValueChange={onSkillChange}>
-          <SelectTrigger className="h-7 w-28">
+          <SelectTrigger className="h-7 w-32 bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Skills</SelectItem>
-            <SelectItem value="agent">Agent</SelectItem>
-            <SelectItem value="editor">Editor</SelectItem>
+            {skills.map((skill) => (
+              <SelectItem key={skill.slug} value={skill.slug}>
+                {skill.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -911,63 +2833,129 @@ function ActionBar({
 }
 
 function WorkspacesPanel({
-  statuses,
+  activeWorkspaceId,
+  busy,
+  error,
+  workspaces,
   onCreate,
-  onToggleStatus,
+  onDelete,
+  onDetach,
+  onSelect,
 }: {
-  statuses: { name: string; status: string }[]
+  activeWorkspaceId: string
+  busy: boolean
+  error: string
+  workspaces: WorkspaceInfo[]
   onCreate: () => void
-  onToggleStatus: (index: number) => void
+  onDelete: (workspaceId: string) => void
+  onDetach: (workspaceId: string) => void
+  onSelect: (workspaceId: string) => void
 }) {
+  const [openMenuId, setOpenMenuId] = useState("")
+
   return (
     <div className="flex h-full min-h-0 flex-col p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">Workspaces</h2>
-          <p className="text-xs text-muted-foreground">Mocked run states</p>
+          <p className="text-xs text-muted-foreground">Isolated worktrees</p>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onCreate} aria-label="Create workspace">
+        <Button variant="ghost" size="icon-sm" onClick={onCreate} disabled={busy} aria-label="Add workspace">
           <Plus />
         </Button>
       </div>
 
+      {error ? (
+        <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {error}
+        </div>
+      ) : null}
+
       <div className="space-y-2">
-        {statuses.map((workspace, index) => (
-          <button
-            key={workspace.name}
-            type="button"
-            className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted/70"
-            onClick={() => onToggleStatus(index)}
-          >
-            <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
-              {workspace.status === "Running" ? (
-                <CircleCheck className="size-4 text-emerald-600" />
-              ) : (
-                <Clock3 className="size-4 text-amber-600" />
+        {workspaces.length ? (
+          workspaces.map((workspace) => (
+            <div
+              key={workspace.id}
+              className={cn(
+                "relative rounded-lg border bg-background p-3 transition-colors",
+                activeWorkspaceId === workspace.id && "border-neutral-400"
               )}
+            >
+              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                <button
+                  type="button"
+                  className="flex size-8 items-center justify-center rounded-lg bg-muted"
+                  onClick={() => onSelect(workspace.id)}
+                  aria-label={`Select ${workspace.name}`}
+                >
+                  <FolderOpen className="size-4 text-muted-foreground" />
+                </button>
+                <button
+                  type="button"
+                  className="min-w-0 text-left"
+                  onClick={() => onSelect(workspace.id)}
+                >
+                  <div className="truncate text-sm font-medium">{workspace.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {workspace.appName}
+                  </div>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() =>
+                    setOpenMenuId(openMenuId === workspace.id ? "" : workspace.id)
+                  }
+                  aria-label={`${workspace.name} menu`}
+                >
+                  <MoreVertical />
+                </Button>
+              </div>
+
+              {openMenuId === workspace.id ? (
+                <div className="absolute right-3 top-12 z-10 grid w-32 gap-1 rounded-md border bg-popover p-1 shadow-md">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start"
+                    onClick={() => {
+                      setOpenMenuId("")
+                      onDetach(workspace.id)
+                    }}
+                  >
+                    <Unlink />
+                    Detach
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-red-600 hover:text-red-600"
+                    onClick={() => {
+                      setOpenMenuId("")
+                      onDelete(workspace.id)
+                    }}
+                  >
+                    <Trash2 />
+                    Delete
+                  </Button>
+                </div>
+              ) : null}
             </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-medium">{workspace.name}</div>
-              <div className="text-xs text-muted-foreground">Local mock worker</div>
-            </div>
-            <Badge variant={workspace.status === "Running" ? "success" : "warning"}>
-              {workspace.status}
-            </Badge>
-          </button>
-        ))}
+          ))
+        ) : (
+          <div className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
+            No workspaces yet.
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function taskLabel(status: TaskStatus) {
-  if (status === "in-progress") return "In progress"
-  if (status === "done") return "Done"
-  return "Start"
-}
-
 function languageForPath(path: string): Extension[] {
   const extension = path.split(".").pop()?.toLowerCase()
+
+  if (path.startsWith("workspace/tasks/")) return []
 
   if (["ts", "tsx"].includes(extension ?? "")) {
     return [javascript({ jsx: extension === "tsx", typescript: true })]
@@ -986,6 +2974,65 @@ function languageForPath(path: string): Extension[] {
   if (["sql", "sqlite"].includes(extension ?? "")) return [sql()]
 
   return []
+}
+
+function fileName(path: string) {
+  return path.split("/").pop() || "Untitled"
+}
+
+function parentPath(path: string) {
+  return path.split("/").slice(0, -1).join("/")
+}
+
+function taskFileEntry(task: TaskItem): FileEntry {
+  return { name: fileName(task.path), path: task.path, isDir: false }
+}
+
+function skillFolderEntry(skill: SkillItem): FileEntry {
+  const path = parentPath(skill.path)
+  return { name: fileName(path), path, isDir: true }
+}
+
+function docFileEntry(doc: DocItem): FileEntry {
+  return { name: fileName(doc.path), path: doc.path, isDir: false }
+}
+
+function ensureMarkdownPath(path: string) {
+  return path.toLowerCase().endsWith(".md") ? path : `${path}.md`
+}
+
+function resourceNameFromPath(path: string) {
+  return fileName(path).replace(/\.md$/i, "")
+}
+
+function nextFrame() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  })
+}
+
+function joinRelativePath(basePath: string, childPath: string) {
+  if (!basePath) return childPath
+  if (!childPath) return basePath
+  return `${basePath}/${childPath}`.replace(/\/+/g, "/")
+}
+
+function isSameOrChildPath(path: string, parent: string) {
+  return path === parent || path.startsWith(`${parent}/`)
+}
+
+function replacePathPrefix(path: string, oldPrefix: string, newPrefix: string) {
+  if (path === oldPrefix) return newPrefix
+  return `${newPrefix}${path.slice(oldPrefix.length)}`
+}
+
+function removeDirectoryPrefix(
+  directories: Record<string, DirectoryState>,
+  path: string
+) {
+  return Object.fromEntries(
+    Object.entries(directories).filter(([key]) => !isSameOrChildPath(key, path))
+  )
 }
 
 function readableError(error: unknown) {
