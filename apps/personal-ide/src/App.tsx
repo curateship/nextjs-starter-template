@@ -2810,7 +2810,7 @@ function EditorPanel({
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[42px_1fr]">
-      <div className="flex min-w-0 items-center justify-between border-b bg-muted/35">
+      <div className="flex min-w-0 items-center justify-between bg-muted/35">
         <div className="flex min-w-0 flex-1 items-stretch overflow-hidden">
           {tabs.length ? (
             tabs.map((item) => {

@@ -82,6 +82,10 @@ button,
   font-size: 13px;
 }
 
+.cm-editor.cm-focused {
+  outline: none;
+}
+
 .cm-scroller {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
