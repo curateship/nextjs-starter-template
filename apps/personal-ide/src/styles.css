@@ -86,6 +86,19 @@ button,
   outline: none;
 }
 
+.cm-editor .cm-selectionLayer .cm-selectionBackground,
+.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: rgb(191 219 254) !important;
+  background-color: rgb(191 219 254) !important;
+}
+
+.cm-editor .cm-content ::selection,
+.cm-editor .cm-line::selection,
+.cm-editor .cm-line ::selection {
+  background: rgb(191 219 254) !important;
+  background-color: rgb(191 219 254) !important;
+}
+
 .cm-scroller {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
