@@ -10,6 +10,22 @@ import { EditorState, StateField } from "@codemirror/state"
 import type { Extension } from "@codemirror/state"
 import { Decoration, EditorView } from "@codemirror/view"
 import type { DecorationSet } from "@codemirror/view"
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
 import CodeMirror from "@uiw/react-codemirror"
@@ -31,9 +47,12 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
+  GripVertical,
   MoreVertical,
   PanelBottom,
   Pencil,
+  Pin,
+  PinOff,
   Play,
   Plus,
   RefreshCw,
@@ -158,8 +177,7 @@ const EMPTY_GIT_STATUS: GitStatus = {
   files: [],
 }
 
-const TERMINAL_HISTORY_LIMIT = 300
-const terminalHistory = new Map<string, Uint8Array[]>()
+const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
 
 const editorTheme = EditorView.theme({
   "&": { height: "100%" },
@@ -207,7 +225,9 @@ function App() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus>(EMPTY_GIT_STATUS)
   const [commitMessage, setCommitMessage] = useState("")
-  const [selectedSkill, setSelectedSkill] = useState("all")
+  const [pinnedSkillsByWorkspace, setPinnedSkillsByWorkspace] = useState<
+    Record<string, string[]>
+  >(loadPinnedSkillSettings)
   const [terminalTab, setTerminalTab] = useState("terminal")
   const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
   const [workspaceError, setWorkspaceError] = useState("")
@@ -229,7 +249,12 @@ function App() {
     if (taskFilter === "all") return true
     return task.status === taskFilter
   })
-  const selectedSkillItem = skills.find((skill) => skill.slug === selectedSkill)
+  const activePinnedSkillSlugs = activeWorkspaceId
+    ? pinnedSkillsByWorkspace[activeWorkspaceId] ?? []
+    : []
+  const pinnedSkills = activePinnedSkillSlugs
+    .map((slug) => skills.find((skill) => skill.slug === slug))
+    .filter((skill): skill is SkillItem => Boolean(skill))
 
   const codeExtensions = useMemo(
     () => [
@@ -242,6 +267,10 @@ function App() {
   const handleTerminalSizeChange = useCallback((cols: number, rows: number) => {
     terminalSizeRef.current = { cols, rows }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillsByWorkspace))
+  }, [pinnedSkillsByWorkspace])
 
   useEffect(() => {
     const preventContextMenu = (event: MouseEvent) => event.preventDefault()
@@ -304,7 +333,6 @@ function App() {
       setFileError("")
       setGitError("")
       setDirectories({})
-      setSelectedSkill("all")
 
       try {
         const [rootEntries, nextTasks, nextSkills, nextDocs, nextGitStatus] =
@@ -560,7 +588,6 @@ function App() {
 
     const nextTabs: EditorTab[] = []
     let nextActivePath = activePath
-    let firstError = ""
 
     for (const tab of tabs) {
       try {
@@ -577,8 +604,8 @@ function App() {
           changedLines: [],
           error: undefined,
         })
-      } catch (error) {
-        firstError ||= `${tab.name}: ${readableError(error)}`
+      } catch {
+        // The file may have been removed by discarding Git changes.
       }
     }
 
@@ -588,8 +615,7 @@ function App() {
       nextActivePath = nextTabs[nextTabs.length - 1]?.path ?? ""
     }
     setActivePath(nextActivePath)
-
-    if (firstError) setFileError(firstError)
+    setFileError("")
   }
 
   function closeTab(path: string) {
@@ -627,12 +653,42 @@ function App() {
   }
 
   async function startTask(task: TaskItem) {
-    const skill = selectedSkillItem
-      ? ` Use the ${selectedSkillItem.name} skill from ${selectedSkillItem.path}.`
-      : ""
+    const taskSkill = task.skill ? skills.find((skill) => skill.slug === task.skill) : undefined
+    const skill = taskSkill ? ` Use the ${taskSkill.name} skill from ${taskSkill.path}.` : ""
     await pasteTerminalPrompt(
       `Work on task "${task.title}" from ${task.path}.${skill} Update the task status frontmatter as progress changes.`
     )
+  }
+
+  function pinSkill(slug: string) {
+    if (!activeWorkspaceId) return
+
+    setPinnedSkillsByWorkspace((current) => {
+      const slugs = current[activeWorkspaceId] ?? []
+      if (slugs.includes(slug)) return current
+      return { ...current, [activeWorkspaceId]: [...slugs, slug] }
+    })
+  }
+
+  function unpinSkill(slug: string) {
+    if (!activeWorkspaceId) return
+
+    setPinnedSkillsByWorkspace((current) => ({
+      ...current,
+      [activeWorkspaceId]: (current[activeWorkspaceId] ?? []).filter((item) => item !== slug),
+    }))
+  }
+
+  function movePinnedSkill(slug: string, overSlug: string) {
+    if (!activeWorkspaceId || !slug || slug === overSlug) return
+
+    setPinnedSkillsByWorkspace((current) => {
+      const slugs = current[activeWorkspaceId] ?? []
+      const oldIndex = slugs.indexOf(slug)
+      const newIndex = slugs.indexOf(overSlug)
+      if (oldIndex < 0 || newIndex < 0) return current
+      return { ...current, [activeWorkspaceId]: arrayMove(slugs, oldIndex, newIndex) }
+    })
   }
 
   async function createSkill(name: string) {
@@ -705,6 +761,16 @@ function App() {
       })
       setFileError("")
       updateTabsForRename(entry.path, renamed.path)
+      const oldSkillSlug = skillSlugFromPath(entry.path)
+      const newSkillSlug = skillSlugFromPath(renamed.path)
+      if (oldSkillSlug && newSkillSlug && oldSkillSlug !== newSkillSlug) {
+        setPinnedSkillsByWorkspace((current) => ({
+          ...current,
+          [activeWorkspaceId]: (current[activeWorkspaceId] ?? []).map((slug) =>
+            slug === oldSkillSlug ? newSkillSlug : slug
+          ),
+        }))
+      }
       setDirectories((current) => removeDirectoryPrefix(current, entry.path))
       await loadDirectory("")
       await loadDirectory(parentPath(entry.path))
@@ -730,6 +796,8 @@ function App() {
         path: entry.path,
       })
       setFileError("")
+      const skillSlug = skillSlugFromPath(entry.path)
+      if (skillSlug) unpinSkill(skillSlug)
       closeTabsUnderPath(entry.path)
       setDirectories((current) => removeDirectoryPrefix(current, entry.path))
       await loadDirectory("")
@@ -860,6 +928,27 @@ function App() {
     }
   }
 
+  async function clearTerminalInput() {
+    if (!activeWorkspaceId) return
+
+    try {
+      setTerminalTab("terminal")
+      const { cols, rows } = terminalSizeRef.current
+      await invoke("start_terminal", {
+        workspaceId: activeWorkspaceId,
+        cols,
+        rows,
+      })
+      await invoke("write_terminal", {
+        workspaceId: activeWorkspaceId,
+        data: "\u007f".repeat(1024),
+      })
+      setTerminalFocusNonce((current) => current + 1)
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
   async function commitChanges() {
     if (!activeWorkspaceId) return
     setGitError("")
@@ -949,14 +1038,6 @@ function App() {
     }
   }
 
-  function handleSkillChange(value: string) {
-    setSelectedSkill(value)
-    const skill = skills.find((item) => item.slug === value)
-    if (skill) {
-      void pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
-    }
-  }
-
   return (
     <TooltipProvider>
       <main className="h-full min-h-0 overflow-hidden border-t bg-background text-sm">
@@ -1026,15 +1107,18 @@ function App() {
                       <TabsContent value="skills" className="min-h-0">
                         <SkillsPanel
                           error={fileError}
+                          pinnedSkillSlugs={activePinnedSkillSlugs}
                           skills={skills}
                           onCreate={createSkill}
                           onCreateFolder={createFolder}
                           onCopyPath={copyEntryPath}
                           onDuplicate={duplicateEntry}
                           onOpenSkill={(skill) => openPath(skill.path, "SKILL.md")}
+                          onPinSkill={pinSkill}
                           onRefresh={refreshFiles}
                           onRename={renameEntry}
                           onReveal={revealEntry}
+                          onUnpinSkill={unpinSkill}
                           onTrash={trashEntry}
                         />
                       </TabsContent>
@@ -1110,19 +1194,22 @@ function App() {
                 >
                   <div className="grid h-full min-h-0 grid-rows-[1fr_46px]">
                     <BottomPanel
+                      activeWorkspaceId={activeWorkspaceId}
                       activeTab={terminalTab}
                       focusNonce={terminalFocusNonce}
+                      onClearInput={clearTerminalInput}
                       onSizeChange={handleTerminalSizeChange}
                       onError={setFileError}
                       onTabChange={setTerminalTab}
-                      workspaceId={activeWorkspaceId}
+                      workspaces={workspaceList.workspaces}
                     />
 
                     <ActionBar
-                      selectedSkill={selectedSkill}
-                      skills={skills}
-                      onAction={(action) => pasteTerminalPrompt(action)}
-                      onSkillChange={handleSkillChange}
+                      skills={pinnedSkills}
+                      onMoveSkill={movePinnedSkill}
+                      onUseSkill={(skill) =>
+                        pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
+                      }
                     />
                   </div>
                 </ResizablePanel>
@@ -1849,29 +1936,38 @@ function FileEntries({
 }
 
 function FileContextMenu({
+  isEntryPinned,
   menu,
   onClose,
   onCopyPath,
   onCreateFile,
   onCreateFolder,
   onDuplicate,
+  onPinEntry,
   onRefresh,
   onRename,
   onReveal,
   onTrash,
+  onUnpinEntry,
+  showCreateFolder = true,
 }: {
+  isEntryPinned?: (entry: FileEntry) => boolean
   menu: FileMenuState
   onClose: () => void
   onCopyPath: (entry: FileEntry) => void
   onCreateFile: () => void
   onCreateFolder: () => void
   onDuplicate: (entry: FileEntry) => void
+  onPinEntry?: (entry: FileEntry) => void
   onRefresh: () => void
   onRename: (entry: FileEntry) => void
   onReveal: (entry: FileEntry) => void
   onTrash: (entry: FileEntry) => void
+  onUnpinEntry?: (entry: FileEntry) => void
+  showCreateFolder?: boolean
 }) {
   const entry = menu.entry
+  const pinned = entry ? isEntryPinned?.(entry) : false
 
   function run(action: () => void) {
     action()
@@ -1886,12 +1982,21 @@ function FileContextMenu({
       role="menu"
     >
       <FileMenuButton icon={<FileText />} label="New File" onClick={() => run(onCreateFile)} />
-      <FileMenuButton icon={<FolderPlus />} label="New Folder" onClick={() => run(onCreateFolder)} />
+      {showCreateFolder ? (
+        <FileMenuButton icon={<FolderPlus />} label="New Folder" onClick={() => run(onCreateFolder)} />
+      ) : null}
       <FileMenuButton icon={<RefreshCw />} label="Refresh" onClick={() => run(onRefresh)} />
 
       {entry ? (
         <>
           <div className="my-1 h-px bg-border" />
+          {onPinEntry && onUnpinEntry ? (
+            <FileMenuButton
+              icon={pinned ? <PinOff /> : <Pin />}
+              label={pinned ? "Unpin from bottom bar" : "Pin to bottom bar"}
+              onClick={() => run(() => (pinned ? onUnpinEntry(entry) : onPinEntry(entry)))}
+            />
+          ) : null}
           <FileMenuButton icon={<Pencil />} label="Rename" onClick={() => run(() => onRename(entry))} />
           <FileMenuButton icon={<Files />} label="Duplicate" onClick={() => run(() => onDuplicate(entry))} />
           <FileMenuButton icon={<Copy />} label="Copy Relative Path" onClick={() => run(() => onCopyPath(entry))} />
@@ -1936,26 +2041,34 @@ function FileMenuButton({
 
 function ResourceContextMenu({
   basePath,
+  isEntryPinned,
   menu,
   operations,
   onClose,
+  onPinEntry,
   onStartCreate,
+  onUnpinEntry,
   onRenameEntry,
 }: {
   basePath: string
+  isEntryPinned?: (entry: FileEntry) => boolean
   menu: FileMenuState | null
   operations: FileOperationProps
   onClose: () => void
+  onPinEntry?: (entry: FileEntry) => void
   onStartCreate: (kind: "file" | "folder", basePath: string) => void
+  onUnpinEntry?: (entry: FileEntry) => void
   onRenameEntry: (entry: FileEntry) => void
 }) {
   if (!menu) return null
 
   return (
     <FileContextMenu
+      isEntryPinned={isEntryPinned}
       menu={menu}
       onClose={onClose}
       onCopyPath={operations.onCopyPath}
+      showCreateFolder={false}
       onCreateFile={() => {
         onStartCreate("file", menu.basePath || basePath)
       }}
@@ -1963,6 +2076,7 @@ function ResourceContextMenu({
         onStartCreate("folder", menu.basePath || basePath)
       }}
       onDuplicate={operations.onDuplicate}
+      onPinEntry={onPinEntry}
       onRefresh={() => {
         operations.onRefresh(menu.entry?.isDir ? menu.entry.path : menu.basePath || basePath)
       }}
@@ -1971,33 +2085,40 @@ function ResourceContextMenu({
       }}
       onReveal={operations.onReveal}
       onTrash={operations.onTrash}
+      onUnpinEntry={onUnpinEntry}
     />
   )
 }
 
 function SkillsPanel({
   error,
+  pinnedSkillSlugs,
   skills,
   onCreate,
   onCreateFolder,
   onCopyPath,
   onDuplicate,
   onOpenSkill,
+  onPinSkill,
   onRefresh,
   onRename,
   onReveal,
+  onUnpinSkill,
   onTrash,
 }: {
   error: string
+  pinnedSkillSlugs: string[]
   skills: SkillItem[]
   onCreate: (value: string) => void
   onCreateFolder: (value: string) => void
   onCopyPath: (entry: FileEntry) => void
   onDuplicate: (entry: FileEntry) => void
   onOpenSkill: (skill: SkillItem) => void
+  onPinSkill: (slug: string) => void
   onRefresh: (path?: string) => void
   onRename: (entry: FileEntry, newName: string) => void
   onReveal: (entry: FileEntry) => void
+  onUnpinSkill: (slug: string) => void
   onTrash: (entry: FileEntry) => void
 }) {
   const [menu, setMenu] = useState<FileMenuState | null>(null)
@@ -2111,12 +2232,15 @@ function SkillsPanel({
       </ScrollArea>
       <ResourceContextMenu
         basePath="workspace/skills"
+        isEntryPinned={(entry) => pinnedSkillSlugs.includes(entry.name)}
         menu={menu}
         operations={operations}
         onClose={() => setMenu(null)}
+        onPinEntry={(entry) => onPinSkill(entry.name)}
         onStartCreate={(kind, basePath) => {
           setCreateRequest({ kind, basePath, nonce: Date.now() })
         }}
+        onUnpinEntry={(entry) => onUnpinSkill(entry.name)}
         onRenameEntry={(entry) => {
           setRenamePath(entry.path)
           setRenameValue(entry.name)
@@ -2573,19 +2697,23 @@ function EditorPanel({
 }
 
 function BottomPanel({
+  activeWorkspaceId,
   activeTab,
   focusNonce,
+  onClearInput,
   onSizeChange,
   onError,
   onTabChange,
-  workspaceId,
+  workspaces,
 }: {
+  activeWorkspaceId: string
   activeTab: string
   focusNonce: number
+  onClearInput: () => void
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
   onTabChange: (value: string) => void
-  workspaceId: string
+  workspaces: WorkspaceInfo[]
 }) {
   return (
     <Tabs value={activeTab} onValueChange={onTabChange} className="h-full min-h-0 border-b bg-muted/35">
@@ -2597,16 +2725,35 @@ function BottomPanel({
           </TabsTrigger>
           <TabsTrigger value="problems">Problems</TabsTrigger>
         </TabsList>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto"
+          disabled={!activeWorkspaceId || activeTab !== "terminal"}
+          onClick={onClearInput}
+        >
+          Clear
+        </Button>
       </div>
       <TabsContent forceMount value="terminal" className="min-h-0 bg-background p-0">
-        {workspaceId ? (
-          <TerminalPane
-            active={activeTab === "terminal"}
-            focusNonce={focusNonce}
-            onSizeChange={onSizeChange}
-            onError={onError}
-            workspaceId={workspaceId}
-          />
+        {workspaces.length ? (
+          workspaces.map((workspace) => (
+            <div
+              key={workspace.id}
+              className={cn(
+                "h-full min-h-0",
+                workspace.id !== activeWorkspaceId && "hidden"
+              )}
+            >
+              <TerminalPane
+                active={activeTab === "terminal" && workspace.id === activeWorkspaceId}
+                focusNonce={workspace.id === activeWorkspaceId ? focusNonce : 0}
+                onSizeChange={onSizeChange}
+                onError={onError}
+                workspaceId={workspace.id}
+              />
+            </div>
+          ))
         ) : (
           <div className="p-4 font-mono text-xs text-muted-foreground">
             <span className="text-foreground">$</span> Add a workspace to start a terminal.
@@ -2664,8 +2811,15 @@ function TerminalPane({
     terminal.open(container)
     terminalRef.current = terminal
     fitRef.current = fit
-    for (const chunk of terminalHistory.get(workspaceId) ?? []) {
-      terminal.write(chunk)
+
+    const refreshTerminal = () => {
+      if (cancelled || terminal.rows < 1) return
+
+      try {
+        terminal.refresh(0, terminal.rows - 1)
+      } catch {
+        // xterm can throw while the panel is hidden during resize.
+      }
     }
 
     const fitTerminal = () => {
@@ -2678,6 +2832,7 @@ function TerminalPane({
 
         try {
           fit.fit()
+          refreshTerminal()
           onSizeChange(terminal.cols || 80, terminal.rows || 24)
           void invoke("resize_terminal", {
             workspaceId,
@@ -2693,6 +2848,7 @@ function TerminalPane({
     const startAfterFit = () => {
       try {
         fit.fit()
+        refreshTerminal()
         const cols = terminal.cols || 80
         const rows = terminal.rows || 24
         onSizeChange(cols, rows)
@@ -2715,11 +2871,7 @@ function TerminalPane({
     listen<TerminalOutput>("terminal-output", (event) => {
       if (event.payload.workspaceId !== workspaceId) return
       const data = new Uint8Array(event.payload.data)
-      const history = terminalHistory.get(workspaceId) ?? []
-      history.push(data)
-      if (history.length > TERMINAL_HISTORY_LIMIT) history.shift()
-      terminalHistory.set(workspaceId, history)
-      terminal.write(data)
+      terminal.write(data, refreshTerminal)
     })
       .then((dispose) => {
         if (cancelled) {
@@ -2766,6 +2918,14 @@ function TerminalPane({
           cols: terminal.cols || 80,
           rows: terminal.rows || 24,
         }).catch(() => undefined)
+        window.requestAnimationFrame(() => {
+          if (terminal.rows < 1) return
+          try {
+            terminal.refresh(0, terminal.rows - 1)
+          } catch {
+            // xterm can throw while the panel is being shown.
+          }
+        })
         terminal.focus()
       } catch {
         // xterm can throw while the panel is being shown.
@@ -2783,51 +2943,81 @@ function TerminalPane({
 }
 
 function ActionBar({
-  selectedSkill,
   skills,
-  onAction,
-  onSkillChange,
+  onMoveSkill,
+  onUseSkill,
 }: {
-  selectedSkill: string
   skills: SkillItem[]
-  onAction: (value: string) => void
-  onSkillChange: (value: string) => void
+  onMoveSkill: (slug: string, overSlug: string) => void
+  onUseSkill: (skill: SkillItem) => void
 }) {
-  const actions = [
-    { label: "Mark complete", prompt: "Mark the active task complete." },
-    { label: "Audit code", prompt: "Audit the recent code changes." },
-    { label: "Feature suggestions", prompt: "Suggest the next useful feature." },
-  ]
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    onMoveSkill(String(active.id), String(over.id))
+  }
 
   return (
     <div className="flex h-full items-center gap-2 bg-muted/35 px-3">
-      <div className="flex items-center gap-2">
-        {actions.map((action) => (
-          <Button
-            key={action.label}
-            variant="ghost"
-            size="sm"
-            onClick={() => onAction(action.prompt)}
-          >
-            {action.label}
-          </Button>
-        ))}
-      </div>
-      <div className="ml-auto">
-        <Select value={selectedSkill} onValueChange={onSkillChange}>
-          <SelectTrigger className="h-7 w-32 bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Skills</SelectItem>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext
+          items={skills.map((skill) => skill.slug)}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="flex min-w-0 items-center gap-2">
             {skills.map((skill) => (
-              <SelectItem key={skill.slug} value={skill.slug}>
-                {skill.name}
-              </SelectItem>
+              <SortableSkillShortcut key={skill.slug} skill={skill} onUseSkill={onUseSkill} />
             ))}
-          </SelectContent>
-        </Select>
-      </div>
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
+  )
+}
+
+function SortableSkillShortcut({
+  skill,
+  onUseSkill,
+}: {
+  skill: SkillItem
+  onUseSkill: (skill: SkillItem) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: skill.slug })
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex h-7 shrink-0 items-center rounded-lg"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing [&_svg]:size-3.5"
+        aria-label={`Reorder ${skill.name}`}
+      >
+        <GripVertical />
+      </button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="rounded-l-none"
+        onClick={() => onUseSkill(skill)}
+      >
+        {skill.name}
+      </Button>
     </div>
   )
 }
@@ -2851,7 +3041,8 @@ function WorkspacesPanel({
   onDetach: (workspaceId: string) => void
   onSelect: (workspaceId: string) => void
 }) {
-  const [openMenuId, setOpenMenuId] = useState("")
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  useDismissibleMenu(openMenuId, setOpenMenuId)
 
   return (
     <div className="flex h-full min-h-0 flex-col p-3">
@@ -2886,7 +3077,7 @@ function WorkspacesPanel({
                   type="button"
                   className="flex size-8 items-center justify-center rounded-lg bg-muted"
                   onClick={() => onSelect(workspace.id)}
-                  aria-label={`Select ${workspace.name}`}
+                  aria-label={`Select ${workspace.appName}`}
                 >
                   <FolderOpen className="size-4 text-muted-foreground" />
                 </button>
@@ -2895,31 +3086,35 @@ function WorkspacesPanel({
                   className="min-w-0 text-left"
                   onClick={() => onSelect(workspace.id)}
                 >
-                  <div className="truncate text-sm font-medium">{workspace.name}</div>
+                  <div className="truncate text-sm font-medium">{workspace.appName}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {workspace.appName}
+                    {workspace.name}
                   </div>
                 </button>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() =>
-                    setOpenMenuId(openMenuId === workspace.id ? "" : workspace.id)
-                  }
-                  aria-label={`${workspace.name} menu`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setOpenMenuId(openMenuId === workspace.id ? null : workspace.id)
+                  }}
+                  aria-label={`${workspace.appName} menu`}
                 >
                   <MoreVertical />
                 </Button>
               </div>
 
               {openMenuId === workspace.id ? (
-                <div className="absolute right-3 top-12 z-10 grid w-32 gap-1 rounded-md border bg-popover p-1 shadow-md">
+                <div
+                  className="absolute right-3 top-12 z-10 grid w-32 gap-1 rounded-md border bg-popover p-1 shadow-md"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <Button
                     variant="ghost"
                     size="sm"
                     className="justify-start"
                     onClick={() => {
-                      setOpenMenuId("")
+                      setOpenMenuId(null)
                       onDetach(workspace.id)
                     }}
                   >
@@ -2931,7 +3126,7 @@ function WorkspacesPanel({
                     size="sm"
                     className="justify-start text-red-600 hover:text-red-600"
                     onClick={() => {
-                      setOpenMenuId("")
+                      setOpenMenuId(null)
                       onDelete(workspace.id)
                     }}
                   >
@@ -2955,7 +3150,7 @@ function WorkspacesPanel({
 function languageForPath(path: string): Extension[] {
   const extension = path.split(".").pop()?.toLowerCase()
 
-  if (path.startsWith("workspace/tasks/")) return []
+  if (path.startsWith("workspace/tasks/") || path.startsWith("workspace/skills/")) return []
 
   if (["ts", "tsx"].includes(extension ?? "")) {
     return [javascript({ jsx: extension === "tsx", typescript: true })]
@@ -2991,6 +3186,10 @@ function taskFileEntry(task: TaskItem): FileEntry {
 function skillFolderEntry(skill: SkillItem): FileEntry {
   const path = parentPath(skill.path)
   return { name: fileName(path), path, isDir: true }
+}
+
+function skillSlugFromPath(path: string) {
+  return path.startsWith("workspace/skills/") ? path.split("/")[2] : ""
 }
 
 function docFileEntry(doc: DocItem): FileEntry {
@@ -3037,6 +3236,17 @@ function removeDirectoryPrefix(
 
 function readableError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function loadPinnedSkillSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(PINNED_SKILLS_STORAGE_KEY) ?? "{}") as Record<
+      string,
+      string[]
+    >
+  } catch {
+    return {}
+  }
 }
 
 export default App
