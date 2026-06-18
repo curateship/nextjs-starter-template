@@ -37,6 +37,8 @@ struct WorkspaceRecord {
     id: String,
     name: String,
     app_name: String,
+    #[serde(default)]
+    hidden: bool,
     branch: String,
     git_root: PathBuf,
     worktree_root: PathBuf,
@@ -64,6 +66,7 @@ struct WorkspaceInfo {
     id: String,
     name: String,
     app_name: String,
+    hidden: bool,
     is_tauri: bool,
 }
 
@@ -246,6 +249,7 @@ async fn create_workspace(
         id,
         name,
         app_name,
+        hidden: false,
         branch,
         git_root,
         worktree_root,
@@ -285,26 +289,38 @@ fn set_active_workspace(
 }
 
 #[tauri::command]
-fn detach_workspace(
+fn set_workspace_hidden(
     workspace_id: String,
+    hidden: bool,
     app: AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<WorkspaceList, String> {
-    kill_terminals_for_workspace(&workspace_id, &state)?;
+    if hidden {
+        kill_terminals_for_workspace(&workspace_id, &state)?;
+    }
 
     let mut app_state = state
         .inner
         .lock()
         .map_err(|_| "Workspace state is unavailable".to_string())?;
-    app_state
+
+    let Some(index) = app_state
         .workspaces
-        .retain(|workspace| workspace.id != workspace_id);
+        .iter()
+        .position(|workspace| workspace.id == workspace_id)
+    else {
+        return Err("Workspace not found".to_string());
+    };
+    app_state.workspaces[index].hidden = hidden;
 
     if app_state.active_workspace_id.as_deref() == Some(&workspace_id) {
         app_state.active_workspace_id = app_state
             .workspaces
-            .first()
+            .iter()
+            .find(|workspace| !workspace.hidden)
             .map(|workspace| workspace.id.clone());
+    } else if app_state.active_workspace_id.is_none() && !hidden {
+        app_state.active_workspace_id = Some(workspace_id);
     }
     drop(app_state);
 
@@ -1196,6 +1212,7 @@ fn workspace_list(state: &State<'_, WorkspaceState>) -> Result<WorkspaceList, St
                 id: workspace.id.clone(),
                 name: workspace.name.clone(),
                 app_name: workspace.app_name.clone(),
+                hidden: workspace.hidden,
                 is_tauri: workspace.app_root.join("src-tauri").is_dir(),
             })
             .collect(),
@@ -2080,7 +2097,7 @@ pub fn run() {
             list_workspaces,
             create_workspace,
             set_active_workspace,
-            detach_workspace,
+            set_workspace_hidden,
             delete_workspace,
             list_dir,
             read_text_file,

@@ -39,6 +39,8 @@ import {
   ChevronRight,
   Code2,
   Copy,
+  Eye,
+  EyeOff,
   ExternalLink,
   Files,
   FileText,
@@ -59,7 +61,6 @@ import {
   Sparkles,
   Square,
   Trash2,
-  Unlink,
   X,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -97,6 +98,7 @@ type WorkspaceInfo = {
   id: string
   name: string
   appName: string
+  hidden: boolean
   isTauri: boolean
 }
 
@@ -585,14 +587,12 @@ function App() {
     }
   }
 
-  async function detachWorkspace(workspaceId: string) {
-    if (!window.confirm("Detach this workspace from the app? Files stay on disk.")) return
-
+  async function setWorkspaceHidden(workspaceId: string, hidden: boolean) {
     setWorkspaceError("")
     try {
-      const next = await invoke<WorkspaceList>("detach_workspace", { workspaceId })
+      const next = await invoke<WorkspaceList>("set_workspace_hidden", { workspaceId, hidden })
       setWorkspaceList(next)
-      removeWorkspaceTerminals(workspaceId)
+      if (hidden) removeWorkspaceTerminals(workspaceId)
     } catch (error) {
       setWorkspaceError(readableError(error))
     }
@@ -1752,9 +1752,9 @@ function App() {
                 workspaces={workspaceList.workspaces}
                 onCreate={addWorkspace}
                 onDelete={deleteWorkspace}
-                onDetach={detachWorkspace}
                 onOpenServer={openWorkspaceServer}
                 onSelect={selectWorkspace}
+                onSetHidden={setWorkspaceHidden}
                 onStartServer={startWorkspaceServer}
                 onStopServer={stopWorkspaceServer}
                 serverRunning={
@@ -3822,9 +3822,9 @@ function WorkspacesPanel({
   workspaces,
   onCreate,
   onDelete,
-  onDetach,
   onOpenServer,
   onSelect,
+  onSetHidden,
   onStartServer,
   onStopServer,
   serverRunning,
@@ -3836,17 +3836,21 @@ function WorkspacesPanel({
   workspaces: WorkspaceInfo[]
   onCreate: () => void
   onDelete: (workspaceId: string) => void
-  onDetach: (workspaceId: string) => void
   onOpenServer: (workspace: WorkspaceInfo) => void
   onSelect: (workspaceId: string) => void
+  onSetHidden: (workspaceId: string, hidden: boolean) => void
   onStartServer: (workspace: WorkspaceInfo) => void
   onStopServer: (workspace: WorkspaceInfo) => void
   serverRunning: boolean
   workspaceStatuses: Record<string, WorkspaceStatus>
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [workspaceView, setWorkspaceView] = useState<"active" | "hidden">("active")
   useDismissibleMenu(openMenuId, setOpenMenuId)
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId)
+  const visibleWorkspaces = workspaces.filter((workspace) =>
+    workspaceView === "hidden" ? workspace.hidden : !workspace.hidden
+  )
   const activeServerUrl = activeWorkspace
     ? `http://localhost:${serverPortForWorkspace(activeWorkspace)}/`
     : ""
@@ -3858,9 +3862,23 @@ function WorkspacesPanel({
           <h2 className="text-sm font-semibold">Workspaces</h2>
           <p className="text-xs text-muted-foreground">Isolated worktrees</p>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onCreate} disabled={busy} aria-label="Add workspace">
-          <Plus />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Select
+            value={workspaceView}
+            onValueChange={(value) => setWorkspaceView(value as "active" | "hidden")}
+          >
+            <SelectTrigger className="h-8 w-24 bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="hidden">Hidden</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="icon-sm" onClick={onCreate} disabled={busy} aria-label="Add workspace">
+            <Plus />
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -3870,8 +3888,8 @@ function WorkspacesPanel({
       ) : null}
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-        {workspaces.length ? (
-          workspaces.map((workspace) => (
+        {visibleWorkspaces.length ? (
+          visibleWorkspaces.map((workspace) => (
               <div
                 key={workspace.id}
                 className={cn(
@@ -3938,11 +3956,11 @@ function WorkspacesPanel({
                     className="justify-start"
                     onClick={() => {
                       setOpenMenuId(null)
-                      onDetach(workspace.id)
+                      onSetHidden(workspace.id, !workspace.hidden)
                     }}
                   >
-                    <Unlink />
-                    Detach
+                    {workspace.hidden ? <Eye /> : <EyeOff />}
+                    {workspace.hidden ? "Show" : "Hide"}
                   </Button>
                   <Button
                     variant="ghost"
@@ -3962,7 +3980,7 @@ function WorkspacesPanel({
           ))
         ) : (
           <div className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
-            No workspaces yet.
+            No {workspaceView} workspaces.
           </div>
         )}
       </div>
