@@ -176,8 +176,11 @@ type GitStatus = {
   files: GitFile[]
   unpushedCommitCount: number
   unmergedCommitCount: number
+  developCommitCount: number
   mergeCommits: GitCommit[]
   mergeFiles: GitFile[]
+  developCommits: GitCommit[]
+  developFiles: GitFile[]
 }
 
 type TerminalItem = {
@@ -209,8 +212,11 @@ const EMPTY_GIT_STATUS: GitStatus = {
   files: [],
   unpushedCommitCount: 0,
   unmergedCommitCount: 0,
+  developCommitCount: 0,
   mergeCommits: [],
   mergeFiles: [],
+  developCommits: [],
+  developFiles: [],
 }
 
 const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
@@ -766,6 +772,17 @@ function App() {
           error: readableError(error),
         },
       }))
+    }
+  }
+
+  async function refreshFileTree(paths: string[] = []) {
+    const loadedPaths = Object.entries(directoriesRef.current)
+      .filter(([, directory]) => directory.entries)
+      .map(([path]) => path)
+    const uniquePaths = Array.from(new Set(["", ...loadedPaths, ...paths]))
+
+    for (const path of uniquePaths) {
+      await loadDirectory(path)
     }
   }
 
@@ -1369,6 +1386,26 @@ function App() {
     }
   }
 
+  async function updateFromDevelop() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("update")
+
+    try {
+      const next = await invoke<GitStatus>("git_update_from_develop", {
+        workspaceId: activeWorkspaceId,
+      })
+      setGitStatus(next)
+      await refreshOpenTabsFromDisk()
+      await refreshResources()
+      await refreshFileTree()
+    } catch (error) {
+      setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
   async function discardChangedFile(file: GitFile) {
     if (!activeWorkspaceId) return
     setGitError("")
@@ -1382,6 +1419,7 @@ function App() {
       setGitStatus(next)
       await refreshOpenTabsFromDisk()
       await refreshResources()
+      await refreshFileTree(file.appPath ? [parentPath(file.appPath)] : [])
     } catch (error) {
       setGitError(readableError(error))
     } finally {
@@ -1401,6 +1439,7 @@ function App() {
       setGitStatus(next)
       await refreshOpenTabsFromDisk()
       await refreshResources()
+      await refreshFileTree()
     } catch (error) {
       setGitError(readableError(error))
     } finally {
@@ -1432,8 +1471,31 @@ function App() {
       setGitError("That changed file is outside the selected app folder.")
       return
     }
+    const appPath = file.appPath
 
     try {
+      if (file.status === "D") {
+        const originalContents = await invoke<string>("read_original_text_file", {
+          workspaceId: activeWorkspaceId,
+          path: appPath,
+        })
+
+        setGitError("")
+        setTabs((current) => [
+          ...current.filter((tab) => tab.path !== appPath),
+          {
+            path: appPath,
+            name: fileName(appPath),
+            contents: "",
+            savedContents: "",
+            originalContents,
+            changedLines: [],
+          },
+        ])
+        setActivePath(appPath)
+        return
+      }
+
       const [originalContents, changedLines] = await Promise.all([
         invoke<string>("read_original_text_file", {
           workspaceId: activeWorkspaceId,
@@ -1605,6 +1667,7 @@ function App() {
                     onOpenMergeFile={openMergeFile}
                     onRefresh={refreshGit}
                     onSync={syncChanges}
+                    onUpdateFromDevelop={updateFromDevelop}
                   />
                 </ResizablePanel>
               </ResizablePanelGroup>
@@ -2865,6 +2928,7 @@ function ChangesPanel({
   onOpenMergeFile,
   onRefresh,
   onSync,
+  onUpdateFromDevelop,
 }: {
   busyAction: string
   commitMessage: string
@@ -2879,6 +2943,7 @@ function ChangesPanel({
   onOpenMergeFile: (file: GitFile) => void
   onRefresh: () => void
   onSync: () => void
+  onUpdateFromDevelop: () => void
 }) {
   const [discardMenu, setDiscardMenu] = useState<{
     file?: GitFile
@@ -2887,6 +2952,11 @@ function ChangesPanel({
   } | null>(null)
 
   useDismissibleMenu(discardMenu, setDiscardMenu)
+  const developCommits = gitStatus.developCommits.filter(
+    (commit) => !commit.subject.startsWith("Merge ")
+  )
+  const developFiles = developCommits.length ? gitStatus.developFiles : []
+  const developUpdateCount = developCommits.length
 
   return (
     <div
@@ -2910,6 +2980,43 @@ function ChangesPanel({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-3 pr-1">
+          {developCommits.length ? (
+            <div className="space-y-2 border-b pb-3">
+              <div>
+                <div className="text-xs font-semibold">Develop updates</div>
+                <div className="text-xs text-muted-foreground">
+                  {developCommits.length} commits not in workspace
+                </div>
+              </div>
+              <div className="space-y-1">
+                {developCommits.map((commit) => (
+                  <div key={commit.hash} className="flex gap-2 text-xs">
+                    <span className="shrink-0 font-mono text-muted-foreground">
+                      {commit.hash}
+                    </span>
+                    <span className="min-w-0 truncate">{commit.subject}</span>
+                  </div>
+                ))}
+              </div>
+              {developFiles.length ? (
+                <div className="space-y-1">
+                  <div className="text-xs font-semibold">Files changed</div>
+                  {developFiles.map((file) => (
+                    <div
+                      key={`${file.status}-${file.path}`}
+                      className="flex gap-2 px-2 py-1 text-xs"
+                    >
+                      <span className="w-8 shrink-0 font-mono text-muted-foreground">
+                        {file.status || "M"}
+                      </span>
+                      <span className="min-w-0 truncate">{file.path}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           {gitStatus.mergeCommits.length ? (
             <div className="space-y-2 border-b pb-3">
               <div>
@@ -3035,6 +3142,17 @@ function ChangesPanel({
               : countLabel("Merge", gitStatus.unmergedCommitCount)}
           </Button>
         </div>
+        <Button
+          variant="outline"
+          className="w-full bg-background"
+          disabled={busyAction === "update" || !developUpdateCount}
+          onClick={onUpdateFromDevelop}
+        >
+          <ChevronDown />
+          {busyAction === "update"
+            ? "Updating..."
+            : countLabel("Update from develop", developUpdateCount)}
+        </Button>
       </div>
 
       {discardMenu ? (

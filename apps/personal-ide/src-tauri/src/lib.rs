@@ -123,8 +123,11 @@ struct GitStatus {
     files: Vec<GitFile>,
     unpushed_commit_count: u32,
     unmerged_commit_count: u32,
+    develop_commit_count: u32,
     merge_commits: Vec<GitCommit>,
     merge_files: Vec<GitFile>,
+    develop_commits: Vec<GitCommit>,
+    develop_files: Vec<GitFile>,
 }
 
 #[derive(Serialize, Clone)]
@@ -901,14 +904,19 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
         .collect::<Result<Vec<_>, String>>()?;
     let merge_commits = merge_commits_for(&workspace)?;
     let merge_files = merge_files_for(&workspace)?;
+    let develop_commits = develop_commits_for(&workspace)?;
+    let develop_files = develop_files_for(&workspace)?;
 
     Ok(GitStatus {
         branch: workspace.branch.clone(),
         files,
         unpushed_commit_count: unpushed_commit_count(&workspace)?,
         unmerged_commit_count: merge_commits.len() as u32,
+        develop_commit_count: develop_commits.len() as u32,
         merge_commits,
         merge_files,
+        develop_commits,
+        develop_files,
     })
 }
 
@@ -983,6 +991,23 @@ fn git_merge_to_develop(
         &["merge", "--no-ff", "--no-edit", &workspace.branch],
     )?;
     run_git(&workspace.git_root, &["push", "origin", "develop"])?;
+    git_status(workspace_id, state)
+}
+
+#[tauri::command]
+fn git_update_from_develop(
+    workspace_id: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<GitStatus, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+
+    if !git_status_lines(&workspace.worktree_root)?.is_empty() {
+        return Err("Commit or discard changes before updating from develop".to_string());
+    }
+
+    run_git(&workspace.git_root, &["checkout", "develop"])?;
+    run_git(&workspace.git_root, &["pull", "origin", "develop"])?;
+    run_git(&workspace.worktree_root, &["merge", "--ff-only", "develop"])?;
     git_status(workspace_id, state)
 }
 
@@ -1718,6 +1743,71 @@ fn merge_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> 
         .collect()
 }
 
+fn develop_commits_for(workspace: &WorkspaceRecord) -> Result<Vec<GitCommit>, String> {
+    let output = run_git_with_paths(
+        &workspace.worktree_root,
+        &[
+            "log",
+            "--reverse",
+            "--no-merges",
+            "--pretty=format:%h%x00%s",
+            &format!("{}..develop", workspace.branch),
+            "--",
+        ],
+        &app_git_paths(workspace),
+    )?;
+
+    Ok(output
+        .lines()
+        .filter_map(|line| {
+            let (hash, subject) = line.split_once('\0')?;
+            Some(GitCommit {
+                hash: hash.to_string(),
+                subject: subject.to_string(),
+            })
+        })
+        .collect())
+}
+
+fn develop_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
+    let range = format!("{}...develop", workspace.branch);
+    let output = run_git_with_paths(
+        &workspace.worktree_root,
+        &["diff", "--name-status", &range, "--"],
+        &app_git_paths(workspace),
+    )?;
+
+    output
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let status = line.split_whitespace().next().unwrap_or("M").to_string();
+            let path = line
+                .split_whitespace()
+                .last()
+                .unwrap_or_default()
+                .to_string();
+            let app_path = app_relative_status_path(workspace, &path);
+
+            Ok(GitFile {
+                status,
+                path,
+                app_path,
+                changed_lines: Vec::new(),
+            })
+        })
+        .collect()
+}
+
+fn app_git_paths(workspace: &WorkspaceRecord) -> Vec<String> {
+    let app_path = workspace.app_relative_path.replace('\\', "/");
+    if app_path.is_empty() {
+        vec![".".to_string()]
+    } else {
+        vec![app_path]
+    }
+}
+
 fn commit_count(root: &Path, range: &str) -> Result<u32, String> {
     let output = run_git(root, &["rev-list", "--count", range])?;
     output
@@ -2017,6 +2107,7 @@ pub fn run() {
             git_commit,
             git_sync,
             git_merge_to_develop,
+            git_update_from_develop,
             git_discard_changes,
             git_discard_file,
             start_terminal,
