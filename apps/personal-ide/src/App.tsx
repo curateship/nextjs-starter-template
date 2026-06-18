@@ -37,7 +37,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  CircleCheck,
   Code2,
   Copy,
   ExternalLink,
@@ -50,7 +49,6 @@ import {
   GitMerge,
   GripVertical,
   MoreVertical,
-  PanelBottom,
   Pencil,
   Pin,
   PinOff,
@@ -172,8 +170,19 @@ type GitStatus = {
   mergeFiles: GitFile[]
 }
 
+type TerminalItem = {
+  id: string
+  name: string
+}
+
+type WorkspaceTerminalState = {
+  terminals: TerminalItem[]
+  activeTerminalId: string
+}
+
 type TerminalOutput = {
   workspaceId: string
+  terminalId: string
   data: number[]
 }
 
@@ -189,6 +198,11 @@ const EMPTY_GIT_STATUS: GitStatus = {
   unmergedCommitCount: 0,
   mergeCommits: [],
   mergeFiles: [],
+}
+
+const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
+  terminals: [],
+  activeTerminalId: "",
 }
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
@@ -244,6 +258,9 @@ function App() {
   >(loadPinnedSkillSettings)
   const [terminalTab, setTerminalTab] = useState("terminal")
   const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
+  const [terminalsByWorkspace, setTerminalsByWorkspace] = useState<
+    Record<string, WorkspaceTerminalState>
+  >({})
   const [workspaceError, setWorkspaceError] = useState("")
   const [gitError, setGitError] = useState("")
   const [busyAction, setBusyAction] = useState("")
@@ -269,6 +286,7 @@ function App() {
   const pinnedSkills = activePinnedSkillSlugs
     .map((slug) => skills.find((skill) => skill.slug === slug))
     .filter((skill): skill is SkillItem => Boolean(skill))
+  const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
 
   const codeExtensions = useMemo(
     () => [
@@ -431,6 +449,7 @@ function App() {
     try {
       const next = await invoke<WorkspaceList>("detach_workspace", { workspaceId })
       setWorkspaceList(next)
+      removeWorkspaceTerminals(workspaceId)
     } catch (error) {
       setWorkspaceError(readableError(error))
     }
@@ -443,9 +462,79 @@ function App() {
     try {
       const next = await invoke<WorkspaceList>("delete_workspace", { workspaceId })
       setWorkspaceList(next)
+      removeWorkspaceTerminals(workspaceId)
     } catch (error) {
       setWorkspaceError(readableError(error))
     }
+  }
+
+  function addTerminal(workspaceId = activeWorkspaceId) {
+    if (!workspaceId) return null
+
+    const state = terminalStateFor(workspaceId, terminalsByWorkspace)
+    const name = nextTerminalName(state.terminals)
+    const terminal = {
+      id: `${workspaceId}-terminal-${Date.now()}`,
+      name,
+    }
+
+    setTerminalsByWorkspace((current) => {
+      const currentState = terminalStateFor(workspaceId, current)
+      return {
+        ...current,
+        [workspaceId]: {
+          terminals: [...currentState.terminals, terminal],
+          activeTerminalId: terminal.id,
+        },
+      }
+    })
+    setTerminalTab("terminal")
+    setTerminalFocusNonce((current) => current + 1)
+    return terminal
+  }
+
+  function selectTerminal(workspaceId: string, terminalId: string) {
+    setTerminalsByWorkspace((current) => {
+      const state = terminalStateFor(workspaceId, current)
+      return {
+        ...current,
+        [workspaceId]: {
+          terminals: state.terminals,
+          activeTerminalId: terminalId,
+        },
+      }
+    })
+    setTerminalTab("terminal")
+    setTerminalFocusNonce((current) => current + 1)
+  }
+
+  function closeTerminal(workspaceId: string, terminalId: string) {
+    const state = terminalStateFor(workspaceId, terminalsByWorkspace)
+    const closingIndex = state.terminals.findIndex((terminal) => terminal.id === terminalId)
+    const nextTerminals = state.terminals.filter((terminal) => terminal.id !== terminalId)
+    const nextActiveTerminalId =
+      state.activeTerminalId === terminalId
+        ? nextTerminals[Math.min(closingIndex, nextTerminals.length - 1)]?.id ?? ""
+        : state.activeTerminalId
+
+    setTerminalsByWorkspace((current) => ({
+      ...current,
+      [workspaceId]: {
+        terminals: nextTerminals,
+        activeTerminalId: nextActiveTerminalId,
+      },
+    }))
+    void invoke("kill_terminal", { terminalId }).catch((error) =>
+      setFileError(readableError(error))
+    )
+  }
+
+  function removeWorkspaceTerminals(workspaceId: string) {
+    setTerminalsByWorkspace((current) => {
+      const next = { ...current }
+      delete next[workspaceId]
+      return next
+    })
   }
 
   async function loadDirectory(path: string) {
@@ -917,6 +1006,12 @@ function App() {
       return
     }
 
+    const existingTerminal = activeTerminalState.terminals.find(
+      (terminal) => terminal.id === activeTerminalState.activeTerminalId
+    )
+    const terminal = existingTerminal ?? addTerminal(activeWorkspaceId)
+    if (!terminal) return
+
     try {
       setTerminalTab("terminal")
       setTerminalFocusNonce((current) => current + 1)
@@ -925,16 +1020,17 @@ function App() {
       const { cols, rows } = terminalSizeRef.current
       await invoke("start_terminal", {
         workspaceId: activeWorkspaceId,
+        terminalId: terminal.id,
         cols,
         rows,
       })
       await invoke("resize_terminal", {
-        workspaceId: activeWorkspaceId,
+        terminalId: terminal.id,
         cols,
         rows,
       }).catch(() => undefined)
       await invoke("write_terminal", {
-        workspaceId: activeWorkspaceId,
+        terminalId: terminal.id,
         data: prompt,
       })
     } catch (error) {
@@ -944,17 +1040,22 @@ function App() {
 
   async function clearTerminalInput() {
     if (!activeWorkspaceId) return
+    const terminal = activeTerminalState.terminals.find(
+      (item) => item.id === activeTerminalState.activeTerminalId
+    )
+    if (!terminal) return
 
     try {
       setTerminalTab("terminal")
       const { cols, rows } = terminalSizeRef.current
       await invoke("start_terminal", {
         workspaceId: activeWorkspaceId,
+        terminalId: terminal.id,
         cols,
         rows,
       })
       await invoke("write_terminal", {
-        workspaceId: activeWorkspaceId,
+        terminalId: terminal.id,
         data: "\u007f".repeat(1024),
       })
       setTerminalFocusNonce((current) => current + 1)
@@ -1252,15 +1353,23 @@ function App() {
                       activeWorkspaceId={activeWorkspaceId}
                       activeTab={terminalTab}
                       focusNonce={terminalFocusNonce}
-                      onClearInput={clearTerminalInput}
+                      terminalStates={terminalsByWorkspace}
+                      onAddTerminal={() => addTerminal()}
+                      onCloseTerminal={closeTerminal}
+                      onSelectTerminal={selectTerminal}
                       onSizeChange={handleTerminalSizeChange}
                       onError={setFileError}
                       onTabChange={setTerminalTab}
-                      workspaces={workspaceList.workspaces}
                     />
 
                     <ActionBar
+                      canClear={
+                        Boolean(activeWorkspaceId) &&
+                        terminalTab === "terminal" &&
+                        Boolean(activeTerminalState.activeTerminalId)
+                      }
                       skills={pinnedSkills}
+                      onClearInput={clearTerminalInput}
                       onMoveSkill={movePinnedSkill}
                       onUseSkill={(skill) =>
                         pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
@@ -1543,7 +1652,7 @@ function TasksPanel({
               return (
               <div
                 key={task.path}
-                className="rounded-lg border bg-background px-3 py-2"
+                className="rounded-lg bg-background px-3 py-2"
                 onContextMenu={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -2821,73 +2930,120 @@ function BottomPanel({
   activeWorkspaceId,
   activeTab,
   focusNonce,
-  onClearInput,
+  terminalStates,
+  onAddTerminal,
+  onCloseTerminal,
+  onSelectTerminal,
   onSizeChange,
   onError,
   onTabChange,
-  workspaces,
 }: {
   activeWorkspaceId: string
   activeTab: string
   focusNonce: number
-  onClearInput: () => void
+  terminalStates: Record<string, WorkspaceTerminalState>
+  onAddTerminal: () => void
+  onCloseTerminal: (workspaceId: string, terminalId: string) => void
+  onSelectTerminal: (workspaceId: string, terminalId: string) => void
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
   onTabChange: (value: string) => void
-  workspaces: WorkspaceInfo[]
 }) {
+  const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalStates)
+  const activeTerminalId = activeTerminalState.activeTerminalId
+  const terminalEntries = Object.entries(terminalStates).flatMap(([workspaceId, state]) =>
+    state.terminals.map((terminal) => ({ workspaceId, terminal }))
+  )
+
   return (
-    <Tabs value={activeTab} onValueChange={onTabChange} className="h-full min-h-0 border-b bg-muted/35">
-      <div className="flex h-10 items-center border-b px-3">
-        <TabsList>
-          <TabsTrigger value="terminal">
-            <PanelBottom />
-            Terminal
-          </TabsTrigger>
-          <TabsTrigger value="problems">Problems</TabsTrigger>
-        </TabsList>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          disabled={!activeWorkspaceId || activeTab !== "terminal"}
-          onClick={onClearInput}
+    <div className="grid h-full min-h-0 grid-rows-[40px_1fr] border-b bg-muted/35">
+      <div className="flex h-10 items-center gap-2 border-b px-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {activeTerminalState.terminals.map((terminal) => {
+            const selected = activeTab === "terminal" && terminal.id === activeTerminalId
+
+            return (
+              <div
+                key={terminal.id}
+                className={cn(
+                  "flex h-7 shrink-0 items-center rounded-md text-xs text-muted-foreground",
+                  selected && "bg-muted text-foreground"
+                )}
+              >
+                <button
+                  type="button"
+                  className="h-full px-2 font-medium hover:text-foreground"
+                  onClick={() => onSelectTerminal(activeWorkspaceId, terminal.id)}
+                >
+                  {terminal.name}
+                </button>
+                <button
+                  type="button"
+                  className="flex h-full items-center px-2 text-muted-foreground hover:text-foreground"
+                  aria-label={`Close ${terminal.name}`}
+                  onClick={() => onCloseTerminal(activeWorkspaceId, terminal.id)}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          className="h-7 shrink-0 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-45"
+          disabled={!activeWorkspaceId}
+          onClick={onAddTerminal}
         >
-          Clear
-        </Button>
+          + Add terminal
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "h-7 shrink-0 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
+            activeTab === "problems" && "bg-muted text-foreground"
+          )}
+          onClick={() => onTabChange("problems")}
+        >
+          Problems
+        </button>
       </div>
-      <TabsContent forceMount value="terminal" className="min-h-0 bg-background p-0">
-        {workspaces.length ? (
-          workspaces.map((workspace) => (
+      <div className="min-h-0 bg-background">
+        <div className={cn("h-full min-h-0", activeTab !== "terminal" && "hidden")}>
+          {terminalEntries.map(({ workspaceId, terminal }) => (
             <div
-              key={workspace.id}
+              key={terminal.id}
               className={cn(
                 "h-full min-h-0",
-                workspace.id !== activeWorkspaceId && "hidden"
+                (workspaceId !== activeWorkspaceId || terminal.id !== activeTerminalId) &&
+                  "hidden"
               )}
             >
               <TerminalPane
-                active={activeTab === "terminal" && workspace.id === activeWorkspaceId}
-                focusNonce={workspace.id === activeWorkspaceId ? focusNonce : 0}
+                active={
+                  activeTab === "terminal" &&
+                  workspaceId === activeWorkspaceId &&
+                  terminal.id === activeTerminalId
+                }
+                focusNonce={terminal.id === activeTerminalId ? focusNonce : 0}
                 onSizeChange={onSizeChange}
                 onError={onError}
-                workspaceId={workspace.id}
+                terminalId={terminal.id}
+                workspaceId={workspaceId}
               />
             </div>
-          ))
-        ) : (
-          <div className="p-4 font-mono text-xs text-muted-foreground">
-            <span className="text-foreground">$</span> Add a workspace to start a terminal.
-          </div>
-        )}
-      </TabsContent>
-      <TabsContent forceMount value="problems" className="bg-background p-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <CircleCheck className="size-4 text-emerald-600" />
+          ))}
+        </div>
+        <div
+          className={cn(
+            "h-full bg-background p-4 text-xs text-muted-foreground",
+            activeTab !== "problems" && "hidden"
+          )}
+        >
           No problems
         </div>
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   )
 }
 
@@ -2896,12 +3052,14 @@ function TerminalPane({
   focusNonce,
   onSizeChange,
   onError,
+  terminalId,
   workspaceId,
 }: {
   active: boolean
   focusNonce: number
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
+  terminalId: string
   workspaceId: string
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -2956,7 +3114,7 @@ function TerminalPane({
           refreshTerminal()
           onSizeChange(terminal.cols || 80, terminal.rows || 24)
           void invoke("resize_terminal", {
-            workspaceId,
+            terminalId,
             cols: terminal.cols || 80,
             rows: terminal.rows || 24,
           }).catch(() => undefined)
@@ -2973,8 +3131,8 @@ function TerminalPane({
         const cols = terminal.cols || 80
         const rows = terminal.rows || 24
         onSizeChange(cols, rows)
-        void invoke("start_terminal", { workspaceId, cols, rows })
-          .then(() => invoke("resize_terminal", { workspaceId, cols, rows }))
+        void invoke("start_terminal", { workspaceId, terminalId, cols, rows })
+          .then(() => invoke("resize_terminal", { terminalId, cols, rows }))
           .catch((error) => onError(readableError(error)))
       } catch (error) {
         onError(readableError(error))
@@ -2982,7 +3140,7 @@ function TerminalPane({
     }
 
     const dataDisposable = terminal.onData((data) => {
-      void invoke("write_terminal", { workspaceId, data }).catch((error) =>
+      void invoke("write_terminal", { terminalId, data }).catch((error) =>
         onError(readableError(error))
       )
     })
@@ -2990,7 +3148,12 @@ function TerminalPane({
     observer.observe(container)
 
     listen<TerminalOutput>("terminal-output", (event) => {
-      if (event.payload.workspaceId !== workspaceId) return
+      if (
+        event.payload.workspaceId !== workspaceId ||
+        event.payload.terminalId !== terminalId
+      ) {
+        return
+      }
       const data = new Uint8Array(event.payload.data)
       terminal.write(data, refreshTerminal)
     })
@@ -3017,7 +3180,7 @@ function TerminalPane({
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [onError, onSizeChange, workspaceId])
+  }, [onError, onSizeChange, terminalId, workspaceId])
 
   useEffect(() => {
     terminalRef.current?.focus()
@@ -3035,7 +3198,7 @@ function TerminalPane({
         fit.fit()
         onSizeChange(terminal.cols || 80, terminal.rows || 24)
         void invoke("resize_terminal", {
-          workspaceId,
+          terminalId,
           cols: terminal.cols || 80,
           rows: terminal.rows || 24,
         }).catch(() => undefined)
@@ -3054,7 +3217,7 @@ function TerminalPane({
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [active, onSizeChange, workspaceId])
+  }, [active, onSizeChange, terminalId])
 
   return (
     <div className="h-full min-h-0 p-2">
@@ -3064,11 +3227,15 @@ function TerminalPane({
 }
 
 function ActionBar({
+  canClear,
   skills,
+  onClearInput,
   onMoveSkill,
   onUseSkill,
 }: {
+  canClear: boolean
   skills: SkillItem[]
+  onClearInput: () => void
   onMoveSkill: (slug: string, overSlug: string) => void
   onUseSkill: (skill: SkillItem) => void
 }) {
@@ -3097,6 +3264,14 @@ function ActionBar({
           </div>
         </SortableContext>
       </DndContext>
+      <button
+        type="button"
+        className="ml-auto h-7 shrink-0 rounded-md px-2 text-sm font-medium hover:bg-muted disabled:pointer-events-none disabled:opacity-45"
+        disabled={!canClear}
+        onClick={onClearInput}
+      >
+        Clear
+      </button>
     </div>
   )
 }
@@ -3189,8 +3364,8 @@ function WorkspacesPanel({
             <div
               key={workspace.id}
               className={cn(
-                "relative rounded-lg border bg-background p-3 transition-colors",
-                activeWorkspaceId === workspace.id && "border-neutral-400"
+                "relative rounded-lg bg-background p-3 transition-colors",
+                activeWorkspaceId === workspace.id && "bg-muted"
               )}
             >
               <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
@@ -3323,6 +3498,25 @@ function ensureMarkdownPath(path: string) {
 
 function resourceNameFromPath(path: string) {
   return fileName(path).replace(/\.md$/i, "")
+}
+
+function terminalStateFor(
+  workspaceId: string,
+  source: Record<string, WorkspaceTerminalState>
+) {
+  return workspaceId ? source[workspaceId] ?? EMPTY_TERMINAL_STATE : EMPTY_TERMINAL_STATE
+}
+
+function nextTerminalName(terminals: TerminalItem[]) {
+  const used = new Set(
+    terminals
+      .map((terminal) => terminal.name.match(/^Terminal (\d+)$/)?.[1])
+      .filter((value): value is string => Boolean(value))
+      .map(Number)
+  )
+  let index = 1
+  while (used.has(index)) index += 1
+  return `Terminal ${index}`
 }
 
 function nextFrame() {

@@ -43,6 +43,7 @@ struct WorkspaceRecord {
 }
 
 struct TerminalSession {
+    workspace_id: String,
     master: Box<dyn MasterPty + Send>,
     writer: Mutex<Box<dyn Write + Send>>,
     child: Mutex<Box<dyn Child + Send>>,
@@ -127,6 +128,7 @@ struct GitStatus {
 #[serde(rename_all = "camelCase")]
 struct TerminalOutput {
     workspace_id: String,
+    terminal_id: String,
     data: Vec<u8>,
 }
 
@@ -281,7 +283,7 @@ fn detach_workspace(
     app: AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<WorkspaceList, String> {
-    kill_terminal_by_id(&workspace_id, &state)?;
+    kill_terminals_for_workspace(&workspace_id, &state)?;
 
     let mut app_state = state
         .inner
@@ -318,7 +320,7 @@ fn delete_workspace(
         );
     }
 
-    kill_terminal_by_id(&workspace_id, &state)?;
+    kill_terminals_for_workspace(&workspace_id, &state)?;
 
     if workspace.worktree_root.exists() {
         run_git(
@@ -896,16 +898,21 @@ fn git_discard_changes(
 #[tauri::command]
 fn start_terminal(
     workspace_id: String,
+    terminal_id: String,
     cols: u16,
     rows: u16,
     app: AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
+    if terminal_id.trim().is_empty() {
+        return Err("Terminal id is required".to_string());
+    }
+
     if state
         .terminals
         .lock()
         .map_err(|_| "Terminal state is unavailable".to_string())?
-        .contains_key(&workspace_id)
+        .contains_key(&terminal_id)
     {
         return Ok(());
     }
@@ -940,6 +947,7 @@ fn start_terminal(
         .map_err(|error| error.to_string())?;
 
     let output_workspace_id = workspace_id.clone();
+    let output_terminal_id = terminal_id.clone();
     thread::spawn(move || {
         let mut buffer = [0_u8; 4096];
         loop {
@@ -950,6 +958,7 @@ fn start_terminal(
                         "terminal-output",
                         TerminalOutput {
                             workspace_id: output_workspace_id.clone(),
+                            terminal_id: output_terminal_id.clone(),
                             data: buffer[..size].to_vec(),
                         },
                     );
@@ -964,8 +973,9 @@ fn start_terminal(
         .lock()
         .map_err(|_| "Terminal state is unavailable".to_string())?
         .insert(
-            workspace_id,
+            terminal_id,
             TerminalSession {
+                workspace_id,
                 master: pair.master,
                 writer: Mutex::new(writer),
                 child: Mutex::new(child),
@@ -977,7 +987,7 @@ fn start_terminal(
 
 #[tauri::command]
 fn write_terminal(
-    workspace_id: String,
+    terminal_id: String,
     data: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
@@ -986,7 +996,7 @@ fn write_terminal(
         .lock()
         .map_err(|_| "Terminal state is unavailable".to_string())?;
     let session = terminals
-        .get(&workspace_id)
+        .get(&terminal_id)
         .ok_or_else(|| "Terminal is not running".to_string())?;
 
     let result = session
@@ -1001,7 +1011,7 @@ fn write_terminal(
 
 #[tauri::command]
 fn resize_terminal(
-    workspace_id: String,
+    terminal_id: String,
     cols: u16,
     rows: u16,
     state: State<'_, WorkspaceState>,
@@ -1011,7 +1021,7 @@ fn resize_terminal(
         .lock()
         .map_err(|_| "Terminal state is unavailable".to_string())?;
     let session = terminals
-        .get(&workspace_id)
+        .get(&terminal_id)
         .ok_or_else(|| "Terminal is not running".to_string())?;
 
     session
@@ -1021,8 +1031,8 @@ fn resize_terminal(
 }
 
 #[tauri::command]
-fn kill_terminal(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    kill_terminal_by_id(&workspace_id, &state)
+fn kill_terminal(terminal_id: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    kill_terminal_by_id(&terminal_id, &state)
 }
 
 fn workspace_list(state: &State<'_, WorkspaceState>) -> Result<WorkspaceList, String> {
@@ -1683,21 +1693,55 @@ fn default_command_path() -> String {
 }
 
 fn kill_terminal_by_id(
-    workspace_id: &str,
+    terminal_id: &str,
     state: &State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     if let Some(session) = state
         .terminals
         .lock()
         .map_err(|_| "Terminal state is unavailable".to_string())?
-        .remove(workspace_id)
+        .remove(terminal_id)
     {
-        let _ = session
-            .child
-            .lock()
-            .map_err(|_| "Terminal child is unavailable".to_string())?
-            .kill();
+        kill_terminal_session(session)?;
     }
+    Ok(())
+}
+
+fn kill_terminals_for_workspace(
+    workspace_id: &str,
+    state: &State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let sessions = {
+        let mut terminals = state
+            .terminals
+            .lock()
+            .map_err(|_| "Terminal state is unavailable".to_string())?;
+        let terminal_ids = terminals
+            .iter()
+            .filter_map(|(terminal_id, session)| {
+                (session.workspace_id == workspace_id).then(|| terminal_id.clone())
+            })
+            .collect::<Vec<_>>();
+
+        terminal_ids
+            .into_iter()
+            .filter_map(|terminal_id| terminals.remove(&terminal_id))
+            .collect::<Vec<_>>()
+    };
+
+    for session in sessions {
+        kill_terminal_session(session)?;
+    }
+
+    Ok(())
+}
+
+fn kill_terminal_session(session: TerminalSession) -> Result<(), String> {
+    let _ = session
+        .child
+        .lock()
+        .map_err(|_| "Terminal child is unavailable".to_string())?
+        .kill();
     Ok(())
 }
 
