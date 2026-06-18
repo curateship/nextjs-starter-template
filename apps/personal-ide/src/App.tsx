@@ -57,12 +57,16 @@ import {
   RefreshCw,
   Save,
   Sparkles,
+  Square,
   Trash2,
   Unlink,
   X,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { MouseEvent as ReactMouseEvent } from "react"
+import type {
+  ClipboardEvent as ReactClipboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from "react"
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -186,6 +190,8 @@ type WorkspaceTerminalState = {
   activeTerminalId: string
 }
 
+type WorkspaceStatus = "running" | "waiting"
+
 type TerminalOutput = {
   workspaceId: string
   terminalId: string
@@ -224,6 +230,8 @@ const editorTheme = EditorView.theme({
 
 const SIDE_HANDLE_CLASS =
   "h-full w-px cursor-col-resize bg-border hover:bg-border"
+const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g")
+const TERMINAL_OUTPUT_DECODER = new TextDecoder()
 
 function changedLineExtension(lines: number[]): Extension {
   const changedLines = new Set(lines)
@@ -267,6 +275,7 @@ function App() {
   const [terminalsByWorkspace, setTerminalsByWorkspace] = useState<
     Record<string, WorkspaceTerminalState>
   >({})
+  const [workspaceStatuses, setWorkspaceStatuses] = useState<Record<string, WorkspaceStatus>>({})
   const [workspaceError, setWorkspaceError] = useState("")
   const [gitError, setGitError] = useState("")
   const [busyAction, setBusyAction] = useState("")
@@ -280,6 +289,7 @@ function App() {
   const tabsRef = useRef<EditorTab[]>([])
   const tasksRef = useRef<TaskItem[]>([])
   const terminalSizeRef = useRef({ cols: 80, rows: 24 })
+  const workspaceStatusTimersRef = useRef<Record<string, number>>({})
   const previousWorkspaceIdRef = useRef("")
   const workspaceEditorsRef = useRef<Record<string, WorkspaceEditorState>>({})
 
@@ -312,6 +322,34 @@ function App() {
   const handleTerminalSizeChange = useCallback((cols: number, rows: number) => {
     terminalSizeRef.current = { cols, rows }
   }, [])
+  const handleTerminalOutput = useCallback(
+    (workspaceId: string, terminalId: string, data: number[]) => {
+      if (terminalId.endsWith("-server")) return
+      if (!looksLikeAgentOutput(data)) return
+      setWorkspaceStatuses((current) => ({ ...current, [workspaceId]: "running" }))
+      const currentTimer = workspaceStatusTimersRef.current[workspaceId]
+      if (currentTimer) window.clearTimeout(currentTimer)
+      workspaceStatusTimersRef.current[workspaceId] = window.setTimeout(() => {
+        setWorkspaceStatuses((current) => ({ ...current, [workspaceId]: "waiting" }))
+        delete workspaceStatusTimersRef.current[workspaceId]
+      }, 2500)
+    },
+    []
+  )
+  const handleTerminalInput = useCallback(
+    (workspaceId: string, terminalId: string) => {
+      if (terminalId.endsWith("-server")) return
+      const runningTimer = workspaceStatusTimersRef.current[workspaceId]
+      if (runningTimer) window.clearTimeout(runningTimer)
+      delete workspaceStatusTimersRef.current[workspaceId]
+      setWorkspaceStatuses((current) => {
+        const next = { ...current }
+        delete next[workspaceId]
+        return next
+      })
+    },
+    []
+  )
 
   useEffect(() => {
     localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillsByWorkspace))
@@ -329,6 +367,11 @@ function App() {
 
     document.addEventListener("contextmenu", preventContextMenu)
     return () => document.removeEventListener("contextmenu", preventContextMenu)
+  }, [])
+
+  useEffect(() => {
+    const timers = workspaceStatusTimersRef.current
+    return () => Object.values(timers).forEach(window.clearTimeout)
   }, [])
 
   useEffect(() => {
@@ -599,6 +642,18 @@ function App() {
       name: "Server",
       startupCommand: command,
     })
+  }
+
+  function stopWorkspaceServer(workspace: WorkspaceInfo) {
+    closeTerminal(workspace.id, `${workspace.id}-server`)
+  }
+
+  async function openWorkspaceServer(workspace: WorkspaceInfo) {
+    try {
+      await invoke("open_server_url", { port: serverPortForWorkspace(workspace) })
+    } catch (error) {
+      setFileError(readableError(error))
+    }
   }
 
   function selectTerminal(workspaceId: string, terminalId: string) {
@@ -1150,6 +1205,52 @@ function App() {
     }
   }
 
+  async function pasteTerminalImage(event: ReactClipboardEvent | ClipboardEvent) {
+    const clipboardData = event.clipboardData
+    const image = clipboardData
+      ? Array.from(clipboardData.files).find((item) => item.type.startsWith("image/")) ??
+        Array.from(clipboardData.items)
+          .find((item) => item.type.startsWith("image/"))
+          ?.getAsFile()
+      : null
+    if (!image) return
+
+    event.preventDefault()
+    if (!activeWorkspaceId) {
+      setFileError("Create or select a workspace first")
+      return
+    }
+
+    const extension =
+      {
+        "image/gif": "gif",
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      }[image.type.toLowerCase()] ?? image.name.split(".").pop()?.toLowerCase()
+    if (!extension || !["gif", "jpeg", "jpg", "png", "webp"].includes(extension)) {
+      setFileError("Only PNG, JPEG, WebP, or GIF images can be pasted")
+      return
+    }
+
+    try {
+      const bytes = Array.from(new Uint8Array(await image.arrayBuffer()))
+      const file = await invoke<FileEntry>("create_pasted_image", {
+        workspaceId: activeWorkspaceId,
+        extension,
+        bytes,
+      })
+      setFileError("")
+      await loadDirectory("")
+      await loadDirectory(parentPath(file.path))
+      await refreshResources()
+      await pasteTerminalPrompt(` ${file.path} `)
+      void refreshGit(activeWorkspaceId)
+    } catch (error) {
+      setFileError(readableError(error))
+    }
+  }
+
   async function clearTerminalInput() {
     if (!activeWorkspaceId) return
     const terminal = activeTerminalState.terminals.find(
@@ -1240,6 +1341,25 @@ function App() {
       const next = await invoke<GitStatus>("git_discard_file", {
         workspaceId: activeWorkspaceId,
         path: file.path,
+      })
+      setGitStatus(next)
+      await refreshOpenTabsFromDisk()
+      await refreshResources()
+    } catch (error) {
+      setGitError(readableError(error))
+    } finally {
+      setBusyAction("")
+    }
+  }
+
+  async function discardChanges() {
+    if (!activeWorkspaceId) return
+    setGitError("")
+    setBusyAction("discard")
+
+    try {
+      const next = await invoke<GitStatus>("git_discard_changes", {
+        workspaceId: activeWorkspaceId,
       })
       setGitStatus(next)
       await refreshOpenTabsFromDisk()
@@ -1441,6 +1561,7 @@ function App() {
                     gitStatus={gitStatus}
                     onCommit={commitChanges}
                     onCommitMessageChange={setCommitMessage}
+                    onDiscardAll={discardChanges}
                     onDiscardFile={discardChangedFile}
                     onMerge={mergeToDevelop}
                     onOpenFile={openChangedFile}
@@ -1490,6 +1611,9 @@ function App() {
                       onSelectTerminal={selectTerminal}
                       onSizeChange={handleTerminalSizeChange}
                       onError={setFileError}
+                      onPasteImage={pasteTerminalImage}
+                      onTerminalInput={handleTerminalInput}
+                      onTerminalOutput={handleTerminalOutput}
                       onTabChange={setTerminalTab}
                     />
 
@@ -1528,8 +1652,17 @@ function App() {
                 onCreate={addWorkspace}
                 onDelete={deleteWorkspace}
                 onDetach={detachWorkspace}
+                onOpenServer={openWorkspaceServer}
                 onSelect={selectWorkspace}
                 onStartServer={startWorkspaceServer}
+                onStopServer={stopWorkspaceServer}
+                serverRunning={
+                  Boolean(activeWorkspace) &&
+                  activeTerminalState.terminals.some(
+                    (terminal) => terminal.id === `${activeWorkspaceId}-server`
+                  )
+                }
+                workspaceStatuses={workspaceStatuses}
               />
             </aside>
           </ResizablePanel>
@@ -2687,6 +2820,7 @@ function ChangesPanel({
   gitStatus,
   onCommit,
   onCommitMessageChange,
+  onDiscardAll,
   onDiscardFile,
   onMerge,
   onOpenFile,
@@ -2700,6 +2834,7 @@ function ChangesPanel({
   gitStatus: GitStatus
   onCommit: () => void
   onCommitMessageChange: (value: string) => void
+  onDiscardAll: () => void
   onDiscardFile: (file: GitFile) => void
   onMerge: () => void
   onOpenFile: (file: GitFile) => void
@@ -2708,7 +2843,7 @@ function ChangesPanel({
   onSync: () => void
 }) {
   const [discardMenu, setDiscardMenu] = useState<{
-    file: GitFile
+    file?: GitFile
     x: number
     y: number
   } | null>(null)
@@ -2716,7 +2851,13 @@ function ChangesPanel({
   useDismissibleMenu(discardMenu, setDiscardMenu)
 
   return (
-    <div className="flex h-full min-h-0 flex-col p-3">
+    <div
+      className="flex h-full min-h-0 flex-col p-3"
+      onContextMenu={(event) => {
+        event.preventDefault()
+        setDiscardMenu({ x: event.clientX, y: event.clientY })
+      }}
+    >
       <div className="mb-3 grid grid-cols-[1fr_auto] items-start">
         <div className="min-w-0">
           <div className="text-sm font-semibold">Changes</div>
@@ -2787,6 +2928,7 @@ function ChangesPanel({
                   onClick={() => onOpenFile(file)}
                   onContextMenu={(event) => {
                     event.preventDefault()
+                    event.stopPropagation()
                     setDiscardMenu({ file, x: event.clientX, y: event.clientY })
                   }}
                   title={file.appPath ? "Open changed file" : "Outside selected app folder"}
@@ -2863,18 +3005,33 @@ function ChangesPanel({
           style={{ left: discardMenu.x, top: discardMenu.y }}
           role="menu"
         >
+          {discardMenu.file ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+              disabled={busyAction === "discard"}
+              onClick={() => {
+                const { file } = discardMenu
+                if (!file) return
+                setDiscardMenu(null)
+                onDiscardFile(file)
+              }}
+            >
+              <Trash2 className="size-4" />
+              Discard File
+            </button>
+          ) : null}
           <button
             type="button"
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-red-600 hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
-            disabled={busyAction === "discard"}
+            disabled={busyAction === "discard" || !gitStatus.files.length}
             onClick={() => {
-              const { file } = discardMenu
               setDiscardMenu(null)
-              onDiscardFile(file)
+              onDiscardAll()
             }}
           >
             <Trash2 className="size-4" />
-            Discard File
+            Discard All
           </button>
         </div>
       ) : null}
@@ -3051,6 +3208,9 @@ function BottomPanel({
   onSelectTerminal,
   onSizeChange,
   onError,
+  onPasteImage,
+  onTerminalInput,
+  onTerminalOutput,
   onTabChange,
 }: {
   activeWorkspaceId: string
@@ -3062,6 +3222,9 @@ function BottomPanel({
   onSelectTerminal: (workspaceId: string, terminalId: string) => void
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
+  onPasteImage: (event: ReactClipboardEvent | ClipboardEvent) => void
+  onTerminalInput: (workspaceId: string, terminalId: string) => void
+  onTerminalOutput: (workspaceId: string, terminalId: string, data: number[]) => void
   onTabChange: (value: string) => void
 }) {
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalStates)
@@ -3071,7 +3234,10 @@ function BottomPanel({
   )
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[40px_1fr] border-b bg-muted/35">
+    <div
+      className="grid h-full min-h-0 grid-rows-[40px_1fr] border-b bg-muted/35"
+      onPaste={onPasteImage}
+    >
       <div className="flex h-10 items-center gap-2 border-b px-3">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {activeTerminalState.terminals.map((terminal) => {
@@ -3143,6 +3309,9 @@ function BottomPanel({
                 focusNonce={terminal.id === activeTerminalId ? focusNonce : 0}
                 onSizeChange={onSizeChange}
                 onError={onError}
+                onPasteImage={onPasteImage}
+                onTerminalInput={onTerminalInput}
+                onTerminalOutput={onTerminalOutput}
                 startupCommand={terminal.startupCommand}
                 terminalId={terminal.id}
                 workspaceId={workspaceId}
@@ -3168,6 +3337,9 @@ function TerminalPane({
   focusNonce,
   onSizeChange,
   onError,
+  onPasteImage,
+  onTerminalInput,
+  onTerminalOutput,
   terminalId,
   startupCommand,
   workspaceId,
@@ -3176,6 +3348,9 @@ function TerminalPane({
   focusNonce: number
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
+  onPasteImage: (event: ClipboardEvent) => void
+  onTerminalInput: (workspaceId: string, terminalId: string) => void
+  onTerminalOutput: (workspaceId: string, terminalId: string, data: number[]) => void
   startupCommand?: string
   terminalId: string
   workspaceId: string
@@ -3185,6 +3360,15 @@ function TerminalPane({
   const fitRef = useRef<FitAddon | null>(null)
   const frameRef = useRef<number | null>(null)
   const startupCommandSentRef = useRef(false)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handlePaste = (event: ClipboardEvent) => onPasteImage(event)
+    container.addEventListener("paste", handlePaste, true)
+    return () => container.removeEventListener("paste", handlePaste, true)
+  }, [onPasteImage])
 
   useEffect(() => {
     const container = containerRef.current
@@ -3269,6 +3453,11 @@ function TerminalPane({
         onError(readableError(error))
       )
     })
+    const keyDisposable = terminal.onKey(({ domEvent }) => {
+      if (domEvent.key !== "Enter") return
+      if (domEvent.metaKey || domEvent.ctrlKey || domEvent.altKey) return
+      onTerminalInput(workspaceId, terminalId)
+    })
     const observer = new ResizeObserver(fitTerminal)
     observer.observe(container)
 
@@ -3280,6 +3469,7 @@ function TerminalPane({
         return
       }
       const data = new Uint8Array(event.payload.data)
+      onTerminalOutput(workspaceId, terminalId, event.payload.data)
       terminal.write(data, refreshTerminal)
     })
       .then((dispose) => {
@@ -3301,11 +3491,20 @@ function TerminalPane({
       unlisten?.()
       observer.disconnect()
       dataDisposable.dispose()
+      keyDisposable.dispose()
       terminal.dispose()
       terminalRef.current = null
       fitRef.current = null
     }
-  }, [onError, onSizeChange, startupCommand, terminalId, workspaceId])
+  }, [
+    onError,
+    onSizeChange,
+    onTerminalInput,
+    onTerminalOutput,
+    startupCommand,
+    terminalId,
+    workspaceId,
+  ])
 
   useEffect(() => {
     terminalRef.current?.focus()
@@ -3451,8 +3650,12 @@ function WorkspacesPanel({
   onCreate,
   onDelete,
   onDetach,
+  onOpenServer,
   onSelect,
   onStartServer,
+  onStopServer,
+  serverRunning,
+  workspaceStatuses,
 }: {
   activeWorkspaceId: string
   busy: boolean
@@ -3461,11 +3664,19 @@ function WorkspacesPanel({
   onCreate: () => void
   onDelete: (workspaceId: string) => void
   onDetach: (workspaceId: string) => void
+  onOpenServer: (workspace: WorkspaceInfo) => void
   onSelect: (workspaceId: string) => void
   onStartServer: (workspace: WorkspaceInfo) => void
+  onStopServer: (workspace: WorkspaceInfo) => void
+  serverRunning: boolean
+  workspaceStatuses: Record<string, WorkspaceStatus>
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   useDismissibleMenu(openMenuId, setOpenMenuId)
+  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId)
+  const activeServerUrl = activeWorkspace
+    ? `http://localhost:${serverPortForWorkspace(activeWorkspace)}/`
+    : ""
 
   return (
     <div className="flex h-full min-h-0 flex-col p-3">
@@ -3485,17 +3696,17 @@ function WorkspacesPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {workspaces.length ? (
           workspaces.map((workspace) => (
-            <div
-              key={workspace.id}
-              className={cn(
-                "relative rounded-lg bg-background p-3 transition-colors",
-                activeWorkspaceId === workspace.id && "bg-muted"
-              )}
-            >
-              <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+              <div
+                key={workspace.id}
+                className={cn(
+                  "relative rounded-lg bg-background p-3 transition-colors",
+                  activeWorkspaceId === workspace.id && "bg-muted"
+                )}
+              >
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
                 <button
                   type="button"
                   className="flex size-8 items-center justify-center rounded-lg bg-muted"
@@ -3509,7 +3720,23 @@ function WorkspacesPanel({
                   className="min-w-0 text-left"
                   onClick={() => onSelect(workspace.id)}
                 >
-                  <div className="truncate text-sm font-medium">{workspace.appName}</div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-sm font-medium">{workspace.appName}</span>
+                    {workspaceStatuses[workspace.id] ? (
+                      <span
+                        className={cn(
+                          "ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                          workspaceStatuses[workspace.id] === "running"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {workspaceStatuses[workspace.id] === "running"
+                          ? "Running"
+                          : "Waiting input"}
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {workspace.name}
                   </div>
@@ -3538,18 +3765,6 @@ function WorkspacesPanel({
                     className="justify-start"
                     onClick={() => {
                       setOpenMenuId(null)
-                      onStartServer(workspace)
-                    }}
-                  >
-                    <Play />
-                    Start server
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    onClick={() => {
-                      setOpenMenuId(null)
                       onDetach(workspace.id)
                     }}
                   >
@@ -3570,7 +3785,7 @@ function WorkspacesPanel({
                   </Button>
                 </div>
               ) : null}
-            </div>
+              </div>
           ))
         ) : (
           <div className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
@@ -3578,8 +3793,49 @@ function WorkspacesPanel({
           </div>
         )}
       </div>
+
+      {activeWorkspace ? (
+        <div className="mt-3 flex min-w-0 items-center gap-2 pt-3">
+          <button
+            type="button"
+            className="min-w-0 truncate text-sm font-medium hover:underline"
+            onClick={() => onOpenServer(activeWorkspace)}
+            title={activeServerUrl}
+          >
+            {activeServerUrl}
+          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="ml-auto shrink-0"
+                onClick={() =>
+                  serverRunning
+                    ? onStopServer(activeWorkspace)
+                    : onStartServer(activeWorkspace)
+                }
+                aria-label={serverRunning ? "Stop server" : "Start server"}
+              >
+                {serverRunning ? <Square className="size-3 fill-current" /> : <Play />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {serverRunning ? "Stop server" : "Start server"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      ) : null}
     </div>
   )
+}
+
+function looksLikeAgentOutput(data: number[]) {
+  const clean = TERMINAL_OUTPUT_DECODER
+    .decode(new Uint8Array(data))
+    .replace(ANSI_ESCAPE_PATTERN, "")
+  return /(^|\n)\s*(\u2022|Ran |Edited |Updated |Thinking|Checking|Applying|Codex\b)/.test(clean)
 }
 
 function languageForPath(path: string): Extension[] {

@@ -8,11 +8,13 @@ use std::{
     process::Command,
     sync::Mutex,
     thread,
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 const MAX_FILE_SIZE: u64 = 1024 * 1024;
+const MAX_PASTED_IMAGE_SIZE: usize = 10 * 1024 * 1024;
 const WORKSPACE_DIR: &str = "workspace";
 
 #[derive(Default)]
@@ -513,6 +515,55 @@ fn create_text_file(
 }
 
 #[tauri::command]
+fn create_pasted_image(
+    workspace_id: String,
+    extension: String,
+    bytes: Vec<u8>,
+    state: State<'_, WorkspaceState>,
+) -> Result<FileEntry, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let extension = match extension.trim().to_lowercase().as_str() {
+        "gif" => "gif",
+        "jpeg" | "jpg" => "jpg",
+        "png" => "png",
+        "webp" => "webp",
+        _ => return Err("Only PNG, JPEG, WebP, or GIF images can be pasted".to_string()),
+    };
+    if bytes.is_empty() {
+        return Err("Image is empty".to_string());
+    }
+    if bytes.len() > MAX_PASTED_IMAGE_SIZE {
+        return Err("Image is larger than 10 MiB".to_string());
+    }
+
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_nanos();
+    let file = workspace
+        .app_root
+        .join(WORKSPACE_DIR)
+        .join("docs")
+        .join("assets")
+        .join(format!("pasted-image-{}.{}", stamp, extension));
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+
+    fs::write(&file, bytes).map_err(|error| error.to_string())?;
+    exclude_pasted_images(&workspace)?;
+
+    Ok(FileEntry {
+        name: file
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Untitled".to_string()),
+        path: relative_path(&workspace.app_root, &file)?,
+        is_dir: false,
+    })
+}
+
+#[tauri::command]
 fn create_folder(
     workspace_id: String,
     path: String,
@@ -646,6 +697,35 @@ fn reveal_path(
         Ok(())
     } else {
         Err("Could not reveal path".to_string())
+    }
+}
+
+#[tauri::command]
+fn open_server_url(port: u16) -> Result<(), String> {
+    let url = format!("http://localhost:{}/", port);
+
+    #[cfg(target_os = "macos")]
+    let status = Command::new("open")
+        .arg(&url)
+        .status()
+        .map_err(|error| error.to_string())?;
+
+    #[cfg(target_os = "windows")]
+    let status = Command::new("cmd")
+        .args(["/C", "start", "", &url])
+        .status()
+        .map_err(|error| error.to_string())?;
+
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    let status = Command::new("xdg-open")
+        .arg(&url)
+        .status()
+        .map_err(|error| error.to_string())?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Could not open server URL".to_string())
     }
 }
 
@@ -1313,6 +1393,35 @@ fn relative_path(root: &Path, path: &Path) -> Result<String, String> {
         .join("/"))
 }
 
+fn exclude_pasted_images(workspace: &WorkspaceRecord) -> Result<(), String> {
+    let prefix = if workspace.app_relative_path.is_empty() {
+        String::new()
+    } else {
+        format!("{}/", workspace.app_relative_path)
+    };
+    let pattern = format!("{}workspace/docs/assets/pasted-image-*", prefix);
+    let exclude = run_git(&workspace.git_root, &["rev-parse", "--git-path", "info/exclude"])?;
+    let path = PathBuf::from(exclude.trim());
+    let exclude_path = if path.is_absolute() {
+        path
+    } else {
+        workspace.git_root.join(path)
+    };
+    let mut contents = fs::read_to_string(&exclude_path).unwrap_or_default();
+    if contents.lines().any(|line| line.trim() == pattern) {
+        return Ok(());
+    }
+    if let Some(parent) = exclude_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    if !contents.is_empty() && !contents.ends_with('\n') {
+        contents.push('\n');
+    }
+    contents.push_str(&pattern);
+    contents.push('\n');
+    fs::write(exclude_path, contents).map_err(|error| error.to_string())
+}
+
 fn read_task(app_root: &Path, path: &Path) -> Result<TaskItem, String> {
     let contents = read_text_file_at(app_root, &relative_path(app_root, path)?)?;
     let fields = parse_frontmatter(&contents);
@@ -1876,11 +1985,13 @@ pub fn run() {
             read_develop_text_file,
             write_text_file,
             create_text_file,
+            create_pasted_image,
             create_folder,
             rename_path,
             trash_path,
             duplicate_path,
             reveal_path,
+            open_server_url,
             list_tasks,
             create_task,
             list_skills,
