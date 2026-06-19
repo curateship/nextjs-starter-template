@@ -3311,9 +3311,7 @@ function ChangesPanel({
   } | null>(null)
 
   useDismissibleMenu(discardMenu, setDiscardMenu)
-  const developCommits = gitStatus.developCommits.filter(
-    (commit) => !commit.subject.startsWith("Merge ")
-  )
+  const developCommits = gitStatus.developCommits
   const developFiles = developCommits.length ? gitStatus.developFiles : []
   const developUpdateCount = developCommits.length
   const isActiveFile = (file: GitFile) => Boolean(file.appPath && file.appPath === activePath)

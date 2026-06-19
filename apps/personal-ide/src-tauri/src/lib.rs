@@ -1987,17 +1987,14 @@ fn merge_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> 
 }
 
 fn develop_commits_for(workspace: &WorkspaceRecord) -> Result<Vec<GitCommit>, String> {
-    let output = run_git_with_paths(
+    let output = run_git(
         &workspace.worktree_root,
         &[
             "log",
             "--reverse",
-            "--no-merges",
             "--pretty=format:%h%x00%s",
             &format!("{}..develop", workspace.branch),
-            "--",
         ],
-        &app_git_paths(workspace),
     )?;
 
     Ok(output
@@ -2014,11 +2011,7 @@ fn develop_commits_for(workspace: &WorkspaceRecord) -> Result<Vec<GitCommit>, St
 
 fn develop_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
     let range = format!("{}...develop", workspace.branch);
-    let output = run_git_with_paths(
-        &workspace.worktree_root,
-        &["diff", "--name-status", &range, "--"],
-        &app_git_paths(workspace),
-    )?;
+    let output = run_git(&workspace.worktree_root, &["diff", "--name-status", &range])?;
 
     output
         .lines()
@@ -2040,15 +2033,6 @@ fn develop_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String
             })
         })
         .collect()
-}
-
-fn app_git_paths(workspace: &WorkspaceRecord) -> Vec<String> {
-    let app_path = workspace.app_relative_path.replace('\\', "/");
-    if app_path.is_empty() {
-        vec![".".to_string()]
-    } else {
-        vec![app_path, SHARED_SKILLS_DIR.to_string()]
-    }
 }
 
 fn commit_count(root: &Path, range: &str) -> Result<u32, String> {
