@@ -212,19 +212,36 @@ export const aiVideoMedia = pgTable(
     mimeType: varchar("mime_type", { length: 255 }).notNull(),
     fileType: varchar("file_type", { length: 20 }).notNull(),
     storagePath: text("storage_path").notNull().unique(),
+    projectId: varchar("project_id", { length: 36 }).references(
+      () => aiVideoProjects.id,
+      { onDelete: "cascade" }
+    ),
+    source: varchar("source", { length: 20 }).notNull().default("upload"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     check(
       "media_file_type_check",
-      sql`${table.fileType} in ('image', 'video')`
+      sql`${table.fileType} in ('image', 'video', 'audio')`
+    ),
+    check(
+      "media_source_check",
+      sql`${table.source} in ('upload', 'generated', 'template', 'viral')`
     ),
     index("ix_media_user_id").on(table.userId),
+    index("ix_media_project_id").on(table.projectId),
+    index("ix_media_source").on(table.source),
     index("ix_media_file_type").on(table.fileType),
     index("ix_media_created_at").on(table.createdAt),
     index("ix_media_user_type_created").on(
       table.userId,
+      table.fileType,
+      table.createdAt
+    ),
+    index("ix_media_project_source_type_created").on(
+      table.projectId,
+      table.source,
       table.fileType,
       table.createdAt
     ),

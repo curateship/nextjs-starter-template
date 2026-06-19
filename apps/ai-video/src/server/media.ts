@@ -1,5 +1,5 @@
 import sanitizeHtml from "sanitize-html"
-import { and, asc, desc, eq, sql } from "drizzle-orm"
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import {
@@ -44,6 +44,7 @@ const MEDIA_MAX_BYTES = 500 * 1024 * 1024
 const FILENAME_SAFE_CHARS = /[^a-zA-Z0-9.-]+/g
 
 export type MediaFileType = "image" | "video" | "audio"
+export type MediaSource = "upload" | "generated" | "template" | "viral"
 export type MediaSortBy =
   | "created_at"
   | "original_name"
@@ -220,6 +221,8 @@ export async function listOwnedMedia({
   pageSize,
   fileType,
   mimeType,
+  projectId,
+  source,
   sortBy = "created_at",
   sortDirection = "desc",
 }: {
@@ -228,22 +231,21 @@ export async function listOwnedMedia({
   pageSize: number
   fileType?: MediaFileType
   mimeType?: "image/svg+xml"
+  projectId?: string
+  source?: MediaSource
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 }): Promise<MediaListResponse> {
   const normalizedPage = Math.max(1, page)
   const normalizedPageSize = Math.min(Math.max(1, pageSize), 100)
   const ownerWhere = eq(aiVideoMedia.userId, userId)
-  const typeWhere = fileType ? eq(aiVideoMedia.fileType, fileType) : null
-  const mimeWhere = mimeType ? eq(aiVideoMedia.mimeType, mimeType) : null
-  const where =
-    typeWhere && mimeWhere
-      ? and(ownerWhere, typeWhere, mimeWhere)
-      : typeWhere
-        ? and(ownerWhere, typeWhere)
-        : mimeWhere
-          ? and(ownerWhere, mimeWhere)
-          : ownerWhere
+  const where = and(
+    ownerWhere,
+    fileType ? eq(aiVideoMedia.fileType, fileType) : undefined,
+    mimeType ? eq(aiVideoMedia.mimeType, mimeType) : undefined,
+    projectId ? eq(aiVideoMedia.projectId, projectId) : undefined,
+    source ? eq(aiVideoMedia.source, source) : undefined
+  )
 
   const [totalRow] = await db
     .select({ count: sql<number>`count(*)::int` })
@@ -294,6 +296,44 @@ export async function getOwnedMedia(userId: string, mediaId: string) {
   return row
 }
 
+export async function deleteOwnedProjectMedia(
+  userId: string,
+  projectIds: string[]
+) {
+  const uniqueIds = Array.from(new Set(projectIds))
+  if (!uniqueIds.length) return 0
+
+  const rows = await db
+    .select()
+    .from(aiVideoMedia)
+    .where(
+      and(
+        eq(aiVideoMedia.userId, userId),
+        inArray(aiVideoMedia.projectId, uniqueIds)
+      )
+    )
+
+  for (const row of rows) {
+    await deleteFromR2(row.storagePath)
+  }
+
+  if (rows.length) {
+    await db
+      .delete(aiVideoMedia)
+      .where(
+        and(
+          eq(aiVideoMedia.userId, userId),
+          inArray(
+            aiVideoMedia.id,
+            rows.map((row) => row.id)
+          )
+        )
+      )
+  }
+
+  return rows.length
+}
+
 // Saves already-validated image bytes as an independent media-library row with
 // its own R2 object. Used for generated images (e.g. actor headshots) so they
 // show up in the library as standalone assets the user fully controls —
@@ -321,6 +361,8 @@ export async function saveGeneratedImageToLibrary(
     mimeType,
     fileType: getMediaFileType(mimeType),
     storagePath,
+    projectId: null,
+    source: "generated" as const,
     createdAt,
     updatedAt: createdAt,
   }
