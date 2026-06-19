@@ -77,6 +77,21 @@ button,
   cursor: pointer;
 }
 
+.titlebar-drag,
+.titlebar-drag[data-tauri-drag-region] {
+  app-region: drag;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+button,
+input,
+select,
+textarea {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
 .cm-theme-light {
   height: 100%;
   min-height: 0;
