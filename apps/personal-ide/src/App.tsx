@@ -155,6 +155,7 @@ type SkillItem = {
   name: string
   slug: string
   path: string
+  tags: string[]
 }
 
 type DocItem = {
@@ -229,6 +230,15 @@ const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
 const SHARED_SKILLS_PATH = ".agents/skills"
+const SKILL_TAG_FILTERS = [
+  { value: "all", label: "All" },
+  { value: "define", label: "Define" },
+  { value: "plan", label: "Plan" },
+  { value: "build", label: "Build" },
+  { value: "verify", label: "Verify" },
+  { value: "review", label: "Review" },
+  { value: "ship", label: "Ship" },
+]
 
 const editorTheme = EditorView.theme({
   "&": { height: "100%" },
@@ -299,6 +309,7 @@ function App() {
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const [taskFilter, setTaskFilter] = useState("all")
   const [skills, setSkills] = useState<SkillItem[]>([])
+  const [skillFilter, setSkillFilter] = useState("all")
   const [docs, setDocs] = useState<DocItem[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus>(EMPTY_GIT_STATUS)
   const [commitMessage, setCommitMessage] = useState("")
@@ -335,6 +346,10 @@ function App() {
   const visibleTasks = tasks.filter((task) => {
     if (taskFilter === "all") return true
     return task.status === taskFilter
+  })
+  const visibleSkills = skills.filter((skill) => {
+    if (skillFilter === "all") return true
+    return skill.tags?.includes(skillFilter)
   })
   const pinnedSkills = pinnedSkillSlugs
     .map((slug) => skills.find((skill) => skill.slug === slug))
@@ -1594,12 +1609,15 @@ function App() {
                       <TabsContent value="skills" className="min-h-0">
                         <SkillsPanel
                           error={fileError}
+                          filter={skillFilter}
+                          hasSkills={skills.length > 0}
                           pinnedSkillSlugs={pinnedSkillSlugs}
-                          skills={skills}
+                          skills={visibleSkills}
                           onCreate={createSkill}
                           onCreateFolder={createFolder}
                           onCopyPath={copyEntryPath}
                           onDuplicate={duplicateEntry}
+                          onFilterChange={setSkillFilter}
                           onOpenSkill={(skill) => openPath(skill.path, "SKILL.md")}
                           onPinSkill={pinSkill}
                           onRefresh={refreshFiles}
@@ -2595,12 +2613,15 @@ function ResourceContextMenu({
 
 function SkillsPanel({
   error,
+  filter,
+  hasSkills,
   pinnedSkillSlugs,
   skills,
   onCreate,
   onCreateFolder,
   onCopyPath,
   onDuplicate,
+  onFilterChange,
   onOpenSkill,
   onPinSkill,
   onRefresh,
@@ -2610,12 +2631,15 @@ function SkillsPanel({
   onTrash,
 }: {
   error: string
+  filter: string
+  hasSkills: boolean
   pinnedSkillSlugs: string[]
   skills: SkillItem[]
   onCreate: (value: string) => void
   onCreateFolder: (value: string) => void
   onCopyPath: (entry: FileEntry) => void
   onDuplicate: (entry: FileEntry) => void
+  onFilterChange: (value: string) => void
   onOpenSkill: (skill: SkillItem) => void
   onPinSkill: (slug: string) => void
   onRefresh: (path?: string) => void
@@ -2659,9 +2683,23 @@ function SkillsPanel({
         setCreateRequest({ kind: "file", basePath: SHARED_SKILLS_PATH, nonce: Date.now() })
       }}
     >
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold">Skills</h2>
-        <p className="text-xs text-muted-foreground">{SHARED_SKILLS_PATH}</p>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Skills</h2>
+          <p className="text-xs text-muted-foreground">{SHARED_SKILLS_PATH}</p>
+        </div>
+        <Select value={filter} onValueChange={onFilterChange}>
+          <SelectTrigger className="h-7 w-28 bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SKILL_TAG_FILTERS.map((tag) => (
+              <SelectItem key={tag.value} value={tag.value}>
+                {tag.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <PanelError error={error} />
       <ScrollArea
@@ -2730,7 +2768,7 @@ function SkillsPanel({
             })
           ) : (
             <div className="px-2 py-2 text-sm text-muted-foreground">
-              No skills yet.
+              {hasSkills ? "No matching skills." : "No skills yet."}
             </div>
           )}
         </div>

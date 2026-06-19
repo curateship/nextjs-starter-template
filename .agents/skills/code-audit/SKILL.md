@@ -1,6 +1,7 @@
 ---
 name: code-audit
 description: Audit recent code changes for cleanup, simplification, efficiency, and security issues. Use when Codex needs to review a branch, commit range, staged diff, or recent file edits before merge, remove debug logs, delete dead or unnecessary code, tighten risky code paths, or make a small cleanup pass on recent changes.
+tags: review
 ---
 
 # Audit Recent Code Changes
