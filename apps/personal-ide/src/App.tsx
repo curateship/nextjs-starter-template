@@ -1013,6 +1013,10 @@ function App() {
     })
   }
 
+  function executeSkill(skill: SkillItem) {
+    void pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
+  }
+
   async function createSkill(name: string) {
     if (!activeWorkspaceId) {
       setFileError("Create or select a workspace first")
@@ -1617,6 +1621,7 @@ function App() {
                           onCreateFolder={createFolder}
                           onCopyPath={copyEntryPath}
                           onDuplicate={duplicateEntry}
+                          onExecuteSkill={executeSkill}
                           onFilterChange={setSkillFilter}
                           onOpenSkill={(skill) => openPath(skill.path, "SKILL.md")}
                           onPinSkill={pinSkill}
@@ -1728,9 +1733,7 @@ function App() {
                       skills={pinnedSkills}
                       onClearInput={clearTerminalInput}
                       onMoveSkill={movePinnedSkill}
-                      onUseSkill={(skill) =>
-                        pasteTerminalPrompt(`Use the ${skill.name} skill from ${skill.path}.`)
-                      }
+                      onUseSkill={executeSkill}
                     />
                   </div>
                 </ResizablePanel>
@@ -2457,6 +2460,7 @@ function FileEntries({
 }
 
 function FileContextMenu({
+  entryAction,
   isEntryPinned,
   menu,
   onClose,
@@ -2472,6 +2476,11 @@ function FileContextMenu({
   onUnpinEntry,
   showCreateFolder = true,
 }: {
+  entryAction?: {
+    icon: ReactNode
+    label: string
+    onClick: (entry: FileEntry) => void
+  }
   isEntryPinned?: (entry: FileEntry) => boolean
   menu: FileMenuState
   onClose: () => void
@@ -2511,6 +2520,13 @@ function FileContextMenu({
       {entry ? (
         <>
           <div className="my-1 h-px bg-border" />
+          {entryAction ? (
+            <FileMenuButton
+              icon={entryAction.icon}
+              label={entryAction.label}
+              onClick={() => run(() => entryAction.onClick(entry))}
+            />
+          ) : null}
           {onPinEntry && onUnpinEntry ? (
             <FileMenuButton
               icon={pinned ? <PinOff /> : <Pin />}
@@ -2562,6 +2578,7 @@ function FileMenuButton({
 
 function ResourceContextMenu({
   basePath,
+  entryAction,
   isEntryPinned,
   menu,
   operations,
@@ -2572,6 +2589,11 @@ function ResourceContextMenu({
   onRenameEntry,
 }: {
   basePath: string
+  entryAction?: {
+    icon: ReactNode
+    label: string
+    onClick: (entry: FileEntry) => void
+  }
   isEntryPinned?: (entry: FileEntry) => boolean
   menu: FileMenuState | null
   operations: FileOperationProps
@@ -2585,6 +2607,7 @@ function ResourceContextMenu({
 
   return (
     <FileContextMenu
+      entryAction={entryAction}
       isEntryPinned={isEntryPinned}
       menu={menu}
       onClose={onClose}
@@ -2621,6 +2644,7 @@ function SkillsPanel({
   onCreateFolder,
   onCopyPath,
   onDuplicate,
+  onExecuteSkill,
   onFilterChange,
   onOpenSkill,
   onPinSkill,
@@ -2639,6 +2663,7 @@ function SkillsPanel({
   onCreateFolder: (value: string) => void
   onCopyPath: (entry: FileEntry) => void
   onDuplicate: (entry: FileEntry) => void
+  onExecuteSkill: (skill: SkillItem) => void
   onFilterChange: (value: string) => void
   onOpenSkill: (skill: SkillItem) => void
   onPinSkill: (slug: string) => void
@@ -2775,6 +2800,14 @@ function SkillsPanel({
       </ScrollArea>
       <ResourceContextMenu
         basePath={SHARED_SKILLS_PATH}
+        entryAction={{
+          icon: <Play />,
+          label: "Execute Skill",
+          onClick: (entry) => {
+            const skill = skills.find((item) => item.slug === entry.name)
+            if (skill) onExecuteSkill(skill)
+          },
+        }}
         isEntryPinned={(entry) => pinnedSkillSlugs.includes(entry.name)}
         menu={menu}
         operations={operations}
