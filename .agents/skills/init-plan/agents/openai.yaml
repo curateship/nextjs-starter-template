@@ -1,0 +1,4 @@
+interface:
+  display_name: "Init Plan"
+  short_description: "Plan first, then save to tasks"
+  default_prompt: "Use $init-plan to start a planning conversation."
