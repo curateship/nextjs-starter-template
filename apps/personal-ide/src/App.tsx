@@ -28,7 +28,7 @@ import {
 } from "@dnd-kit/sortable"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import CodeMirror from "@uiw/react-codemirror"
+import CodeMirror, { type BasicSetupOptions } from "@uiw/react-codemirror"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
@@ -227,6 +227,7 @@ const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 }
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
+const SHARED_SKILLS_PATH = ".agents/skills"
 
 const editorTheme = EditorView.theme({
   "&": { height: "100%" },
@@ -300,9 +301,7 @@ function App() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus>(EMPTY_GIT_STATUS)
   const [commitMessage, setCommitMessage] = useState("")
-  const [pinnedSkillsByWorkspace, setPinnedSkillsByWorkspace] = useState<
-    Record<string, string[]>
-  >(loadPinnedSkillSettings)
+  const [pinnedSkillSlugs, setPinnedSkillSlugs] = useState<string[]>(loadPinnedSkillSettings)
   const [terminalTab, setTerminalTab] = useState("terminal")
   const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
   const [terminalsByWorkspace, setTerminalsByWorkspace] = useState<
@@ -336,10 +335,7 @@ function App() {
     if (taskFilter === "all") return true
     return task.status === taskFilter
   })
-  const activePinnedSkillSlugs = activeWorkspaceId
-    ? pinnedSkillsByWorkspace[activeWorkspaceId] ?? []
-    : []
-  const pinnedSkills = activePinnedSkillSlugs
+  const pinnedSkills = pinnedSkillSlugs
     .map((slug) => skills.find((skill) => skill.slug === slug))
     .filter((skill): skill is SkillItem => Boolean(skill))
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
@@ -385,8 +381,8 @@ function App() {
   )
 
   useEffect(() => {
-    localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillsByWorkspace))
-  }, [pinnedSkillsByWorkspace])
+    localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillSlugs))
+  }, [pinnedSkillSlugs])
 
   useEffect(() => {
     if (!fileError) return
@@ -982,33 +978,22 @@ function App() {
   }
 
   function pinSkill(slug: string) {
-    if (!activeWorkspaceId) return
-
-    setPinnedSkillsByWorkspace((current) => {
-      const slugs = current[activeWorkspaceId] ?? []
-      if (slugs.includes(slug)) return current
-      return { ...current, [activeWorkspaceId]: [...slugs, slug] }
-    })
+    if (!slug) return
+    setPinnedSkillSlugs((current) => (current.includes(slug) ? current : [...current, slug]))
   }
 
   function unpinSkill(slug: string) {
-    if (!activeWorkspaceId) return
-
-    setPinnedSkillsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspaceId]: (current[activeWorkspaceId] ?? []).filter((item) => item !== slug),
-    }))
+    setPinnedSkillSlugs((current) => current.filter((item) => item !== slug))
   }
 
   function movePinnedSkill(slug: string, overSlug: string) {
-    if (!activeWorkspaceId || !slug || slug === overSlug) return
+    if (!slug || slug === overSlug) return
 
-    setPinnedSkillsByWorkspace((current) => {
-      const slugs = current[activeWorkspaceId] ?? []
-      const oldIndex = slugs.indexOf(slug)
-      const newIndex = slugs.indexOf(overSlug)
+    setPinnedSkillSlugs((current) => {
+      const oldIndex = current.indexOf(slug)
+      const newIndex = current.indexOf(overSlug)
       if (oldIndex < 0 || newIndex < 0) return current
-      return { ...current, [activeWorkspaceId]: arrayMove(slugs, oldIndex, newIndex) }
+      return arrayMove(current, oldIndex, newIndex)
     })
   }
 
@@ -1085,12 +1070,9 @@ function App() {
       const oldSkillSlug = skillSlugFromPath(entry.path)
       const newSkillSlug = skillSlugFromPath(renamed.path)
       if (oldSkillSlug && newSkillSlug && oldSkillSlug !== newSkillSlug) {
-        setPinnedSkillsByWorkspace((current) => ({
-          ...current,
-          [activeWorkspaceId]: (current[activeWorkspaceId] ?? []).map((slug) =>
-            slug === oldSkillSlug ? newSkillSlug : slug
-          ),
-        }))
+        setPinnedSkillSlugs((current) =>
+          current.map((slug) => (slug === oldSkillSlug ? newSkillSlug : slug))
+        )
       }
       setDirectories((current) => removeDirectoryPrefix(current, entry.path))
       await loadDirectory("")
@@ -1611,7 +1593,7 @@ function App() {
                       <TabsContent value="skills" className="min-h-0">
                         <SkillsPanel
                           error={fileError}
-                          pinnedSkillSlugs={activePinnedSkillSlugs}
+                          pinnedSkillSlugs={pinnedSkillSlugs}
                           skills={skills}
                           onCreate={createSkill}
                           onCreateFolder={createFolder}
@@ -1796,6 +1778,7 @@ function InlineCreate({
   return (
     <form
       className="flex h-8 min-w-0 items-center gap-1 rounded-md border bg-background px-1.5"
+      onDoubleClick={(event) => event.stopPropagation()}
       onSubmit={(event) => {
         event.preventDefault()
         const next = value.trim()
@@ -1973,7 +1956,13 @@ function TasksPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div
+      className="flex h-full min-h-0 flex-col px-3 pb-3"
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "workspace/tasks", nonce: Date.now() })
+      }}
+    >
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Tasks</h2>
@@ -2050,10 +2039,6 @@ function TasksPanel({
                       type="button"
                       className="min-w-0 truncate text-left text-sm font-medium"
                       onClick={() => onOpenTask(task)}
-                      onDoubleClick={() => {
-                        setRenamePath(entry.path)
-                        setRenameValue(entry.name)
-                      }}
                     >
                       {task.title}
                     </button>
@@ -2184,7 +2169,14 @@ function FilesPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className="flex h-full min-h-0 flex-col"
+      onDoubleClick={(event) => {
+        if (!workspace) return
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "", nonce: Date.now() })
+      }}
+    >
       <div className="flex items-center justify-between gap-2 px-3 pb-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Files</h2>
@@ -2659,17 +2651,23 @@ function SkillsPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div
+      className="flex h-full min-h-0 flex-col px-3 pb-3"
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: SHARED_SKILLS_PATH, nonce: Date.now() })
+      }}
+    >
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Skills</h2>
-        <p className="text-xs text-muted-foreground">workspace/skills</p>
+        <p className="text-xs text-muted-foreground">{SHARED_SKILLS_PATH}</p>
       </div>
       <PanelError error={error} />
       <ScrollArea
         className="min-h-0 flex-1"
         onContextMenu={(event) => {
           event.preventDefault()
-          setMenu({ x: event.clientX, y: event.clientY, basePath: "workspace/skills" })
+          setMenu({ x: event.clientX, y: event.clientY, basePath: SHARED_SKILLS_PATH })
         }}
       >
         <div className="space-y-1.5 pr-1">
@@ -2721,10 +2719,6 @@ function SkillsPanel({
                       variant="outline"
                       className="w-full justify-start bg-background"
                       onClick={() => onOpenSkill(skill)}
-                      onDoubleClick={() => {
-                        setRenamePath(entry.path)
-                        setRenameValue(entry.name)
-                      }}
                     >
                       <Bot />
                       {skill.name}
@@ -2741,7 +2735,7 @@ function SkillsPanel({
         </div>
       </ScrollArea>
       <ResourceContextMenu
-        basePath="workspace/skills"
+        basePath={SHARED_SKILLS_PATH}
         isEntryPinned={(entry) => pinnedSkillSlugs.includes(entry.name)}
         menu={menu}
         operations={operations}
@@ -2816,7 +2810,13 @@ function DocsPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div
+      className="flex h-full min-h-0 flex-col px-3 pb-3"
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "workspace/docs", nonce: Date.now() })
+      }}
+    >
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Docs</h2>
         <p className="text-xs text-muted-foreground">workspace/docs</p>
@@ -2878,10 +2878,6 @@ function DocsPanel({
                       variant="outline"
                       className="w-full justify-start bg-background"
                       onClick={() => onOpenDoc(doc)}
-                      onDoubleClick={() => {
-                        setRenamePath(entry.path)
-                        setRenameValue(entry.name)
-                      }}
                     >
                       <FileText />
                       {doc.name}
@@ -3199,6 +3195,219 @@ function countLabel(label: string, count: number) {
   return count > 0 ? `${label} (${count})` : label
 }
 
+type MinimapRow = {
+  changed: boolean
+  empty: boolean
+  height: number
+  key: string
+  top: number
+  width: number
+}
+
+function minimapLineWidth(line: string) {
+  const length = line.trimEnd().length
+  if (!length) return 12
+  return Math.min(100, Math.max(22, length * 1.8))
+}
+
+function EditorWithMinimap({
+  basicSetup,
+  changedLines,
+  extensions,
+  onChange,
+  onCreateEditor,
+  onScroll,
+  value,
+}: {
+  basicSetup?: boolean | BasicSetupOptions
+  changedLines?: number[]
+  extensions: Extension[]
+  onChange: (value: string) => void
+  onCreateEditor?: (view: EditorView) => void
+  onScroll?: (view: EditorView) => void
+  value: string
+}) {
+  const viewRef = useRef<EditorView | null>(null)
+  const [scrollInfo, setScrollInfo] = useState({
+    clientHeight: 1,
+    lineCount: 1,
+    scrollHeight: 1,
+    scrollTop: 0,
+    viewportFromLine: 1,
+    viewportToLine: 1,
+  })
+  const changedLineSet = useMemo(() => new Set(changedLines ?? []), [changedLines])
+  const rows = useMemo<MinimapRow[]>(() => {
+    const lines = value.split("\n")
+    const lineCount = Math.max(1, lines.length)
+    const maxRows = 320
+
+    if (lines.length <= maxRows) {
+      return lines.map((line, index) => ({
+        changed: changedLineSet.has(index + 1),
+        empty: !line.trim(),
+        height: 100 / lineCount,
+        key: String(index),
+        top: (index / lineCount) * 100,
+        width: minimapLineWidth(line),
+      }))
+    }
+
+    const step = lines.length / maxRows
+    return Array.from({ length: maxRows }, (_, index) => {
+      const start = Math.floor(index * step)
+      const end = Math.max(start + 1, Math.floor((index + 1) * step))
+      const chunk = lines.slice(start, end)
+      const longest = chunk.reduce((current, line) =>
+        line.length > current.length ? line : current
+      , "")
+
+      return {
+        changed: chunk.some((_, offset) => changedLineSet.has(start + offset + 1)),
+        empty: !longest.trim(),
+        height: ((end - start) / lineCount) * 100,
+        key: `${start}-${end}`,
+        top: (start / lineCount) * 100,
+        width: minimapLineWidth(longest),
+      }
+    })
+  }, [changedLineSet, value])
+  const updateScrollInfo = useCallback((view: EditorView | null) => {
+    if (!view) return
+
+    const { clientHeight, scrollHeight, scrollTop } = view.scrollDOM
+    const lineCount = view.state.doc.lines
+    const firstVisibleRange = view.visibleRanges[0] ?? view.viewport
+    const lastVisibleRange = view.visibleRanges[view.visibleRanges.length - 1] ?? view.viewport
+    const viewportFromLine = view.state.doc.lineAt(firstVisibleRange.from).number
+    const viewportToLine = view.state.doc.lineAt(lastVisibleRange.to).number
+
+    setScrollInfo((current) => {
+      if (
+        current.clientHeight === clientHeight &&
+        current.lineCount === lineCount &&
+        current.scrollHeight === scrollHeight &&
+        current.scrollTop === scrollTop &&
+        current.viewportFromLine === viewportFromLine &&
+        current.viewportToLine === viewportToLine
+      ) {
+        return current
+      }
+
+      return {
+        clientHeight,
+        lineCount,
+        scrollHeight,
+        scrollTop,
+        viewportFromLine,
+        viewportToLine,
+      }
+    })
+  }, [])
+  const minimapExtension = useMemo(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged || update.geometryChanged || update.viewportChanged) {
+          updateScrollInfo(update.view)
+        }
+      }),
+    [updateScrollInfo]
+  )
+  const editorExtensions = useMemo(
+    () => [...extensions, minimapExtension],
+    [extensions, minimapExtension]
+  )
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => updateScrollInfo(viewRef.current))
+    return () => cancelAnimationFrame(frame)
+  }, [updateScrollInfo, value])
+
+  function scrollToPointer(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const view = viewRef.current
+    if (!view) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))
+    const line = Math.max(1, Math.min(view.state.doc.lines, Math.round(ratio * view.state.doc.lines)))
+    const pos = view.state.doc.line(line).from
+
+    view.dispatch({
+      effects: EditorView.scrollIntoView(pos, { y: "center" }),
+    })
+    requestAnimationFrame(() => {
+      updateScrollInfo(view)
+      onScroll?.(view)
+    })
+    view.focus()
+  }
+
+  const lineCount = Math.max(1, scrollInfo.lineCount)
+  const viewportTop = Math.min(100, ((scrollInfo.viewportFromLine - 1) / lineCount) * 100)
+  const viewportHeight = Math.min(
+    100 - viewportTop,
+    Math.max(8, ((scrollInfo.viewportToLine - scrollInfo.viewportFromLine + 1) / lineCount) * 100)
+  )
+
+  return (
+    <div className="editor-with-minimap">
+      <CodeMirror
+        value={value}
+        height="100%"
+        extensions={editorExtensions}
+        basicSetup={basicSetup}
+        onChange={onChange}
+        onCreateEditor={(view) => {
+          viewRef.current = view
+          updateScrollInfo(view)
+          onCreateEditor?.(view)
+        }}
+      />
+      <div
+        className="code-minimap"
+        role="scrollbar"
+        aria-label="Editor minimap"
+        aria-orientation="vertical"
+        aria-valuemax={Math.max(0, scrollInfo.scrollHeight - scrollInfo.clientHeight)}
+        aria-valuemin={0}
+        aria-valuenow={scrollInfo.scrollTop}
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId)
+          scrollToPointer(event)
+        }}
+        onPointerMove={(event) => {
+          if (event.buttons === 1) scrollToPointer(event)
+        }}
+      >
+        <div className="code-minimap__lines">
+          {rows.map((row) => (
+            <span
+              key={row.key}
+              className={cn(
+                "code-minimap__line",
+                row.empty && "is-empty",
+                row.changed && "is-changed"
+              )}
+              style={{
+                height: `${row.height}%`,
+                top: `${row.top}%`,
+                width: `${row.width}%`,
+              }}
+            />
+          ))}
+        </div>
+        <div
+          className="code-minimap__viewport"
+          style={{ height: `${viewportHeight}%`, top: `${viewportTop}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function EditorPanel({
   activePath,
   extensions,
@@ -3237,14 +3446,46 @@ function EditorPanel({
     () => [...extensions, pasteImageExtension],
     [extensions, pasteImageExtension]
   )
+  const originalViewRef = useRef<EditorView | null>(null)
+  const currentViewRef = useRef<EditorView | null>(null)
+  const syncingScrollRef = useRef(false)
+  const syncScroll = useCallback((source: EditorView, target: EditorView | null) => {
+    if (!target || syncingScrollRef.current) return
+
+    syncingScrollRef.current = true
+    target.scrollDOM.scrollTop = source.scrollDOM.scrollTop
+    target.scrollDOM.scrollLeft = source.scrollDOM.scrollLeft
+    requestAnimationFrame(() => {
+      syncingScrollRef.current = false
+    })
+  }, [])
+  const originalSyncExtension = useMemo(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (update.viewportChanged) syncScroll(update.view, currentViewRef.current)
+      }),
+    [syncScroll]
+  )
+  const currentSyncExtension = useMemo(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (update.viewportChanged) syncScroll(update.view, originalViewRef.current)
+      }),
+    [syncScroll]
+  )
   const originalExtensions = tab
     ? [
         editorTheme,
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
+        originalSyncExtension,
         ...languageForPath(tab.path),
       ]
     : []
+  const splitEditableExtensions = useMemo(
+    () => [...editableExtensions, currentSyncExtension],
+    [currentSyncExtension, editableExtensions]
+  )
 
   return (
     <div className="grid h-full min-h-0 grid-rows-[42px_1fr]">
@@ -3307,40 +3548,49 @@ function EditorPanel({
         </Tooltip>
       </div>
 
-      <div className="min-h-0 bg-background">
+      <div className="h-full min-h-0 overflow-hidden bg-background">
         {tab ? (
-          <div className="grid h-full min-h-0 grid-rows-[1fr_auto]">
+          <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
             {tab.originalContents !== undefined ? (
               <div className="grid h-full min-h-0 grid-cols-2">
-                <div className="grid min-w-0 grid-rows-[28px_1fr] border-r">
+                <div className="grid h-full min-h-0 min-w-0 grid-rows-[28px_minmax(0,1fr)] border-r">
                   <div className="flex items-center border-b bg-muted/35 px-3 text-xs font-medium text-muted-foreground">
                     Original
                   </div>
-                  <CodeMirror
-                    value={tab.originalContents}
-                    height="100%"
-                    extensions={originalExtensions}
-                    basicSetup={{ foldGutter: true, highlightActiveLine: false }}
-                  />
+                  <div className="min-h-0 overflow-hidden">
+                    <CodeMirror
+                      value={tab.originalContents}
+                      height="100%"
+                      extensions={originalExtensions}
+                      basicSetup={{ foldGutter: true, highlightActiveLine: false }}
+                      onCreateEditor={(view) => {
+                        originalViewRef.current = view
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="grid min-w-0 grid-rows-[28px_1fr]">
+                <div className="grid h-full min-h-0 min-w-0 grid-rows-[28px_minmax(0,1fr)]">
                   <div className="flex items-center border-b bg-muted/35 px-3 text-xs font-medium text-muted-foreground">
                     Current
                   </div>
-                  <CodeMirror
+                  <EditorWithMinimap
                     value={tab.contents}
-                    height="100%"
-                    extensions={editableExtensions}
+                    extensions={splitEditableExtensions}
+                    changedLines={tab.changedLines}
                     basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                     onChange={onChange}
+                    onCreateEditor={(view) => {
+                      currentViewRef.current = view
+                    }}
+                    onScroll={(view) => syncScroll(view, originalViewRef.current)}
                   />
                 </div>
               </div>
             ) : (
-              <CodeMirror
+              <EditorWithMinimap
                 value={tab.contents}
-                height="100%"
                 extensions={editableExtensions}
+                changedLines={tab.changedLines}
                 basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                 onChange={onChange}
               />
@@ -4040,7 +4290,7 @@ function looksLikeAgentOutput(data: number[]) {
 function languageForPath(path: string): Extension[] {
   const extension = path.split(".").pop()?.toLowerCase()
 
-  if (path.startsWith("workspace/tasks/") || path.startsWith("workspace/skills/")) return []
+  if (path.startsWith("workspace/tasks/") || path.startsWith(`${SHARED_SKILLS_PATH}/`)) return []
 
   if (["ts", "tsx"].includes(extension ?? "")) {
     return [javascript({ jsx: extension === "tsx", typescript: true })]
@@ -4096,7 +4346,7 @@ function skillFolderEntry(skill: SkillItem): FileEntry {
 }
 
 function skillSlugFromPath(path: string) {
-  return path.startsWith("workspace/skills/") ? path.split("/")[2] : ""
+  return path.startsWith(`${SHARED_SKILLS_PATH}/`) ? path.split("/")[2] : ""
 }
 
 function docFileEntry(doc: DocItem): FileEntry {
@@ -4164,15 +4414,27 @@ function readableError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function loadPinnedSkillSettings() {
+function loadPinnedSkillSettings(): string[] {
   try {
-    return JSON.parse(localStorage.getItem(PINNED_SKILLS_STORAGE_KEY) ?? "{}") as Record<
-      string,
-      string[]
-    >
+    const value = JSON.parse(localStorage.getItem(PINNED_SKILLS_STORAGE_KEY) ?? "[]")
+    if (Array.isArray(value)) return uniqueStrings(value)
+    if (value && typeof value === "object") {
+      return uniqueStrings(Object.values(value).flat())
+    }
+    return []
   } catch {
-    return {}
+    return []
   }
+}
+
+function uniqueStrings(values: unknown[]) {
+  const result: string[] = []
+  for (const value of values) {
+    if (typeof value === "string" && value && !result.includes(value)) {
+      result.push(value)
+    }
+  }
+  return result
 }
 
 export default App

@@ -77,8 +77,15 @@ button,
   cursor: pointer;
 }
 
+.cm-theme-light {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .cm-editor {
   height: 100%;
+  min-height: 0;
   font-size: 13px;
 }
 
@@ -101,4 +108,62 @@ button,
 
 .cm-scroller {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.editor-with-minimap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-with-minimap > :first-child {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.code-minimap {
+  position: relative;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  background: var(--muted);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.code-minimap__lines {
+  position: absolute;
+  inset: 8px 7px;
+}
+
+.code-minimap__line {
+  position: absolute;
+  left: 0;
+  display: block;
+  min-height: 1px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--foreground) 32%, transparent);
+}
+
+.code-minimap__line.is-empty {
+  background: transparent;
+}
+
+.code-minimap__line.is-changed {
+  background: oklch(0.76 0.14 80);
+}
+
+.code-minimap__viewport {
+  position: absolute;
+  right: 4px;
+  left: 4px;
+  min-height: 18px;
+  border: 1px solid color-mix(in oklch, var(--foreground) 28%, transparent);
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--background) 62%, transparent);
+  pointer-events: none;
 }
