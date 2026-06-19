@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
+import { deleteOwnedProjectMedia } from "@/server/media"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoProjects, type AiVideoProject } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
@@ -207,6 +208,7 @@ export async function deleteProjectForCurrentUser(
   requireAppOrigin()
   const user = await requireUser()
   await getOwnedProject(user.id, projectId)
+  await deleteOwnedProjectMedia(user.id, [projectId])
 
   await db
     .delete(aiVideoProjects)
@@ -226,12 +228,32 @@ export async function deleteProjectsForCurrentUser(
   requireAppOrigin()
   const user = await requireUser()
   const uniqueIds = Array.from(new Set(projectIds))
+  if (!uniqueIds.length) {
+    return { deletedCount: 0 }
+  }
+
+  const ownedProjects = await db
+    .select({ id: aiVideoProjects.id })
+    .from(aiVideoProjects)
+    .where(
+      and(
+        eq(aiVideoProjects.userId, user.id),
+        inArray(aiVideoProjects.id, uniqueIds)
+      )
+    )
+  const ownedIds = ownedProjects.map((project) => project.id)
+  if (!ownedIds.length) {
+    return { deletedCount: 0 }
+  }
+
+  await deleteOwnedProjectMedia(user.id, ownedIds)
+
   const rows = await db
     .delete(aiVideoProjects)
     .where(
       and(
         eq(aiVideoProjects.userId, user.id),
-        inArray(aiVideoProjects.id, uniqueIds)
+        inArray(aiVideoProjects.id, ownedIds)
       )
     )
     .returning({ id: aiVideoProjects.id })

@@ -20,16 +20,17 @@ import {
   type MediaFileType,
   type MediaItem,
   type MediaListResponse,
+  type MediaSource,
   type MediaSortBy,
   type MediaSortDirection,
 } from "@/server/media"
 import { deleteFromR2, R2StorageNotConfiguredError, uploadToR2 } from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
-import { aiVideoMedia, aiVideoSettings } from "@/server/schema"
+import { aiVideoMedia, aiVideoProjects, aiVideoSettings } from "@/server/schema"
 import { now, requireUser, uuid } from "@/server/security"
 
 export type { MediaFileType, MediaItem, MediaListResponse }
-export type { MediaSortBy, MediaSortDirection }
+export type { MediaSortBy, MediaSortDirection, MediaSource }
 
 const listMediaSchema = z
   .object({
@@ -37,6 +38,8 @@ const listMediaSchema = z
     pageSize: z.number().int().optional(),
     fileType: z.enum(["image", "video", "audio"]).optional(),
     mimeType: z.enum(["image/svg+xml"]).optional(),
+    projectId: z.string().min(1).max(36).optional(),
+    source: z.enum(["upload", "generated", "template", "viral"]).optional(),
     sortBy: z.enum(["created_at", "original_name", "file_size", "file_type"]).optional(),
     sortDirection: z.enum(["asc", "desc"]).optional(),
   })
@@ -82,16 +85,37 @@ async function loadMediaUploadMaxBytes() {
   ) * 1024 * 1024
 }
 
+async function requireOwnedProjectId(userId: string, projectId?: string) {
+  if (!projectId) return undefined
+
+  const [row] = await db
+    .select({ id: aiVideoProjects.id })
+    .from(aiVideoProjects)
+    .where(
+      and(eq(aiVideoProjects.id, projectId), eq(aiVideoProjects.userId, userId))
+    )
+    .limit(1)
+
+  if (!row) {
+    throw new Error("Project not found")
+  }
+
+  return row.id
+}
+
 const listMediaFn = createServerFn({ method: "GET" })
   .inputValidator(listMediaSchema)
   .handler(async ({ data }) => {
     const user = await requireUser()
+    const projectId = await requireOwnedProjectId(user.id, data?.projectId)
     return listOwnedMedia({
       userId: user.id,
       page: data?.page ?? 1,
       pageSize: data?.pageSize ?? 20,
       fileType: data?.fileType,
       mimeType: data?.mimeType,
+      projectId,
+      source: data?.source,
       sortBy: data?.sortBy,
       sortDirection: data?.sortDirection,
     })
@@ -111,11 +135,13 @@ const uploadMediaFn = createServerFn({ method: "POST" })
     return {
       file,
       altText: data.get("alt_text")?.toString(),
+      projectId: data.get("project_id")?.toString() || undefined,
     }
   })
   .handler(async ({ data }) => {
     requireAppOrigin()
     const user = await requireUser()
+    const projectId = await requireOwnedProjectId(user.id, data.projectId)
     if (activeMediaUploads.has(user.id)) {
       throw new Error("Another media upload is already in progress.")
     }
@@ -133,7 +159,9 @@ const uploadMediaFn = createServerFn({ method: "POST" })
 
       const originalName = cleanOriginalName(data.file.name)
       const filename = storedFilename(originalName, mimeType)
-      const storagePath = `${user.id}/${filename}`
+      const storagePath = projectId
+        ? `projects/${user.id}/${projectId}/${filename}`
+        : `${user.id}/${filename}`
 
       try {
         await uploadToR2(storagePath, fileData, mimeType)
@@ -157,6 +185,8 @@ const uploadMediaFn = createServerFn({ method: "POST" })
         mimeType,
         fileType: getMediaFileType(mimeType),
         storagePath,
+        projectId: projectId ?? null,
+        source: "upload" as const,
         createdAt,
         updatedAt: createdAt,
       }
@@ -255,6 +285,8 @@ export function listMedia({
   pageSize = 20,
   fileType,
   mimeType,
+  projectId,
+  source,
   sortBy,
   sortDirection,
 }: {
@@ -262,17 +294,26 @@ export function listMedia({
   pageSize?: number
   fileType?: MediaFileType
   mimeType?: "image/svg+xml"
+  projectId?: string
+  source?: MediaSource
   sortBy?: MediaSortBy
   sortDirection?: MediaSortDirection
 } = {}) {
-  return listMediaFn({ data: { page, pageSize, fileType, mimeType, sortBy, sortDirection } })
+  return listMediaFn({ data: { page, pageSize, fileType, mimeType, projectId, source, sortBy, sortDirection } })
 }
 
-export function uploadMedia(file: File, altText?: string) {
+export function uploadMedia(
+  file: File,
+  altText?: string,
+  options: { projectId?: string } = {}
+) {
   const formData = new FormData()
   formData.append("file", file)
   if (altText?.trim()) {
     formData.append("alt_text", altText.trim())
+  }
+  if (options.projectId) {
+    formData.append("project_id", options.projectId)
   }
   return uploadMediaFn({ data: formData })
 }

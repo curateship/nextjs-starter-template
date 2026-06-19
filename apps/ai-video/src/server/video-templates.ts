@@ -233,6 +233,8 @@ async function copyMediaForTemplate(
       mimeType: source.mimeType,
       fileType: source.fileType,
       storagePath,
+      projectId: null,
+      source: "template",
       createdAt: ts,
       updatedAt: ts,
     })

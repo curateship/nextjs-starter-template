@@ -94,7 +94,15 @@ type TileDrag = {
 // each tab can also upload new files.
 export function EditorMediaPanel() {
   // documentName is the project or template name (shown in the panel header).
-  const { state, dispatch, clock, kind, documentName: projectName } = useEditor()
+  const {
+    state,
+    dispatch,
+    clock,
+    kind,
+    documentId,
+    documentName: projectName,
+  } = useEditor()
+  const projectId = kind === "project" ? documentId : undefined
   const [tab, setTab] = React.useState<MediaTab>("videos")
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
@@ -121,7 +129,12 @@ export function EditorMediaPanel() {
   // Load fresh media whenever the tab changes or an upload finishes.
   React.useEffect(() => {
     let active = true
-    listMedia({ pageSize: 30, fileType: TAB_CONFIG[tab].fileType })
+    listMedia({
+      pageSize: 30,
+      fileType: TAB_CONFIG[tab].fileType,
+      projectId,
+      source: projectId ? "upload" : undefined,
+    })
       .then((response) => {
         if (active) {
           setResult({ tab, data: response })
@@ -136,7 +149,7 @@ export function EditorMediaPanel() {
     return () => {
       active = false
     }
-  }, [tab, refresh])
+  }, [projectId, tab, refresh])
 
   const data = result?.tab === tab ? result.data : null
   const error = loadError?.tab === tab ? loadError.message : null
@@ -245,7 +258,7 @@ export function EditorMediaPanel() {
     setUploading(true)
     setActionError(null)
     try {
-      await uploadMedia(file)
+      await uploadMedia(file, undefined, { projectId })
       // Jump to the uploaded file's tab so the new item is visible.
       setTab(
         file.type.startsWith("image")

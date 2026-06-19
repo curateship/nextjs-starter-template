@@ -408,6 +408,8 @@ async function processViralVideo(videoId: string, userId: string) {
         mimeType: downloaded.mimeType,
         fileType: "video",
         storagePath,
+        projectId: null,
+        source: "viral",
         createdAt: mediaCreatedAt,
         updatedAt: mediaCreatedAt,
       })
@@ -438,6 +440,8 @@ async function processViralVideo(videoId: string, userId: string) {
           mimeType: "image/jpeg",
           fileType: "image",
           storagePath: thumbPath,
+          projectId: null,
+          source: "viral",
           createdAt: thumbCreatedAt,
           updatedAt: thumbCreatedAt,
         }).catch(() => undefined)

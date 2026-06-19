@@ -43,6 +43,7 @@ import {
   uploadMedia,
   type MediaItem,
 } from "@/lib/api/media"
+import { useEditor } from "@/pages/video-editor/editor-store"
 import { loadMediaDurationMs } from "@/pages/video-editor/timeline-utils"
 
 // Payload handed back to the timeline's REPLACE_CLIP_MEDIA action.
@@ -69,6 +70,8 @@ export function ReplaceMediaDialog({
   onOpenChange: (open: boolean) => void
   onReplace: (media: ReplacementMedia) => void
 }) {
+  const { kind, documentId } = useEditor()
+  const projectId = kind === "project" ? documentId : undefined
   const isAudioSlot = clipKind === "audio"
   const [items, setItems] = React.useState<MediaItem[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
@@ -89,7 +92,12 @@ export function ReplaceMediaDialog({
     if (!open) return
     let active = true
 
-    listMedia({ fileType: mediaType, pageSize: 100 })
+    listMedia({
+      fileType: mediaType,
+      pageSize: 100,
+      projectId,
+      source: projectId ? "upload" : undefined,
+    })
       .then((data) => {
         if (!active) return
         setItems(data.media)
@@ -103,7 +111,7 @@ export function ReplaceMediaDialog({
     return () => {
       active = false
     }
-  }, [open, mediaType])
+  }, [open, mediaType, projectId])
 
   // Timed media (video/audio) needs its intrinsic length to clamp the slot;
   // images fill any duration, so skip the probe for them.
@@ -141,7 +149,7 @@ export function ReplaceMediaDialog({
     setUploading(true)
     setError(null)
     try {
-      const uploaded = await uploadMedia(file)
+      const uploaded = await uploadMedia(file, undefined, { projectId })
       await selectMedia(uploaded)
     } catch (uploadError) {
       setError(getMediaErrorMessage(uploadError))
