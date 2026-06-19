@@ -14,6 +14,7 @@ import { EmbeddedBlock } from "@/components/frontend/pages/embedded/PageEmbedded
 import { TestimonialsBlock } from "@/components/frontend/pages/testimonials/PageTestimonialsBlock"
 import { PageCategoriesListingBlock } from "@/components/frontend/pages/categories-listing/PageCategoriesListingBlock"
 import type { SiteWithBlocks } from "@/lib/actions/pages/page-frontend-actions"
+import type { PublicProfileData } from "@/lib/actions/profiles/public-profile-actions"
 import { toCdnUrl } from "@/lib/utils/cdn"
 import { resolveSiteChrome } from "@/lib/utils/site-structure"
 import { toPublicSiteClientProps } from "@/lib/utils/public-site-client"
@@ -25,6 +26,7 @@ interface BlockRendererProps {
   isPreview?: boolean
   hideSiteChrome?: boolean
   accountContext?: boolean
+  publicProfileContext?: Pick<PublicProfileData, "profile" | "collections">
   renderRichTextBody?: (block: SiteWithBlocks["blocks"][number], bodyHtml: string) => ReactNode
   renderBlockOverlay?: (block: SiteWithBlocks["blocks"][number]) => ReactNode
 }
@@ -34,6 +36,7 @@ export function BlockRenderer({
   isPreview = false,
   hideSiteChrome = false,
   accountContext = false,
+  publicProfileContext,
   renderRichTextBody,
   renderBlockOverlay,
 }: BlockRendererProps) {
@@ -214,7 +217,7 @@ export function BlockRenderer({
         }
 
         if (block.type === 'account-core') {
-          if (!accountContext) return null
+          if (!accountContext && !publicProfileContext) return null
 
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
@@ -224,13 +227,15 @@ export function BlockRenderer({
                 siteWidth={siteWidth}
                 customWidth={customWidth}
                 isPreview={isPreview}
+                profileData={publicProfileContext?.profile}
+                collectionsData={publicProfileContext?.collections}
               />
             </div>
           )
         }
 
         if (block.type === 'account-edit-profile') {
-          if (!accountContext) return null
+          if (!accountContext || publicProfileContext) return null
 
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>
@@ -245,7 +250,7 @@ export function BlockRenderer({
         }
 
         if (block.type === 'account-claimed-listings') {
-          if (!accountContext) return null
+          if (!accountContext || publicProfileContext) return null
 
           return (
             <div key={block.id} data-block-id={block.id} data-block-type={block.type}>

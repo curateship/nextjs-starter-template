@@ -14,7 +14,7 @@ import {
   getAccountPagesAction,
   type AccountPage,
 } from "@/lib/actions/account-pages/account-pages-actions"
-import { getAccountPagePath } from "@/lib/utils/account-page-path"
+import { getAccountPageDisplayPath, getAccountPagePreviewPath } from "@/lib/utils/account-page-path"
 import { getSiteUrl } from "@/lib/utils/site-url-generator"
 
 const CreateAccountPageModal = dynamic(
@@ -60,11 +60,12 @@ export default function AccountPagesPage({ params }: { params: Promise<{ siteId:
         pages.length === 0 || filterStatus === "all" ? "No pages found" : `No ${filterStatus} pages found`
       }
       getBuilderHref={(page) => `/admin/account-pages/builder/${siteId}?page=${page.slug}`}
-      getDisplayPath={(page) => getAccountPagePath(page.slug)}
+      getDisplayPath={(page) => getAccountPageDisplayPath(page.slug)}
       getItems={getPages}
-      getPreviewHref={(page, previewSite) =>
-        previewSite ? `${getSiteUrl(previewSite)}${getAccountPagePath(page.slug)}` : "#"
-      }
+      getPreviewHref={(page, previewSite) => {
+        const previewPath = getAccountPagePreviewPath(page.slug)
+        return previewSite && previewPath ? `${getSiteUrl(previewSite)}${previewPath}` : "#"
+      }}
       getRowIcon={(page) =>
         page.is_default ? <Home className="h-6 w-6 text-blue-600" /> : <FileText className="h-6 w-6 text-muted-foreground" />
       }

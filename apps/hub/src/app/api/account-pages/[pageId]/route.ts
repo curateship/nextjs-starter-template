@@ -15,6 +15,7 @@ const config = {
   paramName: 'pageId',
   reservedSlugs: RESERVED_ACCOUNT_PAGE_SLUGS,
   requireSameOrigin: true,
+  revalidateTags: ['public-profile'],
   serializeResponse: serializeAccountPage,
   duplicateSlugError: (existing: { title: string | null }) =>
     `This slug is already used by another account page titled "${existing.title}". Please choose a different slug.`,

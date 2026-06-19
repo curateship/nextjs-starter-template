@@ -402,6 +402,7 @@ export async function toggleDirectorySaveCollectionAction(input: {
     }
 
     await touchSiteMembershipActivity(input.siteId, access.user.id)
+    revalidateDirectorySaves(input.siteId)
 
     const collections = await buildState(input.siteId, access.user.id, input.directoryId, access.row.site.settings)
     return { authenticated: true, authPath: null, collections, error: null }
@@ -472,6 +473,7 @@ export async function createDirectorySaveCollectionAction(input: {
     }
 
     await touchSiteMembershipActivity(input.siteId, access.user.id)
+    revalidateDirectorySaves(input.siteId)
 
     const collections = await buildState(input.siteId, access.user.id, input.directoryId, access.row.site.settings)
     return { authenticated: true, authPath: null, collections, error: null }

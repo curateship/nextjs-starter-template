@@ -7,6 +7,7 @@ import {
   getSavedNavigationButtonIds,
   normalizeNavigationActionItemOrder,
 } from '@/lib/utils/navigation-action-items'
+import { normalizePublicProfileTemplateLink } from '@/lib/utils/public-profile-path'
 
 export interface SiteChromeSettings {
   navigation: Record<string, any> | null
@@ -160,7 +161,9 @@ function sanitizeNavigationSignedInLinks(items: unknown): NavigationSignedInLink
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
     .map((item) => {
       const text = typeof item.text === 'string' ? item.text.trim() : ''
-      const url = sanitizeUrl(typeof item.url === 'string' ? item.url : undefined, '')
+      const rawUrl = typeof item.url === 'string' ? item.url : undefined
+      const sanitizedUrl = sanitizeUrl(rawUrl, '')
+      const url = normalizePublicProfileTemplateLink(sanitizedUrl)
       const id = typeof item.id === 'string' && item.id.trim()
         ? item.id.trim()
         : undefined

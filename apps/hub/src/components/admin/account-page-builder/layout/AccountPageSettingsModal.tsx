@@ -15,6 +15,7 @@ import {
   useTitleSlug,
 } from "@/components/admin/layout/dashboard/content-modal-shared"
 import type { AccountPage } from "@/lib/actions/account-pages/account-pages-actions"
+import { getAccountPageDisplayPath, isPublicProfileTemplateSlug } from "@/lib/utils/account-page-path"
 import type { Site } from "@/lib/actions/sites/site-actions"
 
 interface AccountPageSettingsModalProps {
@@ -36,6 +37,7 @@ export function AccountPageSettingsModal({
   const { title, slug, slugManuallyEdited, handleTitleChange, handleSlugChange, reset } = useTitleSlug({ regenerateOnClear: true })
   const [metaDescription, setMetaDescription] = useState("")
   const [isDefault, setIsDefault] = useState(false)
+  const isProfileTemplate = isPublicProfileTemplateSlug(slug)
 
   const { loading: saving, loadingAction: savingAction, error, setError, submit } = useCreateContent<AccountPage>({
     entityLabel: "account page",
@@ -143,10 +145,14 @@ export function AccountPageSettingsModal({
                   slugManuallyEdited={slugManuallyEdited}
                   onTitleChange={handleTitleChange}
                   onSlugChange={handleSlugChange}
-                  slugAutoDescription="Auto-generated from title. Account pages render under /account."
+                  slugAutoDescription={
+                    isProfileTemplate
+                      ? "The my-profile slug is used as the public profile template."
+                      : "Auto-generated from title. Account pages render under /account."
+                  }
                   urlPreview={slug ? (
                     <FieldDescription className="text-blue-600">
-                      Page URL: /account/{slug}
+                      Page URL: {getAccountPageDisplayPath(slug)}
                     </FieldDescription>
                   ) : null}
                 />

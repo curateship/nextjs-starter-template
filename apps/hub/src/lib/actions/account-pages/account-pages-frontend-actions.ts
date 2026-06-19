@@ -6,7 +6,7 @@ import { sites, siteAccountPages } from '@/lib/db/schema'
 import { getAuthenticatedUser } from '@/lib/db/helpers'
 import { isSupportedAccountPageBlockType } from '@/lib/utils/account-page-block-types'
 import { getActiveSiteMembership, touchSiteMembershipActivity } from '@/lib/utils/site-membership-runtime'
-import { getAccountPagePath } from '@/lib/utils/account-page-path'
+import { getAccountPagePath, isPublicProfileTemplateSlug } from '@/lib/utils/account-page-path'
 
 // Types for blocks
 interface Block {
@@ -111,6 +111,10 @@ export async function getAccountPageBySlug(
   slug: string
 ): Promise<{ data: SiteWithAccountPageBlocks | null; error: string | null; isAuthPage: boolean }> {
   try {
+    if (isPublicProfileTemplateSlug(slug)) {
+      return { data: null, error: 'Page not found', isAuthPage: false }
+    }
+
     const [site] = await db
       .select()
       .from(sites)
@@ -193,7 +197,7 @@ export async function getDefaultAccountPage(
     }
 
     const pages = await getPublishedAccountPages(siteId) as AccountPageRecord[]
-    const page = pages[0]
+    const page = pages.find((item) => !isPublicProfileTemplateSlug(item.slug))
 
     if (!page) {
       return { data: null, error: 'Page not found' }
@@ -213,7 +217,7 @@ export async function getDefaultAccountPagePath(
 ): Promise<{ path: string | null; error: string | null }> {
   try {
     const pages = await getPublishedAccountPages(siteId) as AccountPageRecord[]
-    const page = pages[0]
+    const page = pages.find((item) => !isPublicProfileTemplateSlug(item.slug))
     const path = page ? getAccountPagePath(page.slug) : null
 
     return { path, error: null }
