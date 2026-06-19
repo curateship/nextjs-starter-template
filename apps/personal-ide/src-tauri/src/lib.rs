@@ -16,6 +16,8 @@ use tauri_plugin_dialog::DialogExt;
 const MAX_FILE_SIZE: u64 = 1024 * 1024;
 const MAX_PASTED_IMAGE_SIZE: usize = 10 * 1024 * 1024;
 const MAX_TASK_TEMPLATE_SIZE: usize = 64 * 1024;
+const TERMINAL_OUTPUT_EVENT_PREFIX: &str = "terminal-output:";
+const TERMINAL_OUTPUT_BUFFER_SIZE: usize = 16 * 1024;
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
 const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
@@ -1163,13 +1165,14 @@ fn start_terminal(
     let output_workspace_id = workspace_id.clone();
     let output_terminal_id = terminal_id.clone();
     thread::spawn(move || {
-        let mut buffer = [0_u8; 4096];
+        let mut buffer = [0_u8; TERMINAL_OUTPUT_BUFFER_SIZE];
+        let output_event = terminal_output_event(&output_terminal_id);
         loop {
             match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(size) => {
                     let _ = app.emit(
-                        "terminal-output",
+                        &output_event,
                         TerminalOutput {
                             workspace_id: output_workspace_id.clone(),
                             terminal_id: output_terminal_id.clone(),
@@ -2310,6 +2313,10 @@ fn kill_terminal_session(session: TerminalSession) -> Result<(), String> {
         .map_err(|_| "Terminal child is unavailable".to_string())?
         .kill();
     Ok(())
+}
+
+fn terminal_output_event(terminal_id: &str) -> String {
+    format!("{}{}", TERMINAL_OUTPUT_EVENT_PREFIX, terminal_id)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

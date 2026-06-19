@@ -269,6 +269,8 @@ const SIDE_HANDLE_CLASS =
   "h-full w-px cursor-col-resize bg-border hover:bg-border"
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`, "g")
 const TERMINAL_OUTPUT_DECODER = new TextDecoder()
+const TERMINAL_OUTPUT_EVENT_PREFIX = "terminal-output:"
+const TERMINAL_SCROLLBACK_LINES = 3000
 
 function changedLineExtension(lines: number[]): Extension {
   const changedLines = new Set(lines)
@@ -313,6 +315,10 @@ function pastedImageExtension(image: File) {
       "image/webp": "webp",
     }[image.type.toLowerCase()] ?? image.name.split(".").pop()?.toLowerCase()
   )
+}
+
+function terminalOutputEvent(terminalId: string) {
+  return `${TERMINAL_OUTPUT_EVENT_PREFIX}${terminalId}`
 }
 
 function App() {
@@ -394,7 +400,11 @@ function App() {
     (workspaceId: string, terminalId: string, data: number[]) => {
       if (terminalId.endsWith("-server")) return
       if (!looksLikeAgentOutput(data)) return
-      setWorkspaceStatuses((current) => ({ ...current, [workspaceId]: "running" }))
+      setWorkspaceStatuses((current) =>
+        current[workspaceId] === "running"
+          ? current
+          : { ...current, [workspaceId]: "running" }
+      )
       const currentTimer = workspaceStatusTimersRef.current[workspaceId]
       if (currentTimer) window.clearTimeout(currentTimer)
       workspaceStatusTimersRef.current[workspaceId] = window.setTimeout(() => {
@@ -4152,7 +4162,12 @@ function TerminalPane({
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const frameRef = useRef<number | null>(null)
+  const activeRef = useRef(active)
   const startupCommandSentRef = useRef(false)
+
+  useEffect(() => {
+    activeRef.current = active
+  }, [active])
 
   useEffect(() => {
     const container = containerRef.current
@@ -4174,7 +4189,7 @@ function TerminalPane({
       convertEol: false,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
-      scrollback: 10000,
+      scrollback: TERMINAL_SCROLLBACK_LINES,
       theme: {
         background: "#ffffff",
         foreground: "#171717",
@@ -4254,7 +4269,7 @@ function TerminalPane({
     const observer = new ResizeObserver(fitTerminal)
     observer.observe(container)
 
-    listen<TerminalOutput>("terminal-output", (event) => {
+    listen<TerminalOutput>(terminalOutputEvent(terminalId), (event) => {
       if (
         event.payload.workspaceId !== workspaceId ||
         event.payload.terminalId !== terminalId
@@ -4263,7 +4278,9 @@ function TerminalPane({
       }
       const data = new Uint8Array(event.payload.data)
       onTerminalOutput(workspaceId, terminalId, event.payload.data)
-      terminal.write(data, refreshTerminal)
+      terminal.write(data, () => {
+        if (activeRef.current) refreshTerminal()
+      })
     })
       .then((dispose) => {
         if (cancelled) {
