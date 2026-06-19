@@ -1,6 +1,7 @@
 ---
 name: block-builder
 description: Standardized process for adding new blocks to any content type builder (product, page, post, category, directory, event, user-page). Use this skill whenever the user wants to add a new block, create a block component, scaffold a block, or add a new section type to any builder. Also trigger when the user mentions adding features like "add a testimonials block to products" or "create a pricing block for events" — even if they don't say "block" explicitly. This skill ensures consistency across the 5 files that must be touched for every new block.
+tags: build
 ---
 
 # Block Builder

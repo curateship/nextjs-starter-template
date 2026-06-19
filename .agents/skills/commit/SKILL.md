@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Review code changes and commit to the current branch. Use when the user says "commit", "commit changes", or asks to save their work to git. This skill reviews changes before committing and NEVER pushes.
+tags: review, ship
 user_invocable: true
 ---
 

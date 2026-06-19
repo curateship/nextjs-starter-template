@@ -152,6 +152,9 @@ workspace/skills/<skill-slug>/SKILL.md
 
 The Skills panel lists local workspace skills and opens `SKILL.md` in the editor.
 
+Skills can include a one-line `tags` field in `SKILL.md` frontmatter. The navigator filters by:
+`define`, `plan`, `build`, `verify`, `review`, and `ship`.
+
 Skill shortcuts can be pinned to the bottom bar. Pins are Personal IDE UI settings, not workspace files, so pinning/reordering does not create Git changes.
 
 Pinned skills are stored per workspace in app-local settings. Clicking a pinned skill pastes:

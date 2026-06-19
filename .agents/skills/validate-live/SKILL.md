@@ -1,6 +1,7 @@
 ---
 name: validate-live
 description: Validates code changes by opening the app in a real browser, logging in, and checking the relevant page works correctly. Trigger when the user says "validate", "check it", "test it", "does it work", or "verify". Also trigger proactively after significant code changes (new components, layout changes, form changes, bug fixes, etc.) to catch issues before the user has to ask. This is live browser validation, not unit tests or linting.
+tags: verify
 ---
 
 # Validate UI Changes

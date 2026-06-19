@@ -95,6 +95,7 @@ struct SkillItem {
     name: String,
     slug: String,
     path: String,
+    tags: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -818,10 +819,13 @@ fn list_skills(
         }
 
         let slug = entry.file_name().to_string_lossy().to_string();
+        let contents = fs::read_to_string(&skill_path).map_err(|error| error.to_string())?;
+        let fields = parse_frontmatter(&contents);
         skills.push(SkillItem {
             name: title_from_slug(&slug),
             slug,
             path: display_path(&workspace, &skill_path)?,
+            tags: parse_skill_tags(fields.get("tags")),
         });
     }
 
@@ -850,7 +854,7 @@ fn create_skill(
     fs::write(
         &path,
         format!(
-            "---\nname: {}\ndescription: Describe when to use this skill.\n---\n\n# {}\n\n",
+            "---\nname: {}\ndescription: Describe when to use this skill.\ntags:\n---\n\n# {}\n\n",
             slug, name
         ),
     )
@@ -860,6 +864,7 @@ fn create_skill(
         name: name.to_string(),
         slug,
         path: display_path(&workspace, &path)?,
+        tags: Vec::new(),
     })
 }
 
@@ -1564,6 +1569,36 @@ fn parse_frontmatter(contents: &str) -> HashMap<String, String> {
     }
 
     fields
+}
+
+fn parse_skill_tags(value: Option<&String>) -> Vec<String> {
+    let Some(value) = value else {
+        return Vec::new();
+    };
+    let value = value.trim().trim_start_matches('[').trim_end_matches(']');
+    let mut tags = Vec::new();
+
+    for item in value.split(',') {
+        let tag = item.trim().trim_matches('"').trim_matches('\'').to_lowercase();
+        if tag.is_empty() || tags.iter().any(|existing| existing == &tag) {
+            continue;
+        }
+        tags.push(tag);
+    }
+
+    tags
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_skill_tags;
+
+    #[test]
+    fn parse_skill_tags_normalizes_and_deduplicates() {
+        let tags = "Define, plan, \"review\", define".to_string();
+
+        assert_eq!(parse_skill_tags(Some(&tags)), vec!["define", "plan", "review"]);
+    }
 }
 
 fn frontmatter_bounds(contents: &str) -> Option<(usize, usize, usize)> {
