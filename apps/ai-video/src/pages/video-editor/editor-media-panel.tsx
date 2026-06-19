@@ -1,5 +1,7 @@
 import * as React from "react"
 import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
   ImageIcon,
   Loader2Icon,
   MusicIcon,
@@ -8,10 +10,23 @@ import {
   SettingsIcon,
   UploadIcon,
   VideoIcon,
+  XIcon,
   type LucideIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  FileUpload,
+  FileUploadDropzone,
+  FileUploadItem,
+  FileUploadItemDelete,
+  FileUploadItemMetadata,
+  FileUploadItemPreview,
+  FileUploadItemProgress,
+  FileUploadList,
+  FileUploadTrigger,
+  useFileUpload,
+} from "@/components/ui/file-upload"
 import { Input } from "@/components/ui/input"
 import {
   Popover,
@@ -79,7 +94,6 @@ const MEDIA_TABS = Object.keys(TAB_CONFIG) as MediaTab[]
 
 // One shared upload control covers every media type the server accepts.
 const UPLOAD_ACCEPT = "video/*,image/*,audio/*"
-
 // Pointer-drag bookkeeping for dragging a library item onto the timeline.
 type TileDrag = {
   item: MediaItem
@@ -87,6 +101,12 @@ type TileDrag = {
   startY: number
   active: boolean
   ghost: HTMLDivElement | null
+}
+
+type UploadCallbacks = {
+  onError?: (file: File, error: Error) => void
+  onProgress?: (file: File, progress: number) => void
+  onSuccess?: (file: File) => void
 }
 
 // Left panel: browser over the media library. Video/image/audio items add to
@@ -251,28 +271,42 @@ export function EditorMediaPanel() {
   }
 
   // --- Shared upload (any media type) --------------------------------------
+  async function uploadSelectedFile(file: File, callbacks: UploadCallbacks = {}) {
+    setUploading(true)
+    setActionError(null)
+    callbacks.onProgress?.(file, 15)
+    try {
+      await uploadMedia(file, undefined, { projectId })
+      callbacks.onProgress?.(file, 100)
+      callbacks.onSuccess?.(file)
+      // Jump to the uploaded file's tab so the new item is visible.
+      setTab(getMediaTabForFile(file))
+      setRefresh((count) => count + 1)
+    } catch (caught) {
+      const message = getMediaErrorMessage(caught)
+      const error = new Error(message)
+      setActionError(message)
+      callbacks.onError?.(file, error)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ""
     if (!file) return
-    setUploading(true)
-    setActionError(null)
-    try {
-      await uploadMedia(file, undefined, { projectId })
-      // Jump to the uploaded file's tab so the new item is visible.
-      setTab(
-        file.type.startsWith("image")
-          ? "images"
-          : file.type.startsWith("audio")
-            ? "audio"
-            : "videos"
-      )
-      setRefresh((count) => count + 1)
-    } catch (caught) {
-      setActionError(getMediaErrorMessage(caught))
-    } finally {
-      setUploading(false)
+    await uploadSelectedFile(file)
+  }
+
+  async function handleDropzoneUpload(files: File[], callbacks: UploadCallbacks) {
+    for (const file of files) {
+      await uploadSelectedFile(file, callbacks)
     }
+  }
+
+  function handleDropzoneReject(file: File, message: string) {
+    setActionError(`${file.name}: ${message}`)
   }
 
   const tileHandlers = (item: MediaItem) => ({
@@ -397,7 +431,13 @@ export function EditorMediaPanel() {
                 ))}
               </div>
             ) : visibleMedia.length === 0 ? (
-              <MediaPanelEmpty tab={tab} searching={search.trim().length > 0} />
+              <MediaPanelEmpty
+                tab={tab}
+                searching={search.trim().length > 0}
+                uploading={uploading}
+                onFileReject={handleDropzoneReject}
+                onUpload={handleDropzoneUpload}
+              />
             ) : tab === "audio" ? (
               <div className="space-y-1.5">
                 {visibleMedia.map((item) => (
@@ -498,21 +538,144 @@ function MediaThumbnail({
   )
 }
 
-// Centered icon + message for empty tabs / empty search results.
+// Centered upload target for empty tabs; search misses stay compact.
 function MediaPanelEmpty({
+  onFileReject,
+  onUpload,
   tab,
   searching,
+  uploading,
 }: {
+  onFileReject: (file: File, message: string) => void
+  onUpload: (files: File[], callbacks: UploadCallbacks) => Promise<void>
   tab: MediaTab
   searching: boolean
+  uploading: boolean
 }) {
-  const { icon: EmptyIcon, emptyMessage } = TAB_CONFIG[tab]
+  const { icon: EmptyIcon, label } = TAB_CONFIG[tab]
+
+  if (searching) {
+    return (
+      <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
+        <EmptyIcon className="size-5" />
+        <p className="text-xs">No matches</p>
+      </div>
+    )
+  }
+
+  const mediaLabel = label.toLowerCase()
+
   return (
-    <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
-      <EmptyIcon className="size-5" />
-      <p className="text-xs">{searching ? "No matches" : emptyMessage}</p>
+    <div className="flex h-full min-h-40 items-center justify-center">
+      <EmptyMediaUpload
+        accept={`${TAB_CONFIG[tab].fileType}/*`}
+        browseLabel={`Browse ${mediaLabel}`}
+        description={`Drag and drop ${mediaLabel} here, or browse from your computer.`}
+        disabled={uploading}
+        onFileReject={onFileReject}
+        onUpload={onUpload}
+        title={`Upload ${mediaLabel}`}
+      />
     </div>
   )
+}
+
+function EmptyMediaUpload({
+  accept,
+  browseLabel,
+  description,
+  disabled,
+  onFileReject,
+  onUpload,
+  title,
+}: {
+  accept: string
+  browseLabel: string
+  description: string
+  disabled: boolean
+  onFileReject: (file: File, message: string) => void
+  onUpload: (files: File[], callbacks: UploadCallbacks) => Promise<void>
+  title: string
+}) {
+  const [files, setFiles] = React.useState<File[]>([])
+
+  return (
+    <FileUpload
+      accept={accept}
+      className="w-full max-w-sm"
+      disabled={disabled}
+      label={title}
+      maxFiles={1}
+      onFileReject={onFileReject}
+      onUpload={onUpload}
+      onValueChange={setFiles}
+      value={files}
+    >
+      <FileUploadDropzone className="min-h-40 bg-background/70 p-4">
+        <div className="flex flex-col items-center gap-1 text-center">
+          <div className="flex items-center justify-center rounded-full border p-2.5">
+            <UploadIcon className="size-6 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <FileUploadTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="mt-2">
+            {browseLabel}
+          </Button>
+        </FileUploadTrigger>
+      </FileUploadDropzone>
+      <FileUploadList>
+        {files.map((file) => (
+          <EmptyMediaUploadItem key={`${file.name}-${file.lastModified}`} file={file} />
+        ))}
+      </FileUploadList>
+    </FileUpload>
+  )
+}
+
+function EmptyMediaUploadItem({ file }: { file: File }) {
+  const fileState = useFileUpload((state) => state.files.get(file))
+  const progress = fileState?.progress ?? 0
+  const status = fileState?.status ?? "idle"
+
+  return (
+    <FileUploadItem value={file}>
+      <FileUploadItemPreview />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <FileUploadItemMetadata size="sm" />
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+            {status === "success" ? (
+              <CheckCircle2Icon className="size-4 text-green-600" />
+            ) : status === "error" ? (
+              <AlertCircleIcon className="size-4 text-destructive" />
+            ) : (
+              `${progress}%`
+            )}
+          </span>
+        </div>
+        <FileUploadItemProgress />
+      </div>
+      <FileUploadItemDelete asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7"
+          aria-label="Remove file"
+        >
+          <XIcon className="size-4" />
+        </Button>
+      </FileUploadItemDelete>
+    </FileUploadItem>
+  )
+}
+
+function getMediaTabForFile(file: File): MediaTab {
+  if (file.type.startsWith("image/")) return "images"
+  if (file.type.startsWith("audio/")) return "audio"
+  return "videos"
 }
 
 // Floating chip that follows the pointer while dragging a library item.
