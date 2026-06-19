@@ -1,129 +1,149 @@
 ---
 name: validate-live
-description: Validates code changes by opening the app in a real browser, logging in, and checking the relevant page works correctly. Trigger when the user says "validate", "check it", "test it", "does it work", or "verify". Also trigger proactively after significant code changes (new components, layout changes, form changes, bug fixes, etc.) to catch issues before the user has to ask. This is live browser validation, not unit tests or linting.
-tags: verify
+description: Validates code changes by opening the relevant app in a real browser and checking that the changed page or workflow works. Trigger when the user says "validate", "check it", "test it", "does it work", or "verify". Also trigger proactively after significant browser-facing changes such as new components, layout changes, form changes, and bug fixes. Use for live browser validation across any app in this monorepo, not unit tests or linting.
 ---
 
 # Validate UI Changes
 
-When triggered with "validate live", open a real browser to verify the page works as intended.
+When triggered with "validate live", open a real browser and verify the relevant app behaves as intended.
+
+## Pick The Target App
+
+Determine the app from the changed files or the user's request.
+
+- For paths like `apps/<app>/...`, target `<app>`.
+- For shared packages or services, identify the app that imports the changed code. If unclear, inspect references with `rg` and choose the app most directly affected.
+- If multiple apps are affected, validate the highest-risk app first and tell the user which additional apps still need checking.
+- If the target is a Tauri/native-only workflow, do not pretend a normal browser can validate native behavior. Validate only browser-renderable UI, or report that live validation needs the Tauri shell.
+
+Use `local-apps.json` as the source of truth for known local ports. If an app is missing from that file, inspect the app's package scripts and config for a port. If no reliable port can be found, ask the user.
 
 ## Dev Server Rules
 
-Use the existing HUB dev server whenever possible. Do not disrupt the user's local ports.
+Use an existing app-specific dev server whenever possible. Do not disrupt the user's local ports.
 
-- First check whether anything is already listening on port `3000`:
-
-```bash
-lsof -nP -iTCP:3000 -sTCP:LISTEN
-```
-
-- If anything is listening on `3000`, never start another dev server on `3000`.
-- If a sandboxed `curl` to `localhost:3000` or `127.0.0.1:3000` reports connection refused while `lsof` shows a listener, assume the sandbox may be blocking localhost networking. Re-run the same localhost check with escalation before deciding the server is unavailable.
-- If the escalated localhost check succeeds, continue validation against `http://localhost:3000`.
-- If the escalated localhost check fails while a listener exists, stop validation and report that port `3000` is occupied but not reachable from the tool environment.
-- Never run `npm run dev` from the repo root for validation. It starts the whole Turbo stack and can collide with other apps.
-- Never kill, restart, or replace whatever is using port `3000`.
-- Never start HUB on a new port unless the user explicitly approves that alternate port in the current turn.
-- If port `3000` is unavailable, occupied, or not responding, stop validation and report that live validation is blocked.
-- Only if port `3000` is free, start only HUB:
+1. Read the target app's port from `local-apps.json`.
+2. Check whether anything is already listening on that port:
 
 ```bash
-npm --workspace @repo/hub run dev
+lsof -nP -iTCP:<port> -sTCP:LISTEN
 ```
 
-Use the same base URL throughout the validation. If validation is blocked by the server/port state, do not keep probing random ports and do not try to "test start" HUB on `3000`.
+3. If a listener exists, probe the matching app URL:
+
+```bash
+curl -sS -I http://127.0.0.1:<port>/
+```
+
+If sandboxed localhost checks report connection refused while `lsof` shows a listener, assume sandbox networking may be blocking localhost. Re-run the same localhost check with escalation before deciding the server is unavailable.
+
+4. If the server responds, use `http://127.0.0.1:<port>` as the base URL for the whole validation.
+5. If the port is occupied but not reachable, stop validation and report that the app's port is occupied but not reachable from the tool environment.
+6. If the port is free, start only the target app, never the whole Turbo stack.
+
+Prefer root app-specific scripts when present:
+
+```bash
+npm run dev:<app>
+```
+
+If there is no root shortcut, use the package name from `apps/<app>/package.json`:
+
+```bash
+npm run dev --workspace=<package-name>
+```
+
+Only pass an explicit port when the app's dev command supports it. Do not start another app on a random alternate port unless the user approves that port in the current turn.
+
+Never run root `npm run dev` for validation. It starts the whole workspace and can collide with other apps. Never kill, restart, or replace an existing server unless the user explicitly asks.
 
 ## Auth State
 
-Before logging in, check if saved auth state exists:
+Use app-specific browser auth state.
 
 ```bash
-playwright-cli state-load .playwright-cli/auth.json
+playwright-cli state-load .playwright-cli/<app>.auth.json
 ```
 
-If the state file doesn't exist or loading it still lands on `/login`, log in manually:
+If the state file does not exist or the app redirects to login:
 
-```bash
-playwright-cli open http://localhost:3000/login
-```
+- Do not use hardcoded credentials.
+- Use credentials only if the user provided them in the current task or the repo has explicit local test credentials intended for this app.
+- If credentials are unavailable, stop and ask the user to log in or provide test credentials.
+- After a successful login, save state to `.playwright-cli/<app>.auth.json`.
 
-Then fill credentials and sign in:
+Public or unauthenticated pages do not need auth setup.
 
-```bash
-# Get snapshot to find form refs
-playwright-cli snapshot
+## Determine Which Page To Check
 
-# Fill login form (find the email/password textbox refs from snapshot)
-playwright-cli fill <email-ref> "typham2@gmail.com"
-playwright-cli fill <password-ref> "gundam11"
-playwright-cli click <signin-button-ref>
+Infer the route from the changed files and framework.
 
-# Save auth state for future runs
-playwright-cli state-save .playwright-cli/auth.json
-```
+- Next.js App Router: `apps/<app>/src/app/admin/products/page.tsx` -> `/admin/products`.
+- Next.js Pages Router: `apps/<app>/src/pages/settings.tsx` -> `/settings`; `index.tsx` maps to `/`.
+- Vite/SPA apps: start at `/`, then use visible navigation or route definitions to reach the affected view.
+- Component changes: find pages that import the component and validate one representative page that exercises the changed behavior.
+- Dynamic segments such as `[siteId]` or `:id`: navigate to the parent/list page first, grab a real ID or link from the UI, then navigate to the specific page.
 
-## Determine Which Page to Check
-
-Based on the files that were just changed, figure out the correct URL:
-
-- `apps/hub/src/app/admin/newsletters/contacts/page.tsx` → `/admin/newsletters/contacts`
-- `apps/hub/src/app/admin/products/page.tsx` → `/admin/products`
-- `apps/hub/src/app/admin/sites/[siteId]/settings/page.tsx` → `/admin/sites/<siteId>/settings` (find a valid siteId from the page)
-- Component changes → navigate to a page that uses that component
-
-The pattern is: strip `apps/hub/src/app` prefix, remove `page.tsx`, and that's the route. For dynamic `[param]` segments, navigate to the parent list page first, grab an ID from there, then navigate to the specific page.
+If route inference is uncertain, inspect app routing files and prefer the smallest workflow that proves the changed behavior.
 
 ## Validation Steps
 
-1. **Navigate** to the relevant page:
-   ```bash
-   playwright-cli goto http://localhost:3000/<route>
-   ```
+1. Navigate to the relevant page:
 
-2. **Wait for data to load** — the app fetches data from a remote DB which can take 2-4 seconds:
-   ```bash
-   sleep 3
-   playwright-cli snapshot
-   ```
+```bash
+playwright-cli goto http://127.0.0.1:<port>/<route>
+```
 
-3. **Check for errors** — look in the snapshot for:
-   - Text containing "Server error", "Error", "Not found", "500", "failed"
-   - Red error UI elements
-   - Empty pages that should have content
-   - Missing elements that your code change should have added
+2. Wait for data to load. Apps may fetch remote or local data:
 
-4. **Verify the change works** — based on what was asked:
-   - If you added a breadcrumb → confirm the breadcrumb nav appears in the snapshot
-   - If you fixed a button → confirm the button renders with correct text
-   - If you changed layout → confirm elements are in expected order
-   - If you added a feature → confirm the new UI elements appear
+```bash
+sleep 3
+playwright-cli snapshot
+```
 
-5. **Report findings** — tell the user clearly:
-   - What page you checked
-   - Whether it loaded successfully
-   - Whether the specific change looks correct
-   - Any issues found
+3. Check for errors:
 
-6. **Close the browser** when done:
-   ```bash
-   playwright-cli close
-   ```
+- Text containing "Server error", "Error", "Not found", "500", or "failed"
+- Red error UI elements
+- Empty pages that should have content
+- Missing elements that the code change should have added
+- Console errors that indicate the changed workflow is broken
+
+4. Verify the actual requested change:
+
+- Layout changes: confirm element order, spacing, and visibility.
+- Form changes: exercise the field, submit path, validation, and disabled/loading states where practical.
+- Navigation changes: click through the affected links or buttons.
+- Data changes: confirm the relevant data renders and updates as expected.
+
+5. Report findings clearly:
+
+- Target app and base URL
+- Page or workflow checked
+- Whether it loaded successfully
+- Whether the specific change works
+- Any issues or blockers found
+
+6. Close the browser when done:
+
+```bash
+playwright-cli close
+```
 
 ## Cleanup
 
-After validation passes, clean up the changed files before reporting:
+After validation passes, clean up only files modified during the current task:
 
-- **Remove debugging `console.log` statements** added during development (not pre-existing ones)
-- **Remove unused imports** that are no longer referenced
-- **Remove dead code** — functions, variables, or components that are no longer called or rendered
-- **Remove test/temp files** — any `test-*.js`, `debug-*.*`, `tmp-*.*` files created during the task
+- Remove debugging `console.log` statements added during development.
+- Remove unused imports introduced by the change.
+- Remove dead code introduced by the change.
+- Remove temporary files such as `test-*`, `debug-*`, or `tmp-*`.
 
-Only clean up code in files that were modified as part of the current task. Don't touch unrelated files.
+Do not touch unrelated files.
 
 ## Troubleshooting
 
-- If the page shows loading skeletons after 5+ seconds, the dev server may need restarting
-- If redirected to `/login` after loading auth state, the session expired — log in again and re-save state
-- If you get connection refused, follow **Dev Server Rules** above; do not use the repo-root dev script
-- Console errors are sometimes normal (React hydration warnings, etc.) — focus on actual page content errors
+- If the page shows loading skeletons after 5+ seconds, check the dev server logs and network state.
+- If redirected to login after loading auth state, the session expired. Re-authenticate only with user-provided or repo-documented local test credentials.
+- If you get connection refused, follow Dev Server Rules. Do not probe random ports.
+- If browser validation cannot cover the affected native or backend-only behavior, report the limitation and run the closest appropriate non-browser verification.
