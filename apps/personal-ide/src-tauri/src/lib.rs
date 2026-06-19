@@ -1599,14 +1599,20 @@ fn read_task(app_root: &Path, path: &Path) -> Result<TaskItem, String> {
 }
 
 fn normalize_task_status(raw_status: String) -> (String, Option<String>) {
-    match raw_status.as_str() {
-        "active" | "done" => (raw_status, None),
-        "ready" | "in-progress" => ("active".to_string(), None),
-        "completed" => ("done".to_string(), None),
-        _ => (
-            "active".to_string(),
-            Some(format!("Invalid status: {}", raw_status)),
-        ),
+    let status = raw_status
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|character| match character {
+            ' ' | '-' => '_',
+            _ => character,
+        })
+        .collect::<String>();
+
+    match status.as_str() {
+        "" => ("active".to_string(), None),
+        "complete" | "completed" => ("done".to_string(), None),
+        _ => (status, None),
     }
 }
 
@@ -1719,6 +1725,18 @@ mod tests {
         assert_eq!(
             normalize_task_status("completed".to_string()),
             ("done".to_string(), None)
+        );
+    }
+
+    #[test]
+    fn normalize_task_status_accepts_dynamic_statuses() {
+        assert_eq!(
+            normalize_task_status("In Progress".to_string()),
+            ("in_progress".to_string(), None)
+        );
+        assert_eq!(
+            normalize_task_status("blocked".to_string()),
+            ("blocked".to_string(), None)
         );
     }
 

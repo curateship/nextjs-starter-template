@@ -134,12 +134,9 @@ status: active
 Task notes go here.
 ```
 
-Current statuses:
-
-- `active`
-- `done`
-
-Earlier `ready` was removed because it was unclear. A task is either active or done.
+Statuses are dynamic. `active` is the default filter and means any task that is not `done`.
+`done` is the only completed status with special UI behavior. Other frontmatter values such as
+`in_progress` or `blocked` appear as filter choices.
 
 Task rows open the task Markdown file in the editor. Starting a task pastes a plain-language prompt into the active terminal. It does not run automatically.
 

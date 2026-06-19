@@ -144,7 +144,7 @@ type WorkspaceEditorState = {
   tasks: TaskItem[]
 }
 
-type TaskStatus = "active" | "done"
+type TaskStatus = string
 
 type TaskItem = {
   title: string
@@ -241,6 +241,8 @@ const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
 const SHARED_SKILLS_PATH = ".agents/skills"
 const SETTINGS_TAB_PATH = "__personal_ide_settings__"
 const DEFAULT_TASK_TEMPLATE = "---\nstatus: active\n---\n\n"
+const DEFAULT_TASK_FILTER = "active"
+const DONE_TASK_STATUS = "done"
 const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   defaultTaskTemplate: DEFAULT_TASK_TEMPLATE,
 }
@@ -321,7 +323,7 @@ function App() {
   const [activePath, setActivePath] = useState("")
   const [savingPath, setSavingPath] = useState("")
   const [tasks, setTasks] = useState<TaskItem[]>([])
-  const [taskFilter, setTaskFilter] = useState("all")
+  const [taskFilter, setTaskFilter] = useState<TaskStatus>(DEFAULT_TASK_FILTER)
   const [skills, setSkills] = useState<SkillItem[]>([])
   const [skillFilter, setSkillFilter] = useState("all")
   const [docs, setDocs] = useState<DocItem[]>([])
@@ -362,10 +364,11 @@ function App() {
     (workspace) => workspace.id === activeWorkspaceId
   )
   const activeTab = tabs.find((tab) => tab.path === activePath)
-  const visibleTasks = tasks.filter((task) => {
-    if (taskFilter === "all") return true
-    return task.status === taskFilter
-  })
+  const taskStatusOptions = useMemo(
+    () => taskStatusFilterOptions(tasks, taskFilter),
+    [tasks, taskFilter]
+  )
+  const visibleTasks = tasks.filter((task) => taskMatchesFilter(task, taskFilter))
   const visibleSkills = skills.filter((skill) => {
     if (skillFilter === "all") return true
     return skill.tags?.includes(skillFilter)
@@ -1693,6 +1696,7 @@ function App() {
                         <TasksPanel
                           error={fileError}
                           filter={taskFilter}
+                          filterOptions={taskStatusOptions}
                           tasks={visibleTasks}
                           onCreate={createTask}
                           onCreateFolder={createFolder}
@@ -2187,6 +2191,7 @@ function useDismissibleMenu<T>(menu: T | null, setMenu: (value: T | null) => voi
 function TasksPanel({
   error,
   filter,
+  filterOptions,
   tasks,
   onCreate,
   onCreateFolder,
@@ -2201,13 +2206,14 @@ function TasksPanel({
   onTrash,
 }: {
   error: string
-  filter: string
+  filter: TaskStatus
+  filterOptions: TaskStatus[]
   tasks: TaskItem[]
   onCreate: (value: string) => void
   onCreateFolder: (value: string) => void
   onCopyPath: (entry: FileEntry) => void
   onDuplicate: (entry: FileEntry) => void
-  onFilterChange: (value: string) => void
+  onFilterChange: (value: TaskStatus) => void
   onOpenTask: (task: TaskItem) => void
   onRefresh: (path?: string) => void
   onRename: (entry: FileEntry, newName: string) => void
@@ -2259,13 +2265,15 @@ function TasksPanel({
           <p className="text-xs text-muted-foreground">workspace/tasks</p>
         </div>
         <Select value={filter} onValueChange={onFilterChange}>
-          <SelectTrigger className="h-7 w-24 bg-background">
+          <SelectTrigger className="h-7 w-32 bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="done">Done</SelectItem>
+            {filterOptions.map((status) => (
+              <SelectItem key={status} value={status}>
+                {taskStatusLabel(status)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -2333,15 +2341,17 @@ function TasksPanel({
                       {task.title}
                     </button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-1.5 text-xs hover:bg-transparent"
-                    onClick={() => onStartTask(task)}
-                  >
-                    <Play />
-                    Start
-                  </Button>
+                  {task.status !== DONE_TASK_STATUS ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-1.5 text-xs hover:bg-transparent"
+                      onClick={() => onStartTask(task)}
+                    >
+                      <Play />
+                      Start
+                    </Button>
+                  ) : null}
                 </div>
                 {task.error ? (
                   <div className="mt-2 text-xs text-amber-700">{task.error}</div>
@@ -4702,6 +4712,39 @@ function serverStartCommand(port: number) {
 
 function taskFileEntry(task: TaskItem): FileEntry {
   return { name: fileName(task.path), path: task.path, isDir: false }
+}
+
+function taskMatchesFilter(task: TaskItem, filter: TaskStatus) {
+  if (filter === DEFAULT_TASK_FILTER) return task.status !== DONE_TASK_STATUS
+  return task.status === filter
+}
+
+function taskStatusFilterOptions(tasks: TaskItem[], currentFilter: TaskStatus) {
+  const statuses = new Set<TaskStatus>([
+    DEFAULT_TASK_FILTER,
+    DONE_TASK_STATUS,
+    currentFilter,
+  ])
+
+  for (const task of tasks) {
+    if (task.status) statuses.add(task.status)
+  }
+
+  const dynamicStatuses = Array.from(statuses)
+    .filter((status) => status !== DEFAULT_TASK_FILTER && status !== DONE_TASK_STATUS)
+    .sort((left, right) => taskStatusLabel(left).localeCompare(taskStatusLabel(right)))
+
+  return [DEFAULT_TASK_FILTER, ...dynamicStatuses, DONE_TASK_STATUS]
+}
+
+function taskStatusLabel(status: TaskStatus) {
+  if (status === DEFAULT_TASK_FILTER) return "Active"
+  if (status === DONE_TASK_STATUS) return "Done"
+
+  const words = status.trim().split(/[\s_-]+/).filter(Boolean)
+  return words.length
+    ? words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ")
+    : "Active"
 }
 
 function skillFolderEntry(skill: SkillItem): FileEntry {
