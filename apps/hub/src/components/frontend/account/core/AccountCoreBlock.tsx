@@ -38,6 +38,8 @@ interface AccountCoreBlockProps {
   siteWidth?: "full" | "custom"
   customWidth?: number
   isPreview?: boolean
+  profileData?: ProfileData | null
+  collectionsData?: MySavedCollection[]
 }
 
 interface ProfileData {
@@ -122,6 +124,8 @@ export function AccountCoreBlock({
   siteWidth,
   customWidth,
   isPreview = false,
+  profileData,
+  collectionsData,
 }: AccountCoreBlockProps) {
   const visibility = content?.visibility || {}
   const isVisible = (key: string) => visibility[key] !== false
@@ -135,7 +139,10 @@ export function AccountCoreBlock({
   const customImageHeight = Number(content?.imageHeight) > 0 ? Number(content?.imageHeight) : undefined
   const imageFrameStyle = customImageHeight ? { aspectRatio: `100 / ${customImageHeight}` } : undefined
   const imageAspectClassName = customImageHeight ? "" : "aspect-video"
-  const resolvedImageQuality = Math.min(100, Math.max(1, Number(content?.imageQuality) || 25))
+  const imageQualityNumber = Number(content?.imageQuality)
+  const resolvedImageQuality = Number.isFinite(imageQualityNumber) && imageQualityNumber > 0
+    ? Math.min(100, Math.max(1, imageQualityNumber))
+    : undefined
   const saveIconOpacityNumber = Number(content?.saveIconOpacity)
   const resolvedSaveIconOpacity = Math.min(100, Math.max(0, Number.isFinite(saveIconOpacityNumber) ? saveIconOpacityNumber : 70))
   const sortBy = content?.sortBy === "title" ? "title" : "date"
@@ -144,14 +151,21 @@ export function AccountCoreBlock({
   const gridColumns = displayMode === "grid"
     ? `${mobileGridColumns} sm:grid-cols-2 ${DESKTOP_COLUMN_CLASS_MAP[columns]}`
     : "grid-cols-1"
-  const [profile, setProfile] = useState<ProfileData | null>(null)
-  const [collections, setCollections] = useState<MySavedCollection[]>([])
-  const [loading, setLoading] = useState(true)
+  const [profile, setProfile] = useState<ProfileData | null>(() => profileData ?? null)
+  const [collections, setCollections] = useState<MySavedCollection[]>(() => collectionsData ?? [])
+  const [loading, setLoading] = useState(!(isPreview || profileData !== undefined || collectionsData !== undefined))
 
   useEffect(() => {
     if (isPreview) {
       setProfile(PREVIEW_PROFILE)
       setCollections(PREVIEW_COLLECTIONS)
+      setLoading(false)
+      return
+    }
+
+    if (profileData !== undefined || collectionsData !== undefined) {
+      setProfile(profileData ?? null)
+      setCollections(collectionsData ?? [])
       setLoading(false)
       return
     }
@@ -184,7 +198,7 @@ export function AccountCoreBlock({
     return () => {
       cancelled = true
     }
-  }, [isPreview, siteId])
+  }, [collectionsData, isPreview, profileData, siteId])
 
   if (visibility.hideBlock === true) return null
 

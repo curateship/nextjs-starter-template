@@ -22,6 +22,10 @@ import {
   renderQuickLinkIcon,
   type QuickLinkIconValue,
 } from '@/lib/utils/site-quick-links'
+import {
+  getPublicProfilePath,
+  isPublicProfileTemplateLink,
+} from '@/lib/utils/public-profile-path'
 import { SiteThemeToggle } from '@/components/frontend/layout/site-theme-toggle'
 import { authClient } from '@/lib/actions/auth/client'
 import type { PublicSiteClientProps } from '@/lib/utils/public-site-client'
@@ -346,6 +350,14 @@ function getAccountMenuSignedInLinks(accountMenu: NavigationAccountMenuSettings)
     .filter((link) => link.text && link.url)
 }
 
+function getSignedInMenuLinkHref(link: NavigationSignedInLinkSettings, user: SessionUser) {
+  if (isPublicProfileTemplateLink(link.url)) {
+    return getPublicProfilePath(user.name)
+  }
+
+  return sanitizeUrl(link.url, '#')
+}
+
 const DesktopUserMenu = ({
   user,
   onSignOut,
@@ -386,13 +398,18 @@ const DesktopUserMenu = ({
         {user.email && <span className="text-xs font-normal text-muted-foreground">{user.email}</span>}
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      {signedInLinks.map((link, index) => (
-        <DropdownMenuItem key={link.id || `${link.url}-${index}`} asChild>
-          <Link href={sanitizeUrl(link.url, '#')}>
-            <NavItemLabel label={link.text} icon={link.icon} />
-          </Link>
-        </DropdownMenuItem>
-      ))}
+      {signedInLinks.map((link, index) => {
+        const href = getSignedInMenuLinkHref(link, user)
+        if (!href) return null
+
+        return (
+          <DropdownMenuItem key={link.id || `${link.url}-${index}`} asChild>
+            <Link href={href}>
+              <NavItemLabel label={link.text} icon={link.icon} />
+            </Link>
+          </DropdownMenuItem>
+        )
+      })}
       {showAdminLink && (
         <DropdownMenuItem asChild>
           <Link href={adminHref}>

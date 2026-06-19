@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidateTag } from 'next/cache'
 import { and, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 
 import { auth } from '@/lib/actions/auth/server'
@@ -69,6 +70,10 @@ function sanitizeDisplayName(value?: string | null) {
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase()
+}
+
+function revalidatePublicProfiles() {
+  revalidateTag('public-profile')
 }
 
 function startOfDay(value: string) {
@@ -405,6 +410,8 @@ export async function createSiteUser(input: {
       .limit(1)
       .then((rows) => rows[0])
 
+    if (row) revalidatePublicProfiles()
+
     return { data: row ? rowToSiteUser(row) : null, error: row ? null : 'Failed to load user' }
   } catch (error) {
     return {
@@ -490,6 +497,8 @@ export async function updateSiteUser(input: {
       .limit(1)
       .then((rows) => rows[0])
 
+    if (row) revalidatePublicProfiles()
+
     return { data: row ? rowToSiteUser(row) : null, error: row ? null : 'Failed to load user' }
   } catch (error) {
     return {
@@ -547,6 +556,8 @@ export async function deleteSiteUsers(input: {
     await db
       .delete(siteMemberships)
       .where(and(eq(siteMemberships.siteId, input.siteId), inArray(siteMemberships.id, membershipIds)))
+
+    revalidatePublicProfiles()
 
     return {
       success: true,

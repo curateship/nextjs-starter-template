@@ -11,6 +11,7 @@ import {
   requireOwnedContentRow,
   requireOwnedSite,
 } from '@/lib/actions/content/content-action-helpers'
+import { isPublicProfileTemplateSlug } from '@/lib/utils/account-page-path'
 
 type AccountPageRow = typeof siteAccountPages.$inferSelect
 
@@ -46,6 +47,12 @@ function toAccountPage(row: any): AccountPage {
     created_at: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt ?? ''),
     updated_at: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt ?? ''),
   }
+}
+
+function revalidateAccountPageCache(page: { id?: string | null; siteId: string; slug?: string | null }) {
+  revalidateTag(`account-pages-${page.siteId}`)
+  if (page.id) revalidateTag(`account-page-${page.id}`)
+  if (isPublicProfileTemplateSlug(page.slug)) revalidateTag('public-profile')
 }
 
 /**
@@ -97,9 +104,7 @@ export async function deleteAccountPageAction(pageId: string): Promise<{ success
 
     await db.delete(siteAccountPages).where(eq(siteAccountPages.id, pageId))
 
-    // Revalidate cache
-    revalidateTag(`account-pages-${page.siteId}`)
-    revalidateTag(`account-page-${pageId}`)
+    revalidateAccountPageCache(page)
 
     return { success: true, error: null }
   } catch (error: any) {
@@ -129,7 +134,12 @@ export async function deleteAccountPagesAction(pageIds: string[]): Promise<{ suc
     }
 
     const pages = await db
-      .select({ id: siteAccountPages.id, siteId: siteAccountPages.siteId, isDefault: siteAccountPages.isDefault })
+      .select({
+        id: siteAccountPages.id,
+        siteId: siteAccountPages.siteId,
+        slug: siteAccountPages.slug,
+        isDefault: siteAccountPages.isDefault,
+      })
       .from(siteAccountPages)
       .where(inArray(siteAccountPages.id, pageIds))
 
@@ -153,12 +163,7 @@ export async function deleteAccountPagesAction(pageIds: string[]): Promise<{ suc
 
     await db.delete(siteAccountPages).where(inArray(siteAccountPages.id, pageIds))
 
-    for (const siteId of siteIds) {
-      revalidateTag(`account-pages-${siteId}`)
-    }
-    for (const pageId of pageIds) {
-      revalidateTag(`account-page-${pageId}`)
-    }
+    for (const page of pages) revalidateAccountPageCache(page)
 
     return { success: true, error: null }
   } catch (error) {
@@ -199,9 +204,7 @@ export async function updateAccountPageBlocksAction(
       return { data: null, error: 'Failed to update page blocks' }
     }
 
-    // Revalidate cache
-    revalidateTag(`account-page-${pageId}`)
-    revalidateTag(`account-pages-${updatedPage.siteId}`)
+    revalidateAccountPageCache(updatedPage)
 
     return { data: toAccountPage(updatedPage), error: null }
   } catch (error: any) {

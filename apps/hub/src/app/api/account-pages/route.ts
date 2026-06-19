@@ -11,6 +11,7 @@ export const POST = createResourceHandler({
   table: siteAccountPages,
   requireSameOrigin: true,
   reservedSlugs: ['api', 'admin', 'maintenance', 'www', 'mail', 'ftp', 'global'],
+  revalidateTags: ['public-profile'],
   serializeResponse: serializeAccountPage,
   // Validate content blocks and unset the existing default page before insert
   beforeInsert: async (data, siteId) => {

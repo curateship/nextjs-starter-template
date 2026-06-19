@@ -1,6 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { revalidateTag } from 'next/cache'
 import { auth } from '@/lib/actions/auth/server'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -173,6 +174,10 @@ export async function updateProfile(formData: FormData) {
     if (Object.keys(profileUpdates).length > 0) {
       profileUpdates.updatedAt = new Date()
       await db.update(authUsers).set(profileUpdates).where(eq(authUsers.id, authUser.id))
+    }
+
+    if (Object.keys(updates).length > 0 || Object.keys(profileUpdates).length > 0) {
+      revalidateTag('public-profile')
     }
 
     return { success: true }

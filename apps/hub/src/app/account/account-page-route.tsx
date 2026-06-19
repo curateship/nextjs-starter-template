@@ -2,6 +2,7 @@ import { BlockRenderer } from "@/components/frontend/pages/PageBlockRenderer"
 import { getAccountPageBySlug, getDefaultAccountPage } from "@/lib/actions/account-pages/account-pages-frontend-actions"
 import { getPublicAuthPagePath } from "@/lib/actions/pages/page-frontend-actions"
 import { auth } from "@/lib/actions/auth/server"
+import { isPublicProfileTemplateSlug } from "@/lib/utils/account-page-path"
 import { getSiteFromHeaders } from "@/lib/utils/site-resolver"
 import { headers } from "next/headers"
 import { notFound, redirect } from "next/navigation"
@@ -25,9 +26,14 @@ export async function renderAccountPage(slugSegments?: string[]) {
     notFound()
   }
 
+  const slug = slugSegments?.join('/') || null
+
+  if (isPublicProfileTemplateSlug(slug)) {
+    notFound()
+  }
+
   const requestHeaders = await headers()
   const session = await auth.api.getSession({ headers: requestHeaders })
-  const slug = slugSegments?.join('/') || null
   const accountPath = slug ? `/account/${slug}` : '/account'
 
   if (!session?.user) {

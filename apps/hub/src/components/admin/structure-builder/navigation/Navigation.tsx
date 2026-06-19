@@ -27,6 +27,7 @@ import {
   type NavigationActionSettings,
   type NavigationSignedInLinkSettings
 } from "@/lib/utils/site-structure"
+import { normalizePublicProfileTemplateLink } from "@/lib/utils/public-profile-path"
 import { isQuickLinkIconValue, type QuickLinkIconValue } from "@/lib/utils/site-quick-links"
 import {
   DndContext,
@@ -354,7 +355,7 @@ function UserPanelChildLinkRow({
       <Input
         value={link.url}
         onChange={(event) => onChange(index, { url: event.target.value })}
-        placeholder="/account or https://example.com"
+        placeholder="/profile/{user-name} or /account"
         aria-label="Child URL"
         className="border-transparent bg-transparent shadow-none hover:bg-muted/40 focus-visible:bg-background"
       />
@@ -687,12 +688,16 @@ export function Navigation({ content, onContentChange, onContentPersist, siteFav
 
     return rawAccountMenu.signedInLinks
       .filter((link): link is Record<string, unknown> => !!link && typeof link === "object")
-      .map((link) => ({
-        id: typeof link.id === "string" ? link.id : undefined,
-        text: typeof link.text === "string" ? link.text : "",
-        url: typeof link.url === "string" ? link.url : "",
-        icon: isQuickLinkIconValue(link.icon) ? link.icon : undefined
-      }))
+      .map((link) => {
+        const url = typeof link.url === "string" ? link.url : ""
+
+        return {
+          id: typeof link.id === "string" ? link.id : undefined,
+          text: typeof link.text === "string" ? link.text : "",
+          url: normalizePublicProfileTemplateLink(url),
+          icon: isQuickLinkIconValue(link.icon) ? link.icon : undefined
+        }
+      })
   }, [accountMenu.signedInLinks, rawAccountMenu])
   const navigationStyle = content.navigationStyle || "default"
   const styleConfig = useMemo<Record<string, any>>(
