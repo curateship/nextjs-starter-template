@@ -24,8 +24,8 @@ import {
   useAdminBulkSelection,
   useAdminSort
 } from "@/components/admin/layout/list"
-import { Plus, Trash2, Settings, Users } from "lucide-react"
-import { getSegmentsWithCounts, deleteSegments } from "@/lib/actions/newsletters/segment-actions"
+import { Plus, RefreshCw, Trash2, Settings, Users } from "lucide-react"
+import { getSegmentsWithCounts, deleteSegments, refreshDynamicSegmentsForSite } from "@/lib/actions/newsletters/segment-actions"
 import type { Segment } from "@/lib/actions/newsletters/segment-actions"
 import { useSiteSwitcher } from "@/components/admin/layout/providers/site-switcher-provider"
 import { formatSegmentDynamicRule } from "@/lib/actions/newsletters/segment-rules"
@@ -52,6 +52,7 @@ export default function SegmentsPage() {
   const [massDeleting, setMassDeleting] = useState(false)
   const [massDeleteConfirmOpen, setMassDeleteConfirmOpen] = useState(false)
   const [contactCounts, setContactCounts] = useState<Record<string, number>>({})
+  const [refreshing, setRefreshing] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = contextPageSize
   const [total, setTotal] = useState(0)
@@ -124,6 +125,20 @@ export default function SegmentsPage() {
     loadSegments()
   }
 
+  async function handleRefreshSegments() {
+    if (!currentSite?.id || refreshing) return
+
+    setRefreshing(true)
+    setError(null)
+    const { error: refreshError } = await refreshDynamicSegmentsForSite(currentSite.id)
+    if (refreshError) {
+      setError(refreshError)
+    } else {
+      await loadSegments()
+    }
+    setRefreshing(false)
+  }
+
   const normalizedSearchQuery = searchQuery.trim().toLowerCase()
   const filteredSegments = segments.filter((segment) => {
     if (!normalizedSearchQuery) return true
@@ -176,6 +191,17 @@ export default function SegmentsPage() {
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search segments"
                 />
+                <TableRightActionsButton
+                  type="button"
+                  variant="outline"
+                  onClick={handleRefreshSegments}
+                  disabled={!currentSite?.id || loading || refreshing}
+                  title="Refresh segments"
+                  aria-label="Refresh segments"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">{refreshing ? "Refreshing..." : "Refresh"}</span>
+                </TableRightActionsButton>
                 <TableRightActionsButton onClick={openCreateModal}>
                   <Plus className="h-4 w-4" />
                   <span className="hidden sm:inline">Create Segment</span>

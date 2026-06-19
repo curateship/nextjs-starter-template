@@ -680,6 +680,33 @@ export async function getSegmentsWithCounts(
   }
 }
 
+export async function refreshDynamicSegmentsForSite(
+  siteId: string
+): Promise<{ error: string | null }> {
+  try {
+    if (!UUID_REGEX.test(siteId)) return { error: 'Invalid site ID' }
+
+    const user = await getAuthenticatedUser()
+    if (!user) return { error: 'Not authenticated' }
+
+    if (!await verifySiteOwnership(siteId, user.id)) {
+      return { error: 'Access denied' }
+    }
+
+    const contacts = await db
+      .select({ id: newsletterContacts.id })
+      .from(newsletterContacts)
+      .where(eq(newsletterContacts.siteId, siteId))
+
+    await syncDynamicSegmentsForContacts(contacts.map((contact) => contact.id))
+
+    return { error: null }
+  } catch (err) {
+    console.error('refreshDynamicSegmentsForSite error:', err)
+    return { error: 'Server error' }
+  }
+}
+
 export async function addContactsToSegment(
   contactIds: string[],
   segmentId: string
