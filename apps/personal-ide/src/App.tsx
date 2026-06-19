@@ -1796,6 +1796,7 @@ function InlineCreate({
   return (
     <form
       className="flex h-8 min-w-0 items-center gap-1 rounded-md border bg-background px-1.5"
+      onDoubleClick={(event) => event.stopPropagation()}
       onSubmit={(event) => {
         event.preventDefault()
         const next = value.trim()
@@ -1973,7 +1974,13 @@ function TasksPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div
+      className="flex h-full min-h-0 flex-col px-3 pb-3"
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "workspace/tasks", nonce: Date.now() })
+      }}
+    >
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold">Tasks</h2>
@@ -2050,10 +2057,6 @@ function TasksPanel({
                       type="button"
                       className="min-w-0 truncate text-left text-sm font-medium"
                       onClick={() => onOpenTask(task)}
-                      onDoubleClick={() => {
-                        setRenamePath(entry.path)
-                        setRenameValue(entry.name)
-                      }}
                     >
                       {task.title}
                     </button>
@@ -2184,7 +2187,14 @@ function FilesPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div
+      className="flex h-full min-h-0 flex-col"
+      onDoubleClick={(event) => {
+        if (!workspace) return
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "", nonce: Date.now() })
+      }}
+    >
       <div className="flex items-center justify-between gap-2 px-3 pb-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Files</h2>
@@ -2659,7 +2669,13 @@ function SkillsPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div
+      className="flex h-full min-h-0 flex-col px-3 pb-3"
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "workspace/skills", nonce: Date.now() })
+      }}
+    >
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Skills</h2>
         <p className="text-xs text-muted-foreground">workspace/skills</p>
@@ -2721,10 +2737,6 @@ function SkillsPanel({
                       variant="outline"
                       className="w-full justify-start bg-background"
                       onClick={() => onOpenSkill(skill)}
-                      onDoubleClick={() => {
-                        setRenamePath(entry.path)
-                        setRenameValue(entry.name)
-                      }}
                     >
                       <Bot />
                       {skill.name}
@@ -2816,7 +2828,13 @@ function DocsPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3">
+    <div
+      className="flex h-full min-h-0 flex-col px-3 pb-3"
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
+        setCreateRequest({ kind: "file", basePath: "workspace/docs", nonce: Date.now() })
+      }}
+    >
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Docs</h2>
         <p className="text-xs text-muted-foreground">workspace/docs</p>
@@ -2878,10 +2896,6 @@ function DocsPanel({
                       variant="outline"
                       className="w-full justify-start bg-background"
                       onClick={() => onOpenDoc(doc)}
-                      onDoubleClick={() => {
-                        setRenamePath(entry.path)
-                        setRenameValue(entry.name)
-                      }}
                     >
                       <FileText />
                       {doc.name}
