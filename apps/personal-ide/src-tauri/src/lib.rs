@@ -1587,14 +1587,7 @@ fn read_task(app_root: &Path, path: &Path) -> Result<TaskItem, String> {
         .get("status")
         .cloned()
         .unwrap_or_else(|| "active".to_string());
-    let (status, error) = match raw_status.as_str() {
-        "active" | "done" => (raw_status, None),
-        "ready" | "in-progress" => ("active".to_string(), None),
-        _ => (
-            "active".to_string(),
-            Some(format!("Invalid status: {}", raw_status)),
-        ),
-    };
+    let (status, error) = normalize_task_status(raw_status);
 
     Ok(TaskItem {
         title,
@@ -1603,6 +1596,18 @@ fn read_task(app_root: &Path, path: &Path) -> Result<TaskItem, String> {
         skill: fields.get("skill").cloned(),
         error,
     })
+}
+
+fn normalize_task_status(raw_status: String) -> (String, Option<String>) {
+    match raw_status.as_str() {
+        "active" | "done" => (raw_status, None),
+        "ready" | "in-progress" => ("active".to_string(), None),
+        "completed" => ("done".to_string(), None),
+        _ => (
+            "active".to_string(),
+            Some(format!("Invalid status: {}", raw_status)),
+        ),
+    }
 }
 
 fn parse_frontmatter(contents: &str) -> HashMap<String, String> {
@@ -1672,8 +1677,8 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_skill_tags, render_task_template, validate_editor_settings, EditorSettings,
-        DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        normalize_task_status, parse_skill_tags, render_task_template, validate_editor_settings,
+        EditorSettings, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
     };
 
     #[test]
@@ -1707,6 +1712,14 @@ mod tests {
     #[test]
     fn render_task_template_preserves_empty_template() {
         assert_eq!(render_task_template("", "Add settings"), "");
+    }
+
+    #[test]
+    fn normalize_task_status_maps_completed_to_done() {
+        assert_eq!(
+            normalize_task_status("completed".to_string()),
+            ("done".to_string(), None)
+        );
     }
 
     #[test]

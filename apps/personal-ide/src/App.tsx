@@ -1777,6 +1777,7 @@ function App() {
                   minSize="150px"
                 >
                   <ChangesPanel
+                    activePath={activePath}
                     busyAction={busyAction}
                     commitMessage={commitMessage}
                     error={gitError}
@@ -2278,7 +2279,7 @@ function TasksPanel({
           setMenu({ x: event.clientX, y: event.clientY, basePath: "workspace/tasks" })
         }}
       >
-        <div className="space-y-1.5 pr-1">
+        <div className="space-y-1 pr-1">
           {createRequest ? (
             <InlineCreate
               key={createRequest.nonce}
@@ -2296,7 +2297,7 @@ function TasksPanel({
               return (
               <div
                 key={task.path}
-                className="rounded-lg bg-background px-3 py-2"
+                className="rounded-lg bg-background px-2 py-1"
                 onContextMenu={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -2333,8 +2334,9 @@ function TasksPanel({
                     </button>
                   )}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
+                    className="h-6 px-1.5 text-xs hover:bg-transparent"
                     onClick={() => onStartTask(task)}
                   >
                     <Play />
@@ -3250,6 +3252,7 @@ function DocsPanel({
 }
 
 function ChangesPanel({
+  activePath,
   busyAction,
   commitMessage,
   error,
@@ -3265,6 +3268,7 @@ function ChangesPanel({
   onSync,
   onUpdateFromDevelop,
 }: {
+  activePath: string
   busyAction: string
   commitMessage: string
   error: string
@@ -3292,6 +3296,7 @@ function ChangesPanel({
   )
   const developFiles = developCommits.length ? gitStatus.developFiles : []
   const developUpdateCount = developCommits.length
+  const isActiveFile = (file: GitFile) => Boolean(file.appPath && file.appPath === activePath)
 
   return (
     <div
@@ -3379,8 +3384,10 @@ function ChangesPanel({
                       type="button"
                       className={cn(
                         "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
+                        isActiveFile(file) && "bg-muted text-foreground",
                         !file.appPath && "text-muted-foreground"
                       )}
+                      aria-current={isActiveFile(file) ? "true" : undefined}
                       onClick={() => onOpenMergeFile(file)}
                       title={file.appPath ? "Open merge diff" : "Outside selected app folder"}
                     >
@@ -3403,8 +3410,10 @@ function ChangesPanel({
                   type="button"
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-muted",
+                    isActiveFile(file) && "bg-muted text-foreground",
                     !file.appPath && "text-muted-foreground"
                   )}
+                  aria-current={isActiveFile(file) ? "true" : undefined}
                   onClick={() => onOpenFile(file)}
                   onContextMenu={(event) => {
                     event.preventDefault()
