@@ -15,8 +15,10 @@ use tauri_plugin_dialog::DialogExt;
 
 const MAX_FILE_SIZE: u64 = 1024 * 1024;
 const MAX_PASTED_IMAGE_SIZE: usize = 10 * 1024 * 1024;
+const MAX_TASK_TEMPLATE_SIZE: usize = 64 * 1024;
 const WORKSPACE_DIR: &str = "workspace";
 const SHARED_SKILLS_DIR: &str = ".agents/skills";
+const DEFAULT_TASK_TEMPLATE: &str = "---\nstatus: active\n---\n\n";
 
 #[derive(Default)]
 struct WorkspaceState {
@@ -30,6 +32,23 @@ struct AppState {
     active_workspace_id: Option<String>,
     next_workspace_index: u32,
     workspaces: Vec<WorkspaceRecord>,
+    #[serde(default)]
+    editor_settings: EditorSettings,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EditorSettings {
+    #[serde(default = "default_task_template")]
+    default_task_template: String,
+}
+
+impl Default for EditorSettings {
+    fn default() -> Self {
+        Self {
+            default_task_template: default_task_template(),
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -182,6 +201,31 @@ impl WorkspaceState {
 #[tauri::command]
 fn list_workspaces(state: State<'_, WorkspaceState>) -> Result<WorkspaceList, String> {
     workspace_list(&state)
+}
+
+#[tauri::command]
+fn get_editor_settings(state: State<'_, WorkspaceState>) -> Result<EditorSettings, String> {
+    editor_settings(&state)
+}
+
+#[tauri::command]
+fn save_editor_settings(
+    app: AppHandle,
+    settings: EditorSettings,
+    state: State<'_, WorkspaceState>,
+) -> Result<EditorSettings, String> {
+    validate_editor_settings(&settings)?;
+
+    {
+        let mut app_state = state
+            .inner
+            .lock()
+            .map_err(|_| "Workspace state is unavailable".to_string())?;
+        app_state.editor_settings = settings.clone();
+    }
+
+    state.save(&app)?;
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -790,7 +834,8 @@ fn create_task(
     let root = workspace.app_root.join(WORKSPACE_DIR).join("tasks");
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     let path = unique_markdown_path(&root, &slugify(title));
-    let contents = "---\nstatus: active\n---\n\n";
+    let settings = editor_settings(&state)?;
+    let contents = render_task_template(&settings.default_task_template, title);
     fs::write(&path, contents).map_err(|error| error.to_string())?;
 
     read_task(&workspace.app_root, &path)
@@ -1240,6 +1285,14 @@ fn workspace_by_id(
         .ok_or_else(|| "Workspace not found".to_string())
 }
 
+fn editor_settings(state: &State<'_, WorkspaceState>) -> Result<EditorSettings, String> {
+    let app_state = state
+        .inner
+        .lock()
+        .map_err(|_| "Workspace state is unavailable".to_string())?;
+    Ok(app_state.editor_settings.clone())
+}
+
 fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app
         .path()
@@ -1579,7 +1632,11 @@ fn parse_skill_tags(value: Option<&String>) -> Vec<String> {
     let mut tags = Vec::new();
 
     for item in value.split(',') {
-        let tag = item.trim().trim_matches('"').trim_matches('\'').to_lowercase();
+        let tag = item
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_lowercase();
         if tag.is_empty() || tags.iter().any(|existing| existing == &tag) {
             continue;
         }
@@ -1589,15 +1646,76 @@ fn parse_skill_tags(value: Option<&String>) -> Vec<String> {
     tags
 }
 
+fn default_task_template() -> String {
+    DEFAULT_TASK_TEMPLATE.to_string()
+}
+
+fn render_task_template(template: &str, title: &str) -> String {
+    let mut contents = template.replace("{{title}}", title);
+    if !contents.is_empty() && !contents.ends_with('\n') {
+        contents.push('\n');
+    }
+    contents
+}
+
+fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
+    if settings.default_task_template.len() > MAX_TASK_TEMPLATE_SIZE {
+        return Err(format!(
+            "Default task template must be {} KB or smaller",
+            MAX_TASK_TEMPLATE_SIZE / 1024
+        ));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_skill_tags;
+    use super::{
+        parse_skill_tags, render_task_template, validate_editor_settings, EditorSettings,
+        DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+    };
 
     #[test]
     fn parse_skill_tags_normalizes_and_deduplicates() {
         let tags = "Define, plan, \"review\", define".to_string();
 
-        assert_eq!(parse_skill_tags(Some(&tags)), vec!["define", "plan", "review"]);
+        assert_eq!(
+            parse_skill_tags(Some(&tags)),
+            vec!["define", "plan", "review"]
+        );
+    }
+
+    #[test]
+    fn editor_settings_default_uses_active_task_frontmatter() {
+        assert_eq!(
+            EditorSettings::default().default_task_template,
+            DEFAULT_TASK_TEMPLATE
+        );
+    }
+
+    #[test]
+    fn render_task_template_replaces_title_placeholder() {
+        let template = "# {{title}}\n\nNotes";
+
+        assert_eq!(
+            render_task_template(template, "Add settings"),
+            "# Add settings\n\nNotes\n"
+        );
+    }
+
+    #[test]
+    fn render_task_template_preserves_empty_template() {
+        assert_eq!(render_task_template("", "Add settings"), "");
+    }
+
+    #[test]
+    fn validate_editor_settings_rejects_oversized_task_template() {
+        let settings = EditorSettings {
+            default_task_template: "x".repeat(MAX_TASK_TEMPLATE_SIZE + 1),
+        };
+
+        assert!(validate_editor_settings(&settings).is_err());
     }
 }
 
@@ -2174,6 +2292,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_workspaces,
+            get_editor_settings,
+            save_editor_settings,
             create_workspace,
             set_active_workspace,
             set_workspace_hidden,

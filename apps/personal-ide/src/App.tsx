@@ -58,6 +58,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Settings,
   Sparkles,
   Square,
   Trash2,
@@ -92,6 +93,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import localAppPorts from "../../../local-apps.json"
 
@@ -126,6 +128,7 @@ type EditorTab = {
   name: string
   contents: string
   savedContents: string
+  kind?: "settings"
   originalContents?: string
   changedLines?: number[]
   error?: string
@@ -206,6 +209,12 @@ type TerminalOutput = {
   data: number[]
 }
 
+type EditorSettings = {
+  defaultTaskTemplate: string
+}
+
+type SettingsSaveStatus = "idle" | "saving" | "saved"
+
 const EMPTY_WORKSPACES: WorkspaceList = {
   activeWorkspaceId: null,
   workspaces: [],
@@ -230,6 +239,11 @@ const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
 const SHARED_SKILLS_PATH = ".agents/skills"
+const SETTINGS_TAB_PATH = "__personal_ide_settings__"
+const DEFAULT_TASK_TEMPLATE = "---\nstatus: active\n---\n\n"
+const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+  defaultTaskTemplate: DEFAULT_TASK_TEMPLATE,
+}
 const SKILL_TAG_FILTERS = [
   { value: "all", label: "All" },
   { value: "define", label: "Define" },
@@ -313,6 +327,11 @@ function App() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus>(EMPTY_GIT_STATUS)
   const [commitMessage, setCommitMessage] = useState("")
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(DEFAULT_EDITOR_SETTINGS)
+  const [draftTaskTemplate, setDraftTaskTemplate] = useState(DEFAULT_TASK_TEMPLATE)
+  const [settingsSaveStatus, setSettingsSaveStatus] =
+    useState<SettingsSaveStatus>("idle")
+  const [settingsError, setSettingsError] = useState("")
   const [pinnedSkillSlugs, setPinnedSkillSlugs] = useState<string[]>(loadPinnedSkillSettings)
   const [terminalTab, setTerminalTab] = useState("terminal")
   const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
@@ -355,6 +374,7 @@ function App() {
     .map((slug) => skills.find((skill) => skill.slug === slug))
     .filter((skill): skill is SkillItem => Boolean(skill))
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
+  const settingsDirty = draftTaskTemplate !== editorSettings.defaultTaskTemplate
 
   const codeExtensions = useMemo(
     () => [
@@ -399,6 +419,34 @@ function App() {
   useEffect(() => {
     localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillSlugs))
   }, [pinnedSkillSlugs])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadEditorSettings() {
+      try {
+        const settings = await invoke<EditorSettings>("get_editor_settings")
+        if (cancelled) return
+        setEditorSettings(settings)
+        setDraftTaskTemplate(settings.defaultTaskTemplate)
+      } catch (error) {
+        if (!cancelled) setSettingsError(readableError(error))
+      }
+    }
+
+    void loadEditorSettings()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (settingsSaveStatus !== "saved") return
+
+    const timeout = window.setTimeout(() => setSettingsSaveStatus("idle"), 1800)
+    return () => window.clearTimeout(timeout)
+  }, [settingsSaveStatus])
 
   useEffect(() => {
     if (!fileError) return
@@ -859,8 +907,53 @@ function App() {
     await openPath(entry.path, entry.name)
   }
 
+  function openSettingsTab() {
+    setTabs((current) => {
+      if (current.some((tab) => tab.path === SETTINGS_TAB_PATH)) return current
+
+      return [
+        ...current,
+        {
+          kind: "settings",
+          path: SETTINGS_TAB_PATH,
+          name: "Settings",
+          contents: "",
+          savedContents: "",
+        },
+      ]
+    })
+    setActivePath(SETTINGS_TAB_PATH)
+  }
+
+  function updateDraftTaskTemplate(value: string) {
+    setDraftTaskTemplate(value)
+    setSettingsSaveStatus("idle")
+    setSettingsError("")
+  }
+
+  function resetTaskTemplate() {
+    updateDraftTaskTemplate(DEFAULT_TASK_TEMPLATE)
+  }
+
+  async function saveEditorSettings() {
+    setSettingsError("")
+    setSettingsSaveStatus("saving")
+
+    try {
+      const settings = await invoke<EditorSettings>("save_editor_settings", {
+        settings: { defaultTaskTemplate: draftTaskTemplate },
+      })
+      setEditorSettings(settings)
+      setDraftTaskTemplate(settings.defaultTaskTemplate)
+      setSettingsSaveStatus("saved")
+    } catch (error) {
+      setSettingsError(readableError(error))
+      setSettingsSaveStatus("idle")
+    }
+  }
+
   function updateActiveContents(contents: string) {
-    if (!activePath) return
+    if (!activePath || isSettingsTab(activeTab)) return
 
     setTabs((current) =>
       current.map((tab) =>
@@ -871,7 +964,12 @@ function App() {
 
   async function saveActiveFile() {
     const tab = tabs.find((item) => item.path === activePath)
-    if (!tab || !activeWorkspaceId) return
+    if (!tab) return
+    if (isSettingsTab(tab)) {
+      await saveEditorSettings()
+      return
+    }
+    if (!activeWorkspaceId) return
 
     setSavingPath(tab.path)
     try {
@@ -923,6 +1021,11 @@ function App() {
     let nextActivePath = activePath
 
     for (const tab of tabs) {
+      if (isSettingsTab(tab)) {
+        nextTabs.push(tab)
+        continue
+      }
+
       try {
         const contents = await invoke<string>("read_text_file", {
           workspaceId: activeWorkspaceId,
@@ -955,7 +1058,19 @@ function App() {
     const tab = tabs.find((item) => item.path === path)
     if (!tab) return
 
-    if (tab.contents !== tab.savedContents && !window.confirm("Close unsaved file?")) {
+    if (
+      isSettingsTab(tab) &&
+      settingsDirty &&
+      !window.confirm("Close settings with unsaved changes?")
+    ) {
+      return
+    }
+
+    if (
+      !isSettingsTab(tab) &&
+      tab.contents !== tab.savedContents &&
+      !window.confirm("Close unsaved file?")
+    ) {
       return
     }
 
@@ -1546,7 +1661,9 @@ function App() {
 
   return (
     <TooltipProvider>
-      <main className="h-full min-h-0 overflow-hidden border-t bg-background text-sm">
+      <div className="grid h-full min-h-0 grid-rows-[46px_minmax(0,1fr)] bg-background text-sm">
+        <AppTitleBar onOpenSettings={openSettingsTab} />
+        <main className="min-h-0 overflow-hidden border-t bg-background">
         <ResizablePanelGroup orientation="horizontal" className="min-h-0">
           <ResizablePanel
             id="left-sidebar"
@@ -1689,7 +1806,22 @@ function App() {
                   <EditorPanel
                     activePath={activePath}
                     extensions={codeExtensions}
-                    saving={savingPath === activePath}
+                    saving={
+                      isSettingsTab(activeTab)
+                        ? settingsSaveStatus === "saving"
+                        : savingPath === activePath
+                    }
+                    settingsDirty={settingsDirty}
+                    settingsPanel={
+                      <SettingsPage
+                        draftTaskTemplate={draftTaskTemplate}
+                        error={settingsError}
+                        saveStatus={settingsSaveStatus}
+                        onDraftTaskTemplateChange={updateDraftTaskTemplate}
+                        onResetTaskTemplate={resetTaskTemplate}
+                        onSave={saveEditorSettings}
+                      />
+                    }
                     tab={activeTab}
                     tabs={tabs}
                     onChange={updateActiveContents}
@@ -1772,8 +1904,143 @@ function App() {
             </aside>
           </ResizablePanel>
         </ResizablePanelGroup>
-      </main>
+        </main>
+      </div>
     </TooltipProvider>
+  )
+}
+
+function isSettingsTab(tab?: EditorTab) {
+  return tab?.kind === "settings"
+}
+
+function AppTitleBar({ onOpenSettings }: { onOpenSettings: () => void }) {
+  return (
+    <header className="flex h-[46px] min-h-0 items-center bg-background">
+      <div className="titlebar-drag h-full flex-1" data-tauri-drag-region="" />
+      <div className="flex h-full items-center px-3">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onOpenSettings}
+              aria-label="Open settings"
+            >
+              <Settings />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Settings</TooltipContent>
+        </Tooltip>
+      </div>
+    </header>
+  )
+}
+
+function SettingsPage({
+  draftTaskTemplate,
+  error,
+  saveStatus,
+  onDraftTaskTemplateChange,
+  onResetTaskTemplate,
+  onSave,
+}: {
+  draftTaskTemplate: string
+  error: string
+  saveStatus: SettingsSaveStatus
+  onDraftTaskTemplateChange: (value: string) => void
+  onResetTaskTemplate: () => void
+  onSave: () => void | Promise<void>
+}) {
+  const isSaving = saveStatus === "saving"
+
+  return (
+    <div className="h-full min-h-0 overflow-auto bg-background p-7">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Settings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Configure Personal IDE defaults.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {saveStatus === "saved" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Check className="size-4" />
+              Saved
+            </span>
+          ) : null}
+          <Button type="submit" form="editor-settings-form" disabled={isSaving}>
+            <Save />
+            {isSaving ? "Saving" : "Save"}
+          </Button>
+        </div>
+      </div>
+
+      {error ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid items-start gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav className="flex flex-col">
+          <button
+            type="button"
+            className="rounded-md bg-muted px-4 py-2.5 text-left text-sm font-medium text-foreground"
+          >
+            Task Templates
+          </button>
+        </nav>
+
+        <form
+          id="editor-settings-form"
+          className="min-w-0"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void onSave()
+          }}
+        >
+          <section className="rounded-lg border bg-background">
+            <div className="border-b px-6 py-5">
+              <h2 className="text-lg font-semibold">Task Templates</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Set the Markdown used when adding a task.
+              </p>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid gap-2">
+                <label htmlFor="default-task-template" className="text-sm font-medium">
+                  Default add-task template
+                </label>
+                <Textarea
+                  id="default-task-template"
+                  value={draftTaskTemplate}
+                  disabled={isSaving}
+                  onChange={(event) => onDraftTaskTemplateChange(event.target.value)}
+                  className="min-h-[320px] resize-y font-mono text-xs leading-5"
+                  spellCheck={false}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use {"{{title}}"} to insert the new task title.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" onClick={onResetTaskTemplate} disabled={isSaving}>
+                  <RefreshCw />
+                  Reset to default
+                </Button>
+              </div>
+            </div>
+          </section>
+        </form>
+      </div>
+    </div>
   )
 }
 
@@ -3484,6 +3751,8 @@ function EditorPanel({
   activePath,
   extensions,
   saving,
+  settingsDirty,
+  settingsPanel,
   tab,
   tabs,
   onChange,
@@ -3495,6 +3764,8 @@ function EditorPanel({
   activePath: string
   extensions: Extension[]
   saving: boolean
+  settingsDirty: boolean
+  settingsPanel: ReactNode
   tab?: EditorTab
   tabs: EditorTab[]
   onChange: (value: string) => void
@@ -3518,32 +3789,32 @@ function EditorPanel({
     () => [...extensions, pasteImageExtension],
     [extensions, pasteImageExtension]
   )
-  const originalViewRef = useRef<EditorView | null>(null)
-  const currentViewRef = useRef<EditorView | null>(null)
-  const syncingScrollRef = useRef(false)
+  const [originalView, setOriginalView] = useState<EditorView | null>(null)
+  const [currentView, setCurrentView] = useState<EditorView | null>(null)
   const syncScroll = useCallback((source: EditorView, target: EditorView | null) => {
-    if (!target || syncingScrollRef.current) return
+    if (!target) return
 
-    syncingScrollRef.current = true
-    target.scrollDOM.scrollTop = source.scrollDOM.scrollTop
-    target.scrollDOM.scrollLeft = source.scrollDOM.scrollLeft
-    requestAnimationFrame(() => {
-      syncingScrollRef.current = false
-    })
+    const { scrollLeft, scrollTop } = source.scrollDOM
+    if (target.scrollDOM.scrollTop === scrollTop && target.scrollDOM.scrollLeft === scrollLeft) {
+      return
+    }
+
+    target.scrollDOM.scrollTop = scrollTop
+    target.scrollDOM.scrollLeft = scrollLeft
   }, [])
   const originalSyncExtension = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
-        if (update.viewportChanged) syncScroll(update.view, currentViewRef.current)
+        if (update.viewportChanged) syncScroll(update.view, currentView)
       }),
-    [syncScroll]
+    [currentView, syncScroll]
   )
   const currentSyncExtension = useMemo(
     () =>
       EditorView.updateListener.of((update) => {
-        if (update.viewportChanged) syncScroll(update.view, originalViewRef.current)
+        if (update.viewportChanged) syncScroll(update.view, originalView)
       }),
-    [syncScroll]
+    [originalView, syncScroll]
   )
   const originalExtensions = tab
     ? [
@@ -3565,7 +3836,11 @@ function EditorPanel({
         <div className="flex min-w-0 flex-1 items-stretch overflow-hidden">
           {tabs.length ? (
             tabs.map((item) => {
-              const dirty = item.contents !== item.savedContents
+              const dirty =
+                isSettingsTab(item)
+                  ? settingsDirty
+                  : item.contents !== item.savedContents
+              const TabIcon = isSettingsTab(item) ? Settings : FileText
 
               return (
                 <div
@@ -3580,7 +3855,7 @@ function EditorPanel({
                     className="flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left"
                     onClick={() => onSelectTab(item.path)}
                   >
-                    <FileText className="size-3.5 shrink-0" />
+                    <TabIcon className="size-3.5 shrink-0" />
                     <span className="truncate font-medium">{item.name}</span>
                     {dirty ? <span className="size-1.5 shrink-0 rounded-full bg-amber-500" /> : null}
                   </button>
@@ -3622,6 +3897,9 @@ function EditorPanel({
 
       <div className="h-full min-h-0 overflow-hidden bg-background">
         {tab ? (
+          isSettingsTab(tab) ? (
+            settingsPanel
+          ) : (
           <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto]">
             {tab.originalContents !== undefined ? (
               <div className="grid h-full min-h-0 grid-cols-2">
@@ -3636,7 +3914,7 @@ function EditorPanel({
                       extensions={originalExtensions}
                       basicSetup={{ foldGutter: true, highlightActiveLine: false }}
                       onCreateEditor={(view) => {
-                        originalViewRef.current = view
+                        setOriginalView(view)
                       }}
                     />
                   </div>
@@ -3652,9 +3930,9 @@ function EditorPanel({
                     basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                     onChange={onChange}
                     onCreateEditor={(view) => {
-                      currentViewRef.current = view
+                      setCurrentView(view)
                     }}
-                    onScroll={(view) => syncScroll(view, originalViewRef.current)}
+                    onScroll={(view) => syncScroll(view, originalView)}
                   />
                 </div>
               </div>
@@ -3673,6 +3951,7 @@ function EditorPanel({
               </div>
             ) : null}
           </div>
+          )
         ) : (
           <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
             <div className="max-w-sm">

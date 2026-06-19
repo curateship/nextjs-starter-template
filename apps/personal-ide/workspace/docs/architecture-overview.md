@@ -104,6 +104,7 @@ The editor uses CodeMirror with language detection and plaintext fallback.
 Current behavior:
 
 - Tabs open text files.
+- The global Settings view opens as a synthetic editor tab.
 - Existing open tabs are focused instead of duplicated.
 - Dirty tabs show an indicator.
 - Save writes the existing file through Rust.
@@ -253,6 +254,7 @@ Sync and merge badges are commit counts:
 Personal IDE stores app-only settings outside the project files. Current use:
 
 - Pinned skill order per workspace.
+- Global default task template.
 
 These settings should not create Git changes.
 
