@@ -227,6 +227,7 @@ const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 }
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
+const SHARED_SKILLS_PATH = ".agents/skills"
 
 const editorTheme = EditorView.theme({
   "&": { height: "100%" },
@@ -300,9 +301,7 @@ function App() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [gitStatus, setGitStatus] = useState<GitStatus>(EMPTY_GIT_STATUS)
   const [commitMessage, setCommitMessage] = useState("")
-  const [pinnedSkillsByWorkspace, setPinnedSkillsByWorkspace] = useState<
-    Record<string, string[]>
-  >(loadPinnedSkillSettings)
+  const [pinnedSkillSlugs, setPinnedSkillSlugs] = useState<string[]>(loadPinnedSkillSettings)
   const [terminalTab, setTerminalTab] = useState("terminal")
   const [terminalFocusNonce, setTerminalFocusNonce] = useState(0)
   const [terminalsByWorkspace, setTerminalsByWorkspace] = useState<
@@ -336,10 +335,7 @@ function App() {
     if (taskFilter === "all") return true
     return task.status === taskFilter
   })
-  const activePinnedSkillSlugs = activeWorkspaceId
-    ? pinnedSkillsByWorkspace[activeWorkspaceId] ?? []
-    : []
-  const pinnedSkills = activePinnedSkillSlugs
+  const pinnedSkills = pinnedSkillSlugs
     .map((slug) => skills.find((skill) => skill.slug === slug))
     .filter((skill): skill is SkillItem => Boolean(skill))
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
@@ -385,8 +381,8 @@ function App() {
   )
 
   useEffect(() => {
-    localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillsByWorkspace))
-  }, [pinnedSkillsByWorkspace])
+    localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillSlugs))
+  }, [pinnedSkillSlugs])
 
   useEffect(() => {
     if (!fileError) return
@@ -982,33 +978,22 @@ function App() {
   }
 
   function pinSkill(slug: string) {
-    if (!activeWorkspaceId) return
-
-    setPinnedSkillsByWorkspace((current) => {
-      const slugs = current[activeWorkspaceId] ?? []
-      if (slugs.includes(slug)) return current
-      return { ...current, [activeWorkspaceId]: [...slugs, slug] }
-    })
+    if (!slug) return
+    setPinnedSkillSlugs((current) => (current.includes(slug) ? current : [...current, slug]))
   }
 
   function unpinSkill(slug: string) {
-    if (!activeWorkspaceId) return
-
-    setPinnedSkillsByWorkspace((current) => ({
-      ...current,
-      [activeWorkspaceId]: (current[activeWorkspaceId] ?? []).filter((item) => item !== slug),
-    }))
+    setPinnedSkillSlugs((current) => current.filter((item) => item !== slug))
   }
 
   function movePinnedSkill(slug: string, overSlug: string) {
-    if (!activeWorkspaceId || !slug || slug === overSlug) return
+    if (!slug || slug === overSlug) return
 
-    setPinnedSkillsByWorkspace((current) => {
-      const slugs = current[activeWorkspaceId] ?? []
-      const oldIndex = slugs.indexOf(slug)
-      const newIndex = slugs.indexOf(overSlug)
+    setPinnedSkillSlugs((current) => {
+      const oldIndex = current.indexOf(slug)
+      const newIndex = current.indexOf(overSlug)
       if (oldIndex < 0 || newIndex < 0) return current
-      return { ...current, [activeWorkspaceId]: arrayMove(slugs, oldIndex, newIndex) }
+      return arrayMove(current, oldIndex, newIndex)
     })
   }
 
@@ -1085,12 +1070,9 @@ function App() {
       const oldSkillSlug = skillSlugFromPath(entry.path)
       const newSkillSlug = skillSlugFromPath(renamed.path)
       if (oldSkillSlug && newSkillSlug && oldSkillSlug !== newSkillSlug) {
-        setPinnedSkillsByWorkspace((current) => ({
-          ...current,
-          [activeWorkspaceId]: (current[activeWorkspaceId] ?? []).map((slug) =>
-            slug === oldSkillSlug ? newSkillSlug : slug
-          ),
-        }))
+        setPinnedSkillSlugs((current) =>
+          current.map((slug) => (slug === oldSkillSlug ? newSkillSlug : slug))
+        )
       }
       setDirectories((current) => removeDirectoryPrefix(current, entry.path))
       await loadDirectory("")
@@ -1611,7 +1593,7 @@ function App() {
                       <TabsContent value="skills" className="min-h-0">
                         <SkillsPanel
                           error={fileError}
-                          pinnedSkillSlugs={activePinnedSkillSlugs}
+                          pinnedSkillSlugs={pinnedSkillSlugs}
                           skills={skills}
                           onCreate={createSkill}
                           onCreateFolder={createFolder}
@@ -2673,19 +2655,19 @@ function SkillsPanel({
       className="flex h-full min-h-0 flex-col px-3 pb-3"
       onDoubleClick={(event) => {
         if (event.target instanceof Element && event.target.closest("input, textarea, form")) return
-        setCreateRequest({ kind: "file", basePath: "workspace/skills", nonce: Date.now() })
+        setCreateRequest({ kind: "file", basePath: SHARED_SKILLS_PATH, nonce: Date.now() })
       }}
     >
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Skills</h2>
-        <p className="text-xs text-muted-foreground">workspace/skills</p>
+        <p className="text-xs text-muted-foreground">{SHARED_SKILLS_PATH}</p>
       </div>
       <PanelError error={error} />
       <ScrollArea
         className="min-h-0 flex-1"
         onContextMenu={(event) => {
           event.preventDefault()
-          setMenu({ x: event.clientX, y: event.clientY, basePath: "workspace/skills" })
+          setMenu({ x: event.clientX, y: event.clientY, basePath: SHARED_SKILLS_PATH })
         }}
       >
         <div className="space-y-1.5 pr-1">
@@ -2753,7 +2735,7 @@ function SkillsPanel({
         </div>
       </ScrollArea>
       <ResourceContextMenu
-        basePath="workspace/skills"
+        basePath={SHARED_SKILLS_PATH}
         isEntryPinned={(entry) => pinnedSkillSlugs.includes(entry.name)}
         menu={menu}
         operations={operations}
@@ -4308,7 +4290,7 @@ function looksLikeAgentOutput(data: number[]) {
 function languageForPath(path: string): Extension[] {
   const extension = path.split(".").pop()?.toLowerCase()
 
-  if (path.startsWith("workspace/tasks/") || path.startsWith("workspace/skills/")) return []
+  if (path.startsWith("workspace/tasks/") || path.startsWith(`${SHARED_SKILLS_PATH}/`)) return []
 
   if (["ts", "tsx"].includes(extension ?? "")) {
     return [javascript({ jsx: extension === "tsx", typescript: true })]
@@ -4364,7 +4346,7 @@ function skillFolderEntry(skill: SkillItem): FileEntry {
 }
 
 function skillSlugFromPath(path: string) {
-  return path.startsWith("workspace/skills/") ? path.split("/")[2] : ""
+  return path.startsWith(`${SHARED_SKILLS_PATH}/`) ? path.split("/")[2] : ""
 }
 
 function docFileEntry(doc: DocItem): FileEntry {
@@ -4432,15 +4414,27 @@ function readableError(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
-function loadPinnedSkillSettings() {
+function loadPinnedSkillSettings(): string[] {
   try {
-    return JSON.parse(localStorage.getItem(PINNED_SKILLS_STORAGE_KEY) ?? "{}") as Record<
-      string,
-      string[]
-    >
+    const value = JSON.parse(localStorage.getItem(PINNED_SKILLS_STORAGE_KEY) ?? "[]")
+    if (Array.isArray(value)) return uniqueStrings(value)
+    if (value && typeof value === "object") {
+      return uniqueStrings(Object.values(value).flat())
+    }
+    return []
   } catch {
-    return {}
+    return []
   }
+}
+
+function uniqueStrings(values: unknown[]) {
+  const result: string[] = []
+  for (const value of values) {
+    if (typeof value === "string" && value && !result.includes(value)) {
+      result.push(value)
+    }
+  }
+  return result
 }
 
 export default App

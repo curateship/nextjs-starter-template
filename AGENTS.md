@@ -124,12 +124,12 @@ npm start
 
 ## Repo Skills
 
-Project-local Codex skills are stored in `.codex/skills/`.
+Shared project skills are stored in `.agents/skills/`.
 
 Available skills:
-- `.codex/skills/block-builder`
-- `.codex/skills/commit`
-- `.codex/skills/playwright-cli`
-- `.codex/skills/vulnerability-validater`
+- `.agents/skills/block-builder`
+- `.agents/skills/commit`
+- `.agents/skills/playwright-cli`
+- `.agents/skills/vulnerability-validater`
 
 When a task matches one of these skills, prefer using the local `SKILL.md` in that folder before falling back to generic behavior.

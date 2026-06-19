@@ -16,6 +16,7 @@ use tauri_plugin_dialog::DialogExt;
 const MAX_FILE_SIZE: u64 = 1024 * 1024;
 const MAX_PASTED_IMAGE_SIZE: usize = 10 * 1024 * 1024;
 const WORKSPACE_DIR: &str = "workspace";
+const SHARED_SKILLS_DIR: &str = ".agents/skills";
 
 #[derive(Default)]
 struct WorkspaceState {
@@ -423,7 +424,8 @@ fn read_text_file(
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    read_text_file_at(&workspace.app_root, &path)
+    let file = resolve_editable_path(&workspace, &path)?;
+    read_text_file_path(&file)
 }
 
 #[tauri::command]
@@ -451,8 +453,7 @@ fn read_git_text_file(
     path: &str,
     reference: &str,
 ) -> Result<String, String> {
-    let file = resolve_inside(&workspace.app_root, Some(&path))?;
-    let repo_path = relative_path(&workspace.worktree_root, &file)?;
+    let repo_path = repo_path_for_app_path(workspace, path)?;
     let output = Command::new("git")
         .arg("-C")
         .arg(&workspace.worktree_root)
@@ -484,7 +485,7 @@ fn write_text_file(
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let file = resolve_inside(&workspace.app_root, Some(&path))?;
+    let file = resolve_editable_path(&workspace, &path)?;
     let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
 
     if !metadata.is_file() {
@@ -621,7 +622,7 @@ fn rename_path(
     state: State<'_, WorkspaceState>,
 ) -> Result<FileEntry, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let source = resolve_inside(&workspace.app_root, Some(&old_path))?;
+    let source = resolve_editable_path(&workspace, &old_path)?;
     let new_name = clean_file_name(&new_name)?;
     let parent = source
         .parent()
@@ -640,7 +641,7 @@ fn rename_path(
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| "Untitled".to_string()),
-        path: relative_path(&workspace.app_root, &target)?,
+        path: display_path(&workspace, &target)?,
         is_dir: metadata.is_dir(),
     })
 }
@@ -652,7 +653,7 @@ fn trash_path(
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let target = resolve_inside(&workspace.app_root, Some(&path))?;
+    let target = resolve_editable_path(&workspace, &path)?;
     trash::delete(&target).map_err(|error| error.to_string())
 }
 
@@ -663,7 +664,7 @@ fn duplicate_path(
     state: State<'_, WorkspaceState>,
 ) -> Result<FileEntry, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let source = resolve_inside(&workspace.app_root, Some(&path))?;
+    let source = resolve_editable_path(&workspace, &path)?;
     let metadata = fs::metadata(&source).map_err(|error| error.to_string())?;
     let target = duplicate_target(&source)?;
 
@@ -680,7 +681,7 @@ fn duplicate_path(
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| "Untitled".to_string()),
-        path: relative_path(&workspace.app_root, &target)?,
+        path: display_path(&workspace, &target)?,
         is_dir: metadata.is_dir(),
     })
 }
@@ -692,7 +693,7 @@ fn reveal_path(
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let target = resolve_inside(&workspace.app_root, Some(&path))?;
+    let target = resolve_editable_path(&workspace, &path)?;
 
     #[cfg(target_os = "macos")]
     let status = Command::new("open")
@@ -800,7 +801,7 @@ fn list_skills(
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<SkillItem>, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let root = workspace.app_root.join(WORKSPACE_DIR).join("skills");
+    let root = shared_skills_root(&workspace);
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
 
     let mut skills = Vec::new();
@@ -820,7 +821,7 @@ fn list_skills(
         skills.push(SkillItem {
             name: title_from_slug(&slug),
             slug,
-            path: relative_path(&workspace.app_root, &skill_path)?,
+            path: display_path(&workspace, &skill_path)?,
         });
     }
 
@@ -840,7 +841,7 @@ fn create_skill(
         return Err("Skill name is required".to_string());
     }
 
-    let root = workspace.app_root.join(WORKSPACE_DIR).join("skills");
+    let root = shared_skills_root(&workspace);
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     let slug = unique_slug(&root, &slugify(name));
     let folder = root.join(&slug);
@@ -858,7 +859,7 @@ fn create_skill(
     Ok(SkillItem {
         name: name.to_string(),
         slug,
-        path: relative_path(&workspace.app_root, &path)?,
+        path: display_path(&workspace, &path)?,
     })
 }
 
@@ -1276,7 +1277,7 @@ fn next_workspace_id(
 }
 
 fn create_support_dirs(app_root: &Path) -> Result<(), String> {
-    for child in ["tasks", "skills", "docs"] {
+    for child in ["tasks", "docs"] {
         fs::create_dir_all(app_root.join(WORKSPACE_DIR).join(child))
             .map_err(|error| error.to_string())?;
     }
@@ -1284,7 +1285,12 @@ fn create_support_dirs(app_root: &Path) -> Result<(), String> {
 }
 
 fn copy_local_env_files(source_app: &Path, target_app: &Path) -> Result<(), String> {
-    for name in [".env", ".env.local", ".env.development", ".env.development.local"] {
+    for name in [
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.development.local",
+    ] {
         let source = source_app.join(name);
         if source.is_file() {
             fs::copy(&source, target_app.join(name)).map_err(|error| error.to_string())?;
@@ -1295,6 +1301,10 @@ fn copy_local_env_files(source_app: &Path, target_app: &Path) -> Result<(), Stri
 
 fn read_text_file_at(root: &Path, relative_path: &str) -> Result<String, String> {
     let file = resolve_inside(root, Some(relative_path))?;
+    read_text_file_path(&file)
+}
+
+fn read_text_file_path(file: &Path) -> Result<String, String> {
     let metadata = fs::metadata(&file).map_err(|error| error.to_string())?;
 
     if !metadata.is_file() {
@@ -1312,6 +1322,32 @@ fn read_text_file_at(root: &Path, relative_path: &str) -> Result<String, String>
     }
 
     String::from_utf8(bytes).map_err(|_| "Binary files are not supported".to_string())
+}
+
+fn shared_skills_root(workspace: &WorkspaceRecord) -> PathBuf {
+    workspace.worktree_root.join(SHARED_SKILLS_DIR)
+}
+
+fn is_shared_skill_path(path: &str) -> bool {
+    path == SHARED_SKILLS_DIR || path.starts_with(&format!("{}/", SHARED_SKILLS_DIR))
+}
+
+fn resolve_editable_path(workspace: &WorkspaceRecord, path: &str) -> Result<PathBuf, String> {
+    let path = path.trim().replace('\\', "/");
+    if is_shared_skill_path(&path) {
+        return resolve_inside(&workspace.worktree_root, Some(&path));
+    }
+
+    resolve_inside(&workspace.app_root, Some(&path))
+}
+
+fn display_path(workspace: &WorkspaceRecord, path: &Path) -> Result<String, String> {
+    let skills_root = shared_skills_root(workspace);
+    if path.starts_with(&skills_root) {
+        return relative_path(&workspace.worktree_root, path);
+    }
+
+    relative_path(&workspace.app_root, path)
 }
 
 fn resolve_inside(root: &Path, relative: Option<&str>) -> Result<PathBuf, String> {
@@ -1455,7 +1491,10 @@ fn exclude_pasted_images(workspace: &WorkspaceRecord) -> Result<(), String> {
         format!("{}/", workspace.app_relative_path)
     };
     let pattern = format!("{}workspace/docs/assets/pasted-image-*", prefix);
-    let exclude = run_git(&workspace.git_root, &["rev-parse", "--git-path", "info/exclude"])?;
+    let exclude = run_git(
+        &workspace.git_root,
+        &["rev-parse", "--git-path", "info/exclude"],
+    )?;
     let path = PathBuf::from(exclude.trim());
     let exclude_path = if path.is_absolute() {
         path
@@ -1821,7 +1860,7 @@ fn app_git_paths(workspace: &WorkspaceRecord) -> Vec<String> {
     if app_path.is_empty() {
         vec![".".to_string()]
     } else {
-        vec![app_path]
+        vec![app_path, SHARED_SKILLS_DIR.to_string()]
     }
 }
 
@@ -1835,6 +1874,10 @@ fn commit_count(root: &Path, range: &str) -> Result<u32, String> {
 
 fn app_relative_status_path(workspace: &WorkspaceRecord, repo_path: &str) -> Option<String> {
     let repo_path = repo_path.replace('\\', "/");
+    if is_shared_skill_path(&repo_path) {
+        return Some(repo_path);
+    }
+
     let app_prefix = workspace.app_relative_path.replace('\\', "/");
 
     if app_prefix.is_empty() {
@@ -1859,6 +1902,10 @@ fn repo_path_for_app_path(workspace: &WorkspaceRecord, app_path: &str) -> Result
     }
 
     let app_path = app_path.replace('\\', "/");
+    if is_shared_skill_path(&app_path) {
+        return Ok(app_path);
+    }
+
     let app_prefix = workspace.app_relative_path.replace('\\', "/");
 
     if app_prefix.is_empty() {
@@ -2031,10 +2078,7 @@ fn default_command_path() -> String {
     }
 }
 
-fn kill_terminal_by_id(
-    terminal_id: &str,
-    state: &State<'_, WorkspaceState>,
-) -> Result<(), String> {
+fn kill_terminal_by_id(terminal_id: &str, state: &State<'_, WorkspaceState>) -> Result<(), String> {
     if let Some(session) = state
         .terminals
         .lock()
