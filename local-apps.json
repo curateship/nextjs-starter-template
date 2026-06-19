@@ -1,0 +1,7 @@
+{
+  "hub": 3000,
+  "custom-shell": 3002,
+  "core": 3003,
+  "ai-video": 3004,
+  "antidetect": 3005
+}

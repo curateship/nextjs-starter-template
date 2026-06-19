@@ -1,20 +1,20 @@
 # AGENTS.md
 
-Guidance for agents working in Core.
+Guidance for agents working in Personal IDE.
 
 ## Route First
 
 - Shared skills live in `../../.agents/skills/`.
-- Core docs live in `workspace/docs/`.
-- Core tasks live in `workspace/tasks/`.
+- Personal IDE docs live in `workspace/docs/`.
+- Personal IDE tasks live in `workspace/tasks/`.
 - Before coding, read the relevant docs in `workspace/docs/`.
 - Before changing task-driven work, check `workspace/tasks/`.
 
 ## App Context
 
-Core is a TanStack Start app in the monorepo.
+Personal IDE is a Tauri desktop app. It can create isolated workspaces for other apps and start their dev servers from its terminal panel.
 
-Use this app's local code, config, and workspace docs as source of truth for Core behavior.
+Use `local-apps.json` for known local app ports.
 
 ## Working Rules
 

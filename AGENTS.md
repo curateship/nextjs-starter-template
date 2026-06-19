@@ -1,113 +1,57 @@
 # AGENTS.md
 
-Guidance for Codex working in this repository.
+Root guidance for agents working in this monorepo.
 
-## Labels
+This file is the orchestrator. Use it to understand the repo shape, then route to the more specific `AGENTS.md` for the app or service you are changing.
 
-I/me/we - refers to me the person that that talks to you
-You - refers to the person that respond to me (I)
-Agent - refer to the actual agent that writes the code
-User - refers to the person that uses our app
+## How To Route Work
 
-If I say "Hub" refer to the Hub App
-If I say "Core" refer to the Core App
-If I say "Ai Video" refer to the ai-video App
-If I say "Custom Shell" refer to the custom-shell App
+- For work in `apps/hub/`, read `apps/hub/AGENTS.md` before coding.
+- For work in `apps/custom-shell/`, read `apps/custom-shell/AGENTS.md` before coding.
+- For work in `apps/core/`, read `apps/core/AGENTS.md` before coding.
+- For work in `apps/ai-video/`, read `apps/ai-video/AGENTS.md` before coding.
+- For work in `apps/antidetect/`, read `apps/antidetect/AGENTS.md` before coding.
+- For work in `apps/ai-agents/`, read `apps/ai-agents/AGENTS.md` before coding.
+- For work in `apps/personal-ide/`, read `apps/personal-ide/AGENTS.md` before coding.
+- For shared root files, docs, local scripts, `.agents/`, `packages/`, or `services/`, use this root file.
 
-## Core Philosophy
+App-level `AGENTS.md` files override this file when they are more specific.
 
-Simplicity is mandatory. Always implement the simplest solution that works. If a simple feature needs more than 20 lines, stop and reconsider. Direct solutions beat clever architecture. Try removing code before adding code. Question every new dependency, hook, or context.
+## Monorepo Overview
 
-For small fixes, do not add new helpers, abstractions, fallback paths, or alternate data flows.
-Change the smallest existing line that is wrong.
-If you think more is needed, stop and ask before editing.
-
-Do not expand a small request into broad cleanup, scoring changes, helper abstractions, fallbacks, edge-case systems, or adjacent fixes unless explicitly asked. Make the narrowest change that satisfies the request, then stop. If a nearby issue seems important, mention it instead of patching it.
-
-## Small Request Discipline
-
-- If the user asks for a small visible change, implement the smallest visible change only.
-- Prefer returning display-ready data for tiny UI features instead of exposing broad intermediate state that forces the UI to duplicate business logic.
-- Fix only the requested behavior. Do not add adjacent states, edge-case handling, dashboards, status systems, or future-proofing unless they are required for the exact request.
-
-## Coding Standards
-
-- Do not layer shortcut props, one-off overrides, or patchwork fixes on top of a mismatched abstraction. If behavior represents a real product or domain variant, name it directly and wire it through the existing pattern.
-- Prefer coherent changes that align the shared API, call sites, and rendering behavior together. Remove temporary workaround code once the correct shape is clear.
-- When reusing an existing component, preserve its intended semantics. If only part of the behavior is shared, split or extend the abstraction cleanly instead of borrowing a nearby mode and overriding side effects.
-
-## Rules
-
-### Communication
-- Explain things in plain human language first. Avoid dense technical wording unless the user asks for details.
-- If technical details matter, lead with the simple answer, then add the technical reason in short follow-up sentences.
-- Do not use vague words like "scan", "process", "read", or "handle" without saying exactly who is doing it: the app, the database, the browser, or the server.
-- If the user asks a direct question, answer that exact question first before adding context.
-
-### App-Specific Instructions
-- Before working in a specific app or service directory, check for a local `AGENTS.md` in that directory and follow it for that scope.
-- App-specific `AGENTS.md` files override root-level guidance when the instructions are more specific to that app. Example: For work in `apps/hub/**`, follow `apps/hub/AGENTS.md`.
-
-## Core Philosophy
-
-**Simplicity is mandatory.** Always implement the simplest solution that works. If a simple feature needs more than 20 lines, stop and reconsider. Direct solutions beat clever architecture. Try removing code before adding code. Question every new dependency, hook, or context.
-
-
-### Simplicity & State
-- No fake "safety" systems — use database transactions, not backup/restore in app code
-- No staged deletions — just delete the data
-- No temporary UI state that doesn't map to the database — load fresh data when needed
-- No complex state synchronization or staged/pending/deleted tracking
-
-### Fail Fast
-- Report errors immediately. Never pretend success when operations fail
-- Never hide errors with complex error handling
-
-### No Scope Creep
-- Only fix the exact problem asked about — nothing more
-- Never "fix" unrelated TypeScript warnings or build errors unless they block your change
-- Ignore pre-existing issues unless specifically asked
-- Only fix build errors directly caused by your changes
-
-### Task Confirmation Protocol
-- Repeat back the user's request, confirm the component/file, and state which files you'll examine
-- Wait for confirmation before proceeding (exception: simple questions — just answer directly)
-
-### Debugging
-- Never ask the user to test or debug for you — solve problems through code analysis
-- Only add code that directly solves the stated problem
-- Trace code flow → identify root cause → implement direct fix
-
-
-## Repository Structure
-
-This is a Turborepo monorepo with npm workspaces:
+This repo is an npm workspace monorepo managed by Turbo.
 
 ```text
-├── apps/hub/          # Main Next.js app (website builder SaaS)
-├── packages/          # Shared packages (future - extract when building 2nd app)
-├── services/          # Python/other services (future)
-├── package.json       # Root workspace config
-├── turbo.json         # Turborepo task config
-└── Dockerfile         # Builds apps/hub for production
+apps/          App workspaces
+packages/      Shared packages when needed
+services/      Non-app services
+docs/          Repo documentation
+.agents/       Agent instructions and skills
+local-apps.json
+package.json
+turbo.json
+Dockerfile
 ```
 
+Root workspaces are:
 
-## Infrastructure
+```json
+["apps/*", "packages/*", "services/*"]
+```
 
-- Local dev uses a local Postgres database
-- Production runs on a Hetzner VPS managed by Coolify
-- Dockerfile at repo root builds the hub app (standalone output)
-- Use the Coolify MCP for server/database operations when needed
+Current apps:
 
-## Auth And Migrations
+- Hub: `apps/hub`
+- Custom Shell: `apps/custom-shell`
+- Core: `apps/core`
+- AI Video: `apps/ai-video`
+- Antidetect: `apps/antidetect`
+- AI Agents: `apps/ai-agents`
+- Personal IDE: `apps/personal-ide`
 
-- Current app auth is Better Auth, not Supabase
-- `apps/hub/migrations/` contains legacy SQL and historical/manual migrations from older Supabase-era patterns
-- Do not assume `auth.uid()`, `auth.role()`, `auth.users`, storage policies, or `supabase_url` in those SQL files reflect the current runtime architecture
-- When adding new database work, follow current runtime code and Drizzle schema, and validate auth assumptions against the app before copying legacy SQL patterns
+## Root Commands
 
-## Development Commands
+Common root commands:
 
 ```bash
 npm run dev
@@ -115,21 +59,61 @@ npm run build
 npm run lint
 ```
 
+App shortcuts:
+
 ```bash
-cd apps/hub
-npm run dev
-npm run build
-npm start
+npm run dev:hub
+npm run dev:custom-shell
+npm run dev:core
+npm run dev:ai-video
+npm run dev:antidetect
+npm run dev:ai-agents
+npm run dev:personal-ide
 ```
 
-## Repo Skills
+Only fix build, lint, or type errors caused by your change unless the user asks for broader cleanup.
 
-Shared project skills are stored in `.agents/skills/`.
+## Local Ports
 
-Available skills:
-- `.agents/skills/block-builder`
-- `.agents/skills/commit`
-- `.agents/skills/playwright-cli`
-- `.agents/skills/vulnerability-validater`
+Local ports are defined in `local-apps.json`.
 
-When a task matches one of these skills, prefer using the local `SKILL.md` in that folder before falling back to generic behavior.
+Current app ports:
+
+- Hub: `3000`
+- Custom Shell: `3002`
+- Core: `3003`
+- AI Video: `3004`
+- Antidetect: `3005`
+
+Personal IDE and app dev configs read from `local-apps.json`. Change that file first when changing local ports.
+
+## Agent Files, Docs, Tasks, And Skills
+
+Repo-local agent skills live in `.agents/skills/`.
+
+Use `.agents/` for agent workflows and instructions. Do not put app runtime code there.
+
+App-specific docs live in each app's `workspace/docs/` folder.
+
+App-specific tasks live in each app's `workspace/tasks/` folder.
+
+## Working Rules
+
+- Keep changes simple and narrow.
+- Fix only the requested behavior.
+- Do not refactor adjacent code unless it is required for the request.
+- Prefer removing code before adding code.
+- Report errors directly. Do not hide failed operations.
+- Before working in an app, read the app-level `AGENTS.md` and relevant app docs.
+- When summarizing work, do not include full file paths.
+- Keep answers short and concise.
+
+## Documentation
+
+Useful repo docs:
+
+- `docs/monorepo.md`
+- `docs/local-enviroment.md`
+- `docs/scalability.md`
+
+If a change updates repo structure, local ports, root commands, or agent routing, update the relevant docs in the same change.
