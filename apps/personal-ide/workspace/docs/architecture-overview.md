@@ -221,6 +221,7 @@ Implemented actions:
 - Commit.
 - Sync.
 - Merge.
+- Update from develop.
 
 Commit:
 
@@ -241,10 +242,18 @@ Merge:
 - Merges the workspace branch into `develop`.
 - Pushes `develop`.
 
+Update from develop:
+
+- Refuses if the workspace has uncommitted files.
+- Checks out `develop` in the main repo.
+- Pulls `origin/develop`.
+- Fast-forwards the workspace branch to `develop`.
+
 Sync and merge badges are commit counts:
 
 - `Sync (n)` means commits not pushed to the remote workspace branch.
 - `Merge (n)` means workspace branch commits not merged into local `develop`.
+- `Update from develop (n)` means `develop` commits not yet in the workspace branch.
 
 ## App Settings
 
