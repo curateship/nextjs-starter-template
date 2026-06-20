@@ -371,6 +371,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
       entries: [
         {
           type: "item",
+          id: "item-carousels",
+          label: "Carousels",
+          href: "/admin/carousels",
+          icon: "panelsTopLeft",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-settings",
           label: "Settings",
           href: "/admin/settings",

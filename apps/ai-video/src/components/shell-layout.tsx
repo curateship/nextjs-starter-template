@@ -149,7 +149,9 @@ export function ShellLayout({
   // The editor (/admin/video-editor/$projectId) fills the viewport itself:
   // strip the content padding and let the page manage its own overflow. The
   // projects dashboard at the bare path renders as a normal padded page.
-  const isVideoEditorPath = currentPath.startsWith("/admin/video-editor/")
+  const isVideoEditorPath =
+    currentPath.startsWith("/admin/video-editor/") ||
+    currentPath.startsWith("/admin/carousels/")
 
   const runtime = React.useMemo<ShellRuntime>(
     () => ({
