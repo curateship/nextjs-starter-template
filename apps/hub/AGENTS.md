@@ -25,3 +25,4 @@ Use Hub runtime code and the current Drizzle schema as source of truth. Treat hi
 - If a change updates Hub architecture or working conventions, update the relevant Hub workspace docs.
 - When summarizing work, do not include full file paths.
 - Keep answers short and concise.
+- Update documents when applicable
