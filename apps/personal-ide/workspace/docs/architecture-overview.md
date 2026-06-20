@@ -84,6 +84,8 @@ Delete does not delete the Git branch in V1.
 ## File Browser
 
 Files are shown as a lazy expandable tree. The frontend stores relative paths only.
+Loaded directories are silently refreshed while a workspace is active and the app is visible. The
+Files header also has a manual refresh button for the workspace root.
 
 Supported actions:
 
@@ -287,9 +289,11 @@ npm run build:personal-ide
 From `apps/personal-ide`:
 
 ```bash
+npm run dev
 npm run tauri:dev
 npm run tauri:build
 npm run lint
 ```
 
+`dev` is an alias for `tauri:dev`. `dev:frontend` is only for Tauri's internal Vite server and will not run the app by itself.
 `tauri:dev` still compiles Rust before opening the desktop window. That is normal for Tauri development.
