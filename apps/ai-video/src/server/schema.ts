@@ -322,6 +322,36 @@ export const aiVideoProjects = pgTable(
   ]
 )
 
+export const aiVideoCarousels = pgTable(
+  "instagram_carousels",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    format: varchar("format", { length: 20 }).notNull().default("4:5"),
+    sourceText: text("source_text").notNull().default(""),
+    caption: text("caption").notNull().default(""),
+    // Serialized carousel builder state:
+    // { slides: [{ items: [{ type: "text" | "image" | "video", ... }] }] }
+    slides: jsonb("slides").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "instagram_carousels_format_check",
+      sql`${table.format} in ('4:5', '1:1', '9:16')`
+    ),
+    index("ix_instagram_carousels_user_id").on(table.userId),
+    index("ix_instagram_carousels_user_updated").on(
+      table.userId,
+      table.updatedAt
+    ),
+  ]
+)
+
 export const aiVideoCreators = pgTable(
   "creators",
   {
@@ -452,6 +482,7 @@ export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
+export type AiVideoCarousel = typeof aiVideoCarousels.$inferSelect
 export type AiVideoCreator = typeof aiVideoCreators.$inferSelect
 export type AiVideoViralVideo = typeof aiVideoViralVideos.$inferSelect
 export type AiVideoTemplate = typeof aiVideoTemplates.$inferSelect

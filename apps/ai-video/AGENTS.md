@@ -25,3 +25,4 @@ Use this app's local code, config, and workspace docs as source of truth for AI 
 - Only fix build, lint, or type errors caused by your change.
 - When summarizing work, do not include full file paths.
 - Keep answers short and concise.
+- Update documents when applicable
