@@ -8,10 +8,11 @@ import { rust } from "@codemirror/lang-rust"
 import { sql } from "@codemirror/lang-sql"
 import { EditorState, StateField } from "@codemirror/state"
 import type { Extension } from "@codemirror/state"
-import { Decoration, EditorView } from "@codemirror/view"
+import { Decoration, EditorView, WidgetType } from "@codemirror/view"
 import type { DecorationSet } from "@codemirror/view"
 import {
   DndContext,
+  KeyboardCode,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
@@ -49,7 +50,6 @@ import {
   FolderPlus,
   GitCommitHorizontal,
   GitMerge,
-  GripVertical,
   MoreVertical,
   Pencil,
   Pin,
@@ -94,6 +94,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  ThemeSwitcher,
+  type ThemeMode,
+} from "@/components/kibo-ui/theme-switcher"
 import { cn } from "@/lib/utils"
 import localAppPorts from "../../../local-apps.json"
 
@@ -131,7 +135,15 @@ type EditorTab = {
   kind?: "settings"
   originalContents?: string
   changedLines?: number[]
+  diffHunks?: DiffHunk[]
   error?: string
+}
+
+type DiffHunk = {
+  originalStart: number
+  originalCount: number
+  currentStart: number
+  currentCount: number
 }
 
 type WorkspaceEditorState = {
@@ -170,7 +182,6 @@ type GitFile = {
   status: string
   path: string
   appPath?: string | null
-  changedLines: number[]
 }
 
 type GitCommit = {
@@ -238,6 +249,7 @@ const EMPTY_TERMINAL_STATE: WorkspaceTerminalState = {
 }
 
 const PINNED_SKILLS_STORAGE_KEY = "personal-ide:pinned-skills"
+const APP_THEME_STORAGE_KEY = "personal-ide:theme"
 const SHARED_SKILLS_PATH = ".agents/skills"
 const SETTINGS_TAB_PATH = "__personal_ide_settings__"
 const DEFAULT_TASK_TEMPLATE = "---\nstatus: active\n---\n\n"
@@ -257,12 +269,23 @@ const SKILL_TAG_FILTERS = [
 ]
 
 const editorTheme = EditorView.theme({
-  "&": { height: "100%" },
+  "&": {
+    height: "100%",
+    backgroundColor: "var(--background)",
+    color: "var(--foreground)",
+  },
   ".cm-content": { padding: "16px" },
-  ".cm-gutters": { backgroundColor: "#f8f8f8", borderRight: "1px solid #d4d4d4" },
-  ".cm-activeLine": { backgroundColor: "#f4f4f4" },
-  ".cm-activeLineGutter": { backgroundColor: "#ececec" },
-  ".cm-changed-line": { backgroundColor: "#fff8d6" },
+  ".cm-gutters": {
+    backgroundColor: "var(--muted)",
+    borderRight: "1px solid var(--border)",
+    color: "var(--muted-foreground)",
+  },
+  ".cm-activeLine": {
+    backgroundColor: "color-mix(in oklch, var(--muted) 70%, transparent)",
+  },
+  ".cm-activeLineGutter": { backgroundColor: "var(--muted)" },
+  ".cm-original-changed-line": { backgroundColor: "var(--diff-original-bg)" },
+  ".cm-current-changed-line": { backgroundColor: "var(--diff-current-bg)" },
 })
 
 const SIDE_HANDLE_CLASS =
@@ -271,17 +294,79 @@ const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -
 const TERMINAL_OUTPUT_DECODER = new TextDecoder()
 const TERMINAL_OUTPUT_EVENT_PREFIX = "terminal-output:"
 const TERMINAL_SCROLLBACK_LINES = 3000
+const MAX_SPLIT_DIFF_CELLS = 300_000
 
-function changedLineExtension(lines: number[]): Extension {
+type DiffSpacer = {
+  count: number
+  line: number
+}
+
+type SplitDiffDecorations = {
+  currentChangedLines: number[]
+  currentSpacers: DiffSpacer[]
+  originalChangedLines: number[]
+  originalSpacers: DiffSpacer[]
+}
+
+type CodeMirrorTheme = "light" | "dark"
+
+class DiffSpacerWidget extends WidgetType {
+  constructor(
+    private readonly lineCount: number,
+    private readonly className: string
+  ) {
+    super()
+  }
+
+  eq(widget: WidgetType) {
+    return (
+      widget instanceof DiffSpacerWidget &&
+      widget.lineCount === this.lineCount &&
+      widget.className === this.className
+    )
+  }
+
+  toDOM(view: EditorView) {
+    const spacer = document.createElement("div")
+    spacer.className = cn("cm-diff-spacer", this.className)
+    spacer.style.height = `${this.lineCount * view.defaultLineHeight}px`
+    spacer.setAttribute("aria-hidden", "true")
+    return spacer
+  }
+
+  get estimatedHeight() {
+    return this.lineCount * 20
+  }
+}
+
+function changedLineExtension(
+  lines: number[],
+  className = "cm-current-changed-line",
+  spacers: DiffSpacer[] = [],
+  spacerClassName = "cm-current-diff-spacer"
+): Extension {
   const changedLines = new Set(lines)
-  const lineMark = Decoration.line({ class: "cm-changed-line" })
+  const lineMark = Decoration.line({ class: className })
 
   function buildDecorations(state: EditorState) {
-    const decorations = Array.from(changedLines)
+    const lineDecorations = Array.from(changedLines)
       .filter((line) => line >= 1 && line <= state.doc.lines)
       .map((line) => lineMark.range(state.doc.line(line).from))
+    const spacerDecorations = spacers
+      .filter((spacer) => spacer.count > 0)
+      .map((spacer) => {
+        const atEnd = spacer.line > state.doc.lines
+        const position = atEnd
+          ? state.doc.line(state.doc.lines).to
+          : state.doc.line(Math.max(1, spacer.line)).from
+        return Decoration.widget({
+          block: true,
+          side: atEnd ? 1 : -1,
+          widget: new DiffSpacerWidget(spacer.count, spacerClassName),
+        }).range(position)
+      })
 
-    return Decoration.set(decorations)
+    return Decoration.set([...lineDecorations, ...spacerDecorations], true)
   }
 
   return StateField.define<DecorationSet>({
@@ -291,6 +376,164 @@ function changedLineExtension(lines: number[]): Extension {
     },
     provide: (field) => EditorView.decorations.from(field),
   })
+}
+
+function splitLines(value: string) {
+  return value.split("\n")
+}
+
+function lineRange(start: number, count: number) {
+  if (start <= 0 || count <= 0) return []
+  return Array.from({ length: count }, (_, index) => start + index)
+}
+
+function changedLinesFromHunks(hunks: DiffHunk[]) {
+  return hunks.flatMap((hunk) => lineRange(hunk.currentStart, hunk.currentCount))
+}
+
+function spacerLine(start: number, count: number) {
+  return count > 0 ? start + count : start + 1
+}
+
+function buildSplitDiffDecorationsFromHunks(hunks: DiffHunk[]): SplitDiffDecorations {
+  const diff: SplitDiffDecorations = {
+    currentChangedLines: [],
+    currentSpacers: [],
+    originalChangedLines: [],
+    originalSpacers: [],
+  }
+
+  for (const hunk of hunks) {
+    diff.originalChangedLines.push(...lineRange(hunk.originalStart, hunk.originalCount))
+    diff.currentChangedLines.push(...lineRange(hunk.currentStart, hunk.currentCount))
+
+    if (hunk.originalCount > hunk.currentCount) {
+      diff.currentSpacers.push({
+        line: spacerLine(hunk.currentStart, hunk.currentCount),
+        count: hunk.originalCount - hunk.currentCount,
+      })
+    } else if (hunk.currentCount > hunk.originalCount) {
+      diff.originalSpacers.push({
+        line: spacerLine(hunk.originalStart, hunk.originalCount),
+        count: hunk.currentCount - hunk.originalCount,
+      })
+    }
+  }
+
+  return diff
+}
+
+function buildSplitDiffDecorations(
+  originalContents: string,
+  currentContents: string,
+  fallbackCurrentChangedLines: number[] = [],
+  diffHunks: DiffHunk[] = []
+): SplitDiffDecorations {
+  if (diffHunks.length) return buildSplitDiffDecorationsFromHunks(diffHunks)
+
+  const originalLines = splitLines(originalContents)
+  const currentLines = splitLines(currentContents)
+  let prefix = 0
+
+  while (
+    prefix < originalLines.length &&
+    prefix < currentLines.length &&
+    originalLines[prefix] === currentLines[prefix]
+  ) {
+    prefix += 1
+  }
+
+  let originalEnd = originalLines.length - 1
+  let currentEnd = currentLines.length - 1
+
+  while (
+    originalEnd >= prefix &&
+    currentEnd >= prefix &&
+    originalLines[originalEnd] === currentLines[currentEnd]
+  ) {
+    originalEnd -= 1
+    currentEnd -= 1
+  }
+
+  const originalMiddle = originalLines.slice(prefix, originalEnd + 1)
+  const currentMiddle = currentLines.slice(prefix, currentEnd + 1)
+
+  if (originalMiddle.length * currentMiddle.length > MAX_SPLIT_DIFF_CELLS) {
+    return {
+      currentChangedLines: fallbackCurrentChangedLines,
+      currentSpacers: [],
+      originalChangedLines: [],
+      originalSpacers: [],
+    }
+  }
+
+  const lcs = Array.from({ length: originalMiddle.length + 1 }, () =>
+    Array(currentMiddle.length + 1).fill(0) as number[]
+  )
+
+  for (let originalIndex = originalMiddle.length - 1; originalIndex >= 0; originalIndex -= 1) {
+    for (let currentIndex = currentMiddle.length - 1; currentIndex >= 0; currentIndex -= 1) {
+      lcs[originalIndex][currentIndex] =
+        originalMiddle[originalIndex] === currentMiddle[currentIndex]
+          ? lcs[originalIndex + 1][currentIndex + 1] + 1
+          : Math.max(lcs[originalIndex + 1][currentIndex], lcs[originalIndex][currentIndex + 1])
+    }
+  }
+
+  const diff: SplitDiffDecorations = {
+    currentChangedLines: [],
+    currentSpacers: [],
+    originalChangedLines: [],
+    originalSpacers: [],
+  }
+  let originalIndex = 0
+  let currentIndex = 0
+  let originalLine = prefix + 1
+  let currentLine = prefix + 1
+  let deletedCount = 0
+  let insertedCount = 0
+
+  function flushSpacers() {
+    if (deletedCount > insertedCount) {
+      diff.currentSpacers.push({ line: currentLine, count: deletedCount - insertedCount })
+    } else if (insertedCount > deletedCount) {
+      diff.originalSpacers.push({ line: originalLine, count: insertedCount - deletedCount })
+    }
+
+    deletedCount = 0
+    insertedCount = 0
+  }
+
+  while (originalIndex < originalMiddle.length || currentIndex < currentMiddle.length) {
+    if (
+      originalIndex < originalMiddle.length &&
+      currentIndex < currentMiddle.length &&
+      originalMiddle[originalIndex] === currentMiddle[currentIndex]
+    ) {
+      flushSpacers()
+      originalIndex += 1
+      currentIndex += 1
+      originalLine += 1
+      currentLine += 1
+    } else if (
+      currentIndex >= currentMiddle.length ||
+      (originalIndex < originalMiddle.length &&
+        lcs[originalIndex + 1][currentIndex] >= lcs[originalIndex][currentIndex + 1])
+    ) {
+      diff.originalChangedLines.push(originalLine)
+      deletedCount += 1
+      originalIndex += 1
+      originalLine += 1
+    } else {
+      diff.currentChangedLines.push(currentLine)
+      insertedCount += 1
+      currentIndex += 1
+      currentLine += 1
+    }
+  }
+
+  flushSpacers()
+  return diff
 }
 
 function clipboardImage(event: ReactClipboardEvent | ClipboardEvent) {
@@ -322,6 +565,8 @@ function terminalOutputEvent(terminalId: string) {
 }
 
 function App() {
+  const [theme, setTheme] = useState<ThemeMode>(loadThemeSetting)
+  const [isDarkTheme, setIsDarkTheme] = useState(() => resolveIsDarkTheme(loadThemeSetting()))
   const [workspaceList, setWorkspaceList] = useState<WorkspaceList>(EMPTY_WORKSPACES)
   const [directories, setDirectories] = useState<Record<string, DirectoryState>>({})
   const [fileError, setFileError] = useState("")
@@ -384,14 +629,14 @@ function App() {
     .filter((skill): skill is SkillItem => Boolean(skill))
   const activeTerminalState = terminalStateFor(activeWorkspaceId, terminalsByWorkspace)
   const settingsDirty = draftTaskTemplate !== editorSettings.defaultTaskTemplate
+  const codeMirrorTheme = isDarkTheme ? "dark" : "light"
 
   const codeExtensions = useMemo(
     () => [
       editorTheme,
-      changedLineExtension(activeTab?.changedLines ?? []),
       ...languageForPath(activeTab?.path ?? ""),
     ],
-    [activeTab?.changedLines, activeTab?.path]
+    [activeTab?.path]
   )
   const handleTerminalSizeChange = useCallback((cols: number, rows: number) => {
     terminalSizeRef.current = { cols, rows }
@@ -428,6 +673,11 @@ function App() {
     },
     []
   )
+
+  useEffect(() => {
+    localStorage.setItem(APP_THEME_STORAGE_KEY, theme)
+    return applyThemePreference(theme, setIsDarkTheme)
+  }, [theme])
 
   useEffect(() => {
     localStorage.setItem(PINNED_SKILLS_STORAGE_KEY, JSON.stringify(pinnedSkillSlugs))
@@ -877,7 +1127,8 @@ function App() {
     path: string,
     name = fileName(path),
     changedLines: number[] = [],
-    originalContents?: string
+    originalContents?: string,
+    diffHunks?: DiffHunk[]
   ) {
     if (!activeWorkspaceId) return
 
@@ -887,7 +1138,7 @@ function App() {
     if (existing) {
       setTabs((current) =>
         current.map((tab) =>
-          tab.path === path ? { ...tab, changedLines, originalContents } : tab
+          tab.path === path ? { ...tab, changedLines, diffHunks, originalContents } : tab
         )
       )
       setActivePath(existing.path)
@@ -908,6 +1159,7 @@ function App() {
           savedContents: contents,
           originalContents,
           changedLines,
+          diffHunks,
         },
       ])
       setActivePath(path)
@@ -1605,10 +1857,17 @@ function App() {
 
     try {
       if (file.status === "D") {
-        const originalContents = await invoke<string>("read_original_text_file", {
-          workspaceId: activeWorkspaceId,
-          path: appPath,
-        })
+        const [originalContents, diffHunks] = await Promise.all([
+          invoke<string>("read_original_text_file", {
+            workspaceId: activeWorkspaceId,
+            path: appPath,
+          }),
+          invoke<DiffHunk[]>("diff_hunks", {
+            workspaceId: activeWorkspaceId,
+            path: appPath,
+            status: file.status,
+          }),
+        ])
 
         setGitError("")
         setTabs((current) => [
@@ -1619,19 +1878,20 @@ function App() {
             contents: "",
             savedContents: "",
             originalContents,
-            changedLines: [],
+            changedLines: changedLinesFromHunks(diffHunks),
+            diffHunks,
           },
         ])
         setActivePath(appPath)
         return
       }
 
-      const [originalContents, changedLines] = await Promise.all([
+      const [originalContents, diffHunks] = await Promise.all([
         invoke<string>("read_original_text_file", {
           workspaceId: activeWorkspaceId,
           path: file.appPath,
         }),
-        invoke<number[]>("changed_lines", {
+        invoke<DiffHunk[]>("diff_hunks", {
           workspaceId: activeWorkspaceId,
           path: file.appPath,
           status: file.status,
@@ -1639,7 +1899,13 @@ function App() {
       ])
 
       setGitError("")
-      await openPath(file.appPath, fileName(file.appPath), changedLines, originalContents)
+      await openPath(
+        file.appPath,
+        fileName(file.appPath),
+        changedLinesFromHunks(diffHunks),
+        originalContents,
+        diffHunks
+      )
     } catch (error) {
       setGitError(readableError(error))
     }
@@ -1654,19 +1920,25 @@ function App() {
     }
 
     try {
-      const [originalContents, changedLines] = await Promise.all([
+      const [originalContents, diffHunks] = await Promise.all([
         invoke<string>("read_develop_text_file", {
           workspaceId: activeWorkspaceId,
           path: file.appPath,
         }),
-        invoke<number[]>("merge_changed_lines", {
+        invoke<DiffHunk[]>("merge_diff_hunks", {
           workspaceId: activeWorkspaceId,
           path: file.appPath,
         }),
       ])
 
       setGitError("")
-      await openPath(file.appPath, fileName(file.appPath), changedLines, originalContents)
+      await openPath(
+        file.appPath,
+        fileName(file.appPath),
+        changedLinesFromHunks(diffHunks),
+        originalContents,
+        diffHunks
+      )
     } catch (error) {
       setGitError(readableError(error))
     }
@@ -1675,7 +1947,11 @@ function App() {
   return (
     <TooltipProvider>
       <div className="grid h-full min-h-0 grid-rows-[46px_minmax(0,1fr)] bg-background text-sm">
-        <AppTitleBar onOpenSettings={openSettingsTab} />
+        <AppTitleBar
+          theme={theme}
+          onOpenSettings={openSettingsTab}
+          onThemeChange={setTheme}
+        />
         <main className="min-h-0 overflow-hidden border-t bg-background">
         <ResizablePanelGroup orientation="horizontal" className="min-h-0">
           <ResizablePanel
@@ -1820,6 +2096,7 @@ function App() {
                 <ResizablePanel id="editor" defaultSize={74} minSize="240px">
                   <EditorPanel
                     activePath={activePath}
+                    codeMirrorTheme={codeMirrorTheme}
                     extensions={codeExtensions}
                     saving={
                       isSettingsTab(activeTab)
@@ -1929,11 +2206,20 @@ function isSettingsTab(tab?: EditorTab) {
   return tab?.kind === "settings"
 }
 
-function AppTitleBar({ onOpenSettings }: { onOpenSettings: () => void }) {
+function AppTitleBar({
+  theme,
+  onOpenSettings,
+  onThemeChange,
+}: {
+  theme: ThemeMode
+  onOpenSettings: () => void
+  onThemeChange: (theme: ThemeMode) => void
+}) {
   return (
     <header className="flex h-[46px] min-h-0 items-center bg-background">
       <div className="titlebar-drag h-full flex-1" data-tauri-drag-region="" />
-      <div className="flex h-full items-center px-3">
+      <div className="flex h-full items-center gap-2 px-3">
+        <ThemeSwitcher value={theme} onChange={onThemeChange} className="shrink-0" />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1951,6 +2237,37 @@ function AppTitleBar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </div>
     </header>
   )
+}
+
+function isAppTheme(value: string | null): value is ThemeMode {
+  return value === "light" || value === "dark" || value === "system"
+}
+
+function loadThemeSetting(): ThemeMode {
+  const value = localStorage.getItem(APP_THEME_STORAGE_KEY)
+  return isAppTheme(value) ? value : "system"
+}
+
+function resolveIsDarkTheme(theme: ThemeMode) {
+  return (
+    theme === "dark" ||
+    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+  )
+}
+
+function applyThemePreference(theme: ThemeMode, onResolvedThemeChange: (isDark: boolean) => void) {
+  const media = window.matchMedia("(prefers-color-scheme: dark)")
+  const updateThemeClass = () => {
+    const isDark = theme === "dark" || (theme === "system" && media.matches)
+    document.documentElement.classList.toggle("dark", isDark)
+    onResolvedThemeChange(isDark)
+  }
+
+  updateThemeClass()
+  if (theme !== "system") return
+
+  media.addEventListener("change", updateThemeClass)
+  return () => media.removeEventListener("change", updateThemeClass)
 }
 
 function SettingsPage({
@@ -3579,6 +3896,7 @@ function minimapLineWidth(line: string) {
 function EditorWithMinimap({
   basicSetup,
   changedLines,
+  codeMirrorTheme,
   extensions,
   onChange,
   onCreateEditor,
@@ -3587,6 +3905,7 @@ function EditorWithMinimap({
 }: {
   basicSetup?: boolean | BasicSetupOptions
   changedLines?: number[]
+  codeMirrorTheme: CodeMirrorTheme
   extensions: Extension[]
   onChange: (value: string) => void
   onCreateEditor?: (view: EditorView) => void
@@ -3723,6 +4042,7 @@ function EditorWithMinimap({
       <CodeMirror
         value={value}
         height="100%"
+        theme={codeMirrorTheme}
         extensions={editorExtensions}
         basicSetup={basicSetup}
         onChange={onChange}
@@ -3776,6 +4096,7 @@ function EditorWithMinimap({
 
 function EditorPanel({
   activePath,
+  codeMirrorTheme,
   extensions,
   saving,
   settingsDirty,
@@ -3789,6 +4110,7 @@ function EditorPanel({
   onSelectTab,
 }: {
   activePath: string
+  codeMirrorTheme: CodeMirrorTheme
   extensions: Extension[]
   saving: boolean
   settingsDirty: boolean
@@ -3815,6 +4137,29 @@ function EditorPanel({
   const editableExtensions = useMemo(
     () => [...extensions, pasteImageExtension],
     [extensions, pasteImageExtension]
+  )
+  const tabChangedLines = tab?.changedLines
+  const tabContents = tab?.contents ?? ""
+  const tabDiffHunks = tab?.diffHunks
+  const tabOriginalContents = tab?.originalContents
+  const splitDiffDecorations = useMemo(
+    () =>
+      tabOriginalContents !== undefined
+        ? buildSplitDiffDecorations(
+            tabOriginalContents,
+            tabContents,
+            tabChangedLines ?? [],
+            tabDiffHunks
+          )
+        : null,
+    [tabChangedLines, tabContents, tabDiffHunks, tabOriginalContents]
+  )
+  const singleEditableExtensions = useMemo(
+    () => [
+      ...editableExtensions,
+      changedLineExtension(tabChangedLines ?? [], "cm-current-changed-line"),
+    ],
+    [editableExtensions, tabChangedLines]
   )
   const [originalView, setOriginalView] = useState<EditorView | null>(null)
   const [currentView, setCurrentView] = useState<EditorView | null>(null)
@@ -3846,6 +4191,12 @@ function EditorPanel({
   const originalExtensions = tab
     ? [
         editorTheme,
+        changedLineExtension(
+          splitDiffDecorations?.originalChangedLines ?? [],
+          "cm-original-changed-line",
+          splitDiffDecorations?.originalSpacers ?? [],
+          "cm-original-diff-spacer"
+        ),
         EditorState.readOnly.of(true),
         EditorView.editable.of(false),
         originalSyncExtension,
@@ -3853,8 +4204,17 @@ function EditorPanel({
       ]
     : []
   const splitEditableExtensions = useMemo(
-    () => [...editableExtensions, currentSyncExtension],
-    [currentSyncExtension, editableExtensions]
+    () => [
+      ...editableExtensions,
+      changedLineExtension(
+        splitDiffDecorations?.currentChangedLines ?? [],
+        "cm-current-changed-line",
+        splitDiffDecorations?.currentSpacers ?? [],
+        "cm-current-diff-spacer"
+      ),
+      currentSyncExtension,
+    ],
+    [currentSyncExtension, editableExtensions, splitDiffDecorations]
   )
 
   return (
@@ -3938,6 +4298,7 @@ function EditorPanel({
                     <CodeMirror
                       value={tab.originalContents}
                       height="100%"
+                      theme={codeMirrorTheme}
                       extensions={originalExtensions}
                       basicSetup={{ foldGutter: true, highlightActiveLine: false }}
                       onCreateEditor={(view) => {
@@ -3952,8 +4313,9 @@ function EditorPanel({
                   </div>
                   <EditorWithMinimap
                     value={tab.contents}
+                    codeMirrorTheme={codeMirrorTheme}
                     extensions={splitEditableExtensions}
-                    changedLines={tab.changedLines}
+                    changedLines={splitDiffDecorations?.currentChangedLines ?? tab.changedLines}
                     basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                     onChange={onChange}
                     onCreateEditor={(view) => {
@@ -3966,7 +4328,8 @@ function EditorPanel({
             ) : (
               <EditorWithMinimap
                 value={tab.contents}
-                extensions={editableExtensions}
+                codeMirrorTheme={codeMirrorTheme}
+                extensions={singleEditableExtensions}
                 changedLines={tab.changedLines}
                 basicSetup={{ foldGutter: true, highlightActiveLine: true }}
                 onChange={onChange}
@@ -4373,7 +4736,14 @@ function ActionBar({
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: [KeyboardCode.Space],
+        cancel: [KeyboardCode.Esc],
+        end: [KeyboardCode.Space, KeyboardCode.Enter, KeyboardCode.Tab],
+      },
+    })
   )
 
   function handleDragEnd(event: DragEndEvent) {
@@ -4415,38 +4785,46 @@ function SortableSkillShortcut({
   skill: SkillItem
   onUseSkill: (skill: SkillItem) => void
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const {
+    attributes,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } =
     useSortable({ id: skill.slug })
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
     transition,
     opacity: isDragging ? 0.6 : 1,
   }
+  const setShortcutRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      setNodeRef(node)
+      setActivatorNodeRef(node)
+    },
+    [setActivatorNodeRef, setNodeRef]
+  )
 
   return (
-    <div
-      ref={setNodeRef}
+    <Button
+      ref={setShortcutRef}
       style={style}
-      className="flex h-7 shrink-0 items-center rounded-lg"
+      type="button"
+      variant="ghost"
+      size="sm"
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "h-7 shrink-0 cursor-grab active:cursor-grabbing",
+        isDragging && "cursor-grabbing"
+      )}
+      onClick={() => onUseSkill(skill)}
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-l-lg text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing [&_svg]:size-3.5"
-        aria-label={`Reorder ${skill.name}`}
-      >
-        <GripVertical />
-      </button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="rounded-l-none"
-        onClick={() => onUseSkill(skill)}
-      >
-        {skill.name}
-      </Button>
-    </div>
+      {skill.name}
+    </Button>
   )
 }
 

@@ -132,7 +132,15 @@ struct GitFile {
     status: String,
     path: String,
     app_path: Option<String>,
-    changed_lines: Vec<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DiffHunk {
+    original_start: usize,
+    original_count: usize,
+    current_start: usize,
+    current_count: usize,
 }
 
 #[derive(Serialize)]
@@ -967,7 +975,6 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
                 status,
                 path,
                 app_path,
-                changed_lines: Vec::new(),
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
@@ -990,27 +997,27 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
 }
 
 #[tauri::command]
-fn changed_lines(
+fn diff_hunks(
     workspace_id: String,
     path: String,
     status: String,
     state: State<'_, WorkspaceState>,
-) -> Result<Vec<usize>, String> {
+) -> Result<Vec<DiffHunk>, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
     let repo_path = repo_path_for_app_path(&workspace, &path)?;
-    changed_lines_for(&workspace.worktree_root, &repo_path, &status)
+    diff_hunks_for(&workspace.worktree_root, &repo_path, &status)
 }
 
 #[tauri::command]
-fn merge_changed_lines(
+fn merge_diff_hunks(
     workspace_id: String,
     path: String,
     state: State<'_, WorkspaceState>,
-) -> Result<Vec<usize>, String> {
+) -> Result<Vec<DiffHunk>, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
     let repo_path = repo_path_for_app_path(&workspace, &path)?;
     let range = format!("develop...{}", workspace.branch);
-    changed_lines_between(&workspace.worktree_root, &range, &repo_path)
+    diff_hunks_between(&workspace.worktree_root, &range, &repo_path)
 }
 
 #[tauri::command]
@@ -1686,8 +1693,9 @@ fn validate_editor_settings(settings: &EditorSettings) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_task_status, parse_skill_tags, render_task_template, validate_editor_settings,
-        EditorSettings, DEFAULT_TASK_TEMPLATE, MAX_TASK_TEMPLATE_SIZE,
+        normalize_task_status, parse_diff_hunk, parse_skill_tags, render_task_template,
+        validate_editor_settings, DiffHunk, EditorSettings, DEFAULT_TASK_TEMPLATE,
+        MAX_TASK_TEMPLATE_SIZE,
     };
 
     #[test]
@@ -1750,6 +1758,32 @@ mod tests {
         };
 
         assert!(validate_editor_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn parses_diff_hunk_with_explicit_counts() {
+        assert_eq!(
+            parse_diff_hunk("@@ -4038,2 +4041,18 @@ function EditorPanel({"),
+            Some(DiffHunk {
+                original_start: 4038,
+                original_count: 2,
+                current_start: 4041,
+                current_count: 18,
+            })
+        );
+    }
+
+    #[test]
+    fn parses_diff_hunk_with_zero_count_insertion() {
+        assert_eq!(
+            parse_diff_hunk("@@ -0,0 +1,3 @@"),
+            Some(DiffHunk {
+                original_start: 0,
+                original_count: 0,
+                current_start: 1,
+                current_count: 3,
+            })
+        );
     }
 }
 
@@ -1980,7 +2014,6 @@ fn merge_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> 
                 status,
                 path,
                 app_path,
-                changed_lines: Vec::new(),
             })
         })
         .collect()
@@ -2029,7 +2062,6 @@ fn develop_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String
                 status,
                 path,
                 app_path,
-                changed_lines: Vec::new(),
             })
         })
         .collect()
@@ -2132,57 +2164,62 @@ fn status_paths(line: &str) -> Vec<String> {
     vec![git_status_path(line)]
 }
 
-fn changed_lines_for(root: &Path, repo_path: &str, status: &str) -> Result<Vec<usize>, String> {
+fn diff_hunks_for(root: &Path, repo_path: &str, status: &str) -> Result<Vec<DiffHunk>, String> {
     if status == "??" {
         let path = root.join(repo_path);
-        if let Ok(contents) = fs::read_to_string(path) {
-            let line_count = contents.lines().count().max(1);
-            return Ok((1..=line_count).collect());
-        }
+        let line_count = fs::read_to_string(path)
+            .map(|contents| contents.lines().count().max(1))
+            .unwrap_or(1);
+
+        return Ok(vec![DiffHunk {
+            original_start: 0,
+            original_count: 0,
+            current_start: 1,
+            current_count: line_count,
+        }]);
     }
 
-    let mut lines = Vec::new();
-    let unstaged = run_git(root, &["diff", "--unified=0", "--", repo_path])?;
-    let staged = run_git(root, &["diff", "--cached", "--unified=0", "--", repo_path])?;
-    collect_changed_lines(&unstaged, &mut lines);
-    collect_changed_lines(&staged, &mut lines);
-    lines.sort_unstable();
-    lines.dedup();
-    Ok(lines)
+    let diff = run_git(root, &["diff", "--unified=0", "HEAD", "--", repo_path])?;
+    Ok(collect_diff_hunks(&diff))
 }
 
-fn changed_lines_between(root: &Path, range: &str, repo_path: &str) -> Result<Vec<usize>, String> {
-    let mut lines = Vec::new();
+fn diff_hunks_between(root: &Path, range: &str, repo_path: &str) -> Result<Vec<DiffHunk>, String> {
     let diff = run_git(root, &["diff", "--unified=0", range, "--", repo_path])?;
-    collect_changed_lines(&diff, &mut lines);
-    lines.sort_unstable();
-    lines.dedup();
-    Ok(lines)
+    Ok(collect_diff_hunks(&diff))
 }
 
-fn collect_changed_lines(diff: &str, lines: &mut Vec<usize>) {
-    for line in diff.lines() {
-        if !line.starts_with("@@") {
-            continue;
-        }
+fn collect_diff_hunks(diff: &str) -> Vec<DiffHunk> {
+    diff.lines().filter_map(parse_diff_hunk).collect()
+}
 
-        if let Some(part) = line.split_whitespace().find(|part| part.starts_with('+')) {
-            let range = part.trim_start_matches('+');
-            let mut pieces = range.split(',');
-            let start = pieces
-                .next()
-                .and_then(|value| value.parse::<usize>().ok())
-                .unwrap_or(0);
-            let count = pieces
-                .next()
-                .and_then(|value| value.parse::<usize>().ok())
-                .unwrap_or(1);
-
-            if start > 0 && count > 0 {
-                lines.extend(start..start + count);
-            }
-        }
+fn parse_diff_hunk(line: &str) -> Option<DiffHunk> {
+    if !line.starts_with("@@") {
+        return None;
     }
+
+    let mut parts = line.split_whitespace();
+    parts.next()?;
+    let (original_start, original_count) = parse_diff_range(parts.next()?, '-')?;
+    let (current_start, current_count) = parse_diff_range(parts.next()?, '+')?;
+
+    Some(DiffHunk {
+        original_start,
+        original_count,
+        current_start,
+        current_count,
+    })
+}
+
+fn parse_diff_range(value: &str, prefix: char) -> Option<(usize, usize)> {
+    let range = value.strip_prefix(prefix)?;
+    let mut pieces = range.split(',');
+    let start = pieces.next()?.parse::<usize>().ok()?;
+    let count = pieces
+        .next()
+        .map(|value| value.parse::<usize>().ok())
+        .unwrap_or(Some(1))?;
+
+    Some((start, count))
 }
 
 fn run_git(root: &Path, args: &[&str]) -> Result<String, String> {
@@ -2340,8 +2377,8 @@ pub fn run() {
             list_docs,
             create_doc,
             git_status,
-            changed_lines,
-            merge_changed_lines,
+            diff_hunks,
+            merge_diff_hunks,
             git_commit,
             git_sync,
             git_merge_to_develop,
