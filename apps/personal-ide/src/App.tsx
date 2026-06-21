@@ -1,6 +1,7 @@
 import type { EditorView } from "@codemirror/view"
 import { arrayMove } from "@dnd-kit/sortable"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Code2 } from "lucide-react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import type { ClipboardEvent as ReactClipboardEvent } from "react"
 
 import {
@@ -13,7 +14,6 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { ThemeMode } from "@/components/kibo-ui/theme-switcher"
 import { AppTitleBar } from "@/components/personal-ide/app-title-bar"
 import { ChangesPanel } from "@/components/personal-ide/changes-panel"
-import { EditorPanel } from "@/components/personal-ide/editor-panel"
 import {
   DocsPanel,
   FilesPanel,
@@ -30,9 +30,7 @@ import {
   PINNED_SKILLS_STORAGE_KEY,
   SIDE_HANDLE_CLASS,
 } from "@/app/constants"
-import { editorTheme } from "@/app/editor"
 import { isSettingsTab } from "@/app/editor-tabs"
-import { languageForPath } from "@/app/language"
 import {
   createDoc as createNativeDoc,
   createSkill as createNativeSkill,
@@ -65,11 +63,18 @@ import { useWorkspaceFileActions } from "@/hooks/use-workspace-file-actions"
 import { useWorkspaceResources } from "@/hooks/use-workspace-resources"
 import { useWorkspaces } from "@/hooks/use-workspaces"
 import type {
+  GitRefreshMode,
   SkillItem,
   TaskItem,
   WorkspaceEditorState,
   WorkspaceInfo,
 } from "@/app/types"
+
+const EditorPanel = lazy(() =>
+  import("@/components/personal-ide/editor-panel").then((module) => ({
+    default: module.EditorPanel,
+  }))
+)
 
 function App() {
   const [theme, setTheme] = useState<ThemeMode>(loadThemeSetting)
@@ -77,7 +82,9 @@ function App() {
   const [pinnedSkillSlugs, setPinnedSkillSlugs] = useState<string[]>(loadPinnedSkillSettings)
   const activeWorkspaceIdRef = useRef("")
   const previousWorkspaceIdRef = useRef("")
-  const refreshGitRef = useRef<(workspaceId?: string) => Promise<void>>(async () => {})
+  const refreshGitRef = useRef<
+    (workspaceId?: string, mode?: GitRefreshMode) => Promise<void>
+  >(async () => {})
   const refreshResourcesRef = useRef<() => Promise<void>>(async () => {})
   const workspaceEditorsRef = useRef<Record<string, WorkspaceEditorState>>({})
 
@@ -94,8 +101,8 @@ function App() {
   } = useWorkspaces()
 
   const refreshResourcesFromRef = useCallback(() => refreshResourcesRef.current(), [])
-  const refreshGitFromRef = useCallback((workspaceId?: string) => {
-    void refreshGitRef.current(workspaceId)
+  const refreshGitFromRef = useCallback((workspaceId?: string, mode?: GitRefreshMode) => {
+    void refreshGitRef.current(workspaceId, mode)
   }, [])
 
   const {
@@ -250,14 +257,6 @@ function App() {
     .map((slug) => skills.find((skill) => skill.slug === slug))
     .filter((skill): skill is SkillItem => Boolean(skill))
   const codeMirrorTheme = isDarkTheme ? "dark" : "light"
-
-  const codeExtensions = useMemo(
-    () => [
-      editorTheme,
-      ...languageForPath(activeTab?.path ?? ""),
-    ],
-    [activeTab?.path]
-  )
 
   useEffect(() => {
     localStorage.setItem(APP_THEME_STORAGE_KEY, theme)
@@ -705,7 +704,7 @@ function App() {
                     onMerge={mergeToDevelop}
                     onOpenFile={openChangedFile}
                     onOpenMergeFile={openMergeFile}
-                    onRefresh={refreshGit}
+                    onRefresh={() => refreshGit(undefined, "full")}
                     onSync={syncChanges}
                     onUpdateFromDevelop={updateFromDevelop}
                   />
@@ -720,34 +719,39 @@ function App() {
             <section className="h-full min-h-0 overflow-hidden bg-background">
               <ResizablePanelGroup orientation="vertical" className="min-h-0">
                 <ResizablePanel id="editor" defaultSize={74} minSize="240px">
-                  <EditorPanel
-                    activePath={activePath}
-                    codeMirrorTheme={codeMirrorTheme}
-                    extensions={codeExtensions}
-                    saving={
-                      isSettingsTab(activeTab)
-                        ? settingsSaveStatus === "saving"
-                        : savingPath === activePath
-                    }
-                    settingsDirty={settingsDirty}
-                    settingsPanel={
-                      <SettingsPage
-                        draftTaskTemplate={draftTaskTemplate}
-                        error={settingsError}
-                        saveStatus={settingsSaveStatus}
-                        onDraftTaskTemplateChange={updateDraftTaskTemplate}
-                        onResetTaskTemplate={resetTaskTemplate}
-                        onSave={saveEditorSettings}
+                  {tabs.length ? (
+                    <Suspense fallback={<EditorLoadingState />}>
+                      <EditorPanel
+                        activePath={activePath}
+                        codeMirrorTheme={codeMirrorTheme}
+                        saving={
+                          isSettingsTab(activeTab)
+                            ? settingsSaveStatus === "saving"
+                            : savingPath === activePath
+                        }
+                        settingsDirty={settingsDirty}
+                        settingsPanel={
+                          <SettingsPage
+                            draftTaskTemplate={draftTaskTemplate}
+                            error={settingsError}
+                            saveStatus={settingsSaveStatus}
+                            onDraftTaskTemplateChange={updateDraftTaskTemplate}
+                            onResetTaskTemplate={resetTaskTemplate}
+                            onSave={saveEditorSettings}
+                          />
+                        }
+                        tab={activeTab}
+                        tabs={tabs}
+                        onChange={updateActiveContents}
+                        onCloseTab={closeTab}
+                        onPasteImage={pasteEditorImage}
+                        onSave={saveActiveFile}
+                        onSelectTab={setActivePath}
                       />
-                    }
-                    tab={activeTab}
-                    tabs={tabs}
-                    onChange={updateActiveContents}
-                    onCloseTab={closeTab}
-                    onPasteImage={pasteEditorImage}
-                    onSave={saveActiveFile}
-                    onSelectTab={setActivePath}
-                  />
+                    </Suspense>
+                  ) : (
+                    <EditorEmptyState />
+                  )}
                 </ResizablePanel>
 
                 <ResizableHandle />
@@ -826,6 +830,28 @@ function App() {
         </main>
       </div>
     </TooltipProvider>
+  )
+}
+
+function EditorEmptyState() {
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
+      <div className="max-w-sm">
+        <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full bg-muted">
+          <Code2 className="size-5" />
+        </div>
+        <div className="text-base font-semibold text-foreground">Open a text file</div>
+        <p className="mt-1 text-sm">Choose a workspace file, task, skill, or doc to edit.</p>
+      </div>
+    </div>
+  )
+}
+
+function EditorLoadingState() {
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
+      Loading editor...
+    </div>
   )
 }
 

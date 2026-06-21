@@ -3,7 +3,7 @@ import type { Extension } from "@codemirror/state"
 import { EditorView } from "@codemirror/view"
 import CodeMirror, { type BasicSetupOptions } from "@uiw/react-codemirror"
 import { Code2, FileText, Save, Settings, X } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
 import { clipboardImage } from "@/app/clipboard"
@@ -14,7 +14,7 @@ import {
   type CodeMirrorTheme,
 } from "@/app/editor"
 import { isSettingsTab } from "@/app/editor-tabs"
-import { languageForPath } from "@/app/language"
+import { loadLanguageForPath } from "@/app/language"
 import type { EditorTab } from "@/app/types"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -29,10 +29,26 @@ type MinimapRow = {
   width: number
 }
 
+const MAX_MINIMAP_CHARS = 200_000
+const MAX_MINIMAP_LINES = 5_000
+
 function minimapLineWidth(line: string) {
   const length = line.trimEnd().length
   if (!length) return 12
   return Math.min(100, Math.max(22, length * 1.8))
+}
+
+function shouldRenderMinimap(value: string) {
+  if (value.length > MAX_MINIMAP_CHARS) return false
+
+  let lineCount = 1
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) !== 10) continue
+    lineCount += 1
+    if (lineCount > MAX_MINIMAP_LINES) return false
+  }
+
+  return true
 }
 
 function EditorWithMinimap({
@@ -63,9 +79,13 @@ function EditorWithMinimap({
     viewportFromLine: 1,
     viewportToLine: 1,
   })
+  const minimapEnabled = shouldRenderMinimap(value)
+  const minimapValue = useDeferredValue(minimapEnabled ? value : "")
   const changedLineSet = useMemo(() => new Set(changedLines ?? []), [changedLines])
   const rows = useMemo<MinimapRow[]>(() => {
-    const lines = value.split("\n")
+    if (!minimapEnabled) return []
+
+    const lines = minimapValue.split("\n")
     const lineCount = Math.max(1, lines.length)
     const maxRows = 320
 
@@ -98,7 +118,7 @@ function EditorWithMinimap({
         width: minimapLineWidth(longest),
       }
     })
-  }, [changedLineSet, value])
+  }, [changedLineSet, minimapEnabled, minimapValue])
   const updateScrollInfo = useCallback((view: EditorView | null) => {
     if (!view) return
 
@@ -141,14 +161,16 @@ function EditorWithMinimap({
     [updateScrollInfo]
   )
   const editorExtensions = useMemo(
-    () => [...extensions, minimapExtension],
-    [extensions, minimapExtension]
+    () => (minimapEnabled ? [...extensions, minimapExtension] : extensions),
+    [extensions, minimapEnabled, minimapExtension]
   )
 
   useEffect(() => {
+    if (!minimapEnabled) return
+
     const frame = requestAnimationFrame(() => updateScrollInfo(viewRef.current))
     return () => cancelAnimationFrame(frame)
-  }, [updateScrollInfo, value])
+  }, [minimapEnabled, updateScrollInfo, minimapValue])
 
   function scrollToPointer(event: React.PointerEvent<HTMLDivElement>) {
     event.preventDefault()
@@ -180,7 +202,7 @@ function EditorWithMinimap({
   )
 
   return (
-    <div className="editor-with-minimap">
+    <div className={cn("editor-with-minimap", minimapEnabled && "has-minimap")}>
       <CodeMirror
         value={value}
         height="100%"
@@ -194,44 +216,46 @@ function EditorWithMinimap({
           onCreateEditor?.(view)
         }}
       />
-      <div
-        className="code-minimap"
-        role="scrollbar"
-        aria-label="Editor minimap"
-        aria-orientation="vertical"
-        aria-valuemax={Math.max(0, scrollInfo.scrollHeight - scrollInfo.clientHeight)}
-        aria-valuemin={0}
-        aria-valuenow={scrollInfo.scrollTop}
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId)
-          scrollToPointer(event)
-        }}
-        onPointerMove={(event) => {
-          if (event.buttons === 1) scrollToPointer(event)
-        }}
-      >
-        <div className="code-minimap__lines">
-          {rows.map((row) => (
-            <span
-              key={row.key}
-              className={cn(
-                "code-minimap__line",
-                row.empty && "is-empty",
-                row.changed && "is-changed"
-              )}
-              style={{
-                height: `${row.height}%`,
-                top: `${row.top}%`,
-                width: `${row.width}%`,
-              }}
-            />
-          ))}
-        </div>
+      {minimapEnabled ? (
         <div
-          className="code-minimap__viewport"
-          style={{ height: `${viewportHeight}%`, top: `${viewportTop}%` }}
-        />
-      </div>
+          className="code-minimap"
+          role="scrollbar"
+          aria-label="Editor minimap"
+          aria-orientation="vertical"
+          aria-valuemax={Math.max(0, scrollInfo.scrollHeight - scrollInfo.clientHeight)}
+          aria-valuemin={0}
+          aria-valuenow={scrollInfo.scrollTop}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId)
+            scrollToPointer(event)
+          }}
+          onPointerMove={(event) => {
+            if (event.buttons === 1) scrollToPointer(event)
+          }}
+        >
+          <div className="code-minimap__lines">
+            {rows.map((row) => (
+              <span
+                key={row.key}
+                className={cn(
+                  "code-minimap__line",
+                  row.empty && "is-empty",
+                  row.changed && "is-changed"
+                )}
+                style={{
+                  height: `${row.height}%`,
+                  top: `${row.top}%`,
+                  width: `${row.width}%`,
+                }}
+              />
+            ))}
+          </div>
+          <div
+            className="code-minimap__viewport"
+            style={{ height: `${viewportHeight}%`, top: `${viewportTop}%` }}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -239,7 +263,6 @@ function EditorWithMinimap({
 export function EditorPanel({
   activePath,
   codeMirrorTheme,
-  extensions,
   saving,
   settingsDirty,
   settingsPanel,
@@ -253,7 +276,6 @@ export function EditorPanel({
 }: {
   activePath: string
   codeMirrorTheme: CodeMirrorTheme
-  extensions: Extension[]
   saving: boolean
   settingsDirty: boolean
   settingsPanel: ReactNode
@@ -276,14 +298,20 @@ export function EditorPanel({
       }),
     [onPasteImage]
   )
+  const languageExtensions = useLanguageExtensions(tab?.path)
+  const baseExtensions = useMemo(
+    () => [editorTheme, ...languageExtensions],
+    [languageExtensions]
+  )
   const editableExtensions = useMemo(
-    () => [...extensions, pasteImageExtension],
-    [extensions, pasteImageExtension]
+    () => [...baseExtensions, pasteImageExtension],
+    [baseExtensions, pasteImageExtension]
   )
   const tabChangedLines = tab?.changedLines
   const tabContents = tab?.contents ?? ""
   const tabDiffHunks = tab?.diffHunks
   const tabOriginalContents = tab?.originalContents
+  const tabPath = tab?.path
   const splitDiffDecorations = useMemo(
     () =>
       tabOriginalContents !== undefined
@@ -330,21 +358,25 @@ export function EditorPanel({
       }),
     [originalView, syncScroll]
   )
-  const originalExtensions = tab
-    ? [
-        editorTheme,
-        changedLineExtension(
-          splitDiffDecorations?.originalChangedLines ?? [],
-          "cm-original-changed-line",
-          splitDiffDecorations?.originalSpacers ?? [],
-          "cm-original-diff-spacer"
-        ),
-        EditorState.readOnly.of(true),
-        EditorView.editable.of(false),
-        originalSyncExtension,
-        ...languageForPath(tab.path),
-      ]
-    : []
+  const originalExtensions = useMemo(
+    () =>
+      tabPath
+        ? [
+            editorTheme,
+            changedLineExtension(
+              splitDiffDecorations?.originalChangedLines ?? [],
+              "cm-original-changed-line",
+              splitDiffDecorations?.originalSpacers ?? [],
+              "cm-original-diff-spacer"
+            ),
+            EditorState.readOnly.of(true),
+            EditorView.editable.of(false),
+            originalSyncExtension,
+            ...languageExtensions,
+          ]
+        : [],
+    [languageExtensions, originalSyncExtension, splitDiffDecorations, tabPath]
+  )
   const splitEditableExtensions = useMemo(
     () => [
       ...editableExtensions,
@@ -502,4 +534,30 @@ export function EditorPanel({
       </div>
     </div>
   )
+}
+
+function useLanguageExtensions(path: string | undefined) {
+  const requestedPath = path ?? ""
+  const [loaded, setLoaded] = useState<{ extensions: Extension[]; path: string }>({
+    extensions: [],
+    path: "",
+  })
+
+  useEffect(() => {
+    let cancelled = false
+
+    void loadLanguageForPath(requestedPath)
+      .then((nextExtensions) => {
+        if (!cancelled) setLoaded({ extensions: nextExtensions, path: requestedPath })
+      })
+      .catch(() => {
+        if (!cancelled) setLoaded({ extensions: [], path: requestedPath })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [requestedPath])
+
+  return loaded.path === requestedPath ? loaded.extensions : []
 }

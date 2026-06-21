@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core"
 
-import type { DiffHunk, GitStatus } from "@/app/types"
+import type { DiffHunk, GitRefreshMode, GitStatus } from "@/app/types"
 
-export function getGitStatus(workspaceId: string) {
-  return invoke<GitStatus>("git_status", { workspaceId })
+export function getGitStatus(workspaceId: string, mode: GitRefreshMode = "full") {
+  const command = mode === "basic" ? "git_status_basic" : "git_status"
+  return invoke<GitStatus>(command, { workspaceId })
 }
 
 export function commitGitChanges(workspaceId: string, message: string) {

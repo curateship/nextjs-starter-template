@@ -17,7 +17,7 @@ import {
   updateGitFromDevelop,
 } from "@/app/native/git"
 import { fileName, parentPath, readableError } from "@/app/path"
-import type { DiffHunk, EditorTab, GitFile, GitStatus } from "@/app/types"
+import type { DiffHunk, EditorTab, GitFile, GitRefreshMode, GitStatus } from "@/app/types"
 
 type OpenPath = (
   path: string,
@@ -62,12 +62,15 @@ export function useGitChanges({
     setGitStatus(EMPTY_GIT_STATUS)
   }, [])
 
-  const refreshGit = useCallback(async function refreshGit(workspaceId?: string) {
+  const refreshGit = useCallback(async function refreshGit(
+    workspaceId?: string,
+    mode: GitRefreshMode = "basic"
+  ) {
     const targetWorkspaceId = typeof workspaceId === "string" ? workspaceId : activeWorkspaceId
     if (!targetWorkspaceId) return
 
     try {
-      const next = await getGitStatus(targetWorkspaceId)
+      const next = await getGitStatus(targetWorkspaceId, mode)
       if (activeWorkspaceIdRef.current !== targetWorkspaceId) return
 
       setGitStatus(next)

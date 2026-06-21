@@ -964,20 +964,7 @@ fn create_doc(
 #[tauri::command]
 fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<GitStatus, String> {
     let workspace = workspace_by_id(&state, &workspace_id)?;
-    let files = git_status_lines(&workspace.worktree_root)?
-        .into_iter()
-        .map(|line| {
-            let status = line.chars().take(2).collect::<String>().trim().to_string();
-            let path = git_status_path(&line);
-            let app_path = app_relative_status_path(&workspace, &path);
-
-            Ok(GitFile {
-                status,
-                path,
-                app_path,
-            })
-        })
-        .collect::<Result<Vec<_>, String>>()?;
+    let files = git_files_for(&workspace)?;
     let merge_commits = merge_commits_for(&workspace)?;
     let merge_files = merge_files_for(&workspace)?;
     let develop_commits = develop_commits_for(&workspace)?;
@@ -993,6 +980,28 @@ fn git_status(workspace_id: String, state: State<'_, WorkspaceState>) -> Result<
         merge_files,
         develop_commits,
         develop_files,
+    })
+}
+
+#[tauri::command]
+fn git_status_basic(
+    workspace_id: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<GitStatus, String> {
+    let workspace = workspace_by_id(&state, &workspace_id)?;
+    let merge_range = format!("develop..{}", workspace.branch);
+    let develop_range = format!("{}..develop", workspace.branch);
+
+    Ok(GitStatus {
+        branch: workspace.branch.clone(),
+        files: git_files_for(&workspace)?,
+        unpushed_commit_count: unpushed_commit_count(&workspace)?,
+        unmerged_commit_count: commit_count(&workspace.worktree_root, &merge_range)?,
+        develop_commit_count: commit_count(&workspace.worktree_root, &develop_range)?,
+        merge_commits: Vec::new(),
+        merge_files: Vec::new(),
+        develop_commits: Vec::new(),
+        develop_files: Vec::new(),
     })
 }
 
@@ -1814,6 +1823,11 @@ fn collect_docs(app_root: &Path, folder: &Path, docs: &mut Vec<DocItem>) -> Resu
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
         if path.is_dir() {
+            let relative = relative_path(app_root, &path)?;
+            let assets_root = format!("{}/docs/assets", WORKSPACE_DIR);
+            if relative == assets_root || relative.starts_with(&format!("{}/", assets_root)) {
+                continue;
+            }
             collect_docs(app_root, &path, docs)?;
         } else if path.extension().and_then(|ext| ext.to_str()) == Some("md") {
             docs.push(DocItem {
@@ -1939,6 +1953,23 @@ fn git_status_path(line: &str) -> String {
         .last()
         .unwrap_or(path.as_str())
         .to_string()
+}
+
+fn git_files_for(workspace: &WorkspaceRecord) -> Result<Vec<GitFile>, String> {
+    git_status_lines(&workspace.worktree_root)?
+        .into_iter()
+        .map(|line| {
+            let status = line.chars().take(2).collect::<String>().trim().to_string();
+            let path = git_status_path(&line);
+            let app_path = app_relative_status_path(workspace, &path);
+
+            Ok(GitFile {
+                status,
+                path,
+                app_path,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()
 }
 
 fn unpushed_commit_count(workspace: &WorkspaceRecord) -> Result<u32, String> {
@@ -2377,6 +2408,7 @@ pub fn run() {
             list_docs,
             create_doc,
             git_status,
+            git_status_basic,
             diff_hunks,
             merge_diff_hunks,
             git_commit,

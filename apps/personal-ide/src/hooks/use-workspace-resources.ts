@@ -7,7 +7,7 @@ import {
   taskMatchesFilter,
   taskStatusFilterOptions,
 } from "@/app/resources"
-import type { DocItem, SkillItem, TaskItem, TaskStatus } from "@/app/types"
+import type { DocItem, GitRefreshMode, SkillItem, TaskItem, TaskStatus } from "@/app/types"
 
 type ResourceSnapshot = {
   docs: DocItem[]
@@ -19,7 +19,7 @@ type UseWorkspaceResourcesOptions = {
   activeWorkspaceId: string
   activeWorkspaceIdRef: { current: string }
   onError: (message: string) => void
-  onRefreshGit?: (workspaceId: string) => void
+  onRefreshGit?: (workspaceId: string, mode?: GitRefreshMode) => void
 }
 
 export function useWorkspaceResources({
@@ -40,9 +40,9 @@ export function useWorkspaceResources({
   }, [docs, skills, tasks])
 
   const setResources = useCallback((resources: ResourceSnapshot) => {
-    setTasks(resources.tasks)
-    setSkills(resources.skills)
-    setDocs(resources.docs)
+    setTasks((current) => tasksEqual(current, resources.tasks) ? current : resources.tasks)
+    setSkills((current) => skillsEqual(current, resources.skills) ? current : resources.skills)
+    setDocs((current) => docsEqual(current, resources.docs) ? current : resources.docs)
   }, [])
 
   const resetResources = useCallback(() => {
@@ -95,4 +95,39 @@ export function useWorkspaceResources({
     visibleSkills,
     visibleTasks,
   }
+}
+
+function docsEqual(left: DocItem[], right: DocItem[]) {
+  return arraysEqual(left, right, (doc, next) => (
+    doc.name === next.name && doc.path === next.path
+  ))
+}
+
+function skillsEqual(left: SkillItem[], right: SkillItem[]) {
+  return arraysEqual(left, right, (skill, next) => (
+    skill.name === next.name &&
+    skill.slug === next.slug &&
+    skill.path === next.path &&
+    arraysEqual(skill.tags, next.tags, (tag, nextTag) => tag === nextTag)
+  ))
+}
+
+function tasksEqual(left: TaskItem[], right: TaskItem[]) {
+  return arraysEqual(left, right, (task, next) => (
+    task.title === next.title &&
+    task.path === next.path &&
+    task.status === next.status &&
+    task.skill === next.skill &&
+    task.error === next.error
+  ))
+}
+
+function arraysEqual<T>(
+  left: T[],
+  right: T[],
+  itemEqual: (leftItem: T, rightItem: T) => boolean
+) {
+  if (left.length !== right.length) return false
+
+  return left.every((item, index) => itemEqual(item, right[index]))
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { listDirectory } from "@/app/native/files"
 import { readableError } from "@/app/path"
-import type { DirectoryState } from "@/app/types"
+import type { DirectoryState, FileEntry } from "@/app/types"
 
 type UseFileTreeOptions = {
   autoRefreshIntervalMs?: number
@@ -11,7 +11,7 @@ type UseFileTreeOptions = {
 }
 
 export function useFileTree({
-  autoRefreshIntervalMs = 4000,
+  autoRefreshIntervalMs = 15000,
   activeWorkspaceId,
   onRefreshResources,
 }: UseFileTreeOptions) {
@@ -63,11 +63,7 @@ export function useFileTree({
 
       setDirectories((current) => ({
         ...current,
-        [path]: {
-          open: current[path]?.open ?? true,
-          loading: false,
-          entries,
-        },
+        [path]: nextDirectoryState(current[path], entries),
       }))
     } catch (error) {
       if (activeWorkspaceIdRef.current !== workspaceId) return
@@ -89,7 +85,7 @@ export function useFileTree({
     options: { showLoading?: boolean } = {}
   ) {
     const loadedPaths = Object.entries(directoriesRef.current)
-      .filter(([, directory]) => directory.entries)
+      .filter(([path, directory]) => path && directory.open && directory.entries)
       .map(([path]) => path)
     const uniquePaths = Array.from(new Set(["", ...loadedPaths, ...paths]))
 
@@ -146,4 +142,35 @@ export function useFileTree({
     setFileError,
     toggleDirectory,
   }
+}
+
+function nextDirectoryState(current: DirectoryState | undefined, entries: FileEntry[]) {
+  const next = {
+    open: current?.open ?? true,
+    loading: false,
+    entries,
+  }
+
+  if (
+    current &&
+    current.open === next.open &&
+    current.loading === false &&
+    current.error === undefined &&
+    fileEntriesEqual(current.entries, entries)
+  ) {
+    return current
+  }
+
+  return next
+}
+
+function fileEntriesEqual(left: FileEntry[] | undefined, right: FileEntry[]) {
+  if (!left || left.length !== right.length) return false
+
+  return left.every(
+    (entry, index) =>
+      entry.name === right[index]?.name &&
+      entry.path === right[index]?.path &&
+      entry.isDir === right[index]?.isDir
+  )
 }
