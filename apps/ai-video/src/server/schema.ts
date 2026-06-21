@@ -340,7 +340,7 @@ export const aiVideoCarousels = pgTable(
     sourceText: text("source_text").notNull().default(""),
     caption: text("caption").notNull().default(""),
     // Serialized carousel builder state:
-    // { slides: [{ items: [{ type: "text" | "image" | "video", ... }] }] }
+    // { slides: [{ items: [{ type: "text" | "image" | "video" | "gradient-shadow", ... }] }] }
     slides: jsonb("slides").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

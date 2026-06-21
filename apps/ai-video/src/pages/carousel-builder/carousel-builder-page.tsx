@@ -7,6 +7,7 @@ import {
   ArrowDownIcon,
   ArrowLeftIcon,
   ArrowUpIcon,
+  BlendIcon,
   CopyIcon,
   DownloadIcon,
   EyeIcon,
@@ -16,6 +17,7 @@ import {
   Loader2Icon,
   PlusIcon,
   Redo2Icon,
+  RotateCcwIcon,
   Trash2Icon,
   TypeIcon,
   Undo2Icon,
@@ -56,6 +58,8 @@ import {
   saveCarousel,
   type CarouselDetail,
   type CarouselFormat,
+  type CarouselGradientShadowItem,
+  type CarouselMediaFit,
   type CarouselMediaItem,
   type CarouselSlide,
   type CarouselSlideItem,
@@ -104,6 +108,7 @@ type BuilderAction =
   | { type: "ADD_ITEM"; slideId: string; item: CarouselSlideItem }
   | { type: "DELETE_ITEM"; slideId: string; itemId: string }
   | { type: "MOVE_LAYER"; slideId: string; itemId: string; direction: 1 | -1 }
+  | { type: "RESET_DEFAULTS" }
   | { type: "UNDO" }
   | { type: "REDO" }
 
@@ -111,6 +116,18 @@ const AUTOSAVE_DEBOUNCE_MS = 1200
 const UNDO_LIMIT = 50
 const MIN_ITEM_SIZE = 0.06
 const DEFAULT_BACKGROUND = "#f8fafc"
+const DEFAULT_FIRST_SLIDE_BACKGROUND = "#111827"
+const DEFAULT_GRADIENT_SHADOW_COLOR = "#000000"
+const DEFAULT_GRADIENT_SHADOW_OPACITY = 70
+const DEFAULT_GRADIENT_SHADOW_HEIGHT = 0.42
+const DEFAULT_IMAGE_Z_INDEX = 0
+const DEFAULT_GRADIENT_SHADOW_Z_INDEX = 1
+const DEFAULT_TEXT_Z_INDEX = 10
+const DEFAULT_TITLE_TEXT_Y = 0.56
+const DEFAULT_TITLE_TEXT_HEIGHT = 0.14
+const DEFAULT_BODY_TEXT_Y = 0.74
+const DEFAULT_BODY_TEXT_HEIGHT = 0.16
+const DEFAULT_EXTRA_TEXT_Y = 0.72
 
 const FORMAT_LABELS: Record<CarouselFormat, string> = {
   "4:5": "4:5 portrait",
@@ -126,6 +143,7 @@ const FORMAT_RATIOS: Record<CarouselFormat, number> = {
 
 type SaveStatus = "saved" | "saving" | "error"
 type CarouselExportMode = "zip" | "mp4"
+type MediaPickerMode = "add" | "replace"
 
 export function CarouselBuilderPage({
   document,
@@ -141,6 +159,8 @@ export function CarouselBuilderPage({
   const [statusError, setStatusError] = React.useState<string | null>(null)
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
+  const [mediaOpen, setMediaOpen] = React.useState(false)
+  const [mediaMode, setMediaMode] = React.useState<MediaPickerMode>("add")
   const [exporting, setExporting] = React.useState(false)
   const [exportError, setExportError] = React.useState<string | null>(null)
   const [exportProgress, setExportProgress] =
@@ -160,6 +180,7 @@ export function CarouselBuilderPage({
   const selectedSlide =
     state.slides.find((slide) => slide.id === state.selectedSlideId) ??
     state.slides[0]
+  const selectedSlideId = selectedSlide?.id ?? null
   const selectedItem =
     selectedSlide?.items.find((item) => item.id === state.selectedItemId) ??
     null
@@ -258,64 +279,170 @@ export function CarouselBuilderPage({
     }
   }
 
+  function openAddImage() {
+    setMediaMode("add")
+    setMediaOpen(true)
+  }
+
+  function openReplaceImage() {
+    setMediaMode("replace")
+    setMediaOpen(true)
+  }
+
+  function handleAddText() {
+    if (!selectedSlide) return
+    dispatch({
+      type: "ADD_ITEM",
+      slideId: selectedSlide.id,
+      item: createTextItem(),
+    })
+  }
+
+  function handleAddGradientShadow() {
+    if (!selectedSlide) return
+    dispatch({
+      type: "ADD_ITEM",
+      slideId: selectedSlide.id,
+      item: createGradientShadowItem(selectedItem),
+    })
+  }
+
+  function handleSelectMedia(url: string, altText?: string, media?: MediaItem) {
+    if (!selectedSlide) return
+
+    if (mediaMode === "replace" && selectedItem?.type === "image") {
+      dispatch({
+        type: "UPDATE_ITEM",
+        slideId: selectedSlide.id,
+        itemId: selectedItem.id,
+        patch: {
+          url,
+          altText,
+          mediaId: media?.id,
+        },
+      })
+      return
+    }
+
+    dispatch({
+      type: "ADD_ITEM",
+      slideId: selectedSlide.id,
+      item: createImageItem(url, altText, media?.id),
+    })
+  }
+
+  React.useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.key !== "Backspace") return
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+      if (previewOpen || exportOpen || mediaOpen) return
+      if (!selectedSlideId || !state.selectedItemId) return
+      if (isTextEntryTarget(event.target)) return
+
+      event.preventDefault()
+      dispatch({
+        type: "DELETE_ITEM",
+        slideId: selectedSlideId,
+        itemId: state.selectedItemId,
+      })
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [
+    exportOpen,
+    mediaOpen,
+    previewOpen,
+    selectedSlideId,
+    state.selectedItemId,
+  ])
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-        <Button asChild variant="ghost" size="icon-sm">
-          <Link to="/admin/carousels" aria-label="Back to carousels">
-            <ArrowLeftIcon className="size-4" />
-          </Link>
-        </Button>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold">{document.name}</h1>
-          <p className="text-xs text-muted-foreground">
-            {saveStatus === "saving"
-              ? "Saving"
-              : saveStatus === "error"
-                ? (statusError ?? "Save failed")
-                : "Saved"}
-          </p>
+      <header className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <Button asChild variant="ghost" size="icon-sm">
+            <Link to="/admin/carousels" aria-label="Back to carousels">
+              <ArrowLeftIcon className="size-4" />
+            </Link>
+          </Button>
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-semibold">{document.name}</h1>
+          </div>
         </div>
-        {exportError ? (
-          <p role="alert" className="hidden text-xs text-destructive lg:block">
-            {exportError}
+
+        <div className="flex items-center gap-1 rounded-md border bg-background p-1">
+          <IconButton label="Add text" onClick={handleAddText}>
+            <TypeIcon className="size-4" />
+          </IconButton>
+          <IconButton label="Add image" onClick={openAddImage}>
+            <ImageIcon className="size-4" />
+          </IconButton>
+          <IconButton
+            label="Add gradient shadow"
+            onClick={handleAddGradientShadow}
+          >
+            <BlendIcon className="size-4" />
+          </IconButton>
+        </div>
+
+        <div className="flex min-w-0 items-center justify-end gap-2">
+          <p
+            role={saveStatus === "error" || exportError ? "alert" : "status"}
+            className={cn(
+              "hidden max-w-56 truncate text-xs text-muted-foreground lg:block",
+              (saveStatus === "error" || exportError) && "text-destructive"
+            )}
+          >
+            {exportError ??
+              (saveStatus === "saving"
+                ? "Saving"
+                : saveStatus === "error"
+                  ? (statusError ?? "Save failed")
+                  : "Saved")}
           </p>
-        ) : null}
-        <IconButton
-          label="Undo"
-          disabled={!state.past.length}
-          onClick={() => dispatch({ type: "UNDO" })}
-        >
-          <Undo2Icon className="size-4" />
-        </IconButton>
-        <IconButton
-          label="Redo"
-          disabled={!state.future.length}
-          onClick={() => dispatch({ type: "REDO" })}
-        >
-          <Redo2Icon className="size-4" />
-        </IconButton>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setPreviewOpen(true)}
-        >
-          <EyeIcon className="size-4" />
-          Preview
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            setExportError(null)
-            setExportProgress(null)
-            setExportOpen(true)
-          }}
-        >
-          <DownloadIcon className="size-4" />
-          Export
-        </Button>
+          <IconButton
+            label="Undo"
+            disabled={!state.past.length}
+            onClick={() => dispatch({ type: "UNDO" })}
+          >
+            <Undo2Icon className="size-4" />
+          </IconButton>
+          <IconButton
+            label="Redo"
+            disabled={!state.future.length}
+            onClick={() => dispatch({ type: "REDO" })}
+          >
+            <Redo2Icon className="size-4" />
+          </IconButton>
+          <IconButton
+            label="Reset to defaults"
+            onClick={() => dispatch({ type: "RESET_DEFAULTS" })}
+          >
+            <RotateCcwIcon className="size-4" />
+          </IconButton>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <EyeIcon className="size-4" />
+            Preview
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setExportError(null)
+              setExportProgress(null)
+              setExportOpen(true)
+            }}
+          >
+            <DownloadIcon className="size-4" />
+            Export
+          </Button>
+        </div>
       </header>
 
       <ResizablePanelGroup className="min-h-0 flex-1" orientation="horizontal">
@@ -385,20 +512,7 @@ export function CarouselBuilderPage({
                   patch,
                 })
               }
-              onAddText={() =>
-                dispatch({
-                  type: "ADD_ITEM",
-                  slideId: selectedSlide.id,
-                  item: createTextItem(),
-                })
-              }
-              onAddImage={(item) =>
-                dispatch({
-                  type: "ADD_ITEM",
-                  slideId: selectedSlide.id,
-                  item,
-                })
-              }
+              onReplaceImage={openReplaceImage}
               onDeleteItem={(itemId) =>
                 dispatch({
                   type: "DELETE_ITEM",
@@ -438,6 +552,20 @@ export function CarouselBuilderPage({
           dispatch({ type: "UPDATE_CAPTION", caption })
         }
         onExport={handleExport}
+      />
+      <MediaPicker
+        open={mediaOpen}
+        onOpenChange={(open) => {
+          setMediaOpen(open)
+          if (!open) setMediaMode("add")
+        }}
+        showVideos={false}
+        currentMediaUrl={
+          mediaMode === "replace" && selectedItem?.type === "image"
+            ? selectedItem.url
+            : undefined
+        }
+        onSelectMedia={handleSelectMedia}
       />
     </div>
   )
@@ -631,7 +759,8 @@ function CanvasPanel({
   return (
     <main
       ref={containerRef}
-      className="grid h-full min-h-0 place-items-center overflow-hidden bg-muted/20 p-6"
+      className="grid h-full min-h-0 place-items-center overflow-hidden bg-white p-6"
+      onPointerDown={() => onSelectItem(null)}
     >
       <div
         ref={stageRef}
@@ -712,13 +841,15 @@ function CanvasItem({
         </div>
       ) : item.type === "image" ? (
         <img
-          src={item.url}
-          alt={item.altText ?? ""}
-          draggable={false}
-          className={cn(
-            "h-full w-full rounded-sm",
-            item.fit === "contain" ? "object-contain" : "object-cover"
-          )}
+            src={item.url}
+            alt={item.altText ?? ""}
+            draggable={false}
+            className={cn("h-full w-full rounded-sm", imageFitClass(item.fit))}
+          />
+      ) : item.type === "gradient-shadow" ? (
+        <div
+          className="h-full w-full rounded-sm"
+          style={{ background: gradientShadowBackground(item) }}
         />
       ) : (
         <div className="grid h-full w-full place-items-center rounded-sm border bg-black text-white">
@@ -744,8 +875,7 @@ function InspectorPanel({
   onUpdateFormat,
   onUpdateSlide,
   onUpdateItem,
-  onAddText,
-  onAddImage,
+  onReplaceImage,
   onDeleteItem,
   onMoveLayer,
 }: {
@@ -755,50 +885,16 @@ function InspectorPanel({
   onUpdateFormat: (format: CarouselFormat) => void
   onUpdateSlide: (patch: Partial<CarouselSlide>) => void
   onUpdateItem: (itemId: string, patch: Partial<CarouselSlideItem>) => void
-  onAddText: () => void
-  onAddImage: (item: CarouselMediaItem) => void
+  onReplaceImage: () => void
   onDeleteItem: (itemId: string) => void
   onMoveLayer: (itemId: string, direction: 1 | -1) => void
 }) {
-  const [mediaOpen, setMediaOpen] = React.useState(false)
-
-  function handleSelectMedia(url: string, altText?: string, media?: MediaItem) {
-    if (selectedItem?.type === "image") {
-      onUpdateItem(selectedItem.id, {
-        url,
-        altText,
-        mediaId: media?.id,
-      })
-      return
-    }
-
-    onAddImage(createImageItem(url, altText, media?.id))
-  }
+  const title = getInspectorTitle(selectedItem)
 
   return (
     <aside className="flex h-full min-h-0 flex-col border-l bg-muted/30">
-      <div className="flex h-12 shrink-0 items-center justify-between border-b px-4">
-        <h2 className="text-sm font-semibold">Inspector</h2>
-        <div className="flex gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={onAddText}
-            aria-label="Add text"
-          >
-            <TypeIcon className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setMediaOpen(true)}
-            aria-label="Add image"
-          >
-            <ImageIcon className="size-4" />
-          </Button>
-        </div>
+      <div className="flex h-12 shrink-0 items-center border-b px-4">
+        <h2 className="text-sm font-semibold">{title}</h2>
       </div>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
@@ -808,10 +904,15 @@ function InspectorPanel({
               item={selectedItem}
               onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
             />
+          ) : selectedItem.type === "gradient-shadow" ? (
+            <GradientShadowInspector
+              item={selectedItem}
+              onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
+            />
           ) : (
             <MediaInspector
               item={selectedItem}
-              onReplace={() => setMediaOpen(true)}
+              onReplace={onReplaceImage}
               onUpdate={(patch) => onUpdateItem(selectedItem.id, patch)}
             />
           )
@@ -832,18 +933,16 @@ function InspectorPanel({
           />
         ) : null}
       </div>
-
-      <MediaPicker
-        open={mediaOpen}
-        onOpenChange={setMediaOpen}
-        showVideos={false}
-        currentMediaUrl={
-          selectedItem?.type === "image" ? selectedItem.url : undefined
-        }
-        onSelectMedia={handleSelectMedia}
-      />
     </aside>
   )
+}
+
+function getInspectorTitle(selectedItem: CarouselSlideItem | null) {
+  if (!selectedItem) return "Slide Settings"
+  if (selectedItem.type === "text") return "Edit Text"
+  if (selectedItem.type === "image") return "Edit Image"
+  if (selectedItem.type === "gradient-shadow") return "Edit Gradient Shadow"
+  return "Edit Media"
 }
 
 function SlideInspector({
@@ -989,18 +1088,55 @@ function MediaInspector({
         <Label htmlFor="media-fit">Fit</Label>
         <Select
           value={item.fit}
-          onValueChange={(value) =>
-            onUpdate({ fit: value === "contain" ? "contain" : "cover" })
-          }
+          onValueChange={(value) => onUpdate(imageFitPatch(value))}
         >
           <SelectTrigger id="media-fit">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="fill">Fill</SelectItem>
             <SelectItem value="cover">Crop</SelectItem>
             <SelectItem value="contain">Fit</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <PositionFields item={item} onUpdate={onUpdate} />
+    </div>
+  )
+}
+
+function GradientShadowInspector({
+  item,
+  onUpdate,
+}: {
+  item: CarouselGradientShadowItem
+  onUpdate: (patch: Partial<CarouselGradientShadowItem>) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="gradient-shadow-color">Color</Label>
+        <ColorPicker
+          id="gradient-shadow-color"
+          value={item.color}
+          onChange={(color) => onUpdate({ color })}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3">
+          <Label>Opacity</Label>
+          <span className="text-xs text-muted-foreground">
+            {Math.round(item.opacity)}%
+          </span>
+        </div>
+        <Slider
+          value={[item.opacity]}
+          min={0}
+          max={100}
+          step={1}
+          onValueChange={(value) => onUpdate({ opacity: value[0] })}
+          aria-label="Gradient shadow opacity"
+        />
       </div>
       <PositionFields item={item} onUpdate={onUpdate} />
     </div>
@@ -1022,26 +1158,59 @@ function PositionFields<T extends CarouselSlideItem>({
         ["W", "width", item.width],
         ["H", "height", item.height],
       ].map(([label, key, value]) => (
-        <div key={key as string} className="space-y-1.5">
-          <Label htmlFor={`pos-${key}`}>{label}</Label>
-          <Input
-            id={`pos-${key}`}
-            type="number"
-            min={0}
-            max={100}
-            value={Math.round((value as number) * 100)}
-            onChange={(event) =>
-              onUpdate(
-                positionPatch(
-                  item,
-                  key as PositionKey,
-                  Number(event.target.value) / 100
-                ) as Partial<T>
-              )
-            }
-          />
-        </div>
+        <PositionNumberField
+          key={`${item.id}-${key as string}`}
+          item={item}
+          field={key as PositionKey}
+          label={label as string}
+          value={value as number}
+          onUpdate={onUpdate}
+        />
       ))}
+    </div>
+  )
+}
+
+function PositionNumberField<T extends CarouselSlideItem>({
+  item,
+  field,
+  label,
+  value,
+  onUpdate,
+}: {
+  item: T
+  field: PositionKey
+  label: string
+  value: number
+  onUpdate: (patch: Partial<T>) => void
+}) {
+  const formattedValue = String(Math.round(value * 100))
+  const [draft, setDraft] = React.useState<string | null>(null)
+  const displayValue = draft ?? formattedValue
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={`pos-${field}`}>{label}</Label>
+      <Input
+        id={`pos-${field}`}
+        type="number"
+        min={0}
+        max={100}
+        value={displayValue}
+        onBlur={() => setDraft(null)}
+        onChange={(event) => {
+          const nextDraft = event.target.value
+          setDraft(nextDraft)
+          if (nextDraft === "") return
+
+          const nextValue = Number(nextDraft)
+          if (!Number.isFinite(nextValue)) return
+
+          onUpdate(
+            positionPatch(item, field, nextValue / 100) as Partial<T>
+          )
+        }}
+      />
     </div>
   )
 }
@@ -1379,10 +1548,12 @@ function StaticSlidePreview({
               <img
                 src={item.url}
                 alt={item.altText ?? ""}
-                className={cn(
-                  "h-full w-full",
-                  item.fit === "contain" ? "object-contain" : "object-cover"
-                )}
+                className={cn("h-full w-full", imageFitClass(item.fit))}
+              />
+            ) : item.type === "gradient-shadow" ? (
+              <div
+                className="h-full w-full"
+                style={{ background: gradientShadowBackground(item) }}
               />
             ) : null}
           </div>
@@ -1558,6 +1729,12 @@ function builderReducer(
             : slide
         ),
       })
+    case "RESET_DEFAULTS":
+      return withHistory(state, {
+        ...state,
+        format: "4:5",
+        slides: resetSlidesToDefaults(state.slides),
+      })
     case "UNDO": {
       const previous = state.past[state.past.length - 1]
       if (!previous) return state
@@ -1612,16 +1789,142 @@ function createBlankSlide(): CarouselSlide {
   }
 }
 
+function resetSlidesToDefaults(slides: CarouselSlide[]): CarouselSlide[] {
+  return slides.map((slide, slideIndex) => {
+    let textIndex = 0
+    const firstMediaItem = slide.items.find(isMediaItem)
+    const defaultMediaItem = firstMediaItem
+      ? resetMediaItemDefaults(firstMediaItem)
+      : null
+
+    return {
+      ...slide,
+      backgroundColor:
+        slideIndex === 0 ? DEFAULT_FIRST_SLIDE_BACKGROUND : DEFAULT_BACKGROUND,
+      items: slide.items.map((item) => {
+        if (item.type === "text") {
+          const resetItem = resetTextItemDefaults(item, slideIndex, textIndex)
+          textIndex += 1
+          return resetItem
+        }
+
+        if (isMediaItem(item)) {
+          return resetMediaItemDefaults(item)
+        }
+
+        if (item.type === "gradient-shadow") {
+          return resetGradientShadowItemDefaults(item, defaultMediaItem)
+        }
+
+        return item
+      }),
+    }
+  })
+}
+
+function resetTextItemDefaults(
+  item: CarouselTextItem,
+  slideIndex: number,
+  textIndex: number
+): CarouselTextItem {
+  if (textIndex === 0) {
+    return {
+      ...item,
+      x: 0.1,
+      y: DEFAULT_TITLE_TEXT_Y,
+      width: 0.8,
+      height: DEFAULT_TITLE_TEXT_HEIGHT,
+      zIndex: DEFAULT_TEXT_Z_INDEX,
+      fontSize: slideIndex === 0 ? 76 : 58,
+      color: slideIndex === 0 ? "#ffffff" : "#111827",
+      align: "left",
+    }
+  }
+
+  if (textIndex === 1) {
+    return {
+      ...item,
+      x: 0.1,
+      y: DEFAULT_BODY_TEXT_Y,
+      width: 0.8,
+      height: DEFAULT_BODY_TEXT_HEIGHT,
+      zIndex: DEFAULT_TEXT_Z_INDEX + 1,
+      fontSize: slideIndex === 0 ? 38 : 40,
+      color: slideIndex === 0 ? "#e5e7eb" : "#374151",
+      align: "left",
+    }
+  }
+
+  return {
+    ...item,
+    x: 0.12,
+    y: DEFAULT_EXTRA_TEXT_Y,
+    width: 0.76,
+    height: 0.2,
+    zIndex: DEFAULT_TEXT_Z_INDEX + textIndex,
+    fontSize: 56,
+    color: "#111827",
+    align: "left",
+  }
+}
+
+function resetMediaItemDefaults(item: CarouselMediaItem): CarouselMediaItem {
+  return {
+    ...item,
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    zIndex: DEFAULT_IMAGE_Z_INDEX,
+    fit: "fill",
+  }
+}
+
+function resetGradientShadowItemDefaults(
+  item: CarouselGradientShadowItem,
+  reference: CarouselMediaItem | null
+): CarouselGradientShadowItem {
+  const defaults = createGradientShadowItem(reference)
+  return {
+    ...item,
+    x: defaults.x,
+    y: defaults.y,
+    width: defaults.width,
+    height: defaults.height,
+    zIndex: DEFAULT_GRADIENT_SHADOW_Z_INDEX,
+    color: DEFAULT_GRADIENT_SHADOW_COLOR,
+    opacity: DEFAULT_GRADIENT_SHADOW_OPACITY,
+  }
+}
+
+function imageFitPatch(value: string): Partial<CarouselMediaItem> {
+  if (value === "fill") {
+    return {
+      fit: "fill",
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    }
+  }
+
+  return { fit: value === "contain" ? "contain" : "cover" }
+}
+
+function imageFitClass(fit: CarouselMediaFit) {
+  return fit === "contain" ? "object-contain" : "object-cover"
+}
+
 function createTextItem(): CarouselTextItem {
   return {
     id: builderId(),
     type: "text",
     text: "New text",
     x: 0.12,
-    y: 0.16,
+    y: DEFAULT_EXTRA_TEXT_Y,
     width: 0.76,
     height: 0.2,
-    zIndex: 10,
+    zIndex: DEFAULT_TEXT_Z_INDEX,
     fontSize: 56,
     color: "#111827",
     align: "left",
@@ -1639,12 +1942,46 @@ function createImageItem(
     mediaId,
     url,
     altText,
-    x: 0.12,
-    y: 0.24,
-    width: 0.76,
-    height: 0.46,
-    zIndex: 5,
-    fit: "cover",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    zIndex: DEFAULT_IMAGE_Z_INDEX,
+    fit: "fill",
+  }
+}
+
+function createGradientShadowItem(
+  reference: CarouselSlideItem | null
+): CarouselGradientShadowItem {
+  if (reference?.type === "image") {
+    const height = clampSize(
+      reference.height * DEFAULT_GRADIENT_SHADOW_HEIGHT,
+      reference.height
+    )
+    return {
+      id: builderId(),
+      type: "gradient-shadow",
+      x: reference.x,
+      y: clamp01(reference.y + reference.height - height, 1 - height),
+      width: reference.width,
+      height,
+      zIndex: DEFAULT_GRADIENT_SHADOW_Z_INDEX,
+      color: DEFAULT_GRADIENT_SHADOW_COLOR,
+      opacity: DEFAULT_GRADIENT_SHADOW_OPACITY,
+    }
+  }
+
+  return {
+    id: builderId(),
+    type: "gradient-shadow",
+    x: 0,
+    y: 1 - DEFAULT_GRADIENT_SHADOW_HEIGHT,
+    width: 1,
+    height: DEFAULT_GRADIENT_SHADOW_HEIGHT,
+    zIndex: DEFAULT_GRADIENT_SHADOW_Z_INDEX,
+    color: DEFAULT_GRADIENT_SHADOW_COLOR,
+    opacity: DEFAULT_GRADIENT_SHADOW_OPACITY,
   }
 }
 
@@ -1677,12 +2014,43 @@ function moveLayer(
   }
 }
 
+function isMediaItem(item: CarouselSlideItem): item is CarouselMediaItem {
+  return item.type === "image" || item.type === "video"
+}
+
 function clamp01(value: number, max = 1) {
   return Math.min(Math.max(0, value), Math.max(0, max))
 }
 
 function clampSize(value: number, max = 1) {
   return Math.min(Math.max(MIN_ITEM_SIZE, max), Math.max(MIN_ITEM_SIZE, value))
+}
+
+function gradientShadowBackground(item: CarouselGradientShadowItem) {
+  return `linear-gradient(to top, ${hexToRgba(
+    item.color,
+    item.opacity / 100
+  )} 0%, ${hexToRgba(item.color, 0)} 100%)`
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const color = hex.replace("#", "")
+  const red = Number.parseInt(color.slice(0, 2), 16)
+  const green = Number.parseInt(color.slice(2, 4), 16)
+  const blue = Number.parseInt(color.slice(4, 6), 16)
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+}
+
+function isTextEntryTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false
+  if (target instanceof HTMLElement && target.isContentEditable) return true
+
+  return (
+    target.closest(
+      "input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only']"
+    ) !== null
+  )
 }
 
 type PositionKey = "x" | "y" | "width" | "height"

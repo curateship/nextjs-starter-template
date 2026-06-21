@@ -1,5 +1,7 @@
 import type {
   CarouselFormat,
+  CarouselGradientShadowItem,
+  CarouselMediaFit,
   CarouselMediaItem,
   CarouselSlide,
   CarouselTextItem,
@@ -138,6 +140,8 @@ async function renderSlideCanvas(slide: CarouselSlide, format: CarouselFormat) {
       drawTextItem(context, item, size.width, size.height)
     } else if (item.type === "image") {
       await drawImageItem(context, item, size.width, size.height)
+    } else if (item.type === "gradient-shadow") {
+      drawGradientShadowItem(context, item, size.width, size.height)
     }
   }
 
@@ -207,6 +211,24 @@ async function drawImageItem(
   }
 }
 
+function drawGradientShadowItem(
+  context: CanvasRenderingContext2D,
+  item: CarouselGradientShadowItem,
+  width: number,
+  height: number
+) {
+  const box = itemBox(item, width, height)
+  const alpha = item.opacity / 100
+  const gradient = context.createLinearGradient(0, box.y + box.height, 0, box.y)
+  gradient.addColorStop(0, hexToRgba(item.color, alpha))
+  gradient.addColorStop(1, hexToRgba(item.color, 0))
+
+  context.save()
+  context.fillStyle = gradient
+  context.fillRect(box.x, box.y, box.width, box.height)
+  context.restore()
+}
+
 function itemBox(
   item: { x: number; y: number; width: number; height: number },
   width: number,
@@ -218,6 +240,15 @@ function itemBox(
     width: item.width * width,
     height: item.height * height,
   }
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const color = hex.replace("#", "")
+  const red = Number.parseInt(color.slice(0, 2), 16)
+  const green = Number.parseInt(color.slice(2, 4), 16)
+  const blue = Number.parseInt(color.slice(4, 6), 16)
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
 }
 
 function wrapText(
@@ -253,7 +284,7 @@ export function getObjectFitDrawRect(
   imageHeight: number,
   boxWidth: number,
   boxHeight: number,
-  fit: "cover" | "contain"
+  fit: CarouselMediaFit
 ): ObjectFitDrawRect {
   const imageRatio = imageWidth / imageHeight
   const boxRatio = boxWidth / boxHeight
