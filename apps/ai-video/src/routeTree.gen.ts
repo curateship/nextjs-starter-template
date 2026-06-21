@@ -17,6 +17,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
+import { Route as AuthenticatedAdminExportRouteImport } from './routes/_authenticated/admin/export'
 import { Route as AuthenticatedAdminActorRouteImport } from './routes/_authenticated/admin/actor'
 import { Route as AuthenticatedAdminViralArchiveIndexRouteImport } from './routes/_authenticated/admin/viral-archive/index'
 import { Route as AuthenticatedAdminVideoEditorIndexRouteImport } from './routes/_authenticated/admin/video-editor/index'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminFeedbackCommentsRouteImport } from './routes/_authenticated/admin/feedback/comments'
 import { Route as AuthenticatedAdminCreatorsCreatorIdRouteImport } from './routes/_authenticated/admin/creators/$creatorId'
 import { Route as AuthenticatedAdminCarouselsCarouselIdRouteImport } from './routes/_authenticated/admin/carousels/$carouselId'
+import { Route as ApiV1ProjectsProjectIdRenderThumbnailRouteImport } from './routes/api/v1/projects/$projectId/render-thumbnail'
 import { Route as ApiV1ProjectsProjectIdRenderRouteImport } from './routes/api/v1/projects/$projectId/render'
 import { Route as ApiV1MediaMediaIdFileRouteImport } from './routes/api/v1/media/$mediaId/file'
 import { Route as AuthenticatedAdminVideoEditorTemplateTemplateIdRouteImport } from './routes/_authenticated/admin/video-editor/template/$templateId'
@@ -72,6 +74,12 @@ const AuthenticatedAdminFeedbackRoute =
   AuthenticatedAdminFeedbackRouteImport.update({
     id: '/admin/feedback',
     path: '/admin/feedback',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminExportRoute =
+  AuthenticatedAdminExportRouteImport.update({
+    id: '/admin/export',
+    path: '/admin/export',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminActorRoute = AuthenticatedAdminActorRouteImport.update({
@@ -139,6 +147,12 @@ const AuthenticatedAdminCarouselsCarouselIdRoute =
     path: '/admin/carousels/$carouselId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const ApiV1ProjectsProjectIdRenderThumbnailRoute =
+  ApiV1ProjectsProjectIdRenderThumbnailRouteImport.update({
+    id: '/api/v1/projects/$projectId/render-thumbnail',
+    path: '/api/v1/projects/$projectId/render-thumbnail',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1ProjectsProjectIdRenderRoute =
   ApiV1ProjectsProjectIdRenderRouteImport.update({
     id: '/api/v1/projects/$projectId/render',
@@ -162,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/admin/actor': typeof AuthenticatedAdminActorRoute
+  '/admin/export': typeof AuthenticatedAdminExportRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -179,12 +194,14 @@ export interface FileRoutesByFullPath {
   '/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
+  '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/': typeof AuthenticatedIndexRoute
   '/admin/actor': typeof AuthenticatedAdminActorRoute
+  '/admin/export': typeof AuthenticatedAdminExportRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -202,6 +219,7 @@ export interface FileRoutesByTo {
   '/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
+  '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -210,6 +228,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/admin/actor': typeof AuthenticatedAdminActorRoute
+  '/_authenticated/admin/export': typeof AuthenticatedAdminExportRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
@@ -227,6 +246,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/video-editor/template/$templateId': typeof AuthenticatedAdminVideoEditorTemplateTemplateIdRoute
   '/api/v1/media/$mediaId/file': typeof ApiV1MediaMediaIdFileRoute
   '/api/v1/projects/$projectId/render': typeof ApiV1ProjectsProjectIdRenderRoute
+  '/api/v1/projects/$projectId/render-thumbnail': typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -235,6 +255,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/workspaces'
     | '/admin/actor'
+    | '/admin/export'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
@@ -252,12 +273,14 @@ export interface FileRouteTypes {
     | '/admin/video-editor/template/$templateId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
+    | '/api/v1/projects/$projectId/render-thumbnail'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/workspaces'
     | '/'
     | '/admin/actor'
+    | '/admin/export'
     | '/admin/feedback'
     | '/admin/media'
     | '/admin/notifications'
@@ -275,6 +298,7 @@ export interface FileRouteTypes {
     | '/admin/video-editor/template/$templateId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
+    | '/api/v1/projects/$projectId/render-thumbnail'
   id:
     | '__root__'
     | '/_authenticated'
@@ -282,6 +306,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/admin/actor'
+    | '/_authenticated/admin/export'
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
@@ -299,6 +324,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/video-editor/template/$templateId'
     | '/api/v1/media/$mediaId/file'
     | '/api/v1/projects/$projectId/render'
+    | '/api/v1/projects/$projectId/render-thumbnail'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -306,6 +332,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ApiV1MediaMediaIdFileRoute: typeof ApiV1MediaMediaIdFileRoute
   ApiV1ProjectsProjectIdRenderRoute: typeof ApiV1ProjectsProjectIdRenderRoute
+  ApiV1ProjectsProjectIdRenderThumbnailRoute: typeof ApiV1ProjectsProjectIdRenderThumbnailRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -364,6 +391,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/feedback'
       fullPath: '/admin/feedback'
       preLoaderRoute: typeof AuthenticatedAdminFeedbackRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/export': {
+      id: '/_authenticated/admin/export'
+      path: '/admin/export'
+      fullPath: '/admin/export'
+      preLoaderRoute: typeof AuthenticatedAdminExportRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/actor': {
@@ -443,6 +477,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCarouselsCarouselIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/v1/projects/$projectId/render-thumbnail': {
+      id: '/api/v1/projects/$projectId/render-thumbnail'
+      path: '/api/v1/projects/$projectId/render-thumbnail'
+      fullPath: '/api/v1/projects/$projectId/render-thumbnail'
+      preLoaderRoute: typeof ApiV1ProjectsProjectIdRenderThumbnailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/projects/$projectId/render': {
       id: '/api/v1/projects/$projectId/render'
       path: '/api/v1/projects/$projectId/render'
@@ -500,6 +541,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAdminActorRoute: typeof AuthenticatedAdminActorRoute
+  AuthenticatedAdminExportRoute: typeof AuthenticatedAdminExportRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
@@ -519,6 +561,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAdminActorRoute: AuthenticatedAdminActorRoute,
+  AuthenticatedAdminExportRoute: AuthenticatedAdminExportRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
@@ -549,6 +592,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ApiV1MediaMediaIdFileRoute: ApiV1MediaMediaIdFileRoute,
   ApiV1ProjectsProjectIdRenderRoute: ApiV1ProjectsProjectIdRenderRoute,
+  ApiV1ProjectsProjectIdRenderThumbnailRoute:
+    ApiV1ProjectsProjectIdRenderThumbnailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

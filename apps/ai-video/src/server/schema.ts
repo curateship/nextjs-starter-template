@@ -307,6 +307,12 @@ export const aiVideoProjects = pgTable(
     renderStatus: varchar("render_status", { length: 20 }),
     renderError: text("render_error"),
     renderStoragePath: varchar("render_storage_path", { length: 500 }),
+    renderFileSize: bigint("render_file_size", { mode: "number" }),
+    renderThumbnailStoragePath: varchar("render_thumbnail_storage_path", {
+      length: 500,
+    }),
+    renderTitle: varchar("render_title", { length: 255 }),
+    renderCaption: text("render_caption"),
     renderedAt: timestamp("rendered_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),

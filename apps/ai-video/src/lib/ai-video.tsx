@@ -12,6 +12,7 @@ import {
   CalendarIcon,
   ClipboardCheckIcon,
   CreditCardIcon,
+  DownloadIcon,
   FolderOpenIcon,
   GlobeIcon,
   HeartPulseIcon,
@@ -86,6 +87,10 @@ export const iconMeta = {
   creditCard: {
     label: "Credit Card",
     icon: CreditCardIcon,
+  },
+  download: {
+    label: "Download",
+    icon: DownloadIcon,
   },
   heartPulse: {
     label: "Health",

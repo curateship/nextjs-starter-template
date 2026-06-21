@@ -1,0 +1,2 @@
+export const EXPORT_TITLE_MAX_LENGTH = 255
+export const EXPORT_CAPTION_MAX_LENGTH = 2200
