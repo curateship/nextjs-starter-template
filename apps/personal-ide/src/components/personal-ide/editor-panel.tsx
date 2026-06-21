@@ -2,7 +2,7 @@ import { EditorState } from "@codemirror/state"
 import type { Extension } from "@codemirror/state"
 import { EditorView } from "@codemirror/view"
 import CodeMirror, { type BasicSetupOptions } from "@uiw/react-codemirror"
-import { Code2, FileText, Save, Settings, X } from "lucide-react"
+import { Code2, Copy, FileText, Save, Settings, X } from "lucide-react"
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
@@ -18,6 +18,7 @@ import { loadLanguageForPath } from "@/app/language"
 import type { EditorTab } from "@/app/types"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useDismissibleMenu } from "@/hooks/use-dismissible-menu"
 import { cn } from "@/lib/utils"
 
 type MinimapRow = {
@@ -27,6 +28,12 @@ type MinimapRow = {
   key: string
   top: number
   width: number
+}
+
+type TabMenuState = {
+  path: string
+  x: number
+  y: number
 }
 
 const MAX_MINIMAP_CHARS = 200_000
@@ -270,6 +277,7 @@ export function EditorPanel({
   tabs,
   onChange,
   onCloseTab,
+  onCopyTabPath,
   onPasteImage,
   onSave,
   onSelectTab,
@@ -283,10 +291,15 @@ export function EditorPanel({
   tabs: EditorTab[]
   onChange: (value: string) => void
   onCloseTab: (path: string) => void
+  onCopyTabPath: (path: string) => void
   onPasteImage: (event: ClipboardEvent, view: EditorView) => void
   onSave: () => void
   onSelectTab: (path: string) => void
 }) {
+  const [tabMenu, setTabMenu] = useState<TabMenuState | null>(null)
+
+  useDismissibleMenu(tabMenu, setTabMenu)
+
   const pasteImageExtension = useMemo(
     () =>
       EditorView.domEventHandlers({
@@ -410,6 +423,11 @@ export function EditorPanel({
                     "flex h-10 max-w-56 min-w-28 items-center border-r text-sm text-muted-foreground transition-colors hover:bg-muted/70",
                     activePath === item.path && "bg-background text-foreground"
                   )}
+                  onContextMenu={(event) => {
+                    if (isSettingsTab(item)) return
+                    event.preventDefault()
+                    setTabMenu({ path: item.path, x: event.clientX, y: event.clientY })
+                  }}
                 >
                   <button
                     type="button"
@@ -438,6 +456,27 @@ export function EditorPanel({
             </div>
           )}
         </div>
+
+        {tabMenu ? (
+          <div
+            className="fixed z-50 w-44 rounded-lg border bg-popover p-1 shadow-md"
+            style={{ left: tabMenu.x, top: tabMenu.y }}
+            onContextMenu={(event) => event.preventDefault()}
+            role="menu"
+          >
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted [&_svg]:size-3.5"
+              onClick={() => {
+                onCopyTabPath(tabMenu.path)
+                setTabMenu(null)
+              }}
+            >
+              <Copy />
+              <span className="truncate">Copy File Path</span>
+            </button>
+          </div>
+        ) : null}
 
         <Tooltip>
           <TooltipTrigger asChild>
