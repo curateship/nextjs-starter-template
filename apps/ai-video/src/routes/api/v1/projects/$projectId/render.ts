@@ -10,9 +10,9 @@ import { aiVideoProjects } from "@/server/schema"
 import { findCurrentUser } from "@/server/security"
 import { and, eq } from "drizzle-orm"
 
-// Streams a finished export as a download. Renders are served through the app
-// (not the public R2 URL) because the bucket sends immutable cache headers —
-// a re-export at the same key would otherwise serve stale from the CDN.
+// Streams a finished export. Downloads remain attachments; ?mode=view serves
+// the same file inline with range support for the preview modal. Renders are
+// served through the app because the bucket sends immutable cache headers.
 export const Route = createFileRoute("/api/v1/projects/$projectId/render")({
   server: {
     handlers: {
@@ -47,7 +47,10 @@ export const Route = createFileRoute("/api/v1/projects/$projectId/render")({
         }
 
         try {
-          const object = await getFromR2(project.renderStoragePath)
+          const url = new URL(request.url)
+          const previewMode = url.searchParams.get("mode") === "view"
+          const range = previewMode ? request.headers.get("Range") : null
+          const object = await getFromR2(project.renderStoragePath, range)
           if (!object.Body) {
             return Response.json(
               { detail: "Failed to load export" },
@@ -55,23 +58,32 @@ export const Route = createFileRoute("/api/v1/projects/$projectId/render")({
             )
           }
 
-          // The editor passes the user's chosen name via ?filename=; fall
-          // back to the project name. Sanitized to a safe download filename.
-          const requested = new URL(request.url).searchParams.get("filename")
-          const filename =
-            (requested ?? project.name).replace(/[^\w. -]+/g, "").trim() ||
-            "export"
+          // The UI can pass the current title via ?filename=; otherwise use
+          // the saved export title. Sanitized to a safe download filename.
+          const requested = url.searchParams.get("filename")
+          const baseFilename =
+            (requested ?? project.renderTitle ?? project.name)
+              .replace(/[^\w. -]+/g, "")
+              .trim()
+              .replace(/\.mp4$/i, "") || "export"
           const headers = new Headers({
+            "Accept-Ranges": "bytes",
             "Content-Type": "video/mp4",
-            "Content-Disposition": `attachment; filename="${filename}.mp4"`,
+            "Content-Disposition": `${previewMode ? "inline" : "attachment"}; filename="${baseFilename}.mp4"`,
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
           })
           if (object.ContentLength !== undefined) {
             headers.set("Content-Length", object.ContentLength.toString())
           }
+          if (object.ContentRange) {
+            headers.set("Content-Range", object.ContentRange)
+          }
 
-          return new Response(toBodyInit(object.Body), { status: 200, headers })
+          return new Response(toBodyInit(object.Body), {
+            status: range && object.ContentRange ? 206 : 200,
+            headers,
+          })
         } catch (error) {
           if (error instanceof R2StorageNotConfiguredError) {
             return Response.json(

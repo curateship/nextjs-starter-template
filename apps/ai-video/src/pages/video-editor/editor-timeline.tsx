@@ -26,6 +26,14 @@ import {
   type RenderQuality,
 } from "@/lib/api/video-projects"
 import {
+  getExport,
+  getExportErrorMessage,
+  updateExport,
+  type ExportItem,
+} from "@/lib/api/exports"
+import { EXPORT_TITLE_MAX_LENGTH } from "@/lib/export-constraints"
+import { ProjectExportPreviewDialog } from "@/components/export-dashboard"
+import {
   Dialog,
   DialogBody,
   DialogContent,
@@ -582,23 +590,10 @@ const QUALITY_OPTIONS: { value: RenderQuality; label: string; hint: string }[] =
   { value: "medium", label: "Medium", hint: "720p" },
   { value: "low", label: "Low", hint: "480p" },
 ]
-
-// Programmatic download of a finished render with the user's chosen filename
-// (the route reads ?filename= for the Content-Disposition name).
-function downloadRender(projectId: string, filename: string) {
-  const safe = filename.trim() || "export"
-  const anchor = document.createElement("a")
-  anchor.href = `/api/v1/projects/${projectId}/render?filename=${encodeURIComponent(safe)}`
-  anchor.download = `${safe}.mp4`
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-}
-
 // Export modal launched from the toolbar: pick quality + filename, start the
-// server-side render, and auto-download when it finishes. The render runs in
-// the background, so closing the modal mid-render is fine — a toolbar
-// indicator stays up and the file still downloads when ready.
+// server-side render, and open the Project Export preview when it finishes.
+// The render runs in the background, so closing the modal mid-render is fine —
+// a toolbar indicator stays up and the preview still opens when ready.
 function ExportControls() {
   // Export only mounts in project mode, so the document is a project here.
   const { documentId: projectId, documentName: projectName, flushSave } =
@@ -611,18 +606,40 @@ function ExportControls() {
   >("idle")
   const [error, setError] = React.useState<string | null>(null)
   const [starting, setStarting] = React.useState(false)
-  const [savedName, setSavedName] = React.useState<string | null>(null)
-  // True while *this* session is waiting to auto-save the result; survives
+  const [completedExport, setCompletedExport] =
+    React.useState<ExportItem | null>(null)
+  // True while *this* session is waiting to show the result; survives
   // closing the modal. Kept in a ref so the poll loop sees it without
-  // re-subscribing. filenameRef likewise feeds the download from the poll.
-  const autoPendingRef = React.useRef(false)
+  // re-subscribing. filenameRef likewise feeds the saved export title.
+  const previewPendingRef = React.useRef(false)
   const filenameRef = React.useRef(filename)
   React.useEffect(() => {
     filenameRef.current = filename
   }, [filename])
 
+  const openCompletedExport = React.useCallback(async () => {
+    try {
+      const exportItem = await getExport(projectId)
+      const title = (filenameRef.current.trim() || exportItem.name || projectName)
+        .slice(0, EXPORT_TITLE_MAX_LENGTH)
+      const item =
+        title !== exportItem.name
+          ? await updateExport(projectId, {
+              title,
+              caption: exportItem.caption,
+            })
+          : exportItem
+
+      setCompletedExport(item)
+      setModalOpen(false)
+    } catch (exportError) {
+      setStatus("error")
+      setError(getExportErrorMessage(exportError))
+    }
+  }, [projectId, projectName])
+
   // Pick up an export already running when the editor mounts (e.g. a refresh
-  // mid-render). A prior session's finished render won't auto-download.
+  // mid-render). A prior session's finished render won't auto-open.
   React.useEffect(() => {
     let active = true
     getProjectRender(projectId)
@@ -638,7 +655,7 @@ function ExportControls() {
   }, [projectId])
 
   // Poll while rendering; give up past the server's own render timeout so a
-  // crashed render can't wedge the indicator. Auto-downloads on completion.
+  // crashed render can't wedge the indicator. Opens the preview on completion.
   React.useEffect(() => {
     if (status !== "rendering") return
     const startedAt = Date.now()
@@ -652,28 +669,30 @@ function ExportControls() {
         .then((info) => {
           setStatus(info.status)
           setError(info.error)
-          if (info.status === "ready" && autoPendingRef.current) {
-            autoPendingRef.current = false
-            const name = filenameRef.current.trim() || projectName
-            downloadRender(projectId, name)
-            setSavedName(name)
+          if (info.status === "ready" && previewPendingRef.current) {
+            previewPendingRef.current = false
+            void openCompletedExport()
           }
         })
         .catch(() => undefined)
     }, RENDER_POLL_MS)
     return () => clearInterval(timer)
-  }, [projectId, status, projectName])
+  }, [openCompletedExport, projectId, status])
 
   async function handleStartExport() {
     setStarting(true)
     setError(null)
-    setSavedName(null)
+    setCompletedExport(null)
     try {
       // The render reads the saved timeline — persist any pending edits first.
       await flushSave()
       const info = await startProjectRender(projectId, quality)
-      autoPendingRef.current = true
+      previewPendingRef.current = true
       setStatus(info.status)
+      if (info.status === "ready") {
+        previewPendingRef.current = false
+        await openCompletedExport()
+      }
     } catch (exportError) {
       setStatus("error")
       setError(getProjectErrorMessage(exportError))
@@ -713,16 +732,11 @@ function ExportControls() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   You can close this window — the export keeps running and your
-                  file downloads automatically when it&apos;s ready.
+                  Project Export preview opens when it&apos;s ready.
                 </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {savedName ? (
-                  <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                    Saved “{savedName}.mp4” to your downloads.
-                  </div>
-                ) : null}
                 {error ? (
                   <div role="alert" className="text-sm text-destructive">
                     {error}
@@ -734,6 +748,7 @@ function ExportControls() {
                     <Input
                       id="export-name"
                       value={filename}
+                      maxLength={EXPORT_TITLE_MAX_LENGTH}
                       onChange={(event) => setFilename(event.target.value)}
                       placeholder="my-video"
                     />
@@ -797,6 +812,12 @@ function ExportControls() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProjectExportPreviewDialog
+        item={completedExport}
+        onSaved={setCompletedExport}
+        onOpenChange={(open) => !open && setCompletedExport(null)}
+      />
     </>
   )
 }

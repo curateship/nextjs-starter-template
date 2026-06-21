@@ -379,6 +379,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-export",
+          label: "Export",
+          href: "/admin/export",
+          icon: "download",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-settings",
           label: "Settings",
           href: "/admin/settings",

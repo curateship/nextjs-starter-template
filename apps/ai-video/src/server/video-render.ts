@@ -8,10 +8,16 @@ import { fileURLToPath } from "node:url"
 import { and, eq, inArray } from "drizzle-orm"
 
 import { db } from "@/server/db"
-import { bodyToBytes, getFromR2, uploadToR2 } from "@/server/media-storage"
+import {
+  bodyToBytes,
+  deleteFromR2,
+  getFromR2,
+  uploadToR2,
+} from "@/server/media-storage"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
+import { extractVideoThumbnail } from "@/server/video-download"
 import type { ProjectTimeline } from "@/server/video-projects"
 import type {
   AspectRatio,
@@ -265,6 +271,14 @@ async function renderProject(
     const bytes = await readFile(outFile)
     const storagePath = `renders/${userId}/${projectId}.mp4`
     await uploadToR2(storagePath, bytes, "video/mp4")
+    const renderedAt = now()
+    const thumbnailStoragePath = await storeRenderThumbnail({
+      userId,
+      projectId,
+      renderedAt,
+      bytes,
+      previousPath: row.renderThumbnailStoragePath,
+    })
 
     await db
       .update(aiVideoProjects)
@@ -272,7 +286,10 @@ async function renderProject(
         renderStatus: "ready",
         renderError: null,
         renderStoragePath: storagePath,
-        renderedAt: now(),
+        renderFileSize: bytes.byteLength,
+        renderThumbnailStoragePath: thumbnailStoragePath,
+        renderTitle: row.renderTitle?.trim() || row.name,
+        renderedAt,
       })
       .where(eq(aiVideoProjects.id, projectId))
   } catch (error) {
@@ -290,6 +307,39 @@ async function renderProject(
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+async function storeRenderThumbnail({
+  userId,
+  projectId,
+  renderedAt,
+  bytes,
+  previousPath,
+}: {
+  userId: string
+  projectId: string
+  renderedAt: Date
+  bytes: Uint8Array
+  previousPath: string | null
+}) {
+  let thumbnailStoragePath: string | null = null
+  const thumbBytes = await extractVideoThumbnail(bytes, "video/mp4")
+
+  if (thumbBytes) {
+    const thumbPath = `render-thumbnails/${userId}/${projectId}-${renderedAt.getTime()}.jpg`
+    try {
+      await uploadToR2(thumbPath, thumbBytes, "image/jpeg")
+      thumbnailStoragePath = thumbPath
+    } catch {
+      thumbnailStoragePath = null
+    }
+  }
+
+  if (previousPath && previousPath !== thumbnailStoragePath) {
+    await deleteFromR2(previousPath).catch(() => undefined)
+  }
+
+  return thumbnailStoragePath
 }
 
 // Assembles the ffmpeg input list + filter graph. Every clip is its own
