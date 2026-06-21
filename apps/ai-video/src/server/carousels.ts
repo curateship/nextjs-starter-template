@@ -9,9 +9,9 @@ import { generateJson } from "@/server/video-analysis"
 
 export const CAROUSEL_FORMATS = ["4:5", "1:1", "9:16"] as const
 export type CarouselFormat = (typeof CAROUSEL_FORMATS)[number]
-export type CarouselItemType = "text" | "image" | "video"
+export type CarouselItemType = "text" | "image" | "video" | "gradient-shadow"
 export type CarouselTextAlign = "left" | "center" | "right"
-export type CarouselMediaFit = "cover" | "contain"
+export type CarouselMediaFit = "fill" | "cover" | "contain"
 export type CarouselSortBy = "name" | "slide_count" | "format" | "updated_at"
 export type CarouselSortDirection = "asc" | "desc"
 
@@ -41,7 +41,16 @@ export type CarouselMediaItem = CarouselSlideItemBase & {
   fit: CarouselMediaFit
 }
 
-export type CarouselSlideItem = CarouselTextItem | CarouselMediaItem
+export type CarouselGradientShadowItem = CarouselSlideItemBase & {
+  type: "gradient-shadow"
+  color: string
+  opacity: number
+}
+
+export type CarouselSlideItem =
+  | CarouselTextItem
+  | CarouselMediaItem
+  | CarouselGradientShadowItem
 
 export type CarouselSlide = {
   id: string
@@ -77,6 +86,13 @@ export type CarouselListResponse = {
 const DEFAULT_FORMAT: CarouselFormat = "4:5"
 const DEFAULT_BACKGROUND = "#f8fafc"
 const SAFE_COLOR_RE = /^#[0-9a-f]{6}$/i
+const DEFAULT_IMAGE_Z_INDEX = 0
+const DEFAULT_GRADIENT_SHADOW_Z_INDEX = 1
+const DEFAULT_TEXT_Z_INDEX = 10
+const DEFAULT_TITLE_TEXT_Y = 0.56
+const DEFAULT_TITLE_TEXT_HEIGHT = 0.14
+const DEFAULT_BODY_TEXT_Y = 0.74
+const DEFAULT_BODY_TEXT_HEIGHT = 0.16
 
 const generatedDraftSchema = z.object({
   caption: z.string().max(2200),
@@ -156,7 +172,21 @@ function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
   const item = value as Partial<CarouselSlideItem>
   if (!item || typeof item !== "object") return null
   const type = item.type
-  if (type !== "text" && type !== "image" && type !== "video") return null
+  if (
+    type !== "text" &&
+    type !== "image" &&
+    type !== "video" &&
+    type !== "gradient-shadow"
+  ) {
+    return null
+  }
+
+  const defaultZIndex =
+    type === "text"
+      ? DEFAULT_TEXT_Z_INDEX
+      : type === "gradient-shadow"
+        ? DEFAULT_GRADIENT_SHADOW_Z_INDEX
+        : DEFAULT_IMAGE_Z_INDEX
 
   const base = {
     id: typeof item.id === "string" && item.id ? item.id.slice(0, 64) : uuid(),
@@ -164,7 +194,7 @@ function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
     y: normalizeNumber(item.y, 0.1),
     width: normalizeNumber(item.width, 0.8, 0.05),
     height: normalizeNumber(item.height, 0.2, 0.05),
-    zIndex: normalizeNumber(item.zIndex, 1, 0, 999),
+    zIndex: normalizeNumber(item.zIndex, defaultZIndex, 0, 999),
   }
 
   if (type === "text") {
@@ -184,6 +214,16 @@ function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
     }
   }
 
+  if (type === "gradient-shadow") {
+    const shadow = item as Partial<CarouselGradientShadowItem>
+    return {
+      ...base,
+      type,
+      color: normalizeColor(shadow.color, "#000000"),
+      opacity: normalizeNumber(shadow.opacity, 70, 0, 100),
+    }
+  }
+
   const media = item as Partial<CarouselMediaItem>
   if (typeof media.url !== "string" || !media.url.trim()) return null
   return {
@@ -198,7 +238,10 @@ function normalizeSlideItem(value: unknown): CarouselSlideItem | null {
       typeof media.altText === "string" && media.altText
         ? media.altText.slice(0, 500)
         : undefined,
-    fit: media.fit === "contain" ? "contain" : "cover",
+    fit:
+      media.fit === "fill" || media.fit === "cover" || media.fit === "contain"
+        ? media.fit
+        : "fill",
   }
 }
 
@@ -331,26 +374,26 @@ function createSlidesFromDraft(draft: GeneratedDraft): CarouselSlide[] {
         type: "text",
         text: cleanText(slide.title, 240),
         x: 0.1,
-        y: index === 0 ? 0.18 : 0.14,
+        y: DEFAULT_TITLE_TEXT_Y,
         width: 0.8,
-        height: index === 0 ? 0.28 : 0.2,
+        height: DEFAULT_TITLE_TEXT_HEIGHT,
         fontSize: index === 0 ? 76 : 58,
         color: index === 0 ? "#ffffff" : "#111827",
         align: "left",
-        zIndex: 1,
+        zIndex: DEFAULT_TEXT_Z_INDEX,
       },
       {
         id: uuid(),
         type: "text",
         text: cleanText(slide.body, 1000),
         x: 0.1,
-        y: index === 0 ? 0.5 : 0.38,
+        y: DEFAULT_BODY_TEXT_Y,
         width: 0.8,
-        height: 0.42,
+        height: DEFAULT_BODY_TEXT_HEIGHT,
         fontSize: index === 0 ? 38 : 40,
         color: index === 0 ? "#e5e7eb" : "#374151",
         align: "left",
-        zIndex: 2,
+        zIndex: DEFAULT_TEXT_Z_INDEX + 1,
       },
     ],
   }))

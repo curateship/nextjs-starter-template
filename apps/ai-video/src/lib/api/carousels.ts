@@ -15,6 +15,7 @@ import { CAROUSEL_FORMATS } from "@/server/carousels"
 export type {
   CarouselDetail,
   CarouselFormat,
+  CarouselGradientShadowItem,
   CarouselItem,
   CarouselListResponse,
   CarouselMediaFit,
@@ -75,7 +76,19 @@ const carouselMediaItemSchema = z.object({
   width: z.number().min(0.05).max(1),
   height: z.number().min(0.05).max(1),
   zIndex: z.number().int().min(0).max(999),
-  fit: z.enum(["cover", "contain"]),
+  fit: z.enum(["fill", "cover", "contain"]),
+})
+
+const carouselGradientShadowItemSchema = z.object({
+  id: z.string().min(1).max(64),
+  type: z.literal("gradient-shadow"),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().min(0.05).max(1),
+  height: z.number().min(0.05).max(1),
+  zIndex: z.number().int().min(0).max(999),
+  color: z.string().regex(/^#[0-9a-f]{6}$/i),
+  opacity: z.number().min(0).max(100),
 })
 
 export const carouselSlideSchema = z.object({
@@ -87,6 +100,7 @@ export const carouselSlideSchema = z.object({
       z.discriminatedUnion("type", [
         carouselTextItemSchema,
         carouselMediaItemSchema,
+        carouselGradientShadowItemSchema,
       ])
     )
     .max(50),
