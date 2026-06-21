@@ -114,7 +114,6 @@ const carouselSaveSchema = carouselIdSchema.extend({
 
 const safeCarouselErrors = new Set([
   "Carousel name is required",
-  "Source text is required",
   "Carousel not found",
   "Carousel needs at least one slide",
   "Carousel generation is not configured",
@@ -156,7 +155,7 @@ const createCarouselFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       name: carouselNameSchema,
-      sourceText: z.string().min(1).max(20_000),
+      sourceText: z.string().max(20_000),
     })
   )
   .handler(async ({ data }): Promise<CarouselDetail> => {

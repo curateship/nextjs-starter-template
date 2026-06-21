@@ -271,10 +271,7 @@ export function CarouselsDashboard() {
   })
 
   const createDisabled =
-    submitting ||
-    !name.trim() ||
-    !sourceText.trim() ||
-    sourceText.length > 20000
+    submitting || !name.trim() || sourceText.length > 20000
   const renameDisabled = submitting || !name.trim()
   const controls = (
     <>
@@ -509,13 +506,13 @@ export function CarouselsDashboard() {
 
               {modalState?.type === "create" ? (
                 <div className="grid gap-2">
-                  <Label htmlFor="carousel-source">Source text</Label>
+                  <Label htmlFor="carousel-source">Source text (optional)</Label>
                   <Textarea
                     id="carousel-source"
                     rows={8}
                     value={sourceText}
                     onChange={(event) => setSourceText(event.target.value)}
-                    placeholder="Paste blog or newsletter text"
+                    placeholder="Paste blog or newsletter text to generate slides"
                   />
                   <p className="text-xs text-muted-foreground">
                     Default format: 4:5 portrait.
@@ -550,7 +547,11 @@ export function CarouselsDashboard() {
                 ) : (
                   <PlusIcon className="size-4" />
                 )}
-                {submitting ? "Generating" : "Create Carousel"}
+                {submitting
+                  ? sourceText.trim()
+                    ? "Generating"
+                    : "Creating"
+                  : "Create Carousel"}
               </Button>
             )}
           </DialogFooter>
