@@ -1,35 +1,100 @@
-import { css } from "@codemirror/lang-css"
-import { html } from "@codemirror/lang-html"
-import { javascript } from "@codemirror/lang-javascript"
-import { json } from "@codemirror/lang-json"
-import { markdown } from "@codemirror/lang-markdown"
-import { python } from "@codemirror/lang-python"
-import { rust } from "@codemirror/lang-rust"
-import { sql } from "@codemirror/lang-sql"
 import type { Extension } from "@codemirror/state"
 
 import { SHARED_SKILLS_PATH } from "@/app/constants"
 
-export function languageForPath(path: string): Extension[] {
+const languageCache = new Map<string, Promise<Extension[]>>()
+
+type LanguageLoader = {
+  key: string
+  load: () => Promise<Extension[]>
+}
+
+export function loadLanguageForPath(path: string): Promise<Extension[]> {
+  const loader = languageLoaderForPath(path)
+  if (!loader) return Promise.resolve([])
+
+  const cached = languageCache.get(loader.key)
+  if (cached) return cached
+
+  const promise = loader.load().catch((error) => {
+    languageCache.delete(loader.key)
+    throw error
+  })
+  languageCache.set(loader.key, promise)
+  return promise
+}
+
+function languageLoaderForPath(path: string): LanguageLoader | null {
   const extension = path.split(".").pop()?.toLowerCase()
 
-  if (path.startsWith("workspace/tasks/") || path.startsWith(`${SHARED_SKILLS_PATH}/`)) return []
+  if (path.startsWith("workspace/tasks/") || path.startsWith(`${SHARED_SKILLS_PATH}/`)) {
+    return null
+  }
 
   if (["ts", "tsx"].includes(extension ?? "")) {
-    return [javascript({ jsx: extension === "tsx", typescript: true })]
+    const key = extension === "tsx" ? "tsx" : "ts"
+    return {
+      key,
+      load: () =>
+        import("@codemirror/lang-javascript").then(({ javascript }) => [
+          javascript({ jsx: extension === "tsx", typescript: true }),
+        ]),
+    }
   }
 
   if (["js", "jsx", "mjs", "cjs"].includes(extension ?? "")) {
-    return [javascript({ jsx: extension === "jsx" })]
+    const key = extension === "jsx" ? "jsx" : "js"
+    return {
+      key,
+      load: () =>
+        import("@codemirror/lang-javascript").then(({ javascript }) => [
+          javascript({ jsx: extension === "jsx" }),
+        ]),
+    }
   }
 
-  if (extension === "json") return [json()]
-  if (["css", "scss", "sass"].includes(extension ?? "")) return [css()]
-  if (["html", "htm"].includes(extension ?? "")) return [html()]
-  if (["md", "mdx"].includes(extension ?? "")) return [markdown()]
-  if (extension === "py") return [python()]
-  if (extension === "rs") return [rust()]
-  if (["sql", "sqlite"].includes(extension ?? "")) return [sql()]
+  if (extension === "json") {
+    return {
+      key: "json",
+      load: () => import("@codemirror/lang-json").then(({ json }) => [json()]),
+    }
+  }
+  if (["css", "scss", "sass"].includes(extension ?? "")) {
+    return {
+      key: "css",
+      load: () => import("@codemirror/lang-css").then(({ css }) => [css()]),
+    }
+  }
+  if (["html", "htm"].includes(extension ?? "")) {
+    return {
+      key: "html",
+      load: () => import("@codemirror/lang-html").then(({ html }) => [html()]),
+    }
+  }
+  if (["md", "mdx"].includes(extension ?? "")) {
+    return {
+      key: "markdown",
+      load: () => import("@codemirror/lang-markdown").then(({ markdown }) => [markdown()]),
+    }
+  }
+  if (extension === "py") {
+    return {
+      key: "python",
+      load: () => import("@codemirror/lang-python").then(({ python }) => [python()]),
+    }
+  }
+  if (extension === "rs") {
+    return {
+      key: "rust",
+      load: () => import("@codemirror/lang-rust").then(({ rust }) => [rust()]),
+    }
+  }
+  if (["sql", "sqlite"].includes(extension ?? "")) {
+    return {
+      key: "sql",
+      load: () => import("@codemirror/lang-sql").then(({ sql }) => [sql()]),
+    }
+  }
 
-  return []
+  return null
 }

@@ -98,6 +98,8 @@ export type GitStatus = {
   developFiles: GitFile[]
 }
 
+export type GitRefreshMode = "basic" | "full"
+
 export type TerminalItem = {
   id: string
   name: string

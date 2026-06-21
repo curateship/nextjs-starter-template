@@ -50,7 +50,7 @@ export function ChangesPanel({
   useDismissibleMenu(discardMenu, setDiscardMenu)
   const developCommits = gitStatus.developCommits
   const developFiles = developCommits.length ? gitStatus.developFiles : []
-  const developUpdateCount = developCommits.length
+  const developUpdateCount = gitStatus.developCommitCount
   const isActiveFile = (file: GitFile) => Boolean(file.appPath && file.appPath === activePath)
 
   return (
