@@ -185,6 +185,7 @@ Behavior:
 - Adding a terminal uses the current open count for display names, so if Terminal 2 is closed, the next one is Terminal 2 again.
 - Closing a terminal kills its shell.
 - Closing the last terminal leaves the terminal content area blank.
+- Each terminal keeps up to 800 scrollback lines in memory.
 - Task and skill prompts paste into the active terminal.
 - If no terminal exists, prompt actions create Terminal 1 first.
 - The Clear control clears active terminal input.

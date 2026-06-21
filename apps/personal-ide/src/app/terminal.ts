@@ -5,7 +5,7 @@ const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[ -
 const TERMINAL_OUTPUT_DECODER = new TextDecoder()
 const TERMINAL_OUTPUT_EVENT_PREFIX = "terminal-output:"
 
-export const TERMINAL_SCROLLBACK_LINES = 3000
+export const TERMINAL_SCROLLBACK_LINES = 800
 
 export function looksLikeAgentOutput(data: number[]) {
   const clean = TERMINAL_OUTPUT_DECODER
