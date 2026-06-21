@@ -42,6 +42,22 @@ export async function uploadToR2(
   return `/cdn/${fileName}`
 }
 
+export async function uploadPrivateToR2(
+  fileName: string,
+  fileBuffer: Buffer,
+  contentType: string
+): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: fileName,
+    Body: fileBuffer,
+    ContentType: contentType,
+  })
+
+  await r2Client.send(command)
+  return fileName
+}
+
 /**
  * Delete a file from R2
  */
