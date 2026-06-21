@@ -1732,8 +1732,7 @@ function builderReducer(
     case "RESET_DEFAULTS":
       return withHistory(state, {
         ...state,
-        format: "4:5",
-        slides: resetSlidesToDefaults(state.slides),
+        slides: resetSlidesToDefaults(state.slides, state.selectedSlideId),
       })
     case "UNDO": {
       const previous = state.past[state.past.length - 1]
@@ -1789,8 +1788,13 @@ function createBlankSlide(): CarouselSlide {
   }
 }
 
-function resetSlidesToDefaults(slides: CarouselSlide[]): CarouselSlide[] {
+function resetSlidesToDefaults(
+  slides: CarouselSlide[],
+  selectedSlideId: string
+): CarouselSlide[] {
   return slides.map((slide, slideIndex) => {
+    if (slide.id !== selectedSlideId) return slide
+
     let textIndex = 0
     const firstMediaItem = slide.items.find(isMediaItem)
     const defaultMediaItem = firstMediaItem
