@@ -744,6 +744,7 @@ function App() {
                         tabs={tabs}
                         onChange={updateActiveContents}
                         onCloseTab={closeTab}
+                        onCopyTabPath={(path) => copyEntryPath({ name: path, path, isDir: false })}
                         onPasteImage={pasteEditorImage}
                         onSave={saveActiveFile}
                         onSelectTab={setActivePath}
