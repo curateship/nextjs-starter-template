@@ -6,6 +6,9 @@ tags: build
 
 # Block Builder
 
+## Communication
+
+Always explain things in plain English. Start with the user-visible meaning, define necessary technical terms briefly, and avoid unexplained jargon before naming files, APIs, commands, or implementation details.
 This skill standardizes how new blocks are added to the builder system. Every block requires changes to exactly 5 files across 3 layers. Skipping any of these creates broken or invisible blocks.
 
 ## Architecture Overview

@@ -6,6 +6,10 @@ tags: define, plan
 
 # Init Plan
 
+## Communication
+
+Always explain things in plain English. Start with the user-visible meaning, define necessary technical terms briefly, and avoid unexplained jargon before naming files, APIs, commands, or implementation details.
+
 ## Workflow
 
 When this skill triggers, start by asking the user what they need to plan. Keep the first response short and do not assume the topic.

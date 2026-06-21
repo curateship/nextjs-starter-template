@@ -7,6 +7,10 @@ user_invocable: true
 
 # Commit Skill
 
+## Communication
+
+Always explain things in plain English. Start with the user-visible meaning, define necessary technical terms briefly, and avoid unexplained jargon before naming files, APIs, commands, or implementation details.
+
 Review all staged/unstaged changes, then commit to the current branch. **Never push.**
 
 ## Steps

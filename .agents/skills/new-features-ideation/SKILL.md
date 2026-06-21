@@ -5,6 +5,9 @@ description: Scan a project to suggest and rank new feature opportunities. Use w
 
 # New Features Ideation
 
+## Communication
+
+Always explain things in plain English. Start with the user-visible meaning, define necessary technical terms briefly, and avoid unexplained jargon before naming files, APIs, commands, or implementation details.
 Use this skill to turn an existing project into a ranked feature backlog.
 
 ## Workflow

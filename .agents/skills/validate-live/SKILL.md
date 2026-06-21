@@ -5,6 +5,9 @@ description: Validates code changes by opening the relevant app in a real browse
 
 # Validate UI Changes
 
+## Communication
+
+Always explain things in plain English. Start with the user-visible meaning, define necessary technical terms briefly, and avoid unexplained jargon before naming files, APIs, commands, or implementation details.
 When triggered with "validate live", open a real browser and verify the relevant app behaves as intended.
 
 ## Pick The Target App
