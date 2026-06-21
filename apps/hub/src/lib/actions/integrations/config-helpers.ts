@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { siteIntegrations } from '@/lib/db/schema'
 import { safeDecrypt } from '@/lib/utils/encryption'
-import type { AIProvider } from '@/lib/utils/ai-models'
+import { AI_PROVIDERS, type AIProvider } from '@/lib/utils/ai-models'
 import { SENSITIVE_FIELDS, type IntegrationType } from './types'
 
 function decryptConfig(integrationType: string, config: Record<string, any>): Record<string, any> {
@@ -124,4 +124,31 @@ export async function getGoogleMapsConfig(siteId: string): Promise<{
   }
 
   return null
+}
+
+export async function getAIConfig(siteId: string, provider: AIProvider): Promise<{
+  apiKey: string
+  provider: AIProvider
+} | null> {
+  const integration = await getServerIntegration(siteId, provider)
+
+  if (integration) {
+    const { api_key } = integration.config
+    if (api_key) {
+      return { apiKey: api_key, provider }
+    }
+  }
+
+  return null
+}
+
+export async function getConfiguredAIProviders(siteId: string): Promise<AIProvider[]> {
+  const configured: AIProvider[] = []
+
+  for (const provider of AI_PROVIDERS) {
+    const integration = await getServerIntegration(siteId, provider)
+    if (integration?.config?.api_key) configured.push(provider)
+  }
+
+  return configured
 }

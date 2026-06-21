@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, varchar, text, integer, boolean, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 export const cronJobs = pgTable('cron_jobs', {
@@ -12,6 +12,7 @@ export const cronJobs = pgTable('cron_jobs', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
+  uniqueIndex('idx_cron_jobs_endpoint_unique').on(table.endpoint),
   index('idx_cron_jobs_enabled').on(table.enabled),
   index('idx_cron_jobs_next_run').on(table.nextRunAt),
 ])
