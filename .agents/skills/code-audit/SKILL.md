@@ -6,6 +6,9 @@ tags: review
 
 # Audit Recent Code Changes
 
+## Communication
+
+Always explain things in plain English. Start with the user-visible meaning, define necessary technical terms briefly, and avoid unexplained jargon before naming files, APIs, commands, or implementation details.
 Audit the recent diff first. Prefer deleting code over rewriting it. Keep the scope on recent changes unless the diff reveals a broader issue that must be fixed to keep the edited code correct or safe.
 
 ## Simplicity Check
