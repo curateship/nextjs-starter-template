@@ -122,11 +122,7 @@ export function cleanCarouselName(value: string) {
 }
 
 function cleanSourceText(value: string) {
-  const text = cleanText(value, 20_000)
-  if (!text) {
-    throw new Error("Source text is required")
-  }
-  return text
+  return cleanText(value, 20_000)
 }
 
 function normalizeFormat(value: unknown): CarouselFormat {
@@ -462,8 +458,31 @@ export async function createCarouselForCurrentUser(data: {
   requireAppOrigin()
   const user = await requireUser()
   const sourceText = cleanSourceText(data.sourceText)
-  const draft = await generateCarouselDraft(sourceText)
-  const slides = createSlidesFromDraft(draft)
+  const draft = sourceText ? await generateCarouselDraft(sourceText) : null
+  const slides = draft
+    ? createSlidesFromDraft(draft)
+    : [
+        {
+          id: uuid(),
+          title: "New slide",
+          backgroundColor: DEFAULT_BACKGROUND,
+          items: [
+            {
+              id: uuid(),
+              type: "text",
+              text: "New text",
+              x: 0.12,
+              y: 0.72,
+              width: 0.76,
+              height: 0.2,
+              zIndex: DEFAULT_TEXT_Z_INDEX,
+              fontSize: 56,
+              color: "#111827",
+              align: "left",
+            },
+          ],
+        },
+      ]
   const createdAt = now()
 
   const [created] = await db
@@ -474,7 +493,7 @@ export async function createCarouselForCurrentUser(data: {
       name: cleanCarouselName(data.name),
       format: DEFAULT_FORMAT,
       sourceText,
-      caption: cleanText(draft.caption, 2200),
+      caption: draft ? cleanText(draft.caption, 2200) : "",
       slides,
       createdAt,
       updatedAt: createdAt,
