@@ -762,6 +762,7 @@ function App() {
                       activeWorkspaceId={activeWorkspaceId}
                       activeTab={terminalTab}
                       focusNonce={terminalFocusNonce}
+                      isDarkTheme={isDarkTheme}
                       terminalStates={terminalsByWorkspace}
                       onAddTerminal={() => addTerminal()}
                       onCloseTerminal={closeTerminal}

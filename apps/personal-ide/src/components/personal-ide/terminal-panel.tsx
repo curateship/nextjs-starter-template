@@ -17,6 +17,7 @@ import {
 import { listen } from "@tauri-apps/api/event"
 import { FitAddon } from "@xterm/addon-fit"
 import { Terminal } from "@xterm/xterm"
+import type { ITheme } from "@xterm/xterm"
 import "@xterm/xterm/css/xterm.css"
 import { X } from "lucide-react"
 import { useCallback, useEffect, useRef } from "react"
@@ -37,10 +38,33 @@ import type { SkillItem, TerminalOutput, WorkspaceTerminalState } from "@/app/ty
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+const LIGHT_TERMINAL_THEME: ITheme = {
+  background: "#ffffff",
+  foreground: "#171717",
+  cursor: "#171717",
+  selectionBackground: "rgba(59, 130, 246, 0.32)",
+  selectionForeground: "#171717",
+  selectionInactiveBackground: "rgba(100, 116, 139, 0.25)",
+}
+
+const DARK_TERMINAL_THEME: ITheme = {
+  background: "#171717",
+  foreground: "#f5f5f5",
+  cursor: "#f5f5f5",
+  selectionBackground: "rgba(59, 130, 246, 0.38)",
+  selectionForeground: "#f5f5f5",
+  selectionInactiveBackground: "rgba(148, 163, 184, 0.28)",
+}
+
+function terminalThemeFor(isDarkTheme: boolean) {
+  return isDarkTheme ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
+}
+
 export function BottomPanel({
   activeWorkspaceId,
   activeTab,
   focusNonce,
+  isDarkTheme,
   terminalStates,
   onAddTerminal,
   onCloseTerminal,
@@ -55,6 +79,7 @@ export function BottomPanel({
   activeWorkspaceId: string
   activeTab: string
   focusNonce: number
+  isDarkTheme: boolean
   terminalStates: Record<string, WorkspaceTerminalState>
   onAddTerminal: () => void
   onCloseTerminal: (workspaceId: string, terminalId: string) => void
@@ -146,6 +171,7 @@ export function BottomPanel({
                   terminal.id === activeTerminalId
                 }
                 focusNonce={terminal.id === activeTerminalId ? focusNonce : 0}
+                isDarkTheme={isDarkTheme}
                 onSizeChange={onSizeChange}
                 onError={onError}
                 onPasteImage={onPasteImage}
@@ -174,6 +200,7 @@ export function BottomPanel({
 function TerminalPane({
   active,
   focusNonce,
+  isDarkTheme,
   onSizeChange,
   onError,
   onPasteImage,
@@ -185,6 +212,7 @@ function TerminalPane({
 }: {
   active: boolean
   focusNonce: number
+  isDarkTheme: boolean
   onSizeChange: (cols: number, rows: number) => void
   onError: (value: string) => void
   onPasteImage: (event: ClipboardEvent) => void
@@ -199,11 +227,26 @@ function TerminalPane({
   const fitRef = useRef<FitAddon | null>(null)
   const frameRef = useRef<number | null>(null)
   const activeRef = useRef(active)
+  const isDarkThemeRef = useRef(isDarkTheme)
   const startupCommandSentRef = useRef(false)
 
   useEffect(() => {
     activeRef.current = active
   }, [active])
+
+  useEffect(() => {
+    isDarkThemeRef.current = isDarkTheme
+    const terminal = terminalRef.current
+    if (!terminal) return
+
+    terminal.options.theme = terminalThemeFor(isDarkTheme)
+    if (terminal.rows < 1) return
+    try {
+      terminal.refresh(0, terminal.rows - 1)
+    } catch {
+      // xterm can throw while the panel is hidden during theme changes.
+    }
+  }, [isDarkTheme])
 
   useEffect(() => {
     const container = containerRef.current
@@ -226,14 +269,7 @@ function TerminalPane({
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
       fontSize: 12,
       scrollback: TERMINAL_SCROLLBACK_LINES,
-      theme: {
-        background: "#ffffff",
-        foreground: "#171717",
-        cursor: "#171717",
-        selectionBackground: "rgba(59, 130, 246, 0.32)",
-        selectionForeground: "#171717",
-        selectionInactiveBackground: "rgba(100, 116, 139, 0.25)",
-      },
+      theme: terminalThemeFor(isDarkThemeRef.current),
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
