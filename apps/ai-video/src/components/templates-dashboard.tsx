@@ -24,6 +24,7 @@ import {
   dashboardToolbarButtonGroupClassName,
   dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
@@ -35,6 +36,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   TableCell,
   TableHead,
@@ -53,6 +60,7 @@ import {
   listTemplates,
   renameTemplate,
   type TemplateItem,
+  type TemplateStructureTag,
 } from "@/lib/api/video-templates"
 import { cn } from "@/lib/utils"
 import { dateFormatter, pageSizeOptions } from "@/lib/dashboard-format"
@@ -61,6 +69,8 @@ import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
 type TemplateSortColumn = "name" | "slots" | "created"
+type SourceFilter = "all" | "analyzed" | "blank"
+type TagFilter = "all" | TemplateStructureTag
 
 // Template length for list rows / gallery tiles, as m:ss.
 function formatDuration(ms: number) {
@@ -80,6 +90,8 @@ export function TemplatesDashboard() {
   const [modalError, setModalError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all")
+  const [tagFilter, setTagFilter] = React.useState<TagFilter>("all")
   const [viewMode, setViewMode] = React.useState<ViewMode>("gallery")
   const [sortColumn, setSortColumn] =
     React.useState<TemplateSortColumn>("created")
@@ -138,6 +150,14 @@ export function TemplatesDashboard() {
       .filter(
         (template) => !query || template.name.toLowerCase().includes(query)
       )
+      .filter(
+        (template) =>
+          sourceFilter === "all" || template.source_type === sourceFilter
+      )
+      .filter(
+        (template) =>
+          tagFilter === "all" || template.structure_tags.includes(tagFilter)
+      )
       .sort((a, b) => {
         if (sortColumn === "slots")
           return (a.slot_count - b.slot_count) * direction
@@ -149,7 +169,22 @@ export function TemplatesDashboard() {
           )
         return a.name.localeCompare(b.name) * direction
       })
-  }, [templates, searchQuery, sortColumn, sortDirection])
+  }, [
+    templates,
+    searchQuery,
+    sourceFilter,
+    tagFilter,
+    sortColumn,
+    sortDirection,
+  ])
+
+  const tagOptions = React.useMemo(() => {
+    const tags = new Set<TemplateStructureTag>()
+    for (const template of templates) {
+      for (const tag of template.structure_tags) tags.add(tag)
+    }
+    return Array.from(tags).sort((a, b) => a.localeCompare(b))
+  }, [templates])
 
   const totalPages = Math.ceil(filteredTemplates.length / pageSize)
   const paginatedTemplates = React.useMemo(() => {
@@ -160,6 +195,16 @@ export function TemplatesDashboard() {
   // Filter/sort/page-size changes restart pagination from the first page.
   function updateSearch(value: string) {
     setSearchQuery(value)
+    setCurrentPage(1)
+  }
+
+  function updateSourceFilter(value: SourceFilter) {
+    setSourceFilter(value)
+    setCurrentPage(1)
+  }
+
+  function updateTagFilter(value: TagFilter) {
+    setTagFilter(value)
     setCurrentPage(1)
   }
 
@@ -236,6 +281,10 @@ export function TemplatesDashboard() {
     setCreateError(null)
     setError(null)
     setNotice(null)
+  }
+
+  function openSourceCatalog() {
+    void navigate({ to: "/admin/viral-archive" })
   }
 
   function closeCreateModal() {
@@ -345,6 +394,35 @@ export function TemplatesDashboard() {
         value={searchQuery}
         onChange={(event) => updateSearch(event.target.value)}
       />
+      <Select
+        value={sourceFilter}
+        onValueChange={(value) => updateSourceFilter(value as SourceFilter)}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Filter by source type">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All sources</SelectItem>
+          <SelectItem value="analyzed">Analyzed</SelectItem>
+          <SelectItem value="blank">Blank</SelectItem>
+        </SelectContent>
+      </Select>
+      <Select
+        value={tagFilter}
+        onValueChange={(value) => updateTagFilter(value as TagFilter)}
+      >
+        <DashboardToolbarSelectTrigger aria-label="Filter by structure tag">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All tags</SelectItem>
+          {tagOptions.map((tag) => (
+            <SelectItem key={tag} value={tag}>
+              {tag}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <div className={dashboardToolbarButtonGroupClassName}>
         <DashboardToolbarButton
           type="button"
@@ -371,9 +449,17 @@ export function TemplatesDashboard() {
           <GridIcon className="size-4" />
         </DashboardToolbarButton>
       </div>
-      <DashboardToolbarButton type="button" onClick={openCreateModal}>
+      <DashboardToolbarButton type="button" onClick={openSourceCatalog}>
+        <SparklesIcon className="size-4" />
+        Create From Source
+      </DashboardToolbarButton>
+      <DashboardToolbarButton
+        type="button"
+        variant="outline"
+        onClick={openCreateModal}
+      >
         <PlusIcon className="size-4" />
-        New Template
+        Blank Template
       </DashboardToolbarButton>
     </>
   )
@@ -467,6 +553,10 @@ export function TemplatesDashboard() {
                     Template
                   </TableSortButton>
                 </TableHead>
+                <TableHead column="meta">Source</TableHead>
+                <TableHead column="preview" className="hidden xl:table-cell">
+                  Tags
+                </TableHead>
                 <TableHead column="meta">
                   <TableSortButton
                     active={sortColumn === "slots"}
@@ -493,9 +583,9 @@ export function TemplatesDashboard() {
           emptyText={
             loading
               ? "Loading templates..."
-              : "No templates yet. Click \"New Template\" to start one, or build one from a video in the Viral Archive."
+              : "No templates match the current catalog filters."
           }
-          emptyColSpan={5}
+          emptyColSpan={7}
           footer={paginationFooter}
         >
           {paginatedTemplates.map((template) => (
@@ -799,11 +889,22 @@ function TemplateTableRow({
             >
               {template.name}
             </button>
-            <div className="text-xs text-muted-foreground">
-              {formatDuration(template.duration_ms)}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span>{formatDuration(template.duration_ms)}</span>
+              {template.creator ? (
+                <CreatorChip creator={template.creator} className="min-w-0" />
+              ) : null}
             </div>
           </div>
         </div>
+      </TableCell>
+      <TableCell column="meta">
+        <Badge variant="secondary">
+          {template.source_type === "analyzed" ? "Analyzed" : "Blank"}
+        </Badge>
+      </TableCell>
+      <TableCell column="preview" className="hidden xl:table-cell">
+        <TemplateTagList tags={template.structure_tags} />
       </TableCell>
       <TableCell column="meta">
         <Badge variant="outline">{template.slot_count}</Badge>
@@ -815,7 +916,10 @@ function TemplateTableRow({
         <div className="flex justify-start gap-1">
           <Button type="button" size="sm" variant="outline" onClick={onUse}>
             <PlayIcon className="size-4" />
-            Use
+            Use Template
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onEdit}>
+            Edit Template
           </Button>
           {hasAnalysis ? (
             <Button
@@ -823,7 +927,7 @@ function TemplateTableRow({
               variant="ghost"
               size="icon-sm"
               onClick={onOpen}
-              aria-label="View AI analysis"
+              aria-label="View source analysis"
             >
               <SparklesIcon className="size-4" />
             </Button>
@@ -934,7 +1038,7 @@ function TemplateGalleryItem({
       </div>
 
       <div className="bg-card p-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="mb-2 flex items-start justify-between gap-2">
           {/* Title opens the template editor (same as the thumbnail). */}
           <button
             type="button"
@@ -943,18 +1047,59 @@ function TemplateGalleryItem({
           >
             {template.name}
           </button>
-          {/* View the source reel's AI analysis (only when there's a source). */}
+          <Badge variant="secondary" className="shrink-0">
+            {template.source_type === "analyzed" ? "Analyzed" : "Blank"}
+          </Badge>
+        </div>
+        <TemplateTagList tags={template.structure_tags} className="mb-3" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" className="flex-1" onClick={onUse}>
+            <PlayIcon className="size-3" />
+            Use Template
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+            Edit Template
+          </Button>
           {hasAnalysis ? (
-            <Button type="button" size="icon-sm" variant="outline" className="shrink-0" onClick={onOpen} aria-label="View AI analysis">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={onOpen}
+              aria-label="View source analysis"
+            >
               <SparklesIcon className="size-3" />
             </Button>
           ) : null}
-          <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={onUse}>
-            <PlayIcon className="size-3" />
-            Use
-          </Button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function TemplateTagList({
+  tags,
+  className,
+}: {
+  tags: TemplateStructureTag[]
+  className?: string
+}) {
+  if (!tags.length) {
+    return <span className="text-xs text-muted-foreground">No tags</span>
+  }
+
+  return (
+    <div className={cn("flex min-w-0 flex-wrap gap-1", className)}>
+      {tags.slice(0, 4).map((tag) => (
+        <Badge key={tag} variant="outline" className="text-[10px]">
+          {tag}
+        </Badge>
+      ))}
+      {tags.length > 4 ? (
+        <Badge variant="outline" className="text-[10px]">
+          +{tags.length - 4}
+        </Badge>
+      ) : null}
     </div>
   )
 }
@@ -971,7 +1116,7 @@ function EmptyTemplates({ loading }: { loading: boolean }) {
         <p>
           {loading
             ? "Loading templates..."
-            : "No templates yet. Click \"New Template\" to start one, or build one from a video in the Viral Archive."}
+            : "No templates match the current catalog filters."}
         </p>
       </div>
     </div>

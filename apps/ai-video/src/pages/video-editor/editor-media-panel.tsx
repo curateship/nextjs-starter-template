@@ -112,7 +112,11 @@ type UploadCallbacks = {
 // Left panel: browser over the media library. Video/image/audio items add to
 // the timeline by clicking (at the playhead) or dragging onto a track lane;
 // each tab can also upload new files.
-export function EditorMediaPanel() {
+export function EditorMediaPanel({
+  embedded = false,
+}: {
+  embedded?: boolean
+} = {}) {
   // documentName is the project or template name (shown in the panel header).
   const {
     state,
@@ -320,18 +324,20 @@ export function EditorMediaPanel() {
     <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <Tabs defaultValue="media" className="min-h-0 flex-1 gap-0">
         {/* Row 1: project name on the left, the Media/Elements switcher right. */}
-        <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
-          <span
-            className="min-w-0 flex-1 truncate text-sm font-semibold"
-            title={projectName}
-          >
-            {projectName}
-          </span>
-          <TabsList className="shrink-0">
-            <TabsTrigger value="media">Media</TabsTrigger>
-            <TabsTrigger value="elements">Elements</TabsTrigger>
-          </TabsList>
-        </div>
+        {!embedded ? (
+          <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
+            <span
+              className="min-w-0 flex-1 truncate text-sm font-semibold"
+              title={projectName}
+            >
+              {projectName}
+            </span>
+            <TabsList className="shrink-0">
+              <TabsTrigger value="media">Media</TabsTrigger>
+              <TabsTrigger value="elements">Elements</TabsTrigger>
+            </TabsList>
+          </div>
+        ) : null}
 
         {/* Media tab: the action controls (second row) over the library grid. */}
         <TabsContent value="media" className="flex min-h-0 flex-col">
@@ -398,15 +404,17 @@ export function EditorMediaPanel() {
                     <UploadIcon />
                   )}
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Settings"
-                  onClick={() => setSettingsOpen(true)}
-                >
-                  <SettingsIcon />
-                </Button>
+                {!embedded ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Settings"
+                    onClick={() => setSettingsOpen(true)}
+                  >
+                    <SettingsIcon />
+                  </Button>
+                ) : null}
               </div>
             </div>
             {actionError && (
@@ -473,12 +481,14 @@ export function EditorMediaPanel() {
         </TabsContent>
 
         {/* Elements tab: the building-block tiles + their Add dialogs. */}
-        <TabsContent
-          value="elements"
-          className="min-h-0 overflow-y-auto p-3 pt-1"
-        >
-          <ElementsPanel />
-        </TabsContent>
+        {!embedded ? (
+          <TabsContent
+            value="elements"
+            className="min-h-0 overflow-y-auto p-3 pt-1"
+          >
+            <ElementsPanel />
+          </TabsContent>
+        ) : null}
       </Tabs>
 
       <input
@@ -488,7 +498,12 @@ export function EditorMediaPanel() {
         className="hidden"
         onChange={handleUpload}
       />
-      <EditorSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      {!embedded ? (
+        <EditorSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      ) : null}
     </section>
   )
 }

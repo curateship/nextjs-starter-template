@@ -6,9 +6,15 @@ import type {
   TemplateDetail,
   TemplateItem,
   TemplateListResponse,
+  TemplateStructureTag,
 } from "@/server/video-templates"
 
-export type { TemplateDetail, TemplateItem, TemplateListResponse }
+export type {
+  TemplateDetail,
+  TemplateItem,
+  TemplateListResponse,
+  TemplateStructureTag,
+}
 
 const templateIdSchema = z.object({
   templateId: z.string().min(1).max(36),
