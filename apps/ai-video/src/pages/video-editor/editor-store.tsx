@@ -497,6 +497,7 @@ export type SaveStatus = "saved" | "saving" | "error"
 // What the editor is editing: a project or a template (both have the same
 // timeline shape). `kind` gates project-only tools (export, captions, script).
 export type EditorDocumentKind = "project" | "template"
+export type EditorMode = "regular" | "template-builder" | "fill-template"
 
 type EditorContextValue = {
   state: EditorState
@@ -505,6 +506,7 @@ type EditorContextValue = {
   durationMs: number
   saveStatus: SaveStatus
   kind: EditorDocumentKind
+  mode: EditorMode
   documentId: string
   documentName: string
   // Updates the in-editor document name after a rename (settings modal) so the

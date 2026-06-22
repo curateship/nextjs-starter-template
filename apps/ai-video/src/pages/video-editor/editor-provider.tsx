@@ -8,6 +8,7 @@ import {
   editorReducer,
   timelineDurationMs,
   type EditorDocumentKind,
+  type EditorMode,
   type SaveStatus,
 } from "@/pages/video-editor/editor-store"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
@@ -20,6 +21,8 @@ const AUTOSAVE_DEBOUNCE_MS = 1500
 export type EditorDocument = {
   id: string
   name: string
+  template_id?: string | null
+  source_viral_video_id?: string | null
   timeline: ProjectTimeline
 }
 
@@ -28,10 +31,12 @@ export type EditorDocument = {
 export function EditorProvider({
   document,
   kind,
+  mode,
   children,
 }: {
   document: EditorDocument
   kind: EditorDocumentKind
+  mode: EditorMode
   children: React.ReactNode
 }) {
   const [state, dispatch] = React.useReducer(
@@ -139,12 +144,23 @@ export function EditorProvider({
       durationMs,
       saveStatus,
       kind,
+      mode,
       documentId: document.id,
       documentName,
       setDocumentName,
       flushSave,
     }),
-    [state, clock, durationMs, saveStatus, kind, document.id, documentName, flushSave]
+    [
+      state,
+      clock,
+      durationMs,
+      saveStatus,
+      kind,
+      mode,
+      document.id,
+      documentName,
+      flushSave,
+    ]
   )
 
   return (

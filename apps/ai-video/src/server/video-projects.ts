@@ -20,6 +20,8 @@ export type ProjectTimeline = {
 export type ProjectItem = {
   id: string
   name: string
+  template_id: string | null
+  project_type: "regular" | "template"
   clip_count: number
   duration_ms: number
   created_at: string
@@ -93,6 +95,8 @@ function serializeProject(row: AiVideoProject): ProjectItem {
   return {
     id: row.id,
     name: row.name,
+    template_id: row.templateId,
+    project_type: row.templateId ? "template" : "regular",
     clip_count: stats.clipCount,
     duration_ms: stats.durationMs,
     created_at: row.createdAt.toISOString(),

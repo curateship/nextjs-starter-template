@@ -29,15 +29,29 @@ import type { EditorClip } from "@/pages/video-editor/editor-store"
 // Scenes shorter than this make useless template slots and are skipped.
 const MIN_SLOT_MS = 100
 
-// Empty timeline a blank template starts from (and the editor falls back to
-// when a template has no timeline yet). Reels are vertical, so 9:16.
+// Empty timeline a blank template starts from. Reels are vertical, so 9:16.
 const EMPTY_TEMPLATE_TIMELINE: ProjectTimeline = { tracks: [], aspect: "9:16" }
 
 // Dashboard list rows — the timeline stays out of the list payload.
+export type TemplateSourceType = "analyzed" | "blank"
+export type TemplateStructureTag =
+  | "Analyzed"
+  | "Blank"
+  | "Structured"
+  | "Hook"
+  | "Problem"
+  | "Agitation"
+  | "Solution"
+  | "Proof"
+  | "CTA"
+  | "Other"
+
 export type TemplateItem = {
   id: string
   name: string
   source_viral_video_id: string | null
+  source_type: TemplateSourceType
+  structure_tags: TemplateStructureTag[]
   thumbnail_url: string | null
   slot_count: number
   duration_ms: number
@@ -60,6 +74,9 @@ export type TemplateListResponse = {
 export type TemplateDetail = {
   id: string
   name: string
+  source_viral_video_id: string | null
+  source_type: TemplateSourceType
+  structure_tags: TemplateStructureTag[]
   timeline: ProjectTimeline
 }
 
@@ -105,9 +122,47 @@ function countTemplateSlots(timeline: unknown) {
   return slots
 }
 
+function normalizeStructureLabel(value: unknown): TemplateStructureTag | null {
+  if (typeof value !== "string") return null
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return null
+  if (normalized === "cta") return "CTA"
+  if (normalized === "hook") return "Hook"
+  if (normalized === "problem") return "Problem"
+  if (normalized === "agitation") return "Agitation"
+  if (normalized === "solution") return "Solution"
+  if (normalized === "proof") return "Proof"
+  if (normalized === "other") return "Other"
+  return null
+}
+
+function deriveStructureTags(
+  timeline: unknown,
+  sourceViralVideoId: string | null
+): TemplateStructureTag[] {
+  const tags = new Set<TemplateStructureTag>()
+  tags.add(sourceViralVideoId ? "Analyzed" : "Blank")
+
+  const tracks = (timeline as ProjectTimeline | null)?.tracks
+  if (!Array.isArray(tracks)) return Array.from(tags)
+
+  let replaceableSlots = 0
+  for (const track of tracks) {
+    if (!Array.isArray(track?.clips)) continue
+    for (const clip of track.clips) {
+      if (!clip.replaceable) continue
+      replaceableSlots += 1
+      const tag = normalizeStructureLabel(clip.segmentLabel)
+      tags.add(tag ?? "Other")
+    }
+  }
+
+  if (replaceableSlots > 0) tags.add("Structured")
+  return Array.from(tags)
+}
+
 function serializeTemplate(
   row: AiVideoTemplate,
-  thumbnailStoragePath: string | null = null,
   creator: AiVideoCreator | null = null
 ): TemplateItem {
   const stats = summarizeTimeline(row.timeline)
@@ -115,8 +170,10 @@ function serializeTemplate(
     id: row.id,
     name: row.name,
     source_viral_video_id: row.sourceViralVideoId,
-    thumbnail_url: thumbnailStoragePath
-      ? getPublicMediaUrl(thumbnailStoragePath)
+    source_type: row.sourceViralVideoId ? "analyzed" : "blank",
+    structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
+    thumbnail_url: row.thumbnailStoragePath
+      ? getPublicMediaUrl(row.thumbnailStoragePath)
       : null,
     slot_count: countTemplateSlots(row.timeline),
     duration_ms: stats.durationMs,
@@ -139,7 +196,6 @@ export async function listTemplatesForCurrentUser(): Promise<TemplateListRespons
   const rows = await db
     .select({
       template: aiVideoTemplates,
-      thumbnailStoragePath: aiVideoViralVideos.thumbnailStoragePath,
       creator: aiVideoCreators,
     })
     .from(aiVideoTemplates)
@@ -157,13 +213,7 @@ export async function listTemplatesForCurrentUser(): Promise<TemplateListRespons
 
   return {
     templates: rows.map((r) =>
-      serializeTemplate(
-        r.template,
-        // The template's own copied thumbnail; fall back to the source reel's
-        // for pre-migration templates (works while the reel still exists).
-        r.template.thumbnailStoragePath ?? r.thumbnailStoragePath ?? null,
-        r.creator
-      )
+      serializeTemplate(r.template, r.creator)
     ),
   }
 }
@@ -178,7 +228,10 @@ export async function getTemplateForEditingForCurrentUser(
   return {
     id: row.id,
     name: row.name,
-    timeline: (row.timeline as ProjectTimeline) ?? EMPTY_TEMPLATE_TIMELINE,
+    source_viral_video_id: row.sourceViralVideoId,
+    source_type: row.sourceViralVideoId ? "analyzed" : "blank",
+    structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
+    timeline: row.timeline as ProjectTimeline,
   }
 }
 

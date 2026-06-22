@@ -21,6 +21,7 @@ import {
   dashboardToolbarButtonGroupClassName,
   dashboardToolbarButtonGroupItemClassName,
   DashboardToolbarSearch,
+  DashboardToolbarSelectTrigger,
 } from "@/components/dashboard-toolbar"
 import {
   Dialog,
@@ -68,6 +69,7 @@ import { useBulkDelete } from "@/lib/use-bulk-delete"
 
 type ViewMode = "gallery" | "list"
 type ProjectSortColumn = "name" | "clips" | "edited"
+type ProjectTypeFilter = "all" | "regular" | "template"
 type ProjectModalState =
   | { type: "create" }
   | { type: "rename"; project: ProjectItem }
@@ -91,6 +93,7 @@ export function ProjectsDashboard() {
   const [modalError, setModalError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [typeFilter, setTypeFilter] = React.useState<ProjectTypeFilter>("all")
   const [viewMode, setViewMode] = React.useState<ViewMode>("list")
   const [sortColumn, setSortColumn] = React.useState<ProjectSortColumn>("edited")
   const [sortDirection, setSortDirection] =
@@ -137,6 +140,9 @@ export function ProjectsDashboard() {
     const direction = sortDirection === "asc" ? 1 : -1
     return projects
       .filter((project) => !query || project.name.toLowerCase().includes(query))
+      .filter(
+        (project) => typeFilter === "all" || project.project_type === typeFilter
+      )
       .sort((a, b) => {
         if (sortColumn === "clips") return (a.clip_count - b.clip_count) * direction
         if (sortColumn === "edited")
@@ -147,7 +153,7 @@ export function ProjectsDashboard() {
           )
         return a.name.localeCompare(b.name) * direction
       })
-  }, [projects, searchQuery, sortColumn, sortDirection])
+  }, [projects, searchQuery, typeFilter, sortColumn, sortDirection])
 
   const totalPages = Math.ceil(filteredProjects.length / pageSize)
   const paginatedProjects = React.useMemo(() => {
@@ -158,6 +164,11 @@ export function ProjectsDashboard() {
   // Filter/sort/page-size changes restart pagination from the first page.
   function updateSearch(value: string) {
     setSearchQuery(value)
+    setCurrentPage(1)
+  }
+
+  function updateTypeFilter(value: ProjectTypeFilter) {
+    setTypeFilter(value)
     setCurrentPage(1)
   }
 
@@ -304,6 +315,21 @@ export function ProjectsDashboard() {
         value={searchQuery}
         onChange={(event) => updateSearch(event.target.value)}
       />
+      <Select
+        value={typeFilter}
+        onValueChange={(value) =>
+          updateTypeFilter(value as ProjectTypeFilter)
+        }
+      >
+        <DashboardToolbarSelectTrigger aria-label="Filter by project type">
+          <SelectValue />
+        </DashboardToolbarSelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All types</SelectItem>
+          <SelectItem value="regular">Regular</SelectItem>
+          <SelectItem value="template">Template-based</SelectItem>
+        </SelectContent>
+      </Select>
       <div className={dashboardToolbarButtonGroupClassName}>
         <DashboardToolbarButton
           type="button"
@@ -424,6 +450,7 @@ export function ProjectsDashboard() {
                     Project
                   </TableSortButton>
                 </TableHead>
+                <TableHead column="meta">Type</TableHead>
                 <TableHead column="meta">
                   <TableSortButton
                     active={sortColumn === "clips"}
@@ -448,7 +475,7 @@ export function ProjectsDashboard() {
           }
           isEmpty={loading || paginatedProjects.length === 0}
           emptyText={loading ? "Loading projects..." : "No projects found."}
-          emptyColSpan={5}
+          emptyColSpan={6}
           footer={paginationFooter}
         >
           {paginatedProjects.map((project) => (
@@ -667,6 +694,9 @@ function ProjectTableRow({
         </div>
       </TableCell>
       <TableCell column="meta">
+        <ProjectTypeBadge project={project} />
+      </TableCell>
+      <TableCell column="meta">
         <Badge variant="outline">{project.clip_count}</Badge>
       </TableCell>
       <TableCell column="mutedMeta" className="hidden lg:table-cell">
@@ -674,6 +704,9 @@ function ProjectTableRow({
       </TableCell>
       <TableCell column="meta">
         <div className="flex justify-start gap-1">
+          <Button type="button" size="sm" variant="outline" onClick={onOpen}>
+            Open
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -729,6 +762,9 @@ function ProjectGalleryItem({
         <ClapperboardIcon className="size-8 text-muted-foreground" />
         <span className="absolute bottom-2 left-2">
           <Badge variant="secondary">{formatDuration(project.duration_ms)}</Badge>
+        </span>
+        <span className="absolute right-2 bottom-2">
+          <ProjectTypeBadge project={project} />
         </span>
       </button>
       <div className="space-y-1 bg-card p-3">
@@ -787,5 +823,13 @@ function EmptyProjects({ loading }: { loading: boolean }) {
         <p>{loading ? "Loading projects..." : "No projects found."}</p>
       </div>
     </div>
+  )
+}
+
+function ProjectTypeBadge({ project }: { project: ProjectItem }) {
+  return (
+    <Badge variant={project.project_type === "template" ? "secondary" : "outline"}>
+      {project.project_type === "template" ? "Template-based" : "Regular"}
+    </Badge>
   )
 }

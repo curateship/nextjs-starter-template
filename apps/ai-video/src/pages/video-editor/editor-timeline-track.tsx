@@ -266,7 +266,7 @@ function TimelineClipChip({
   trackIndex: number
   selected: boolean
 }) {
-  const { state, dispatch } = useEditor()
+  const { state, dispatch, mode } = useEditor()
   const pxPerSecond = state.pxPerSecond
   const chipRef = React.useRef<HTMLDivElement>(null)
   const drag = React.useRef<DragState | null>(null)
@@ -536,7 +536,10 @@ function TimelineClipChip({
           {clip.segmentLabel}
         </span>
       ) : null}
-      {clip.replaceable && clip.kind !== "text" && !state.cutMode ? (
+      {mode === "regular" &&
+      clip.replaceable &&
+      clip.kind !== "text" &&
+      !state.cutMode ? (
         <button
           type="button"
           aria-label="Replace media"
