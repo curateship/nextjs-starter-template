@@ -5,8 +5,6 @@ import { lookup } from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { TextDecoder } from 'node:util'
 import { Agent } from 'undici'
-import { PDFParse } from 'pdf-parse'
-import mammoth from 'mammoth'
 import { uploadPrivateToR2 } from '@/lib/utils/r2'
 
 export const MAX_REFERENCE_FILE_BYTES = 10 * 1024 * 1024
@@ -127,6 +125,7 @@ export async function extractReferenceUrl(rawUrl: string): Promise<ExtractedRefe
 
 async function extractTextFromBuffer(buffer: Buffer, mimeType: string) {
   if (mimeType === 'application/pdf') {
+    const { PDFParse } = await import('pdf-parse')
     const parser = new PDFParse({ data: buffer })
     try {
       const result = await parser.getText()
@@ -137,6 +136,7 @@ async function extractTextFromBuffer(buffer: Buffer, mimeType: string) {
   }
 
   if (mimeType === DOCX_MIME_TYPE) {
+    const { default: mammoth } = await import('mammoth')
     const result = await mammoth.extractRawText({ buffer })
     return result.value || ''
   }
