@@ -437,6 +437,8 @@ function TimelineClipChip({
         clipId: clip.id,
         toTrackId: targetTrack.id,
         startMs: clip.startMs + pxToMs(d.dxPx, pxPerSecond),
+        placement:
+          mode !== "regular" && clip.replaceable ? "slot-reflow" : "gap",
       })
     } else if (d.patch) {
       dispatch({ type: "UPDATE_CLIP", clipId: clip.id, patch: d.patch })
