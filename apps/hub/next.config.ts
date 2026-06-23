@@ -47,6 +47,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  outputFileTracingIncludes: {
+    '/*': [
+      '../../node_modules/@napi-rs/canvas/**/*',
+      '../../node_modules/@napi-rs/canvas-*/**/*',
+    ],
+  },
   experimental: {
     cpus: 1,
     serverActions: {
