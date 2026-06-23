@@ -56,6 +56,7 @@ import {
 } from "@/pages/video-editor/editor-settings-panel"
 import { EditorSettingsDialog } from "@/pages/video-editor/editor-settings-dialog"
 import { EditorTimeline } from "@/pages/video-editor/editor-timeline"
+import { ExportControls } from "@/pages/video-editor/editor-timeline"
 import {
   findClip,
   useEditor,
@@ -354,6 +355,8 @@ function SlotModeHeader({
             <SettingsIcon className="size-4" />
             Settings
           </Button>
+
+          {!isTemplate ? <ExportControls className="flex items-center gap-2" /> : null}
 
           {isTemplate ? (
             <Button type="button" size="sm" onClick={() => setUseOpen(true)}>

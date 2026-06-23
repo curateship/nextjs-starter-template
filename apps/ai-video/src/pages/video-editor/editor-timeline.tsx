@@ -422,7 +422,8 @@ function TimelineToolbar({
   onToggleCollapse: () => void
   collapsed: boolean
 }) {
-  const { state, dispatch, clock, durationMs, saveStatus, kind } = useEditor()
+  const { state, dispatch, clock, durationMs, saveStatus, kind, mode } =
+    useEditor()
   const playing = usePlaybackPlaying(clock)
   const rate = usePlaybackRate(clock)
 
@@ -495,22 +496,24 @@ function TimelineToolbar({
       </div>
 
       {/* Autosave indicator — failures must be visible */}
-      <span
-        className={
-          saveStatus === "error"
-            ? "px-1.5 text-xs text-destructive"
-            : "px-1.5 text-xs text-muted-foreground"
-        }
-      >
-        {saveStatus === "saving"
-          ? "Saving…"
-          : saveStatus === "error"
-            ? "Save failed"
-            : "Saved"}
-      </span>
+      {mode === "regular" ? (
+        <span
+          className={
+            saveStatus === "error"
+              ? "px-1.5 text-xs text-destructive"
+              : "px-1.5 text-xs text-muted-foreground"
+          }
+        >
+          {saveStatus === "saving"
+            ? "Saving…"
+            : saveStatus === "error"
+              ? "Save failed"
+              : "Saved"}
+        </span>
+      ) : null}
 
       {/* Export is project-only — a template isn't a renderable output. */}
-      {kind === "project" ? <ExportControls /> : null}
+      {mode === "regular" && kind === "project" ? <ExportControls /> : null}
 
       {/* View controls: aspect ratio + zoom */}
       <Select
@@ -594,7 +597,11 @@ const QUALITY_OPTIONS: { value: RenderQuality; label: string; hint: string }[] =
 // server-side render, and open the Project Export preview when it finishes.
 // The render runs in the background, so closing the modal mid-render is fine —
 // a toolbar indicator stays up and the preview still opens when ready.
-function ExportControls() {
+export function ExportControls({
+  className = "flex items-center gap-2 pl-1",
+}: {
+  className?: string
+}) {
   // Export only mounts in project mode, so the document is a project here.
   const { documentId: projectId, documentName: projectName, flushSave } =
     useEditor()
@@ -705,7 +712,7 @@ function ExportControls() {
 
   return (
     <>
-      <div className="flex items-center gap-2 pl-1">
+      <div className={className}>
         {rendering ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <Loader2Icon className="size-3.5 animate-spin" />

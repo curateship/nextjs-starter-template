@@ -4,6 +4,7 @@ import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   DEFAULT_PX_PER_SECOND,
   editorId,
+  getSlotReflowPlacements,
   MIN_CLIP_MS,
 } from "@/pages/video-editor/timeline-utils"
 
@@ -249,22 +250,15 @@ function reflowSlotTrack(
     found.track.id === target.id
       ? target.clips.filter((clip) => clip.id !== clipId)
       : target.clips
-  if (targetClips.some((clip) => !clip.replaceable)) return null
-
-  const insertAt = targetClips.findIndex(
-    (clip) => desiredStartMs < clip.startMs + clip.durationMs / 2
-  )
-  const reordered = [...targetClips]
-  reordered.splice(insertAt === -1 ? reordered.length : insertAt, 0, found.clip)
-
-  let cursor = target.clips.length
-    ? Math.min(...target.clips.map((clip) => clip.startMs))
-    : Math.max(0, desiredStartMs)
-  const clips = reordered.map((clip) => {
-    const placed = { ...clip, startMs: cursor }
-    cursor += clip.durationMs
-    return placed
+  const placements = getSlotReflowPlacements({
+    movingClip: found.clip,
+    targetClips,
+    trackClips: target.clips,
+    desiredStartMs,
   })
+  if (!placements) return null
+
+  const clips = placements.map(({ clip, startMs }) => ({ ...clip, startMs }))
 
   const withoutMoved =
     found.track.id === target.id

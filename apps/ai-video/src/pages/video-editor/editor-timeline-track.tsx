@@ -31,6 +31,7 @@ import {
 import {
   clampRowDelta,
   CUT_CURSOR,
+  getSlotReflowPlacements,
   MIN_CLIP_MS,
   msToPx,
   pxToMs,
@@ -246,6 +247,7 @@ type DragState =
       moved: boolean
       dxPx: number
       rowDelta: number
+      previewedClipIds: string[]
     }
   | {
       mode: "trim-start" | "trim-end"
@@ -343,7 +345,61 @@ function TimelineClipChip({
       moved: false,
       dxPx: 0,
       rowDelta: 0,
+      previewedClipIds: [],
     })
+  }
+
+  function resetReflowPreview(clipIds: string[]) {
+    for (const clipId of clipIds) {
+      const el = document.querySelector<HTMLElement>(
+        `[data-clip-id="${clipId}"]`
+      )
+      if (el) el.style.transform = ""
+    }
+  }
+
+  function previewSlotReflow(d: Extract<DragState, { mode: "move" }>) {
+    const targetTrack = state.tracks[trackIndex + d.rowDelta]
+    if (mode === "regular" || !clip.replaceable || !targetTrack) {
+      resetReflowPreview(d.previewedClipIds)
+      d.previewedClipIds = []
+      return
+    }
+    const targetClips =
+      targetTrack.id === track.id
+        ? targetTrack.clips.filter((item) => item.id !== clip.id)
+        : targetTrack.clips
+    const desiredStartMs = clip.startMs + pxToMs(d.dxPx, pxPerSecond)
+    const placements = getSlotReflowPlacements({
+      movingClip: clip,
+      targetClips,
+      trackClips: targetTrack.clips,
+      desiredStartMs,
+    })
+    if (!placements) {
+      resetReflowPreview(d.previewedClipIds)
+      d.previewedClipIds = []
+      return
+    }
+
+    const nextPreviewed: string[] = []
+    for (const { clip: item, startMs } of placements) {
+      if (item.id === clip.id) continue
+      const el = document.querySelector<HTMLElement>(
+        `[data-clip-id="${item.id}"]`
+      )
+      if (el) {
+        el.style.transform = `translateX(${msToPx(
+          startMs - item.startMs,
+          pxPerSecond
+        )}px)`
+        nextPreviewed.push(item.id)
+      }
+    }
+    resetReflowPreview(
+      d.previewedClipIds.filter((clipId) => !nextPreviewed.includes(clipId))
+    )
+    d.previewedClipIds = nextPreviewed
   }
 
   function handleTrimDown(e: React.PointerEvent, mode: "trim-start" | "trim-end") {
@@ -363,6 +419,7 @@ function TimelineClipChip({
       d.moved = true
       d.dxPx = dx
       d.rowDelta = clampRowDelta(dy, trackIndex, state.tracks.length)
+      previewSlotReflow(d)
       el.style.transform = `translate(${dx}px, ${d.rowDelta * TRACK_HEIGHT_PX}px)`
       el.style.zIndex = "35" // dragged clips ride above the track gutters
       el.style.opacity = "0.85"
@@ -430,6 +487,7 @@ function TimelineClipChip({
     resetChipStyles()
 
     if (d.mode === "move") {
+      resetReflowPreview(d.previewedClipIds)
       if (!d.moved) return // plain click — selection already happened
       const targetTrack = state.tracks[trackIndex + d.rowDelta]
       dispatch({
@@ -446,6 +504,8 @@ function TimelineClipChip({
   }
 
   function handleCancel() {
+    const d = drag.current
+    if (d?.mode === "move") resetReflowPreview(d.previewedClipIds)
     drag.current = null
     resetChipStyles()
   }
@@ -476,6 +536,7 @@ function TimelineClipChip({
         <div
           ref={chipRef}
           data-clip
+          data-clip-id={clip.id}
           className={cn(
             "group absolute inset-y-1.5 touch-none overflow-hidden rounded-md select-none",
             KIND_CLASSES[clip.kind],

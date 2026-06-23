@@ -54,6 +54,45 @@ export function pxToMs(px: number, pxPerSecond: number) {
   return (px / pxPerSecond) * 1000
 }
 
+export type SlotReflowClip = {
+  id: string
+  startMs: number
+  durationMs: number
+  replaceable?: boolean
+}
+
+export function getSlotReflowPlacements<T extends SlotReflowClip>({
+  movingClip,
+  targetClips,
+  trackClips,
+  desiredStartMs,
+}: {
+  movingClip: T
+  targetClips: T[]
+  trackClips: SlotReflowClip[]
+  desiredStartMs: number
+}) {
+  if (!movingClip.replaceable) return null
+  if (targetClips.some((clip) => !clip.replaceable)) return null
+
+  const desired = Math.max(0, desiredStartMs)
+  const insertAt = targetClips.findIndex(
+    (clip) => desired < clip.startMs + clip.durationMs / 2
+  )
+  const reordered = [...targetClips]
+  reordered.splice(insertAt === -1 ? reordered.length : insertAt, 0, movingClip)
+
+  let cursor = trackClips.length
+    ? Math.min(...trackClips.map((clip) => clip.startMs))
+    : desired
+
+  return reordered.map((clip) => {
+    const startMs = cursor
+    cursor += clip.durationMs
+    return { clip, startMs }
+  })
+}
+
 // Format ms as "m:ss.cc" for the transport readout (33_700 -> "0:33.70").
 export function formatTimecode(ms: number) {
   const totalSeconds = Math.max(0, ms) / 1000
