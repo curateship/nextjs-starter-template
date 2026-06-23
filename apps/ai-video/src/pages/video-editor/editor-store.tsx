@@ -69,7 +69,13 @@ type EditorState = {
 
 export type EditorAction =
   | { type: "ADD_CLIP"; clip: EditorClip; atMs: number; trackId?: string }
-  | { type: "MOVE_CLIP"; clipId: string; toTrackId: string; startMs: number }
+  | {
+      type: "MOVE_CLIP"
+      clipId: string
+      toTrackId: string
+      startMs: number
+      placement: "gap" | "slot-reflow"
+    }
   // `transient` skips the undo snapshot — used for rapid-fire inspector edits
   // (typing text, dragging sliders) so undo stays at structural granularity.
   | {
@@ -229,6 +235,51 @@ function pushUndo(state: EditorState, tracks: EditorTrack[]): EditorState {
   }
 }
 
+function reflowSlotTrack(
+  state: EditorState,
+  clipId: string,
+  targetTrackId: string,
+  desiredStartMs: number
+): EditorState | null {
+  const found = findClip(state.tracks, clipId)
+  const target = state.tracks.find((track) => track.id === targetTrackId)
+  if (!found || !target || !found.clip.replaceable) return null
+
+  const targetClips =
+    found.track.id === target.id
+      ? target.clips.filter((clip) => clip.id !== clipId)
+      : target.clips
+  if (targetClips.some((clip) => !clip.replaceable)) return null
+
+  const insertAt = targetClips.findIndex(
+    (clip) => desiredStartMs < clip.startMs + clip.durationMs / 2
+  )
+  const reordered = [...targetClips]
+  reordered.splice(insertAt === -1 ? reordered.length : insertAt, 0, found.clip)
+
+  let cursor = target.clips.length
+    ? Math.min(...target.clips.map((clip) => clip.startMs))
+    : Math.max(0, desiredStartMs)
+  const clips = reordered.map((clip) => {
+    const placed = { ...clip, startMs: cursor }
+    cursor += clip.durationMs
+    return placed
+  })
+
+  const withoutMoved =
+    found.track.id === target.id
+      ? state.tracks
+      : withTrack(state.tracks, found.track.id, (track) => ({
+          ...track,
+          clips: track.clips.filter((clip) => clip.id !== clipId),
+        }))
+  const tracks = withTrack(withoutMoved, target.id, (track) => ({
+    ...track,
+    clips,
+  }))
+  return pushUndo(state, tracks)
+}
+
 // Place a clip as close to `atMs` as possible: the preferred track clamps
 // into its nearest gap; other tracks take it only at the exact time;
 // otherwise a fresh track is appended. Selects the placed clip.
@@ -306,6 +357,17 @@ export function editorReducer(
       const found = findClip(state.tracks, action.clipId)
       const target = state.tracks.find((t) => t.id === action.toTrackId)
       if (!found || !target) return state
+
+      if (action.placement === "slot-reflow") {
+        return (
+          reflowSlotTrack(
+            state,
+            action.clipId,
+            action.toTrackId,
+            Math.max(0, action.startMs)
+          ) ?? state
+        )
+      }
 
       const start = resolveStart(
         target,
