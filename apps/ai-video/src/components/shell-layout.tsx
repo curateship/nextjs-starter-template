@@ -57,7 +57,8 @@ export function ShellLayout({
   workspaces: WorkspaceListResponse
 }) {
   const currentPath = useRouterState({
-    select: (state) => state.location.pathname,
+    select: (state) =>
+      state.resolvedLocation?.pathname ?? state.location.pathname,
   })
   const [config, setConfig] = React.useState(() => normalizeConfig(settings))
   const [settingsError, setSettingsError] = React.useState<string | null>(null)
