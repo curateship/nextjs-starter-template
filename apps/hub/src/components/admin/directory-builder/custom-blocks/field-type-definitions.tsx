@@ -6,6 +6,7 @@ import {
   Link2,
   Pilcrow,
   Rows4,
+  Tags,
   Text,
 } from "lucide-react"
 import type { BlockTypeDefinition } from "@/lib/utils/block-types"
@@ -51,6 +52,13 @@ export const DIRECTORY_CUSTOM_BLOCK_FIELD_DEFINITIONS: BlockTypeDefinition[] = [
     name: 'Number',
     icon: Hash,
     description: 'Numeric value',
+    defaultContent: {},
+  },
+  {
+    type: 'tags',
+    name: 'Tags',
+    icon: Tags,
+    description: 'Comma-separated labels rendered as checkmark chips',
     defaultContent: {},
   },
   {

@@ -9,6 +9,7 @@ const DIRECTORY_CUSTOM_BLOCK_FIELD_TYPES = [
   'image',
   'link',
   'number',
+  'tags',
   'toggle',
   'select',
   'repeater',
