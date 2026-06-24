@@ -207,6 +207,8 @@ function buildPreviewValue(field: DirectoryCustomBlockField) {
       return 'https://example.com'
     case 'number':
       return 42
+    case 'tags':
+      return `${label} one, ${label} two, ${label} three`
     case 'toggle':
       return true
     case 'select':
@@ -240,6 +242,9 @@ function buildPreviewRepeaterRow(fields: DirectoryCustomBlockRepeaterField[]) {
         break
       case 'number':
         row[field.key] = 1
+        break
+      case 'tags':
+        row[field.key] = `${field.label || 'Tag'} one, ${field.label || 'Tag'} two`
         break
       case 'toggle':
         row[field.key] = true

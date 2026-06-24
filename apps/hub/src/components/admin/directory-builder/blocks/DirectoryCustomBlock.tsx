@@ -177,8 +177,8 @@ function CustomFieldEditor({
   richTextBlockId: string
   onChange: (value: any) => void
 }) {
-  if (field.type === 'text' || field.type === 'number' || field.type === 'link') {
-    const label = field.label || (field.type === 'link' ? 'Link' : field.type === 'number' ? 'Number' : 'Text')
+  if (field.type === 'text' || field.type === 'number' || field.type === 'link' || field.type === 'tags') {
+    const label = field.label || getTextInputFieldLabel(field.type)
 
     return (
       <Card>
@@ -189,7 +189,7 @@ function CustomFieldEditor({
               type={field.type === 'number' ? 'number' : undefined}
               value={field.type === 'number' && value !== null && value !== undefined ? String(value) : typeof value === 'string' ? value : ''}
               onChange={(event) => onChange(event.target.value)}
-              placeholder={field.placeholder || (field.type === 'link' ? 'https://example.com' : '')}
+              placeholder={field.placeholder || getTextInputFieldPlaceholder(field.type)}
             />
           </Field>
         </CardContent>
@@ -294,6 +294,19 @@ function CustomFieldEditor({
   }
 
   return null
+}
+
+function getTextInputFieldLabel(type: DirectoryCustomBlockField["type"] | DirectoryCustomBlockRepeaterField["type"]) {
+  if (type === 'link') return 'Link'
+  if (type === 'number') return 'Number'
+  if (type === 'tags') return 'Tags'
+  return 'Text'
+}
+
+function getTextInputFieldPlaceholder(type: DirectoryCustomBlockField["type"] | DirectoryCustomBlockRepeaterField["type"]) {
+  if (type === 'link') return 'https://example.com'
+  if (type === 'tags') return 'tag1, tag2, tag3'
+  return ''
 }
 
 function RepeaterFieldEditor({
