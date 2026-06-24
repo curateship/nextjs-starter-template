@@ -180,18 +180,33 @@ export function EditorMediaPanel({
   }, [data?.media, search])
 
   // Probe duration, build a clip, and place it in the store.
-  async function addMediaItem(item: MediaItem, trackId?: string, atMs?: number) {
+  async function addMediaItem(
+    item: MediaItem,
+    trackId?: string,
+    atMs?: number,
+    newTrack = false
+  ) {
     try {
       setActionError(null)
       const clip = await buildMediaClip(item)
-      dispatch({
-        type: "ADD_CLIP",
-        // In the template editor every media clip is a replaceable slot, so
-        // videos built from the template can swap it (project clips are not).
-        clip: kind === "template" ? { ...clip, replaceable: true } : clip,
-        atMs: atMs ?? clock.getTime(),
-        trackId,
-      })
+      // In the template editor every media clip is a replaceable slot, so
+      // videos built from the template can swap it (project clips are not).
+      const placedClip =
+        kind === "template" ? { ...clip, replaceable: true } : clip
+      if (newTrack) {
+        dispatch({
+          type: "ADD_CLIP_TO_NEW_TRACK",
+          clip: placedClip,
+          atMs: atMs ?? clock.getTime(),
+        })
+      } else {
+        dispatch({
+          type: "ADD_CLIP",
+          clip: placedClip,
+          atMs: atMs ?? clock.getTime(),
+          trackId,
+        })
+      }
     } catch (caught) {
       setActionError(getMediaErrorMessage(caught))
     }
@@ -240,16 +255,25 @@ export function EditorMediaPanel({
       return
     }
 
-    // Drop: add on the lane under the pointer, at the pointer's time.
-    const lane = document
-      .elementFromPoint(e.clientX, e.clientY)
-      ?.closest("[data-track-lane]") as HTMLElement | null
-    if (!lane?.dataset.trackId) return // dropped outside the timeline
+    // Drop: add on the lane under the pointer, or append a lane when dropped
+    // onto the blank row below the current tracks.
+    const target = document.elementFromPoint(e.clientX, e.clientY)
+    const lane = target?.closest("[data-track-lane]") as HTMLElement | null
+    const newTrackDropZone = target?.closest(
+      "[data-new-track-drop-zone]"
+    ) as HTMLElement | null
+    const dropTarget = lane ?? newTrackDropZone
+    if (!dropTarget) return // dropped outside the timeline
     const atMs = pxToMs(
-      Math.max(0, e.clientX - lane.getBoundingClientRect().left),
+      Math.max(0, e.clientX - dropTarget.getBoundingClientRect().left),
       state.pxPerSecond
     )
-    void addMediaItem(item, lane.dataset.trackId, atMs)
+    void addMediaItem(
+      item,
+      lane?.dataset.trackId,
+      atMs,
+      Boolean(newTrackDropZone && !lane)
+    )
   }
 
   function handleTileCancel() {

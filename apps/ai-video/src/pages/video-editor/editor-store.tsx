@@ -69,7 +69,13 @@ type EditorState = {
 }
 
 export type EditorAction =
-  | { type: "ADD_CLIP"; clip: EditorClip; atMs: number; trackId?: string }
+  | {
+      type: "ADD_CLIP"
+      clip: EditorClip
+      atMs: number
+      trackId?: string
+    }
+  | { type: "ADD_CLIP_TO_NEW_TRACK"; clip: EditorClip; atMs: number }
   | {
       type: "MOVE_CLIP"
       clipId: string
@@ -102,6 +108,7 @@ export type EditorAction =
   // Insert a whole generated caption track above everything (track 0 renders
   // on top) as a single undo step.
   | { type: "ADD_CAPTION_CLIPS"; clips: EditorClip[] }
+  | { type: "ADD_TRACK" }
   | { type: "DELETE_CLIP"; clipId: string }
   | { type: "DELETE_TRACK"; trackId: string }
   | { type: "MOVE_TRACK"; trackId: string; toIndex: number }
@@ -274,6 +281,19 @@ function reflowSlotTrack(
   return pushUndo(state, tracks)
 }
 
+function placeClipInNewTrack(
+  state: EditorState,
+  clip: EditorClip,
+  atMs: number
+): EditorState {
+  const track = newTrack()
+  track.clips = [{ ...clip, startMs: Math.max(0, atMs) }]
+  return {
+    ...pushUndo(state, [...state.tracks, track]),
+    selectedClipId: clip.id,
+  }
+}
+
 // Place a clip as close to `atMs` as possible: the preferred track clamps
 // into its nearest gap; other tracks take it only at the exact time;
 // otherwise a fresh track is appended. Selects the placed clip.
@@ -307,12 +327,7 @@ function placeClip(
     }
   }
 
-  const track = newTrack()
-  track.clips = [{ ...clip, startMs: desired }]
-  return {
-    ...pushUndo(state, [...state.tracks, track]),
-    selectedClipId: clip.id,
-  }
+  return placeClipInNewTrack(state, clip, desired)
 }
 
 export function editorReducer(
@@ -322,6 +337,9 @@ export function editorReducer(
   switch (action.type) {
     case "ADD_CLIP":
       return placeClip(state, action.clip, action.atMs, action.trackId)
+
+    case "ADD_CLIP_TO_NEW_TRACK":
+      return placeClipInNewTrack(state, action.clip, action.atMs)
 
     case "ADD_CAPTION_CLIPS": {
       if (action.clips.length === 0) return state
@@ -334,6 +352,9 @@ export function editorReducer(
       }
       return pushUndo(state, [track, ...state.tracks])
     }
+
+    case "ADD_TRACK":
+      return pushUndo(state, [...state.tracks, newTrack()])
 
     case "DUPLICATE_CLIP": {
       const found = findClip(state.tracks, action.clipId)
