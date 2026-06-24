@@ -568,6 +568,8 @@ type EditorContextValue = {
   // Updates the in-editor document name after a rename (settings modal) so the
   // media-panel header reflects it without reloading.
   setDocumentName: (name: string) => void
+  documentThumbnailUrl: string | null
+  setDocumentThumbnailUrl: (url: string | null) => void
   // Persists any snapshot still inside the autosave debounce window — export
   // must render what the user sees, not the last saved timeline.
   flushSave: () => Promise<void>

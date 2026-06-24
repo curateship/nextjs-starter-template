@@ -76,20 +76,30 @@ export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
   return (
     <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-        <ClipInspector clip={clip} />
+        <div className="space-y-4">
+          <div>
+            <h2 className="truncate text-sm font-semibold" title={clip.name}>
+              {clip.name}
+            </h2>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {formatTimecode(clip.startMs)} –{" "}
+              {formatTimecode(clip.startMs + clip.durationMs)}
+            </p>
+          </div>
+          <TextClipSettings clip={clip} />
+        </div>
       </div>
     </section>
   )
 }
 
-// The selected clip's controls. Text clips expose the same content/style fields
-// the Add Text dialog uses, with edits applied live (transient — no per-keystroke
-// undo snapshot). Other kinds just show their name + timeline position (their
-// timing is trimmed on the timeline; Duplicate/Delete live on the right-click
-// menu). The fields are fully controlled from the store, so changing selection
-// just re-renders them with the new clip's values.
-function ClipInspector({ clip }: { clip: EditorClip }) {
+// Text clip controls shared by the standalone editor inspector and the
+// template slot inspector.
+export function TextClipSettings({ clip }: { clip: EditorClip }) {
   const { dispatch } = useEditor()
+
+  if (clip.kind !== "text") return null
+
   function patch(value: Partial<EditorClip>) {
     dispatch({
       type: "UPDATE_CLIP",
@@ -100,28 +110,15 @@ function ClipInspector({ clip }: { clip: EditorClip }) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header: clip name + its span on the timeline. */}
-      <div>
-        <h2 className="truncate text-sm font-semibold" title={clip.name}>
-          {clip.name}
-        </h2>
-        <p className="text-xs tabular-nums text-muted-foreground">
-          {formatTimecode(clip.startMs)} –{" "}
-          {formatTimecode(clip.startMs + clip.durationMs)}
-        </p>
-      </div>
-      {clip.kind === "text" ? (
-        <TextClipFields
-          idPrefix="inspector"
-          text={clip.text ?? ""}
-          fontSize={clip.fontSize ?? 80}
-          color={clip.color ?? "#ffffff"}
-          highlightColor={clip.highlightColor}
-          onChange={patch}
-        />
-      ) : null}
-    </div>
+    <TextClipFields
+      idPrefix="inspector"
+      layout="card"
+      text={clip.text ?? ""}
+      fontSize={clip.fontSize ?? 80}
+      color={clip.color ?? "#ffffff"}
+      highlightColor={clip.highlightColor}
+      onChange={patch}
+    />
   )
 }
 
@@ -131,6 +128,14 @@ type TextStylePatch = {
   fontSize?: number
   color?: string
   highlightColor?: string
+}
+type TextFieldLayout = "plain" | "card"
+
+function textFieldClassName(layout: TextFieldLayout) {
+  return cn(
+    "space-y-1.5",
+    layout === "card" && "rounded-md border bg-background p-3"
+  )
 }
 
 // The content/size/color fields for a text clip, shared by the "Add Text"
@@ -143,6 +148,7 @@ function TextClipFields({
   color,
   highlightColor,
   onChange,
+  layout = "plain",
 }: {
   idPrefix: string
   text: string
@@ -150,10 +156,11 @@ function TextClipFields({
   color: string
   highlightColor?: string
   onChange: (patch: TextStylePatch & { text?: string }) => void
+  layout?: TextFieldLayout
 }) {
   return (
     <>
-      <div className="space-y-1.5">
+      <div className={textFieldClassName(layout)}>
         <Label htmlFor={`${idPrefix}-text`}>Content</Label>
         <Textarea
           id={`${idPrefix}-text`}
@@ -171,6 +178,7 @@ function TextClipFields({
         color={color}
         highlightColor={highlightColor}
         onChange={onChange}
+        layout={layout}
       />
     </>
   )
@@ -184,16 +192,18 @@ function TextStyleFields({
   color,
   highlightColor,
   onChange,
+  layout = "plain",
 }: {
   idPrefix: string
   fontSize: number
   color: string
   highlightColor?: string
   onChange: (patch: TextStylePatch) => void
+  layout?: TextFieldLayout
 }) {
   return (
     <>
-      <div className="space-y-1.5">
+      <div className={textFieldClassName(layout)}>
         <Label>Font size</Label>
         <Slider
           value={[fontSize]}
@@ -204,7 +214,7 @@ function TextStyleFields({
           aria-label="Font size"
         />
       </div>
-      <div className="space-y-1.5">
+      <div className={textFieldClassName(layout)}>
         <Label htmlFor={`${idPrefix}-color`}>Text Color</Label>
         <ColorPicker
           id={`${idPrefix}-color`}
@@ -212,7 +222,7 @@ function TextStyleFields({
           onChange={(value) => onChange({ color: value })}
         />
       </div>
-      <div className="space-y-1.5">
+      <div className={textFieldClassName(layout)}>
         {/* Optional highlight box behind the text. The toggle adds/removes the
             background; the picker sets its color (defaults to white). */}
         <div className="flex items-center justify-between">
@@ -330,7 +340,7 @@ export function ElementsPanel() {
 
 // Composes a text clip's content/style, then adds it at the playhead. The
 // new clip is auto-selected, so closing this dialog drops the user into the
-// ClipInspector for further tweaks.
+// text settings inspector for further tweaks.
 function TextDialog({
   open,
   onOpenChange,

@@ -53,6 +53,7 @@ import {
 import {
   ElementsPanel,
   EditorSettingsPanel,
+  TextClipSettings,
 } from "@/pages/video-editor/editor-settings-panel"
 import { EditorSettingsDialog } from "@/pages/video-editor/editor-settings-dialog"
 import { EditorTimeline } from "@/pages/video-editor/editor-timeline"
@@ -141,7 +142,10 @@ export function VideoEditorPage({
           {/* Mirrors the shell's default content spacing (DashboardContent /
               DashboardRow), which this route strips for the full-bleed timeline */}
           {mode === "regular" ? (
-            <EditorMainPanels />
+            <>
+              <RegularEditorHeader />
+              <EditorMainPanels />
+            </>
           ) : (
             <SlotFirstEditor document={document} mode={mode} />
           )}
@@ -222,6 +226,35 @@ function EditorMainPanels() {
         ) : null}
       </ResizablePanelGroup>
     </div>
+  )
+}
+
+function RegularEditorHeader() {
+  const [settingsOpen, setSettingsOpen] = React.useState(false)
+  const { documentName } = useEditor()
+
+  return (
+    <nav className="flex min-h-14 shrink-0 flex-wrap items-center gap-2 bg-muted/30 px-3 py-2 shadow-[0_3px_12px_rgba(0,0,0,0.055)] sm:px-4 md:px-6">
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-sm font-semibold" title={documentName}>
+          {documentName}
+        </h1>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        <ExportControls className="flex items-center gap-2" />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Settings (cog)"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <SettingsIcon />
+          Settings
+        </Button>
+      </div>
+      <EditorSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+    </nav>
   )
 }
 
@@ -319,19 +352,21 @@ function SlotModeHeader({
           </h1>
         </div>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-          <p
-            className={
-              saveStatus === "error"
-                ? "text-xs text-destructive"
-                : "text-xs text-muted-foreground"
-            }
-          >
-            {saveStatus === "saving"
-              ? "Saving..."
-              : saveStatus === "error"
-                ? "Save failed"
-                : "Saved"}
-          </p>
+          {saveStatus !== "saved" ? (
+            <p
+              className={
+                saveStatus === "error"
+                  ? "text-xs text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {saveStatus === "saving"
+                ? "Saving..."
+                : saveStatus === "error"
+                  ? "Save failed"
+                  : null}
+            </p>
+          ) : null}
 
           {isTemplate && document.source_viral_video_id ? (
             <Button
@@ -654,7 +689,7 @@ function SlotInspector({
 
   return (
     <section className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b p-3">
+      <div className="flex shrink-0 items-center justify-between gap-2 p-3 pb-1">
         <h2 className="truncate text-sm font-semibold">
           {clip
             ? mode === "template-builder"
@@ -665,17 +700,18 @@ function SlotInspector({
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-4 p-4">
+        <div className="space-y-3 p-4">
           {!clip ? (
             <p className="text-sm text-muted-foreground">
               Select a slot to edit label, replacement, media, and timing.
             </p>
           ) : (
             <>
-              <div className="space-y-1.5">
+              <div className="rounded-md border bg-background p-3">
                 <Label htmlFor="slot-label">Slot label</Label>
                 <Input
                   id="slot-label"
+                  className="mt-2"
                   value={clip.segmentLabel ?? clip.name}
                   onChange={(event) =>
                     patch({
@@ -686,7 +722,7 @@ function SlotInspector({
                 />
               </div>
               <div className="flex items-center justify-between rounded-md border bg-background p-3">
-                <div>
+                <div className="space-y-1">
                   <Label htmlFor="slot-replaceable">Replaceable</Label>
                   <p className="text-xs text-muted-foreground">
                     Shows this clip as a template slot.
@@ -700,10 +736,11 @@ function SlotInspector({
                   }
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="rounded-md border bg-background p-3">
                 <Label htmlFor="slot-duration">Duration seconds</Label>
                 <Input
                   id="slot-duration"
+                  className="mt-2"
                   type="number"
                   min="0.1"
                   step="0.1"
@@ -735,6 +772,7 @@ function SlotInspector({
                     type="button"
                     size="sm"
                     variant="outline"
+                    className="mt-1"
                     onClick={() => setReplaceOpen(true)}
                   >
                     <ReplaceIcon className="size-4" />
@@ -744,7 +782,7 @@ function SlotInspector({
                   </Button>
                 ) : null}
               </div>
-              {clip.kind === "text" ? <EditorSettingsPanel clip={clip} /> : null}
+              <TextClipSettings clip={clip} />
             </>
           )}
         </div>

@@ -77,6 +77,7 @@ export type TemplateDetail = {
   source_viral_video_id: string | null
   source_type: TemplateSourceType
   structure_tags: TemplateStructureTag[]
+  thumbnail_url: string | null
   timeline: ProjectTimeline
 }
 
@@ -231,7 +232,81 @@ export async function getTemplateForEditingForCurrentUser(
     source_viral_video_id: row.sourceViralVideoId,
     source_type: row.sourceViralVideoId ? "analyzed" : "blank",
     structure_tags: deriveStructureTags(row.timeline, row.sourceViralVideoId),
+    thumbnail_url: row.thumbnailStoragePath
+      ? getPublicMediaUrl(row.thumbnailStoragePath)
+      : null,
     timeline: row.timeline as ProjectTimeline,
+  }
+}
+
+export async function setTemplateCoverForCurrentUser(
+  templateId: string,
+  mediaId: string | null
+): Promise<{ templateId: string; thumbnail_url: string | null }> {
+  requireAppOrigin()
+  const user = await requireUser()
+  const template = await getOwnedTemplate(user.id, templateId)
+  if (!mediaId) {
+    await db
+      .update(aiVideoTemplates)
+      .set({ thumbnailStoragePath: null, updatedAt: now() })
+      .where(
+        and(
+          eq(aiVideoTemplates.id, template.id),
+          eq(aiVideoTemplates.userId, user.id)
+        )
+      )
+
+    if (template.thumbnailStoragePath) {
+      await deleteFromR2(template.thumbnailStoragePath).catch(() => undefined)
+    }
+
+    return { templateId: template.id, thumbnail_url: null }
+  }
+
+  const [media] = await db
+    .select()
+    .from(aiVideoMedia)
+    .where(and(eq(aiVideoMedia.id, mediaId), eq(aiVideoMedia.userId, user.id)))
+    .limit(1)
+
+  if (!media) {
+    throw new Error("Media not found")
+  }
+  if (media.fileType !== "image") {
+    throw new Error("Template cover must be an image")
+  }
+
+  const ext = media.storagePath.split(".").pop() || "jpg"
+  const thumbnailStoragePath =
+    `templates/${user.id}/${template.id}/cover-${media.id}.${ext}`
+  await copyR2Object(media.storagePath, thumbnailStoragePath)
+
+  try {
+    await db
+      .update(aiVideoTemplates)
+      .set({ thumbnailStoragePath, updatedAt: now() })
+      .where(
+        and(
+          eq(aiVideoTemplates.id, template.id),
+          eq(aiVideoTemplates.userId, user.id)
+        )
+      )
+  } catch (error) {
+    await deleteFromR2(thumbnailStoragePath).catch(() => undefined)
+    throw error
+  }
+
+  if (
+    template.thumbnailStoragePath &&
+    template.thumbnailStoragePath !== thumbnailStoragePath
+  ) {
+    await deleteFromR2(template.thumbnailStoragePath).catch(() => undefined)
+  }
+
+  return {
+    templateId: template.id,
+    thumbnail_url: getPublicMediaUrl(thumbnailStoragePath),
   }
 }
 

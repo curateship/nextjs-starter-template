@@ -422,8 +422,7 @@ function TimelineToolbar({
   onToggleCollapse: () => void
   collapsed: boolean
 }) {
-  const { state, dispatch, clock, durationMs, saveStatus, kind, mode } =
-    useEditor()
+  const { state, dispatch, clock, durationMs } = useEditor()
   const playing = usePlaybackPlaying(clock)
   const rate = usePlaybackRate(clock)
 
@@ -494,26 +493,6 @@ function TimelineToolbar({
         </ToolbarIconButton>
         <TimeReadout clock={clock} durationMs={durationMs} />
       </div>
-
-      {/* Autosave indicator — failures must be visible */}
-      {mode === "regular" ? (
-        <span
-          className={
-            saveStatus === "error"
-              ? "px-1.5 text-xs text-destructive"
-              : "px-1.5 text-xs text-muted-foreground"
-          }
-        >
-          {saveStatus === "saving"
-            ? "Saving…"
-            : saveStatus === "error"
-              ? "Save failed"
-              : "Saved"}
-        </span>
-      ) : null}
-
-      {/* Export is project-only — a template isn't a renderable output. */}
-      {mode === "regular" && kind === "project" ? <ExportControls /> : null}
 
       {/* View controls: aspect ratio + zoom */}
       <Select

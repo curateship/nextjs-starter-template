@@ -7,7 +7,6 @@ import {
   MusicIcon,
   PlusIcon,
   SearchIcon,
-  SettingsIcon,
   UploadIcon,
   VideoIcon,
   XIcon,
@@ -48,7 +47,6 @@ import {
   type MediaItem,
   type MediaListResponse,
 } from "@/lib/api/media"
-import { EditorSettingsDialog } from "@/pages/video-editor/editor-settings-dialog"
 import { ElementsPanel } from "@/pages/video-editor/editor-settings-panel"
 import { useEditor, type EditorClip } from "@/pages/video-editor/editor-store"
 import {
@@ -117,18 +115,9 @@ export function EditorMediaPanel({
 }: {
   embedded?: boolean
 } = {}) {
-  // documentName is the project or template name (shown in the panel header).
-  const {
-    state,
-    dispatch,
-    clock,
-    kind,
-    documentId,
-    documentName: projectName,
-  } = useEditor()
+  const { state, dispatch, clock, kind, documentId } = useEditor()
   const projectId = kind === "project" ? documentId : undefined
   const [tab, setTab] = React.useState<MediaTab>("videos")
-  const [settingsOpen, setSettingsOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
   // Search lives in a popover so opening it never pushes the grid down.
   const [searchOpen, setSearchOpen] = React.useState(false)
@@ -268,12 +257,6 @@ export function EditorMediaPanel({
     dragRef.current = null
   }
 
-  // Closing the search also clears it so no hidden filter lingers.
-  function handleSearchOpenChange(open: boolean) {
-    setSearchOpen(open)
-    if (!open) setSearch("")
-  }
-
   // --- Shared upload (any media type) --------------------------------------
   async function uploadSelectedFile(file: File, callbacks: UploadCallbacks = {}) {
     setUploading(true)
@@ -319,19 +302,14 @@ export function EditorMediaPanel({
     onPointerUp: (e: React.PointerEvent) => handleTileUp(e, item),
     onPointerCancel: handleTileCancel,
   })
+  const hasSearchFilter = search.trim().length > 0
 
   return (
     <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <Tabs defaultValue="media" className="min-h-0 flex-1 gap-0">
-        {/* Row 1: project name on the left, the Media/Elements switcher right. */}
+        {/* Row 1: Media/Elements switcher. */}
         {!embedded ? (
           <div className="flex shrink-0 items-center gap-2 p-3 pb-2">
-            <span
-              className="min-w-0 flex-1 truncate text-sm font-semibold"
-              title={projectName}
-            >
-              {projectName}
-            </span>
             <TabsList className="shrink-0">
               <TabsTrigger value="media">Media</TabsTrigger>
               <TabsTrigger value="elements">Elements</TabsTrigger>
@@ -364,14 +342,14 @@ export function EditorMediaPanel({
               {/* Search / upload / settings — their own group, pinned right and
                   kept separate from the media-type filter. */}
               <div className="ml-auto flex items-center gap-1">
-                <Popover open={searchOpen} onOpenChange={handleSearchOpenChange}>
+                <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant={hasSearchFilter ? "secondary" : "ghost"}
                       size="icon-sm"
                       aria-label="Search media"
-                      aria-pressed={searchOpen}
+                      aria-pressed={searchOpen || hasSearchFilter}
                     >
                       <SearchIcon />
                     </Button>
@@ -404,17 +382,6 @@ export function EditorMediaPanel({
                     <UploadIcon />
                   )}
                 </Button>
-                {!embedded ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Settings"
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <SettingsIcon />
-                  </Button>
-                ) : null}
               </div>
             </div>
             {actionError && (
@@ -498,12 +465,6 @@ export function EditorMediaPanel({
         className="hidden"
         onChange={handleUpload}
       />
-      {!embedded ? (
-        <EditorSettingsDialog
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-        />
-      ) : null}
     </section>
   )
 }
