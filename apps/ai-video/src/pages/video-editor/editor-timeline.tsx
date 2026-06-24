@@ -7,6 +7,7 @@ import {
   MonitorIcon,
   PauseIcon,
   PlayIcon,
+  PlusIcon,
   Redo2Icon,
   ScissorsIcon,
   SkipBackIcon,
@@ -18,6 +19,12 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
 import {
   getProjectErrorMessage,
@@ -72,11 +79,14 @@ import {
   MIN_PX_PER_SECOND,
   msToPx,
   pxToMs,
+  TRACK_HEIGHT_PX,
   TIMELINE_GUTTER_PX,
 } from "@/pages/video-editor/timeline-utils"
 
 // Extra lane width past the final clip so edits have room to grow.
 const TIMELINE_TAIL_MS = 1_000
+
+const RULER_HEIGHT_PX = 32
 
 // Window fitted to the visible width when an empty project mounts (no content
 // to derive a zoom from).
@@ -108,13 +118,24 @@ export function EditorTimeline({
 
   // Track the panel width so short projects still get ruler ticks and scrub
   // space wall-to-wall — without forcing a scroll range past the content.
-  const [scrollerWidth, setScrollerWidth] = React.useState(0)
+  const [scrollerSize, setScrollerSize] = React.useState({
+    width: 0,
+    height: 0,
+  })
   React.useEffect(() => {
     const scroller = scrollRef.current
     if (!scroller) return
-    const observer = new ResizeObserver(() =>
-      setScrollerWidth(scroller.clientWidth)
-    )
+    const observer = new ResizeObserver(() => {
+      setScrollerSize((size) => {
+        const next = {
+          width: scroller.clientWidth,
+          height: scroller.clientHeight,
+        }
+        return size.width === next.width && size.height === next.height
+          ? size
+          : next
+      })
+    })
     observer.observe(scroller)
     return () => observer.disconnect()
   }, [])
@@ -122,12 +143,18 @@ export function EditorTimeline({
   // Scrollable span: the content plus a small tail, padded up to (but never
   // past) whatever fills the visible panel at the current zoom.
   const fillMs = pxToMs(
-    Math.max(0, scrollerWidth - TIMELINE_GUTTER_PX),
+    Math.max(0, scrollerSize.width - TIMELINE_GUTTER_PX),
     state.pxPerSecond
   )
   const visibleMs = Math.max(durationMs + TIMELINE_TAIL_MS, fillMs)
   const contentWidth =
     TIMELINE_GUTTER_PX + msToPx(visibleMs, state.pxPerSecond)
+  const newTrackDropHeight = Math.max(
+    TRACK_HEIGHT_PX,
+    scrollerSize.height -
+      RULER_HEIGHT_PX -
+      state.tracks.length * TRACK_HEIGHT_PX
+  )
 
   // --- Scrub by pointer on ruler / empty lane space -----------------------
   function seekAtPointer(e: React.PointerEvent) {
@@ -143,7 +170,13 @@ export function EditorTimeline({
     // Only lane space and the ruler scrub. Anything else (track gutter
     // buttons, grips) must keep its own clicks — capturing here would
     // swallow them.
-    if (!target.closest("[data-track-lane], [data-ruler]")) return
+    if (
+      !target.closest(
+        "[data-track-lane], [data-new-track-drop-zone], [data-ruler]"
+      )
+    ) {
+      return
+    }
     // With the cut tool active, only the ruler scrubs — clicking lane space
     // shouldn't jump the playhead mid-cutting.
     if (state.cutMode && !target.closest("[data-ruler]")) return
@@ -279,7 +312,7 @@ export function EditorTimeline({
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <div
           ref={contentRef}
-          className="relative"
+          className="relative min-h-full"
           style={{ width: contentWidth, minWidth: "100%" }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -311,6 +344,29 @@ export function EditorTimeline({
               trackIndex={trackIndex}
             />
           ))}
+
+          <div
+            className="flex border-b border-border/60"
+            style={{ height: newTrackDropHeight }}
+          >
+            <div className="sticky left-0 z-30 w-24 shrink-0 border-r bg-background" />
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div
+                  data-new-track-drop-zone
+                  className="relative min-w-0 flex-1 cursor-pointer bg-muted/20 transition-colors hover:bg-muted/30"
+                />
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem
+                  onClick={() => dispatch({ type: "ADD_TRACK" })}
+                >
+                  <PlusIcon />
+                  Add track
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          </div>
 
           <PlayheadLine clock={clock} pxPerSecond={state.pxPerSecond} />
         </div>
