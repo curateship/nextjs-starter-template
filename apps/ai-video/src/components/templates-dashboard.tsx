@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/dashboard-table"
 import {
+  TemplateSettingsDialog,
+  type TemplateSettingsUpdate,
+} from "@/components/template-settings-dialog"
+import {
   DashboardToolbarButton,
   dashboardToolbarButtonActiveClassName,
   dashboardToolbarButtonGroupClassName,
@@ -58,7 +62,6 @@ import {
   deleteTemplate,
   getTemplateErrorMessage,
   listTemplates,
-  renameTemplate,
   type TemplateItem,
   type TemplateStructureTag,
 } from "@/lib/api/video-templates"
@@ -87,7 +90,6 @@ export function TemplatesDashboard() {
   const [templates, setTemplates] = React.useState<TemplateItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
-  const [modalError, setModalError] = React.useState<string | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sourceFilter, setSourceFilter] = React.useState<SourceFilter>("all")
@@ -99,11 +101,9 @@ export function TemplatesDashboard() {
     React.useState<TableSortDirection>("desc")
   const [currentPage, setCurrentPage] = React.useState(1)
   const [pageSize, setPageSize] = React.useState(pageSizeOptions[1])
-  const [renameTarget, setRenameTarget] = React.useState<TemplateItem | null>(
+  const [settingsTarget, setSettingsTarget] = React.useState<TemplateItem | null>(
     null
   )
-  const [submitting, setSubmitting] = React.useState(false)
-  const [name, setName] = React.useState("")
   // "Use template" naming dialog: the template being used + the typed project
   // name, plus its own in-flight/error state (creation happens from the modal).
   const [useTarget, setUseTarget] = React.useState<TemplateItem | null>(null)
@@ -310,46 +310,30 @@ export function TemplatesDashboard() {
     }
   }
 
-  function openRenameModal(template: TemplateItem) {
-    setRenameTarget(template)
-    setName(template.name)
-    setModalError(null)
+  function openSettingsModal(template: TemplateItem) {
+    setSettingsTarget(template)
     setError(null)
     setNotice(null)
   }
 
-  function closeRenameModal() {
-    setRenameTarget(null)
-    setSubmitting(false)
-    setModalError(null)
+  function closeSettingsModal() {
+    setSettingsTarget(null)
   }
 
-  async function handleRenameTemplate() {
-    if (!renameTarget) return
-
-    setSubmitting(true)
-    setModalError(null)
-    try {
-      const updated = await renameTemplate(renameTarget.id, name)
-      // The rename response doesn't join the source video, so keep the
-      // thumbnail and creator chip the list already has instead of blanking them.
-      setTemplates((current) =>
-        current.map((template) =>
-          template.id === updated.id
-            ? {
-                ...updated,
-                thumbnail_url: template.thumbnail_url,
-                creator: template.creator,
-              }
-            : template
-        )
-      )
-      setNotice("Template renamed.")
-      closeRenameModal()
-    } catch (renameError) {
-      setModalError(getTemplateErrorMessage(renameError))
-      setSubmitting(false)
+  function handleTemplateSettingsUpdated(update: TemplateSettingsUpdate) {
+    const applyUpdate = (template: TemplateItem): TemplateItem => {
+      if (template.id !== update.id) return template
+      return {
+        ...template,
+        ...(update.name !== undefined ? { name: update.name } : {}),
+        ...("thumbnail_url" in update
+          ? { thumbnail_url: update.thumbnail_url ?? null }
+          : {}),
+      }
     }
+
+    setSettingsTarget((current) => (current ? applyUpdate(current) : current))
+    setTemplates((current) => current.map(applyUpdate))
   }
 
   const visibleIds = paginatedTemplates.map((template) => template.id)
@@ -372,7 +356,6 @@ export function TemplatesDashboard() {
     formatError: getTemplateErrorMessage,
   })
 
-  const renameDisabled = submitting || !name.trim()
   const useDisabled = useSubmitting || !useName.trim()
   const createDisabled = createSubmitting || !createName.trim()
   const controls = (
@@ -453,11 +436,7 @@ export function TemplatesDashboard() {
         <SparklesIcon className="size-4" />
         Create From Source
       </DashboardToolbarButton>
-      <DashboardToolbarButton
-        type="button"
-        variant="outline"
-        onClick={openCreateModal}
-      >
+      <DashboardToolbarButton type="button" onClick={openCreateModal}>
         <PlusIcon className="size-4" />
         Blank Template
       </DashboardToolbarButton>
@@ -516,7 +495,7 @@ export function TemplatesDashboard() {
                       onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
                       onUse={() => openUseModal(template)}
                       onEdit={() => handleEditTemplate(template)}
-                      onRename={() => openRenameModal(template)}
+                      onSettings={() => openSettingsModal(template)}
                       onDelete={() => setDeleteIds([template.id])}
                     />
                   ))}
@@ -597,7 +576,7 @@ export function TemplatesDashboard() {
               onOpen={() => { setViewVideoId(template.source_viral_video_id); setViewTemplateId(template.id) }}
               onUse={() => openUseModal(template)}
               onEdit={() => handleEditTemplate(template)}
-              onRename={() => openRenameModal(template)}
+              onSettings={() => openSettingsModal(template)}
               onDelete={() => setDeleteIds([template.id])}
             />
           ))}
@@ -610,60 +589,17 @@ export function TemplatesDashboard() {
         onOpenChange={(open) => { if (!open) { setViewVideoId(null); setViewTemplateId(null) } }}
       />
 
-      <Dialog
-        open={!!renameTarget}
-        onOpenChange={(open) => !open && closeRenameModal()}
-      >
-        <DialogContent variant="admin">
-          <DialogHeader>
-            <DialogTitle>Rename Template</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <div className="space-y-5">
-              {modalError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                >
-                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{modalError}</span>
-                </div>
-              ) : null}
-
-              <div className="grid gap-2">
-                <Label htmlFor="template-rename">Name</Label>
-                <Input
-                  id="template-rename"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Template name"
-                  onKeyDown={(event) => {
-                    // Enter submits the single-field form.
-                    if (event.key === "Enter" && !renameDisabled) {
-                      void handleRenameTemplate()
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          </DialogBody>
-          <DialogFooter variant="plain">
-            <Button type="button" variant="outline" onClick={closeRenameModal}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={renameDisabled}
-              onClick={handleRenameTemplate}
-            >
-              {submitting ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : null}
-              {submitting ? "Saving" : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TemplateSettingsDialog
+        open={!!settingsTarget}
+        onOpenChange={(open) => {
+          if (!open) closeSettingsModal()
+        }}
+        templateId={settingsTarget?.id ?? null}
+        initialName={settingsTarget?.name ?? ""}
+        thumbnailUrl={settingsTarget?.thumbnail_url ?? null}
+        onTemplateUpdated={handleTemplateSettingsUpdated}
+        onSaved={() => setNotice("Template settings saved.")}
+      />
 
       {/* "Use" naming dialog — name the new project before it's created. */}
       <Dialog
@@ -836,7 +772,7 @@ function TemplateTableRow({
   onOpen,
   onUse,
   onEdit,
-  onRename,
+  onSettings,
   onDelete,
 }: {
   template: TemplateItem
@@ -845,7 +781,7 @@ function TemplateTableRow({
   onOpen: () => void
   onUse: () => void
   onEdit: () => void
-  onRename: () => void
+  onSettings: () => void
   onDelete: () => void
 }) {
   // The source reel's AI analysis is only available when the template was
@@ -936,8 +872,8 @@ function TemplateTableRow({
             type="button"
             variant="ghost"
             size="icon-sm"
-            onClick={onRename}
-            aria-label="Rename template"
+            onClick={onSettings}
+            aria-label="Template settings"
           >
             <EditIcon className="size-4" />
           </Button>
@@ -963,7 +899,7 @@ function TemplateGalleryItem({
   onOpen,
   onUse,
   onEdit,
-  onRename,
+  onSettings,
   onDelete,
 }: {
   template: TemplateItem
@@ -972,7 +908,7 @@ function TemplateGalleryItem({
   onOpen: () => void
   onUse: () => void
   onEdit: () => void
-  onRename: () => void
+  onSettings: () => void
   onDelete: () => void
 }) {
   // The source reel's AI analysis is only available when the template was
@@ -1029,7 +965,7 @@ function TemplateGalleryItem({
             aria-label={`Select ${template.name}`}
           />
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" onClick={onRename} aria-label="Rename template">
+        <Button type="button" variant="ghost" size="icon-sm" onClick={onSettings} aria-label="Template settings">
           <EditIcon className="size-4" />
         </Button>
         <Button type="button" variant="ghost" size="icon-sm" onClick={onDelete} aria-label="Delete template">

@@ -23,6 +23,7 @@ export type EditorDocument = {
   name: string
   template_id?: string | null
   source_viral_video_id?: string | null
+  thumbnail_url?: string | null
   timeline: ProjectTimeline
 }
 
@@ -60,6 +61,9 @@ export function EditorProvider({
   // header live. Initialized once from the prop, like the timeline reducer —
   // the editor remounts per document, so it never needs to re-sync the prop.
   const [documentName, setDocumentName] = React.useState(document.name)
+  const [documentThumbnailUrl, setDocumentThumbnailUrl] = React.useState(
+    document.thumbnail_url ?? null
+  )
   // Latest unsaved snapshot; cleared once persisted. Lets the unmount flush
   // catch edits made inside the debounce window when navigating away.
   const pendingRef = React.useRef<ProjectTimeline | null>(null)
@@ -148,6 +152,8 @@ export function EditorProvider({
       documentId: document.id,
       documentName,
       setDocumentName,
+      documentThumbnailUrl,
+      setDocumentThumbnailUrl,
       flushSave,
     }),
     [
@@ -159,6 +165,7 @@ export function EditorProvider({
       mode,
       document.id,
       documentName,
+      documentThumbnailUrl,
       flushSave,
     ]
   )

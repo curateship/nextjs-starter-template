@@ -527,7 +527,7 @@ function ExportTableRow({
         {dateFormatter.format(new Date(item.exported_at))}
       </TableCell>
       <TableCell column="meta">
-        <div className="flex justify-start gap-1">
+        <div className="flex items-center justify-start gap-1">
           <DashboardToolbarButton
             type="button"
             variant="ghost"
@@ -543,6 +543,7 @@ function ExportTableRow({
             type="button"
             variant="ghost"
             size="icon-sm"
+            className="size-8 sm:size-9"
             onClick={(event) => {
               event.stopPropagation()
               onDelete()

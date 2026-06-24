@@ -1,6 +1,10 @@
 import * as React from "react"
 import { AlertCircleIcon, Loader2Icon } from "lucide-react"
 
+import {
+  TemplateSettingsDialog,
+  type TemplateSettingsUpdate,
+} from "@/components/template-settings-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,15 +17,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getProjectErrorMessage, renameProject } from "@/lib/api/video-projects"
-import {
-  getTemplateErrorMessage,
-  renameTemplate,
-} from "@/lib/api/video-templates"
 import { useEditor } from "@/pages/video-editor/editor-store"
 
-// Editor settings modal, opened from the media-panel gear. For now it only
-// renames the project/template (saved via the same rename fns the dashboards
-// use); more settings will be added here later.
+// Editor settings modal, opened from the editor header. Project settings rename
+// the project; template settings also manage the catalog cover image.
 export function EditorSettingsDialog({
   open,
   onOpenChange,
@@ -29,21 +28,71 @@ export function EditorSettingsDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const { kind } = useEditor()
+
+  if (kind === "template") {
+    return (
+      <EditorTemplateSettingsDialog
+        open={open}
+        onOpenChange={onOpenChange}
+      />
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="admin">
         {/* The form is its own component so it remounts each time the dialog
             opens — the name field then always starts from the live name, with
             no reset effect. */}
-        <EditorSettingsForm onClose={() => onOpenChange(false)} />
+        <ProjectSettingsForm onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )
 }
 
-function EditorSettingsForm({ onClose }: { onClose: () => void }) {
-  const { kind, documentId, documentName, setDocumentName } = useEditor()
-  const noun = kind === "template" ? "Template" : "Project"
+function EditorTemplateSettingsDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const {
+    documentId,
+    documentName,
+    setDocumentName,
+    documentThumbnailUrl,
+    setDocumentThumbnailUrl,
+  } = useEditor()
+
+  function handleTemplateUpdated(update: TemplateSettingsUpdate) {
+    if (update.name !== undefined) {
+      setDocumentName(update.name)
+    }
+    if ("thumbnail_url" in update) {
+      setDocumentThumbnailUrl(update.thumbnail_url ?? null)
+    }
+  }
+
+  return (
+    <TemplateSettingsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      templateId={documentId}
+      initialName={documentName}
+      thumbnailUrl={documentThumbnailUrl}
+      onTemplateUpdated={handleTemplateUpdated}
+    />
+  )
+}
+
+function ProjectSettingsForm({ onClose }: { onClose: () => void }) {
+  const {
+    documentId,
+    documentName,
+    setDocumentName,
+  } = useEditor()
   const [name, setName] = React.useState(documentName)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -54,19 +103,12 @@ function EditorSettingsForm({ onClose }: { onClose: () => void }) {
     setSubmitting(true)
     setError(null)
     try {
-      const updated =
-        kind === "template"
-          ? await renameTemplate(documentId, name)
-          : await renameProject(documentId, name)
+      const updated = await renameProject(documentId, name)
       // Use the server-cleaned name so the header matches what was stored.
       setDocumentName(updated.name)
       onClose()
     } catch (caught) {
-      setError(
-        kind === "template"
-          ? getTemplateErrorMessage(caught)
-          : getProjectErrorMessage(caught)
-      )
+      setError(getProjectErrorMessage(caught))
       setSubmitting(false)
     }
   }
@@ -74,7 +116,7 @@ function EditorSettingsForm({ onClose }: { onClose: () => void }) {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{noun} Settings</DialogTitle>
+        <DialogTitle>Project Settings</DialogTitle>
       </DialogHeader>
       <DialogBody>
         <div className="space-y-5">
@@ -95,7 +137,7 @@ function EditorSettingsForm({ onClose }: { onClose: () => void }) {
               autoFocus
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder={`${noun} name`}
+              placeholder="Project name"
               onKeyDown={(event) => {
                 // Enter submits the single-field form.
                 if (event.key === "Enter" && !disabled) {

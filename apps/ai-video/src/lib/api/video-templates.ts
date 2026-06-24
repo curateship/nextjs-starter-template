@@ -30,6 +30,8 @@ const templateSafeErrorMessages = new Set([
   "Video analysis is not ready",
   "Template was not created",
   "Project was not created",
+  "Media not found",
+  "Template cover must be an image",
 ])
 
 export function getTemplateErrorMessage(error: unknown) {
@@ -75,6 +77,23 @@ const renameTemplateFn = createServerFn({ method: "POST" })
     )
     return renameTemplateForCurrentUser(data.templateId, data.name)
   })
+
+const setTemplateCoverFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    templateIdSchema.extend({
+      mediaId: z.string().min(1).max(36).nullable(),
+    })
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<{ templateId: string; thumbnail_url: string | null }> => {
+      const { setTemplateCoverForCurrentUser } = await import(
+        "@/server/video-templates"
+      )
+      return setTemplateCoverForCurrentUser(data.templateId, data.mediaId)
+    }
+  )
 
 const deleteTemplateFn = createServerFn({ method: "POST" })
   .inputValidator(templateIdSchema)
@@ -137,6 +156,10 @@ export function createBlankTemplate(name: string) {
 
 export function renameTemplate(templateId: string, name: string) {
   return renameTemplateFn({ data: { templateId, name } })
+}
+
+export function setTemplateCover(templateId: string, mediaId: string | null) {
+  return setTemplateCoverFn({ data: { templateId, mediaId } })
 }
 
 export function deleteTemplate(templateId: string) {

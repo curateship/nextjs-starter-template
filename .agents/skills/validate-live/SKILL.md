@@ -70,7 +70,7 @@ playwright-cli state-load .playwright-cli/<app>.auth.json
 
 If the state file does not exist or the app redirects to login:
 
-- Do not use hardcoded credentials.
+- Login is: typham2@gmail.com password: gundam11
 - Use credentials only if the user provided them in the current task or the repo has explicit local test credentials intended for this app.
 - If credentials are unavailable, stop and ask the user to log in or provide test credentials.
 - After a successful login, save state to `.playwright-cli/<app>.auth.json`.
