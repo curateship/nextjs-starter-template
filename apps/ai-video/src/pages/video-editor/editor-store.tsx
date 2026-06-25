@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import type { SoundEffectId } from "@/lib/sound-effects"
 import { PlaybackClock } from "@/pages/video-editor/playback-clock"
 import {
   DEFAULT_PX_PER_SECOND,
@@ -26,6 +27,7 @@ export type EditorClip = {
   // this clip begins (changes when trimming the left edge or splitting).
   mediaId?: string
   url?: string
+  soundEffectId?: SoundEffectId
   sourceDurationMs?: number
   trimStartMs: number
   // Text clips.
@@ -418,6 +420,7 @@ export function editorReducer(
         kind: fileType,
         mediaId: action.media.mediaId,
         url: action.media.url,
+        soundEffectId: undefined,
         name: action.media.name,
         sourceDurationMs: isTimed ? action.media.sourceDurationMs : undefined,
         trimStartMs: 0,

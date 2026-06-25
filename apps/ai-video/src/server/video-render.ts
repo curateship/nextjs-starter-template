@@ -14,6 +14,7 @@ import {
   getFromR2,
   uploadToR2,
 } from "@/server/media-storage"
+import { getSoundEffect } from "@/lib/sound-effects"
 import { requireAppOrigin } from "@/server/origin"
 import { aiVideoMedia, aiVideoProjects } from "@/server/schema"
 import { now, requireUser } from "@/server/security"
@@ -76,6 +77,7 @@ const RENDER_TIMEOUT_MS = 10 * 60_000
 const FONT_PATH = fileURLToPath(
   new URL("./assets/Inter-SemiBold.ttf", import.meta.url)
 )
+const PUBLIC_ASSET_DIR = fileURLToPath(new URL("../../public", import.meta.url))
 
 // @resvg/resvg-js is a native addon whose .node binary no bundler can inline —
 // load it at runtime instead of importing it (prod servers must have it
@@ -443,8 +445,17 @@ async function buildFfmpegCommand(options: {
   }
 
   for (const { clip, muted } of audio) {
-    if (muted || !clip.mediaId) continue
-    const file = sourceFiles.get(clip.mediaId)!
+    if (muted) continue
+    let file: string | undefined
+    if (clip.soundEffectId) {
+      const effect = getSoundEffect(clip.soundEffectId)
+      if (!effect) throw new Error("A sound effect no longer exists")
+      file = path.join(PUBLIC_ASSET_DIR, "sound-effects", effect.fileName)
+      if (!existsSync(file)) throw new Error("A sound effect file is missing")
+    } else if (clip.mediaId) {
+      file = sourceFiles.get(clip.mediaId)
+    }
+    if (!file) continue
     inputs.push(
       "-ss",
       String(clip.trimStartMs / 1000),
