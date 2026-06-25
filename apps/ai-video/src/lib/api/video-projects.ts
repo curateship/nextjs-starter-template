@@ -8,6 +8,7 @@ import type {
   ProjectTimeline,
 } from "@/server/video-projects"
 import type { ProjectRenderInfo, RenderQuality } from "@/server/video-render"
+import { SOUND_EFFECT_IDS } from "@/lib/sound-effects"
 
 export type {
   ProjectDetail,
@@ -28,6 +29,7 @@ const clipSchema = z.object({
   trimStartMs: z.number().nonnegative().finite(),
   mediaId: z.string().max(36).optional(),
   url: z.string().max(2048).optional(),
+  soundEffectId: z.enum(SOUND_EFFECT_IDS).optional(),
   sourceDurationMs: z.number().nonnegative().finite().optional(),
   text: z.string().max(5000).optional(),
   fontSize: z.number().finite().optional(),

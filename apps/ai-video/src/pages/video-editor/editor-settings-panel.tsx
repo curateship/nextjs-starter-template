@@ -10,8 +10,10 @@ import {
   PenLineIcon,
   PlayIcon,
   ShapesIcon,
+  Trash2Icon,
   TypeIcon,
   VideoIcon,
+  Volume2Icon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -39,6 +41,7 @@ import {
   type ElevenLabsVoice,
   type VoiceModelId,
 } from "@/lib/api/elevenlabs"
+import { SOUND_EFFECTS, soundEffectUrl } from "@/lib/sound-effects"
 import {
   getScriptErrorMessage,
   writeProjectScript,
@@ -70,9 +73,12 @@ import {
   editorId,
   formatTimecode,
 } from "@/pages/video-editor/timeline-utils"
+import { useAudioPreview } from "@/pages/video-editor/use-audio-preview"
 
 // Right panel: a contextual inspector for the selected clip.
 export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
+  const { dispatch } = useEditor()
+
   return (
     <section className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl bg-muted/60">
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
@@ -87,6 +93,17 @@ export function EditorSettingsPanel({ clip }: { clip: EditorClip }) {
             </p>
           </div>
           <TextClipSettings clip={clip} />
+          {clip.soundEffectId ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => dispatch({ type: "DELETE_CLIP", clipId: clip.id })}
+            >
+              <Trash2Icon className="size-4" />
+              Remove Sound Effect
+            </Button>
+          ) : null}
         </div>
       </div>
     </section>
@@ -268,9 +285,10 @@ const DEFAULT_TEXT_DRAFT: {
 const ELEMENT_TILES: {
   label: string
   icon: LucideIcon
-  action?: "text" | "captions" | "script" | "voice"
+  action?: "text" | "captions" | "script" | "voice" | "sound-effect"
 }[] = [
   { label: "Text", icon: TypeIcon, action: "text" },
+  { label: "Sound Effect", icon: Volume2Icon, action: "sound-effect" },
   { label: "Image", icon: ImageIcon },
   { label: "Video", icon: VideoIcon },
   { label: "Audio", icon: MusicIcon },
@@ -287,6 +305,7 @@ export function ElementsPanel() {
   const [captionsOpen, setCaptionsOpen] = React.useState(false)
   const [voiceOpen, setVoiceOpen] = React.useState(false)
   const [scriptOpen, setScriptOpen] = React.useState(false)
+  const [soundEffectOpen, setSoundEffectOpen] = React.useState(false)
 
   // Maps a tile's action to its dialog opener.
   const actions = {
@@ -294,6 +313,7 @@ export function ElementsPanel() {
     captions: () => setCaptionsOpen(true),
     voice: () => setVoiceOpen(true),
     script: () => setScriptOpen(true),
+    "sound-effect": () => setSoundEffectOpen(true),
   }
 
   // Captions and AI Script are project-only (they call project-scoped server
@@ -334,6 +354,10 @@ export function ElementsPanel() {
       <CaptionsDialog open={captionsOpen} onOpenChange={setCaptionsOpen} />
       <VoiceDialog open={voiceOpen} onOpenChange={setVoiceOpen} />
       <ScriptDialog open={scriptOpen} onOpenChange={setScriptOpen} />
+      <SoundEffectDialog
+        open={soundEffectOpen}
+        onOpenChange={setSoundEffectOpen}
+      />
     </div>
   )
 }
@@ -408,6 +432,110 @@ function TextDialog({
           <Button type="button" onClick={handleAdd}>
             <TypeIcon className="size-4" />
             Add Text
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SoundEffectDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { dispatch, clock, kind } = useEditor()
+  const { previewingId, stopPreview, togglePreview } = useAudioPreview()
+
+  function handleOpenChange(next: boolean) {
+    if (!next) stopPreview()
+    onOpenChange(next)
+  }
+
+  function handlePreview(effect: (typeof SOUND_EFFECTS)[number]) {
+    togglePreview(effect.id, soundEffectUrl(effect.fileName))
+  }
+
+  function handleAdd(effect: (typeof SOUND_EFFECTS)[number]) {
+    stopPreview()
+    dispatch({
+      type: "ADD_CLIP",
+      clip: {
+        id: editorId(),
+        kind: "audio",
+        name: effect.label,
+        url: soundEffectUrl(effect.fileName),
+        soundEffectId: effect.id,
+        sourceDurationMs: effect.durationMs,
+        trimStartMs: 0,
+        startMs: 0,
+        durationMs: effect.durationMs,
+        replaceable: kind === "template" ? true : undefined,
+        segmentLabel: kind === "template" ? effect.label : undefined,
+      },
+      atMs: clock.getTime(),
+    })
+    handleOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent variant="admin">
+        <DialogHeader>
+          <DialogTitle>Add Sound Effect</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <div className="space-y-2">
+            {SOUND_EFFECTS.map((effect) => {
+              const previewing = previewingId === effect.id
+              return (
+                <div
+                  key={effect.id}
+                  className="flex items-center gap-3 rounded-md border bg-background p-3"
+                >
+                  <Volume2Icon className="size-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">
+                      {effect.label}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {Math.round(effect.durationMs / 10) / 100}s
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePreview(effect)}
+                  >
+                    {previewing ? (
+                      <PauseIcon className="size-4" />
+                    ) : (
+                      <PlayIcon className="size-4" />
+                    )}
+                    {previewing ? "Stop" : "Preview"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleAdd(effect)}
+                  >
+                    Add
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        </DialogBody>
+        <DialogFooter variant="plain">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+          >
+            Cancel
           </Button>
         </DialogFooter>
       </DialogContent>

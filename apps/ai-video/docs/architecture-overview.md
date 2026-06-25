@@ -49,7 +49,8 @@ module, and `lib/api` wrapper.
 5. **Projects + Editor** (`video-projects.ts`, `src/pages/video-editor/`) — a
    project holds a timeline (`tracks` of `EditorClip`s: video|audio|image|text)
    plus its aspect ratio. The editor is the dnd-kit timeline + a 1080p
-   design-space preview. Timeline edits autosave on a debounce.
+   design-space preview. Built-in sound effects are audio clips backed by
+   generated WAVs in `public/sound-effects`. Timeline edits autosave on a debounce.
 6. **Captions** (`captions.ts`) — one click transcribes the project's audible
    media via Gemini into short caption-sized chunks and inserts a new track of
    text clips, undoable as a single action.

@@ -7,10 +7,12 @@ import {
   ImageIcon,
   Loader2Icon,
   MusicIcon,
+  PauseIcon,
   PlayIcon,
   ReplaceIcon,
   SettingsIcon,
   SparklesIcon,
+  Trash2Icon,
   TypeIcon,
 } from "lucide-react"
 
@@ -71,6 +73,7 @@ import {
   ReplaceMediaDialog,
   type ReplacementMedia,
 } from "@/pages/video-editor/replace-media-dialog"
+import { useAudioPreview } from "@/pages/video-editor/use-audio-preview"
 import { getVideoFilmstrip } from "@/pages/video-editor/video-thumbnails"
 
 // Default timeline height (% of the editor) — also the expand-fallback size.
@@ -553,41 +556,43 @@ function SlotList({ mode }: { mode: Exclude<EditorMode, "regular"> }) {
       <ScrollArea className="h-full">
         <div className="space-y-2 p-3 pt-1">
           {slots.map((slot) => (
-            <button
+            <div
               key={slot.id}
-              type="button"
               className={
                 state.selectedClipId === slot.id
-                  ? "flex w-full items-center gap-3 rounded-md border border-primary bg-background p-3 text-left"
-                  : "flex w-full items-center gap-3 rounded-md border bg-background p-3 text-left hover:bg-muted"
+                  ? "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-md border border-primary bg-background p-3"
+                  : "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-md border bg-background p-3 hover:bg-muted"
               }
-              onClick={() => selectSlot(slot)}
             >
-              <SlotThumbnail slot={slot} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">
-                  {slot.segmentLabel || slot.name}
+              <button
+                type="button"
+                className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left"
+                onClick={() => selectSlot(slot)}
+              >
+                <SlotThumbnail slot={slot} />
+                <div className="min-w-0 overflow-hidden">
+                  <div className="truncate text-sm font-medium">
+                    {slot.segmentLabel || slot.name}
+                  </div>
+                  <div className="truncate text-xs tabular-nums text-muted-foreground">
+                    {formatTimecode(slot.startMs)} ·{" "}
+                    {Math.round(slot.durationMs / 100) / 10}s
+                  </div>
                 </div>
-                <div className="text-xs tabular-nums text-muted-foreground">
-                  {formatTimecode(slot.startMs)} ·{" "}
-                  {Math.round(slot.durationMs / 100) / 10}s
-                </div>
-              </div>
+              </button>
               {slot.kind !== "text" ? (
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setReplaceClip(slot)
-                  }}
+                  onClick={() => setReplaceClip(slot)}
+                  className="shrink-0"
                 >
                   <ReplaceIcon className="size-3.5" />
                   {mode === "template-builder" ? "Default" : "Replace"}
                 </Button>
               ) : null}
-            </button>
+            </div>
           ))}
         </div>
       </ScrollArea>
@@ -669,6 +674,11 @@ function SlotInspector({
 }) {
   const { dispatch } = useEditor()
   const [replaceOpen, setReplaceOpen] = React.useState(false)
+  const {
+    previewingId: previewingSoundClipId,
+    stopPreview: stopSoundPreview,
+    togglePreview: toggleSoundPreview,
+  } = useAudioPreview()
   const canReplaceMedia = !!clip && clip.kind !== "text"
 
   function patch(value: Partial<EditorClip>) {
@@ -683,8 +693,20 @@ function SlotInspector({
 
   function handleReplace(media: ReplacementMedia) {
     if (!clip) return
+    stopSoundPreview()
     dispatch({ type: "REPLACE_CLIP_MEDIA", clipId: clip.id, media })
     setReplaceOpen(false)
+  }
+
+  function handleSoundPreview() {
+    if (!clip?.url) return
+    toggleSoundPreview(clip.id, clip.url)
+  }
+
+  function handleRemoveSoundEffect() {
+    if (!clip) return
+    stopSoundPreview()
+    dispatch({ type: "DELETE_CLIP", clipId: clip.id })
   }
 
   return (
@@ -763,9 +785,28 @@ function SlotInspector({
                       {clip.kind} · {formatTimecode(clip.startMs)}
                     </div>
                   </div>
-                  {clip.replaceable ? (
-                    <Badge variant="secondary">Slot</Badge>
-                  ) : null}
+                  <div className="flex shrink-0 items-center gap-2">
+                    {clip.soundEffectId && clip.url ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleSoundPreview}
+                      >
+                        {previewingSoundClipId === clip.id ? (
+                          <PauseIcon className="size-4" />
+                        ) : (
+                          <PlayIcon className="size-4" />
+                        )}
+                        {previewingSoundClipId === clip.id
+                          ? "Stop"
+                          : "Preview"}
+                      </Button>
+                    ) : null}
+                    {clip.replaceable ? (
+                      <Badge variant="secondary">Slot</Badge>
+                    ) : null}
+                  </div>
                 </div>
                 {canReplaceMedia ? (
                   <Button
@@ -779,6 +820,18 @@ function SlotInspector({
                     {mode === "template-builder"
                       ? "Set Default Media"
                       : "Replace Media"}
+                  </Button>
+                ) : null}
+                {clip.soundEffectId ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    className="mt-1"
+                    onClick={handleRemoveSoundEffect}
+                  >
+                    <Trash2Icon className="size-4" />
+                    Remove Sound Effect
                   </Button>
                 ) : null}
               </div>
