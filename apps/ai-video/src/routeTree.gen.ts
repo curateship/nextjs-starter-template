@@ -16,6 +16,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminNotificationsRouteImport } from './routes/_authenticated/admin/notifications'
 import { Route as AuthenticatedAdminMediaRouteImport } from './routes/_authenticated/admin/media'
+import { Route as AuthenticatedAdminFirstFrameRouteImport } from './routes/_authenticated/admin/first-frame'
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminExportRouteImport } from './routes/_authenticated/admin/export'
 import { Route as AuthenticatedAdminActorRouteImport } from './routes/_authenticated/admin/actor'
@@ -70,6 +71,12 @@ const AuthenticatedAdminMediaRoute = AuthenticatedAdminMediaRouteImport.update({
   path: '/admin/media',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminFirstFrameRoute =
+  AuthenticatedAdminFirstFrameRouteImport.update({
+    id: '/admin/first-frame',
+    path: '/admin/first-frame',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminFeedbackRoute =
   AuthenticatedAdminFeedbackRouteImport.update({
     id: '/admin/feedback',
@@ -178,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/admin/actor': typeof AuthenticatedAdminActorRoute
   '/admin/export': typeof AuthenticatedAdminExportRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
+  '/admin/first-frame': typeof AuthenticatedAdminFirstFrameRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -203,6 +211,7 @@ export interface FileRoutesByTo {
   '/admin/actor': typeof AuthenticatedAdminActorRoute
   '/admin/export': typeof AuthenticatedAdminExportRoute
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
+  '/admin/first-frame': typeof AuthenticatedAdminFirstFrameRoute
   '/admin/media': typeof AuthenticatedAdminMediaRoute
   '/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -230,6 +239,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/actor': typeof AuthenticatedAdminActorRoute
   '/_authenticated/admin/export': typeof AuthenticatedAdminExportRoute
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRouteWithChildren
+  '/_authenticated/admin/first-frame': typeof AuthenticatedAdminFirstFrameRoute
   '/_authenticated/admin/media': typeof AuthenticatedAdminMediaRoute
   '/_authenticated/admin/notifications': typeof AuthenticatedAdminNotificationsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/admin/actor'
     | '/admin/export'
     | '/admin/feedback'
+    | '/admin/first-frame'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/admin/actor'
     | '/admin/export'
     | '/admin/feedback'
+    | '/admin/first-frame'
     | '/admin/media'
     | '/admin/notifications'
     | '/admin/settings'
@@ -308,6 +320,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/actor'
     | '/_authenticated/admin/export'
     | '/_authenticated/admin/feedback'
+    | '/_authenticated/admin/first-frame'
     | '/_authenticated/admin/media'
     | '/_authenticated/admin/notifications'
     | '/_authenticated/admin/settings'
@@ -384,6 +397,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/media'
       fullPath: '/admin/media'
       preLoaderRoute: typeof AuthenticatedAdminMediaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/first-frame': {
+      id: '/_authenticated/admin/first-frame'
+      path: '/admin/first-frame'
+      fullPath: '/admin/first-frame'
+      preLoaderRoute: typeof AuthenticatedAdminFirstFrameRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/feedback': {
@@ -543,6 +563,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminActorRoute: typeof AuthenticatedAdminActorRoute
   AuthenticatedAdminExportRoute: typeof AuthenticatedAdminExportRoute
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRouteWithChildren
+  AuthenticatedAdminFirstFrameRoute: typeof AuthenticatedAdminFirstFrameRoute
   AuthenticatedAdminMediaRoute: typeof AuthenticatedAdminMediaRoute
   AuthenticatedAdminNotificationsRoute: typeof AuthenticatedAdminNotificationsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
@@ -563,6 +584,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminActorRoute: AuthenticatedAdminActorRoute,
   AuthenticatedAdminExportRoute: AuthenticatedAdminExportRoute,
   AuthenticatedAdminFeedbackRoute: AuthenticatedAdminFeedbackRouteWithChildren,
+  AuthenticatedAdminFirstFrameRoute: AuthenticatedAdminFirstFrameRoute,
   AuthenticatedAdminMediaRoute: AuthenticatedAdminMediaRoute,
   AuthenticatedAdminNotificationsRoute: AuthenticatedAdminNotificationsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,

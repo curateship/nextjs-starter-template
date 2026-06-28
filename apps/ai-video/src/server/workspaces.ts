@@ -379,6 +379,14 @@ function createDefaultWorkspaceSections(): ShellSection[] {
         },
         {
           type: "item",
+          id: "item-first-frame",
+          label: "First Frame",
+          href: "/admin/first-frame",
+          icon: "image",
+          visible: true,
+        },
+        {
+          type: "item",
           id: "item-export",
           label: "Export",
           href: "/admin/export",
