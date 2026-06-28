@@ -287,6 +287,54 @@ export const aiVideoActors = pgTable(
   ]
 )
 
+export const aiVideoFirstFrames = pgTable(
+  "first_frames",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoUsers.id, { onDelete: "cascade" }),
+    actorId: varchar("actor_id", { length: 36 })
+      .notNull()
+      .references(() => aiVideoActors.id, { onDelete: "cascade" }),
+    generatedMediaId: varchar("generated_media_id", {
+      length: 36,
+    }).references(() => aiVideoMedia.id, { onDelete: "set null" }),
+    referenceMediaId: varchar("reference_media_id", { length: 36 }).references(
+      () => aiVideoMedia.id,
+      { onDelete: "set null" }
+    ),
+    referenceSource: varchar("reference_source", { length: 20 }).notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    prompt: text("prompt").notNull(),
+    model: varchar("model", { length: 100 }).notNull(),
+    aspectRatio: varchar("aspect_ratio", { length: 10 }).notNull(),
+    tags: jsonb("tags").notNull(),
+    pinned: boolean("pinned").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "first_frames_reference_source_check",
+      sql`${table.referenceSource} in ('actor', 'media')`
+    ),
+    check(
+      "first_frames_aspect_ratio_check",
+      sql`${table.aspectRatio} in ('9:16', '16:9', '1:1')`
+    ),
+    index("ix_first_frames_user_id").on(table.userId),
+    index("ix_first_frames_actor_id").on(table.actorId),
+    index("ix_first_frames_generated_media_id").on(table.generatedMediaId),
+    index("ix_first_frames_reference_media_id").on(table.referenceMediaId),
+    index("ix_first_frames_user_pinned_created").on(
+      table.userId,
+      table.pinned,
+      table.createdAt
+    ),
+  ]
+)
+
 export const aiVideoProjects = pgTable(
   "video_projects",
   {
@@ -487,6 +535,7 @@ export type AiVideoUser = typeof aiVideoUsers.$inferSelect
 export type AiVideoWorkspace = typeof aiVideoWorkspaces.$inferSelect
 export type AiVideoMedia = typeof aiVideoMedia.$inferSelect
 export type AiVideoActor = typeof aiVideoActors.$inferSelect
+export type AiVideoFirstFrame = typeof aiVideoFirstFrames.$inferSelect
 export type AiVideoProject = typeof aiVideoProjects.$inferSelect
 export type AiVideoCarousel = typeof aiVideoCarousels.$inferSelect
 export type AiVideoCreator = typeof aiVideoCreators.$inferSelect

@@ -46,18 +46,22 @@ module, and `lib/api` wrapper.
 4. **Templates** (`video-templates.ts`) — turn an analyzed reel into a reusable
    template that links back to its source viral video, preserving the beat
    structure (segment roles + timings) so projects can inherit it.
-5. **Projects + Editor** (`video-projects.ts`, `src/pages/video-editor/`) — a
+5. **First Frames** (`first-frames.ts`) — create and organize actor-linked
+   opening-frame image assets. First frames are saved in `first_frames`, point to
+   generated media-library images, and are not connected to the editor or video
+   generation in v1.
+6. **Projects + Editor** (`video-projects.ts`, `src/pages/video-editor/`) — a
    project holds a timeline (`tracks` of `EditorClip`s: video|audio|image|text)
    plus its aspect ratio. The editor is the dnd-kit timeline + a 1080p
    design-space preview. Built-in sound effects are audio clips backed by
    generated WAVs in `public/sound-effects`. Timeline edits autosave on a debounce.
-6. **Captions** (`captions.ts`) — one click transcribes the project's audible
+7. **Captions** (`captions.ts`) — one click transcribes the project's audible
    media via Gemini into short caption-sized chunks and inserts a new track of
    text clips, undoable as a single action.
-7. **AI Script Writer** (`script-writer.ts`) — for a project created from a
+8. **AI Script Writer** (`script-writer.ts`) — for a project created from a
    template, the user enters a topic and Gemini writes a beat-matched script
    mirroring the source reel's segment roles/timings; insertable as captions.
-8. **Export** (`video-render.ts`, `routes/api/v1/projects/$projectId/render.ts`)
+9. **Export** (`video-render.ts`, `routes/api/v1/projects/$projectId/render.ts`)
    — see below.
 
 ## Export / Render

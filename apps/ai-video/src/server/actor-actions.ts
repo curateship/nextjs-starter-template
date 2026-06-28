@@ -36,6 +36,11 @@ const ACTOR_GENERATION_MIME_TYPES = new Set([
   "image/webp",
 ])
 
+export type ImageGenerationReference = {
+  storagePath: string
+  mimeType: string
+}
+
 export async function listActorsForCurrentUser(): Promise<ActorListResponse> {
   const user = await requireUser()
   return listOwnedActors(user.id)
@@ -54,7 +59,7 @@ export async function createActorForCurrentUser(
   const prompt = cleanActorPrompt(data.prompt)
   const tags = normalizeActorTags(data.tags)
   const actorId = uuid()
-  await enforceActorGenerationRateLimit(user.id)
+  await enforceImageGenerationRateLimit(user.id)
   const image = await generateActorImage(prompt, data.model, referenceMedia)
   const storagePath = actorImageStoragePath(user.id, actorId, image.mimeType)
 
@@ -166,7 +171,7 @@ export async function regenerateActorForCurrentUser(
   )
   const name = cleanActorName(data.name)
   const prompt = cleanActorPrompt(data.prompt)
-  await enforceActorGenerationRateLimit(user.id)
+  await enforceImageGenerationRateLimit(user.id)
   const image = await generateActorImage(prompt, data.model, referenceMedia)
   const storagePath = actorImageStoragePath(user.id, actor.id, image.mimeType)
 
@@ -274,10 +279,10 @@ async function resolveReferenceMedia(userId: string, mediaId?: string | null) {
 
 // Routes to the right provider API for the chosen model. Both paths return
 // { bytes, mimeType } ready to upload.
-async function generateActorImage(
+export async function generateActorImage(
   prompt: string,
   model: string,
-  referenceMedia: Awaited<ReturnType<typeof resolveReferenceMedia>>
+  referenceMedia: ImageGenerationReference | null
 ) {
   const provider = actorModelProvider(model)
   if (provider === "gemini") {
@@ -292,7 +297,7 @@ async function generateActorImage(
 async function generateGeminiImage(
   prompt: string,
   model: string,
-  referenceMedia: Awaited<ReturnType<typeof resolveReferenceMedia>>
+  referenceMedia: ImageGenerationReference | null
 ) {
   // Prefer the key saved in Settings → AI Providers, else the env var.
   const apiKey = await getLlmKey("gemini")
@@ -352,7 +357,7 @@ async function generateGeminiImage(
 async function generateOpenAiImage(
   prompt: string,
   model: string,
-  referenceMedia: Awaited<ReturnType<typeof resolveReferenceMedia>>
+  referenceMedia: ImageGenerationReference | null
 ) {
   const apiKey = await getLlmKey("openai")
   if (!apiKey) {
@@ -436,7 +441,7 @@ function decodeActorImage(data: string, mimeType: string) {
   return { bytes, mimeType }
 }
 
-async function enforceActorGenerationRateLimit(userId: string) {
+export async function enforceImageGenerationRateLimit(userId: string) {
   const currentTime = now()
   const windowStart = new Date(
     currentTime.getTime() - ACTOR_GENERATION_WINDOW_MS
