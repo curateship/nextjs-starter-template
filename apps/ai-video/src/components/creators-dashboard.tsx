@@ -39,6 +39,7 @@ import {
   setCreatorWatch,
   syncCreatorWatch,
   type CreatorItem,
+  type WatchSyncResult,
 } from "@/lib/api/creators"
 import {
   PLATFORM_LABELS,
@@ -48,6 +49,21 @@ import {
 } from "@/lib/dashboard-format"
 import { useSelection } from "@/lib/use-selection"
 import { useBulkDelete } from "@/lib/use-bulk-delete"
+
+function formatWatchSyncNotice(result: WatchSyncResult) {
+  const checkedLabel = result.checked === 1 ? "creator" : "creators"
+  const addedLabel = result.added === 1 ? "reel" : "reels"
+  const base = `Checked ${result.checked} watched ${checkedLabel}, added ${result.added} new ${addedLabel}.`
+
+  if (!result.failed) return base
+
+  const failedLabel = result.failed === 1 ? "creator failed" : "creators failed"
+  const failedCreators = result.errors
+    .map((entry) => `@${entry.creator}`)
+    .join(", ")
+
+  return `${base} ${result.failed} ${failedLabel}: ${failedCreators}.`
+}
 
 // Parent level of the Creators drill-down: rows are auto-created by the viral
 // pipeline; clicking a creator opens their reel grid.
@@ -119,9 +135,7 @@ export function CreatorsDashboard() {
     setNotice(null)
     try {
       const result = await syncCreatorWatch()
-      setNotice(
-        `Checked ${result.checked} watched ${result.checked === 1 ? "creator" : "creators"}, added ${result.added} new ${result.added === 1 ? "reel" : "reels"}.`
-      )
+      setNotice(formatWatchSyncNotice(result))
       const data = await listCreators()
       setCreators(data.creators)
     } catch (syncError) {

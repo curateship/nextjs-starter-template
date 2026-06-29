@@ -20,6 +20,8 @@ const WATCH_SYNC_INTERVAL_MS = 6 * 60 * 60_000
 export type WatchSyncResult = {
   checked: number
   added: number
+  failed: number
+  errors: Array<{ creator: string; message: string }>
 }
 
 // Toggle auto-ingestion for one creator.
@@ -67,12 +69,18 @@ function normalizeReelUrl(url: string) {
   }
 }
 
+function getWatchSyncErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message.slice(0, 300)
+  }
+  return "Creator sync failed"
+}
+
 // Pass 1: list watched creators' recent uploads and ingest new ones.
-// Per-creator failures are non-fatal (Instagram profile listings often need
-// login); last_checked_at advances either way.
+// Per-creator failures are non-fatal; last_checked_at advances either way.
 export async function syncWatchedCreators(
   userId?: string
-): Promise<{ checked: number; added: number }> {
+): Promise<WatchSyncResult> {
   const watched = await db
     .select()
     .from(aiVideoCreators)
@@ -83,6 +91,8 @@ export async function syncWatchedCreators(
     )
 
   let added = 0
+  let failed = 0
+  const errors: WatchSyncResult["errors"] = []
   // Existing reel URLs per user, fetched once per run.
   const existingByUser = new Map<string, Set<string>>()
 
@@ -105,17 +115,26 @@ export async function syncWatchedCreators(
       }
 
       const fresh = urls
-        .filter((url) => !existing.has(normalizeReelUrl(url)))
+        .filter((upload) => !existing.has(normalizeReelUrl(upload.sourceUrl)))
         .slice(0, MAX_INGESTS_PER_CREATOR)
 
-      for (const url of fresh) {
-        await ingestViralVideoForUser(creator.userId, url)
-        existing.add(normalizeReelUrl(url))
+      for (const upload of fresh) {
+        await ingestViralVideoForUser(
+          creator.userId,
+          upload.sourceUrl,
+          upload.download
+        )
+        existing.add(normalizeReelUrl(upload.sourceUrl))
         added += 1
       }
     } catch (error) {
       // Non-fatal: log and move on to the next creator.
       console.error("Creator watch sync failed", creator.username, error)
+      failed += 1
+      errors.push({
+        creator: creator.username,
+        message: getWatchSyncErrorMessage(error),
+      })
     } finally {
       await db
         .update(aiVideoCreators)
@@ -125,7 +144,7 @@ export async function syncWatchedCreators(
     }
   }
 
-  return { checked: watched.length, added }
+  return { checked: watched.length, added, failed, errors }
 }
 
 // In-process scheduler, opt-in via AI_VIDEO_WATCH_ENABLED=1 so local dev
