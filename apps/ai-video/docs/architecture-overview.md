@@ -48,20 +48,23 @@ module, and `lib/api` wrapper.
    structure (segment roles + timings) so projects can inherit it.
 5. **First Frames** (`first-frames.ts`) — create and organize actor-linked
    opening-frame image assets. First frames are saved in `first_frames`, point to
-   generated media-library images, and are not connected to the editor or video
-   generation in v1.
-6. **Projects + Editor** (`video-projects.ts`, `src/pages/video-editor/`) — a
+   generated media-library images, and feed the editor's AI Video element.
+6. **AI Video Element** (`ai-video-generations.ts`) — turns a saved First Frame
+   asset into a short Veo image-to-video clip. Jobs are stored in
+   `ai_video_generations`, poll in-process, save completed MP4s as generated
+   project media, and insert reviewed clips through the normal video path.
+7. **Projects + Editor** (`video-projects.ts`, `src/pages/video-editor/`) — a
    project holds a timeline (`tracks` of `EditorClip`s: video|audio|image|text)
    plus its aspect ratio. The editor is the dnd-kit timeline + a 1080p
    design-space preview. Built-in sound effects are audio clips backed by
    generated WAVs in `public/sound-effects`. Timeline edits autosave on a debounce.
-7. **Captions** (`captions.ts`) — one click transcribes the project's audible
+8. **Captions** (`captions.ts`) — one click transcribes the project's audible
    media via Gemini into short caption-sized chunks and inserts a new track of
    text clips, undoable as a single action.
-8. **AI Script Writer** (`script-writer.ts`) — for a project created from a
+9. **AI Script Writer** (`script-writer.ts`) — for a project created from a
    template, the user enters a topic and Gemini writes a beat-matched script
    mirroring the source reel's segment roles/timings; insertable as captions.
-9. **Export** (`video-render.ts`, `routes/api/v1/projects/$projectId/render.ts`)
+10. **Export** (`video-render.ts`, `routes/api/v1/projects/$projectId/render.ts`)
    — see below.
 
 ## Export / Render

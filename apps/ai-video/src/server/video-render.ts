@@ -185,11 +185,11 @@ function flattenForRender(tracks: EditorTrack[]) {
     for (const clip of track.clips ?? []) {
       if (!clip.durationMs || clip.durationMs <= 0) continue
       if (clip.kind === "audio") {
-        audio.push({ clip, muted: track.muted })
+        audio.push({ clip, muted: track.muted || !!clip.muted })
       } else if (clip.kind === "text") {
         if (clip.text?.trim()) visuals.push({ clip, muted: true })
       } else if (clip.mediaId) {
-        visuals.push({ clip, muted: track.muted })
+        visuals.push({ clip, muted: track.muted || !!clip.muted })
       }
     }
   }
